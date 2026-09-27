@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/live/strict"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -178,14 +179,19 @@ type NodeResolver struct {
 	// path every type took before #1084.
 	Roster *registry.Roster
 
-	// Tagger builds the client [NodeResolver.WriteAppliedMarkers] writes a
+	// MarkerWriter builds the writer [NodeResolver.WriteAppliedMarkers] writes a
 	// withheld marker through, for the provider configuration the
 	// instance was applied under - so a two-account estate marks each
 	// object as the principal that created it. The command layer supplies
-	// it (internal/command's statelessProviders.markerTagger); nil, or a
-	// nil result, is a failed write for the instances that need one, and
-	// is reported as such rather than left silent.
-	Tagger func(provider addrs.AbsProviderConfig) MarkerTagger
+	// it (internal/command's statelessProviders.markerTagger), for the
+	// post-create write the instance's surface names
+	// ([substrate.Writes.PostCreate], GitHub issue #1587); nil, a nil
+	// result or an error is a failed write for the instances that need
+	// one, and is reported as such rather than left silent. The error is
+	// the command layer's reason, naming the write it could not serve.
+	// The writer is handed the created instance, not an ARN (GitHub issue
+	// #1638): each family's writer derives its own address.
+	MarkerWriter func(provider addrs.AbsProviderConfig, write substrate.Write) (MarkerWriter, error)
 
 	// StaticRefusals is every instance the static evaluator refused
 	// before the #388 downgrade turned its refusal into a warning, keyed

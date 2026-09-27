@@ -22,11 +22,19 @@
 # without this list following - a workflow_run trigger naming a workflow
 # that no longer exists is silent, which is the failure mode this file
 # exists to end.
+#
+# The smoke trigger rule (issue #1592, HANDOFF.md "CI: smoke workflow
+# triggers") is why every smoke workflow (k8s-smoke, bucket-smoke,
+# claims-smoke) and tier (kind-tier) carries a cron in the first place -
+# k8s-smoke had none until #1592, and this list watched bucket-smoke and
+# claims-smoke but not k8s-smoke for the same reason. A smoke workflow with
+# no nightly run, or a nightly run nobody watches, is a red night that dies
+# on the Actions run page.
 name: nightly-watch
 
 on:
   workflow_run:
-    workflows: [Gauntlet, floci-tier, bucket-smoke, kind-tier]
+    workflows: [Gauntlet, floci-tier, bucket-smoke, claims-smoke, kind-tier, k8s-smoke]
     types: [completed]
 
 permissions:

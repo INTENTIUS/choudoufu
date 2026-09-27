@@ -161,7 +161,7 @@ const (
 // manages, which is not power the issue asks this quadrant to have.
 //
 // "Marker", likewise, is whichever carrier the type's own schema has -
-// [substrate.OwnershipSurfaceOf]. GitHub issue #1108: the surface read used to be the
+// [substrate.SurfaceOf]. GitHub issue #1108: the surface read used to be the
 // AWS tag map and nothing else, so every Kubernetes type fell through the
 // "nowhere to put a marker" case below and was admitted without its label
 // ever being read. The consequences were both of the ones this function
@@ -225,7 +225,7 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 // a create at the declared one would not collide with it.
 func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, importID string, schema providers.Schema, obj cty.Value, declared, located, recordFirst, atDeclaredKey bool) ownershipVerdict {
 	own := b.opts.Ownership
-	surface, _ := substrate.OwnershipSurfaceOf(schema.Block)
+	surface, _ := substrate.SurfaceOf(schema.Block)
 	switch {
 	case own == nil:
 		return ownershipOK
@@ -784,15 +784,19 @@ func (b *builder) unownedAddress(addr addrs.AbsResourceInstance, typeName, impor
 }
 
 // The marker surface a type carries is [markers.Surface], read off the
-// provider's own schema by [substrate.OwnershipSurfaceOf], never off a list
+// provider's own schema by [substrate.SurfaceOf], never off a list
 // of type names. GitHub issue #1108: until the surface read learned a
 // second carrier it returned "no surface" for every Kubernetes type, so
 // [builder.checkOwnership] admitted a Kubernetes object without ever
 // reading its label - another estate's object relabelled by the plan, an
 // unlabelled one adopted in silence, and the ownership policy's verbs never
-// reached on that substrate at all. Its tag arm is the looser "is there a
-// tags or tags_all attribute at all", not [markers.Taggable], and
-// [substrate.OwnershipSurfaceOf]'s doc comment says why.
+// reached on that substrate at all. GitHub issue #1589: the ownership read
+// used to ask a looser tag question than [substrate.SurfaceOf] here
+// (the since-deleted markers.HasTagsAttribute, any "tags" or "tags_all" attribute at all,
+// settable or not), kept apart in case a real type ever needed the wider
+// reading. The 2026-09-26 decision package measured the two questions
+// agreeing on every type in the pinned AWS and Kubernetes schemas, so the
+// ownership read now asks [substrate.SurfaceOf] like every other caller.
 //
 // GitHub issue #1584: this package used to keep its own enum for the
 // surfaces, with the per-surface answers (which carries an address, which

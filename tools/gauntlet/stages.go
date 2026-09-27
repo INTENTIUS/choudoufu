@@ -152,7 +152,7 @@ func Stages() []Stage {
 			Proves:     "A forced replacement under `create_before_destroy` creates the new object, destroys the old one, and the next plan is empty with no marker collision.",
 			Oracle:     "Stock's replace of the same resource leaves the same single object.",
 			Break:      "Skip the destroy half; the next plan must report a collision rather than proposing nothing.",
-			Substrates: map[string]string{SubstrateKind: "n/a: A Kubernetes name is unique within its namespace, so nothing can be created before the object it replaces is destroyed; a forced replacement is destroy-then-create, which this stage does not measure."},
+			Substrates: map[string]string{SubstrateKind: "n/a: True only of a replacement that keeps the object's name. A Kubernetes name is unique within its namespace, so a same-name forced replacement is destroy-then-create, which this stage does not measure. A create_before_destroy rename (the content-hashed-ConfigMap pattern, where the name argument itself changes) resolves to a different live object under a new address, and stock creates it before destroying the old one; choudoufu currently orders the destroy first, a known difference (#1541) waiting on #1605. This stage turns on for kind once that order is fixed."},
 		},
 		{
 			ID: "day2_crash", Order: 10, Title: "Crash mid-apply", Status: StatusActive, Headline: true, Tier1Gated: true,

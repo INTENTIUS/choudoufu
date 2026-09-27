@@ -17,6 +17,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/registry"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -95,6 +96,8 @@ func tocProvider() addrs.AbsProviderConfig {
 type fakeTagger struct {
 	calls []fakeTagCall
 	err   error
+	// writes is every post-create write the resolver asked a client for.
+	writes []substrate.Write
 }
 
 type fakeTagCall struct {
@@ -111,7 +114,10 @@ func tocResolver(t *testing.T, tagger *fakeTagger) *NodeResolver {
 	t.Helper()
 	n := &NodeResolver{Estate: "prod", Roster: tocRoster(t)}
 	if tagger != nil {
-		n.Tagger = func(addrs.AbsProviderConfig) MarkerTagger { return tagger }
+		n.MarkerWriter = func(_ addrs.AbsProviderConfig, write substrate.Write) (MarkerWriter, error) {
+			tagger.writes = append(tagger.writes, write)
+			return TaggingAPIWriter{Tagger: tagger}, nil
+		}
 	}
 	return n
 }
@@ -241,7 +247,7 @@ func TestWriteAppliedMarkers_writesTheWithheldMarkers(t *testing.T) {
 	ordinary := locatedTestAddr(t, "aws_ordinary_thing", "x")
 	_, _ = n.WriteAppliedMarkers(ctx, ordinary, tocProvider(), plans.Create, applied, tocSchema())
 	_, _ = n.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Update, applied, tocSchema())
-	noEstate := &NodeResolver{Roster: tocRoster(t), Tagger: n.Tagger}
+	noEstate := &NodeResolver{Roster: tocRoster(t), MarkerWriter: n.MarkerWriter}
 	_, _ = noEstate.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Create, applied, tocSchema())
 	if len(tagger.calls) != 0 {
 		t.Errorf("a write was made where none was due: %v", tagger.calls)
@@ -383,4 +389,97 @@ func TestWriteAppliedMarkers_aRefusedWriteStoresTheProvidersObject(t *testing.T)
 	if !stored.RawEquals(applied) {
 		t.Errorf("a refused write stored %#v, want the provider's object unchanged", stored)
 	}
+}
+
+// TestWriteAppliedMarkers_theSurfaceChoosesTheWriter (GitHub issue #1587):
+// the resolver asks the command layer for the writer the tag surface's
+// own post-create write names, and a writer the command layer refuses is
+// a failed write carrying the command layer's reason, never a skip.
+func TestWriteAppliedMarkers_theSurfaceChoosesTheWriter(t *testing.T) {
+	after := locatedTestAddr(t, "aws_after_thing", "x")
+	ctx := context.Background()
+
+	tagger := &fakeTagger{}
+	n := tocResolver(t, tagger)
+	if _, diags := n.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Create, tocApplied("arn:aws:after:::thing/T1", "T1", nil), tocSchema()); diags.HasErrors() {
+		t.Fatalf("write failed: %v", diags.Err())
+	}
+	if len(tagger.writes) != 1 || tagger.writes[0] != substrate.WriteTaggingAPI {
+		t.Errorf("asked the command layer for %v, want exactly [%s]", tagger.writes, substrate.WriteTaggingAPI)
+	}
+
+	refused := tocResolver(t, nil)
+	refused.MarkerWriter = func(addrs.AbsProviderConfig, substrate.Write) (MarkerWriter, error) {
+		return nil, errors.New(`provider family graph declares the "graph-binding" post-create marker write and this build has no writer for it`)
+	}
+	_, diags := refused.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Create, tocApplied("arn:aws:after:::thing/T1", "T1", nil), tocSchema())
+	if !diags.HasErrors() {
+		t.Fatal("a refused writer was reported as a marked object")
+	}
+	if d := diags[0].Description(); d.Summary != SummaryMarkerNotWritten || !strings.Contains(d.Detail, `"graph-binding"`) || !strings.Contains(d.Detail, "family graph") {
+		t.Errorf("a refused writer's reason is not in the diagnostic:\n%s\n%s", d.Summary, d.Detail)
+	}
+}
+
+// TestWriteAppliedMarkers_theWriterReceivesTheCreatedInstance (GitHub issue
+// #1638): the post-create writer is handed the created instance - its
+// address, the provider configuration it was applied under, and the object
+// the provider returned - never a pre-derived ARN. A non-AWS family's
+// writer (a GCP tag binding, say) addresses the object by something other
+// than an arn, so an applied object with no arn attribute at all must still
+// reach it, and whatever it needs it reads off the instance itself.
+func TestWriteAppliedMarkers_theWriterReceivesTheCreatedInstance(t *testing.T) {
+	n := tocResolver(t, nil)
+	graph := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("graph")}
+	after := locatedTestAddr(t, "aws_after_thing", "x")
+
+	writer := &fakeObjectWriter{}
+	n.MarkerWriter = func(provider addrs.AbsProviderConfig, _ substrate.Write) (MarkerWriter, error) {
+		if !provider.Provider.Equals(graph.Provider) {
+			t.Errorf("writer built for %s, want %s", provider, graph)
+		}
+		return writer, nil
+	}
+
+	// The object a non-AWS provider returns: an id and a name, no arn.
+	applied := tocApplied("", "projects/p/things/T1", nil)
+	stored, diags := n.WriteAppliedMarkers(context.Background(), after, graph, plans.Create, applied, tocSchema())
+	if diags.HasErrors() {
+		t.Fatalf("a non-AWS writer never got the object: %v", diags.Err())
+	}
+	if len(writer.calls) != 1 {
+		t.Fatalf("want exactly 1 write, got %d", len(writer.calls))
+	}
+	got := writer.calls[0]
+	if !got.created.Addr.Equal(after) {
+		t.Errorf("writer got address %s, want %s", got.created.Addr, after)
+	}
+	if !got.created.Provider.Provider.Equals(graph.Provider) {
+		t.Errorf("writer got provider %s, want %s", got.created.Provider, graph)
+	}
+	if !got.created.Object.RawEquals(applied) {
+		t.Errorf("writer got object %#v, want the provider's object %#v", got.created.Object, applied)
+	}
+	if got.tags[markers.TagEstate] != "prod" || got.tags[markers.TagAddress] != "aws_after_thing.x" {
+		t.Errorf("writer got markers %v, want the withheld ones", got.tags)
+	}
+	if tags := stored.GetAttr("tags"); tags.IsNull() || tags.AsValueMap()[markers.TagEstate].AsString() != "prod" {
+		t.Errorf("a successful write did not store the written markers: %#v", tags)
+	}
+}
+
+// fakeObjectWriter is a non-AWS family's post-create writer: it records the
+// created instance it was handed.
+type fakeObjectWriter struct {
+	calls []fakeObjectWrite
+}
+
+type fakeObjectWrite struct {
+	created CreatedInstance
+	tags    map[string]string
+}
+
+func (f *fakeObjectWriter) WriteMarkers(_ context.Context, created CreatedInstance, tags map[string]string) error {
+	f.calls = append(f.calls, fakeObjectWrite{created: created, tags: tags})
+	return nil
 }

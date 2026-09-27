@@ -64,6 +64,30 @@ type WriteBackRequest struct {
 	// instance. An address with no entry here had no prior record.
 	PriorVersions []RecordVersion
 
+	// RecordFallbackAddrs is [Result.RecordFallbackAddrs]: every instance
+	// this run's plan resolved through GitHub issue #1675's record-fallback
+	// door because its own identity component could not be folded from
+	// configuration and its type has nowhere to carry a marker either. For
+	// an address in this list, [writeBackRecordEnvelopes] treats a failure
+	// to derive the applied object's identity exactly as it already treats
+	// one for an `automatic` (LocatedType) or `selected`
+	// (`markers = record`) instance - a loud, run-stopping error naming the
+	// instance - because the record this pass would have written is that
+	// instance's ONLY surviving identity carrier, the same fact that makes
+	// the other two doors loud. An address of a
+	// [identity.RecordFallbackType]-eligible type that is NOT in this list
+	// resolved some other way this run (typically straight from
+	// configuration), so the record is redundant bookkeeping for it and a
+	// derivation failure stays the quiet, best-effort log line it always
+	// was.
+	//
+	// Nil for a run with no record store, or one whose configuration never
+	// took this door - the ordinary case for most estates, since
+	// [identity.RecordFallbackType]'s type-level eligibility is far wider
+	// than the population that ever actually needs the door (see the
+	// type's own doc comment).
+	RecordFallbackAddrs []addrs.AbsResourceInstance
+
 	// EnvelopeVersions is [Result.EnvelopeVersions]: the plan-time version
 	// of every kind=identity envelope that already existed, covering the
 	// located, residue and provisioned concerns together - see that field's
@@ -607,9 +631,12 @@ func deposedRecordedDiffers(ctx context.Context, store *RecordStore, addr addrs.
 // writeBackLocated, writeBackResidue and writeBackProvisioned in this
 // package's git history for the shape each one is reproducing:
 //
-//   - Located identity: wanted (the type is automatically located, or the
-//     `markers "record"` selection covers this address) and derivable -> SET
-//     it, overwriting whatever was there. Wanted but not derivable (the
+//   - Located identity: wanted (the type is automatically located, the
+//     `markers "record"` selection covers this address, or GitHub issue
+//     #1675's [WriteBackRequest.RecordFallbackAddrs] names this instance as
+//     having reached the record store because nothing else could carry its
+//     identity) and derivable -> SET it, overwriting whatever was there.
+//     Wanted but not derivable (the
 //     final state could not be decoded, or the applied object carries no
 //     usable identity) -> an ERROR, and the existing identity (if any) is
 //     left exactly alone. Not wanted (the type is not located and the
@@ -668,6 +695,13 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 	// Issue #938's plan-derived deposed-destroy signal, indexed the same
 	// way - see [WriteBackRequest.DestroyedDeposed].
 	deposedDestroyed := destroyedDeposedIndex(req.DestroyedDeposed)
+
+	// GitHub issue #1675's plan-derived record-fallback signal, indexed the
+	// same way - see [WriteBackRequest.RecordFallbackAddrs].
+	viaRecordFallback := make(map[string]bool, len(req.RecordFallbackAddrs))
+	for _, a := range req.RecordFallbackAddrs {
+		viaRecordFallback[a.String()] = true
+	}
 
 	// noProvidersWarned makes the "no provider access to classify residue
 	// with" warning fire once per write-back rather than once per instance
@@ -739,12 +773,23 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 			// automatic and selected instances are unchanged from before
 			// this issue: a located route's record is such an instance's
 			// ONLY way to be found again, so a derivation failure there
-			// stays the loud error it always was. Every other (ordinary
-			// taggable) instance now ALSO gets its identity recorded, best
-			// effort: ownership is decided by its marker regardless, so a
-			// type or instance this pass cannot derive an identity for
-			// (an unrecordable schema, an object missing a component) just
-			// keeps whatever was already recorded - from an earlier apply,
+			// stays the loud error it always was. GitHub issue #1675 adds a
+			// third instance set with the same property - one this run's
+			// plan routed through the record-fallback door because its own
+			// identity component could not be folded from configuration and
+			// its type has no marker either - named in
+			// [WriteBackRequest.RecordFallbackAddrs] rather than
+			// recomputed here, because the type-level eligibility test
+			// ([identity.RecordFallbackType]) also admits instances whose
+			// identity folds straight from configuration, for which the
+			// record is redundant and a derivation failure should stay
+			// quiet. Every other (ordinary taggable, or fallback-eligible
+			// but not fallback-routed) instance now ALSO gets its identity
+			// recorded, best effort: ownership is decided by its marker (or
+			// its own configuration) regardless, so a type or instance this
+			// pass cannot derive an identity for (an unrecordable schema, an
+			// object missing a component) just keeps whatever was already
+			// recorded - from an earlier apply,
 			// or from a live-import migration - rather than failing the
 			// apply or erasing it. See writeBackRecordEnvelopes's own
 			// "residue" case just below for the same leave-alone shape.
@@ -756,10 +801,17 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				typeSchemas := map[string]providers.Schema{typeName: schema}
 				automatic := identity.LocatedType(typeName, typeSchemas)
 				selected := selection.Selects(addr.ConfigResource()) && identity.SelectedLocatedType(typeName, typeSchemas)
+				// GitHub issue #1675: this run's plan already answered
+				// "does this SPECIFIC instance have no other identity
+				// carrier" for the third door - see
+				// [WriteBackRequest.RecordFallbackAddrs] for why that
+				// answer cannot be recomputed here from typeName and
+				// selection alone the way automatic and selected are.
+				viaFallback := viaRecordFallback[addr.String()]
 
 				obj, err := ri.Current.Decode(schema.Block.ImpliedType())
 				switch {
-				case err != nil && (automatic || selected):
+				case err != nil && (automatic || selected || viaFallback):
 					touched = true
 					diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot record a located identity",
 						fmt.Sprintf("Recording which live %s %s owns failed: its final state could not be decoded: %s.", typeName, addr, err),
@@ -776,7 +828,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 					case recordable:
 						touched = true
 						setIdentity = identityPayloadFrom(rec)
-					case automatic || selected:
+					case automatic || selected || viaFallback:
 						touched = true
 						diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot record a located identity",
 							fmt.Sprintf(

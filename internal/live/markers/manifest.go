@@ -146,7 +146,7 @@ func ManifestLabelsOf(obj cty.Value) (map[string]string, bool) {
 // object is bound by, as it is written inside a manifest-surface
 // resource's own dynamic argument: apiVersion, kind, and metadata.name
 // with metadata.namespace for a namespaced kind. It is the same four
-// components internal/live/identity's synthesizeManifestIdentity reads
+// components internal/live/substrate's manifestIdentity reads
 // out of the CONFIGURATION to render the provider's import id; this
 // reads them out of an evaluated object, which is what a migration
 // (GitHub issue #1109) has instead of a declaration.

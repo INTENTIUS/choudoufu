@@ -8,6 +8,7 @@ package kubesweep
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -569,18 +570,34 @@ func TestControllerMadeHelmRelease(t *testing.T) {
 	}
 }
 
+// releaseSecret builds one Helm release history Secret: the object
+// [Client.helmReleaseExists] looks for, named and labelled the way Helm 3
+// writes it.
+func releaseSecret(ns, name string, revision int) *unstructured.Unstructured {
+	u := &unstructured.Unstructured{}
+	u.SetAPIVersion("v1")
+	u.SetKind("Secret")
+	u.SetNamespace(ns)
+	u.SetName(fmt.Sprintf("sh.helm.release.v1.%s.v%d", name, revision))
+	u.SetLabels(map[string]string{"owner": "helm", "name": name, "status": "deployed"})
+	return u
+}
+
 // TestListReportsHelmHeldObjects: List keeps a Helm release's object out of
-// what it returns, counts it, and names its release.
+// what it returns, counts it, and names its release, when the release's
+// own history secret says it still exists.
 func TestListReportsHelmHeldObjects(t *testing.T) {
 	gvr := schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}
+	secretGVR := schema.GroupVersionResource{Version: "v1", Resource: "secrets"}
 	held := configMap("web", "web-greeting", map[string]string{"tofu-estate": "smoke-k8s"}, false)
 	held.SetManagedFields([]metav1.ManagedFieldsEntry{helmEntry})
 	held.SetAnnotations(map[string]string{HelmReleaseNameAnnotation: "web", HelmReleaseNamespaceAnnotation: "web"})
 	dyn := fakedynamic.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
-		map[schema.GroupVersionResource]string{gvr: "ConfigMapList"},
+		map[schema.GroupVersionResource]string{gvr: "ConfigMapList", secretGVR: "SecretList"},
 		held,
 		configMap("smoke-k8s", "app-config", map[string]string{"tofu-estate": "smoke-k8s"}, false),
 		configMap("smoke-k8s", "copied", map[string]string{"tofu-estate": "smoke-k8s"}, true),
+		releaseSecret("web", "web", 1),
 	)
 	c := NewWith(&fakediscovery.FakeDiscovery{Fake: &clienttesting.Fake{}}, dyn)
 	got, skipped, err := c.List(context.Background(), Kind{GVR: gvr, Kind: "ConfigMap", Namespaced: true}, "tofu-estate", "smoke-k8s")
@@ -597,7 +614,67 @@ func TestListReportsHelmHeldObjects(t *testing.T) {
 		t.Fatalf("held = %+v, want the Helm object alone: an owner-referenced copy has no named holder here", skipped.Held)
 	}
 	h := skipped.Held[0]
-	if h.Kind != "ConfigMap" || h.Namespace != "web" || h.Name != "web-greeting" || h.HeldBy != "Helm release web/web" || h.Labels["tofu-estate"] != "smoke-k8s" {
+	if h.Kind != "ConfigMap" || h.Namespace != "web" || h.Name != "web-greeting" || h.HeldBy != "Helm release web/web" || h.Controller != ControllerHelm || h.Labels["tofu-estate"] != "smoke-k8s" {
 		t.Errorf("held = %+v", h)
+	}
+}
+
+// TestListStopsHoldingWhenReleaseSecretIsGone (GitHub issue #1625) pins the
+// rule the fake clientset can prove without a cluster: an object carrying
+// Helm's release annotation, but whose release has no history secret any
+// more, is an ordinary estate-labelled object - listed, not held, and
+// judged by [nonHelmControllerSignals] rather than exempted outright.
+func TestListStopsHoldingWhenReleaseSecretIsGone(t *testing.T) {
+	gvr := schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}
+	secretGVR := schema.GroupVersionResource{Version: "v1", Resource: "secrets"}
+	stale := configMap("web", "web-greeting", map[string]string{"tofu-estate": "smoke-k8s"}, false)
+	stale.SetManagedFields([]metav1.ManagedFieldsEntry{helmEntry})
+	stale.SetAnnotations(map[string]string{HelmReleaseNameAnnotation: "web", HelmReleaseNamespaceAnnotation: "web"})
+	dyn := fakedynamic.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
+		map[schema.GroupVersionResource]string{gvr: "ConfigMapList", secretGVR: "SecretList"},
+		stale,
+		// No releaseSecret fixture: the release's history is gone.
+	)
+	c := NewWith(&fakediscovery.FakeDiscovery{Fake: &clienttesting.Fake{}}, dyn)
+	got, skipped, err := c.List(context.Background(), Kind{GVR: gvr, Kind: "ConfigMap", Namespaced: true}, "tofu-estate", "smoke-k8s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Name != "web-greeting" {
+		t.Errorf("listed %+v, want web-greeting: no release names it any more", got)
+	}
+	if skipped.Count != 0 || len(skipped.Held) != 0 {
+		t.Errorf("skipped = %d held = %+v, want none", skipped.Count, skipped.Held)
+	}
+}
+
+// TestListHeldReleaseCheckIsCachedPerRelease: several objects held by the
+// same release cost one secret list, not one per object.
+func TestListHeldReleaseCheckIsCachedPerRelease(t *testing.T) {
+	gvr := schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}
+	secretGVR := schema.GroupVersionResource{Version: "v1", Resource: "secrets"}
+	a := configMap("web", "a", map[string]string{"tofu-estate": "smoke-k8s"}, false)
+	a.SetAnnotations(map[string]string{HelmReleaseNameAnnotation: "web", HelmReleaseNamespaceAnnotation: "web"})
+	b := configMap("web", "b", map[string]string{"tofu-estate": "smoke-k8s"}, false)
+	b.SetAnnotations(map[string]string{HelmReleaseNameAnnotation: "web", HelmReleaseNamespaceAnnotation: "web"})
+	dyn := fakedynamic.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
+		map[schema.GroupVersionResource]string{gvr: "ConfigMapList", secretGVR: "SecretList"},
+		a, b, releaseSecret("web", "web", 1),
+	)
+	var secretLists int
+	dyn.PrependReactor("list", "secrets", func(clienttesting.Action) (bool, runtime.Object, error) {
+		secretLists++
+		return false, nil, nil
+	})
+	c := NewWith(&fakediscovery.FakeDiscovery{Fake: &clienttesting.Fake{}}, dyn)
+	_, skipped, err := c.List(context.Background(), Kind{GVR: gvr, Kind: "ConfigMap", Namespaced: true}, "tofu-estate", "smoke-k8s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(skipped.Held) != 2 {
+		t.Fatalf("held = %+v, want both objects", skipped.Held)
+	}
+	if secretLists != 1 {
+		t.Errorf("the secrets list ran %d times for two objects of the same release, want 1", secretLists)
 	}
 }

@@ -152,6 +152,17 @@ opt-in that brings a release inside the boundary: the ruling deferred it,
 because a label written by a post-renderer is one an out-of-band
 `helm upgrade` strips.
 
+The annotation alone is not trusted forever: the sweep also checks that
+the release it names still has a history secret
+(`sh.helm.release.v1.<name>.v*`, labelled `owner=helm,name=<name>`) in the
+release's namespace ([#1625](https://github.com/INTENTIUS/choudoufu/issues/1625)).
+Moving an object off Helm without re-creating it - adopting it into a
+`kubernetes_manifest` block by import, then removing the release's
+bookkeeping - leaves the annotation in place, because server-side apply
+only touches fields its own writer claims. Once no release by that name
+exists, the object is an ordinary `tofu-estate`-labelled object again:
+swept, adoptable, and no longer reported under "Controller-held".
+
 ## Mixed estates
 
 The common shape is an EKS module that also manages the `aws-auth`
@@ -168,3 +179,28 @@ otherwise propose is one the API server answers with 409 (#1546).
 `policy { declared_untagged = "adopt" }`, or writing the label by hand,
 adopts it; a plan where no such object exists still proposes the create. A root made only of refused types is blocked as a whole, and the
 report says which root and why.
+
+## Known differences
+
+A replacement under `create_before_destroy` that also changes the object's
+name is destroy-then-create here, where stock is create-then-destroy. The
+label carries no address, so a renamed block resolves to a new object at its
+new name and binds nothing; the sweep finds the old object by its label and
+files it at a synthetic orphan address, leaving two unrelated changes with
+no edge between them for `create_before_destroy` to order. On AWS the
+marker names the block's address, so the same edit is a replace and the
+lifecycle holds.
+
+The case this bites is a content-hashed ConfigMap kept alive across a
+rollout: `name = "cfg-${sha}"` with `create_before_destroy`, so a Deployment
+can roll onto the new copy before the old one goes. Applying a changed
+`sha` here destroys `cfg-a` before creating `cfg-b`; for the length of that
+window neither object exists, and a Deployment whose pods mount `cfg-a`
+sees it gone before `cfg-b` exists. Both sides converge on the same object
+and the next plan is empty either way.
+
+Tracked as [#1541](https://github.com/INTENTIUS/choudoufu/issues/1541).
+The fix waits on [#1605](https://github.com/INTENTIUS/choudoufu/issues/1605)
+(should the address ride an annotation, which would make a rename a
+replace again); until then `day2_replace` stays `n/a` on the kind
+substrate for this case (`tools/gauntlet/stages.go`, `live/GAUNTLET.md`).

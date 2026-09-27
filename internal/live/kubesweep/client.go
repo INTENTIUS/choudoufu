@@ -117,9 +117,17 @@ type HeldObject struct {
 	Namespace string
 	Name      string
 	Labels    map[string]string
+	// Controller is the controller that holds it: today always
+	// [ControllerHelm].
+	Controller string
 	// HeldBy names the holder for a reader: "Helm release NAMESPACE/NAME".
 	HeldBy string
 }
+
+// ControllerHelm is [HeldObject.Controller] for an object a Helm release
+// holds. It is the Kubernetes counterpart of markers.ControllerACK and
+// markers.ControllerCrossplane: one "controller" word across substrates.
+const ControllerHelm = "Helm"
 
 // DryRunResult is what the API server said to a [Sweeper.DryRun].
 type DryRunResult struct {
@@ -310,6 +318,10 @@ func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object,
 		skipped Skipped
 		cont    string
 	)
+	// releaseCache remembers one List call's release-existence answers, so
+	// the several objects one release usually holds cost one secret list
+	// each rather than one per object.
+	releaseCache := map[Release]bool{}
 	for {
 		opts.Continue = cont
 		ul, err := res.Namespace(metav1.NamespaceAll).List(ctx, opts)
@@ -318,17 +330,35 @@ func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object,
 		}
 		for _, item := range ul.Items {
 			if rel, ok := HelmRelease(&item); ok {
-				skipped.Count++
-				skipped.Held = append(skipped.Held, HeldObject{
-					Kind:      k.Kind,
-					Namespace: item.GetNamespace(),
-					Name:      item.GetName(),
-					Labels:    item.GetLabels(),
-					HeldBy:    rel.String(),
-				})
-				continue
-			}
-			if ControllerMade(&item) {
+				exists, err := c.helmReleaseExists(ctx, releaseCache, rel, item.GetNamespace())
+				if err != nil {
+					return nil, Skipped{}, c.creds.explain(err)
+				}
+				if exists {
+					skipped.Count++
+					skipped.Held = append(skipped.Held, HeldObject{
+						Kind:       k.Kind,
+						Namespace:  item.GetNamespace(),
+						Name:       item.GetName(),
+						Labels:     item.GetLabels(),
+						Controller: ControllerHelm,
+						HeldBy:     rel.String(),
+					})
+					continue
+				}
+				// The annotation names a release whose secret is gone
+				// (GitHub issue #1625): moving an object off Helm without
+				// re-creating it does not remove the annotation, because
+				// server-side apply leaves fields another manager owns
+				// alone. Judge the object on the signals that do not
+				// depend on Helm at all - an ordinary orphan unless a
+				// real controller (owner references, control-plane
+				// managedFields) still made it.
+				if nonHelmControllerSignals(&item) {
+					skipped.Count++
+					continue
+				}
+			} else if ControllerMade(&item) {
 				skipped.Count++
 				continue
 			}
@@ -571,6 +601,14 @@ var controlPlaneManagers = map[string]bool{
 //     under the release, because helm, not a control-plane manager, wrote
 //     their content and nothing owns them. helm_release itself stays
 //     refused; this only keeps the release's objects out of the sweep.
+//     ControllerMade reads the annotation alone and cannot see whether the
+//     release still exists - [Client.List] is the one that can, and it
+//     checks before trusting this signal (GitHub issue #1625): moving an
+//     object off Helm without re-creating it leaves the annotation in
+//     place, because server-side apply only touches fields its own writer
+//     claims, so a stale annotation must not keep naming a holder that is
+//     gone. A caller with no cluster to ask - a unit test, say - gets the
+//     annotation-only answer this function has always given.
 //   - a non-empty metadata.ownerReferences. This catches the objects a
 //     garbage-collected controller makes (a ReplicaSet's from its
 //     Deployment, a Pod's from its ReplicaSet, an EndpointSlice's from its
@@ -614,6 +652,17 @@ func ControllerMade(obj *unstructured.Unstructured) bool {
 	if _, ok := HelmRelease(obj); ok {
 		return true
 	}
+	return nonHelmControllerSignals(obj)
+}
+
+// nonHelmControllerSignals is [ControllerMade]'s second through fourth
+// signals, without the Helm one: owner references and managedFields
+// authorship. [Client.List] calls this directly, instead of
+// [ControllerMade], for an object whose Helm release annotation names a
+// release it has confirmed is gone (GitHub issue #1625) - the object must
+// still be judged on whatever else made it, just not on the stale
+// annotation.
+func nonHelmControllerSignals(obj *unstructured.Unstructured) bool {
 	if len(obj.GetOwnerReferences()) > 0 {
 		return true
 	}
@@ -674,6 +723,39 @@ func HelmRelease(obj *unstructured.Unstructured) (Release, bool) {
 		return Release{}, false
 	}
 	return Release{Namespace: strings.TrimSpace(ann[HelmReleaseNamespaceAnnotation]), Name: name}, true
+}
+
+// helmReleaseSecretsGVR is where Helm 3 keeps a release's history: one
+// Secret per revision, named sh.helm.release.v1.<name>.v<revision> and
+// labelled owner=helm,name=<name>, in the release's namespace.
+var helmReleaseSecretsGVR = schema.GroupVersionResource{Version: "v1", Resource: "secrets"}
+
+// helmReleaseExists reports whether rel's release still has at least one
+// history Secret in its namespace (GitHub issue #1625). A release with no
+// namespace annotation - Helm always writes one since 3.2, so this is a
+// pre-3.2 object or a hand-crafted annotation - is looked up in the
+// object's own namespace, the ordinary case for a namespaced release.
+//
+// A cluster that cannot answer is reported as an error, same as every
+// other [Sweeper.List] failure: never as "gone", which would turn a
+// coverage gap into a proposal to destroy a release's own object.
+func (c *Client) helmReleaseExists(ctx context.Context, cache map[Release]bool, rel Release, objNamespace string) (bool, error) {
+	if v, ok := cache[rel]; ok {
+		return v, nil
+	}
+	ns := rel.Namespace
+	if ns == "" {
+		ns = objNamespace
+	}
+	list, err := c.dyn.Resource(helmReleaseSecretsGVR).Namespace(ns).List(ctx, metav1.ListOptions{
+		LabelSelector: "owner=helm,name=" + rel.Name,
+	})
+	if err != nil {
+		return false, fmt.Errorf("checking whether Helm release %s still exists: %w", rel.String(), err)
+	}
+	exists := len(list.Items) > 0
+	cache[rel] = exists
+	return exists, nil
 }
 
 // claimsContent reports whether a managedFields entry owns any of the
