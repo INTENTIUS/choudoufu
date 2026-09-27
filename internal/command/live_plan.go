@@ -1392,6 +1392,10 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		if discoDiags.HasErrors() {
 			return nil, noProvider, nil, denied(diags)
 		}
+		// What discovery.Merge does for every pass of the multi-provider
+		// path below, done here because this path skips Merge: GitHub
+		// issue #1657.
+		res.AttributeOrphans(providerAddr)
 		return res, providerAddr, nil, denied(diags)
 	}
 
