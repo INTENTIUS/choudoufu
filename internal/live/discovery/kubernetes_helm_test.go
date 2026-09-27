@@ -81,9 +81,8 @@ func TestKubernetesSweepHoldsHelmReleaseObjects(t *testing.T) {
 	)
 	cm := kubesweep.Kind{GVR: gvr, Kind: "ConfigMap", Namespaced: true, APIVersion: "v1", TypeNames: []string{"kubernetes_config_map_v1"}}
 	req := Request{
-		Estate:          "smoke-k8s",
-		Kubernetes:      fixedKindsClient{Client: kubesweep.NewWith(&fakediscovery.FakeDiscovery{Fake: &clienttesting.Fake{}}, dyn), kinds: []kubesweep.Kind{cm}},
-		KubernetesTypes: []string{"kubernetes_config_map_v1"},
+		Estate:   "smoke-k8s",
+		Sweepers: []Sweeper{KubernetesSweep{Client: fixedKindsClient{Client: kubesweep.NewWith(&fakediscovery.FakeDiscovery{Fake: &clienttesting.Fake{}}, dyn), kinds: []kubesweep.Kind{cm}}, Types: []string{"kubernetes_config_map_v1"}}},
 	}
 	res := &Result{}
 	if diags := sweepKubernetes(context.Background(), req, res); diags.HasErrors() {
@@ -97,12 +96,14 @@ func TestKubernetesSweepHoldsHelmReleaseObjects(t *testing.T) {
 	if len(orphans) != 1 || orphans[0] != "smoke-k8s/stray" {
 		t.Fatalf("orphans = %v, want only smoke-k8s/stray: an object a Helm release holds is never proposed for removal", orphans)
 	}
-	if len(res.KubernetesHeld) != 1 {
-		t.Fatalf("held = %+v, want the one Helm release object", res.KubernetesHeld)
+	// One list for both substrates (the 2026-09-26 ruling on #1604): a
+	// Helm-held object is reported where an ACK-made bucket is.
+	if len(res.ControllerHeld) != 1 {
+		t.Fatalf("held = %+v, want the one Helm release object", res.ControllerHeld)
 	}
-	h := res.KubernetesHeld[0]
-	if h.Kind != "ConfigMap" || h.Namespace != "smoke-k8s" || h.Name != "web-greeting" || h.HeldBy != "Helm release smoke-k8s/web" {
-		t.Errorf("held = %+v, want ConfigMap smoke-k8s/web-greeting held by Helm release smoke-k8s/web", h)
+	h := res.ControllerHeld[0]
+	if h.TypeName != "kubernetes_config_map_v1" || h.Kind != "ConfigMap" || h.ImportID != "smoke-k8s/web-greeting" || h.Controller != "Helm" || h.HeldBy != "Helm release smoke-k8s/web" {
+		t.Errorf("held = %+v, want kubernetes_config_map_v1 ConfigMap smoke-k8s/web-greeting held by Helm release smoke-k8s/web", h)
 	}
 	if res.KubernetesOwnerSkipped != 1 {
 		t.Errorf("owner-skipped = %d, want 1: a held object is counted with the rest of what the sweep set aside", res.KubernetesOwnerSkipped)

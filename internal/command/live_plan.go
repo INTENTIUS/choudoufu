@@ -1121,6 +1121,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 			Foreign:          livePlanForeign(foreignReport),
 			Adoptable:        adoptable,
 			Swept:            swept,
+			ControllerHeld:   livePlanControllerHeld(foreignReport),
 			Diagnostics:      livePlanDiagnostics(append(append(tfdiags.Diagnostics(nil), preDiags...), diags...)),
 		}, args.Filter))
 	} else {
@@ -2472,6 +2473,27 @@ func livePlanForeign(rep views.StatelessForeign) []views.LivePlanForeign {
 	return out
 }
 
+// livePlanControllerHeld projects the controller-held rows, AWS and
+// Kubernetes alike (#1606, #1607), into the document; nil for none, which the field omits.
+func livePlanControllerHeld(rep views.StatelessForeign) []views.LivePlanControllerHeld {
+	if len(rep.ControllerHeld) == 0 {
+		return nil
+	}
+	out := make([]views.LivePlanControllerHeld, 0, len(rep.ControllerHeld))
+	for _, h := range rep.ControllerHeld {
+		out = append(out, views.LivePlanControllerHeld{
+			TypeName:    h.TypeName,
+			LiveID:      h.LiveID,
+			DisplayName: h.DisplayName,
+			Kind:        h.Kind,
+			Controller:  h.Controller,
+			HeldBy:      h.HeldBy,
+			Addr:        h.Addr,
+		})
+	}
+	return out
+}
+
 func livePlanAdoptable(rep views.StatelessForeign) ([]views.LivePlanAdoptable, []string) {
 	adoptable := make([]views.LivePlanAdoptable, 0, len(rep.Candidates))
 	for _, c := range rep.Candidates {
@@ -2514,13 +2536,6 @@ func statelessForeignReport(res *foreign.Result, disco *discovery.Result) views.
 		// so rather than let "nothing was swept" read as "there is
 		// nothing". See [discovery.Result.NativeSweepSkipped].
 		rep.NativeSweepSkipped = disco.NativeSweepSkipped
-		for _, h := range disco.KubernetesHeld {
-			rep.ControllerHeld = append(rep.ControllerHeld, views.StatelessControllerHeld{
-				Kind:   h.Kind,
-				ID:     kubesweep.NaturalKey(h.Namespace, h.Name),
-				HeldBy: h.HeldBy,
-			})
-		}
 	}
 	for _, rm := range res.Removals {
 		rep.Removals = append(rep.Removals, views.StatelessRemoval{
@@ -2609,6 +2624,20 @@ func statelessForeignReport(res *foreign.Result, disco *discovery.Result) views.
 			Reason:   string(u.Reason),
 			Detail:   u.Detail,
 		})
+	}
+	for _, h := range res.ControllerHeld {
+		row := views.StatelessControllerHeld{
+			TypeName:    h.TypeName,
+			LiveID:      h.ImportID,
+			DisplayName: h.DisplayName,
+			Kind:        h.Kind,
+			Controller:  h.Controller,
+			HeldBy:      h.HeldBy,
+		}
+		if h.Marked {
+			row.Addr = h.Addr.String()
+		}
+		rep.ControllerHeld = append(rep.ControllerHeld, row)
 	}
 	for _, f := range res.ParentReads {
 		rep.ParentReads = append(rep.ParentReads, views.StatelessParentRead{

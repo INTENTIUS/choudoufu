@@ -16,6 +16,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/staticeval"
 )
 
@@ -102,6 +103,11 @@ func (c *classifier) renameBlocks() map[string]*renameBlock {
 		for i := range c.req.Orphans {
 			o := &c.req.Orphans[i]
 			if o.TypeName != b.typeName || !strings.HasPrefix(o.Normalized, prefix) {
+				continue
+			}
+			if _, held := markers.ControllerHeld(o.Tags); held {
+				// GitHub issue #1606: a controller-held resource is never
+				// offered to this estate, and a marker rewrite is an offer.
 				continue
 			}
 			if o.Removal {

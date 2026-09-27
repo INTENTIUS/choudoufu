@@ -246,6 +246,7 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 		res.Bindings = append(res.Bindings, p.Result.Bindings...)
 		res.Unbound = append(res.Unbound, p.Result.Unbound...)
 		res.Unclaimed = append(res.Unclaimed, p.Result.Unclaimed...)
+		res.ControllerHeld = append(res.ControllerHeld, p.Result.ControllerHeld...)
 		// VerifiedDeclared: see this func's own doc comment above (issue
 		// #905) for why a plain concatenation is sound despite this field
 		// not being ScopeProvider-gated the way Bindings is.

@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -127,12 +128,17 @@ const grantPatternsNamed = 5
 // through. Nothing when nothing was denied. A nil result is skipped.
 func DeniedSweepWarning(results ...*Result) tfdiags.Diagnostics {
 	var denials []sweepDenial
+	var kubeDenials []kubeDenial
 	for _, r := range results {
 		if r != nil {
 			denials = append(denials, r.sweepDenied...)
+			kubeDenials = append(kubeDenials, r.kubeSweepDenied...)
 		}
 	}
-	return deniedSweepDiag(denials)
+	var diags tfdiags.Diagnostics
+	diags = diags.Append(deniedSweepDiag(denials))
+	diags = diags.Append(kubeDeniedSweepDiag(kubeDenials))
+	return diags
 }
 
 // deniedSweepDiag is the one warning for every Cloud Control listing in
@@ -254,4 +260,110 @@ func plural(n int, one, many string) string {
 		return one
 	}
 	return many
+}
+
+// The Kubernetes leg (GitHub issue #1582), sharing this file's aggregation
+// rather than copying it: [nameFirst], [joinAnd] and [plural] above are
+// used exactly as the Cloud Control aggregation uses them. What is NOT
+// shared is [sweepDenial] itself - an AWS denial is identified by a Cloud
+// Control type and an IAM action, a Kubernetes one by a kind, an RBAC verb
+// and an RBAC resource, and forcing both through one struct would give each
+// side fields that mean nothing for it. Before this, every Kubernetes list
+// failure - a genuine outage and a role missing `list` on one kind alike -
+// became the same LIST_FAILED gap with no verb, resource or hint that the
+// fix is a grant rather than a retry; a non-Forbidden failure still does
+// (kubernetes.go), since only a 403 is the credential rather than the
+// cluster.
+
+// kubeDenial is one Kubernetes list call this run's own credential was
+// refused with Forbidden.
+type kubeDenial struct {
+	typeName  string // the provider type
+	kind      string // the Kubernetes kind the listing was made on
+	verb      string // the RBAC verb the server's message named, or "" when it did not
+	resource  string // the RBAC resource name the server's message named, or "" when it did not
+	namespace string // the namespace the check was scoped to, or "" for cluster-scoped
+}
+
+// sweepGapKubeDenied is [sweepGapDenied]'s counterpart for a Kubernetes
+// list call Forbidden refused: the gap is recorded on [Result.SweepGaps]
+// exactly as any LIST_FAILED gap is, the denial is logged with what the
+// server's own message named, and the warning itself is deferred to
+// [kubeDeniedSweepDiag], which raises it once for every kind denied this
+// run (or, over several passes, [DeniedSweepWarning]).
+func sweepGapKubeDenied(res *Result, g SweepGap, kind string, detail kubesweep.ForbiddenDetail, err error) {
+	res.SweepGaps = append(res.SweepGaps, g)
+	res.kubeSweepDenied = append(res.kubeSweepDenied, kubeDenial{
+		typeName:  g.TypeName,
+		kind:      kind,
+		verb:      detail.Verb,
+		resource:  detail.Resource,
+		namespace: detail.Namespace,
+	})
+	needs := "a verb and resource the denial did not name"
+	if detail.Verb != "" && detail.Resource != "" {
+		needs = fmt.Sprintf("%s on %s", detail.Verb, detail.Resource)
+	}
+	scope := "at the cluster scope"
+	if detail.Namespace != "" {
+		scope = fmt.Sprintf("in namespace %q", detail.Namespace)
+	}
+	log.Printf("[WARN] stateless/discovery: Kubernetes sweep denied: listing %s (for %s) needs %s, %s: %v", kind, g.TypeName, needs, scope, err)
+}
+
+// kubeGrantLine is the one line naming what a denial's own message said to
+// grant: "list secrets at the cluster scope", or "list secrets in namespace
+// \"default\"". Empty when the server's message did not parse - Forbidden
+// still reports true then, rather than lose the denial as an ordinary
+// LIST_FAILED, and this falls back to the log for the detail.
+func kubeGrantLine(d kubeDenial) string {
+	if d.verb == "" || d.resource == "" {
+		return ""
+	}
+	if d.namespace == "" {
+		return fmt.Sprintf("%s %s at the cluster scope", d.verb, d.resource)
+	}
+	return fmt.Sprintf("%s %s in namespace %q", d.verb, d.resource, d.namespace)
+}
+
+// kubeDeniedSweepDiag is the one warning for every Kubernetes list call in
+// denials, raised once by [Discover] after the Kubernetes leg, or by
+// [DeniedSweepWarning] over several passes. Nothing when nothing was
+// denied.
+func kubeDeniedSweepDiag(denials []kubeDenial) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if len(denials) == 0 {
+		return diags
+	}
+
+	seen := map[string]bool{}
+	var kinds, grants []string
+	for _, d := range denials {
+		if !seen["k "+d.kind] {
+			seen["k "+d.kind] = true
+			kinds = append(kinds, d.kind)
+		}
+		if grant := kubeGrantLine(d); grant != "" && !seen["g "+grant] {
+			seen["g "+grant] = true
+			grants = append(grants, grant)
+		}
+	}
+	sort.Strings(kinds)
+	sort.Strings(grants)
+
+	log.Printf("[WARN] stateless/discovery: the Kubernetes sweep was denied list on %d %s; each is logged above with the verb, resource and scope the denial named. Denied: %s",
+		len(kinds), plural(len(kinds), "kind", "kinds"), strings.Join(kinds, ", "))
+
+	grantText := "the verb and resource each denial named (in the log)"
+	if len(grants) > 0 {
+		grantText = nameFirst(grants, grantPatternsNamed)
+	}
+
+	return diags.Append(tfdiags.Sourceless(
+		tfdiagsSeverity(SeverityForRefusal(SummaryKubernetesSweepDenied)),
+		SummaryKubernetesSweepDenied,
+		fmt.Sprintf(
+			"The Kubernetes sweep's own list call was refused by the cluster's RBAC for %d %s (%s), so a resource of any of those kinds this estate owns but no longer declares WILL NOT be proposed for destruction by this run. Each denial names the verb, resource and scope the server's own message named. Grant %s to the identity running this estate - see live/kubernetes/estate-grant.yaml, whose comment names the ordinary RBAC an estate's principal needs beside the estate fence - then re-run. Every denied kind is one [WARN] line in the log: run with TF_LOG=WARN, or TF_LOG_PATH to write it to a file.",
+			len(kinds), plural(len(kinds), "kind", "kinds"), nameFirst(kinds, deniedTypesNamed), grantText),
+	))
 }

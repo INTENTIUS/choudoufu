@@ -14,7 +14,6 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
 )
@@ -182,6 +181,17 @@ type Report struct {
 	// "none exist" from "nothing looked".
 	Unclaimed []UnclaimedResource
 
+	// ControllerHeld lists the live resources this pass saw held by a
+	// controller rather than a block, on both substrates (the 2026-09-26
+	// ruling on #1604). On AWS, those carrying an in-cluster controller's
+	// tags (GitHub issue #1606): taken out of Unclaimed, and out of the
+	// removal set when they also carried this estate's markers. See
+	// [applyControllerHeld]. On Kubernetes, the objects among
+	// KubernetesOwnerSkipped whose holder the sweep can name: today the
+	// objects a Helm release holds (#1607), which carry the estate's label
+	// but are never orphans or adoptable. Sorted by type, then identity.
+	ControllerHeld []ControllerHeldResource
+
 	// SweepGaps lists the resource types the estate-wide sweep could not
 	// enumerate: types the provider cannot list, and types whose list call
 	// failed. An orphan of one of them is invisible to this run, so its
@@ -197,16 +207,6 @@ type Report struct {
 	// They are never orphans, and the count says how much of the label's
 	// reach the exclusion is doing (GitHub issue #1065).
 	KubernetesOwnerSkipped int
-
-	// KubernetesHeld are the objects among KubernetesOwnerSkipped whose
-	// holder the sweep can name: today, the objects a Helm release holds,
-	// read off Helm's meta.helm.sh/release-name annotation (GitHub issue
-	// #1607, under the 2026-09-26 ruling on #1604). They carry the
-	// estate's label, no block declares them, and they are never orphans
-	// or adoptable; they are reported with their release so that a chart
-	// value carrying tofu-estate shows up as what it is rather than as
-	// nothing.
-	KubernetesHeld []kubesweep.HeldObject
 
 	// SweepCovered lists the resource types the estate-wide sweep did
 	// enumerate, sorted. It is the counterpart of SweepGaps: "these types
@@ -335,6 +335,15 @@ type Result struct {
 	// from. Unexported for the same reason the prefetch evidence above is:
 	// it is the run's own bookkeeping, not a fact about the estate.
 	sweepDenied []sweepDenial
+
+	// kubeSweepDenied is every Kubernetes list call this run's own
+	// credential was refused with Forbidden (GitHub issue #1582), the
+	// Kubernetes leg's counterpart of sweepDenied: collected by
+	// [sweepGapKubeDenied] so that [kubeDeniedSweepDiag] raises one
+	// warning for all of them, naming the verb, resource and namespace
+	// the grant lacks, the same way [deniedSweepDiag] does for AWS. The
+	// gaps themselves are in SweepGaps like any other.
+	kubeSweepDenied []kubeDenial
 }
 
 // ParentReadFinding is one live child a parent read found: an untaggable,
@@ -1801,6 +1810,9 @@ func (r *Result) String() string {
 	for _, u := range r.Unclaimed {
 		b.WriteString("UNCLAIMED " + u.String() + "\n")
 	}
+	for _, c := range r.ControllerHeld {
+		b.WriteString("HELD      " + c.String() + "\n")
+	}
 	for _, g := range r.SweepGaps {
 		b.WriteString("SWEEPGAP  " + g.String() + "\n")
 	}
@@ -1814,6 +1826,7 @@ func (r *Result) String() string {
 }
 
 func (r *Result) sortEverything() {
+	sortControllerHeld(r.ControllerHeld)
 	sort.Slice(r.Bindings, func(i, j int) bool {
 		return r.Bindings[i].Addr.String() < r.Bindings[j].Addr.String()
 	})
