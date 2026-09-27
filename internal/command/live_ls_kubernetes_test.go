@@ -43,6 +43,7 @@ type liveLsStubSweeper struct {
 	failKind  string
 	kindsErr  error
 	selectors []string
+	held      map[string][]kubesweep.HeldObject
 }
 
 func (s *liveLsStubSweeper) Kinds(_ context.Context, _ []string, _ string) ([]kubesweep.Kind, []string, error) {
@@ -65,12 +66,12 @@ func (s *liveLsStubSweeper) DryRun(_ context.Context, _ map[string]any, _ bool) 
 	return kubesweep.DryRunResult{Accepted: true}, nil
 }
 
-func (s *liveLsStubSweeper) List(_ context.Context, k kubesweep.Kind, key, value string) ([]kubesweep.Object, int, error) {
+func (s *liveLsStubSweeper) List(_ context.Context, k kubesweep.Kind, key, value string) ([]kubesweep.Object, kubesweep.Skipped, error) {
 	s.selectors = append(s.selectors, k.Kind+" "+key+"="+value)
 	if k.Kind == s.failKind {
-		return nil, 0, errors.New("forbidden")
+		return nil, kubesweep.Skipped{}, errors.New("forbidden")
 	}
-	return s.objects[k.Kind], 0, nil
+	return s.objects[k.Kind], kubesweep.Skipped{Count: len(s.held[k.Kind]), Held: s.held[k.Kind]}, nil
 }
 
 func liveLsK8sResolution(t *testing.T, typeName, name, importID string) identity.Resolution {
@@ -343,5 +344,29 @@ resource "kubernetes_namespace" "app" {
 	}
 	if !strings.Contains(out.Stdout(), `Estate "app": 0 resource(s) carry its marker.`) {
 		t.Errorf("the listing header is missing or counts something:\n%s", out.Stdout())
+	}
+}
+
+// TestLiveLsKubernetesListsControllerHeld (GitHub issue #1607): an object a
+// Helm release holds is listed, with its release, and never under a
+// block's address unless a block names it.
+func TestLiveLsKubernetesListsControllerHeld(t *testing.T) {
+	cm := kubesweep.Kind{GVR: schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}, Kind: "ConfigMap", Namespaced: true, APIVersion: "v1", TypeNames: []string{"kubernetes_config_map_v1"}}
+	sweeper := &liveLsStubSweeper{
+		kinds: []kubesweep.Kind{cm},
+		held: map[string][]kubesweep.HeldObject{
+			"ConfigMap": {{Kind: "ConfigMap", Namespace: "web", Name: "web-greeting", Labels: map[string]string{"tofu-estate": "smoke-k8s"}, HeldBy: "Helm release web/web"}},
+		},
+	}
+	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, []string{"kubernetes_config_map_v1"}, "", nil)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected errors: %s", diags.Err())
+	}
+	if len(items) != 1 {
+		t.Fatalf("items = %+v, want the held object", items)
+	}
+	it := items[0]
+	if it.ID != "web/web-greeting" || it.HeldBy != "Helm release web/web" || it.Declared || it.Address != "" || it.Tags["tofu-estate"] != "smoke-k8s" {
+		t.Errorf("item = %+v", it)
 	}
 }

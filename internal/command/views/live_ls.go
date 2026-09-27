@@ -161,6 +161,13 @@ type LiveLsItem struct {
 	// when none does. Both empty for an AWS item.
 	Kind       string
 	APIVersion string
+
+	// HeldBy is set for a Kubernetes object a controller holds rather than
+	// a block: "Helm release NAMESPACE/NAME" for an object carrying Helm's
+	// release annotation (GitHub issue #1607, the 2026-09-26 ruling on
+	// #1604). Such an object carries the estate's label, is never swept
+	// and never adopted, and is listed so the label's reach is visible.
+	HeldBy string
 }
 
 // LiveLsGap is one declared instance the listing itself cannot see, and why.
@@ -232,6 +239,8 @@ type liveLsJSONItem struct {
 	// document is byte-for-byte what it was before GitHub issue #1081.
 	Kind       string `json:"kind,omitempty"`
 	APIVersion string `json:"api_version,omitempty"`
+	// HeldBy appears on a controller-held Kubernetes object only.
+	HeldBy string `json:"held_by,omitempty"`
 }
 
 type liveLsJSONGap struct {
@@ -298,6 +307,7 @@ func (v *LiveLsJSON) Report(rep LiveLsReport) {
 			Tags:       item.Tags,
 			Kind:       item.Kind,
 			APIVersion: item.APIVersion,
+			HeldBy:     item.HeldBy,
 		})
 	}
 	for _, gap := range rep.Gaps {
@@ -360,6 +370,9 @@ func (v *LiveLsHuman) Report(rep LiveLsReport) {
 		if kubernetes {
 			fmt.Fprintf(&b, "  kind:    %s (%s)\n", item.Kind, item.APIVersion)
 		}
+		if item.HeldBy != "" {
+			fmt.Fprintf(&b, "  held by: %s (controller-held: never swept, never adopted)\n", item.HeldBy)
+		}
 		if item.Address != "" {
 			declared := ""
 			if rep.ConfigDir != "" {
@@ -370,6 +383,8 @@ func (v *LiveLsHuman) Report(rep LiveLsReport) {
 				}
 			}
 			fmt.Fprintf(&b, "  address: %s%s\n", item.Address, declared)
+		} else if item.HeldBy != "" {
+			b.WriteString("  address: (none - the holder above owns this object, not a block)\n")
 		} else if kubernetes {
 			// A Kubernetes object carries no address by design; one is
 			// listed only with DIR in hand, so an empty address here means
