@@ -146,6 +146,10 @@ jobs:
           if-no-files-found: warn
   smoke-nightly:
     # Scheduled runs, plus a manual dispatch (which runs both jobs).
+    #
+    # Measured at 9m21s + 6m18s = 15m39s combined, well over the 10-minute
+    # budget above; every other proven AWS cell measured under it and runs
+    # in the smoke job on every PR instead.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -153,9 +157,6 @@ jobs:
       fail-fast: false
       matrix:
         scenario:
-          # Measured at 9m21s + 6m18s = 15m39s combined, well over the
-          # 10-minute budget above; every other proven AWS cell measured
-          # under it and runs in the smoke job on every PR instead.
           - no-secret-survives-in-what-the-tool-keeps
     steps:
       - uses: actions/checkout@v7
