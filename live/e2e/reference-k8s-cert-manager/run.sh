@@ -681,7 +681,7 @@ fi
 
 fi
 
-# ── 7. day2_rename: a moved block, zero churn ────────────────────────────
+# ── 7. day2_rename: a moved block, marker rewritten in place ─────────────
 gauntlet_begin_stage day2_rename
 log "=== 7. day2_rename: kubernetes_manifest.clusterissuer_selfsigned becomes .clusterissuer_review through a moved block ==="
 rename_clusterissuer "$ADOPTED" || fail "could not rename the ClusterIssuer block in the adopted root"
@@ -690,13 +690,19 @@ O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN
 grep -qE "^No changes|Plan: 0 to add, 0 to change, 0 to destroy" <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's moved-block plan on B is not zero churn"; }
 ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's moved-block apply failed on B"
 R_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$R_PLAN" | tail -20; fail "the moved-block plan failed"; }
-if grep -qE "^No changes|Plan: 0 to add, 0 to change, 0 to destroy" <<< "$R_PLAN"; then
-  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "the moved-block apply failed"
+if grep -qE 'will be (created|destroyed)' <<< "$R_PLAN"; then
+  gauntlet_stage day2_rename fail "the moved-block plan over a custom kind proposes a create or a destroy - not the marker rewritten in place: $(grep -E '^Plan:' <<< "$R_PLAN" | head -1)"
+  printf '%s\n' "$R_PLAN" | tail -20
+  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge after the rename; nothing below would measure day-2 behaviour"
+elif grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$R_PLAN" \
+  && grep -qE '~ +"choudoufu\.intentius\.io/tofu-address" = ".*" -> ".*"' <<< "$R_PLAN"; then
+  R_APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$R_APPLY_OUT" | tail -20; fail "the moved-block apply failed"; }
+  grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$R_APPLY_OUT" || { printf '%s\n' "$R_APPLY_OUT" | tail -10; fail "the moved-block apply was not exactly one in-place change"; }
   kca get clusterissuer selfsigned >/dev/null 2>&1 || fail "the ClusterIssuer is gone after the rename"
   [ "$(count_a)" = "$TOTAL_N" ] || fail "$(count_a) labelled objects after the rename, want $TOTAL_N"
-  gauntlet_stage day2_rename pass "moved block over a cluster-scoped custom kind: kubernetes_manifest.clusterissuer_selfsigned -> .clusterissuer_review with zero churn (no add, no change, no destroy), the live ClusterIssuer untouched and still labelled, read with kubectl; stock's plan for the same moved block on the oracle cluster is also zero churn. The moved-block half only: live-mv has no Kubernetes leg, because the object carries no address to rewrite (#1066)"
+  gauntlet_stage day2_rename pass "moved block over a cluster-scoped custom kind: kubernetes_manifest.clusterissuer_selfsigned -> .clusterissuer_review, no add and no destroy, one in-place change confined to the address annotation rewrite (0 add, 1 change, 0 destroy) - the marker rewritten in place, the same shape the AWS lanes assert for a rename, not literal zero churn; the live ClusterIssuer untouched and still labelled, read with kubectl; stock's plan for the same moved block on the oracle cluster is zero churn, since stock never writes this annotation. The moved-block half only: live-mv also has a Kubernetes leg since #1639, not exercised by this stage"
 else
-  gauntlet_stage day2_rename fail "the moved-block plan over a custom kind is not zero churn: $(grep -E '^Plan:' <<< "$R_PLAN" | head -1)"
+  gauntlet_stage day2_rename fail "the moved-block plan over a custom kind is not exactly one in-place annotation change: $(grep -E '^Plan:' <<< "$R_PLAN" | head -1)"
   printf '%s\n' "$R_PLAN" | tail -20
   ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge after the rename; nothing below would measure day-2 behaviour"
 fi
