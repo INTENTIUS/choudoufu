@@ -212,13 +212,23 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 		// What a Helm release holds is controller-held, reported in the
 		// same list as an ACK or Crossplane resource on AWS (the
 		// 2026-09-26 ruling on #1604; #1607).
+		//
+		// Which objects are held is the client's decision, since only it
+		// can ask whether the release still exists (#1625); what holds
+		// each one is the families' answer on its annotations (#1706). An
+		// object the families do not name keeps the client's own name for
+		// its holder rather than leaving the list.
 		for _, h := range ownerSkipped.Held {
+			controller, heldBy := h.Controller, h.HeldBy
+			if hold, ok := substrate.ControllerHeld(substrate.HoldEvidence{Annotations: h.Annotations}); ok {
+				controller, heldBy = hold.Controller, hold.HeldBy
+			}
 			res.ControllerHeld = append(res.ControllerHeld, ControllerHeldResource{
 				TypeName:   typeName,
 				ImportID:   kubesweep.NaturalKey(h.Namespace, h.Name),
 				Kind:       h.Kind,
-				Controller: h.Controller,
-				HeldBy:     h.HeldBy,
+				Controller: controller,
+				HeldBy:     heldBy,
 			})
 		}
 		for _, o := range objects {

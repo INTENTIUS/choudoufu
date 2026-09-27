@@ -38,8 +38,6 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
-	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 )
 
@@ -109,11 +107,7 @@ func buildRow(root string, s substrate.Substrate, rf readinessFacts) (Row, error
 		})
 	}
 
-	ch, err := controllerHeldFor(family)
-	if err != nil {
-		return Row{}, err
-	}
-	row.ControllerHeld = ch
+	row.ControllerHeld = controllerHeldFacts(s)
 
 	row.Untaggable = untaggableFor(family, rf)
 
@@ -197,45 +191,19 @@ func pathString(p cty.Path) string {
 	return b.String()
 }
 
-// ---- Controller-held (GitHub issues #1604, #1606) ----
+// ---- Controller-held (GitHub issues #1604, #1606, #1706) ----
 
-// controllerHeldByFamily is the hand-kept half of the controller-held
-// column, tied to the package-level facts each mechanism actually reads
-// (markers.ControllerTagKeys, kubesweep.HelmReleaseNameAnnotation) so a
-// change there is reflected the next time this generator runs, rather than
-// typed prose that can drift from the code it describes.
-var controllerHeldByFamily = map[string]func() ControllerHeldFacts{
-	"aws": func() ControllerHeldFacts {
-		keys := make([]string, 0, len(markers.ControllerTagKeys))
-		for _, k := range markers.ControllerTagKeys {
-			keys = append(keys, k.Key)
-		}
-		sort.Strings(keys)
-		return ControllerHeldFacts{
-			Recognized: len(keys) > 0,
-			Mechanism:  "the resource's own tags carry one of the fixed controller tag keys (markers.ControllerTagKeys: ACK, Crossplane)",
-			Keys:       keys,
-		}
-	},
-	"kubernetes": func() ControllerHeldFacts {
-		return ControllerHeldFacts{
-			Recognized: true,
-			Mechanism:  "the object's Helm release annotation (kubesweep.HelmReleaseNameAnnotation), read off the object itself rather than off the label marker map",
-			Keys:       []string{kubesweep.HelmReleaseNameAnnotation},
-		}
-	},
-}
-
-// controllerHeldFor is [controllerHeldByFamily]'s lookup, erroring rather
-// than silently reporting "not recognized" for a family this table has not
-// been taught yet - the shape #1108, #1104 and #1109 each cost a unit to
-// find on other seams.
-func controllerHeldFor(family string) (ControllerHeldFacts, error) {
-	f, ok := controllerHeldByFamily[family]
-	if !ok {
-		return ControllerHeldFacts{}, fmt.Errorf("controller-held facts: no entry for family %q in controllerHeldByFamily", family)
+// controllerHeldFacts is the family's own [substrate.Substrate.HoldRecognition],
+// read off the same facts its ControllerHeld answer reads, so a third
+// family's column needs no entry here (GitHub issue #1706 retired the hand
+// map keyed by family name).
+func controllerHeldFacts(s substrate.Substrate) ControllerHeldFacts {
+	rec := s.HoldRecognition()
+	return ControllerHeldFacts{
+		Recognized: len(rec.Keys) > 0,
+		Mechanism:  rec.Mechanism,
+		Keys:       append([]string(nil), rec.Keys...),
 	}
-	return f(), nil
 }
 
 // ---- Fence (hand-kept: the fence is never code here, #1118) ----

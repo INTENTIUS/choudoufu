@@ -132,24 +132,11 @@ func TestGCPAndAzureRowsAreNotAdded(t *testing.T) {
 	}
 }
 
-// TestEveryFamilyHasControllerHeldFacts, TestEveryFamilyHasFenceNotes and
-// TestEveryFamilyHasHarnessFacts are the ledger-completeness guards on the
-// three hand-kept lookups: every family in substrate.All must have an
-// entry, so a third substrate does not silently read the zero value in any
-// of them.
-func TestEveryFamilyHasControllerHeldFacts(t *testing.T) {
-	for _, s := range substrate.All {
-		if _, ok := controllerHeldByFamily[s.Name()]; !ok {
-			t.Errorf("controllerHeldByFamily has no entry for %q", s.Name())
-		}
-	}
-	for name := range controllerHeldByFamily {
-		if _, ok := substrate.ForProvider(name); !ok {
-			t.Errorf("controllerHeldByFamily names %q, which substrate.ForProvider does not recognize; delete the entry", name)
-		}
-	}
-}
-
+// TestEveryFamilyHasFenceNotes and TestEveryFamilyHasHarnessFacts are the
+// ledger-completeness guards on the two hand-kept lookups: every family in
+// substrate.All must have an entry, so a third substrate does not silently
+// read the zero value in either. The controller-held column is the
+// family's own answer (TestControllerHeldColumnIsTheFamilysAnswer).
 func TestEveryFamilyHasFenceNotes(t *testing.T) {
 	for _, s := range substrate.All {
 		if _, ok := fenceByFamily[s.Name()]; !ok {
@@ -236,5 +223,43 @@ func TestHarnessPinFilesAreReadFromDisk(t *testing.T) {
 		if got, want := r.Harness.Pin, strings.TrimSpace(string(data)); got != want {
 			t.Errorf("%s: harness.pin = %q, want the trimmed content of %s (%q)", r.Family, got, r.Harness.PinFile, want)
 		}
+	}
+}
+
+// holdingFamily is a third family for TestControllerHeldColumnIsTheFamilysAnswer:
+// AWS's answers, by embedding, under another name and with its own
+// controller-held recognition.
+type holdingFamily struct{ substrate.Substrate }
+
+func (holdingFamily) Name() string { return "fakehold" }
+func (holdingFamily) HoldRecognition() substrate.HoldRecognition {
+	return substrate.HoldRecognition{Mechanism: "the fake controller's tag", Keys: []string{"fake.example/held-by"}}
+}
+
+// TestControllerHeldColumnIsTheFamilysAnswer (GitHub issue #1706): the
+// controller-held column is read off each family's
+// [substrate.Substrate.HoldRecognition], not a hand map keyed by family
+// name. A third family registered in substrate.All gets its column with no
+// edit here; the build then stops at the fence, which is still hand-kept.
+func TestControllerHeldColumnIsTheFamilysAnswer(t *testing.T) {
+	root := testRepoRoot(t)
+	art, err := Build(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range art.Rows {
+		s, _ := substrate.ForProvider(r.Family)
+		rec := s.HoldRecognition()
+		if r.ControllerHeld.Mechanism != rec.Mechanism || !reflect.DeepEqual(r.ControllerHeld.Keys, rec.Keys) || r.ControllerHeld.Recognized != (len(rec.Keys) > 0) {
+			t.Errorf("%s controller_held = %+v, want the family's own %+v", r.Family, r.ControllerHeld, rec)
+		}
+	}
+
+	orig := substrate.All
+	substrate.All = append(append([]substrate.Substrate(nil), orig...), holdingFamily{Substrate: substrate.AWS})
+	t.Cleanup(func() { substrate.All = orig })
+	_, err = Build(root)
+	if err == nil || strings.Contains(err.Error(), "controller-held") || !strings.Contains(err.Error(), "fence") {
+		t.Errorf("Build with a third family: err = %v, want it to stop at the hand-kept fence and not at controller-held", err)
 	}
 }

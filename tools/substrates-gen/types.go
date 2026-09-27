@@ -100,11 +100,8 @@ type SweepFacts struct {
 }
 
 // ControllerHeldFacts is how this family recognizes a controller-held
-// resource (GitHub issues #1604, #1606): no [substrate.Substrate] method
-// answers this today, so it is read from the same package-level facts the
-// discovery legs use ([markers.ControllerTagKeys], the Helm release
-// annotation), one lookup per family with a completeness guard
-// (TestEveryFamilyHasControllerHeldFacts) rather than typed prose.
+// resource (GitHub issues #1604, #1606), read off the family's own
+// [substrate.Substrate.HoldRecognition] (GitHub issue #1706).
 type ControllerHeldFacts struct {
 	Recognized bool     `json:"recognized"`
 	Mechanism  string   `json:"mechanism"`
