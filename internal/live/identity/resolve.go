@@ -2879,12 +2879,13 @@ func (r *resolver) resolveTraversal(trav hcl.Traversal, scope instScope, ident c
 	}
 	if leaf, ok := manifestObjectMetaTraversal(ref.Remaining); ok {
 		// kubernetes_manifest.x.object.metadata.name or .namespace (GitHub
-		// issue #1116): object is the provider's computed read-back, but
-		// those two keys are the ones the manifest itself wrote, and the
-		// same two the manifest's own identity is built from (manifest.go's
+		// issue #1116), or the same two keys through the manifest argument
+		// (#1616). object is the provider's computed read-back, but those
+		// two keys are the ones the manifest itself wrote, and the same two
+		// the manifest's own identity is built from (manifest.go's
 		// Component.Path). They are read out of the parent's manifest
-		// argument without evaluating it; anything else under object is the
-		// server's and falls through to the refusal below.
+		// argument without evaluating it; anything else under object or
+		// manifest falls through to the refusal below.
 		if parts, ok, applicable := r.manifestObjectKeyPart(instAddr.Absolute(r.modInst), leaf, rng, ident); applicable {
 			return parts, ok
 		}
@@ -5445,9 +5446,12 @@ func objectMetaTraversal(rest hcl.Traversal) (string, bool) {
 
 // manifestObjectMetaTraversal reports whether rest - the steps of a
 // reference past the resource instance - is exactly object.metadata.name or
-// object.metadata.namespace, and which of the two (GitHub issue #1116).
+// object.metadata.namespace, and which of the two (GitHub issue #1116). The
+// same two keys read through the manifest argument itself,
+// manifest.metadata.name and .namespace, are the configuration's own
+// literals and fold the same way (GitHub issue #1616).
 func manifestObjectMetaTraversal(rest hcl.Traversal) (string, bool) {
-	if len(rest) != 3 || !isAttrStep(rest[0], "object") || !isAttrStep(rest[1], "metadata") {
+	if len(rest) != 3 || !(isAttrStep(rest[0], "object") || isAttrStep(rest[0], "manifest")) || !isAttrStep(rest[1], "metadata") {
 		return "", false
 	}
 	leaf, ok := rest[2].(hcl.TraverseAttr)

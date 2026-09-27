@@ -91,6 +91,45 @@ resource "kubernetes_config_map_v1" "reader" {
 	}
 }
 
+// GitHub issue #1616: the same two keys read through the manifest argument
+// rather than the computed object. manifest.metadata.name is the
+// configuration's own literal, so it folds the same way (the 2026-09-27
+// ruling on #1616). The reproduction is the issue's, verbatim.
+func TestManifestArgumentNameAndNamespaceResolveFromTheManifest(t *testing.T) {
+	for name, tc := range map[string]struct {
+		body string
+		want string
+	}{
+		"the issue's reproduction": {`
+resource "kubernetes_config_map_v1" "reader" {
+  metadata {
+    name      = "${kubernetes_manifest.crontab.manifest.metadata.name}-reader"
+    namespace = "m1116-res"
+  }
+}
+`, "m1116-res/my-crontab-reader"},
+		"name and namespace both through manifest": {`
+resource "kubernetes_config_map_v1" "reader" {
+  metadata {
+    name      = "${kubernetes_manifest.crontab.manifest.metadata.name}-reader"
+    namespace = kubernetes_manifest.crontab.manifest.metadata.namespace
+  }
+}
+`, "default/my-crontab-reader"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			result, refusal := resolveManifestSibling(t, crontabManifest+tc.body)
+			if refusal != "" {
+				t.Fatalf("refused: %s", refusal)
+			}
+			got := manifestResolution(t, result, "kubernetes_config_map_v1.reader")
+			if got.Class != ClassConcrete || got.ImportID != tc.want {
+				t.Errorf("resolved %s, want CONCRETE %s: manifest.metadata.name and .namespace are the configuration's own literals", got.String(), tc.want)
+			}
+		})
+	}
+}
+
 // The boundary: only the two keys that name the object and that the
 // manifest itself writes. Anything else under object is the server's, and a
 // cluster-scoped manifest has no namespace to read.
@@ -99,7 +138,32 @@ func TestManifestObjectOtherPathsStayUnresolved(t *testing.T) {
 		manifest string
 		ref      string
 	}{
-		"a spec field":                  {crontabManifest, "kubernetes_manifest.crontab.object.spec.image"},
+		"a spec field": {crontabManifest, "kubernetes_manifest.crontab.object.spec.image"},
+		// #1616: the manifest spelling has the same boundary.
+		"a spec field through manifest": {crontabManifest, "kubernetes_manifest.crontab.manifest.spec.image"},
+		"a metadata key through manifest": {`
+resource "kubernetes_manifest" "crontab" {
+  manifest = {
+    apiVersion = "stable.example.com/v1"
+    kind       = "CronTab"
+    metadata   = { name = "my-crontab", generateName = "gen-", namespace = "default" }
+  }
+}
+`, "kubernetes_manifest.crontab.manifest.metadata.generateName"},
+		"the namespace of a cluster-scoped kind through manifest": {`
+resource "kubernetes_manifest" "crontab" {
+  manifest = {
+    apiVersion = "stable.example.com/v1"
+    kind       = "ClusterCronTab"
+    metadata   = { name = "my-crontab" }
+  }
+}
+`, "kubernetes_manifest.crontab.manifest.metadata.namespace"},
+		"a yamldecode'd manifest through manifest": {`
+resource "kubernetes_manifest" "crontab" {
+  manifest = yamldecode(file("${path.module}/crontab.yaml"))
+}
+`, "kubernetes_manifest.crontab.manifest.metadata.name"},
 		"a server-written metadata key": {crontabManifest, "kubernetes_manifest.crontab.object.metadata.uid"},
 		// The manifest writes this one, so only the leaf rule keeps it out:
 		// it is a key of metadata, and still not the object's name.
@@ -165,13 +229,17 @@ func TestManifestObjectMetaTraversal(t *testing.T) {
 		want string
 		ok   bool
 	}{
-		"object.metadata.name":      {attr("object", "metadata", "name"), "name", true},
-		"object.metadata.namespace": {attr("object", "metadata", "namespace"), "namespace", true},
-		"object.metadata.uid":       {attr("object", "metadata", "uid"), "", false},
-		"object.spec.name":          {attr("object", "spec", "name"), "", false},
-		"manifest.metadata.name":    {attr("manifest", "metadata", "name"), "", false},
-		"object.metadata":           {attr("object", "metadata"), "", false},
-		"object.metadata[0].name":   {hcl.Traversal{hcl.TraverseAttr{Name: "object"}, hcl.TraverseAttr{Name: "metadata"}, hcl.TraverseIndex{Key: cty.NumberIntVal(0)}, hcl.TraverseAttr{Name: "name"}}, "", false},
+		"object.metadata.name":        {attr("object", "metadata", "name"), "name", true},
+		"object.metadata.namespace":   {attr("object", "metadata", "namespace"), "namespace", true},
+		"object.metadata.uid":         {attr("object", "metadata", "uid"), "", false},
+		"object.spec.name":            {attr("object", "spec", "name"), "", false},
+		"manifest.metadata.name":      {attr("manifest", "metadata", "name"), "name", true},
+		"manifest.metadata.namespace": {attr("manifest", "metadata", "namespace"), "namespace", true},
+		"manifest.metadata.uid":       {attr("manifest", "metadata", "uid"), "", false},
+		"manifest.spec.name":          {attr("manifest", "spec", "name"), "", false},
+		"status.metadata.name":        {attr("status", "metadata", "name"), "", false},
+		"object.metadata":             {attr("object", "metadata"), "", false},
+		"object.metadata[0].name":     {hcl.Traversal{hcl.TraverseAttr{Name: "object"}, hcl.TraverseAttr{Name: "metadata"}, hcl.TraverseIndex{Key: cty.NumberIntVal(0)}, hcl.TraverseAttr{Name: "name"}}, "", false},
 	} {
 		got, ok := manifestObjectMetaTraversal(tc.rest)
 		if got != tc.want || ok != tc.ok {
