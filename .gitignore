@@ -110,6 +110,7 @@ site/public/
 /registry-gen
 /row-gen
 /selected-go-version
+/substrates-gen
 /survey-gen
 /tagverbs-gen
 /terralith-gen

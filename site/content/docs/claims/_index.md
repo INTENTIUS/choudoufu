@@ -13,3 +13,9 @@ every assertion held. Under `BREAK=1` it manufactures the corruption it
 guards against and must catch it.
 
 {{< claims-table >}}
+
+## What each substrate can do
+
+What a substrate can do at all, generated from its `Substrate` implementation.
+
+{{< substrates-table >}}
