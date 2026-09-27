@@ -94,6 +94,14 @@ var refusals = []Refusal{
 		What:    "The record store could not be listed, so record-backed resources whose configuration block was removed cannot be found.",
 	},
 	{
+		Summary: "Cannot merge the address annotation into this annotations value",
+		What:    "GitHub issue #1639's address annotation (NodeResolver.stampedAddressAnnotation) found a Kubernetes metadata.annotations value, on a typed metadata block or inside a kubernetes_manifest, it does not know how to add the choudoufu.intentius.io/tofu-address annotation into - a value that is neither a map nor an object, or one holding a non-string element - so it left the annotations exactly as evaluated. The tofu-estate label beside it is still written; only the address annotation is missing.",
+	},
+	{
+		Summary: "Cannot set the address annotation on an unresolved annotations value",
+		What:    "GitHub issue #1639's address annotation found a Kubernetes metadata.annotations value that is not yet known at plan time, so it could not add the choudoufu.intentius.io/tofu-address annotation and left the annotations exactly as evaluated. The tofu-estate label beside it is still written.",
+	},
+	{
 		Summary: "Cannot merge ownership markers into this labels value",
 		What:    "GitHub issue #1061's label branch of the node-path stamp (NodeResolver.stampedMetadata) found a Kubernetes metadata.labels value it does not know how to add the tofu-estate marker into - a non-map value, or a map holding a non-string element - so it left the resource's configuration value exactly as evaluated. The Kubernetes sibling of \"Cannot merge ownership markers into this tags value\".",
 	},
