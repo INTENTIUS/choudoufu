@@ -161,6 +161,17 @@ type LiveLsItem struct {
 	// when none does. Both empty for an AWS item.
 	Kind       string
 	APIVersion string
+
+	// HeldBy is set for a live resource a controller holds rather than a
+	// block, on either substrate (the 2026-09-26 ruling on GitHub issue
+	// #1604), and names the controller and its object: "Helm release
+	// NAMESPACE/NAME" for a Kubernetes object carrying Helm's release
+	// annotation (#1607); "ACK s3 controller (s3-v1.0.14), custom resource
+	// in namespace team-a" or a Crossplane managed resource for an AWS
+	// resource carrying that controller's tags ([markers.ControllerTagKeys],
+	// #1606). Such a resource is never swept and never adopted, whatever
+	// markers it carries, and is listed so the markers' reach is visible.
+	HeldBy string
 }
 
 // LiveLsGap is one declared instance the listing itself cannot see, and why.
@@ -232,6 +243,8 @@ type liveLsJSONItem struct {
 	// document is byte-for-byte what it was before GitHub issue #1081.
 	Kind       string `json:"kind,omitempty"`
 	APIVersion string `json:"api_version,omitempty"`
+	// HeldBy appears on a controller-held item only, AWS or Kubernetes.
+	HeldBy string `json:"held_by,omitempty"`
 }
 
 type liveLsJSONGap struct {
@@ -298,6 +311,7 @@ func (v *LiveLsJSON) Report(rep LiveLsReport) {
 			Tags:       item.Tags,
 			Kind:       item.Kind,
 			APIVersion: item.APIVersion,
+			HeldBy:     item.HeldBy,
 		})
 	}
 	for _, gap := range rep.Gaps {
@@ -360,6 +374,9 @@ func (v *LiveLsHuman) Report(rep LiveLsReport) {
 		if kubernetes {
 			fmt.Fprintf(&b, "  kind:    %s (%s)\n", item.Kind, item.APIVersion)
 		}
+		if item.HeldBy != "" {
+			fmt.Fprintf(&b, "  held by: %s (controller-held: never swept, never adopted)\n", item.HeldBy)
+		}
 		if item.Address != "" {
 			declared := ""
 			if rep.ConfigDir != "" {
@@ -370,6 +387,8 @@ func (v *LiveLsHuman) Report(rep LiveLsReport) {
 				}
 			}
 			fmt.Fprintf(&b, "  address: %s%s\n", item.Address, declared)
+		} else if item.HeldBy != "" {
+			b.WriteString("  address: (none - the holder above owns this object, not a block)\n")
 		} else if kubernetes {
 			// A Kubernetes object carries no address by design; one is
 			// listed only with DIR in hand, so an empty address here means

@@ -352,11 +352,26 @@ func (r EstateResult) CarriedStages() []string {
 // and left empty where it was not), or a legacy-protocol run that never
 // recorded provenance at all. Either way, empty is never treated as "must
 // match the current pin" - IsStale treats it as stale precisely because it
-// cannot be shown to match.
+// cannot be shown to match. A kind-substrate estate's row leaves this
+// field empty on purpose (issue #1594): it never launches floci, so
+// stamping it with the floci digest would be recording what a DIFFERENT
+// row ran against - see SubstrateImage below for what it records instead.
 type LastRun struct {
 	Commit   string `json:"commit"`
 	Date     string `json:"date"`
 	Emulator string `json:"emulator,omitempty"`
+	// SubstrateImage is the digest a kind-substrate run's cluster was
+	// actually created from (see live/kind-node-image), stamped by
+	// RunEstates the same way Emulator is stamped for a floci-substrate
+	// run - never both on the same row (issue #1594). Before this field
+	// existed, every row - kind-substrate estates included - had Emulator
+	// stamped with the floci digest even though a kind-lane estate never
+	// launches floci at all, which is the defect #1594 fixes: a
+	// kind-substrate row now leaves Emulator empty and records what it
+	// really ran against here instead. Empty means the same two things
+	// Emulator's own empty value means: a row from before this field
+	// existed, or a legacy-protocol run that recorded no provenance.
+	SubstrateImage string `json:"substrate_image,omitempty"`
 	// Oracle is the stock terraform and tofu releases this run actually
 	// found on PATH (issue #544) - measured, not configured: probeOracle
 	// (run.go) runs `terraform version -json` and `tofu version -json`

@@ -9,7 +9,7 @@
 # while applying none of an S3 bucket's properties, so the bucket it makes is
 # refused by the bucket contract (claim 29). Nothing else here needs an
 # account. When the emulator applies those properties, step 0's refusal and
-# real_aws in claims.json are what change.
+# real_service in claims.json are what change.
 
 SMOKE_WORK="$SMOKE_WORKROOT/autosetup"
 mkdir -p "$SMOKE_WORK/a" "$SMOKE_WORK/b"; export SMOKE_WORK

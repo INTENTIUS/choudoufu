@@ -550,6 +550,9 @@ func liveLsItemFromTags(id string, tags map[string]string, source string) views.
 	if item.Type == "" {
 		item.Type = arnTypeLabel(id)
 	}
+	if hold, ok := markers.ControllerHeld(tags); ok {
+		item.HeldBy = hold.Describe()
+	}
 	return item
 }
 
@@ -907,7 +910,7 @@ func liveLsKubernetesList(ctx context.Context, estate string, sweeper kubesweep.
 	}
 	kindTypes := kubesweep.KindTypes(types)
 	for _, k := range kinds {
-		objects, _, err := sweeper.List(ctx, k, markers.TagEstate, estate)
+		objects, skipped, err := sweeper.List(ctx, k, markers.TagEstate, estate)
 		if err != nil {
 			diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, "Kubernetes listing incomplete",
 				fmt.Sprintf("Listing %s across all namespaces failed: %s. Any %s this estate owns is missing from the listing.", k.GVR.String(), err, k.Kind)))
@@ -926,6 +929,28 @@ func liveLsKubernetesList(ctx context.Context, estate string, sweeper kubesweep.
 				APIVersion: k.APIVersion,
 				Source:     "kubernetes",
 				Tags:       o.Labels,
+			}
+			if addr, ok := declared.Declares(k.Kind, key); ok {
+				item.Address = addr.String()
+				item.Declared = true
+				item.Type = addr.Resource.Resource.Type
+			}
+			items = append(items, item)
+		}
+		// What a controller holds is listed too, with its holder (GitHub
+		// issue #1607): it carries the estate's label, so leaving it out
+		// would hide the label's reach, and it is not the estate's, so it
+		// is never under a block's address unless a block names it.
+		for _, h := range skipped.Held {
+			key := kubesweep.NaturalKey(h.Namespace, h.Name)
+			item := views.LiveLsItem{
+				ID:         key,
+				Type:       typeName,
+				Kind:       k.Kind,
+				APIVersion: k.APIVersion,
+				Source:     "kubernetes",
+				Tags:       h.Labels,
+				HeldBy:     h.HeldBy,
 			}
 			if addr, ok := declared.Declares(k.Kind, key); ok {
 				item.Address = addr.String()

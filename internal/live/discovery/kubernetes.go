@@ -19,6 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -32,7 +33,7 @@ import (
 // the AWS legs file one, so [classifyOrphans] and [applyOrphanPolicy]
 // decide its removal with no Kubernetes-specific rule of their own. A
 // kind no built-in type manages (every CRD; GitHub issue #1079's third
-// unit) is listed under [Request.KubernetesManifestType] and its orphan
+// unit) is listed under [KubernetesSweep.ManifestType] and its orphan
 // imports by the manifest id ([kubesweep.ManifestImportID]).
 //
 // The one thing an AWS orphan has that a Kubernetes orphan does not is an
@@ -70,10 +71,55 @@ const SummaryKubernetesKindNotServed = "Kubernetes kind not served by the cluste
 // same question at plan time and reports its own answer.
 const SummaryKubernetesKindUnverified = "Kubernetes kind could not be verified"
 
-// sweepKubernetes runs the leg when [Request.Kubernetes] is set.
+// SummaryKubernetesSweepDenied is the warning for a Kubernetes list call
+// this run's own credential was refused with Forbidden - the RBAC role
+// running the sweep lacks `list` on one kind - raised once for every such
+// kind this run hit (GitHub issue #1582), the Kubernetes leg's counterpart
+// of [SummaryIncompleteSweep]'s AccessDenied grouping for AWS. See
+// sweepdenied.go.
+const SummaryKubernetesSweepDenied = "Kubernetes sweep denied"
+
+// KubernetesSweep is the leg ([substrate.SweepLabelList]) for a Kubernetes
+// provider configuration (GitHub issue #1065): one cluster-wide,
+// label-selected list per kind. Types are the provider's resource types
+// the object-metadata rule admits (identity.ObjectMetaShape), the
+// universe the leg joins to what the cluster serves, plus ManifestType
+// when the provider has one: the type the manifest shape admits
+// (identity.ManifestShape), under which every served kind no other type
+// manages is listed (GitHub issue #1079). Empty when the provider has no
+// such type, and then those kinds are not listed. A nil Client does
+// nothing.
+type KubernetesSweep struct {
+	Client       kubesweep.Sweeper
+	Types        []string
+	ManifestType string
+}
+
+// Leg is [substrate.SweepLabelList].
+func (KubernetesSweep) Leg() substrate.Sweep { return substrate.SweepLabelList }
+
+// Sweep runs the leg.
+func (k KubernetesSweep) Sweep(ctx context.Context, in *SweepInput) tfdiags.Diagnostics {
+	return k.sweep(ctx, in.Request, in.Result)
+}
+
+// sweepKubernetes runs every Kubernetes leg among req's [Request.Sweepers]
+// on its own, the way [Discover] runs it, for the tests that drive the leg
+// without a provider.
 func sweepKubernetes(ctx context.Context, req Request, res *Result) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
-	if req.Kubernetes == nil {
+	for _, leg := range req.Sweepers {
+		if k, ok := leg.(KubernetesSweep); ok {
+			diags = diags.Append(k.sweep(ctx, req, res))
+		}
+	}
+	return diags
+}
+
+// sweep runs the leg when leg.Client is set.
+func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if leg.Client == nil {
 		return diags
 	}
 
@@ -81,16 +127,16 @@ func sweepKubernetes(ctx context.Context, req Request, res *Result) tfdiags.Diag
 	// configuration's concrete resolutions are what is declared: a
 	// declared object is (kind, natural key), whichever type it was
 	// declared through - see [DeclaredKubernetesObjects].
-	manifestType := req.KubernetesManifestType
-	declared := DeclaredKubernetesObjects(req.Resolutions, req.KubernetesTypes, manifestType)
+	manifestType := leg.ManifestType
+	declared := DeclaredKubernetesObjects(req.Resolutions, leg.Types, manifestType)
 	declaredTypes := declared.Types
 	declaredIDs := declared.Objects
 
-	kinds, unserved, err := req.Kubernetes.Kinds(ctx, req.KubernetesTypes, manifestType)
+	kinds, unserved, err := leg.Client.Kinds(ctx, leg.Types, manifestType)
 	if err != nil {
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryKubernetesSweepUnavailable,
 			fmt.Sprintf("The cluster's API discovery failed, so no Kubernetes object owned by estate %q could be listed this run: %s. An object whose block was deleted is not proposed for removal until a run can list it.", req.Estate, err)))
-		for _, t := range req.KubernetesTypes {
+		for _, t := range leg.Types {
 			res.SweepGaps = append(res.SweepGaps, SweepGap{TypeName: t, Reason: SweepGapListFailed, Detail: "API discovery failed: " + err.Error()})
 		}
 		return diags
@@ -103,19 +149,38 @@ func sweepKubernetes(ctx context.Context, req Request, res *Result) tfdiags.Diag
 	// which a manifest block naming a kind it does not serve can be
 	// refused by name (#1079's fourth ruling), ahead of the provider's own
 	// error at plan time.
-	diags = diags.Append(refuseUnservedManifests(ctx, req, kinds))
-	kindTypes := kubesweep.KindTypes(req.KubernetesTypes)
+	diags = diags.Append(refuseUnservedManifests(ctx, req, leg, kinds))
+	kindTypes := kubesweep.KindTypes(leg.Types)
 
 	// The manifest type is one scan over every kind it lists, not one per
 	// kind: a reader of the scan table asks "was kubernetes_manifest
 	// swept", and the kinds are the detail of the answer.
 	manifestKinds, manifestDeclared := 0, declared.Count()
 	for _, k := range kinds {
-		objects, ownerSkipped, err := req.Kubernetes.List(ctx, k, markers.TagEstate, req.Estate)
+		objects, ownerSkipped, err := leg.Client.List(ctx, k, markers.TagEstate, req.Estate)
 		if err != nil {
+			gap := func(t string) SweepGap {
+				return SweepGap{TypeName: t, Reason: SweepGapListFailed,
+					Detail: fmt.Sprintf("listing %s across all namespaces failed: %s", k.GVR.String(), err)}
+			}
+			// GitHub issue #1582: a Forbidden is the run's own credential,
+			// the same class AWS's AccessDeniedException is - not a
+			// cluster problem a retry might fix. Reason stays
+			// SweepGapListFailed, exactly as AWS's denied gaps keep
+			// LIST_FAILED; what differs is that the denial is also
+			// recorded so one warning, naming the verb, resource and
+			// scope the grant lacks, is raised for the whole run instead
+			// of a bare "listing X failed" per kind. A non-Forbidden
+			// failure - a throttle, a timeout, the cluster genuinely
+			// unreachable for this one call - keeps the plain gap.
+			if detail, denied := kubesweep.Forbidden(err); denied {
+				for _, t := range k.TypeNames {
+					sweepGapKubeDenied(res, gap(t), k.Kind, detail, err)
+				}
+				continue
+			}
 			for _, t := range k.TypeNames {
-				res.SweepGaps = append(res.SweepGaps, SweepGap{TypeName: t, Reason: SweepGapListFailed,
-					Detail: fmt.Sprintf("listing %s across all namespaces failed: %s", k.GVR.String(), err)})
+				res.SweepGaps = append(res.SweepGaps, gap(t))
 			}
 			continue
 		}
@@ -134,11 +199,23 @@ func sweepKubernetes(ctx context.Context, req Request, res *Result) tfdiags.Diag
 				res.SweepCovered = append(res.SweepCovered, t)
 			}
 		}
-		res.KubernetesOwnerSkipped += ownerSkipped
+		res.KubernetesOwnerSkipped += ownerSkipped.Count
 
 		typeName := manifestType
 		if !k.Manifest {
 			typeName, _ = kubesweep.TypeFor(kindTypes, declaredTypes, k.Kind)
+		}
+		// What a Helm release holds is controller-held, reported in the
+		// same list as an ACK or Crossplane resource on AWS (the
+		// 2026-09-26 ruling on #1604; #1607).
+		for _, h := range ownerSkipped.Held {
+			res.ControllerHeld = append(res.ControllerHeld, ControllerHeldResource{
+				TypeName:   typeName,
+				ImportID:   kubesweep.NaturalKey(h.Namespace, h.Name),
+				Kind:       h.Kind,
+				Controller: h.Controller,
+				HeldBy:     h.HeldBy,
+			})
 		}
 		for _, o := range objects {
 			if _, isDeclared := declared.Declares(k.Kind, kubesweep.NaturalKey(o.Namespace, o.Name)); isDeclared {
@@ -223,7 +300,7 @@ func (d KubernetesDeclared) Count() int {
 // declares on a cluster, shared by the sweep (an object nothing declares
 // is an orphan) and by live-ls (an object a block declares is reported
 // under that block's address). typeNames is the provider's Kubernetes
-// type universe, [Request.KubernetesTypes]; manifestType names the
+// type universe, [KubernetesSweep.Types]; manifestType names the
 // manifest type among them, or is empty when the provider has none.
 //
 // A built-in type's resolution declares (kind recovered from the type
@@ -290,9 +367,9 @@ func DeclaredKubernetesObjects(resolutions []identity.Resolution, typeNames []st
 // kinds, the sweep's own listing, is read for one thing: a kind the
 // cluster serves in the same group at another version, which turns "not
 // served" into the more useful "served at v2; the block names v1".
-func refuseUnservedManifests(ctx context.Context, req Request, kinds []kubesweep.Kind) tfdiags.Diagnostics {
+func refuseUnservedManifests(ctx context.Context, req Request, leg KubernetesSweep, kinds []kubesweep.Kind) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
-	manifestType := req.KubernetesManifestType
+	manifestType := leg.ManifestType
 	if manifestType == "" {
 		return diags
 	}
@@ -333,7 +410,7 @@ func refuseUnservedManifests(ctx context.Context, req Request, kinds []kubesweep
 		p := pair{apiVersion, kind}
 		a, asked := answers[p]
 		if !asked {
-			served, err := req.Kubernetes.Serves(ctx, apiVersion, kind)
+			served, err := leg.Client.Serves(ctx, apiVersion, kind)
 			a = answer{served: served, err: err}
 			answers[p] = a
 		}

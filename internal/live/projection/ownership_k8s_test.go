@@ -32,9 +32,9 @@ import (
 //
 // These tests are the regression. Every one of them is proved red by
 // restoring the tags-only surface read it had then (since GitHub issue
-// #1584 the read is [substrate.OwnershipSurfaceOf], and the same body
-// restored as the AWS family's OwnershipSurfaceOf, with the Kubernetes
-// family's answering false, is the equivalent revert):
+// #1589 the read is [substrate.SurfaceOf], and the same body restored as
+// the AWS family's SurfaceOf, with the Kubernetes family's answering
+// false, is the equivalent revert):
 //
 //	func markerSurfaceOf(block *configschema.Block) markerSurface {
 //		if block == nil {
@@ -156,12 +156,12 @@ func TestK8sOwnership_surfaceIsReadFromTheSchema(t *testing.T) {
 		"aws taggable":          {fakeSchemas()["aws_cloudwatch_log_group"].Block, markers.SurfaceTags},
 		"nil":                   {nil, ""},
 	} {
-		got, ok := substrate.OwnershipSurfaceOf(tc.block)
+		got, ok := substrate.SurfaceOf(tc.block)
 		if got != tc.want {
-			t.Errorf("%s: OwnershipSurfaceOf = %q, want %q", name, got, tc.want)
+			t.Errorf("%s: SurfaceOf = %q, want %q", name, got, tc.want)
 		}
 		if want := tc.want != ""; ok != want {
-			t.Errorf("%s: OwnershipSurfaceOf ok = %v, want %v", name, ok, want)
+			t.Errorf("%s: SurfaceOf ok = %v, want %v", name, ok, want)
 		}
 	}
 }

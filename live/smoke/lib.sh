@@ -17,6 +17,13 @@ SMOKE_ID="${SMOKE_ID:-$$-$RANDOM}"
 FLOCI_PORT="${FLOCI_PORT:-0}"
 export FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 export OPENTOFU_IMAGE="${OPENTOFU_IMAGE:-ghcr.io/opentofu/opentofu:$(python3 -c "import json;print(json.load(open('$ROOT/live/oracle-versions.json'))['tofu_version'])")}"
+# KIND_NODE_IMAGE is the single source of truth for the kind cluster's node
+# image (#1594), the same role FLOCI_IMAGE plays for the emulator: a bare
+# `kind create cluster` uses whatever node image the kind binary on PATH
+# happens to default to, and that default moves across kind releases, so a
+# scenario run on one laptop's kind and one run on CI's can measure two
+# different Kubernetes versions from the same commit.
+export KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-$(cat "$ROOT/live/kind-node-image")}"
 export FLOCI_PORT
 
 COMPOSE=(docker compose -p "choudoufu-smoke-${SMOKE_ID}" -f "$SMOKE_DIR/docker-compose.yml")
@@ -299,7 +306,7 @@ cluster_up() {
   # was never uploaded - or print more than five lines of it. Through logged
   # it lands beside the scenario log (#1521).
   logged kind cluster "kind create cluster failed" \
-    -- kind create cluster --name "$CLUSTER_NAME" --kubeconfig "$KUBECONFIG" --wait 120s
+    -- kind create cluster --image "$KIND_NODE_IMAGE" --name "$CLUSTER_NAME" --kubeconfig "$KUBECONFIG" --wait 120s
   echo "  cluster up: kind $CLUSTER_NAME ($(kc version 2>/dev/null | grep -i server | head -1 || echo 'server version unknown'))"
 }
 
@@ -396,11 +403,27 @@ smoke_stall() {
 # sets SMOKE_TIMER_PID. Its own output goes to the stderr smoke.sh started
 # with and never to a pipe the caller is capturing: a `$(...)` does not
 # return while anything still holds its write end.
+#
+# The trap goes on before sleep is forked, not after (#1593, measured under
+# CPU pressure that starves this subshell of scheduling): a TERM landing in
+# the gap between the fork and installing the trap left the sleep behind as
+# a live orphan when this subshell exited without it. Reordering only
+# narrows that gap - a TERM can still land between the fork completing and
+# `nap=$!` running, since bash only checks for one at a command boundary -
+# so the sleep also has SMOKE_ERR_FD explicitly closed: it is smoke.sh's
+# real fd 9, inherited into every child by default, and an orphan holding
+# it open blocks any `$(...)` capturing smoke.sh's output for up to the
+# full bound, seconds after the scenario itself already printed its
+# verdict and exited. Measured live under stress-ng: reordering alone still
+# left the sleep as a pipe-holding orphan; closing its copy of fd 9 does
+# not, however it is left behind. nap is empty until the fork returns;
+# killing an empty pid is a no-op.
 smoke_timer() { # <secs> <before> <after>, the two halves of smoke_stall's verdict
   (
-    sleep "$1" >/dev/null 2>&1 &
-    nap=$!
+    nap=""
     trap 'kill "$nap" 2>/dev/null; exit 0' TERM
+    sleep "$1" >/dev/null 2>&1 9>&- &
+    nap=$!
     wait "$nap" || exit 0
     smoke_stall "$2" "$3"
   ) >/dev/null 2>&"${SMOKE_ERR_FD:-2}" &

@@ -134,15 +134,23 @@ against ownership:
   Helm's lifecycle: no rollback, no release history, no hooks, and an
   upgrade is a re-render and a plan.
 
-A chart's own objects are never the estate's by accident. Under the ruling
-an object carrying Helm's release annotation is controller-held: never
-swept, never adopted, reported with its release name. That exclusion is
-#1105's one unit and is not built yet, so until it lands do not put
-`tofu-estate` in a chart's values: an object carrying it that no block
-declares is an orphan today, and the sweep will propose removing it from
-under the release. The opt-in that would bring a release inside the
-boundary (identity through the release secret, the label written by a
-post-renderer) is designed on #1105 and not built.
+A chart's own objects are never the estate's by accident. An object
+carrying Helm's release annotation (`meta.helm.sh/release-name`) is
+controller-held (ruled on
+[#1604](https://github.com/INTENTIUS/choudoufu/issues/1604), built in
+[#1607](https://github.com/INTENTIUS/choudoufu/issues/1607)): never
+swept, never adopted, and reported with its release. So a `tofu-estate`
+put in a chart's values no longer makes each rendered object an orphan.
+The plan lists those objects under "Controller-held", each with the
+release that holds it, and proposes destroying none of them. `live-ls`
+lists them too, with a `held by: Helm release NAMESPACE/NAME` line
+(`held_by` in `-json`). The label on them does nothing useful, so take it
+out of the chart's values when you see that section. `helm template`
+writes no release annotation, so a chart rendered into
+`kubernetes_manifest` blocks is owned in the ordinary way. There is no
+opt-in that brings a release inside the boundary: the ruling deferred it,
+because a label written by a post-renderer is one an out-of-band
+`helm upgrade` strips.
 
 ## Mixed estates
 
@@ -160,3 +168,28 @@ otherwise propose is one the API server answers with 409 (#1546).
 `policy { declared_untagged = "adopt" }`, or writing the label by hand,
 adopts it; a plan where no such object exists still proposes the create. A root made only of refused types is blocked as a whole, and the
 report says which root and why.
+
+## Known differences
+
+A replacement under `create_before_destroy` that also changes the object's
+name is destroy-then-create here, where stock is create-then-destroy. The
+label carries no address, so a renamed block resolves to a new object at its
+new name and binds nothing; the sweep finds the old object by its label and
+files it at a synthetic orphan address, leaving two unrelated changes with
+no edge between them for `create_before_destroy` to order. On AWS the
+marker names the block's address, so the same edit is a replace and the
+lifecycle holds.
+
+The case this bites is a content-hashed ConfigMap kept alive across a
+rollout: `name = "cfg-${sha}"` with `create_before_destroy`, so a Deployment
+can roll onto the new copy before the old one goes. Applying a changed
+`sha` here destroys `cfg-a` before creating `cfg-b`; for the length of that
+window neither object exists, and a Deployment whose pods mount `cfg-a`
+sees it gone before `cfg-b` exists. Both sides converge on the same object
+and the next plan is empty either way.
+
+Tracked as [#1541](https://github.com/INTENTIUS/choudoufu/issues/1541).
+The fix waits on [#1605](https://github.com/INTENTIUS/choudoufu/issues/1605)
+(should the address ride an annotation, which would make a rename a
+replace again); until then `day2_replace` stays `n/a` on the kind
+substrate for this case (`tools/gauntlet/stages.go`, `live/GAUNTLET.md`).

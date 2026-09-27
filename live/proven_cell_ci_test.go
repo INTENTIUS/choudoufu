@@ -27,7 +27,7 @@ import (
 // matrix runs it; a cell whose scenario reaches a real account cannot run
 // on every pull request (CLAUDE.md: a paid run is the maintainer's to
 // start), so it carries dated evidence instead. Which kind a cell is comes
-// from the cell itself (real_aws), not from its provider name, so this
+// from the cell itself (real_service), not from its provider name, so this
 // keeps working the day a second real-account provider exists.
 //
 // Proving it red: remove one entry from k8s-smoke.yml's or bucket-smoke.yml's
@@ -111,7 +111,7 @@ func provenCellWiredScenarios(t *testing.T) map[string]bool {
 // TestProvenCellsRunInAWorkflowOrCarryDatedEvidence is the guard #1591
 // asks for: every proven cell that carries its own scenario either has
 // that scenario's name in some workflow's matrix, or, if the cell is
-// real_aws (a real account, never run on every pull request), carries an
+// real_service (a real account, never run on every pull request), carries an
 // evidence file with a YYYY-MM-DD date. Anything else is the allowlist's
 // job, not silence.
 func TestProvenCellsRunInAWorkflowOrCarryDatedEvidence(t *testing.T) {
@@ -128,9 +128,9 @@ func TestProvenCellsRunInAWorkflowOrCarryDatedEvidence(t *testing.T) {
 		}
 		proven++
 
-		if s.Cell.RealAWS {
+		if s.Cell.RealService {
 			if len(s.Cell.Evidence) == 0 {
-				t.Errorf("%s: proven and real_aws, so it never runs in a workflow, but carries no evidence file", s)
+				t.Errorf("%s: proven and real_service, so it never runs in a workflow, but carries no evidence file", s)
 				continue
 			}
 			dated := false
@@ -152,7 +152,7 @@ func TestProvenCellsRunInAWorkflowOrCarryDatedEvidence(t *testing.T) {
 				}
 			}
 			if !dated {
-				t.Errorf("%s: proven and real_aws, but none of %v carries a YYYY-MM-DD \"date\" field; a claim resting on a hand run has to say when it ran", s, s.Cell.Evidence)
+				t.Errorf("%s: proven and real_service, but none of %v carries a YYYY-MM-DD \"date\" field; a claim resting on a hand run has to say when it ran", s, s.Cell.Evidence)
 			}
 			continue
 		}

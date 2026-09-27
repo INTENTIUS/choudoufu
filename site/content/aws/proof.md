@@ -3,9 +3,9 @@ title: "Proof"
 weight: 5
 description: "Which claims hold on AWS, how many real estates clear every stage, what a plan costs against stock, and how to run any of it yourself."
 deeper:
-  - "[What a plan costs]({{< relref \"/docs/model/plan-cost\" >}}): the short answer, with links to every figure, its fixture and its commit."
-  - "[The claims]({{< relref \"/docs/claims\" >}}): each one a scenario, with its steps, its `BREAK=1` inversion, and where a real account confirmed it."
-  - "[How close AWS is]({{< relref \"/docs/progress\" >}}): every stage, every estate, every run's commit and emulator pin."
+  - "[What a plan costs]({{< relref \"/docs/model/plan-cost\" >}}): links to every figure, its fixture and its commit."
+  - "[The claims]({{< relref \"/docs/claims\" >}}): each one a scenario, with its `BREAK=1` inversion, and where a real account confirmed it."
+  - "[How close AWS is]({{< relref \"/docs/progress\" >}}): every stage, estate, commit and emulator pin."
   - "[The smoke harness](https://github.com/INTENTIUS/choudoufu/blob/main/live/smoke/README.md): every knob, including pinning the emulator and the binary."
 ---
 
@@ -16,9 +16,8 @@ Two kinds of evidence, never averaged together.
 ## Real estates through fixed stages
 
 An estate is a real OpenTofu or Terraform configuration, pinned by commit, run
-through every active stage side by side with stock OpenTofu against the
-pinned emulator, and diffed. An estate is clear when every headline stage
-passes.
+through every active stage with stock OpenTofu against the pinned emulator,
+and diffed. An estate is clear when every headline stage passes.
 
 {{< gauntlet-bars >}}
 
@@ -48,12 +47,12 @@ just smoke import
 
 That stands a stock estate up, deletes its state file, and plans it empty
 from markers alone. Paste the README's agent prompt to a coding agent and it
-runs the whole thing and reports each verdict line.
+runs it and reports each verdict line.
 
 ## What it costs against stock
 
 With no `live` block, nothing: `terraform plan`, `tofu plan` and `choudoufu
-plan` issued exactly the same API calls over the same estate. A plan of an
+plan` issue exactly the same API calls. A plan of an
 adopted estate is at call parity with stock, within a handful of calls. The
 real cost is the estate-wide sweep, which an adoption, an audit or a brand-new
 estate pays and an established one does not.
