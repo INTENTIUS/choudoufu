@@ -725,7 +725,7 @@ type statelessRunner struct {
 	// methods reads it yet. See [statelessPolicy].
 	policy *policy.Policy
 
-	// untagTargets, untagKey, untagProvider and untagConfig are GitHub issue
+	// untagGroups, untagKey and untagConfig are GitHub issue
 	// #67's undeclared_tagged = "untag" verb's apply-time work, captured by
 	// PriorState and consumed by AfterApply. They cannot be worked out
 	// inside AfterApply itself: by the time it runs, the providers
@@ -733,11 +733,12 @@ type statelessRunner struct {
 	// provider double-launch" doc comment), and the orphans that need
 	// releasing were only known once discovery and the policy pass had run.
 	// Empty on any run with nothing for the untag verb to do, which is
-	// every run with no policy block and most runs with one.
-	untagTargets  []untag.Target
-	untagKey      string
-	untagProvider addrs.AbsProviderConfig
-	untagConfig   *configs.Config
+	// every run with no policy block and most runs with one. Grouped by the
+	// provider configuration whose sweep found each target, which is the
+	// one that can reach it (GitHub issue #1657).
+	untagGroups []untagGroup
+	untagKey    string
+	untagConfig *configs.Config
 
 	lib  plugins.Library
 	mgr  *projection.Manager
@@ -746,7 +747,7 @@ type statelessRunner struct {
 	// kubeSweepers is the Kubernetes sweep's cluster client per provider
 	// configuration, captured by PriorState once discovery has built them
 	// and consumed by AfterPlan for the server-side dry run (GitHub issue
-	// #1081, item 3) - the same reason untagTargets above is carried
+	// #1081, item 3) - the same reason untagGroups above is carried
 	// across: by the time the plan exists the providers PriorState read
 	// through are closed, and the sweep's client is not one of them.
 	kubeSweepers map[string]kubesweep.Sweeper
@@ -1503,12 +1504,20 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// "untag" rather than "keep" or "report". Captured here, for
 	// AfterApply, rather than acted on now: this method also runs for a
 	// plan, and a plan must never write to the live system.
-	r.untagTargets = statelessUntagTargets(disco)
-	r.untagKey = statelessPolicyTagKey(r.policy)
-	r.untagProvider = discoProvider
-	r.untagConfig = config
+	r.captureUntag(statelessUntagTargets(disco), statelessPolicyTagKey(r.policy), config)
 
 	return projResult.State, diags
+}
+
+// captureUntag records the untag verb's apply-time work for AfterApply:
+// each target under the provider configuration whose sweep found it
+// ([statelessUntagTargets]). Not the estate's primary provider
+// configuration, which is what this used before GitHub issue #1657 and
+// which cannot reach an orphan in another region, account or cluster.
+func (r *statelessRunner) captureUntag(groups []untagGroup, key string, config *configs.Config) {
+	r.untagGroups = groups
+	r.untagKey = key
+	r.untagConfig = config
 }
 
 // WriteBack implements [backendLocal.StatelessRun]: GitHub issue #73's
@@ -1590,7 +1599,7 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 
 // AfterApply implements [backendLocal.StatelessRun]: the untag verb's
 // apply-time release, run once a real apply - never a plan - has finished
-// changing the live system. See this type's untagTargets field for why the
+// changing the live system. See this type's untagGroups field for why the
 // work was captured during PriorState rather than computed here, and
 // internal/live/untag for the release itself.
 //
@@ -1610,30 +1619,51 @@ func (r *statelessRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
 		diags = diags.Append(statelessHeldKubernetesDeletes(ctx, r.kubeSweepers, r.kubeDeletes, r.resolver.Estate))
 	}
 
-	if len(r.untagTargets) == 0 {
+	if len(r.untagGroups) == 0 {
 		return diags
 	}
 
+	// One configured provider per provider configuration that found a
+	// target, each releasing only what it found (GitHub issue #1657). A
+	// configuration that cannot be used fails its own targets and no
+	// others.
 	provs := newStatelessProviders(r.untagConfig, r.lib)
-	provider, err := provs.ConfiguredProvider(ctx, r.untagProvider)
-	if err != nil {
-		diags = diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Provider unavailable for the apply-time tag release",
-			fmt.Sprintf(
-				"GitHub issue #67's undeclared_tagged = \"untag\" verb has %d resource(s) to release %q from, but provider %s could not be used to release it: %s. Nothing was changed; the resources involved are still live and still carry the tag.",
-				len(r.untagTargets), r.untagKey, r.untagProvider, err,
-			),
-		))
-		diags = diags.Append(provs.close(ctx))
-		return diags
+	result := &untag.Result{Key: r.untagKey}
+	for _, g := range r.untagGroups {
+		if g.Provider.Provider.Type == "" {
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"No provider configuration for the apply-time tag release",
+				fmt.Sprintf(
+					"GitHub issue #67's undeclared_tagged = \"untag\" verb has %d resource(s) to release %q from (%s), but the sweep did not record which provider configuration found them, and releasing through any other one could report a release that did not happen. Nothing was changed; the resources involved are still live and still carry the tag. This is a bug (GitHub issue #1657).",
+					len(g.Targets), r.untagKey, untagTargetList(g.Targets),
+				),
+			))
+			continue
+		}
+		provider, err := provs.ConfiguredProvider(ctx, g.Provider)
+		if err != nil {
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Provider unavailable for the apply-time tag release",
+				fmt.Sprintf(
+					"GitHub issue #67's undeclared_tagged = \"untag\" verb has %d resource(s) to release %q from, but provider %s could not be used to release it: %s. Nothing was changed; the resources involved are still live and still carry the tag.",
+					len(g.Targets), r.untagKey, g.Provider, err,
+				),
+			))
+			continue
+		}
+		groupResult, releaseDiags := untag.Release(ctx, provider, r.untagKey, g.Targets)
+		diags = diags.Append(releaseDiags)
+		if groupResult != nil {
+			result.Outcomes = append(result.Outcomes, groupResult.Outcomes...)
+		}
 	}
-
-	result, releaseDiags := untag.Release(ctx, provider, r.untagKey, r.untagTargets)
-	diags = diags.Append(releaseDiags)
 	diags = diags.Append(provs.close(ctx))
 
-	r.view.Policy(statelessReleasedReport(result))
+	if len(result.Outcomes) > 0 {
+		r.view.Policy(statelessReleasedReport(result))
+	}
 
 	return diags
 }

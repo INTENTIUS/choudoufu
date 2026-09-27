@@ -659,6 +659,18 @@ type OwnedResource struct {
 	// resource never reached policy at all (already withheld for a possible
 	// rename before policy ever saw it).
 	PolicyVerb policy.Verb
+
+	// Provider is the provider configuration whose pass found this
+	// resource, set by [Merge] (and by a single-pass caller that skips
+	// it, through [Result.AttributeOrphans]). An orphan has no resource
+	// block to name one, and the account, region or cluster it was listed
+	// in is the only place it can be read or written again: GitHub issue
+	// #1657, where every undeclared_tagged = "untag" target was released
+	// through the estate's first provider configuration instead, so a
+	// Kubernetes orphan reached the AWS provider and an orphan in a second
+	// region was imported in the first, found missing, and reported
+	// released. The zero value means no caller attributed it.
+	Provider addrs.AbsProviderConfig
 }
 
 // String renders an owned-but-undeclared resource on one line.
