@@ -22,7 +22,7 @@
 //
 // It is an extraction: every answer here is the answer the dispatch it
 // replaced gave. GitHub issue #1589: the projection's ownership read used to
-// ask a looser tag question than [SurfaceOf] ([markers.HasTagsAttribute]),
+// ask a looser tag question than [SurfaceOf] (markers.HasTagsAttribute (since deleted)),
 // kept apart in case the two ever disagreed on a real AWS or Kubernetes
 // type. The 2026-09-26 decision package measured the disagreement empty at
 // every pinned provider version, so the ownership read now asks [SurfaceOf]
