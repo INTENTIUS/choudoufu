@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -122,16 +123,23 @@ func synthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 	if !served {
 		return TypeIdentity{}, fmt.Sprintf(" The provider serves no %s at all.", typeName)
 	}
-	// Kubernetes object metadata (GitHub issue #1064): a convention the
-	// configuration schema states directly, ahead of the identity-schema
-	// route below, which cannot reach these types at all - their identity
+	// Each family is asked how its schema identifies an instance (GitHub
+	// issue #1586), in [substrate.All]'s order, and the first to answer
+	// decides. The Kubernetes conventions (object metadata, #1064, and the
+	// whole-object manifest, #1079) are asked ahead of the identity-schema
+	// route below, which cannot reach those types at all - their identity
 	// schema requires api_version and kind, constants no configuration
-	// carries. See metadata.go.
-	if ti, ok := synthesizeMetadataIdentity(typeName, schema); ok {
-		return ti, ""
-	}
-	if ti, ok := synthesizeManifestIdentity(typeName, schema); ok {
-		return ti, ""
+	// carries. The identity-schema route is AWS's answer and claims every
+	// type, so it is last.
+	for _, sub := range substrate.All {
+		synth, ok := sub.SynthesizeIdentity(typeName, schema)
+		if !ok {
+			continue
+		}
+		if synth.FromIdentitySchema {
+			break
+		}
+		return fromSynthesized(typeName, synth), ""
 	}
 	switch {
 	case schema.IdentitySchema == nil:
@@ -492,4 +500,33 @@ func namesVerb(n int) string {
 		return "names"
 	}
 	return "name"
+}
+
+// fromSynthesized is a family's [substrate.SynthesizedIdentity] as this
+// package's entry. It is synthesized and admitted by the schema, as every
+// entry [synthesizeTypeIdentity] builds is.
+func fromSynthesized(typeName string, synth substrate.SynthesizedIdentity) TypeIdentity {
+	components := make([]Component, 0, len(synth.Components))
+	for _, c := range synth.Components {
+		comp := Component{
+			Literal:      c.Literal,
+			Attrs:        c.Attrs,
+			Block:        c.Block,
+			Path:         c.Path,
+			OmitIfAbsent: c.OmitIfAbsent,
+		}
+		if c.SameNameIdentity {
+			comp.IdentityAttr = SameNameIdentity
+		}
+		components = append(components, comp)
+	}
+	return TypeIdentity{
+		Type:           typeName,
+		NonAWSProvider: synth.NonAWSProvider,
+		Components:     components,
+		ImportSyntax:   synth.ImportSyntax,
+		IdentityAttrs:  synth.IdentityAttrs,
+		Synthesized:    true,
+		Admits:         AdmitSchema,
+	}
 }
