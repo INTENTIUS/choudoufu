@@ -1316,7 +1316,10 @@ index when the count is statically evaluable. Fixture at
 
 **Construct.** `lifecycle { ignore_changes = all }`, or an `ignore_changes`
 entry covering the whole `tags` argument or one of the ownership markers
-inside it.
+inside it. On Kubernetes (GitHub issue #1645): the same two shapes over
+`metadata[0].labels` (or, for a `kubernetes_manifest` object,
+`manifest.metadata.labels`), the map the `tofu-estate` label lives in, or
+over the `tofu-estate` key itself.
 
 **Why banned.** This is the quietest failure the live path had, and it is
 worse than a refusal. The stamp pass writes `tofu-estate` and `tofu-address`
@@ -1330,20 +1333,36 @@ duplicate of something that already exists.
 exactly the reason that makes it dangerous here: something outside Terraform
 writes tags on this resource. Under live markers, this tool is that something.
 
+On Kubernetes the failure is the same one, on the label carrier: no
+`tags` argument exists for a Kubernetes type to name, so before #1645 the
+schema check sent every one of them home unchecked, and an `ignore_changes`
+over the labels map threw away the `tofu-estate` write exactly as an
+AWS one throws away `tags`, leaving a migrated or newly created object
+unowned from the next run on.
+
 **Forwarding address.** Ignore the individual keys rather than the argument:
-`ignore_changes = [tags["Owner"]]`. A non-marker key is not refused, because
-ignoring a tag this tool does not write changes nothing about ownership.
+`ignore_changes = [tags["Owner"]]`, or on Kubernetes
+`ignore_changes = [metadata[0].labels["some-other-key"]]`. A non-marker key
+is not refused, because ignoring a tag or label this tool does not write
+changes nothing about ownership.
 
 **What is not refused.** `tags_all` is the provider's computed union of `tags`
 and the provider-level `default_tags`. Ignoring it does not stop the markers
 being written into `tags`, so the update still happens and the rule leaves it
-alone.
+alone. On Kubernetes, an entry over `metadata[0].annotations` is left alone
+too: the block address rides in an annotation beside the label (GitHub issue
+#1639), not in the label map this rule polices, and ignoring it is a separate
+concern from ignoring the ownership marker itself.
 
 **Enforcement.** `RuleIgnoreChanges`, `internal/live/lint/ignore_changes.go`
-(`checkIgnoreChanges`). Fixture at `live/e2e/limits/ignore-changes/`, whose
+(`checkIgnoreChanges` for AWS tags, `checkIgnoreChangesLabel` for the two
+Kubernetes carriers). Fixture at `live/e2e/limits/ignore-changes/`, whose
 fourth resource is the admitted single-key form, pinned by
 `TestIgnoreChangesAdmitsAForeignTagKey`, since `TestLimitsEnforced` alone
-would pass just as happily if all four were refused.
+would pass just as happily if all four were refused. The Kubernetes carriers
+are covered separately, by fixture-free table tests in
+`internal/live/lint/ignore_changes_label_test.go`
+(`TestIgnoreChangesLabelSurface*`, `TestIgnoreChangesManifestSurface*`).
 
 ### module-providers
 
