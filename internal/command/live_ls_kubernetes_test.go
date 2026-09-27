@@ -309,7 +309,12 @@ resource "null_resource" "x" {}
 // TestLiveLsSubstratesCoversAThirdSubstrateWithNoNewArm. Its methods
 // beyond Name and Sweep are never asked by [liveLsSubstrates]; they exist
 // only to satisfy [substrate.Substrate].
-type fakeThirdSubstrate struct{}
+type fakeThirdSubstrate struct {
+	// Embedded so a method added to substrate.Substrate later reaches this
+	// fake without an edit here; the methods below override what the test
+	// is about.
+	substrate.Substrate
+}
 
 func (fakeThirdSubstrate) Name() string                { return "fake" }
 func (fakeThirdSubstrate) Surfaces() []markers.Surface { return nil }
@@ -344,14 +349,14 @@ func (fakeThirdSubstrate) NotACarrier(*configschema.Block, string) string {
 // with nowhere to record a third family at all.
 func TestLiveLsSubstratesCoversAThirdSubstrateWithNoNewArm(t *testing.T) {
 	orig := substrate.All
-	substrate.All = append(append([]substrate.Substrate{}, orig...), fakeThirdSubstrate{})
+	substrate.All = append(append([]substrate.Substrate{}, orig...), fakeThirdSubstrate{Substrate: substrate.AWS})
 	t.Cleanup(func() { substrate.All = orig })
 
 	config := liveLsLoadConfig(t, `
 resource "fake_thing" "x" {}
 `)
 	got := liveLsSubstrates(config, nil)
-	if !got.has(fakeThirdSubstrate{}.Sweep()) {
+	if !got.has(fakeThirdSubstrate{Substrate: substrate.AWS}.Sweep()) {
 		t.Errorf("liveLsSubstrates(config with only a fake_thing resource) = %+v, want the fake substrate's sweep listed", got)
 	}
 	if got.has(substrate.SweepTaggingIndex) {
