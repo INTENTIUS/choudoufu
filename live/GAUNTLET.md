@@ -111,7 +111,7 @@ Oracle: Stock with the same `moved` block plans zero churn. The two plans, norma
 
 Break: Rename without the `moved` block; the plan must show a destroy and a create.
 
-On the kind substrate: The moved-block half only: live-mv has no Kubernetes leg, because the object carries no address to rewrite (#1066). A rename without a moved block is zero churn here too, since the block name is not part of the object's identity, so the Break control is a rename of the object's own metadata.name instead, which is a replace and must plan a destroy and a create.
+On the kind substrate: The moved-block half only: live-mv also has a Kubernetes leg since #1639, not exercised by this stage. A bare rename without a moved block plans the same one in-place change to the address annotation, since the block name is not part of the object's identity, so the Break control is a rename of the object's own metadata.name instead, which is a genuine identity change and must plan a destroy and a create.
 
 ### 7. Remove a block (`day2_remove`, active)
 
