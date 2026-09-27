@@ -468,7 +468,11 @@ func TestBoardWideEmulatorClaimMatchesRows(t *testing.T) {
 
 	seen := map[string]int{}
 	for _, r := range a.Estates {
-		if r.LastRun == nil {
+		// A non-emulator substrate row (kind) never launches floci and
+		// records SubstrateImage instead (#1594); emulatorGroups excludes
+		// it from the banner the same way, so the claim is judged over
+		// emulator rows only.
+		if r.LastRun == nil || r.Substrate != "" {
 			continue
 		}
 		seen[r.LastRun.Emulator]++
