@@ -158,9 +158,11 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 	manifestKinds, manifestDeclared := 0, declared.Count()
 	listed := ListedObjects{}
 	var undeclared []UndeclaredObject
+	var unlisted []kubesweep.Kind
 	for _, k := range kinds {
 		objects, ownerSkipped, err := leg.Client.List(ctx, k, markers.TagEstate, req.Estate)
 		if err != nil {
+			unlisted = append(unlisted, k)
 			gap := func(t string) SweepGap {
 				return SweepGap{TypeName: t, Reason: SweepGapListFailed,
 					Detail: fmt.Sprintf("listing %s across all namespaces failed: %s", k.GVR.String(), err)}
@@ -233,9 +235,13 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 	// (GitHub issue #1640). Decided once every kind is listed, because
 	// whether the address already has its object is a question about the
 	// whole listing.
-	bound := bindByAddress(req, leg, declared, listed, undeclared, res)
+	settled, bindDiags := bindByAddress(req, leg, declared, listed, undeclared, res)
+	diags = diags.Append(bindDiags)
+	// What is left unbound may still be a refused instance's object from
+	// before the annotation existed (GitHub issue #1641).
+	accountUnaddressed(req, leg, unlisted, undeclared, settled, res)
 	for i, u := range undeclared {
-		if bound[i] {
+		if settled[i] {
 			continue
 		}
 		k, typeName, o := u.Kind, u.TypeName, u.Object

@@ -282,6 +282,18 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 		res.Scans = append(res.Scans, p.Result.Scans...)
 		res.ParentReads = append(res.ParentReads, p.Result.ParentReads...)
 
+		// Each pass accounts only for the instances its own provider
+		// configuration owns (GitHub issue #1641), so the passes' keys
+		// are disjoint and the union is the whole account.
+		for key, objects := range p.Result.KubernetesUnaddressed {
+			if res.KubernetesUnaddressed == nil {
+				res.KubernetesUnaddressed = map[string][]string{}
+			}
+			res.KubernetesUnaddressed[key] = append(res.KubernetesUnaddressed[key], objects...)
+			if res.KubernetesUnaddressed[key] == nil {
+				res.KubernetesUnaddressed[key] = []string{}
+			}
+		}
 		for key := range p.Result.KubernetesAddressBound {
 			if res.KubernetesAddressBound == nil {
 				res.KubernetesAddressBound = map[string]bool{}

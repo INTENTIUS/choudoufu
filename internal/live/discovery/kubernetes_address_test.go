@@ -269,15 +269,9 @@ func TestKubernetesSweepAddressAnnotationBindsOnlyWhatItMust(t *testing.T) {
 			resolutions: []identity.Resolution{{Addr: cfg, Class: identity.ClassConcrete, ImportID: "ns/cfg-b"}},
 			wantOrphans: []string{"ns/cfg-a"},
 		},
-		{
-			name: "two objects claim one address",
-			objects: []kubesweep.Object{
-				labelled("ConfigMap", "ns", "one", cfg.String()),
-				labelled("ConfigMap", "ns", "two", cfg.String()),
-			},
-			refused:     map[string]bool{cfg.String(): true},
-			wantOrphans: []string{"ns/one", "ns/two"},
-		},
+		// Two objects claiming one address were both orphans here until
+		// #1641; they are the collision refusal now, in
+		// TestKubernetesSweepTwoClaimantsAreACollision.
 		{
 			name:        "the annotation names a type that does not manage the kind",
 			objects:     []kubesweep.Object{labelled("ConfigMap", "ns", "x", "kubernetes_secret_v1.s")},

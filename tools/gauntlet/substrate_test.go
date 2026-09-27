@@ -15,8 +15,30 @@ import (
 // stage whose Substrates note says it does not apply there reads n/a -
 // neutral for clear and for `next` - rather than an eternal not_run.
 //
-// Proving it red: drop the "n/a:" prefix from day2_replace's kind note, or
-// count substrate rows into Sets["all"] again; each fails a check below.
+// Proving it red: drop the "n/a:" prefix from the kind note
+// withKindNAStage writes, or count substrate rows into Sets["all"] again;
+// each fails a check below.
+//
+// Since #1641 no registered stage is n/a on kind (day2_replace was the last
+// one), so these tests register one: day2_replace, with the n/a note it
+// carried before. The rules are the artifact's, and they have to hold for
+// the next stage that does not apply somewhere.
+
+// withKindNAStage swaps the stage registry for the test's duration: the
+// registered stages, with day2_replace n/a on kind.
+func withKindNAStage(t *testing.T) {
+	t.Helper()
+	stagesSource = func() []Stage {
+		out := registeredStages()
+		for i := range out {
+			if out[i].ID == "day2_replace" {
+				out[i].Substrates = map[string]string{SubstrateKind: naPrefix + " a test stage that does not apply on kind."}
+			}
+		}
+		return out
+	}
+	t.Cleanup(func() { stagesSource = registeredStages })
+}
 
 func kindManifest() *Manifest {
 	return &Manifest{Estates: []Estate{
@@ -35,6 +57,7 @@ func passEverything() map[string]string {
 }
 
 func TestKindSubstrateStagesReadNAAndStayNeutral(t *testing.T) {
+	withKindNAStage(t)
 	naOnKind := 0
 	for _, s := range Stages() {
 		if _, na := s.NotApplicable(SubstrateKind); na {
@@ -45,7 +68,7 @@ func TestKindSubstrateStagesReadNAAndStayNeutral(t *testing.T) {
 		}
 	}
 	if naOnKind == 0 {
-		t.Fatal("no stage is n/a on the kind substrate; day2_replace should be (a Kubernetes name is unique per namespace, so nothing is created before the object it replaces is gone)")
+		t.Fatal("no stage is n/a on the kind substrate; withKindNAStage registers one")
 	}
 
 	m := kindManifest()
@@ -140,6 +163,7 @@ func TestKindSubstrateStagesReadNAAndStayNeutral(t *testing.T) {
 // Proving it red: drop the `else if` branch in Rebuild and this fails on
 // the first assertion.
 func TestStoredNAClearsWhenAStageStartsApplying(t *testing.T) {
+	withKindNAStage(t)
 	// A stage that applies on kind today; the row below is the artifact as
 	// it was written while the stage was still n/a there.
 	const applies = "day2_crash"
@@ -219,6 +243,24 @@ func TestKindSubstrateNotesRenderUnderEveryStage(t *testing.T) {
 			}
 		} else if !strings.Contains(doc, "On the kind substrate: "+note) {
 			t.Errorf("GAUNTLET.md does not carry %s's kind note", s.ID)
+		}
+	}
+}
+
+// TestDay2ReplaceAppliesOnKind is #1541's ruling, taken by #1641: the n/a
+// reason was true only of a replacement that keeps its name, and the
+// replacement create_before_destroy is used for on Kubernetes is a rename,
+// which since #1640 plans as the replace stock plans. So the stage applies
+// on kind, and its kind note says what is measured there.
+func TestDay2ReplaceAppliesOnKind(t *testing.T) {
+	s := StageByIDMust(t, "day2_replace")
+	if reason, na := s.NotApplicable(SubstrateKind); na {
+		t.Fatalf("day2_replace is n/a on kind (%q); a create_before_destroy rename is runnable there (#1541)", reason)
+	}
+	note := s.Substrates[SubstrateKind]
+	for _, want := range []string{"create_before_destroy", "annotation", "before"} {
+		if !strings.Contains(note, want) {
+			t.Errorf("day2_replace's kind note does not say %q: %s", want, note)
 		}
 	}
 }

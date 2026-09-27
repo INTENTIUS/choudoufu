@@ -187,7 +187,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: SummaryIdentityUnresolvedNoAddress,
-		What:    "The static evaluator could not resolve an instance's identity, the plan-node seam found no record, marker entry or evaluated identity for it either, and its type's marker surface carries no tofu-address (the Kubernetes label and manifest surfaces). A create there would flap against the orphan sweep, so the refusal stands instead of planning one (GitHub issue #1539).",
+		What:    "The static evaluator could not resolve an instance's identity, the plan-node seam found no record, marker entry or evaluated identity for it either, and a live object this block may already have created cannot be bound back to it: on Kubernetes, the sweep found an object of the type carrying the estate label and no address annotation (one an older build made, or one migrated from stock state before live-import stamped it), or could not list every kind the type can declare. A create there would flap against the orphan sweep, so the refusal stands instead of planning one (GitHub issues #1539, #1641). Where the sweep listed every kind and found no such object, the create is planned, and the object it makes carries the annotation the next sweep binds.",
 	},
 	{
 		Summary: "Ignoring an additional imported object",

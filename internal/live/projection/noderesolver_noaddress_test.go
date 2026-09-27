@@ -7,6 +7,7 @@ package projection
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
@@ -118,5 +119,48 @@ func TestNodeResolver_TagMarkerIgnoresStaticRefusal(t *testing.T) {
 	_, found, diags := with.ResolveResourceIdentity(context.Background(), addr, value, schema)
 	if found != wantFound || len(diags) != len(wantDiags) || hasDiagSummary(diags, SummaryIdentityUnresolvedNoAddress) {
 		t.Fatalf("tag surface changed: found %v->%v, diags %v -> %v", wantFound, found, wantDiags.ErrWithWarnings(), diags.ErrWithWarnings())
+	}
+}
+
+// GitHub issue #1641: the Kubernetes surfaces carry the address in an
+// annotation, so the refusal stands per object, on the sweep's account
+// ([NodeResolver.UnaddressedObjects]).
+func TestNodeResolver_AddressAnnotationRefusalStandsPerObject(t *testing.T) {
+	addr := readerAddr()
+	for _, tc := range []struct {
+		name        string
+		unaddressed map[string][]string
+		wantRefuse  bool
+		wantDetail  string
+	}{
+		{"the sweep listed every kind and found none", map[string][]string{addr.String(): {}}, false, ""},
+		{"the sweep found an unannotated object", map[string][]string{addr.String(): {"ConfigMap m1116-res/old"}}, true, "found ConfigMap m1116-res/old carrying this estate's tofu-estate label and no such annotation"},
+		{"the sweep found two", map[string][]string{addr.String(): {"ConfigMap ns/a", "ConfigMap ns/b"}}, true, "ConfigMap ns/a and ConfigMap ns/b"},
+		{"the sweep did not account for the instance", nil, true, "could not list every kind"},
+		{"the sweep accounted for another instance", map[string][]string{"kubernetes_config_map_v1.other": {}}, true, "could not list every kind"},
+	} {
+		for _, schema := range []struct {
+			name   string
+			value  cty.Value
+			schema providers.Schema
+		}{
+			{"labels", readerConfig(cty.UnknownVal(cty.String)), configMapTypeSchema()},
+			{"manifest", cty.ObjectVal(map[string]cty.Value{"manifest": cty.UnknownVal(cty.DynamicPseudoType)}), manifestTypeSchema()},
+		} {
+			t.Run(tc.name+"/"+schema.name, func(t *testing.T) {
+				resolver := &NodeResolver{StaticRefusals: staticRefusal(addr), UnaddressedObjects: tc.unaddressed}
+				_, found, diags := resolver.ResolveResourceIdentity(context.Background(), addr, schema.value, schema.schema)
+				if found {
+					t.Fatal("found an object; nothing is bound")
+				}
+				refused := hasDiagSummary(diags, SummaryIdentityUnresolvedNoAddress)
+				if refused != tc.wantRefuse {
+					t.Fatalf("refused = %v, want %v: %v", refused, tc.wantRefuse, diags.ErrWithWarnings())
+				}
+				if tc.wantRefuse && !strings.Contains(diags.ErrWithWarnings().Error(), tc.wantDetail) {
+					t.Errorf("detail does not say %q: %v", tc.wantDetail, diags.ErrWithWarnings())
+				}
+			})
+		}
 	}
 }

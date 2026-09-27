@@ -131,8 +131,11 @@ type Substrate interface {
 	// Writes is how surface's marker, one of this family's, is written.
 	Writes(surface markers.Surface) Writes
 
-	// CarriesAddress is whether this family's marker holds a tofu-address
-	// beside tofu-estate.
+	// CarriesAddress is whether this family's objects carry the block
+	// address beside tofu-estate, so that the sweep can bind a live object
+	// back to the block that made it: the AWS tofu-address tag, or the
+	// Kubernetes address annotation (GitHub issues #1639 to #1641). Where
+	// the address sits is [Substrate.AddressInMarkers]'s question.
 	CarriesAddress() bool
 
 	// Sweep is which sweep client the family's provider block builds.
@@ -165,6 +168,9 @@ type Substrate interface {
 	postCreateNeed
 	// markerCarrier is GitHub issue #1649's block, below.
 	markerCarrier
+
+	// addressCarrier is GitHub issue #1641's block, below.
+	addressCarrier
 }
 
 // All is every family, in the order a surface question asks them.
@@ -252,11 +258,16 @@ func MarkersOf(surface markers.Surface, obj cty.Value) (map[string]string, bool)
 	return s.MarkersOf(surface, obj)
 }
 
-// CarriesAddress reports whether surface's marker holds a tofu-address,
-// which is its family's [Substrate.CarriesAddress]. Only the AWS tag map
-// does: #1016's ruling is that the Kubernetes marker is the estate label
-// alone, because the object's group, kind, namespace and name are the join
-// key back to configuration. False for the zero Surface.
+// CarriesAddress reports whether an object on surface carries its block
+// address, which is its family's [Substrate.CarriesAddress]. Both families
+// do: AWS in the tofu-address tag, Kubernetes in the address annotation
+// beside the estate label (GitHub issue #1641, step 3 of the ruling on
+// #1605). False for the zero Surface.
+//
+// On Kubernetes an object can still lack the annotation - one an older
+// build created, or one migrated from stock state before live-import
+// stamped it - so a reader that needs the address of one particular
+// object asks that object, not this.
 func CarriesAddress(surface markers.Surface) bool {
 	s := For(surface)
 	return s != nil && s.CarriesAddress()
@@ -528,4 +539,34 @@ func MarkerNoun(surface markers.Surface) string {
 		}
 	}
 	return "marker"
+}
+
+// ---- GitHub issue #1641: where the address rides ----
+//
+// Until #1641, [Substrate.CarriesAddress] answered two questions at once,
+// because only one family carried an address: whether an object carries
+// its block address at all, and whether that address is a key of the
+// marker map [MarkersOf] reads (tofu-address and its continuation tags).
+// Kubernetes carries the address in an annotation, outside the label map
+// that is its marker, so the two answers part there. #1617's refusal asks
+// the first; the ownership read's address check, the stale-record check,
+// the adoption hint and live-mv's tag path ask the second, and each of
+// those still reads or writes the tofu-address tag key specifically.
+
+// addressCarrier is the part of [Substrate] #1641 added.
+type addressCarrier interface {
+	// AddressInMarkers is whether the block address is a key of the
+	// marker map [Substrate.MarkersOf] reads, written as tofu-address
+	// beside tofu-estate: true for the AWS tag map. False for Kubernetes,
+	// whose marker map is the labels and whose address is the
+	// markers.AddressAnnotation annotation beside them.
+	AddressInMarkers() bool
+}
+
+// AddressInMarkers reports whether surface's marker map holds the
+// tofu-address key, which is its family's [Substrate.AddressInMarkers].
+// False for the zero Surface.
+func AddressInMarkers(surface markers.Surface) bool {
+	s := For(surface)
+	return s != nil && s.AddressInMarkers()
 }
