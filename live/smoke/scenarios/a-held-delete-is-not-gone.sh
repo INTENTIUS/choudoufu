@@ -115,7 +115,7 @@ grep -E 'Apply complete!' <<< "$APPLY1" | evidence
 grep -qE 'Apply complete! Resources: 2 added' <<< "$APPLY1" || fail "$SCEN" "the first apply did not report two added: $APPLY1"
 D1="$(described)"
 echo "$NAME: $D1" | evidence
-[ "$D1" = "None	$ESTATE" ] || fail "$SCEN" "the held secret is not live and marked tofu-estate=$ESTATE after the apply: $D1"
+[ "$D1" = "None"$'\t'"$ESTATE" ] || fail "$SCEN" "the held secret is not live and marked tofu-estate=$ESTATE after the apply: $D1"
 proof "two secrets, both marked; the held one carries recovery_window_in_days = $WINDOW."
 
 step "2. the block is deleted from source - one destroy, found by the marker"
