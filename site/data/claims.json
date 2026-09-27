@@ -72,8 +72,8 @@
           "scenario": "live/smoke/scenarios/k8s-no-silent-orphans.sh",
           "command": "just smoke k8s-no-silent-orphans",
           "minutes": 3,
-          "break_mode": "BREAK=1 strips the label from the orphan and requires the replan to leave it alone",
-          "note": "The sweep is one cluster-wide, label-selected list per kind rather than one account-wide call, and controller-made objects (owner references, or written only by the control plane) are excluded before anything reaches a delete."
+          "break_mode": "BREAK=1 strips the label from the orphan and requires the replan to leave it alone; the ordinary run strips the orphan's address annotation first and requires it to be proposed all the same",
+          "note": "The sweep is one cluster-wide, label-selected list per kind rather than one account-wide call, and controller-made objects (owner references, or written only by the control plane) are excluded before anything reaches a delete. An object no natural key declares is joined a second way, by the block its address annotation names (#1640): bound when that block is declared, an orphan otherwise. The label is what makes an object this estate's, so an orphan whose annotation was stripped is still proposed for removal; two objects whose annotations claim one block that holds neither are refused as a collision rather than both destroyed (#1641)."
         }
       }
     },
@@ -220,12 +220,12 @@
           "note": ""
         },
         "kubernetes": {
-          "status": "restated",
+          "status": "proven",
           "scenario": "live/smoke/scenarios/k8s-greenfield.sh",
           "command": "just smoke k8s-greenfield",
           "minutes": 2,
-          "break_mode": "BREAK=1 strips the label with kubectl and requires live-ls to drop the object from the listing and the replan to refuse it by name, proposing the create the block declares rather than relabelling an object this estate can no longer show it owns",
-          "note": "The Kubernetes marker is estate-only, one label re-bound through namespace and name (#1016). Ownership is still readable with kubectl; a rename is a config-line edit with no label to rewrite, and a move between estates is the one label write live-mv -from-estate makes under the caller's credential, judged by the admission policy (claim 13 on Kubernetes)."
+          "break_mode": "BREAK=1 strips the label with kubectl and requires live-ls to drop the object from the listing and the replan to refuse it by name, proposing the create the block declares rather than relabelling an object this estate can no longer show it owns; BREAK_ANNOTATION=1 strips the address annotation from an object whose name is read at plan time and requires the replan to refuse that block by name, naming the object, rather than bind it or plan a create over it",
+          "note": "The ownership marker is one label, tofu-estate, because an address is often not a legal label value (#1016); the block address rides beside it in the annotation choudoufu.intentius.io/tofu-address (#1639, #1605's ruling). Any kubectl reads both. The sweep binds an object no natural key declares to the block its annotation names (#1640), so a block whose name is read at plan time applies and replans empty, and a create_before_destroy rename plans as the replace stock plans (#1541, #1641). A rename rewrites the annotation (a moved block plans it, live-mv writes it); a move between estates is the one label write live-mv -from-estate makes under the caller's credential, judged by the admission policy (claim 13 on Kubernetes)."
         }
       }
     },

@@ -1,12 +1,15 @@
 # k8s-greenfield
-# CLAIM 7 (kubernetes) - The marker is a label on a real cluster: one tofu-estate label rides the create, any kubectl reads it back, live-ls lists the estate by that label alone, a stripped label takes the object out of the estate and the next plan refuses it by name, and the estate lives its whole life without a state file. ~2 min.
+# CLAIM 7 (kubernetes) - The marker is a label on a real cluster, with the block address in an annotation beside it: both ride the create, any kubectl reads them back, live-ls lists the estate by the label alone, the annotation binds an object whose name is read at plan time, a stripped label takes the object out of the estate and the next plan refuses it by name, and the estate lives its whole life without a state file. ~2 min.
 #
 # The first Kubernetes claim (#1061, under #1016's ruling of an estate-only
 # label; #1057's harness made it a demo first). The marker is ONE label,
 # tofu-estate, in metadata.labels; group, kind, namespace and name are the
 # join key back to configuration. The block address rides beside it in the
 # annotation choudoufu.intentius.io/tofu-address (#1639, #1605's ruling),
-# which step 2 reads back; nothing binds on it yet.
+# which step 2 reads back, and step 6 shows it binding: a block whose name
+# is read at plan time applies, and replans empty because the sweep binds
+# the object by its annotation (#1640, #1641). BREAK_ANNOTATION=1 strips
+# the annotation there and requires the replan to refuse the block by name.
 # Step 3 (#1081) is the inventory: live-ls learns the substrate from the
 # provider block and lists the estate the way the sweep does, one
 # label-selected list per kind, each object joined back to its block on
@@ -197,7 +200,81 @@ grep -E 'No changes\.' <<< "$PLAN2" | head -1 | evidence
 grep -q "No changes." <<< "$PLAN2" || fail "k8s-greenfield" "deleting the cache changed the plan: $PLAN2"
 proof "the cache was there and its loss changed nothing."
 
-step "6. an api_version change is not a move"
+step "6. a name read at plan time is bound by its address annotation"
+explain \
+  "A block whose name reads another resource's data - not an identity" \
+  "attribute - cannot be resolved before the plan runs, so nothing but" \
+  "the object itself can say which live ConfigMap is this block's. That" \
+  "is what the address annotation is for (#1605): the first apply creates" \
+  "the object carrying kubernetes_config_map.reader, and the next plan" \
+  "binds it by that annotation instead of planning a second create over" \
+  "it (#1539). Before #1641 the first apply refused, because the marker" \
+  "was the label alone; now the refusal stands only where the sweep finds" \
+  "an object of the type with no annotation, and here it finds none."
+cmd "cat > reader.tf && choudoufu apply -auto-approve && choudoufu plan"
+cat > "$SMOKE_WORK/reader.tf" <<'TF'
+resource "kubernetes_config_map" "reader" {
+  metadata {
+    name      = "reader-${kubernetes_config_map.app.data["greeting"]}"
+    namespace = "smoke-k8s"
+  }
+  data = { reads = "app-config" }
+}
+TF
+RAPPLY="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
+  || fail "k8s-greenfield" "the apply of a block whose name is read at plan time failed (before #1641 this was #1617's refusal): $RAPPLY"
+grep -E 'Apply complete!' <<< "$RAPPLY" | evidence
+grep -qE 'Apply complete! Resources: 1 added, 0 changed, 0 destroyed' <<< "$RAPPLY" \
+  || fail "k8s-greenfield" "the apply did not create exactly the reader ConfigMap: $RAPPLY"
+R_ADDR="$(kc get configmap reader-hello -n smoke-k8s -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}' 2>&1)" \
+  || fail "k8s-greenfield" "kubectl could not read reader-hello: $R_ADDR"
+echo "choudoufu.intentius.io/tofu-address: $R_ADDR" | evidence
+[ "$R_ADDR" = "kubernetes_config_map.reader" ] \
+  || fail "k8s-greenfield" "reader-hello's address annotation reads '$R_ADDR', want kubernetes_config_map.reader"
+
+if [ "${BREAK_ANNOTATION:-0}" = "1" ]; then
+  step "BREAK_ANNOTATION control - strip the address annotation; the replan must refuse by name"
+  explain \
+    "This removes the address annotation from reader-hello with kubectl," \
+    "leaving its estate label. Nothing else ties the object to its block:" \
+    "if the replan is still empty, the annotation is not what bound it." \
+    "An unannotated object of the type is exactly what an older build or" \
+    "a migration leaves, so the node refuses rather than planning a" \
+    "create over it or destroying it as an orphan (#1617, #1641)."
+  cmd "kubectl annotate configmap reader-hello -n smoke-k8s choudoufu.intentius.io/tofu-address-"
+  kc annotate configmap reader-hello -n smoke-k8s choudoufu.intentius.io/tofu-address- >/dev/null \
+    || fail "k8s-greenfield" "BREAK_ANNOTATION: could not strip the annotation"
+  ARC=0
+  AOUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" || ARC=$?
+  AFLAT="$(tr '\n' ' ' <<< "$AOUT" | tr -s ' ')"
+  grep -E '^Error: |^Plan:|No changes' <<< "$AOUT" | head -2 | evidence
+  if grep -q "No changes." <<< "$AOUT"; then
+    fail "k8s-greenfield" "BREAK_ANNOTATION: the plan is still empty with the annotation stripped - the annotation is not what bound the object"
+  fi
+  [ "$ARC" = "1" ] || fail "k8s-greenfield" "BREAK_ANNOTATION: the plan exited $ARC, want 1: $AOUT"
+  grep -q 'Error: Identity not resolvable, and the marker carries no address' <<< "$AOUT" \
+    || fail "k8s-greenfield" "BREAK_ANNOTATION: the plan does not refuse the block by name: $AOUT"
+  grep -q 'ConfigMap smoke-k8s/reader-hello' <<< "$AFLAT" \
+    || fail "k8s-greenfield" "BREAK_ANNOTATION: the refusal does not name the unannotated object: $AOUT"
+  kc get configmap reader-hello -n smoke-k8s >/dev/null 2>&1 \
+    || fail "k8s-greenfield" "BREAK_ANNOTATION: reader-hello is gone - a refused object must be left alone"
+  proof "caught. Without its annotation the object cannot be told apart from a new one, and the plan stops and names it."
+  exit 0
+fi
+
+RPLAN="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" \
+  || fail "k8s-greenfield" "the replan over reader-hello failed: $RPLAN"
+grep -E 'No changes\.' <<< "$RPLAN" | head -1 | evidence
+grep -q "No changes." <<< "$RPLAN" \
+  || fail "k8s-greenfield" "the replan is not empty: the ConfigMap the first apply made was not bound by its annotation: $RPLAN"
+rm -f "$SMOKE_WORK/reader.tf"
+RDEL="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
+  || fail "k8s-greenfield" "removing the reader block failed: $RDEL"
+grep -qE 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$RDEL" \
+  || fail "k8s-greenfield" "deleting the reader block did not destroy exactly its object: $RDEL"
+proof "created on the first apply, read back with kubectl carrying kubernetes_config_map.reader, bound by that annotation on the replan, and removed as an orphan once its block was deleted."
+
+step "7. an api_version change is not a move"
 explain \
   "The provider ships two spellings of most kinds: kubernetes_config_map" \
   "and kubernetes_config_map_v1 both manage a ConfigMap, and the suffix" \
@@ -231,7 +308,7 @@ else
   proof "found, and updated in place for a representation difference between the two spellings; nothing is created and nothing is destroyed."
 fi
 
-step "7. destroy - exactly what was made"
+step "8. destroy - exactly what was made"
 explain \
   "Teardown must remove exactly the four objects this scenario created" \
   "and leave the cluster's own namespaces alone."
@@ -247,7 +324,7 @@ fi
 kc get namespace kube-system >/dev/null 2>&1 || fail "k8s-greenfield" "kube-system is gone; destroy reached past the estate"
 proof "4 destroyed, 0 added, 0 changed. The estate is gone and the cluster's own namespaces stand."
 
-step "8. the inventory after destroy - empty"
+step "9. the inventory after destroy - empty"
 explain \
   "The same listing as step 3, against a cluster that no longer holds" \
   "the estate. Nothing carries the label, so nothing is listed; a stale" \
