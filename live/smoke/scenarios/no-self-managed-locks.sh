@@ -70,14 +70,17 @@ cmd "(apply in a &) ; (apply in b &) ; wait"
   rc=0
   chdf apply -auto-approve -input=false -no-color > "$SMOKE_WORK/a.out" 2>&1 || rc=$?
   echo "$rc" > "$SMOKE_WORK/a.rc"
-) &
+) & PID_A=$!
 (
   cd "$SMOKE_WORK/b" || exit 1
   rc=0
   chdf apply -auto-approve -input=false -no-color > "$SMOKE_WORK/b.out" 2>&1 || rc=$?
   echo "$rc" > "$SMOKE_WORK/b.rc"
-) &
-wait
+) & PID_B=$!
+# Wait on the two applies by PID, never a bare `wait`: smoke.sh's stall
+# watchdog is also a background child of this shell (#1593), so a bare
+# `wait` blocks until the watchdog fires and kills the run.
+wait "$PID_A" "$PID_B" || true
 A_RC="$(cat "$SMOKE_WORK/a.rc")"; B_RC="$(cat "$SMOKE_WORK/b.rc")"
 grep -q "Acquiring state lock" "$SMOKE_WORK/a.out" "$SMOKE_WORK/b.out" \
   && fail "locks" "an apply printed 'Acquiring state lock' - a lock was taken after all"

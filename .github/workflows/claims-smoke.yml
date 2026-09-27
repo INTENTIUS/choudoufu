@@ -204,7 +204,11 @@ jobs:
     env:
       # Safe here (unlike gauntlet.yml's shared mirror, #1550): nothing in
       # these scenarios reads this directory as a read-only -plugin-dir, so
-      # `chdf init` treats it as an ordinary, writable cache.
+      # `chdf init` treats it as an ordinary, writable cache. It is also the
+      # stock oracle's cache, mounted at this same path (live/smoke/lib.sh):
+      # with the oracle on its own /plugins volume, roundtrip and
+      # stock-when-you-need-it each found the other side's symlink dangling
+      # in their shared .terraform/providers (run 36339857046).
       TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.tf-plugin-cache
     steps:
       - uses: actions/checkout@v7
