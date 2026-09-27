@@ -8,7 +8,7 @@ package identity
 import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/markers"
-	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 )
 
 // This file is the third carrier shape for a Kubernetes object's identity
@@ -49,35 +49,12 @@ func ManifestShape(block *configschema.Block) bool {
 // ManifestImportSyntax is the provider's documented import id for a
 // manifest object, the namespace segment present for a namespaced kind
 // only.
-const ManifestImportSyntax = "apiVersion=APIVERSION,kind=KIND,[namespace=NAMESPACE,]name=NAME"
-
-// synthesizeManifestIdentity builds the entry for a type whose schema has
-// [ManifestShape]: the four natural-key components read out of the
-// manifest argument's own object constructor by [Component.Path], joined
-// into the provider's import id. The namespace component is OmitIfAbsent,
-// so a cluster-scoped manifest (no metadata.namespace key) renders the
-// documented shorter form rather than failing.
-func synthesizeManifestIdentity(typeName string, schema providers.Schema) (TypeIdentity, bool) {
-	if !ManifestShape(schema.Block) {
-		return TypeIdentity{}, false
-	}
-	key := func(path ...string) Component {
-		return Component{Attrs: []string{"manifest"}, Path: path}
-	}
-	return TypeIdentity{
-		Type:           typeName,
-		NonAWSProvider: true,
-		Components: []Component{
-			{Literal: "apiVersion="},
-			key("apiVersion"),
-			{Literal: ",kind="},
-			key("kind"),
-			{Attrs: []string{"manifest"}, Path: []string{"metadata", "namespace"}, Literal: ",namespace=", OmitIfAbsent: true},
-			{Literal: ",name="},
-			key("metadata", "name"),
-		},
-		ImportSyntax: ManifestImportSyntax,
-		Synthesized:  true,
-		Admits:       AdmitSchema,
-	}, true
-}
+//
+// The entry a [ManifestShape] type gets is the Kubernetes family's answer
+// to [substrate.Substrate.SynthesizeIdentity] (GitHub issue #1586): the
+// four natural-key components read out of the manifest argument's own
+// object constructor by [Component.Path], joined into this import id. The
+// namespace component is OmitIfAbsent, so a cluster-scoped manifest (no
+// metadata.namespace key) renders the documented shorter form rather than
+// failing.
+const ManifestImportSyntax = substrate.ManifestImportSyntax
