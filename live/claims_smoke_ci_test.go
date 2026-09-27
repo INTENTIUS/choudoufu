@@ -36,8 +36,7 @@ const claimsSmokeWorkflow = "../.github/workflows/claims-smoke.yml"
 // entry here must not appear in either matrix below; removing an entry
 // without adding its scenario back to one of the two matrices is how its
 // fix ships.
-var claimsSmokeExcluded = map[string]string{
-}
+var claimsSmokeExcluded = map[string]string{}
 
 // claimsSmokeNightlyOnly is a proven, non-real-AWS AWS cell measured over
 // the 10-minute (both arms) budget the workflow's header states, so it runs
