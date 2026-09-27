@@ -30,9 +30,11 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // Write is how a marker reaches a live object.
@@ -68,6 +70,10 @@ type Writes struct {
 	// Adopt is an existing object a migration (live-import -approve) or a
 	// move between estates (live-mv -from-estate) marks.
 	Adopt Write
+	// PostCreate is a resource this run creates whose create call cannot
+	// carry the marker, so it is written onto the object once the create
+	// returns (GitHub issue #1587, [WriteTaggingAPI], [WriteNeverNeeded]).
+	PostCreate Write
 }
 
 // Sweep is which estate-sweep client a family's provider block builds.
@@ -140,12 +146,29 @@ type Substrate interface {
 	// never a family's concrete type (GitHub issue #1580).
 	NewSweeper(providerConfig cty.Value, ok bool) (Sweeper, error)
 
+	// --- Admission (GitHub issue #1586; see identity.go) ---
+
+	// SynthesizeIdentity is how this family's schema identifies an
+	// instance of a type the ratified table does not cover, or false when
+	// the schema is not one of this family's shapes. Asked in [All]'s
+	// order by internal/live/identity's synthesizeTypeIdentity, and the
+	// first family to answer decides.
+	SynthesizeIdentity(typeName string, schema providers.Schema) (SynthesizedIdentity, bool)
+
 	// surfaceWording is GitHub issue #1584's block, below.
 	surfaceWording
+
+	// markerWriting is GitHub issue #1587's block, below.
+	markerWriting
 }
 
 // All is every family, in the order a surface question asks them.
-var All = []Substrate{AWS, Kubernetes}
+//
+// AWS is last, and that is load-bearing for [Substrate.SynthesizeIdentity]
+// (GitHub issue #1586): the AWS answer is the identity-schema route, which
+// claims every type, so a family with a convention of its own has to be
+// asked before it. The surface questions are disjoint and do not care.
+var All = []Substrate{Kubernetes, AWS}
 
 // ForProvider is the family a provider type name belongs to ("aws",
 // "kubernetes"). It matches the type name alone, which is what every
@@ -353,4 +376,41 @@ func NotACarrier(providerType string, block *configschema.Block, typeName string
 		return s.NotACarrier(block, typeName)
 	}
 	return fmt.Sprintf("%s is from a provider this fork has no marker surface for, so there is nowhere to carry an ownership marker.", typeName)
+}
+
+// ---- GitHub issue #1587: the post-create marker write ----
+//
+// Kept in its own block: several units of #1579 add methods to this file.
+//
+// Before #1587 the post-create write (internal/live/projection's
+// nodetagoncreate.go) asked nobody which writer to use: the command layer
+// built a Resource Groups Tagging API client when the provider type string
+// was "aws" and nil otherwise, and [Writes] had no reader outside tests. A
+// family whose marker is a side resource written after the create (GCP's
+// tag bindings are one) would have had its creates left unmarked with
+// nothing saying why. Now the surface's [Writes.PostCreate] names the
+// write, the family's [Substrate.MarkerWriter] names the writer its
+// provider configurations build, and internal/command builds the client
+// from a table keyed on the [Write], refusing by name a write it has no
+// client for.
+
+const (
+	// WriteTaggingAPI: the Resource Groups Tagging API's TagResources,
+	// addressed by the arn the provider returned, issued after the create
+	// of a type whose create call cannot carry tags (live/registry.json's
+	// tag_on_create false, GitHub issue #1084).
+	WriteTaggingAPI Write = "tagging-api"
+
+	// WriteNeverNeeded: the create call always carries the marker, so no
+	// write follows it. Named rather than left empty so that a family that
+	// has not answered is distinguishable from one that answered "never".
+	WriteNeverNeeded Write = "never-needed"
+)
+
+// markerWriting is the part of [Substrate] #1587 added.
+type markerWriting interface {
+	// MarkerWriter is the post-create write a provider configuration of
+	// this family builds a client for: [WriteNeverNeeded] for a family
+	// whose every surface rides the create call.
+	MarkerWriter(provider addrs.AbsProviderConfig) Write
 }
