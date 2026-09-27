@@ -155,8 +155,11 @@ func LoadShardArtifacts(dir string) ([]ShardArtifact, error) {
 // CombineShards folds every shard's own row into base and rebuilds.
 //
 // expect is the estate list the run was supposed to measure (ShardEstates,
-// or the explicit names a dispatch asked for); commit and emulator are the
-// tree and the pin every shard must have measured against. Each is checked
+// or the explicit names a dispatch asked for); commit, emulator and
+// kindImage are the tree and the two substrate pins every shard must have
+// measured against - emulator for a floci-substrate estate, kindImage for a
+// kind-substrate one (issue #1594's split, mutually exclusive per row the
+// same way LastRun.Emulator/LastRun.SubstrateImage are). Each is checked
 // rather than inferred from the shards themselves: shards that all agree
 // with each other and disagree with the checkout are a set of stale
 // uploads, and they read identically to a fresh run from the inside.
@@ -165,7 +168,7 @@ func LoadShardArtifacts(dir string) ([]ShardArtifact, error) {
 // them has the same fix - re-run that estate's job, which is minutes now
 // that a job is one estate - and because the alternative is a board that
 // quietly describes fewer estates, or another tree, than it claims to.
-func CombineShards(root string, base *Artifact, shards []ShardArtifact, expect []string, commit, emulator string) (*Artifact, error) {
+func CombineShards(root string, base *Artifact, shards []ShardArtifact, expect []string, commit, emulator, kindImage string) (*Artifact, error) {
 	if len(expect) == 0 {
 		return nil, fmt.Errorf("combine-shards: no estates were expected, so there is nothing to combine and nothing to check against")
 	}
@@ -196,7 +199,8 @@ func CombineShards(root string, base *Artifact, shards []ShardArtifact, expect [
 
 	got := map[string]EstateResult{}
 	for _, s := range shards {
-		if _, ok := m.ByName(s.Estate); !ok {
+		entry, ok := m.ByName(s.Estate)
+		if !ok {
 			return nil, fmt.Errorf("combine-shards: refusing - shard %s is for estate %q, which is not in %s", s.Path, s.Estate, ManifestPath)
 		}
 		if !wanted[s.Estate] {
@@ -215,7 +219,18 @@ func CombineShards(root string, base *Artifact, shards []ShardArtifact, expect [
 		if row.LastRun.Commit != commit {
 			return nil, fmt.Errorf("combine-shards: refusing - estate %q was measured at commit %s and this run is %s (%s); a shard from another run is not evidence about this one", s.Estate, orNone(row.LastRun.Commit), commit, s.Path)
 		}
-		if row.LastRun.Emulator != emulator {
+		// A kind-substrate estate never launches floci, so its row leaves
+		// Emulator empty and records what it actually ran against in
+		// SubstrateImage instead (issue #1594, LastRun's own doc comment).
+		// Holding it to the floci pin here is exactly the bug #1685's
+		// nightly hit: every kind row read "measured against emulator
+		// <none>" against a run that pins a floci digest, forever, because
+		// a kind row is NEVER stamped with Emulator.
+		if entry.Substrate() == SubstrateKind {
+			if row.LastRun.SubstrateImage != kindImage {
+				return nil, fmt.Errorf("combine-shards: refusing - estate %q was measured against kind node image %s and this run pins %s (%s); rows measured against different images are not one board", s.Estate, orNone(row.LastRun.SubstrateImage), kindImage, s.Path)
+			}
+		} else if row.LastRun.Emulator != emulator {
 			return nil, fmt.Errorf("combine-shards: refusing - estate %q was measured against emulator %s and this run pins %s (%s); rows measured against different images are not one board", s.Estate, orNone(row.LastRun.Emulator), emulator, s.Path)
 		}
 		if err := checkShardContributesOnlyItsOwn(s, baseRows, m, bi, emulator, oracleVersions(root), providerVersions(root)); err != nil {
