@@ -92,9 +92,9 @@
 # marker count is `kubectl get <kind> -A -l tofu-estate=<estate>` summed
 # over the estate's eight kinds; the out-of-band mutation is a kubectl patch
 # or label; the rename is the moved-block half only, since live-mv has no
-# Kubernetes leg (#1066). day2_replace does not apply and is recorded n/a
-# by the runner, not by this script. day2_crash's own create-before-destroy
-# window does not exist here either, so what this script interrupts instead
+# Kubernetes leg (#1066). day2_replace is a create_before_destroy rename
+# (#1541, #1641), measured in section 9b; day2_crash does not interrupt
+# that window (#1683), so what this script interrupts instead
 # is an apply that creates several objects (#1110, part 4): the kill lands
 # between one object's create committing and the next object's, and the
 # next plan has to propose exactly the remainder. Every other stage
@@ -134,6 +134,10 @@
 #   BREAK_APPROVAL set to 1 to apply the saved plan after the world moved
 #                  and expect success (plan_approval's Break line); must
 #                  fail.
+#   BREAK_REPLACE  set to 1 to recreate the renamed ConfigMap's old object,
+#                  carrying the estate label and the block's address
+#                  annotation, after day2_replace's apply; the next plan
+#                  must propose destroying it (day2_replace's Break line).
 #   BREAK_CRASH    set to 1 to assert, after the same real interrupt, that
 #                  nothing is proposed (day2_crash's own Break line); must
 #                  fail, because a recovered run proposes the remainder.
@@ -1184,12 +1188,24 @@ else
   gauntlet_stage day2_count pass "scaling kubernetes_config_map_v1.shard from 2 to 1 destroyed exactly shard-1, planned at the sweep's orphan address $C_ADDR since the label carries no index (shard-0 untouched, both read with kubectl); back to 2 created exactly kubernetes_config_map_v1.shard[1] under the same name; the next plan is empty; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
 fi
 
+# ── 9b. day2_replace: a create_before_destroy rename ───────────────────
+#
+# #1541, switched on by #1641: a Kubernetes name is unique within its
+# namespace, so the replacement create_before_destroy is used for here is
+# a rename, and since #1640 it plans as stock's replace. The stage body is
+# shared by the four kind estates: live/e2e/lib/gauntlet.sh's
+# gauntlet_kind_day2_replace, which adds its own block and removes it again.
+gauntlet_begin_stage day2_replace
+log "=== 9b. day2_replace: a content-hashed ConfigMap renamed under create_before_destroy ==="
+gauntlet_kind_day2_replace "$ADOPTED" "$ORACLE" "$NS"
+
 # ── 10. day2_crash: an apply of several objects, killed after the first ──
 #
 # day2_crash on the kind substrate (#1110, part 4). The stage's own window
 # on AWS - after a create_before_destroy create, before the paired destroy -
 # cannot exist here: a name is unique in its namespace, so nothing is
-# created before the object it replaces is gone (day2_replace's n/a). The
+# created before the object it replaces is gone, except by a rename, which
+# day2_replace measures and this stage does not interrupt (#1683). The
 # Kubernetes window with the same question in it is an apply that creates
 # several objects. Kill it after one object exists and before the next
 # does, and the next plan has to propose exactly the remainder, with the

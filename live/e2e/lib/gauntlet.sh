@@ -376,6 +376,114 @@ gauntlet_kind_count() {
   printf '%s\n' "$n"
 }
 
+# gauntlet_kind_day2_replace <adopted-root> <oracle-root> <namespace>:
+# day2_replace on the kind substrate (#1541, #1641). A Kubernetes name is
+# unique within its namespace, so the replacement create_before_destroy is
+# used for is a rename: the content-hashed ConfigMap, name = "cfg-<hash>",
+# which a Deployment rolls onto before the old one goes. Since #1640 the old
+# object is bound to its block by its address annotation, so the plan is
+# the replace stock plans (create first) and not a create beside an orphan
+# destroy of the old object, which is the order #1541 measured.
+#
+# Both roots get the same block in a file of its own (day2_replace.tf),
+# at cfg-a and then cfg-b; stock on cluster B is the oracle for the plan's
+# shape and for the apply's order. Each apply runs at -parallelism=1 and
+# the log's line order is the evidence: the new object's "Creation
+# complete" before the old one's "(deposed object ...): Destroying". The
+# block is removed from both roots at the end, so every later stage's
+# counts are what they were.
+#
+# The caller supplies what differs per estate: fail, stock_b (stock in the
+# oracle root on cluster B), kca (kubectl on cluster A), TOFU, KCA and
+# ESTATE. BREAK_REPLACE=1 is the stage's Break line: after the replace it
+# recreates cfg-a carrying the estate label and the block's annotation,
+# and the next plan must propose destroying it rather than nothing.
+gauntlet_kind_day2_replace() {
+  local adopted="$1" oracle="$2" ns="$3" block="kubernetes_config_map.hashed"
+  local o_plan r_plan o_apply r_apply created destroying ann b_plan r_replan r_rm o_rm
+  _day2_replace_tf() { # $1 dir, $2 the name's suffix
+    cat > "$1/day2_replace.tf" <<EOF
+resource "kubernetes_config_map" "hashed" {
+  metadata {
+    name      = "cfg-$2"
+    namespace = "$ns"
+  }
+  data = { v = "$2" }
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+EOF
+  }
+  _day2_replace_chdf() { ( cd "$adopted" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" "$TOFU" "$@" ); }
+  # _day2_replace_order <log> <where>: the line of the create's completion
+  # and of the deposed destroy's start, create first, or fail.
+  _day2_replace_order() {
+    created="$(grep -nE "${block//./\\.}: Creation complete" <<< "$1" | head -1 | cut -d: -f1)"
+    destroying="$(grep -nE "${block//./\\.} \(deposed object [^)]*\): Destroying" <<< "$1" | head -1 | cut -d: -f1)"
+    [ -n "$created" ] && [ -n "$destroying" ] || { printf '%s\n' "$1" | tail -20; fail "$2: the apply log has no create complete (${created:-none}) or no deposed destroy (${destroying:-none}) for $block"; }
+    [ "$created" -lt "$destroying" ] || { printf '%s\n' "$1" | tail -20; fail "$2: the old object's destroy started (log line $destroying) before the new object's create completed (line $created) - the window #1541 measured, open the wrong way round"; }
+  }
+  # _day2_replace_is_replace <plan> <where>: the plan's shape, stock's.
+  _day2_replace_is_replace() {
+    grep -qF "Plan: 1 to add, 0 to change, 1 to destroy." <<< "$1" || { printf '%s\n' "$1" | tail -20; fail "$2: the rename is not one add and one destroy: $(grep -E '^Plan:|^No changes' <<< "$1" | head -1)"; }
+    grep -qE "# ${block//./\\.} must be replaced" <<< "$1" || { printf '%s\n' "$1" | grep -E '# ' | head -5; fail "$2: $block is not planned as a replace"; }
+    grep -qF "+/- create replacement and then destroy" <<< "$1" || fail "$2: the replace is not create-first"
+    if grep -q "orphan_" <<< "$1"; then
+      printf '%s\n' "$1" | grep -E '# ' | head -5
+      fail "$2: the old object is planned as an orphan beside a create (#1541) rather than as the replace's deposed half"
+    fi
+  }
+
+  _day2_replace_tf "$oracle" a; _day2_replace_tf "$adopted" a
+  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's apply of cfg-a failed on B"
+  r_apply="$(_day2_replace_chdf apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$r_apply" | tail -20; fail "the apply of cfg-a failed"; }
+  grep -qF "Apply complete! Resources: 1 added, 0 changed, 0 destroyed." <<< "$r_apply" || fail "the apply of cfg-a did not add exactly one object"
+  ann="$(kca get configmap cfg-a -n "$ns" -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}' 2>&1)"
+  [ "$ann" = "$block" ] || fail "cfg-a carries the address annotation '$ann', want $block (#1639): nothing would bind it on the rename"
+
+  _day2_replace_tf "$oracle" b; _day2_replace_tf "$adopted" b
+  o_plan="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$o_plan" | tail -10; fail "stock's rename plan failed on B"; }
+  _day2_replace_is_replace "$o_plan" "stock on B (the oracle)"
+  r_plan="$(_day2_replace_chdf plan -input=false -no-color 2>&1)" || { printf '%s\n' "$r_plan" | tail -20; fail "the rename plan failed"; }
+  _day2_replace_is_replace "$r_plan" "choudoufu"
+
+  o_apply="$(stock_b apply -auto-approve -input=false -no-color -parallelism=1 2>&1)" || { printf '%s\n' "$o_apply" | tail -10; fail "stock's rename apply failed on B"; }
+  _day2_replace_order "$o_apply" "stock on B (the oracle)"
+  r_apply="$(_day2_replace_chdf apply -auto-approve -input=false -no-color -parallelism=1 2>&1)" || { printf '%s\n' "$r_apply" | tail -20; fail "the rename apply failed"; }
+  grep -qF "Apply complete! Resources: 1 added, 0 changed, 1 destroyed." <<< "$r_apply" || fail "the rename apply did not add one object and destroy one"
+  _day2_replace_order "$r_apply" "choudoufu"
+  kca get configmap cfg-b -n "$ns" >/dev/null 2>&1 || fail "cfg-b does not exist after the replace"
+  kca get configmap cfg-a -n "$ns" >/dev/null 2>&1 && fail "cfg-a still exists after the replace"
+  ann="$(kca get configmap cfg-b -n "$ns" -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}' 2>&1)"
+  [ "$ann" = "$block" ] || fail "cfg-b carries the address annotation '$ann', want $block"
+
+  if [ "${BREAK_REPLACE:-}" = "1" ]; then
+    kca create configmap cfg-a -n "$ns" --from-literal=v=a >/dev/null || fail "BREAK_REPLACE: could not recreate cfg-a"
+    kca label configmap cfg-a -n "$ns" "tofu-estate=$ESTATE" >/dev/null || fail "BREAK_REPLACE: could not label cfg-a"
+    kca annotate configmap cfg-a -n "$ns" "choudoufu.intentius.io/tofu-address=$block" >/dev/null || fail "BREAK_REPLACE: could not annotate cfg-a"
+    b_plan="$(_day2_replace_chdf plan -input=false -no-color 2>&1)" || { printf '%s\n' "$b_plan" | tail -20; fail "BREAK_REPLACE: the plan over the recreated cfg-a failed"; }
+    grep -q "No changes." <<< "$b_plan" && fail "BREAK_REPLACE=1: the old object is back, carrying the block's address, and the plan proposes nothing - the empty-plan assertion is not load-bearing"
+    grep -qE "orphan_${ns}_cfg-a will be destroyed" <<< "$b_plan" || { printf '%s\n' "$b_plan" | tail -20; fail "BREAK_REPLACE=1: the plan does not propose destroying the recreated cfg-a"; }
+    _day2_replace_chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 || fail "BREAK_REPLACE: the apply removing cfg-a again failed"
+  else
+    r_replan="$(_day2_replace_chdf plan -input=false -no-color 2>&1)" || { printf '%s\n' "$r_replan" | tail -20; fail "the replan after the replace failed"; }
+    grep -q "No changes." <<< "$r_replan" || { printf '%s\n' "$r_replan" | tail -20; fail "the replan after the replace is not empty"; }
+  fi
+
+  rm -f "$oracle/day2_replace.tf" "$adopted/day2_replace.tf"
+  o_rm="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$o_rm" | tail -10; fail "stock's removal of the replace block failed on B"; }
+  r_rm="$(_day2_replace_chdf apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$r_rm" | tail -20; fail "removing the replace block failed"; }
+  grep -qF "Apply complete! Resources: 0 added, 0 changed, 1 destroyed." <<< "$r_rm" || fail "removing the replace block did not destroy exactly cfg-b"
+  kca get configmap cfg-b -n "$ns" >/dev/null 2>&1 && fail "cfg-b still exists after its block was removed"
+
+  if [ "${BREAK_REPLACE:-}" = "1" ]; then
+    gauntlet_stage day2_replace pass "BREAK_REPLACE=1 control: after the create_before_destroy rename cfg-a -> cfg-b, cfg-a was recreated by hand carrying tofu-estate=$ESTATE and the annotation naming $block, and the next plan proposes destroying it rather than nothing, so the empty-plan assertion is load-bearing; the real replan check is skipped"
+  else
+    gauntlet_stage day2_replace pass "a create_before_destroy ConfigMap whose content-hashed name changes (cfg-a -> cfg-b) plans as stock's replace: '$block must be replaced', +/- create replacement and then destroy, 1 add and 1 destroy, with no orphan destroy beside it, because cfg-a carries the block's address annotation and the sweep binds it (#1640). At -parallelism=1 the apply log shows cfg-b's creation complete (line $created) before cfg-a's deposed destroy starts (line $destroying), the same order stock's apply shows on the oracle cluster; kubectl confirms cfg-b alone remains, carrying the annotation, and the next plan is empty (#1541). The block is removed from both roots afterwards. BREAK_REPLACE=1 recreates cfg-a carrying the block's annotation and the next plan correctly proposes destroying it"
+  fi
+}
+
 # gauntlet_k8s_wait_all <kubeconfig> <namespace> <kind> <condition>
 #                       <timeout-seconds> <where>
 #

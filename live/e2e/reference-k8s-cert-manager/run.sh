@@ -79,6 +79,10 @@
 #   BREAK_COUNT    assert the wrong shard was destroyed on the scale-down.
 #   BREAK_APPROVAL apply the saved plan after the world moved and expect
 #                  success.
+#   BREAK_REPLACE  set to 1 to recreate the renamed ConfigMap's old object,
+#                  carrying the estate label and the block's address
+#                  annotation, after day2_replace's apply; the next plan
+#                  must propose destroying it (day2_replace's Break line).
 #   BREAK_CRASH    assert, after the same real interrupt, that nothing is
 #                  proposed; must fail, because a recovered run proposes
 #                  the remainder.
@@ -836,6 +840,17 @@ else
   fi
 fi
 
+# ── 9b. day2_replace: a create_before_destroy rename ───────────────────
+#
+# #1541, switched on by #1641: a Kubernetes name is unique within its
+# namespace, so the replacement create_before_destroy is used for here is
+# a rename, and since #1640 it plans as stock's replace. The stage body is
+# shared by the four kind estates: live/e2e/lib/gauntlet.sh's
+# gauntlet_kind_day2_replace, which adds its own block and removes it again.
+gauntlet_begin_stage day2_replace
+log "=== 9b. day2_replace: a content-hashed ConfigMap renamed under create_before_destroy ==="
+gauntlet_kind_day2_replace "$ADOPTED" "$ORACLE" "$NS"
+
 # ── 10. day2_crash: an apply of several objects, killed after the first ──
 #
 # #1237: this estate's numbered sections used to jump from day2_count
@@ -845,9 +860,10 @@ fi
 # stage on kind.
 #
 # The stage's window on AWS - after a create_before_destroy create, before
-# the paired destroy - cannot exist here: a name is unique in its
+# the paired destroy - does not exist here: a name is unique in its
 # namespace, so nothing is created before the object it replaces is gone
-# (day2_replace's n/a). The Kubernetes window with the same question in it
+# (except by a rename, which day2_replace measures and this stage does not
+# interrupt, #1683). The Kubernetes window with the same question in it
 # is an apply that creates several objects. Kill it after one object exists
 # and before the next does, and the next plan has to propose exactly the
 # remainder, with the object already created bound by its label and its
