@@ -71,6 +71,14 @@ const SummaryKubernetesKindNotServed = "Kubernetes kind not served by the cluste
 // same question at plan time and reports its own answer.
 const SummaryKubernetesKindUnverified = "Kubernetes kind could not be verified"
 
+// SummaryKubernetesSweepDenied is the warning for a Kubernetes list call
+// this run's own credential was refused with Forbidden - the RBAC role
+// running the sweep lacks `list` on one kind - raised once for every such
+// kind this run hit (GitHub issue #1582), the Kubernetes leg's counterpart
+// of [SummaryIncompleteSweep]'s AccessDenied grouping for AWS. See
+// sweepdenied.go.
+const SummaryKubernetesSweepDenied = "Kubernetes sweep denied"
+
 // KubernetesSweep is the leg ([substrate.SweepLabelList]) for a Kubernetes
 // provider configuration (GitHub issue #1065): one cluster-wide,
 // label-selected list per kind. Types are the provider's resource types
@@ -151,9 +159,28 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 	for _, k := range kinds {
 		objects, ownerSkipped, err := leg.Client.List(ctx, k, markers.TagEstate, req.Estate)
 		if err != nil {
+			gap := func(t string) SweepGap {
+				return SweepGap{TypeName: t, Reason: SweepGapListFailed,
+					Detail: fmt.Sprintf("listing %s across all namespaces failed: %s", k.GVR.String(), err)}
+			}
+			// GitHub issue #1582: a Forbidden is the run's own credential,
+			// the same class AWS's AccessDeniedException is - not a
+			// cluster problem a retry might fix. Reason stays
+			// SweepGapListFailed, exactly as AWS's denied gaps keep
+			// LIST_FAILED; what differs is that the denial is also
+			// recorded so one warning, naming the verb, resource and
+			// scope the grant lacks, is raised for the whole run instead
+			// of a bare "listing X failed" per kind. A non-Forbidden
+			// failure - a throttle, a timeout, the cluster genuinely
+			// unreachable for this one call - keeps the plain gap.
+			if detail, denied := kubesweep.Forbidden(err); denied {
+				for _, t := range k.TypeNames {
+					sweepGapKubeDenied(res, gap(t), k.Kind, detail, err)
+				}
+				continue
+			}
 			for _, t := range k.TypeNames {
-				res.SweepGaps = append(res.SweepGaps, SweepGap{TypeName: t, Reason: SweepGapListFailed,
-					Detail: fmt.Sprintf("listing %s across all namespaces failed: %s", k.GVR.String(), err)})
+				res.SweepGaps = append(res.SweepGaps, gap(t))
 			}
 			continue
 		}
