@@ -36,18 +36,7 @@ const claimsSmokeWorkflow = "../.github/workflows/claims-smoke.yml"
 // entry here must not appear in either matrix below; removing an entry
 // without adding its scenario back to one of the two matrices is how its
 // fix ships.
-var claimsSmokeExcluded = map[string]string{
-	// #1636: the BREAK control's own denied() check greps the whole apply
-	// transcript, and matches an unrelated sweep warning that also
-	// contains the string "AccessDenied" - a false positive, not a
-	// regression in the tag boundary the claim proves.
-	"the-tag-is-the-boundary": "#1636",
-	// #1637: fails at the first apply, both arms, on #950's node-path
-	// unmarked-apply refusal, which fires before any record can exist for
-	// this claim's untaggable, record-recoverable resource to be exempted
-	// by.
-	"record-only-survives-cache-loss": "#1637",
-}
+var claimsSmokeExcluded = map[string]string{}
 
 // claimsSmokeNightlyOnly is a proven, non-real-AWS AWS cell measured over
 // the 10-minute (both arms) budget the workflow's header states, so it runs
@@ -61,8 +50,9 @@ var claimsSmokeNightlyOnly = map[string]bool{
 	"no-secret-survives-in-what-the-tool-keeps": true,
 }
 
-// awsEmulatorClaimCells is every (claim, aws) cell that is proven, not
-// real_service, and not already covered by bucket-smoke.yml's own derivation
+// awsEmulatorClaimCells is every (claim, aws) cell that runs its own
+// scenario (proven, or restated with a scenario - see
+// cellRunsItsOwnScenario), is not real_service, and is not already covered by bucket-smoke.yml's own derivation
 // (GitHub issue #1379) - the population claims-smoke.yml's two jobs
 // together must equal, once claimsSmokeExcluded is set aside.
 func awsEmulatorClaimCells(t *testing.T) []smokeScenarioCell {
@@ -77,7 +67,7 @@ func awsEmulatorClaimCells(t *testing.T) []smokeScenarioCell {
 		if c.Provider != "aws" {
 			continue
 		}
-		if c.Cell.Status != "proven" || c.Cell.RealService {
+		if !cellRunsItsOwnScenario(c.Cell) || c.Cell.RealService {
 			continue
 		}
 		if inBucket[c.Name] {

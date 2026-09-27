@@ -31,7 +31,13 @@
 // stamped resource would refuse working configurations. A Create has no
 // prior to lose anything from.
 //
-// Only a definite removal. When either side's tag map is unknown - a
+// Every marker surface, not only tags (GitHub issue #1649): a Kubernetes
+// object live-import stamped carries tofu-estate in metadata.labels, or in
+// manifest.metadata.labels for kubernetes_manifest, and a state-backed plan
+// drops it the same way. The surface is read off the schema through
+// internal/live/substrate.
+//
+// Only a definite removal. When either side's marker map is unknown - a
 // computed tags attribute, an object still being planned - the answer is
 // "cannot tell", and this package says nothing rather than guessing. A
 // false negative there costs a warning; a false positive would refuse a
@@ -46,6 +52,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -64,6 +71,10 @@ type Removal struct {
 	// sorted. It always contains markers.TagEstate and may contain
 	// tofu-address, its continuation tags and tofu-slot.
 	Keys []string
+
+	// Surface is where the marker lived: the AWS tags map, or a
+	// Kubernetes object's labels (GitHub issue #1649).
+	Surface markers.Surface
 }
 
 // SchemaFor looks up the schema a change's values were encoded against.
@@ -104,7 +115,11 @@ func Scan(changes []*plans.ResourceInstanceChangeSrc, schemaFor SchemaFor) []Rem
 		before, _ := change.Before.UnmarkDeep()
 		after, _ := change.After.UnmarkDeep()
 
-		beforeTags, ok := knownTags(before)
+		surface, ok := substrate.SurfaceOf(schema.Block)
+		if !ok {
+			continue
+		}
+		beforeTags, ok := knownMarkers(surface, before)
 		if !ok {
 			continue
 		}
@@ -112,7 +127,7 @@ func Scan(changes []*plans.ResourceInstanceChangeSrc, schemaFor SchemaFor) []Rem
 		if estate == "" {
 			continue
 		}
-		afterTags, ok := knownTags(after)
+		afterTags, ok := knownMarkers(surface, after)
 		if !ok {
 			continue
 		}
@@ -131,7 +146,7 @@ func Scan(changes []*plans.ResourceInstanceChangeSrc, schemaFor SchemaFor) []Rem
 			keys = append(keys, key)
 		}
 		sort.Strings(keys)
-		out = append(out, Removal{Addr: src.Addr, Estate: estate, Keys: keys})
+		out = append(out, Removal{Addr: src.Addr, Estate: estate, Keys: keys, Surface: surface})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Addr.String() < out[j].Addr.String() })
 	return out
@@ -186,33 +201,26 @@ func mightCarryEstate(encoded plans.DynamicValue) bool {
 	return bytes.Contains(encoded, []byte(markers.TagEstate))
 }
 
-// knownTags reads an object's ownership-relevant tags, reporting false when
-// the object has no tag surface at all OR when its tag surface is not wholly
-// known.
+// knownMarkers reads an object's ownership markers from surface, reporting
+// false when the object has no such carrier at all OR when the carrier is
+// not wholly known.
 //
-// The second half is what [markers.TagsOf] alone cannot say. TagsOf treats an
-// unknown tags attribute as "the type is taggable and nothing is set", which
-// is the right answer for the question TagsOf asks and the wrong one here: a
-// planned object whose tags are unknown would read as an object with no
-// marker, and every stamped resource whose provider leaves tags computed
-// would be reported as a marker removal it is not.
-func knownTags(obj cty.Value) (map[string]string, bool) {
-	if obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() {
-		return nil, false
-	}
-	ty := obj.Type()
-	if !ty.IsObjectType() {
-		return nil, false
-	}
-	for _, name := range []string{"tags", "tags_all"} {
-		if !ty.HasAttribute(name) {
-			continue
-		}
-		if !obj.GetAttr(name).IsWhollyKnown() {
-			return nil, false
-		}
-	}
-	return markers.TagsOf(obj)
+// The second half is what a surface reader alone cannot say. [markers.TagsOf]
+// treats an unknown tags attribute as "the type is taggable and nothing is
+// set", and [markers.LabelsOf] an unknown labels map as an empty one, which
+// is the right answer for the question those readers ask and the wrong one
+// here: a planned object whose markers are unknown would read as an object
+// with no marker, and every stamped resource whose provider leaves the map
+// computed would be reported as a marker removal it is not. So the
+// known-ness check is [substrate.KnownMarkersOf]'s, on the carrier alone
+// (GitHub issue #1649): tags and tags_all, metadata[0].labels,
+// manifest.metadata.labels.
+//
+// The surface comes from [substrate.SurfaceOf], whose tag arm
+// counts any tags or tags_all attribute. That is the set this package read
+// before #1649 put the label surfaces beside it, so no AWS type moved.
+func knownMarkers(surface markers.Surface, obj cty.Value) (map[string]string, bool) {
+	return substrate.KnownMarkersOf(surface, obj)
 }
 
 // Creation is one planned create whose configured tags already carry an
@@ -249,7 +257,11 @@ func ScanCreates(changes []*plans.ResourceInstanceChangeSrc, schemaFor SchemaFor
 			continue
 		}
 		after, _ := change.After.UnmarkDeep()
-		afterTags, ok := knownTags(after)
+		surface, ok := substrate.SurfaceOf(schema.Block)
+		if !ok {
+			continue
+		}
+		afterTags, ok := knownMarkers(surface, after)
 		if !ok {
 			continue
 		}

@@ -188,7 +188,7 @@ func CombineShards(root string, base *Artifact, shards []ShardArtifact, expect [
 	// (cmdRun calls Rebuild before writing it). Comparing a shard's
 	// untouched rows against a base that had not been through the same
 	// function would report every derived field as a difference.
-	cmp, err := rebuiltCopy(base, m, bi, emulator, oracleVersions(root))
+	cmp, err := rebuiltCopy(base, m, bi, emulator, oracleVersions(root), providerVersions(root))
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +218,7 @@ func CombineShards(root string, base *Artifact, shards []ShardArtifact, expect [
 		if row.LastRun.Emulator != emulator {
 			return nil, fmt.Errorf("combine-shards: refusing - estate %q was measured against emulator %s and this run pins %s (%s); rows measured against different images are not one board", s.Estate, orNone(row.LastRun.Emulator), emulator, s.Path)
 		}
-		if err := checkShardContributesOnlyItsOwn(s, baseRows, m, bi, emulator, oracleVersions(root)); err != nil {
+		if err := checkShardContributesOnlyItsOwn(s, baseRows, m, bi, emulator, oracleVersions(root), providerVersions(root)); err != nil {
 			return nil, err
 		}
 		got[s.Estate] = row
@@ -255,7 +255,7 @@ func CombineShards(root string, base *Artifact, shards []ShardArtifact, expect [
 	}
 
 	out := &Artifact{Estates: rows, LiveCert: base.LiveCert}
-	out.Rebuild(m, bi, emulator, oracleVersions(root))
+	out.Rebuild(m, bi, emulator, oracleVersions(root), providerVersions(root))
 	return out, nil
 }
 
@@ -268,10 +268,10 @@ func CombineShards(root string, base *Artifact, shards []ShardArtifact, expect [
 // would otherwise contribute a measurement nothing in this run accounts
 // for, and it would look exactly like a row the collect job had decided to
 // keep.
-func checkShardContributesOnlyItsOwn(s ShardArtifact, baseRows map[string]EstateResult, m *Manifest, bi *BehaviorIndex, emulator string, oracle OracleVersions) error {
+func checkShardContributesOnlyItsOwn(s ShardArtifact, baseRows map[string]EstateResult, m *Manifest, bi *BehaviorIndex, emulator string, oracle OracleVersions, providers ProviderVersions) error {
 	// The shard's own artifact goes through Rebuild too, for the same
 	// reason the base did: like compared with like.
-	cmp, err := rebuiltCopy(s.Artifact, m, bi, emulator, oracle)
+	cmp, err := rebuiltCopy(s.Artifact, m, bi, emulator, oracle, providers)
 	if err != nil {
 		return err
 	}
@@ -305,7 +305,7 @@ func checkShardContributesOnlyItsOwn(s ShardArtifact, baseRows map[string]Estate
 // rebuiltCopy is a deep copy of a with every derived field recomputed -
 // through JSON, so the copy shares no map with the original (EstateResult
 // carries two, and Rebuild writes into them in place).
-func rebuiltCopy(a *Artifact, m *Manifest, bi *BehaviorIndex, emulator string, oracle OracleVersions) (*Artifact, error) {
+func rebuiltCopy(a *Artifact, m *Manifest, bi *BehaviorIndex, emulator string, oracle OracleVersions, providers ProviderVersions) (*Artifact, error) {
 	b, err := json.Marshal(a)
 	if err != nil {
 		return nil, err
@@ -314,6 +314,6 @@ func rebuiltCopy(a *Artifact, m *Manifest, bi *BehaviorIndex, emulator string, o
 	if err := json.Unmarshal(b, &cp); err != nil {
 		return nil, err
 	}
-	cp.Rebuild(m, bi, emulator, oracle)
+	cp.Rebuild(m, bi, emulator, oracle, providers)
 	return &cp, nil
 }

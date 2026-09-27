@@ -74,8 +74,8 @@
           "scenario": "live/smoke/scenarios/k8s-no-silent-orphans.sh",
           "command": "just smoke k8s-no-silent-orphans",
           "minutes": 3,
-          "break_mode": "BREAK=1 strips the label from the orphan and requires the replan to leave it alone",
-          "note": "The sweep is one cluster-wide, label-selected list per kind rather than one account-wide call, and controller-made objects (owner references, or written only by the control plane) are excluded before anything reaches a delete."
+          "break_mode": "BREAK=1 strips the label from the orphan and requires the replan to leave it alone; the ordinary run strips the orphan's address annotation first and requires it to be proposed all the same",
+          "note": "The sweep is one cluster-wide, label-selected list per kind rather than one account-wide call, and controller-made objects (owner references, or written only by the control plane) are excluded before anything reaches a delete. An object no natural key declares is joined a second way, by the block its address annotation names (#1640): bound when that block is declared, an orphan otherwise. The label is what makes an object this estate's, so an orphan whose annotation was stripped is still proposed for removal; two objects whose annotations claim one block that holds neither are refused as a collision rather than both destroyed (#1641)."
         }
       }
     },
@@ -222,12 +222,12 @@
           "note": ""
         },
         "kubernetes": {
-          "status": "restated",
+          "status": "proven",
           "scenario": "live/smoke/scenarios/k8s-greenfield.sh",
           "command": "just smoke k8s-greenfield",
           "minutes": 2,
-          "break_mode": "BREAK=1 strips the label with kubectl and requires live-ls to drop the object from the listing and the replan to refuse it by name, proposing the create the block declares rather than relabelling an object this estate can no longer show it owns",
-          "note": "The Kubernetes marker is estate-only, one label re-bound through namespace and name (#1016). Ownership is still readable with kubectl; a rename is a config-line edit with no label to rewrite, and a move between estates is the one label write live-mv -from-estate makes under the caller's credential, judged by the admission policy (claim 13 on Kubernetes)."
+          "break_mode": "BREAK=1 strips the label with kubectl and requires live-ls to drop the object from the listing and the replan to refuse it by name, proposing the create the block declares rather than relabelling an object this estate can no longer show it owns; BREAK_ANNOTATION=1 strips the address annotation from an object whose name is read at plan time and requires the replan to refuse that block by name, naming the object, rather than bind it or plan a create over it",
+          "note": "The ownership marker is one label, tofu-estate, because an address is often not a legal label value (#1016); the block address rides beside it in the annotation choudoufu.intentius.io/tofu-address (#1639, #1605's ruling). Any kubectl reads both. The sweep binds an object no natural key declares to the block its annotation names (#1640), so a block whose name is read at plan time applies and replans empty, and a create_before_destroy rename plans as the replace stock plans (#1541, #1641). A rename rewrites the annotation (a moved block plans it, live-mv writes it); a move between estates is the one label write live-mv -from-estate makes under the caller's credential, judged by the admission policy (claim 13 on Kubernetes)."
         }
       }
     },
@@ -581,7 +581,7 @@
     {
       "id": 25,
       "slug": "k8s-a-held-delete-is-not-gone",
-      "title": "A delete the platform accepted but has not finished leaves an object the estate still owns: the object stays with a deletionTimestamp and its marker, the sweep finds it, and every plan proposes the same one destroy until it is really gone",
+      "title": "A delete the platform accepted but has not finished is neither forgotten nor repeated: the plan after it reads the object the way the provider does - an object the provider still reads as present keeps its marker, the sweep finds it, and every plan proposes the same one destroy until it is really gone; an object the provider reads as gone plans nothing, as stock's plan does, with no second delete and no refusal",
       "theme": "adopt",
       "substrate": [
         "aws",
@@ -589,8 +589,12 @@
       ],
       "providers": {
         "aws": {
-          "status": "open",
-          "note": "No AWS scenario measures this. Most AWS provider deletes wait for the resource to be gone, so the shape is rarer there, but it exists - an eventually-consistent delete, or a DELETE the service accepts and finishes later - and the promise would be the same one: the tag sweep finds a resource that is still there and the next plan proposes it again rather than forgetting it."
+          "status": "restated",
+          "scenario": "live/smoke/scenarios/a-held-delete-is-not-gone.sh",
+          "command": "just smoke a-held-delete-is-not-gone",
+          "minutes": 3,
+          "break_mode": "BREAK=1 sets recovery_window_in_days = 0, which the provider sends as ForceDeleteWithoutRecovery, and requires the opposite outcome - DescribeSecret answering ResourceNotFoundException after the destroy and the replan empty - because without that control the main arm's secret still being there after the destroy would read the same if choudoufu never sent the delete",
+          "note": "The AWS form of an accepted, unfinished delete is a scheduled one (#1599): Secrets Manager's DeleteSecret with a recovery window, like KMS's ScheduleKeyDeletion, answers success and leaves the resource in the account, tags included, until the window ends. hashicorp/aws 6.58.0 reads it as gone - findSecretByID returns NotFound once DeletedDate is set, findKeyByID once KeyState is PendingDeletion, and each delete waits on exactly that - so the half of this promise that holds on AWS is the second: the plan after the delete is empty, as stock's is, with no second destroy (which AWS would refuse for the whole window) and no refusal of the swept, still-marked object. The first half, an object the provider still reads as present after its own delete returned, needs an eventually consistent delete; the pinned emulator does not model that lag (lex00/floci#216), and most hashicorp/aws deletes wait it out."
         },
         "kubernetes": {
           "status": "proven",
@@ -605,7 +609,7 @@
     {
       "id": 26,
       "slug": "k8s-the-server-gets-the-last-word",
-      "title": "Admission runs after the plan and the server decides what is stored: a fail-closed webhook's rejection is reported in the API server's own words with nothing changed and the approved plan file still applying unchanged once the webhook answers again, a mutation to a declared field reads as the same perpetual drift stock reads while the estate keeps its marker, and a mutation that strips the marker on the way in is named by the run that made it - the create warns that the marker it sent is not on the object the server stored, and the adopting update that follows fails rather than reporting a change nothing kept",
+      "title": "The server gets the last word: the platform decides, after the plan, what it accepts and what it stores - a write the plan approved and the platform refuses is reported in the platform's own words with nothing changed and the approved plan file still applying unchanged once the refusal lifts, a rewrite of a declared field reads as the same perpetual drift stock reads while the estate keeps its marker, and a rewrite that strips the marker on the way in is named by the run that made it - the create warns that the marker it sent is not on the object the platform stored, and the adopting update that follows fails rather than reporting a change nothing kept",
       "theme": "gate",
       "substrate": [
         "aws",
@@ -613,8 +617,12 @@
       ],
       "providers": {
         "aws": {
-          "status": "open",
-          "note": "No AWS scenario measures this. AWS has no admission chain a customer installs, but it has the same two shapes: a service-control or resource policy that refuses a write the plan approved (claim 13 fences writes, it does not measure a refusal arriving after approval), and a service that stores something other than what was sent - a normalised ARN, a default injected by the service, or a tag the account's tag policy rewrites. The third part has a direct AWS counterpart worth proving: an AWS Organizations tag policy can refuse or rewrite the tofu-estate tag on the way in. #1192's hook is substrate-neutral and would report it, but only where the provider hands back the tags it stored rather than the ones it was sent, and that is per resource type and unmeasured."
+          "status": "restated",
+          "scenario": "live/smoke/scenarios/the-server-gets-the-last-word.sh",
+          "command": "just smoke the-server-gets-the-last-word",
+          "minutes": 4,
+          "break_mode": "BREAK=1 attaches the identical Deny with one action different - sqs:DeleteQueue, which the approved apply never calls - first proves it is in force by having the same role's delete-queue on a throwaway queue refused, and then requires the opposite outcome: the approved plan applying on the first try with no refusal in its output; without it the main arm would read the same if choudoufu failed every saved-plan apply after an IAM change",
+          "note": "The first part holds on AWS as it does on Kubernetes (#1599): a plan saved under a role that may do anything, then an explicit Deny on sqs:SetQueueAttributes attached before the apply, and the apply fails quoting AWS's own \"not authorized to perform: sqs:SetQueueAttributes\", the queue unchanged and still marked, and the same approved plan file applying unchanged once the Deny is lifted. The Deny stands in for a service control policy, which reaches the caller as the same AccessDenied; the pinned emulator has no Organizations service. The other two parts are unmeasured on AWS: the emulator enforces no AWS Organizations tag policy, the one AWS mechanism that can refuse or rewrite the tofu-estate tag on the way in (lex00/floci#217), and no service it emulates rewrites a declared field on write in a way stock reads as perpetual drift. #1192's marker-not-stored hook is substrate-neutral and would report the third part where the provider hands back the tags it stored."
         },
         "kubernetes": {
           "status": "proven",

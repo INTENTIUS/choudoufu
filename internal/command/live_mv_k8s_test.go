@@ -15,6 +15,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/command/workdir"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/markers"
@@ -215,15 +216,22 @@ func TestLiveMv_k8sMovesBetweenEstates(t *testing.T) {
 			t.Errorf("the report does not mention %q:\n%s", want, report)
 		}
 	}
-	if strings.Contains(report, "tofu-address") {
-		t.Errorf("the report names a tofu-address the object never carried:\n%s", report)
+	// GitHub issue #1639: the address annotation is written beside the
+	// label, and the report names it; there is still no tofu-address tag
+	// row, which is the AWS surface's.
+	if !strings.Contains(report, markers.AddressAnnotation+`: "kubernetes_config_map.database"`) {
+		t.Errorf("the report does not name the address annotation it wrote:\n%s", report)
+	}
+	if ann, _ := markers.AnnotationsOf(cluster.object); ann[markers.AddressAnnotation] != "kubernetes_config_map.database" {
+		t.Errorf("live annotations = %v, want the address", ann)
 	}
 }
 
-// TestLiveMv_k8sRenameHasNothingToWrite: the block was renamed, the object
-// is bound by its namespace and name, and live-mv says so and exits 0
-// without reading or writing anything.
-func TestLiveMv_k8sRenameHasNothingToWrite(t *testing.T) {
+// TestLiveMv_k8sRenameRewritesTheAddressAnnotation (GitHub issue #1639,
+// which replaced "nothing to write"): the block was renamed, the object is
+// still bound by its namespace and name, and live-mv rewrites the address
+// annotation beside its estate label and exits 0.
+func TestLiveMv_k8sRenameRewritesTheAddressAnnotation(t *testing.T) {
 	k8sEstateConfig(t, "database_renamed")
 	cluster := newK8sCluster(map[string]string{markers.TagEstate: "data"})
 
@@ -233,23 +241,36 @@ func TestLiveMv_k8sRenameHasNothingToWrite(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
 	}
-	if cluster.reads != 0 || cluster.applies != 0 {
-		t.Errorf("a rename with nothing to write reached the cluster: %d reads, %d applies", cluster.reads, cluster.applies)
+	if cluster.applies != 1 {
+		t.Errorf("applied %d times, want 1", cluster.applies)
+	}
+	if ann, _ := markers.AnnotationsOf(cluster.object); ann[markers.AddressAnnotation] != "kubernetes_config_map.database_renamed" {
+		t.Errorf("live annotations = %v, want the new address", ann)
+	}
+	if got := cluster.labels(t); got[markers.TagEstate] != "data" {
+		t.Errorf("live labels = %v: a rename moved the estate label", got)
 	}
 	report := output.Stdout()
 	for _, want := range []string{
-		"Nothing to write",
-		"carries no address",
+		"Rewrote the address annotation on one live object. This was a cluster write.",
+		markers.AddressAnnotation + `: "kubernetes_config_map.database" -> "kubernetes_config_map.database_renamed"`,
 		"record store",
-		"-from-estate",
-		"kubernetes_config_map.database_renamed",
+		"did not move",
 	} {
 		if !strings.Contains(report, want) {
 			t.Errorf("the report does not mention %q:\n%s", want, report)
 		}
 	}
 	if output.Stderr() != "" {
-		t.Errorf("a successful nothing-to-write rename wrote to stderr:\n%s", output.Stderr())
+		t.Errorf("a successful rename wrote to stderr:\n%s", output.Stderr())
+	}
+}
+
+// TestAddressAnnotationKeyAgrees pins the views package's copy of the key
+// to markers.AddressAnnotation.
+func TestAddressAnnotationKeyAgrees(t *testing.T) {
+	if views.AddressAnnotation != markers.AddressAnnotation {
+		t.Fatalf("views.AddressAnnotation = %q, markers.AddressAnnotation = %q", views.AddressAnnotation, markers.AddressAnnotation)
 	}
 }
 
@@ -270,8 +291,8 @@ func TestLiveMv_k8sJSON(t *testing.T) {
 	if rep.MarkerSurface != "label" || !rep.Written || !rep.Verified || rep.NothingToWrite {
 		t.Errorf("move document: marker_surface=%q written=%v verified=%v nothing_to_write=%v", rep.MarkerSurface, rep.Written, rep.Verified, rep.NothingToWrite)
 	}
-	if rep.From.Marker != "" || rep.To.Marker != "" {
-		t.Errorf("the document claims escaped markers on an object with no address: from %q, to %q", rep.From.Marker, rep.To.Marker)
+	if rep.From.Marker != "kubernetes_config_map.database" || rep.To.Marker != "kubernetes_config_map.database" {
+		t.Errorf("the document's markers are from %q, to %q; want the address annotation's value on both sides (#1639)", rep.From.Marker, rep.To.Marker)
 	}
 	if rep.From.Estate != "app" || rep.To.Estate != "data" {
 		t.Errorf("estates: from %q to %q, want app to data", rep.From.Estate, rep.To.Estate)
@@ -285,7 +306,10 @@ func TestLiveMv_k8sJSON(t *testing.T) {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
 	}
 	rep = decodeMvJSON(t, output.Stdout())
-	if !rep.NothingToWrite || rep.Written || rep.Refusal != nil || rep.MarkerSurface != "label" {
-		t.Errorf("rename document: nothing_to_write=%v written=%v refusal=%v marker_surface=%q", rep.NothingToWrite, rep.Written, rep.Refusal, rep.MarkerSurface)
+	if rep.NothingToWrite || !rep.Written || !rep.Verified || rep.Refusal != nil || rep.MarkerSurface != "label" {
+		t.Errorf("rename document: nothing_to_write=%v written=%v verified=%v refusal=%v marker_surface=%q", rep.NothingToWrite, rep.Written, rep.Verified, rep.Refusal, rep.MarkerSurface)
+	}
+	if rep.To.Marker != "kubernetes_config_map.database_renamed" {
+		t.Errorf("rename document: to.marker = %q, want the new address", rep.To.Marker)
 	}
 }

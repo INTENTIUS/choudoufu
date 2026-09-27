@@ -59,7 +59,21 @@ type StatelessMvReport struct {
 	// carries no address (mv.Result.NothingToWrite): renaming the block
 	// was the whole rename.
 	NothingToWrite bool
+
+	// Reannotated means this was a same-estate rename of a Kubernetes
+	// object: the write is the address annotation beside the estate label
+	// (GitHub issue #1639), and the report is [StatelessMvHuman]'s
+	// reportReannotate. AlreadyMarked beside it means the object already
+	// carried the new address and nothing was written.
+	Reannotated   bool
+	AlreadyMarked bool
 }
+
+// AddressAnnotation is the annotation key a Kubernetes object carries its
+// block address under, named in live-mv's reports. It is
+// markers.AddressAnnotation, restated because this package does not import
+// internal/live; a test in internal/command pins the two equal.
+const AddressAnnotation = "choudoufu.intentius.io/tofu-address"
 
 // StatelessMv renders the report "choudoufu live-mv" prints when a rename
 // succeeds. Diagnostics do not come through here: they go to [View] and out
@@ -91,6 +105,10 @@ var _ StatelessMv = (*StatelessMvHuman)(nil)
 func (v *StatelessMvHuman) Report(rep StatelessMvReport) {
 	if rep.NothingToWrite {
 		v.reportNothingToWrite(rep)
+		return
+	}
+	if rep.Reannotated {
+		v.reportReannotate(rep)
 		return
 	}
 	if rep.LabelSurface {
@@ -173,9 +191,47 @@ func (v *StatelessMvHuman) reportNothingToWrite(rep StatelessMvReport) {
 	v.view.streams.Print(b.String())
 }
 
+// reportReannotate is the report for a same-estate rename of a Kubernetes
+// object (GitHub issue #1639): the object's ownership marker is its
+// tofu-estate label, which a rename does not move, and its block address
+// is an annotation beside it, which the rename rewrote.
+func (v *StatelessMvHuman) reportReannotate(rep StatelessMvReport) {
+	headline := "Rewrote the address annotation on one live object. This was a cluster write."
+	switch {
+	case rep.AlreadyMarked:
+		headline = "Nothing to write: the live object already carries the new address."
+	case rep.DryRun:
+		headline = "Would rewrite the address annotation on one live object. Nothing was written (-dry-run)."
+	}
+	rows := [][2]string{
+		{"estate", rep.Estate},
+		{"resource type", rep.TypeName},
+		{"live ID", rep.LiveID},
+		{"old address", rep.OldAddr},
+		{"new address", rep.NewAddr},
+		{"annotation", fmt.Sprintf("%s: %q -> %q", AddressAnnotation, rep.OldMarker, rep.NewMarker)},
+		{"found by", rep.FoundBy},
+	}
+	var b strings.Builder
+	b.WriteString("\n" + headline + "\n\n")
+	for _, row := range rows {
+		fmt.Fprintf(&b, "  %-14s %s\n", row[0], row[1])
+	}
+	b.WriteString("\n")
+	switch {
+	case rep.DryRun:
+		b.WriteString("Rerun without -dry-run to write it. Everything above was read from the cluster; nothing was changed.\n")
+	case rep.AlreadyMarked:
+		b.WriteString("A plan and apply of the renamed block wrote the new address first, so there was nothing left to write. This estate's own record store, when it has one, was re-keyed from the old address to the new.\n")
+	default:
+		b.WriteString("The object's " + AddressAnnotation + " annotation now names the new address, and nothing else about it was changed. Its tofu-estate label, the ownership marker the cluster's admission policy fences, did not move. This estate's own record store, when it has one, was re-keyed from the old address to the new, as after any rename.\n")
+	}
+	v.view.streams.Print(b.String())
+}
+
 // reportRelabel is the cross-estate report on the label surface: the same
-// labelled facts as the tag report minus the tofu-address row, which this
-// object never carried.
+// labelled facts as the tag report, with the address annotation (GitHub
+// issue #1639) in place of the tofu-address tag row.
 func (v *StatelessMvHuman) reportRelabel(rep StatelessMvReport) {
 	headline := "Relabelled one live object into this estate. This was a cluster write."
 	if rep.DryRun {
@@ -189,6 +245,7 @@ func (v *StatelessMvHuman) reportRelabel(rep StatelessMvReport) {
 		{"live ID", rep.LiveID},
 		{"old address", rep.OldAddr},
 		{"new address", rep.NewAddr},
+		{"annotation", fmt.Sprintf("%s: %q", AddressAnnotation, rep.NewMarker)},
 		{"found by", rep.FoundBy},
 	}
 	var b strings.Builder
@@ -200,7 +257,7 @@ func (v *StatelessMvHuman) reportRelabel(rep StatelessMvReport) {
 	if rep.DryRun {
 		b.WriteString("Rerun without -dry-run to write it. Everything above was read from the cluster; nothing was changed.\n")
 	} else {
-		b.WriteString("The object's tofu-estate label now names this estate, and nothing else about it was changed. The write went through the cluster's admission policy under this run's credential, the same fence a plain kubectl label would have met. The source estate no longer sees the object and this one binds it by namespace and name on the next plan.\n")
+		b.WriteString("The object's tofu-estate label now names this estate and its " + AddressAnnotation + " annotation names its block; nothing else about it was changed. The write went through the cluster's admission policy under this run's credential, the same fence a plain kubectl label would have met. The source estate no longer sees the object and this one binds it by namespace and name on the next plan.\n")
 	}
 	v.view.streams.Print(b.String())
 }
@@ -270,8 +327,15 @@ type StatelessMvJSONReport struct {
 	// tofu-estate label (GitHub issue #1081's fifth item). Omitted on the
 	// tag surface, so every document this printed before the field
 	// existed reads the same. On the label surface From.Marker and
-	// To.Marker are empty: the object carries no address.
+	// To.Marker are the address annotation's values (GitHub issue #1639),
+	// and empty when NothingToWrite: that object carries no address.
 	MarkerSurface string `json:"marker_surface,omitempty"`
+
+	// AlreadyMarked is true when a same-estate rename of a Kubernetes
+	// object found it already carrying the new address annotation, so
+	// nothing was written: mv.Result.AlreadyMarked. Verified is true
+	// beside it and Written false.
+	AlreadyMarked bool `json:"already_marked,omitempty"`
 
 	// NothingToWrite is true when the rename stopped, successfully,
 	// before reading or writing anything, because the marker carries no
