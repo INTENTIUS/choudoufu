@@ -105,14 +105,14 @@ PY
 }
 
 # scenario_is_real_aws prints 1 when this scenario's claims.json cell(s) are
-# marked real_aws, the one carve-out from the bound below (#1593). It reads
+# marked real_service (#1598), the one carve-out from the bound below (#1593). It reads
 # the flag off the claim, not a slug prefix: most bounded scenarios carry no
 # k8s- prefix at all, since they run against the floci emulator rather than
 # a kind cluster, and stall exactly the same way a k8s-* one does.
 scenario_is_real_aws() {
   python3 - "$HERE/claims.json" "$SCENARIO" <<'PY'
 import json, sys
-found = any(cell.get("real_aws", False)
+found = any(cell.get("real_service", False)
             for c in json.load(open(sys.argv[1]))["claims"]
             for cell in c["providers"].values()
             if cell.get("scenario", "").endswith("/" + sys.argv[2] + ".sh"))
