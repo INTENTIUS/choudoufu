@@ -9,14 +9,14 @@ deeper:
 
 # Compatibility
 
-Every `kubernetes_*` resource type whose schema has a `metadata` block works:
-it plans, carries the estate label, is swept for orphans and is fenced by the
-admission policy. Custom resources work through `kubernetes_manifest`.
+Every `kubernetes_*` type with a `metadata` block works: it plans, carries
+the estate label, is swept for orphans and fenced by the admission policy.
+Custom resources work through `kubernetes_manifest`.
 
 Before a plan proposes a `kubernetes_manifest` object, it sends the object to
 the API server as a dry run and prints the server's verdict. A manifest the
-server would reject refuses the plan, in the server's own words. A block whose
-kind the cluster does not serve is refused by name, with the CRD to install.
+server would reject refuses the plan. A block whose kind the cluster does
+not serve is refused by name, with the CRD to install.
 
 ## Refused
 
@@ -32,3 +32,11 @@ kind the cluster does not serve is refused by name, with the CRD to install.
 An EKS module managing the `aws-auth` ConfigMap works. EKS creates it
 unlabelled; the plan stops until `declared_untagged = "adopt"` claims it. AWS
 resources carry two tags, the ConfigMap one label.
+
+## Known differences
+
+A `create_before_destroy` rename (a content-hashed ConfigMap,
+`name = "cfg-${sha}"`) destroys the old object before creating the new one;
+stock creates first. Tracked as
+[#1541](https://github.com/INTENTIUS/choudoufu/issues/1541), waiting on
+[#1605](https://github.com/INTENTIUS/choudoufu/issues/1605).
