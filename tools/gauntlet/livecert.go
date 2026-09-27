@@ -445,6 +445,18 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 	rec.PGID = pgid
 	writeRec()
 
+	// Captured HERE, synchronously, right after the script has started -
+	// not lazily inside the supervisor goroutine below. See
+	// superviseOpts.StartPPID's comment (#1618): the wrapper that could
+	// orphan this process cannot have died yet at this exact line, because
+	// nothing has had a chance to observe the script running (its "ready"
+	// file, in the test, or its own first output in production) and act on
+	// it. A read taken inside the goroutine instead has no such guarantee -
+	// the goroutine might not run for a while under load, and by the time
+	// it does, the reparenting this whole mechanism exists to detect could
+	// already be old news.
+	startPPID := currentPPID()
+
 	sup := &liveCertSupervisor{}
 	say := sayTo(sink)
 	sigc := make(chan os.Signal, 8)
@@ -462,6 +474,7 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 		defer close(watcher)
 		superviseLiveCert(sup, superviseOpts{
 			PGID:        pgid,
+			StartPPID:   startPPID,
 			Sigc:        sigc,
 			Done:        done,
 			Ceiling:     time.Duration(ceilingSeconds) * time.Second,
