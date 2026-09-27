@@ -37,16 +37,6 @@ const claimsSmokeWorkflow = "../.github/workflows/claims-smoke.yml"
 // without adding its scenario back to one of the two matrices is how its
 // fix ships.
 var claimsSmokeExcluded = map[string]string{
-	// #1637: fails at the first apply, both arms, on #950's node-path
-	// unmarked-apply refusal, which fires before any record can exist for
-	// this claim's untaggable, record-recoverable resource to be exempted
-	// by.
-	"record-only-survives-cache-loss": "#1637",
-	// #1636: the BREAK control's own denied() check greps the whole apply
-	// transcript, and matches an unrelated sweep warning that also
-	// contains the string "AccessDenied" - a false positive, not a
-	// regression in the tag boundary the claim proves.
-	"the-tag-is-the-boundary": "#1636",
 }
 
 // claimsSmokeNightlyOnly is a proven, non-real-AWS AWS cell measured over
