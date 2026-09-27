@@ -21,6 +21,8 @@ create, update and delete it reads the `tofu-estate` label on the object as
 it is and as it would become, and asks the API server whether the caller
 holds `use` on `estates.choudoufu.intentius.io/<estate>`.
 
+## What that buys
+
 Granting an estate is therefore an ordinary ClusterRole and binding
 (`live/kubernetes/estate-grant.yaml`). Handing an estate over is moving that
 binding. Moving an object between estates is a label rewrite, and the caller
@@ -30,7 +32,7 @@ The policy binds the credential and not the tool: `kubectl` under a
 ServiceAccount that does not hold the estate is refused by the API server,
 and so is choudoufu under the same account.
 
-## What it does not fence
+## What it cannot reach
 
 Reads. `get` and `list` never reach admission, so use namespaces for those.
 It does not fence subresources such as `scale` and `status`. And

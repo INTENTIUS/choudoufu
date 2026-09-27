@@ -109,6 +109,16 @@ type TypeIdentity struct {
 	// back to a hand-maintained exemption list that would go stale the way
 	// its own doc comment forbids. tools/row-gen never sets it; only a
 	// ratified.json row can.
+	//
+	// It is also set on a runtime-synthesized entry the moment a type's
+	// SCHEMA matches the Kubernetes object-metadata or manifest convention
+	// ([synthesizeMetadataIdentity], [synthesizeManifestIdentity]), which is
+	// a claim about shape, not about which provider actually serves the
+	// type or whether any estate-wide sweep leg reaches it - a type from an
+	// unrelated provider can share that shape by coincidence. GitHub issue
+	// #1581: [resolver.warnUnsweepableTypes] used to read this field as
+	// "the Kubernetes sweep covers it" and ask [internal/live/substrate]
+	// instead.
 	NonAWSProvider bool
 
 	// Components build the import identity by concatenation, in order.

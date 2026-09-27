@@ -16,10 +16,13 @@
 # identities back through the authorizer (#1442), and lives here because it
 # needs a cluster.
 #
-# kind and kubectl come from helm/kind-action at a pinned release, with
+# kind and kubectl come from helm/kind-action at a pinned release (the
+# version itself read from live/kind-version, issue #1594), with
 # install_only so the scenario, not the action, owns the cluster's life;
-# the node image is what that kind release ships (Kubernetes 1.30 or later
-# is what live/kubernetes/estate-boundary.yaml needs). live/k8s_ci_test.go
+# the scenario's own kind create cluster --image pins the node image from
+# live/kind-node-image (Kubernetes 1.30 or later is what
+# live/kubernetes/estate-boundary.yaml needs), rather than trusting
+# whichever default that kind release happens to ship. live/k8s_ci_test.go
 # holds this file to the scenario directory: every k8s-* scenario under
 # live/smoke/scenarios must be in the matrix below, with its control.
 #
@@ -112,10 +115,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      - name: Read the pinned kind version (issue #1594)
+        id: kind
+        run: echo "version=$(cat live/kind-version)" >> "$GITHUB_OUTPUT"
       - name: kind and kubectl, pinned
         uses: helm/kind-action@v1.15.0
         with:
-          version: v0.33.0
+          version: ${{ steps.kind.outputs.version }}
           kubectl_version: v1.34.0
           install_only: true
       - name: just, which the selftest runs the shipped recipes with
@@ -194,10 +200,13 @@ jobs:
         run: |
           docker info > /dev/null
           aws --version
+      - name: Read the pinned kind version (issue #1594)
+        id: kind
+        run: echo "version=$(cat live/kind-version)" >> "$GITHUB_OUTPUT"
       - name: kind and kubectl, pinned
         uses: helm/kind-action@v1.15.0
         with:
-          version: v0.33.0
+          version: ${{ steps.kind.outputs.version }}
           kubectl_version: v1.34.0
           install_only: true
       # Both runs write to a file that `tail -f` copies into the job log as

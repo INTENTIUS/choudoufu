@@ -74,8 +74,9 @@ type Sweeper interface {
 	// serve at all.
 	Kinds(ctx context.Context, typeNames []string, manifestType string) (kinds []Kind, unserved []string, err error)
 	// List returns every object of k carrying label key=value, excluding
-	// controller-owned ones, and how many of those it excluded.
-	List(ctx context.Context, k Kind, key, value string) (objects []Object, ownerSkipped int, err error)
+	// controller-held ones, and what it excluded: how many, and, for each
+	// one whose holder it can name, the object and its holder.
+	List(ctx context.Context, k Kind, key, value string) (objects []Object, ownerSkipped Skipped, err error)
 	// Serves reports whether the cluster serves kind at exactly apiVersion
 	// (GitHub issue #1079's fourth ruling): false with a nil error when the
 	// group-version is not served or serves no such kind, so that a
@@ -92,6 +93,32 @@ type Sweeper interface {
 	// err is a cluster that could not answer at all, which is a coverage
 	// gap and never grounds to refuse the plan.
 	DryRun(ctx context.Context, manifest map[string]any, update bool) (DryRunResult, error)
+}
+
+// Skipped is what [Sweeper.List] set aside: objects carrying the estate's
+// label that are never orphans, because something other than the estate
+// holds them.
+type Skipped struct {
+	// Count is every object set aside: controller-made ones
+	// ([ControllerMade]), Helm release ones among them, and the estate's
+	// own record Secrets ([RecordStoreObject]).
+	Count int
+	// Held are the ones whose holder can be named, in listing order: today
+	// the objects a Helm release holds ([HelmRelease]; GitHub issue #1607).
+	Held []HeldObject
+}
+
+// HeldObject is one live object carrying the estate's label that a
+// controller holds, with the holder named, so the sweep and live-ls can
+// report it with its parent rather than only count it (the 2026-09-26
+// ruling on GitHub issue #1604).
+type HeldObject struct {
+	Kind      string
+	Namespace string
+	Name      string
+	Labels    map[string]string
+	// HeldBy names the holder for a reader: "Helm release NAMESPACE/NAME".
+	HeldBy string
 }
 
 // DryRunResult is what the API server said to a [Sweeper.DryRun].
@@ -275,27 +302,38 @@ func (c *Client) kinds(_ context.Context, typeNames []string, manifestType strin
 }
 
 // List implements [Sweeper]: one cluster-wide, label-selected list.
-func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object, int, error) {
+func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object, Skipped, error) {
 	opts := metav1.ListOptions{LabelSelector: key + "=" + value}
 	res := c.dyn.Resource(k.GVR)
 	var (
 		items   []Object
-		skipped int
+		skipped Skipped
 		cont    string
 	)
 	for {
 		opts.Continue = cont
 		ul, err := res.Namespace(metav1.NamespaceAll).List(ctx, opts)
 		if err != nil {
-			return nil, 0, c.creds.explain(err)
+			return nil, Skipped{}, c.creds.explain(err)
 		}
 		for _, item := range ul.Items {
+			if rel, ok := HelmRelease(&item); ok {
+				skipped.Count++
+				skipped.Held = append(skipped.Held, HeldObject{
+					Kind:      k.Kind,
+					Namespace: item.GetNamespace(),
+					Name:      item.GetName(),
+					Labels:    item.GetLabels(),
+					HeldBy:    rel.String(),
+				})
+				continue
+			}
 			if ControllerMade(&item) {
-				skipped++
+				skipped.Count++
 				continue
 			}
 			if RecordStoreObject(&item) {
-				skipped++
+				skipped.Count++
 				continue
 			}
 			o := Object{
@@ -523,8 +561,16 @@ var controlPlaneManagers = map[string]bool{
 }
 
 // ControllerMade reports whether a live object was made by a controller
-// rather than declared by anyone, on three signals, any one sufficient:
+// rather than declared by anyone, on four signals, any one sufficient:
 //
+//   - Helm's release annotation, meta.helm.sh/release-name ([HelmRelease];
+//     GitHub issue #1607, ruled on #1604 and #1105). Helm writes it on
+//     every object it installs, and those objects are the release's: a
+//     chart value carrying tofu-estate puts the estate's label on them,
+//     and without this signal the sweep proposed destroying them from
+//     under the release, because helm, not a control-plane manager, wrote
+//     their content and nothing owns them. helm_release itself stays
+//     refused; this only keeps the release's objects out of the sweep.
 //   - a non-empty metadata.ownerReferences. This catches the objects a
 //     garbage-collected controller makes (a ReplicaSet's from its
 //     Deployment, a Pod's from its ReplicaSet, an EndpointSlice's from its
@@ -565,6 +611,9 @@ var controlPlaneManagers = map[string]bool{
 // server has them and so does the dynamic client [Client.List] reads
 // through.
 func ControllerMade(obj *unstructured.Unstructured) bool {
+	if _, ok := HelmRelease(obj); ok {
+		return true
+	}
 	if len(obj.GetOwnerReferences()) > 0 {
 		return true
 	}
@@ -589,6 +638,42 @@ func ControllerMade(obj *unstructured.Unstructured) bool {
 		return authorsAreControlPlane
 	}
 	return allAreControlPlane
+}
+
+// The annotations Helm 3 writes on every object a release installs
+// (since Helm 3.2, and what `helm install` checks before adopting an
+// existing object). `helm template` does not write them, so a chart
+// rendered into kubernetes_manifest blocks carries neither.
+const (
+	HelmReleaseNameAnnotation      = "meta.helm.sh/release-name"
+	HelmReleaseNamespaceAnnotation = "meta.helm.sh/release-namespace"
+)
+
+// Release names a Helm release.
+type Release struct {
+	Namespace string
+	Name      string
+}
+
+// String is "Helm release NAMESPACE/NAME", or "Helm release NAME" when the
+// object did not say which namespace the release lives in.
+func (r Release) String() string {
+	if r.Namespace == "" {
+		return "Helm release " + r.Name
+	}
+	return "Helm release " + r.Namespace + "/" + r.Name
+}
+
+// HelmRelease reports the Helm release that holds obj, read off Helm's
+// release annotations. A non-empty meta.helm.sh/release-name is the
+// signal; the namespace annotation only completes the name.
+func HelmRelease(obj *unstructured.Unstructured) (Release, bool) {
+	ann := obj.GetAnnotations()
+	name := strings.TrimSpace(ann[HelmReleaseNameAnnotation])
+	if name == "" {
+		return Release{}, false
+	}
+	return Release{Namespace: strings.TrimSpace(ann[HelmReleaseNamespaceAnnotation]), Name: name}, true
 }
 
 // claimsContent reports whether a managedFields entry owns any of the
