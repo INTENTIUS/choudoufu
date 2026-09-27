@@ -189,9 +189,32 @@ smoke_verdict() {
 }
 
 cleanup() {
+  # $? first, before any other command in here can change it: the fallback
+  # exit status below, for the ordinary case where nothing named one, is
+  # whatever this trap was invoked to report (a death under set -e, or
+  # fail's own exit 1) - not the status of the last thing cleanup ran.
+  local original_rc=$?
   # errexit off: this is a trap body, and the first command that fails in one
   # ends it with every later step skipped and nothing printed (#1378).
   set +e
+  # A second firing of this trap must do nothing new (#1593, watchdog-floci):
+  # measured under CPU pressure, killing or waiting on a watchdog PID that is
+  # already gone can make bash run the EXIT trap a second time WHILE THE
+  # FIRST IS STILL RUNNING, before a plain variable set by the first pass is
+  # necessarily visible to the second - a shell-variable guard measured
+  # false here and let both passes through. mkdir does not have that
+  # ambiguity: it is one atomic claim on the filesystem, so exactly one of
+  # however many times this trap fires reaches the code below. Every other
+  # firing exits on whatever this trap has already decided (VERDICT_RC) or,
+  # if that pass has not decided one yet either, on the status that was
+  # already current when this trap started - never by re-running
+  # smoke_verdict against a workroot the real pass has already removed,
+  # which is what used to print a bogus second FAIL naming step "?" under
+  # the real verdict.
+  if ! mkdir "$SMOKE_WORKROOT/cleaning" 2>/dev/null; then
+    [ -z "$VERDICT_RC" ] || builtin exit "$VERDICT_RC"
+    builtin exit "$original_rc"
+  fi
   [ -z "$WATCHDOG_PID" ] || smoke_timer_stop "$WATCHDOG_PID"
   # The verdict goes out before the teardown, so it sits under the step it
   # is about and a slow cluster delete does not hold it back. A stall has
