@@ -21,6 +21,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/intentius/choudoufu/internal/live/k8stest"
 )
 
 // Claim 32 on the Kubernetes record store: two writers, one record, the
@@ -389,14 +391,9 @@ func (c *raceTally) add(o raceTally) {
 // because the bucket claim does not race it either; the conformance suite
 // covers a conditional delete against a stale version.
 func TestKubernetesTwoWritersOneRecord(t *testing.T) {
-	kubeconfig := strings.TrimSpace(os.Getenv(kubeconfigEnvVar))
-	if kubeconfig == "" {
-		t.Skipf("%s is not set. This test needs a real Kubernetes API server: client-go's fake clientset assigns no resourceVersion, and a fake has no wire to hold a request on, so every round here would be vacuous against it. `just smoke k8s-records-in-the-cluster` creates a kind cluster and runs it. A skip here is not a pass.", kubeconfigEnvVar)
-	}
-	ns := strings.TrimSpace(os.Getenv(namespaceEnvVar))
-	if ns == "" {
-		t.Fatalf("%s is set and %s is not. The store never creates a namespace, so the caller has to name one it created.", kubeconfigEnvVar, namespaceEnvVar)
-	}
+	k8stest.Gate(t, "Kubernetes record store race")
+	kubeconfig := k8stest.RequireEnv(t, kubeconfigEnvVar, "This test needs a real Kubernetes API server: client-go's fake clientset assigns no resourceVersion, and a fake has no wire to hold a request on, so every round here would be vacuous against it. `just smoke k8s-records-in-the-cluster` creates a kind cluster and runs it.")
+	ns := k8stest.RequireEnv(t, namespaceEnvVar, "The store never creates a namespace, so the caller has to name one it created.")
 	broken := os.Getenv(raceBreakEnvVar) == "1"
 	mode := "conditional-write"
 	if broken {
