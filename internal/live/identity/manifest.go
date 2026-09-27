@@ -8,7 +8,7 @@ package identity
 import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/markers"
-	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 )
 
 // This file is the third carrier shape for a Kubernetes object's identity
@@ -27,10 +27,11 @@ import (
 // `manifest` (the desired object) and `object` (the live one, computed),
 // neither of which is a flat value another resource could read as an
 // identity. The one exception is a sibling reading
-// kubernetes_manifest.x.object.metadata.name or .namespace: those are the
+// kubernetes_manifest.x.object.metadata.name or .namespace (or the same
+// two keys as manifest.metadata.name and .namespace, #1616): those are the
 // keys the manifest itself wrote, so resolveTraversal answers them from the
 // manifest argument (manifestObjectKeyPart, #1116), and every other path
-// under object is refused the way any non-identity reference is. The marker on a
+// under object or manifest is refused the way any non-identity reference is. The marker on a
 // manifest object - the same tofu-estate label, into
 // manifest.metadata.labels, written by internal/live/projection's node
 // stamp (nodestamp_manifest.go) - is the ruling's second unit; the sweep
@@ -49,35 +50,12 @@ func ManifestShape(block *configschema.Block) bool {
 // ManifestImportSyntax is the provider's documented import id for a
 // manifest object, the namespace segment present for a namespaced kind
 // only.
-const ManifestImportSyntax = "apiVersion=APIVERSION,kind=KIND,[namespace=NAMESPACE,]name=NAME"
-
-// synthesizeManifestIdentity builds the entry for a type whose schema has
-// [ManifestShape]: the four natural-key components read out of the
-// manifest argument's own object constructor by [Component.Path], joined
-// into the provider's import id. The namespace component is OmitIfAbsent,
-// so a cluster-scoped manifest (no metadata.namespace key) renders the
-// documented shorter form rather than failing.
-func synthesizeManifestIdentity(typeName string, schema providers.Schema) (TypeIdentity, bool) {
-	if !ManifestShape(schema.Block) {
-		return TypeIdentity{}, false
-	}
-	key := func(path ...string) Component {
-		return Component{Attrs: []string{"manifest"}, Path: path}
-	}
-	return TypeIdentity{
-		Type:           typeName,
-		NonAWSProvider: true,
-		Components: []Component{
-			{Literal: "apiVersion="},
-			key("apiVersion"),
-			{Literal: ",kind="},
-			key("kind"),
-			{Attrs: []string{"manifest"}, Path: []string{"metadata", "namespace"}, Literal: ",namespace=", OmitIfAbsent: true},
-			{Literal: ",name="},
-			key("metadata", "name"),
-		},
-		ImportSyntax: ManifestImportSyntax,
-		Synthesized:  true,
-		Admits:       AdmitSchema,
-	}, true
-}
+//
+// The entry a [ManifestShape] type gets is the Kubernetes family's answer
+// to [substrate.Substrate.SynthesizeIdentity] (GitHub issue #1586): the
+// four natural-key components read out of the manifest argument's own
+// object constructor by [Component.Path], joined into this import id. The
+// namespace component is OmitIfAbsent, so a cluster-scoped manifest (no
+// metadata.namespace key) renders the documented shorter form rather than
+// failing.
+const ManifestImportSyntax = substrate.ManifestImportSyntax

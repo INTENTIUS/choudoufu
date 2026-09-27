@@ -750,10 +750,16 @@ type emulatorGroup struct {
 // Sorted by count descending, ties broken by digest, with the "" bucket
 // always last regardless of its count so a board-wide sentence names the
 // largest real agreement first.
+//
+// A kind-substrate row (r.Substrate != "", the kubernetes lane, #1067) is
+// excluded entirely, the same way a.Sets already excludes it (Rebuild,
+// artifact.go): such a row never launches floci, so its last_run.emulator
+// is never stamped (#1594) and would otherwise inflate the "" bucket with
+// rows this banner has nothing honest to say about.
 func emulatorGroups(a *Artifact) []emulatorGroup {
 	counts := map[string]int{}
 	for _, r := range a.Estates {
-		if r.LastRun == nil {
+		if r.LastRun == nil || r.Substrate != "" {
 			continue
 		}
 		counts[r.LastRun.Emulator]++

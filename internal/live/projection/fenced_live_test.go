@@ -9,7 +9,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"os"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/k8stest"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 )
 
@@ -67,15 +68,15 @@ type fenceFixtures struct {
 	reader    string
 }
 
-// fenceEnv reads the fixtures, or skips naming the one that is absent.
+// fenceEnv reads the fixtures, via [k8stest.Gate] and [k8stest.RequireEnv]:
+// a skip when the Kubernetes live tier is not enabled at all, a failure
+// naming the one fixture that is absent when it is.
 func fenceEnv(t *testing.T) fenceFixtures {
 	t.Helper()
+	k8stest.Gate(t, "fenced identity")
+	hint := fmt.Sprintf("This test needs a real API server running live/kubernetes/estate-boundary.yaml, a records namespace, and two ServiceAccounts: one with RBAC on Secrets and no estate grant (%s), one with get and list only (%s). See this file's header for the commands.", fencedUserEnvVar, readerUserEnvVar)
 	need := func(name string) string {
-		v := strings.TrimSpace(os.Getenv(name))
-		if v == "" {
-			t.Skipf("%s is not set. This test needs a real API server running live/kubernetes/estate-boundary.yaml, a records namespace, and two ServiceAccounts: one with RBAC on Secrets and no estate grant (%s), one with get and list only (%s). See this file's header for the commands. A skip here is not a pass.", name, fencedUserEnvVar, readerUserEnvVar)
-		}
-		return v
+		return k8stest.RequireEnv(t, name, hint)
 	}
 	path := need(fenceKubeconfigEnvVar)
 	f := fenceFixtures{

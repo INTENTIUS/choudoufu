@@ -36,9 +36,17 @@ set -uo pipefail
 #       no cluster; it must be a throwaway cluster you may create namespaces
 #       and ClusterRoles in
 #   SELFTEST_CLUSTER=<name>   the kind cluster's name (default chdf-rsc-<id>)
+#   KIND_NODE_IMAGE=<image>   override the pin in live/kind-node-image
 #   BREAK=1                   the control
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$HERE/../.." && pwd)"
+# KIND_NODE_IMAGE is the single source of truth for the cluster's node
+# image (#1594): a bare `kind create cluster` uses whatever node image the
+# kind binary on PATH happens to default to, and that default moves across
+# kind releases, so a run on one laptop's kind and a run on CI's can create
+# clusters at two different Kubernetes versions from the same commit.
+KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-$(cat "$ROOT/live/kind-node-image")}"
 BREAK="${BREAK:-0}"
 PASS=1
 FAILS=()
@@ -65,8 +73,8 @@ else
   WORK="$(mktemp -d)"
   CLUSTER="${SELFTEST_CLUSTER:-chdf-rsc-$(date +%s | tail -c 6)-$RANDOM}"
   export KUBECONFIG="$WORK/kubeconfig"
-  log "cluster: kind create cluster --name $CLUSTER"
-  if ! kind create cluster --name "$CLUSTER" --kubeconfig "$KUBECONFIG" --wait 120s >"$WORK/kind.log" 2>&1; then
+  log "cluster: kind create cluster --image $KIND_NODE_IMAGE --name $CLUSTER"
+  if ! kind create cluster --image "$KIND_NODE_IMAGE" --name "$CLUSTER" --kubeconfig "$KUBECONFIG" --wait 120s >"$WORK/kind.log" 2>&1; then
     tail -5 "$WORK/kind.log"
     verdict_fail "kind create cluster failed"
   fi

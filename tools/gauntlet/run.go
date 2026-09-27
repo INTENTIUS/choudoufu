@@ -185,6 +185,11 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 		return 0, err
 	}
 	oracle := probeOracle()
+	// kindImage is read once here, the same way emulator is read once by
+	// the caller before this function runs: live/kind-node-image does not
+	// change mid-run, and every kind-substrate estate this call touches is
+	// stamped with the one value (issue #1594).
+	kindImage := kindNodeImagePin(root)
 	var selected []Estate
 	if len(opts.Names) > 0 {
 		for _, n := range opts.Names {
@@ -264,7 +269,16 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 		}
 		runSeconds := map[string]float64{}
 		rowOracle := oracle
-		r.LastRun = &LastRun{Commit: commit, Date: time.Now().UTC().Format(time.RFC3339), Emulator: emulator, Oracle: &rowOracle, ExitCode: exit, DurationS: roundSeconds(elapsed)}
+		r.LastRun = &LastRun{Commit: commit, Date: time.Now().UTC().Format(time.RFC3339), Oracle: &rowOracle, ExitCode: exit, DurationS: roundSeconds(elapsed)}
+		// Emulator and SubstrateImage are mutually exclusive (issue #1594):
+		// a kind-substrate estate never launches floci, so recording the
+		// floci digest against its row would be recording what a DIFFERENT
+		// estate's run used, not this one's.
+		if e.Substrate() == SubstrateKind {
+			r.LastRun.SubstrateImage = kindImage
+		} else {
+			r.LastRun.Emulator = emulator
+		}
 		// Per-stage provenance (#1069). Stages and Detail keep merging, for
 		// the reasons above; what changes is that every verdict this run
 		// writes is stamped with this run, so a reader can tell the ones it
