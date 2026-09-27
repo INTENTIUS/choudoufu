@@ -123,6 +123,10 @@ type HeldObject struct {
 	Namespace string
 	Name      string
 	Labels    map[string]string
+	// Annotations are its metadata.annotations, which carry the holder's
+	// own signal (Helm's release annotation): the Kubernetes leg asks
+	// the family which controller they name (GitHub issue #1706).
+	Annotations map[string]string
 	// Controller is the controller that holds it: today always
 	// [ControllerHelm].
 	Controller string
@@ -343,12 +347,13 @@ func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object,
 				if exists {
 					skipped.Count++
 					skipped.Held = append(skipped.Held, HeldObject{
-						Kind:       k.Kind,
-						Namespace:  item.GetNamespace(),
-						Name:       item.GetName(),
-						Labels:     item.GetLabels(),
-						Controller: ControllerHelm,
-						HeldBy:     rel.String(),
+						Kind:        k.Kind,
+						Namespace:   item.GetNamespace(),
+						Name:        item.GetName(),
+						Labels:      item.GetLabels(),
+						Annotations: item.GetAnnotations(),
+						Controller:  ControllerHelm,
+						HeldBy:      rel.String(),
 					})
 					continue
 				}
@@ -731,7 +736,13 @@ func (r Release) String() string {
 // release annotations. A non-empty meta.helm.sh/release-name is the
 // signal; the namespace annotation only completes the name.
 func HelmRelease(obj *unstructured.Unstructured) (Release, bool) {
-	ann := obj.GetAnnotations()
+	return HelmReleaseOf(obj.GetAnnotations())
+}
+
+// HelmReleaseOf is [HelmRelease] read off an object's annotations alone,
+// for a caller holding the annotations rather than the object
+// (substrate.Kubernetes's ControllerHeld, GitHub issue #1706).
+func HelmReleaseOf(ann map[string]string) (Release, bool) {
 	name := strings.TrimSpace(ann[HelmReleaseNameAnnotation])
 	if name == "" {
 		return Release{}, false

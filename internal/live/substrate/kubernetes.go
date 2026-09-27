@@ -407,3 +407,24 @@ func (kubernetes) MarkerNoun(surface markers.Surface) string {
 	}
 	return ""
 }
+
+// ---- GitHub issue #1706: controller-held ----
+
+// ControllerHeld is [kubesweep.HelmReleaseOf] on the object's annotations:
+// Helm's release annotation names the release that holds it. It does not
+// ask whether that release still exists; kubesweep's Client.List does,
+// before it hands the leg a held object (GitHub issue #1625).
+func (kubernetes) ControllerHeld(ev HoldEvidence) (Hold, bool) {
+	rel, ok := kubesweep.HelmReleaseOf(ev.Annotations)
+	if !ok {
+		return Hold{}, false
+	}
+	return Hold{Controller: kubesweep.ControllerHelm, HeldBy: rel.String()}, true
+}
+
+func (kubernetes) HoldRecognition() HoldRecognition {
+	return HoldRecognition{
+		Mechanism: "the object's Helm release annotation (kubesweep.HelmReleaseNameAnnotation), read off the object itself rather than off the label marker map",
+		Keys:      []string{kubesweep.HelmReleaseNameAnnotation},
+	}
+}

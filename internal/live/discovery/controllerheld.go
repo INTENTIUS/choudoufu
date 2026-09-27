@@ -12,7 +12,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 )
 
 // ControllerHeldResource is one live resource the sweep found held by a
@@ -75,8 +75,8 @@ func (c ControllerHeldResource) String() string {
 
 // controllerHeldWithheld is the sentence an orphan gets in place of a
 // destroy.
-func controllerHeldWithheld(h markers.ControllerHold) string {
-	return fmt.Sprintf("controller-held: made by %s. Deleting it here would race the controller, which recreates what its object still asks for; remove or change the object on the cluster side instead.", h.Describe())
+func controllerHeldWithheld(h substrate.Hold) string {
+	return fmt.Sprintf("controller-held: made by %s. Deleting it here would race the controller, which recreates what its object still asks for; remove or change the object on the cluster side instead.", h.HeldBy)
 }
 
 // applyControllerHeld takes every controller-held resource out of the two
@@ -86,6 +86,10 @@ func controllerHeldWithheld(h markers.ControllerHold) string {
 // neither the foreign report nor the adoption offer ever sees it. Both are
 // recorded in [Report.ControllerHeld].
 //
+// Whether a resource is held, and by what, is the families' answer
+// ([substrate.ControllerHeld], GitHub issue #1706) asked of its tags: on
+// AWS, the ACK and Crossplane tag keys.
+//
 // It runs right after classifyOrphans and before the parent-read legs, so
 // a withheld parent's resolution is gone before those legs look for
 // children of a removed parent to remove with it.
@@ -93,7 +97,7 @@ func applyControllerHeld(res *Result) {
 	withheld := map[string]bool{}
 	for i := range res.Orphans {
 		o := &res.Orphans[i]
-		hold, ok := markers.ControllerHeld(o.Tags)
+		hold, ok := substrate.ControllerHeld(substrate.HoldEvidence{Tags: o.Tags})
 		if !ok {
 			continue
 		}
@@ -106,8 +110,8 @@ func applyControllerHeld(res *Result) {
 			TypeName:    o.TypeName,
 			ImportID:    o.ImportID,
 			DisplayName: o.DisplayName,
-			Controller:  string(hold.Controller),
-			HeldBy:      hold.Describe(),
+			Controller:  hold.Controller,
+			HeldBy:      hold.HeldBy,
 			Marked:      true,
 			Addr:        o.Addr,
 			Resource:    o.Resource,
@@ -127,7 +131,7 @@ func applyControllerHeld(res *Result) {
 	if len(res.Unclaimed) > 0 {
 		kept := res.Unclaimed[:0]
 		for _, u := range res.Unclaimed {
-			hold, ok := markers.ControllerHeld(u.Tags)
+			hold, ok := substrate.ControllerHeld(substrate.HoldEvidence{Tags: u.Tags})
 			if !ok {
 				kept = append(kept, u)
 				continue
@@ -136,8 +140,8 @@ func applyControllerHeld(res *Result) {
 				TypeName:    u.TypeName,
 				ImportID:    u.ImportID,
 				DisplayName: u.DisplayName,
-				Controller:  string(hold.Controller),
-				HeldBy:      hold.Describe(),
+				Controller:  hold.Controller,
+				HeldBy:      hold.HeldBy,
 				Resource:    u.Resource,
 			})
 		}

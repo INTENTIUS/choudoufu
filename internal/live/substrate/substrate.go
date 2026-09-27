@@ -175,6 +175,9 @@ type Substrate interface {
 
 	// addressCarrier is GitHub issue #1641's block, below.
 	addressCarrier
+
+	// controllerHolding is GitHub issue #1706's block, below.
+	controllerHolding
 }
 
 // All is every family, in the order a surface question asks them.
@@ -609,6 +612,76 @@ type addressCarrier interface {
 func AddressInMarkers(surface markers.Surface) bool {
 	s := For(surface)
 	return s != nil && s.AddressInMarkers()
+}
+
+// ---- GitHub issue #1706: controller-held is the family's answer ----
+//
+// Kept in its own block: several units of #1579 add methods to this file.
+//
+// Until #1706 each sweep leg asked its own question: the AWS leg read
+// markers.ControllerHeld off a resource's tags (internal/live/discovery's
+// controllerheld.go), the Kubernetes leg took the holder kubesweep named
+// from Helm's release annotation, and tools/substrates-gen kept a hand map
+// keyed by family name to describe both. A third family's controller had
+// nowhere to be taught but a third leg and a third map entry. Now the
+// family answers whether a live object is held and by what, and both legs
+// and the generator ask it.
+//
+// The Kubernetes answer is the annotation read alone. Whether the release
+// the annotation names still exists (GitHub issue #1625) needs the cluster,
+// so it stays in kubesweep's Client.List, which hands the leg only the
+// objects whose release it confirmed.
+
+// HoldEvidence is what a sweep leg read off one live object that a family
+// may recognise a controller's hold in. A leg fills what its object carries
+// and leaves the rest empty; each family reads only its own field.
+type HoldEvidence struct {
+	// Tags are an AWS resource's tags.
+	Tags map[string]string
+	// Annotations are a Kubernetes object's metadata.annotations.
+	Annotations map[string]string
+}
+
+// Hold is a family's answer for a held object.
+type Hold struct {
+	// Controller is the controller that holds it: ACK, Crossplane, Helm.
+	Controller string
+	// HeldBy names the controller and the object of its that holds this
+	// one, in one line an operator can act on: "Helm release web/web",
+	// "ACK s3 controller (s3-v1.0.14), custom resource in namespace team-a".
+	HeldBy string
+}
+
+// HoldRecognition describes how a family recognises a held object, for the
+// capability matrix (live/substrates.json). Keys empty means the family
+// recognises no controller at all.
+type HoldRecognition struct {
+	Mechanism string
+	Keys      []string
+}
+
+// controllerHolding is the part of [Substrate] #1706 added.
+type controllerHolding interface {
+	// ControllerHeld reports whether the object ev was read from is held
+	// by a controller of this family's, and by what.
+	ControllerHeld(ev HoldEvidence) (Hold, bool)
+
+	// HoldRecognition is how ControllerHeld recognises a hold, read from
+	// the same facts it reads.
+	HoldRecognition() HoldRecognition
+}
+
+// ControllerHeld asks every family in [All]'s order whether the object ev
+// was read from is held by a controller, and the first to answer decides.
+// The families read disjoint fields of ev, so the order cannot decide an
+// answer today.
+func ControllerHeld(ev HoldEvidence) (Hold, bool) {
+	for _, s := range All {
+		if h, ok := s.ControllerHeld(ev); ok {
+			return h, true
+		}
+	}
+	return Hold{}, false
 }
 
 // ---- GitHub issue #1708: the post-create questions take neutral inputs ----

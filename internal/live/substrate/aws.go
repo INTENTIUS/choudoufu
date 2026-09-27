@@ -7,6 +7,7 @@ package substrate
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -183,4 +184,28 @@ func (aws) MarkerNoun(surface markers.Surface) string {
 		return "tag"
 	}
 	return ""
+}
+
+// ---- GitHub issue #1706: controller-held ----
+
+// ControllerHeld is [markers.ControllerHeld] on the resource's tags: one of
+// the fixed controller tag keys ACK and Crossplane write.
+func (aws) ControllerHeld(ev HoldEvidence) (Hold, bool) {
+	h, ok := markers.ControllerHeld(ev.Tags)
+	if !ok {
+		return Hold{}, false
+	}
+	return Hold{Controller: string(h.Controller), HeldBy: h.Describe()}, true
+}
+
+func (aws) HoldRecognition() HoldRecognition {
+	keys := make([]string, 0, len(markers.ControllerTagKeys))
+	for _, k := range markers.ControllerTagKeys {
+		keys = append(keys, k.Key)
+	}
+	sort.Strings(keys)
+	return HoldRecognition{
+		Mechanism: "the resource's own tags carry one of the fixed controller tag keys (markers.ControllerTagKeys: ACK, Crossplane)",
+		Keys:      keys,
+	}
 }
