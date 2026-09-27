@@ -4468,20 +4468,34 @@ func (p *statelessProviders) statelessSweepLegs(ctx context.Context, sub substra
 // is its random or null provider block, finds its deleted blocks through
 // them and nothing else.
 func (p *statelessProviders) unclaimedSweepLegs(ctx context.Context, addr addrs.AbsProviderConfig) ([]discovery.Sweeper, bool, tfdiags.Diagnostics) {
-	gap := []discovery.Sweeper{discovery.NoSweepLeg{Family: addr.Provider.ForDisplay()}}
-	if p.mgr == nil {
-		return gap, true, nil
+	if !p.mayCarryMarkers(ctx, addr.Provider) {
+		return []discovery.Sweeper{}, true, nil
 	}
-	schema, diags := p.mgr.GetProviderSchema(ctx, addr.Provider)
+	return []discovery.Sweeper{discovery.NoSweepLeg{Family: addr.Provider.ForDisplay()}}, true, nil
+}
+
+// mayCarryMarkers reports whether provider's schema has a resource type
+// [substrate.SurfaceOf] answers for, which is every type the node stamp
+// writes a marker onto whatever provider serves it. A schema that cannot
+// be read answers true: the question is whether something might be
+// missed, and an unread schema cannot say nothing would be. It is the
+// question [statelessProviders.unclaimedSweepLegs] and live-ls's
+// not-listed warning both ask of a provider no family claims (GitHub
+// issue #1707).
+func (p *statelessProviders) mayCarryMarkers(ctx context.Context, provider addrs.Provider) bool {
+	if p.mgr == nil {
+		return true
+	}
+	schema, diags := p.mgr.GetProviderSchema(ctx, provider)
 	if diags.HasErrors() {
-		return gap, true, nil
+		return true
 	}
 	for _, rs := range schema.ResourceTypes {
 		if _, ok := substrate.SurfaceOf(rs.Block); ok {
-			return gap, true, nil
+			return true
 		}
 	}
-	return []discovery.Sweeper{}, true, nil
+	return false
 }
 
 // labelListLeg builds the Kubernetes estate sweep for one provider
