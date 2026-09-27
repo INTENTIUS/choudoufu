@@ -58,27 +58,55 @@ import (
 // instance this cannot bind - an object with no annotation included -
 // until #1641 flips it.
 
-// undeclaredObject is one listed object no natural key declares, with the
+// UndeclaredObject is one listed object no natural key declares, with the
 // kind it was listed under and the type an orphan of it is filed at.
-type undeclaredObject struct {
-	kind     kubesweep.Kind
-	typeName string
-	object   kubesweep.Object
+// Exported (GitHub issue #1677) so live-ls can build the same slice the
+// sweep does and hand it to [KubernetesAddressBindings], rather than
+// forking the rule this file's comment states.
+type UndeclaredObject struct {
+	Kind     kubesweep.Kind
+	TypeName string
+	Object   kubesweep.Object
 }
 
-// listedObjects is every object the leg listed, by kind and natural key.
-type listedObjects map[string]map[string]bool
+// ListedObjects is every object the leg listed, by kind and natural key.
+// Exported alongside [UndeclaredObject] for the same reason.
+type ListedObjects map[string]map[string]bool
 
-func (l listedObjects) add(kind, key string) {
+// Add records that an object of kind at key was listed.
+func (l ListedObjects) Add(kind, key string) {
 	if l[kind] == nil {
 		l[kind] = map[string]bool{}
 	}
 	l[kind][key] = true
 }
 
-// bindByAddress binds what the annotation settles, records it in res, and
-// reports which of undeclared it bound, by index.
-func bindByAddress(req Request, leg KubernetesSweep, declared KubernetesDeclared, listed listedObjects, undeclared []undeclaredObject, res *Result) map[int]bool {
+// KubernetesAddressBindings reports, for each undeclared object, the
+// declared instance its address annotation binds it to under this file's
+// rule - by index into undeclared, since an undeclared object carries no
+// identity of its own until it is bound. An index absent from the result
+// is unbound: either nothing claims it, or more than one object does and
+// the annotation cannot say which is the instance's.
+//
+// This is the one place the rule is evaluated. The sweep turns a binding
+// into a concrete resolution and a [Binding] ([bindByAddress]); live-ls
+// only needs the address, to report the object as declared under it
+// (GitHub issue #1677) - a second copy of the rule there would drift from
+// this one the first time either changed.
+func KubernetesAddressBindings(req Request, manifestType string, declared KubernetesDeclared, listed ListedObjects, undeclared []UndeclaredObject) map[int]addrs.AbsResourceInstance {
+	claims := addressClaims(req, manifestType, declared, listed, undeclared)
+	out := make(map[int]addrs.AbsResourceInstance, len(claims))
+	for idx, c := range claims {
+		out[idx] = c.addr
+	}
+	return out
+}
+
+// addressClaims is [KubernetesAddressBindings]'s work, kept unexported
+// because the sweep also needs the import id and identity values a bare
+// address does not carry, to build the concrete resolution it replaces the
+// orphan with.
+func addressClaims(req Request, manifestType string, declared KubernetesDeclared, listed ListedObjects, undeclared []UndeclaredObject) map[int]addressClaim {
 	// What the configuration declares, by address: every resolution it
 	// handed in, and every instance the static evaluator refused.
 	resolved := make(map[string]identity.Resolution, len(req.Resolutions))
@@ -88,39 +116,49 @@ func bindByAddress(req Request, leg KubernetesSweep, declared KubernetesDeclared
 		}
 	}
 
-	claims := map[string][]addressClaim{}
-	var order []string
+	byKey := map[string][]int{}
+	claimed := map[int]addressClaim{}
 	for i, u := range undeclared {
-		c, ok := addressCandidate(req, leg.ManifestType, declared, listed, resolved, u)
+		c, ok := addressCandidate(req, manifestType, declared, listed, resolved, u)
 		if !ok {
 			continue
 		}
 		key := c.addr.String()
-		if _, seen := claims[key]; !seen {
-			order = append(order, key)
-		}
-		c.idx = i
-		claims[key] = append(claims[key], c)
+		byKey[key] = append(byKey[key], i)
+		claimed[i] = c
 	}
 
-	bound := map[int]bool{}
-	for _, key := range order {
-		cs := claims[key]
-		if len(cs) != 1 {
+	bound := map[int]addressClaim{}
+	for _, idxs := range byKey {
+		if len(idxs) != 1 {
 			// Two objects carry one address: which is the instance's is
 			// not something the annotation can say. Both stay what they
 			// were.
 			continue
 		}
-		c := cs[0]
-		u := undeclared[c.idx]
-		bound[c.idx] = true
+		bound[idxs[0]] = claimed[idxs[0]]
+	}
+	return bound
+}
+
+// bindByAddress binds what the annotation settles, records it in res, and
+// reports which of undeclared it bound, by index.
+func bindByAddress(req Request, leg KubernetesSweep, declared KubernetesDeclared, listed ListedObjects, undeclared []UndeclaredObject, res *Result) map[int]bool {
+	claims := addressClaims(req, leg.ManifestType, declared, listed, undeclared)
+	bound := map[int]bool{}
+	for idx, u := range undeclared {
+		c, ok := claims[idx]
+		if !ok {
+			continue
+		}
+		bound[idx] = true
+		key := c.addr.String()
 		res.Bindings = append(res.Bindings, Binding{
 			Addr:        c.addr,
 			TypeName:    c.addr.Resource.Resource.Type,
 			ImportID:    c.importID,
-			Marker:      u.object.Address,
-			DisplayName: u.kind.Kind + " " + kubesweep.NaturalKey(u.object.Namespace, u.object.Name),
+			Marker:      u.Object.Address,
+			DisplayName: u.Kind.Kind + " " + kubesweep.NaturalKey(u.Object.Namespace, u.Object.Name),
 		})
 		if res.KubernetesAddressBound == nil {
 			res.KubernetesAddressBound = map[string]bool{}
@@ -150,7 +188,6 @@ func bindByAddress(req Request, leg KubernetesSweep, declared KubernetesDeclared
 // its annotation names: the instance, and the import id and identity
 // values the object is imported by.
 type addressClaim struct {
-	idx      int
 	addr     addrs.AbsResourceInstance
 	importID string
 	values   map[string]string
@@ -158,8 +195,8 @@ type addressClaim struct {
 
 // addressCandidate reports the declared instance u's annotation binds it
 // to, when every condition in this file's comment holds.
-func addressCandidate(req Request, manifestType string, declared KubernetesDeclared, listed listedObjects, resolved map[string]identity.Resolution, u undeclaredObject) (addressClaim, bool) {
-	o, k := u.object, u.kind
+func addressCandidate(req Request, manifestType string, declared KubernetesDeclared, listed ListedObjects, resolved map[string]identity.Resolution, u UndeclaredObject) (addressClaim, bool) {
+	o, k := u.Object, u.Kind
 	if o.Address == "" || o.DeletionTimestamp != "" {
 		return addressClaim{}, false
 	}

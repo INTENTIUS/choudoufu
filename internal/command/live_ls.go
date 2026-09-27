@@ -751,6 +751,19 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 	}
 
 	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, nil)
+	// GitHub issue #1677: a per-instance refusal the plan's node-resolve
+	// seam takes over (#1539's shape) is exactly the case the Kubernetes
+	// address-binding join needs to know about, the same way the plan
+	// hands it in as [discovery.Request.NodeRefused] (GitHub issue #1640).
+	// Captured before the downgrade, which is what turns such an instance's
+	// error into a warning so this comparison runs instead of skipping
+	// wholesale over an instance the live listing may still be able to
+	// place - gated the same way the plan-node seam itself is.
+	var nodeRefused map[string]bool
+	if nodeResolveEnabled() {
+		nodeRefused = nodeRefusedAddrs(identity.InstanceRefusals(idDiags))
+		idDiags = identity.DowngradeForNodeResolution(idDiags)
+	}
 	if idDiags.HasErrors() {
 		closeProviders()
 		return skip(fmt.Sprintf("identity resolution could not complete: %s.", idDiags.Err()))
@@ -762,7 +775,7 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 	var kube []views.LiveLsItem
 	if kubernetes {
 		var kubeDiags tfdiags.Diagnostics
-		kube, kubeDiags = c.liveLsKubernetes(ctx, estate, config, provs, resolutions.All())
+		kube, kubeDiags = c.liveLsKubernetes(ctx, estate, config, provs, resolutions.All(), nodeRefused)
 		diags = diags.Append(kubeDiags)
 	}
 	closeProviders()
@@ -853,7 +866,7 @@ func liveLsSubstrates(config *configs.Config, cfgDiags tfdiags.Diagnostics) live
 // [discovery.SummaryKubernetesSweepUnavailable] - and the listing goes on
 // without it, the same way an unreachable tagging index leaves the AWS
 // listing a warning rather than a failure.
-func (c *LiveLsCommand) liveLsKubernetes(ctx context.Context, estate string, config *configs.Config, provs *statelessProviders, resolutions []identity.Resolution) ([]views.LiveLsItem, tfdiags.Diagnostics) {
+func (c *LiveLsCommand) liveLsKubernetes(ctx context.Context, estate string, config *configs.Config, provs *statelessProviders, resolutions []identity.Resolution, nodeRefused map[string]bool) ([]views.LiveLsItem, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	var items []views.LiveLsItem
 	for _, addr := range statelessManagedResourceProviders(config) {
@@ -875,7 +888,7 @@ func (c *LiveLsCommand) liveLsKubernetes(ctx context.Context, estate string, con
 				fmt.Sprintf("No cluster client could be built from provider configuration %s, so no Kubernetes object owned by estate %q is listed through it: %s.", addr, estate, err)))
 			continue
 		}
-		found, listDiags := liveLsKubernetesList(ctx, estate, client, types, manifestType, resolutions)
+		found, listDiags := liveLsKubernetesList(ctx, estate, client, types, manifestType, resolutions, nodeRefused)
 		diags = diags.Append(listDiags)
 		items = append(items, found...)
 	}
@@ -890,12 +903,22 @@ func (c *LiveLsCommand) liveLsKubernetes(ctx context.Context, estate string, con
 // and the natural key, [discovery.DeclaredKubernetesObjects], the sweep's
 // own - else under the type the sweep would plan its removal at.
 //
+// An object no natural key declares may still be a declared instance's:
+// its address annotation names the block that made it (GitHub issue
+// #1640). This listing reads it through the same join the sweep binds
+// by, [discovery.KubernetesAddressBindings], so the plan and the
+// inventory agree about the same object (GitHub issue #1677) instead of
+// this function keeping a second copy of the rule. nodeRefused is the
+// instances the static evaluator gave up on and the plan-node seam took
+// over ([discovery.Request.NodeRefused]); an object bound to one of those
+// is exactly #1539's shape.
+//
 // API discovery failing is the whole cluster unlisted, and says so under
 // the sweep's summary; one kind's list failing is that kind missing, and
 // says so under its own, so a reader can tell "no cluster" from "no
 // permission on one kind". Neither is an error: the listing is what
 // could be read, and the warning is what could not.
-func liveLsKubernetesList(ctx context.Context, estate string, sweeper kubesweep.Sweeper, types []string, manifestType string, resolutions []identity.Resolution) ([]views.LiveLsItem, tfdiags.Diagnostics) {
+func liveLsKubernetesList(ctx context.Context, estate string, sweeper kubesweep.Sweeper, types []string, manifestType string, resolutions []identity.Resolution, nodeRefused map[string]bool) ([]views.LiveLsItem, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	var items []views.LiveLsItem
 
@@ -906,6 +929,14 @@ func liveLsKubernetesList(ctx context.Context, estate string, sweeper kubesweep.
 			fmt.Sprintf("The cluster's API discovery failed, so no Kubernetes object owned by estate %q could be listed: %s.", estate, err)))
 	}
 	kindTypes := kubesweep.KindTypes(types)
+
+	listed := discovery.ListedObjects{}
+	var undeclared []discovery.UndeclaredObject
+	// undeclaredItem[i] is the items index the i'th entry of undeclared
+	// was appended at, so a later binding can patch that same item in
+	// place rather than this function tracking two parallel item lists.
+	var undeclaredItem []int
+
 	for _, k := range kinds {
 		objects, skipped, err := sweeper.List(ctx, k, markers.TagEstate, estate)
 		if err != nil {
@@ -927,17 +958,24 @@ func liveLsKubernetesList(ctx context.Context, estate string, sweeper kubesweep.
 				Source:     "kubernetes",
 				Tags:       o.Labels,
 			}
+			listed.Add(k.Kind, key)
 			if addr, ok := declared.Declares(k.Kind, key); ok {
 				item.Address = addr.String()
 				item.Declared = true
 				item.Type = addr.Resource.Resource.Type
+			} else {
+				undeclared = append(undeclared, discovery.UndeclaredObject{Kind: k, TypeName: typeName, Object: o})
+				undeclaredItem = append(undeclaredItem, len(items))
 			}
 			items = append(items, item)
 		}
 		// What a controller holds is listed too, with its holder (GitHub
 		// issue #1607): it carries the estate's label, so leaving it out
 		// would hide the label's reach, and it is not the estate's, so it
-		// is never under a block's address unless a block names it.
+		// is never under a block's address unless a block names it. Held
+		// objects are not candidates for the address-binding join either -
+		// the sweep never offers one to it, since a controller-held object
+		// is never this configuration's instance to bind.
 		for _, h := range skipped.Held {
 			key := kubesweep.NaturalKey(h.Namespace, h.Name)
 			item := views.LiveLsItem{
@@ -957,6 +995,20 @@ func liveLsKubernetesList(ctx context.Context, estate string, sweeper kubesweep.
 			items = append(items, item)
 		}
 	}
+
+	// Decided once every kind is listed, because whether the address
+	// already has its object - one of [discovery.KubernetesAddressBindings]'s
+	// conditions - is a question about the whole listing, exactly as it is
+	// for the sweep.
+	req := discovery.Request{Resolutions: resolutions, NodeRefused: nodeRefused}
+	bound := discovery.KubernetesAddressBindings(req, manifestType, declared, listed, undeclared)
+	for idx, addr := range bound {
+		i := undeclaredItem[idx]
+		items[i].Address = addr.String()
+		items[i].Declared = true
+		items[i].Type = addr.Resource.Resource.Type
+	}
+
 	return items, diags
 }
 
