@@ -347,3 +347,26 @@ func (k kubernetes) NotACarrier(_ *configschema.Block, typeName string) string {
 // MarkerWriter is [WriteNeverNeeded]: the label rides the create call on
 // both surfaces, so there is nothing to write after it.
 func (kubernetes) MarkerWriter(addrs.AbsProviderConfig) Write { return WriteNeverNeeded }
+
+// ---- GitHub issue #1649: the carrier's wholly-known read ----
+
+// CarrierPaths: metadata[0].labels, and manifest.metadata.labels. The label
+// map alone, never the whole metadata block: a planned object's
+// resource_version or generation can be unknown while its labels are not.
+func (kubernetes) CarrierPaths(surface markers.Surface) []cty.Path {
+	switch surface {
+	case markers.SurfaceLabels:
+		return []cty.Path{cty.GetAttrPath(markers.LabelSurfaceBlock).IndexInt(0).GetAttr(markers.LabelSurfaceAttr)}
+	case markers.SurfaceManifest:
+		return []cty.Path{cty.GetAttrPath(markers.ManifestSurfaceAttr).GetAttr(markers.LabelSurfaceBlock).GetAttr(markers.LabelSurfaceAttr)}
+	}
+	return nil
+}
+
+func (kubernetes) MarkerNoun(surface markers.Surface) string {
+	switch surface {
+	case markers.SurfaceLabels, markers.SurfaceManifest:
+		return "label"
+	}
+	return ""
+}

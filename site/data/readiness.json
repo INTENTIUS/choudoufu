@@ -1,5 +1,5 @@
 {
-  "stamp": "`live/readiness.json` last committed at commit `0182aea761` on 2026-09-15T20:14:15-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.",
+  "stamp": "`live/readiness.json` last committed at commit `f6ac9ca015` on 2026-09-26T21:09:12-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.",
   "statuses": [
     "in-contract",
     "pending-ratification",
@@ -9143,5 +9143,32 @@
       "tier": "declaration-carried",
       "status": "in-contract"
     }
-  ]
+  ],
+  "kubernetes": {
+    "provider": "hashicorp/kubernetes 3.2.1",
+    "total": 4,
+    "awaiting_ruling": 0,
+    "types": [
+      {
+        "type": "kubernetes_cluster_role_binding",
+        "tier": "marker-carried",
+        "status": "in-contract"
+      },
+      {
+        "type": "kubernetes_config_map",
+        "tier": "marker-carried",
+        "status": "in-contract"
+      },
+      {
+        "type": "kubernetes_namespace",
+        "tier": "marker-carried",
+        "status": "in-contract"
+      },
+      {
+        "type": "kubernetes_storage_class",
+        "tier": "marker-carried",
+        "status": "in-contract"
+      }
+    ]
+  }
 }

@@ -772,7 +772,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		// GitHub issue #1084: the registry flag the create path keys on,
 		// and the client the post-create marker write goes through.
 		resolver.Roster = markerRoster()
-		resolver.Tagger = provs.markerTagger
+		resolver.MarkerWriter = provs.markerTagger
 	}
 
 	// GitHub issue #67's undeclared_untagged = "delete" scoped account
@@ -2188,6 +2188,14 @@ func statelessMarkerEstate(ctx context.Context, config *configs.Config, estateFl
 //   - the refusal itself, inside [check.NodeStampUnmarkedApply]. See that
 //     function's own doc comment for the ruling and for why an in-scope
 //     block still refuses.
+//
+// GitHub issue #1637 (ruled 2026-09-27) narrows it once more: when the
+// refusal would fire and store is open, this asks whether the store is
+// writable ([projection.RecordStore.ProbeWritable]). If it is, the apply
+// records each such instance's identity and a later run finds the object
+// by that record, so the refusal is skipped for every type whose identity
+// the apply can record ([projection.ApplyRecordsIdentity]). With no store,
+// or a store this run may only read, it fires as before.
 func statelessUnmarkedApplyGaps(ctx context.Context, config *configs.Config, resolutions *identity.Result, resourceSchemas map[string]providers.Schema, store *projection.RecordStore, estate string, scope identity.Scope) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	needs := statelessInScopeResolutions(resolutions.NeedsDiscovery(), scope)
@@ -2196,7 +2204,24 @@ func statelessUnmarkedApplyGaps(ctx context.Context, config *configs.Config, res
 	if recordDiags.HasErrors() {
 		return diags
 	}
-	return diags.Append(check.NodeStampUnmarkedApply(config, resolutions, resourceSchemas, estate, recordBacked, scope))
+	refusals := check.NodeStampUnmarkedApply(config, resolutions, resourceSchemas, estate, recordBacked, scope, false)
+	if !refusals.HasErrors() || store == nil {
+		return diags.Append(refusals)
+	}
+	// GitHub issue #1637, ruled 2026-09-27: a run whose record store is
+	// writable records the identity of what it cannot mark, so the refusal
+	// steps aside for it. Asked only now, with a refusal in hand, because
+	// the answer costs a write (see [projection.RecordStore.ProbeWritable]).
+	writable, err := store.ProbeWritable(ctx)
+	if err != nil {
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, "Could not tell whether the record store is writable", fmt.Sprintf(
+			"A resource below has nowhere to carry an ownership marker, and this run could create it anyway if it could record the identity in the estate's record store. Writing to the store to find out failed: %s. The run treats the store as read-only.", err,
+		)))
+	}
+	if !writable {
+		return diags.Append(refusals)
+	}
+	return diags.Append(check.NodeStampUnmarkedApply(config, resolutions, resourceSchemas, estate, recordBacked, scope, true))
 }
 
 // statelessInScopeResolutions drops the resolutions whose block a

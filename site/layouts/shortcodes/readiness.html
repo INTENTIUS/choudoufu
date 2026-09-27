@@ -1,9 +1,10 @@
 {{- /*
   Renders site/data/readiness.json, the copy `go run ./tools/readiness-gen
-  -render` writes of live/readiness.json (#1055). Two sections:
+  -render` writes of live/readiness.json (#1055). Three sections:
 
-    {{< readiness "tiers" >}}   the tier-by-status cross tab and its stamp
-    {{< readiness "types" >}}   every provider type with tier, status, reason
+    {{< readiness "tiers" >}}       the tier-by-status cross tab and its stamp
+    {{< readiness "types" >}}       every provider type with tier, status, reason
+    {{< readiness "kubernetes" >}}  the non-AWS substrate's admitted types (#1600)
 
   Missing data prints one line and nothing else.
 */ -}}
@@ -31,6 +32,18 @@
 <tbody>
 {{- range $d.types }}
 <tr><td><code>{{ .type }}</code></td><td>{{ .tier }}</td><td>{{ .status }}</td><td>{{ with .reason }}{{ . | markdownify }}{{ end }}</td></tr>
+{{- end }}
+</tbody>
+</table>
+</div>
+{{- else if eq $section "kubernetes" -}}
+<p class="provenance">{{ $d.kubernetes.provider }}: {{ $d.kubernetes.total }} admitted type(s), {{ $d.kubernetes.awaiting_ruling }} awaiting a tier ruling.</p>
+<div class="table-wrap readiness-table-wrap">
+<table class="readiness-types">
+<thead><tr><th>Type</th><th>Tier</th><th>Status</th><th>Reason</th></tr></thead>
+<tbody>
+{{- range $d.kubernetes.types }}
+<tr><td><code>{{ .type }}</code></td><td>{{ with .tier }}{{ . }}{{ else }}unclassified{{ end }}</td><td>{{ .status }}</td><td>{{ with .reason }}{{ . | markdownify }}{{ end }}</td></tr>
 {{- end }}
 </tbody>
 </table>

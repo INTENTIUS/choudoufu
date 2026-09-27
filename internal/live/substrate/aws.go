@@ -83,3 +83,20 @@ func (aws) NotACarrier(block *configschema.Block, typeName string) string {
 // internal/command builds the Tagging API client signed as that
 // configuration's own principal.
 func (aws) MarkerWriter(addrs.AbsProviderConfig) Write { return WriteTaggingAPI }
+
+// ---- GitHub issue #1649: the carrier's wholly-known read ----
+
+// CarrierPaths: both maps [markers.TagsOf] reads.
+func (aws) CarrierPaths(surface markers.Surface) []cty.Path {
+	if surface == markers.SurfaceTags {
+		return []cty.Path{cty.GetAttrPath("tags"), cty.GetAttrPath("tags_all")}
+	}
+	return nil
+}
+
+func (aws) MarkerNoun(surface markers.Surface) string {
+	if surface == markers.SurfaceTags {
+		return "tag"
+	}
+	return ""
+}

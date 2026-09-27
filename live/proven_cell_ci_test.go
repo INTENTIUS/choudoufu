@@ -50,11 +50,6 @@ var provenCellCIAllowlist = map[string]string{
 	// #1636: claim 13's BREAK control false-positives on an unrelated
 	// sweep warning that happens to contain "AccessDenied".
 	"the-tag-is-the-boundary": "claim 13 (aws); #1636",
-	// #1637: claim 17 fails at the first apply, both arms, on #950's
-	// node-path unmarked-apply refusal, which fires before any record can
-	// exist for this claim's untaggable, record-recoverable resource to
-	// be exempted by.
-	"record-only-survives-cache-loss": "claim 17 (aws); #1637",
 }
 
 // provenCellIssueRef matches a GitHub issue reference (#1590, #1636, ...),

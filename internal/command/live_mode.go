@@ -853,6 +853,15 @@ type statelessRunner struct {
 	// [projection.Result.EnvelopeVersions].
 	envelopeVersions []projection.RecordVersion
 
+	// recordFallbackAddrs is GitHub issue #1675's write-back signal: every
+	// instance this run's plan resolved through the record-fallback door
+	// (identity.Resolution.RecordFallback), read off
+	// [projection.Result.RecordFallbackAddrs] at the same point
+	// recordVersions and envelopeVersions are, and passed through to
+	// WriteBack unchanged for the same reason those two are - this runner's
+	// own WriteBack call has no plan of its own to re-derive it from.
+	recordFallbackAddrs []addrs.AbsResourceInstance
+
 	// liveConfig is the configuration WriteBack works from. The residue
 	// classifier re-opens providers from it - the ones PriorState read
 	// through are closed before the plan graph starts (see this file's
@@ -1292,7 +1301,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// GitHub issue #1084: the registry flag the create path keys on,
 		// and the client the post-create marker write goes through.
 		r.resolver.Roster = markerRoster()
-		r.resolver.Tagger = provs.markerTagger
+		r.resolver.MarkerWriter = provs.markerTagger
 	}
 
 	// GitHub issue #67's undeclared_untagged = "delete" scoped account
@@ -1409,6 +1418,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// and this is harmless to have set.
 	r.recordVersions = projResult.RecordVersions
 	r.envelopeVersions = projResult.EnvelopeVersions
+	r.recordFallbackAddrs = projResult.RecordFallbackAddrs
 	diags = diags.Append(projDiags)
 	if projDiags.HasErrors() {
 		return nil, diags
@@ -1543,14 +1553,15 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 	}
 
 	diags = diags.Append(projection.WriteBack(ctx, projection.WriteBackRequest{
-		Store:            r.recordStore,
-		Retry:            r.retryCfg,
-		Backend:          r.recordBackend,
-		PriorVersions:    r.recordVersions,
-		EnvelopeVersions: r.envelopeVersions,
-		Providers:        provAccess,
-		FinalState:       finalState,
-		Schemas:          schemas,
+		Store:               r.recordStore,
+		Retry:               r.retryCfg,
+		Backend:             r.recordBackend,
+		PriorVersions:       r.recordVersions,
+		EnvelopeVersions:    r.envelopeVersions,
+		RecordFallbackAddrs: r.recordFallbackAddrs,
+		Providers:           provAccess,
+		FinalState:          finalState,
+		Schemas:             schemas,
 
 		// Issue #854's replace signal, derived by the caller from the
 		// plan this apply ran (backend/local's replacedInstances). It is
