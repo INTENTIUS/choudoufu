@@ -91,17 +91,35 @@ func (aws) MarkerWriter(addrs.AbsProviderConfig) Write { return WriteTaggingAPI 
 
 // ---- GitHub issue #1642: whether a create needs the post-create write ----
 
+// AWSCreateTagFacts is the AWS family's entry in [Facts] (GitHub issue
+// #1708): live/mapping.json's Terraform-to-CloudFormation join and
+// live/registry.json's tagging.tag_on_create. *internal/live/registry.Roster
+// implements it, nil included (every answer false); internal/command puts
+// the embedded roster under [AWS]'s name. An interface so this package
+// stays below the registry.
+type AWSCreateTagFacts interface {
+	CloudControlTypeOrService(tfType string) (string, bool)
+	TagsAfterCreate(cfnType string) bool
+}
+
+// awsFacts is the AWS entry of facts, or nil when the run holds none.
+func awsFacts(facts Facts) AWSCreateTagFacts {
+	f, _ := facts.Of(AWS.Name()).(AWSCreateTagFacts)
+	return f
+}
+
 // PostCreateNeeded is the answer #1084 read in the projection, unchanged:
 // the tags surface of a type whose CloudFormation counterpart
 // (live/mapping.json) is taggable with tag_on_create false
 // (live/registry.json). A type the mapping never joined, or the registry
 // cannot vouch for, takes the create-call path.
-func (aws) PostCreateNeeded(surface markers.Surface, typeName string, facts CreateTagFacts) (string, bool) {
-	if surface != markers.SurfaceTags || facts == nil {
+func (aws) PostCreateNeeded(surface markers.Surface, created Created, facts Facts) (string, bool) {
+	reg := awsFacts(facts)
+	if surface != markers.SurfaceTags || reg == nil {
 		return "", false
 	}
-	cfnType, ok := facts.CloudControlTypeOrService(typeName)
-	if !ok || !facts.TagsAfterCreate(cfnType) {
+	cfnType, ok := reg.CloudControlTypeOrService(created.Type())
+	if !ok || !reg.TagsAfterCreate(cfnType) {
 		return "", false
 	}
 	return fmt.Sprintf("%s does not take tags in its create call (live/registry.json: tag_on_create false)", cfnType), true
@@ -114,18 +132,40 @@ func (aws) PostCreateNeeded(surface markers.Surface, typeName string, facts Crea
 // the projection: the aws CLI's resourcegroupstaggingapi command by ARN
 // when the applied object carries one; otherwise the CloudFormation type's
 // own tag write, when the roster names one; otherwise a sentence naming
-// just the markers.
-func (aws) ManualMarkFix(typeName, arn string, want map[string]string, facts CreateTagFacts) string {
+// just the markers. The arn is read here (GitHub issue #1708), not by the
+// shared node path.
+func (aws) ManualMarkFix(created Created, want map[string]string, facts Facts) string {
 	tagsArg := markers.TagsArgument(want)
-	if arn != "" {
+	if arn := objectString(created.Object, "arn"); arn != "" {
 		return fmt.Sprintf("Mark it, then plan again:\n\n  aws resourcegroupstaggingapi tag-resources --resource-arn-list %s --tags %s", arn, tagsArg)
 	}
-	if facts != nil {
-		if cfnType, ok := facts.CloudControlTypeOrService(typeName); ok {
+	if reg := awsFacts(facts); reg != nil {
+		if cfnType, ok := reg.CloudControlTypeOrService(created.Type()); ok {
 			return fmt.Sprintf("Mark it by hand with the tag write %s takes, with the tags %s, then plan again.", cfnType, tagsArg)
 		}
 	}
-	return fmt.Sprintf("Mark it by hand with the markers %s, then plan again.", tagsArg)
+	return genericMarkFix(want)
+}
+
+// ---- GitHub issue #1708: the created object, named ----
+
+// CreatedObject is the wording #1084 built inline in the projection,
+// unchanged: the arn, with the id beside it when that differs; the id
+// alone when there is no arn; a sentence when there is neither.
+func (aws) CreatedObject(created Created) string {
+	arn := objectString(created.Object, "arn")
+	id := objectString(created.Object, "id")
+	object := arn
+	if id != "" && id != arn {
+		object = fmt.Sprintf("%s [id=%s]", arn, id)
+	}
+	if arn == "" && id != "" {
+		object = fmt.Sprintf("[id=%s]", id)
+	}
+	if object == "" {
+		object = "an object with no arn and no id in what the provider returned"
+	}
+	return object
 }
 
 // ---- GitHub issue #1649: the carrier's wholly-known read ----
