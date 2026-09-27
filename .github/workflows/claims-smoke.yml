@@ -21,14 +21,30 @@
 # claims.json's own `minutes` field: that field is a CI-timeout input
 # (live/smoke/smoke.sh's scenario_bound_secs, which doubles it), not a
 # runtime estimate, and every scenario here ran in well under a third of
-# its claims.json minutes. The slowest of the 20 scenarios measured for the `smoke`
 # its claims.json minutes. The slowest of the 21 scenarios in the `smoke`
 # job below was carve-by-retag at 3m14s + 2m12s = 5m26s combined; every
-# other one finished faster. no-secret-survives-in-what-the-tool-keeps
+# other one finished faster, including claim 13 (the-tag-is-the-boundary)
+# at 1m38s + 56s = 2m34s combined. no-secret-survives-in-what-the-tool-keeps
 # measured 9m21s + 6m18s = 15m39s combined - three times the next
 # heaviest scenario - and runs nightly only, in the `smoke-nightly` job.
 #
 # One claim measured here is excluded rather than added red:
+#   - claim 17, record-only-survives-cache-loss: fails at its first apply,
+#     both arms, on issue #950's node-path unmarked-apply refusal, which
+#     fires unconditionally on a first apply of an untaggable,
+#     record-recoverable resource because no record can exist yet for it
+#     to be exempted by. Filed as #1637.
+# It is a substrate-parity / lane:proof-ci finding against #1579, not a
+# regression this unit introduced or can fix; re-add it here once resolved.
+#
+# Claim 13, the-tag-is-the-boundary, was excluded here for the same reason
+# until #1636 fixed it: its BREAK control's own `denied()` check greps the
+# whole apply transcript for "AccessDenied", which also matched two
+# unrelated, harmless sweep-gap reports (`aws_iam_policy`/`iam:ListPolicies`
+# 403, quoted verbatim in both live_plan.go's pre-diff coverage report and
+# the post-apply "Incomplete sweep" warning), reading Bob's successful
+# cross-half write as still refused. live/smoke/lib.sh's
+# strip_incomplete_sweep_warning now scopes the check past both.
 #   - claim 13, the-tag-is-the-boundary: its BREAK control's own `denied()`
 #     check greps the whole apply transcript for "AccessDenied", which
 #     also matches an unrelated, harmless sweep warning
@@ -173,6 +189,7 @@ jobs:
           - the-estate-answers-in-the-present-tense
           - a-killed-apply-hides-nothing
           - two-estates-at-once
+          - the-tag-is-the-boundary
           - a-held-delete-is-not-gone
           - the-server-gets-the-last-word
           - record-only-survives-cache-loss

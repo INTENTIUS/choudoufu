@@ -53,6 +53,9 @@ func (aws) Writes(surface markers.Surface) Writes {
 
 func (aws) CarriesAddress() bool { return true }
 
+// AddressInMarkers: the address is the tofu-address tag (#1641).
+func (aws) AddressInMarkers() bool { return true }
+
 func (aws) Sweep() Sweep { return SweepTaggingIndex }
 
 func (aws) NewSweeper(cty.Value, bool) (Sweeper, error) { return nil, nil }

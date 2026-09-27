@@ -201,6 +201,19 @@ type NodeResolver struct {
 	// node-resolving. [NodeResolver.refuseAddresslessMarker] is its one
 	// reader (GitHub issue #1539).
 	StaticRefusals map[string]tfdiags.Diagnostics
+
+	// UnaddressedObjects is the sweep's account, for the instances in
+	// StaticRefusals, of the live objects that could be each one's and
+	// carry no address - discovery's KubernetesUnaddressed (GitHub issue
+	// #1641), keyed by [addrs.AbsResourceInstance.String]. A key is
+	// present only when the sweep listed every kind the instance's type
+	// can declare; its value names the objects it found that could be the
+	// instance's and carry no address. It is read only for a surface whose
+	// objects carry the address outside the marker map
+	// ([substrate.CarriesAddress] and not [substrate.AddressInMarkers]):
+	// see [NodeResolver.refuseAddresslessMarker]. Nil is ordinary, and
+	// leaves that refusal standing wherever it applies.
+	UnaddressedObjects map[string][]string
 	// releases collects which of PolicyUntag's instances the writer
 	// actually released a key from, during the walk (GitHub issue #1002).
 	// Read it through [NodeResolver.UntagReleases]. It holds a mutex, so a

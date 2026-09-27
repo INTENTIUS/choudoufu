@@ -615,7 +615,7 @@ const widgetSurface markers.Surface = "widget-binding-surface"
 // object having an arn says nothing about which family it belongs to, and
 // before this issue's fix the failure diagnostic printed the AWS Tagging
 // API command whenever one was present, whatever the family. widgetFamily's
-// own [substrate.Substrate.ManualMarkFix] names a wholly different remedy.
+// own [substrate.ManualMarkFix] names a wholly different remedy.
 type widgetFamily struct{ substrate.Substrate }
 
 func (widgetFamily) Name() string                { return "widget" }

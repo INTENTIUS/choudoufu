@@ -109,7 +109,14 @@ in_work() { cd "$SMOKE_WORK" && chdf "$@"; }
 # denied reports whether $1 carries the platform's own refusal. Real EC2
 # answers UnauthorizedOperation; the emulator answers 403 with a body the EC2
 # SDK cannot parse, which the provider reports as a bare 403 (lex00/floci#189).
-denied() { grep -qE 'UnauthorizedOperation|AccessDenied|not authorized to perform|StatusCode: 403' <<< "$1"; }
+#
+# $1 is stripped of the "Incomplete sweep for undeclared resources" warning
+# first, the same helper claim 13's own denied() uses (GitHub issue #1636):
+# the no-terminate role here happens to keep iam:ListPolicies (its policy
+# denies only ec2:TerminateInstances), so this scenario is not exposed
+# today, but the helper reusing this exact pattern is, and a narrower
+# future grant should not silently reproduce that false positive.
+denied() { strip_incomplete_sweep_warning <<< "$1" | grep -qE 'UnauthorizedOperation|AccessDenied|not authorized to perform|StatusCode: 403'; }
 tombstones_of() { python3 -c 'import json,sys;e=json.load(open(sys.argv[1])).get("tombstone") or {};print(" ".join(sorted(v["identity"]["import_id"] for v in e.values())))' "$1"; }
 
 step "the claim"

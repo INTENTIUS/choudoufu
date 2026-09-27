@@ -190,6 +190,12 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 	// change mid-run, and every kind-substrate estate this call touches is
 	// stamped with the one value (issue #1594).
 	kindImage := kindNodeImagePin(root)
+	// providers is read once here for the same reason (issue #1253):
+	// live/oracle-versions.json's aws_provider_version and
+	// kubernetes_provider_version do not change mid-run, and every row
+	// this call touches is stamped with the one value that applies to its
+	// substrate below.
+	providers := providerVersions(root)
 	var selected []Estate
 	if len(opts.Names) > 0 {
 		for _, n := range opts.Names {
@@ -270,14 +276,17 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 		runSeconds := map[string]float64{}
 		rowOracle := oracle
 		r.LastRun = &LastRun{Commit: commit, Date: time.Now().UTC().Format(time.RFC3339), Oracle: &rowOracle, ExitCode: exit, DurationS: roundSeconds(elapsed)}
-		// Emulator and SubstrateImage are mutually exclusive (issue #1594):
-		// a kind-substrate estate never launches floci, so recording the
-		// floci digest against its row would be recording what a DIFFERENT
-		// estate's run used, not this one's.
+		// Emulator/SubstrateImage and AWSProviderVersion/KubernetesProviderVersion
+		// are each mutually exclusive (issues #1594, #1253): a kind-substrate
+		// estate never launches floci or resolves hashicorp/aws, so recording
+		// either against its row would be recording what a DIFFERENT estate's
+		// run used, not this one's.
 		if e.Substrate() == SubstrateKind {
 			r.LastRun.SubstrateImage = kindImage
+			r.LastRun.KubernetesProviderVersion = providers.Kubernetes
 		} else {
 			r.LastRun.Emulator = emulator
+			r.LastRun.AWSProviderVersion = providers.AWS
 		}
 		// Per-stage provenance (#1069). Stages and Detail keep merging, for
 		// the reasons above; what changes is that every verdict this run

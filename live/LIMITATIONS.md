@@ -3233,7 +3233,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Two live resources claiming one address
 
-**What.** Two live resources carry the same tofu-address marker, so both claim one configuration address. Binding either would be a guess.
+**What.** Two live resources carry the same tofu-address marker (on Kubernetes, the same address annotation, where neither object is at the namespace and name the configuration names), so both claim one configuration address. Binding either would be a guess, and on Kubernetes destroying both as orphans would take the object the block still needs (GitHub issue #1641).
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
@@ -4223,7 +4223,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Identity not resolvable, and the marker carries no address
 
-**What.** The static evaluator could not resolve an instance's identity, the plan-node seam found no record, marker entry or evaluated identity for it either, and its type's marker surface carries no tofu-address (the Kubernetes label and manifest surfaces). A create there would flap against the orphan sweep, so the refusal stands instead of planning one (GitHub issue #1539).
+**What.** The static evaluator could not resolve an instance's identity, the plan-node seam found no record, marker entry or evaluated identity for it either, and a live object this block may already have created cannot be bound back to it: on Kubernetes, the sweep found an object of the type carrying the estate label and no address annotation (one an older build made, or one migrated from stock state before live-import stamped it), or could not list every kind the type can declare. A create there would flap against the orphan sweep, so the refusal stands instead of planning one (GitHub issues #1539, #1641). Where the sweep listed every kind and found no such object, the create is planned, and the object it makes carries the annotation the next sweep binds.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

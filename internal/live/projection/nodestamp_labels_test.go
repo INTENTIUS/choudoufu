@@ -200,7 +200,7 @@ func TestNodeResolver_AdjustConfigValue_awsShapeUnaffectedByLabelBranch(t *testi
 // surface, unlike the real Kubernetes family's, cannot carry the marker in
 // its create call (GitHub issue #1653's second half): before this issue's
 // fix, only nodestamp.go's tags arm asked
-// [substrate.Substrate.PostCreateNeeded] before stamping at create, so a
+// [substrate.PostCreateNeeded] before stamping at create, so a
 // labels- or manifest-surfaced family answering true here had nothing
 // asking it.
 type alwaysWithholdLabels struct{ substrate.Substrate }

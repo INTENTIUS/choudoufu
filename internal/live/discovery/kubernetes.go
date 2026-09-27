@@ -156,11 +156,13 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 	// kind: a reader of the scan table asks "was kubernetes_manifest
 	// swept", and the kinds are the detail of the answer.
 	manifestKinds, manifestDeclared := 0, declared.Count()
-	listed := listedObjects{}
-	var undeclared []undeclaredObject
+	listed := ListedObjects{}
+	var undeclared []UndeclaredObject
+	var unlisted []kubesweep.Kind
 	for _, k := range kinds {
 		objects, ownerSkipped, err := leg.Client.List(ctx, k, markers.TagEstate, req.Estate)
 		if err != nil {
+			unlisted = append(unlisted, k)
 			gap := func(t string) SweepGap {
 				return SweepGap{TypeName: t, Reason: SweepGapListFailed,
 					Detail: fmt.Sprintf("listing %s across all namespaces failed: %s", k.GVR.String(), err)}
@@ -220,11 +222,11 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 			})
 		}
 		for _, o := range objects {
-			listed.add(k.Kind, kubesweep.NaturalKey(o.Namespace, o.Name))
+			listed.Add(k.Kind, kubesweep.NaturalKey(o.Namespace, o.Name))
 			if _, isDeclared := declared.Declares(k.Kind, kubesweep.NaturalKey(o.Namespace, o.Name)); isDeclared {
 				continue
 			}
-			undeclared = append(undeclared, undeclaredObject{kind: k, typeName: typeName, object: o})
+			undeclared = append(undeclared, UndeclaredObject{Kind: k, TypeName: typeName, Object: o})
 		}
 	}
 
@@ -233,12 +235,16 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 	// (GitHub issue #1640). Decided once every kind is listed, because
 	// whether the address already has its object is a question about the
 	// whole listing.
-	bound := bindByAddress(req, leg, declared, listed, undeclared, res)
+	settled, bindDiags := bindByAddress(req, leg, declared, listed, undeclared, res)
+	diags = diags.Append(bindDiags)
+	// What is left unbound may still be a refused instance's object from
+	// before the annotation existed (GitHub issue #1641).
+	accountUnaddressed(req, leg, unlisted, undeclared, settled, res)
 	for i, u := range undeclared {
-		if bound[i] {
+		if settled[i] {
 			continue
 		}
-		k, typeName, o := u.kind, u.typeName, u.object
+		k, typeName, o := u.Kind, u.TypeName, u.Object
 		name := kubesweep.OrphanResourceName(o.Namespace, o.Name)
 		if k.Manifest {
 			name = kubesweep.ManifestOrphanResourceName(k.Kind, o.Namespace, o.Name)
