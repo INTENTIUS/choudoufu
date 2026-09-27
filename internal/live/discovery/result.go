@@ -14,6 +14,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
 )
@@ -196,6 +197,16 @@ type Report struct {
 	// They are never orphans, and the count says how much of the label's
 	// reach the exclusion is doing (GitHub issue #1065).
 	KubernetesOwnerSkipped int
+
+	// KubernetesHeld are the objects among KubernetesOwnerSkipped whose
+	// holder the sweep can name: today, the objects a Helm release holds,
+	// read off Helm's meta.helm.sh/release-name annotation (GitHub issue
+	// #1607, under the 2026-09-26 ruling on #1604). They carry the
+	// estate's label, no block declares them, and they are never orphans
+	// or adoptable; they are reported with their release so that a chart
+	// value carrying tofu-estate shows up as what it is rather than as
+	// nothing.
+	KubernetesHeld []kubesweep.HeldObject
 
 	// SweepCovered lists the resource types the estate-wide sweep did
 	// enumerate, sorted. It is the counterpart of SweepGaps: "these types

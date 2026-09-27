@@ -64,7 +64,7 @@ type groupRecordingSweeper struct {
 	gvrs []string
 }
 
-func (s *groupRecordingSweeper) List(ctx context.Context, k kubesweep.Kind, key, value string) ([]kubesweep.Object, int, error) {
+func (s *groupRecordingSweeper) List(ctx context.Context, k kubesweep.Kind, key, value string) ([]kubesweep.Object, kubesweep.Skipped, error) {
 	s.gvrs = append(s.gvrs, k.GVR.String())
 	return s.stubSweeper.List(ctx, k, key, value)
 }

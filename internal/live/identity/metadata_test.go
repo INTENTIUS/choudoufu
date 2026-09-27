@@ -16,6 +16,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -75,8 +76,9 @@ func TestObjectMetaRuleReproducesTheRatifiedRows(t *testing.T) {
 		if !row.NonAWSProvider {
 			t.Errorf("%s's row is not marked NonAWSProvider", typeName)
 		}
-		got, ok := synthesizeMetadataIdentity(typeName, objectMetaSchema(namespaced))
-		if !ok {
+		synth, ok := substrate.Kubernetes.SynthesizeIdentity(typeName, objectMetaSchema(namespaced))
+		got := fromSynthesized(typeName, synth)
+		if !ok || synth.FromIdentitySchema {
 			t.Fatalf("%s: the object-metadata rule refused a schema of its own shape", typeName)
 		}
 		if !reflect.DeepEqual(got.Components, row.Components) {
@@ -161,7 +163,7 @@ func TestObjectMetaRuleAdmitsAnUnratifiedType(t *testing.T) {
 // NAMESPACE/NAME; before the rule claimed "id" every such site was refused
 // as "Not an identity attribute" and the root could not plan at all.
 //
-// Proving it red: drop IdentityAttrs from synthesizeMetadataIdentity and
+// Proving it red: drop IdentityAttrs from the Kubernetes substrate's objectMetaIdentity and
 // the config map below is refused instead of resolving.
 func TestObjectMetaIDResolvesToTheParentsIdentity(t *testing.T) {
 	dir := t.TempDir()
