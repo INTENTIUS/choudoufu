@@ -68,5 +68,7 @@ func run() error {
 		return fmt.Errorf("writing %s: %w", OutputJSONRel, err)
 	}
 	fmt.Printf("%s: %d types, %d in-contract\n", OutputJSONRel, artifact.Counts.Types, artifact.Counts.Statuses["in-contract"])
+	fmt.Printf("%s: kubernetes: %d admitted, %d awaiting a tier ruling (issue #1600)\n",
+		OutputJSONRel, artifact.Kubernetes.Counts.Types, artifact.Kubernetes.Counts.Statuses[StatusAwaitingRuling])
 	return nil
 }

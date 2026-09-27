@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/live/discovery"
 )
 
 // Class is the classification of one unclaimed live resource.
@@ -81,6 +82,13 @@ type Result struct {
 	// block address. They carry no command: which live resource became which
 	// key is exactly what a marker cannot say.
 	Ambiguous []RenameAmbiguity
+
+	// ControllerHeld lists the live resources an in-cluster controller
+	// (ACK, Crossplane) made from an object on the cluster side, carried
+	// through from discovery (GitHub issue #1606). None of them is foreign,
+	// a bind candidate, a rename or a removal: each is reported here, with
+	// the object its tags name, and nothing else.
+	ControllerHeld []discovery.ControllerHeldResource
 
 	// OtherEstates counts the live resources carrying another estate's
 	// marker, by estate name, sorted. An entry with an empty Estate is the

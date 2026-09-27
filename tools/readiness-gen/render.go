@@ -270,6 +270,8 @@ func reasonFor(r Row) string {
 		return fmt.Sprintf("the provider documents no import example for this type yet. See [LIMITATIONS.md](%s#unadmitted-type).", limitationsMDURL)
 	case StatusPendingRatification:
 		return fmt.Sprintf("no ratification batch has reached this type's admission table row yet. See [LIMITATIONS.md](%s#unadmitted-type).", limitationsMDURL)
+	case StatusAwaitingRuling:
+		return "admitted, but this substrate's own marker (the Kubernetes label surface) postdates the tier definitions, so which tier it maps to needs a ruling. See [issue #1600](https://github.com/INTENTIUS/choudoufu/issues/1600)."
 	default:
 		// build.go's Row.Status is one of the six consts above by
 		// construction (TestPartitionGuard, tools/readiness-gen/build_test.go);
@@ -294,6 +296,19 @@ type siteData struct {
 	Total        int   `json:"total"`
 	// Types is every row of live/readiness.json with its reason.
 	Types []siteType `json:"types"`
+
+	// Kubernetes is issue #1600's addition: the non-AWS substrate's own
+	// admitted types, rendered separately from Tiers/Types above because
+	// they carry no tier yet - see [Substrate]'s own doc comment.
+	Kubernetes siteSubstrate `json:"kubernetes"`
+}
+
+// siteSubstrate is one non-AWS substrate's site-rendered summary.
+type siteSubstrate struct {
+	Provider string     `json:"provider"`
+	Total    int        `json:"total"`
+	Awaiting int        `json:"awaiting_ruling"`
+	Types    []siteType `json:"types"`
 }
 
 type siteTier struct {
@@ -335,6 +350,16 @@ func buildSiteData(a Artifact, stamp string) siteData {
 	}
 	for _, r := range a.Types {
 		d.Types = append(d.Types, siteType{Type: r.Type, Tier: r.Tier, Status: r.Status, Reason: reasonFor(r)})
+	}
+
+	d.Kubernetes = siteSubstrate{
+		Provider: a.Kubernetes.Provider,
+		Total:    a.Kubernetes.Counts.Types,
+		Awaiting: a.Kubernetes.Counts.Statuses[StatusAwaitingRuling],
+		Types:    []siteType{},
+	}
+	for _, r := range a.Kubernetes.Types {
+		d.Kubernetes.Types = append(d.Kubernetes.Types, siteType{Type: r.Type, Tier: r.Tier, Status: r.Status, Reason: reasonFor(r)})
 	}
 	return d
 }

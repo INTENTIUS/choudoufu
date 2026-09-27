@@ -1292,7 +1292,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// GitHub issue #1084: the registry flag the create path keys on,
 		// and the client the post-create marker write goes through.
 		r.resolver.Roster = markerRoster()
-		r.resolver.Tagger = provs.markerTagger
+		r.resolver.MarkerWriter = provs.markerTagger
 	}
 
 	// GitHub issue #67's undeclared_untagged = "delete" scoped account

@@ -117,9 +117,17 @@ type HeldObject struct {
 	Namespace string
 	Name      string
 	Labels    map[string]string
+	// Controller is the controller that holds it: today always
+	// [ControllerHelm].
+	Controller string
 	// HeldBy names the holder for a reader: "Helm release NAMESPACE/NAME".
 	HeldBy string
 }
+
+// ControllerHelm is [HeldObject.Controller] for an object a Helm release
+// holds. It is the Kubernetes counterpart of markers.ControllerACK and
+// markers.ControllerCrossplane: one "controller" word across substrates.
+const ControllerHelm = "Helm"
 
 // DryRunResult is what the API server said to a [Sweeper.DryRun].
 type DryRunResult struct {
@@ -329,11 +337,12 @@ func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object,
 				if exists {
 					skipped.Count++
 					skipped.Held = append(skipped.Held, HeldObject{
-						Kind:      k.Kind,
-						Namespace: item.GetNamespace(),
-						Name:      item.GetName(),
-						Labels:    item.GetLabels(),
-						HeldBy:    rel.String(),
+						Kind:       k.Kind,
+						Namespace:  item.GetNamespace(),
+						Name:       item.GetName(),
+						Labels:     item.GetLabels(),
+						Controller: ControllerHelm,
+						HeldBy:     rel.String(),
 					})
 					continue
 				}

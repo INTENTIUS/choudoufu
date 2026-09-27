@@ -111,12 +111,14 @@ func TestKubernetesSweepHoldsHelmReleaseObjects(t *testing.T) {
 	if len(orphans) != 1 || orphans[0] != "smoke-k8s/stray" {
 		t.Fatalf("orphans = %v, want only smoke-k8s/stray: an object a Helm release holds is never proposed for removal", orphans)
 	}
-	if len(res.KubernetesHeld) != 1 {
-		t.Fatalf("held = %+v, want the one Helm release object", res.KubernetesHeld)
+	// One list for both substrates (the 2026-09-26 ruling on #1604): a
+	// Helm-held object is reported where an ACK-made bucket is.
+	if len(res.ControllerHeld) != 1 {
+		t.Fatalf("held = %+v, want the one Helm release object", res.ControllerHeld)
 	}
-	h := res.KubernetesHeld[0]
-	if h.Kind != "ConfigMap" || h.Namespace != "smoke-k8s" || h.Name != "web-greeting" || h.HeldBy != "Helm release smoke-k8s/web" {
-		t.Errorf("held = %+v, want ConfigMap smoke-k8s/web-greeting held by Helm release smoke-k8s/web", h)
+	h := res.ControllerHeld[0]
+	if h.TypeName != "kubernetes_config_map_v1" || h.Kind != "ConfigMap" || h.ImportID != "smoke-k8s/web-greeting" || h.Controller != "Helm" || h.HeldBy != "Helm release smoke-k8s/web" {
+		t.Errorf("held = %+v, want kubernetes_config_map_v1 ConfigMap smoke-k8s/web-greeting held by Helm release smoke-k8s/web", h)
 	}
 	if res.KubernetesOwnerSkipped != 1 {
 		t.Errorf("owner-skipped = %d, want 1: a held object is counted with the rest of what the sweep set aside", res.KubernetesOwnerSkipped)
@@ -162,8 +164,8 @@ func TestKubernetesSweepStopsHoldingWhenReleaseSecretIsGone(t *testing.T) {
 	if len(orphans) != 2 || orphans[0] != "smoke-k8s/stray" || orphans[1] != "smoke-k8s/web-greeting" {
 		t.Fatalf("orphans = %v, want smoke-k8s/stray and smoke-k8s/web-greeting: no release names the second one any more", orphans)
 	}
-	if len(res.KubernetesHeld) != 0 {
-		t.Errorf("held = %+v, want none: the annotation names a release that no longer exists", res.KubernetesHeld)
+	if len(res.ControllerHeld) != 0 {
+		t.Errorf("held = %+v, want none: the annotation names a release that no longer exists", res.ControllerHeld)
 	}
 	if res.KubernetesOwnerSkipped != 0 {
 		t.Errorf("owner-skipped = %d, want 0", res.KubernetesOwnerSkipped)
