@@ -25909,5 +25909,79 @@
         "mapping_via": "cfn-unmodeled"
       }
     }
-  ]
+  ],
+  "kubernetes": {
+    "provider": "hashicorp/kubernetes 3.2.1",
+    "counts": {
+      "types": 4,
+      "tiers": {
+        "marker-carried": 4
+      },
+      "statuses": {
+        "in-contract": 4
+      }
+    },
+    "types": [
+      {
+        "type": "kubernetes_cluster_role_binding",
+        "tier": "marker-carried",
+        "status": "in-contract",
+        "facts": {
+          "taggable": false,
+          "survey_path": "",
+          "admitted": true,
+          "markerless": false,
+          "not_importable": false,
+          "tier_d": false,
+          "label_surface": true,
+          "rejected": false
+        }
+      },
+      {
+        "type": "kubernetes_config_map",
+        "tier": "marker-carried",
+        "status": "in-contract",
+        "facts": {
+          "taggable": false,
+          "survey_path": "",
+          "admitted": true,
+          "markerless": false,
+          "not_importable": false,
+          "tier_d": false,
+          "label_surface": true,
+          "rejected": false
+        }
+      },
+      {
+        "type": "kubernetes_namespace",
+        "tier": "marker-carried",
+        "status": "in-contract",
+        "facts": {
+          "taggable": false,
+          "survey_path": "",
+          "admitted": true,
+          "markerless": false,
+          "not_importable": false,
+          "tier_d": false,
+          "label_surface": true,
+          "rejected": false
+        }
+      },
+      {
+        "type": "kubernetes_storage_class",
+        "tier": "marker-carried",
+        "status": "in-contract",
+        "facts": {
+          "taggable": false,
+          "survey_path": "",
+          "admitted": true,
+          "markerless": false,
+          "not_importable": false,
+          "tier_d": false,
+          "label_surface": true,
+          "rejected": false
+        }
+      }
+    ]
+  }
 }
