@@ -6,7 +6,7 @@ deeper:
   - "[Compatibility reference]({{< relref \"/docs/use/compatibility\" >}}): every construct admitted or refused, and how you may run it."
   - "[How to check a configuration before migrating]({{< relref \"/docs/use/check-a-config\" >}}): reading the output."
   - "[Resource tier lookup]({{< relref \"/docs/use/resource-tiers\" >}}): every provider type with its tier, status and reason."
-  - "[`live/LIMITATIONS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md): each limit with the lint rule that enforces it and the fixture that proves it."
+  - "[`live/LIMITATIONS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md): each limit with its rule and its fixture."
 ---
 
 # Compatibility
@@ -15,20 +15,18 @@ deeper:
 choudoufu live-check
 ```
 
-Run it in the directory that holds your configuration. It loads the
-provider schemas, walks every resource block, and prints one line per thing
-it would refuse: the block, the rule, and what to change. No credentials and
-no cloud calls.
+Run it in your configuration's directory. It loads the provider schemas,
+walks every resource block, and prints one line per thing it would refuse:
+the block, the rule, and what to change. No credentials and no cloud calls.
 
 ## The backend
 
 A `backend` or `cloud` block is refused. Under a live block the markers on
 the resources are the record of ownership, and the state file is a
-disposable cache (`choudoufu-cache.tfstate`) you are allowed to lose or to
-find stale. A backend would make a state file the authoritative record
-instead, and an estate cannot have two authoritative homes for what it
-owns. Delete it and declare the estate instead. Workspaces are refused for
-the same reason.
+disposable cache (`choudoufu-cache.tfstate`) you are allowed to lose. A
+backend would make a state file the authoritative record instead, and an
+estate cannot have two authoritative homes. Delete it and declare the
+estate instead. Workspaces are refused for the same reason.
 
 ## Expansions and identity arguments
 
@@ -37,8 +35,7 @@ and the argument that names a resource have to be settled before the first
 provider call. A `count` over a variable, a local, a data source or a
 sibling's attribute is fine. What is refused: a `count` or `for_each` over a
 module output, a `for_each` keyed by a parent's live id, and a `count.index`
-used where two instances would render the same value. The message names the
-block and the expression.
+used where two instances would render the same value.
 
 ## Resource types
 
@@ -48,21 +45,20 @@ are all gone: on a tag, for the taggable half of the provider; recomputed
 from configuration, for attachments, policies and anything else named by
 what it joins; or only in the record store, for types AWS names itself and
 gives no tag. Three types are excluded on purpose because they mint
-credential material. The lookup page lists every type with a reason for
-anything short of in-contract.
+credential material. The lookup page lists every type with a reason.
 
 ## Running it
 
 `plan -out` then `apply <planfile>` works, and the apply refuses by name if
 the live system moved since the plan. `-target` works. A configuration with
-no `live` block gets stock behaviour, measured: the same API calls, exactly.
+no `live` block gets stock behaviour, measured: the same API calls.
 
 ## Other providers
 
 A resource from another provider is refused only when its identity cannot
 be derived from your configuration. Eleven `google_*` types derive it
 today and plan without a marker. Kubernetes is a substrate of its own,
-with a label for a marker, a sweep and an admission policy: [its
-hub]({{< relref "/kubernetes" >}}) says what is proven there. `github_*`
-and `fastly_*` publish no identity and are refused as `unadmitted-type`. A
-mixed estate is reported root by root.
+with its own marker, sweep and admission policy: [its
+hub]({{< relref "/kubernetes" >}}) says what is proven there. `github_*` and
+`fastly_*` publish no identity and are refused as `unadmitted-type`. A mixed
+estate is reported root by root.

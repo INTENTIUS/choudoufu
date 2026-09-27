@@ -9,6 +9,18 @@ deeper:
 
 # Compatibility
 
+## The backend
+
+Refused for the same reason as on [AWS]({{< relref "/aws/compatibility" >}}):
+the rule is provider-agnostic.
+
+## Expansions and identity arguments
+
+Does not apply: the label holds only the estate name, not an address built
+from `count` or `for_each`.
+
+## Resource types
+
 Every `kubernetes_*` resource type whose schema has a `metadata` block works:
 it plans, carries the estate label, is swept for orphans and is fenced by the
 admission policy. Custom resources work through `kubernetes_manifest`.
@@ -18,7 +30,7 @@ the API server as a dry run and prints the server's verdict. A manifest the
 server would reject refuses the plan, in the server's own words. A block whose
 kind the cluster does not serve is refused by name, with the CRD to install.
 
-## Refused
+### Refused
 
 | What | Why |
 |---|---|
@@ -27,7 +39,12 @@ kind the cluster does not serve is refused by name, with the CRD to install.
 | `kubernetes_labels`, `kubernetes_annotations`, `kubernetes_env`, the `*_data` types | They patch an object and are not one |
 | `helm_release` | A release is many objects made by Helm, carrying Helm's labels. Run Helm roots without a `live` block, where they behave as stock. An object carrying Helm's release annotation is controller-held while that release still exists: never swept or adopted, even with `tofu-estate` in the chart's values, and listed with its release |
 
-## Mixed estates
+## Running it
+
+The same plan and apply engine as AWS: `-target` and the plan-file workflow
+are not provider-specific.
+
+## Other providers
 
 An EKS module managing the `aws-auth` ConfigMap works. EKS creates it
 unlabelled; the plan stops until `declared_untagged = "adopt"` claims it. AWS

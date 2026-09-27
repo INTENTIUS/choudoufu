@@ -15,6 +15,17 @@ and run it unchanged. What is specific to choudoufu is the names: the five
 Ops in `examples/ci-pipelines/src` are the five job names, and these policies
 are written against them rather than against a description of them.
 
+## Substrate
+
+AWS-only, because it governs `examples/ci-pipelines`, which is AWS-only, and
+these policies exist to keep that project's own credentials from leaking or
+going unused: the three role ARNs on GitHub, the three static key pairs on
+Forgejo, `AWS_REGION` everywhere. A Kubernetes CI pipeline authenticates
+differently - a kubeconfig or an OIDC-issued cluster token, not an IAM role
+ARN - so a Kubernetes variant of this project would need `ci-pipelines` to
+have one first, with its own credential shape, before there is anything here
+to govern.
+
 ## What they are written against
 
 Read out of the generated workflows, not out of prose:
