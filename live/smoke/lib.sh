@@ -65,6 +65,32 @@ proof() {
   echo; echo "  -> $*"; echo
 }
 
+# strip_incomplete_sweep_warning removes any "Incomplete sweep for
+# undeclared resources" diagnostic from a captured CLI transcript, so a
+# scenario's own denied()-style grep over "the rest of what a step printed"
+# does not false-positive on it (GitHub issue #1636). That warning's Detail
+# sometimes quotes a sweep gap's own raw provider error verbatim - an
+# emulator-restricted role missing iam:ListPolicies, say - which reads
+# "AccessDenied" or "not authorized to perform" despite naming a read this
+# scenario never asked for and a call site (Bob's tag write, on his own
+# grant) that has nothing to do with it.
+#
+# A diagnostic renders in a box bounded by the literal characters ╷ and ╵,
+# one line each, unaffected by -no-color (internal/command/format's rule
+# characters are not ANSI escapes); this drops every such box whose second
+# line names this one warning by its Summary text, and leaves every other
+# line - including any other diagnostic's own box - exactly as it was.
+strip_incomplete_sweep_warning() {
+  awk '
+    /^╷[[:space:]]*$/ { hold = $0; getline nxt
+      if (nxt ~ /Incomplete sweep for undeclared resources/) { skip = 1; next }
+      print hold; print nxt; next
+    }
+    skip { if ($0 ~ /^╵[[:space:]]*$/) skip = 0; next }
+    { print }
+  '
+}
+
 # destroyed_exactly <tag> <n> <output> asserts that a destroy reported
 # exactly n resources destroyed, and prints the destroy's WHOLE output when
 # it did not.
