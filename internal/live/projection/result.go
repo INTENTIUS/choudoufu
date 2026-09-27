@@ -107,6 +107,21 @@ type Result struct {
 	// nothing about it needed the store this run.
 	EnvelopeVersions []RecordVersion
 
+	// RecordFallbackAddrs lists every instance this plan resolved through
+	// [identity.Resolution.RecordFallback] - GitHub issue #1675: an
+	// instance whose own identity component could not be folded from
+	// configuration this run, routed to the record store because its type
+	// has nowhere to carry a marker either. [WriteBack] uses this, passed
+	// through [WriteBackRequest.RecordFallbackAddrs], to tell such an
+	// instance apart from an ordinary instance of the same
+	// [identity.RecordFallbackType]-eligible type whose identity folds
+	// straight from configuration and for which the record is redundant
+	// bookkeeping rather than the object's only surviving identity carrier.
+	//
+	// In address order. Empty for a run with no record store, or one whose
+	// configuration never needed this door.
+	RecordFallbackAddrs []addrs.AbsResourceInstance
+
 	// Policy lists every declared instance whose admission or tag handling
 	// GitHub issue #67's policy governed with a verb other than that
 	// quadrant's [policy.DefaultVerb] - so a run with no policy block, or

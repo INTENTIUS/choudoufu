@@ -405,6 +405,48 @@ func schemaFallbackComponentsRecord(resourceType string, schema providers.Schema
 	return values, true
 }
 
+// ApplyRecordsIdentity reports whether an apply's record write-back
+// ([LocatedRecordFrom]) can record resourceType's identity at all, judged
+// from the type and its schema before any object exists. It is
+// [LocatedRecordFrom]'s two routes with the applied value left out: the
+// full identity plan ([identity.RecordableIdentitySchema]), or the ratified
+// row's components chain ([locatedRatifiedComponentsRecord]).
+//
+// GitHub issue #1637. #950's unmarked-apply refusal steps aside for a run
+// with a writable record store because the apply records the identity that
+// finds the object again. That is true only of a type one of these routes
+// can record. For any other type the write-back leaves a log line and no
+// record, so the refusal's prediction holds and it must still fire.
+//
+// A true answer is about the type. The applied object must still carry
+// every component (a real apply fills in the server-assigned one), which
+// is the write-back's own check and is loud when it fails for a type with
+// no other identity carrier.
+func ApplyRecordsIdentity(resourceType string, schema providers.Schema) bool {
+	if schema.Block == nil {
+		return false
+	}
+	if identity.RecordableIdentitySchema(resourceType, schema) {
+		return true
+	}
+	_, ok := ratifiedComponentsRecordable(resourceType, schema)
+	return ok
+}
+
+// ratifiedComponentsRecordable is the value-free half of
+// [locatedRatifiedComponentsRecord], shared with [ApplyRecordsIdentity] so
+// the two cannot disagree about which types that route can record.
+func ratifiedComponentsRecordable(resourceType string, schema providers.Schema) (identity.TypeIdentity, bool) {
+	ti, ok := identity.LookupType(resourceType)
+	if !ok || len(ti.Components) == 0 || ti.ServerAssigned || ti.RecordBacked || ti.IdentityObjectOnly {
+		return identity.TypeIdentity{}, false
+	}
+	if identity.SensitiveComponentsAttr(ti, schema) != "" {
+		return identity.TypeIdentity{}, false
+	}
+	return ti, true
+}
+
 // locatedRatifiedComponentsRecord is [LocatedRecordFrom]'s fallback for a
 // type neither the provider's own wire identity schema nor the documented
 // import ID grammar can already record ([identity.RecordableIdentitySchema]
@@ -444,11 +486,8 @@ func schemaFallbackComponentsRecord(resourceType string, schema providers.Schema
 // [LocatedIdentityPlanFor]'s callers), so the schema is the only place left
 // to ask whether a component this would record is secret.
 func locatedRatifiedComponentsRecord(resourceType string, schema providers.Schema, obj cty.Value) (LocatedRecord, bool) {
-	ti, ok := identity.LookupType(resourceType)
-	if !ok || len(ti.Components) == 0 {
-		return LocatedRecord{}, false
-	}
-	if identity.SensitiveComponentsAttr(ti, schema) != "" {
+	ti, ok := ratifiedComponentsRecordable(resourceType, schema)
+	if !ok {
 		return LocatedRecord{}, false
 	}
 	importID, _, ok := identity.ComponentsFromValue(ti, obj)

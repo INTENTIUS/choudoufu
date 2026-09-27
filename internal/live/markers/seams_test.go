@@ -129,7 +129,6 @@ var surfaceSeamUntriaged = map[string][]Surface{
 	"internal/live/identity/located.go:RecordFallbackType":             {SurfaceTags},
 	"internal/live/identity/resolve.go:resolver.recordFallback":        {SurfaceTags},
 	"internal/live/identity/resolve.go:resolver.manifestObjectKeyPart": {SurfaceManifest, SurfaceTags},
-	"internal/live/markerstrip/markerstrip.go":                         {SurfaceTags},
 	"internal/live/projection/build.go:builder.prepareRead":            {SurfaceManifest, SurfaceTags},
 	"internal/live/projection/readconcurrency.go":                      {SurfaceManifest, SurfaceTags},
 }

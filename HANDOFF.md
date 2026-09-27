@@ -288,6 +288,41 @@ Rules are tests. The ones that hold this document to the tree:
 | `internal/live/harness` | every ratchet pins its denominator |
 | `live/flociimage_test.go`, `live/pins_drift_test.go` | the emulator and provider pins are current |
 | `internal/live/lifecycle/marker_tag_merge_live_test.go` | markers survive an incremental tag update through a real emulator |
+| `live/smoke_trigger_rule_test.go` | k8s-smoke.yml, bucket-smoke.yml, claims-smoke.yml and kind-tier.yml each match the smoke trigger rule below |
+
+## CI: smoke workflow triggers
+
+One rule, stated once here, that k8s-smoke.yml, bucket-smoke.yml,
+claims-smoke.yml and kind-tier.yml each carry a short pointer back to
+(issue #1592, part of #1579). Before this, k8s-smoke.yml had no nightly run
+at all, nightly-watch.yml watched bucket-smoke but not k8s-smoke, and
+bucket-smoke.yml's paths were narrow enough that a pull request touching
+only `cmd/` or the rest of `internal/` skipped it silently.
+
+A smoke workflow triggers on `pull_request` and on `push` to `main`, with
+the same path list both times: its own workflow file, `cmd/**`,
+`internal/**`, `live/smoke/**`, `go.mod` and `go.sum` - the code that can
+break any scenario it runs - plus whatever else that substrate needs
+(k8s-smoke.yml also watches `live/kubernetes/**`, `live/e2e/lib/**`,
+`live/e2e/estate-k8s/**` and `examples/record-store-cluster/**`). It also
+runs on a `schedule` cron, so a repin of an emulator or toolchain image, or
+a dependency bump, is caught the day it happens rather than on the next
+pull request that happens to touch one of those paths, and it has
+`workflow_dispatch` so it can be run by hand or by an orchestrator without
+waiting for either. Its name is in `nightly-watch.yml`'s `workflows:` list,
+so a red scheduled run opens and extends a `nightly-red` issue instead of
+dying on the Actions run page (#1316); `live/nightly_watch_test.go` derives
+that list from every workflow file carrying a cron and fails if the two
+disagree.
+
+A scenario measured over a workflow's own stated minutes budget moves to a
+nightly-only job inside that workflow instead of running on every pull
+request (claims-smoke.yml's `smoke-nightly` job, 2026-09-26 ruling on #1590:
+"same rule as the kubernetes lane"). When a whole workflow is over budget
+for pull-request-time gating - kind-tier.yml stands up a kind cluster and
+runs three separate test suites against it - it carries no
+`pull_request`/`push` trigger at all, but still runs nightly, still has
+`workflow_dispatch`, and is still named in `nightly-watch.yml`.
 
 ## Working here
 
