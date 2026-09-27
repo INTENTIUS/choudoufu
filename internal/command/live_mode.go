@@ -1303,9 +1303,10 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		r.resolver.Estate = estate
 		r.resolver.Selection = identity.SelectionFor(config)
 		r.resolver.Slots = disco.SlotTable()
-		// GitHub issue #1084: the registry flag the create path keys on,
+		// GitHub issue #1084: the registry flag the create path keys on (the
+		// AWS family's facts, #1708),
 		// and the client the post-create marker write goes through.
-		r.resolver.Roster = markerRoster()
+		r.resolver.Facts = markerFacts()
 		r.resolver.MarkerWriter = provs.markerTagger
 	}
 
