@@ -1,0 +1,36 @@
+{{- /*
+  Renders site/data/substrates.json - the byte-identical copy of
+  live/substrates.json (#1588) tools/substrates-gen's -render mode keeps -
+  as the substrate capability matrix: one row per provider family in
+  internal/live/substrate.All, generated from the Substrate
+  implementations, plus the two hand-kept columns (fence, harness notes)
+  that column carries because #1118 ruled the fence is never code here.
+
+    {{< substrates-table >}}
+*/ -}}
+{{- $d := hugo.Data.substrates -}}
+{{- if not $d -}}
+<p class="data-missing">No substrate data yet; copy live/substrates.json to site/data/substrates.json.</p>
+{{- else -}}
+<div class="table-wrap">
+<table class="substrates">
+<thead><tr><th>Family</th><th>Identity</th><th>Marker surface(s)</th><th>Writes (create / adopt / post-create)</th><th>Sweep</th><th>Controller-held</th><th>Untaggable types</th><th>Fence</th><th>Harness</th></tr></thead>
+<tbody>
+{{- range $d.rows }}
+{{- $row := . }}
+<tr class="family-{{ $row.family }}">
+<td>{{ $row.family | upper }}</td>
+<td>{{ $row.identity.description }}</td>
+<td>{{- range $row.surfaces }}<div><code>{{ .surface }}</code>: {{ .carrier_phrase }} ({{ .marker_noun }})</div>{{- end }}</td>
+<td>{{- range $row.surfaces }}<div><code>{{ .surface }}</code>: {{ .writes.create }} / {{ .writes.adopt }} / {{ .writes.post_create }}</div>{{- end }}</td>
+<td>{{ $row.sweep.kind }}<br><small>{{ $row.sweep.description }}</small></td>
+<td>{{ if $row.controller_held.recognized }}{{ $row.controller_held.mechanism }}{{ else }}not recognized{{ end }}</td>
+<td>{{ $row.untaggable.count }}<br><small>{{ range $tier, $n := $row.untaggable.by_tier }}{{ $tier }}: {{ $n }}; {{ end }}</small></td>
+<td>{{ $row.fence }}</td>
+<td>{{ $row.harness.name }} (<code>{{ $row.harness.pin_file }}</code>)<br><small>{{ $row.harness.notes }}</small></td>
+</tr>
+{{- end }}
+</tbody>
+</table>
+</div>
+{{- end -}}

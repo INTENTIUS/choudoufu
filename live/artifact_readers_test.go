@@ -101,6 +101,7 @@ var writtenArtifacts = []string{
 	"live/rowgen-buckets.json",
 	"live/rowgen-mismatches.json",
 	"live/schema-precedence.json",
+	"live/substrates.json",
 	"live/survey-full.json",
 	"live/survey.json",
 	"live/tag-verbs.json",
