@@ -61,8 +61,9 @@ var claimsSmokeNightlyOnly = map[string]bool{
 	"no-secret-survives-in-what-the-tool-keeps": true,
 }
 
-// awsEmulatorClaimCells is every (claim, aws) cell that is proven, not
-// real_service, and not already covered by bucket-smoke.yml's own derivation
+// awsEmulatorClaimCells is every (claim, aws) cell that runs its own
+// scenario (proven, or restated with a scenario - see
+// cellRunsItsOwnScenario), is not real_service, and is not already covered by bucket-smoke.yml's own derivation
 // (GitHub issue #1379) - the population claims-smoke.yml's two jobs
 // together must equal, once claimsSmokeExcluded is set aside.
 func awsEmulatorClaimCells(t *testing.T) []smokeScenarioCell {
@@ -77,7 +78,7 @@ func awsEmulatorClaimCells(t *testing.T) []smokeScenarioCell {
 		if c.Provider != "aws" {
 			continue
 		}
-		if c.Cell.Status != "proven" || c.Cell.RealService {
+		if !cellRunsItsOwnScenario(c.Cell) || c.Cell.RealService {
 			continue
 		}
 		if inBucket[c.Name] {
