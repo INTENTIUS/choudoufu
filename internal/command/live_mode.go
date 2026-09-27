@@ -1164,6 +1164,13 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// "an instance that could not be classified is absent from the
 		// Result"), so it reaches the node with no prior state and
 		// r.resolver gets the chance the static path never had.
+		//
+		// The refusals are handed to the resolver first (GitHub issue
+		// #1539): on a marker surface that carries no address the node
+		// has no way to find the object this block already created, so
+		// there the static refusal stands. See
+		// projection.NodeResolver.StaticRefusals.
+		r.resolver.StaticRefusals = identity.InstanceRefusals(idDiags)
 		idDiags = identity.DowngradeForNodeResolution(idDiags)
 	}
 	diags = diags.Append(idDiags)

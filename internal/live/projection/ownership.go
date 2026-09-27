@@ -13,7 +13,6 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/policy"
@@ -162,7 +161,7 @@ const (
 // manages, which is not power the issue asks this quadrant to have.
 //
 // "Marker", likewise, is whichever carrier the type's own schema has -
-// [markerSurfaceOf]. GitHub issue #1108: the surface read used to be the
+// [substrate.OwnershipSurfaceOf]. GitHub issue #1108: the surface read used to be the
 // AWS tag map and nothing else, so every Kubernetes type fell through the
 // "nowhere to put a marker" case below and was admitted without its label
 // ever being read. The consequences were both of the ones this function
@@ -226,7 +225,7 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 // a create at the declared one would not collide with it.
 func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, importID string, schema providers.Schema, obj cty.Value, declared, located, recordFirst, atDeclaredKey bool) ownershipVerdict {
 	own := b.opts.Ownership
-	surface := markerSurfaceOf(schema.Block)
+	surface, _ := substrate.OwnershipSurfaceOf(schema.Block)
 	switch {
 	case own == nil:
 		return ownershipOK
@@ -290,11 +289,11 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		// invisible until the next full read) is priced by the
 		// -refresh=false contract this arm only ever runs under.
 		return ownershipOK
-	case surface == surfaceNone:
+	case surface == "":
 		return ownershipOK
 	}
 
-	tags, taggable := surface.markersOf(obj)
+	tags, taggable := substrate.MarkersOf(surface, obj)
 	if !taggable {
 		if recordFirst {
 			// Nothing on the object says whose it is, which is exactly
@@ -311,11 +310,11 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		// nothing on it that says whose it is.
 		b.unowned(addr, typeName, importID, "", fmt.Sprintf(
 			"The provider read the %s with identity %q back without a %s, so nothing on it says which estate owns it. A resource enters the prior state only when it carries this estate's %s marker, so it was left alone: nothing in this plan reads, changes or destroys it.",
-			typeName, importID, surface.carrierPhrase(), markers.TagEstate), noMarkerCause(typeName), surface.carriesAddress(), false)
+			typeName, importID, substrate.CarrierPhrase(surface), markers.TagEstate), noMarkerCause(typeName), substrate.CarriesAddress(surface), false)
 		return ownershipUnowned
 	}
 
-	if recordFirst && surface.carriesAddress() {
+	if recordFirst && substrate.CarriesAddress(surface) {
 		// The stale-record rule ("In upstream terms", #389, ruled
 		// 2026-08-23): a record is trusted for a taggable type only while
 		// the live object's own tofu-address marker still names this
@@ -362,17 +361,17 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		// -from-estate` are the deliberate routes, both unchanged by this,
 		// and the refusal names them.
 		b.unowned(addr, typeName, importID, estate, anotherEstateDetail(typeName, importID, estate, own.Policy.Verb(true, false)),
-			noMarkerCause(typeName), surface.carriesAddress(), false)
+			noMarkerCause(typeName), substrate.CarriesAddress(surface), false)
 		return ownershipUnowned
 	}
 
-	if tagged && surface.carriesAddress() {
+	if tagged && substrate.CarriesAddress(surface) {
 		// This estate's marker is on the object, so the second half of the
 		// marker spec's ownership question applies: WHICH of this estate's
 		// instances is it? GitHub issue #244 - both this layer and discovery
 		// deferred that to the other, in comments, and neither performed it.
 		//
-		// Only on the tag surface: see [markerSurface.carriesAddress].
+		// Only on the tag surface: see [substrate.CarriesAddress].
 		if detail, cause, ok := b.addressNames(addr, typeName, importID, tags); !ok {
 			b.unownedAddress(addr, typeName, importID, estate, detail, cause)
 			return ownershipUnowned
@@ -440,7 +439,7 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		return ownershipOK
 	}
 
-	if declared && !nonDefault && estate == "" && own.Estate != "" && atDeclaredKey && surface.createCollidesOnKey() && !adoptsOnCreate(typeName) {
+	if declared && !nonDefault && estate == "" && own.Estate != "" && atDeclaredKey && substrate.CreateCollidesOnKey(surface) && !adoptsOnCreate(typeName) {
 		// GitHub issue #1546, ruled 2026-09-26: refuse, narrowly. Both of
 		// the ruling's halves hold by the time control is here.
 		//
@@ -454,7 +453,7 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		// tofu-estate at all - not another estate's, which returned above.
 		//
 		// And the create this configuration declares would be refused by
-		// the API server: see [markerSurface.createCollidesOnKey] for which
+		// the API server: see [substrate.CreateCollidesOnKey] for which
 		// shapes that is true of, and atDeclaredKey for why the key read is
 		// the key the create would send.
 		//
@@ -480,7 +479,7 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		detail = fmt.Sprintf(
 			"A live %s with identity %q carries no %s marker and nothing in this configuration declares %s, so it was left out of the prior state and this plan does not touch it. policy { declared_untagged } does not apply to a resource the configuration does not declare. To manage it, add a resource block for it and re-run.",
 			typeName, importID, markers.TagEstate, addr)
-	case estate == "" && !surface.carriesAddress():
+	case estate == "" && !substrate.CarriesAddress(surface):
 		// The Kubernetes wording. Same quadrant, same verdict, same two
 		// ways out; what differs is that the marker to write is one
 		// label and there is no address to write beside it (#1016).
@@ -499,7 +498,7 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 			markers.TagEstate, own.Estate,
 			markers.TagAddress, markers.EscapeAddress(addr.String()))
 	}
-	b.unowned(addr, typeName, importID, estate, detail, noMarkerCause(typeName), surface.carriesAddress(), nonDefault && verb == policy.Keep)
+	b.unowned(addr, typeName, importID, estate, detail, noMarkerCause(typeName), substrate.CarriesAddress(surface), nonDefault && verb == policy.Keep)
 	return ownershipUnowned
 }
 
@@ -772,7 +771,7 @@ func (b *builder) unownedAddress(addr addrs.AbsResourceInstance, typeName, impor
 		ImportID: importID,
 		Estate:   estate,
 		// Only the tag surface reaches this refusal at all - see
-		// [markerSurface.carriesAddress].
+		// [substrate.CarriesAddress].
 		AddressMarker: true,
 		Detail:        detail,
 	})
@@ -784,144 +783,22 @@ func (b *builder) unownedAddress(addr addrs.AbsResourceInstance, typeName, impor
 	b.omit(addr, ReasonUnowned, detail, cause)
 }
 
-// markerSurface names which carrier a resource type has for its ownership
-// marker. GitHub issue #1108: until it there was only one, and the switch
-// below returned "no surface" for every Kubernetes type, so [checkOwnership]
-// admitted a Kubernetes object without ever reading its label - another
-// estate's object relabelled by the plan, an unlabelled one adopted in
-// silence, and the ownership policy's verbs never reached on that substrate
-// at all.
-type markerSurface int
-
-const (
-	// surfaceNone is a type with nowhere to carry a marker. See
-	// [checkOwnership]'s doc comment for why that is admitted rather than
-	// refused.
-	surfaceNone markerSurface = iota
-	// surfaceTags is the AWS shape: a settable top-level tags map holding
-	// tofu-estate and tofu-address.
-	surfaceTags
-	// surfaceLabels is the Kubernetes metadata-block shape
-	// ([markers.LabelSurface]): metadata[0].labels, holding tofu-estate
-	// alone.
-	surfaceLabels
-	// surfaceManifest is the kubernetes_manifest shape
-	// ([markers.ManifestSurface]): manifest.metadata.labels, again
-	// tofu-estate alone.
-	surfaceManifest
-)
-
-// markerSurfaceOf reads a type's marker carrier off the provider's own
-// schema for it, never off a list of type names. It is
-// [substrate.OwnershipSurfaceOf], the question this function asked before
-// GitHub issue #1118 moved it there: its tag arm is the looser "is there a
-// tags or tags_all attribute at all", not [markers.Taggable], and that
-// function's doc comment says why.
-func markerSurfaceOf(block *configschema.Block) markerSurface {
-	surface, _ := substrate.OwnershipSurfaceOf(block)
-	return markerSurfaceFor(surface)
-}
-
-// markerSurfaceFor is this package's name for a [markers.Surface], and
-// surfaceNone for one it has no name for. That last case is the one
-// [checkOwnership] admits without a check, so a surface added to
-// internal/live/substrate without an arm here would be admitted by
-// default; TestMarkerSurfaceForNamesEverySubstrateSurface fails first.
-func markerSurfaceFor(surface markers.Surface) markerSurface {
-	switch surface {
-	case markers.SurfaceTags:
-		return surfaceTags
-	case markers.SurfaceLabels:
-		return surfaceLabels
-	case markers.SurfaceManifest:
-		return surfaceManifest
-	}
-	return surfaceNone
-}
-
-// surface is the [markers.Surface] s names, "" for surfaceNone.
-func (s markerSurface) surface() markers.Surface {
-	switch s {
-	case surfaceTags:
-		return markers.SurfaceTags
-	case surfaceLabels:
-		return markers.SurfaceLabels
-	case surfaceManifest:
-		return markers.SurfaceManifest
-	}
-	return ""
-}
-
-// markerCapable reports whether a resource type has anywhere to carry an
-// ownership marker, read from the provider's own schema for the type. It is
-// the same question [discovery.markerCapable] asks of a list schema, asked of
-// the managed resource schema a projection has in hand.
-func markerCapable(block *configschema.Block) bool {
-	return markerSurfaceOf(block) != surfaceNone
-}
-
-// markersOf reads the marker map off the live object the provider handed
-// back, from whichever place this type's surface keeps it
-// ([substrate.MarkersOf]). The second return is the surface reader's own:
-// false means "this object has no such map at all", which is a provider
-// bug on a type whose schema declares one and is never a licence to adopt.
+// The marker surface a type carries is [markers.Surface], read off the
+// provider's own schema by [substrate.OwnershipSurfaceOf], never off a list
+// of type names. GitHub issue #1108: until the surface read learned a
+// second carrier it returned "no surface" for every Kubernetes type, so
+// [builder.checkOwnership] admitted a Kubernetes object without ever
+// reading its label - another estate's object relabelled by the plan, an
+// unlabelled one adopted in silence, and the ownership policy's verbs never
+// reached on that substrate at all. Its tag arm is the looser "is there a
+// tags or tags_all attribute at all", not [markers.Taggable], and
+// [substrate.OwnershipSurfaceOf]'s doc comment says why.
 //
-// On the manifest surface it reads the prior manifest, which
-// [mirrorManifestMarker] has already carried the live object's own answer
-// for [markers.TagEstate] into - see that function's doc comment, and
-// #1079's reason for it: the provider's computed_fields default makes the
-// live labels the truth of metadata.labels, so this is where the live
-// object's estate label is readable on this shape.
-func (s markerSurface) markersOf(obj cty.Value) (map[string]string, bool) {
-	return substrate.MarkersOf(s.surface(), obj)
-}
-
-// carriesAddress reports whether this surface carries a tofu-address
-// marker beside the estate one ([substrate.CarriesAddress]). Only the AWS
-// tag map does: #1016's ruling is that the Kubernetes marker is the estate
-// label alone, because the object's own group, kind, namespace and name
-// are the join key back to configuration and nearly half of real addresses
-// are illegal as a label value anyway. So the second half of the ownership
-// question ([builder.addressNames]) and the stale-record check that shares
-// its rule are asked on the tag surface and nowhere else, rather than
-// being asked of a label that is not supposed to exist and reading its
-// absence as a finding.
-func (s markerSurface) carriesAddress() bool { return substrate.CarriesAddress(s.surface()) }
-
-// createCollidesOnKey reports whether, for a declared resource of this
-// surface, an object read at its identity means the resource's own create
-// would be refused by the server as a duplicate - the first half of GitHub
-// issue #1546's ruling, "its identity is a server-enforced unique key".
-//
-// True for the label surface only, and each exclusion is deliberate:
-//
-//   - surfaceLabels is every built-in Kubernetes type whose schema carries
-//     metadata[0].labels: ConfigMap, Secret, Deployment, Service,
-//     Namespace, ServiceAccount, the RBAC kinds and the rest. The API
-//     server stores each object under (group, resource, namespace, name) -
-//     or (group, resource, name) for a cluster-scoped kind - and answers a
-//     create at a key already held with 409 AlreadyExists. The provider's
-//     import id for these types is that namespace/name (or name), and it
-//     comes from the block's own metadata.name and metadata.namespace:
-//     metadata.generate_name, the one way a Kubernetes create does not
-//     name its key, is refused by internal/live/lint before a plan runs
-//     (#1064). The types that patch an object someone else created
-//     (kubernetes_labels, kubernetes_annotations,
-//     kubernetes_config_map_v1_data, kubernetes_env, kubernetes_node_taint)
-//     have no metadata.labels in their schema, so they are surfaceNone and
-//     never reach this question. Nor does kubernetes_default_service_account,
-//     whose create adopts the existing object: see [adoptsOnCreate], which
-//     the caller checks beside this.
-//   - surfaceManifest has the same key, and already has the server's own
-//     answer at plan time: the dry run (#1081,
-//     discovery.DryRunKubernetesManifests) submits the planned create with
-//     dryRun=All and turns the 409 into an Error quoting the server. A
-//     second refusal ahead of it would stop the plan before the dry run
-//     runs and replace the server's words with this tool's.
-//   - surfaceTags is AWS, out of scope by the ruling: there a create of an
-//     existing object often succeeds, renames or is idempotent rather than
-//     conflicting, and that is per type and unmeasured.
-func (s markerSurface) createCollidesOnKey() bool { return s == surfaceLabels }
+// GitHub issue #1584: this package used to keep its own enum for the
+// surfaces, with the per-surface answers (which carries an address, which
+// collides on its key, what the carrier is called) switching on it. The
+// answers now live on [substrate.Substrate], asked with the one
+// [markers.Surface] value, so a surface is declared once.
 
 // adoptsOnCreate reports whether typeName follows the providers'
 // "<provider>_default_<kind>" convention for a type whose create adopts an
@@ -935,17 +812,4 @@ func (s markerSurface) createCollidesOnKey() bool { return s == surfaceLabels }
 func adoptsOnCreate(typeName string) bool {
 	_, rest, ok := strings.Cut(typeName, "_")
 	return ok && strings.HasPrefix(rest, "default_")
-}
-
-// carrierPhrase names where the marker map lives, for the one refusal that
-// has to tell an operator the provider returned no such map. The tags
-// wording is unchanged from before this surface existed.
-func (s markerSurface) carrierPhrase() string {
-	switch s {
-	case surfaceLabels:
-		return "metadata.labels map"
-	case surfaceManifest:
-		return "manifest.metadata.labels map"
-	}
-	return "tags attribute"
 }
