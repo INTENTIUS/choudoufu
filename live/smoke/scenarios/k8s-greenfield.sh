@@ -3,8 +3,10 @@
 #
 # The first Kubernetes claim (#1061, under #1016's ruling of an estate-only
 # label; #1057's harness made it a demo first). The marker is ONE label,
-# tofu-estate, in metadata.labels; the address stays off the object because
-# group, kind, namespace and name are the join key back to configuration.
+# tofu-estate, in metadata.labels; group, kind, namespace and name are the
+# join key back to configuration. The block address rides beside it in the
+# annotation choudoufu.intentius.io/tofu-address (#1639, #1605's ruling),
+# which step 2 reads back; nothing binds on it yet.
 # Step 3 (#1081) is the inventory: live-ls learns the substrate from the
 # provider block and lists the estate the way the sweep does, one
 # label-selected list per kind, each object joined back to its block on
@@ -46,9 +48,10 @@ explain \
   "If the ownership record really is on the object, any Kubernetes tool" \
   "can read it. This asks the API server for the ConfigMap's labels" \
   "directly. One label, tofu-estate, says which estate owns it. There is" \
-  "no tofu-address label on purpose: the object's own kind, namespace and" \
-  "name are the way back to the configuration, so the address never goes" \
-  "on the object (#1016)."
+  "no tofu-address label on purpose: an address is often not a legal" \
+  "label value (#1016). The address rides beside the label in an" \
+  "annotation, choudoufu.intentius.io/tofu-address, which has no such" \
+  "limit (#1639); the label is the ownership marker and the fence."
 cmd "kubectl get configmap app-config -n smoke-k8s -o jsonpath='{.metadata.labels}'"
 CM_LABELS="$(kc get configmap app-config -n smoke-k8s -o jsonpath='{.metadata.labels}' 2>&1)" \
   || fail "k8s-greenfield" "kubectl could not read the ConfigMap: $CM_LABELS"
@@ -58,13 +61,22 @@ grep -q '"tofu-estate":"smoke-k8s"' <<< "$CM_LABELS" \
 if grep -q 'tofu-address' <<< "$CM_LABELS"; then
   fail "k8s-greenfield" "the ConfigMap carries a tofu-address label; the Kubernetes marker is the estate alone (#1016)"
 fi
+cmd "kubectl get configmap app-config -n smoke-k8s -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}'"
+CM_ADDR="$(kc get configmap app-config -n smoke-k8s -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}' 2>&1)" \
+  || fail "k8s-greenfield" "kubectl could not read the ConfigMap's annotations: $CM_ADDR"
+echo "choudoufu.intentius.io/tofu-address: $CM_ADDR" | evidence
+[ "$CM_ADDR" = "kubernetes_config_map.app" ] \
+  || fail "k8s-greenfield" "the ConfigMap's address annotation reads '$CM_ADDR', want kubernetes_config_map.app (#1639)"
+NS_ADDR="$(kc get namespace smoke-k8s -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}' 2>&1)"
+[ "$NS_ADDR" = "kubernetes_namespace.app" ] \
+  || fail "k8s-greenfield" "the namespace's address annotation reads '$NS_ADDR', want kubernetes_namespace.app (#1639)"
 NS_LABELS="$(kc get namespace smoke-k8s -o jsonpath='{.metadata.labels}' 2>&1)"
 grep -q '"tofu-estate":"smoke-k8s"' <<< "$NS_LABELS" \
   || fail "k8s-greenfield" "the namespace carries no tofu-estate label: $NS_LABELS"
 SA_LABELS="$(kc get serviceaccount app -n smoke-k8s -o jsonpath='{.metadata.labels}' 2>&1)"
 grep -q '"tofu-estate":"smoke-k8s"' <<< "$SA_LABELS" \
   || fail "k8s-greenfield" "the service account, a type with no ratified row, carries no tofu-estate label: $SA_LABELS"
-proof "the label rode the create call itself, on the ConfigMap and on the namespace. Any tool that can read a label can list this estate: kubectl get all -A -l tofu-estate=smoke-k8s."
+proof "the label and the address annotation rode the create call itself, on the ConfigMap and on the namespace. Any tool that can read a label can list this estate: kubectl get all -A -l tofu-estate=smoke-k8s."
 
 # live_ls runs the inventory from the estate's directory and prints it, so
 # each assertion below reads the same text a watcher sees.
@@ -193,10 +205,11 @@ explain \
   "object. Uniqueness on a cluster is group, kind, namespace and name, so" \
   "this edits the block's type from the plain spelling to _v1 with the" \
   "same metadata and no moved block. On AWS a type change with no moved" \
-  "block is a destroy and a create; here the natural key is unchanged," \
-  "the marker carries no address, and the replan must find the same" \
-  "object. An in-place update for a representation difference is" \
-  "allowed; a create or a destroy is not (#1081, item 2)."
+  "block is a destroy and a create; here the natural key is unchanged" \
+  "and the replan must find the same object. An in-place update is" \
+  "allowed - a representation difference, or the address annotation" \
+  "naming the new spelling (#1639) - and a create or a destroy is not" \
+  "(#1081, item 2)."
 cmd "sed -i 's/resource \"kubernetes_config_map\" \"app\"/resource \"kubernetes_config_map_v1\" \"app\"/' main.tf && choudoufu plan"
 sed_i "$SMOKE_WORK/main.tf" 's/^resource "kubernetes_config_map" "app"/resource "kubernetes_config_map_v1" "app"/'
 grep -q '^resource "kubernetes_config_map_v1" "app"' "$SMOKE_WORK/main.tf" \

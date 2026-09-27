@@ -407,9 +407,18 @@ const SummaryMarkerConflict = "Ownership marker conflict"
 // proceeds to write its own value exactly as it did before this check
 // existed.
 func markerConflictDiag(addr addrs.AbsResourceInstance, elems map[string]cty.Value, key, want string) tfdiags.Diagnostics {
+	return markerConflictDiagAt(addr, elems, key, key, want)
+}
+
+// markerConflictDiagAt is [markerConflictDiag] for a marker carried under a
+// key other than its own name: the Kubernetes address annotation (GitHub
+// issue #1639) carries the tofu-address marker under
+// [markers.AddressAnnotation]. carrier is the key read from elems and named
+// in the message; key is the marker it carries, which picks the message.
+func markerConflictDiagAt(addr addrs.AbsResourceInstance, elems map[string]cty.Value, carrier, key, want string) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
-	existing, ok := elems[key]
+	existing, ok := elems[carrier]
 	if !ok || existing.IsNull() || !existing.IsKnown() || existing.IsMarked() || existing.Type() != cty.String {
 		return diags
 	}
@@ -438,11 +447,11 @@ func markerConflictDiag(addr addrs.AbsResourceInstance, elems map[string]cty.Val
 	case markers.TagEstate:
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryMarkerConflict, fmt.Sprintf(
 			"%s declares %s = %q and this run is stamping the estate %q. A plan never overwrites a marker naming another estate: name %s in the live block (or with -estate, if this configuration has no live block) if that is the estate this run is for, or correct the tag.",
-			addr, markers.TagEstate, got, want, got)))
+			addr, carrier, got, want, got)))
 	case markers.TagAddress:
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryMarkerConflict, fmt.Sprintf(
 			"%s declares %s = %q, but its address in this configuration is %q. A marker naming another address is a rename: run `choudoufu live-mv %s %s`, or fix the tag. See live/MARKERS.md, \"The rename rule\".",
-			addr, markers.TagAddress, got, want, got, want)))
+			addr, carrier, got, want, got, want)))
 	}
 	return diags
 }

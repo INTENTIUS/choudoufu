@@ -55,6 +55,14 @@
 # `PASS: smoke scenario '<name>' - ` line, and the control step fails
 # unless a `-> caught` proof line is there too. live/smoke_verdict_test.go
 # holds every step that runs a scenario to that wrapper.
+#
+# The smoke trigger rule (issue #1592, HANDOFF.md "CI: smoke workflow
+# triggers"): every PR/push that touches cmd/**, internal/**, live/smoke/**,
+# go.mod or go.sum runs this workflow's matrix, plus the Kubernetes-specific
+# paths above; it also runs nightly (the schedule below) and on
+# workflow_dispatch, and is named in nightly-watch.yml's workflows list, so
+# a repin or a drift caught only on a schedule still surfaces as an issue.
+# live/smoke_trigger_rule_test.go holds this file to that rule.
 name: k8s-smoke
 on:
   pull_request:
@@ -80,6 +88,13 @@ on:
       - "live/e2e/lib/**"
       - "live/e2e/estate-k8s/**"
       - "examples/record-store-cluster/**"
+      - "go.mod"
+      - "go.sum"
+  schedule:
+    # Nightly (the rule below), so a repin of the kind or emulator image, or
+    # a dependency bump, is caught on the day it happens rather than on the
+    # next pull request that happens to touch one of the paths above.
+    - cron: "27 4 * * *"
   workflow_dispatch:
 permissions:
   contents: read

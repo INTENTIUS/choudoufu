@@ -91,6 +91,8 @@ var surfaceSeamExemptions = map[string]surfaceSeamExemption{
 	"internal/live/liveimport/labels.go":                                {Handles: []Surface{SurfaceLabels}, Why: "the label carrier, reached only through ratifyOne's and stamp.go's surface dispatch"},
 	"internal/live/liveimport/manifest.go":                              {Handles: []Surface{SurfaceManifest}, Why: "the manifest carrier (#1109), reached only through ratifyOne's surface dispatch"},
 	"internal/live/liveimport/tags.go":                                  {Handles: []Surface{SurfaceTags}, Why: "the tag carrier, reached only through ratifyOne's and stamp.go's surface dispatch"},
+	"internal/live/liveimport/stamp.go:approveOne":                      {Handles: []Surface{SurfaceLabels, SurfaceTags}, Why: "its manifest arm is approveManifest, which reads and patches the live object through the cluster API (unstructured maps, kubesweep.PatchMarkers) and so names no markers member the guard can see; #1639's address annotation made the label arm visible here"},
+	"internal/live/mv/rewrite.go:mover.checkPlan":                       {Handles: []Surface{SurfaceLabels}, Why: "judges a provider plan: the label arm's changedOutsideLabels reads markers.AnnotationsChangedBesides (#1639), the tag arm's changedOutsideTags compares attributes without a markers member, and the manifest shape never plans through the provider (mv/manifest.go judges a server dry run instead)"},
 	"internal/live/mv/label.go":                                         {Handles: []Surface{SurfaceLabels}, Why: "the label path, reached only when relabels answered true for the surface surfaceOf read"},
 	"internal/live/mv/rewrite.go:mover.rewrite":                         {Handles: []Surface{SurfaceLabels, SurfaceTags}, Why: "mv.go refuses SurfaceManifest by name (SummaryManifestMoveUnsupported) before rewrite runs; #1104 replaces that refusal with the label patch"},
 	"internal/live/mv/mv.go:mover.locateByIdentity":                     {Handles: []Surface{SurfaceLabels, SurfaceTags}, Why: "the manifest shape is refused by name in the same file before a locate runs (SummaryManifestMoveUnsupported); #1104 replaces that refusal"},
@@ -129,7 +131,6 @@ var surfaceSeamUntriaged = map[string][]Surface{
 	"internal/live/identity/located.go:RecordFallbackType":             {SurfaceTags},
 	"internal/live/identity/resolve.go:resolver.recordFallback":        {SurfaceTags},
 	"internal/live/identity/resolve.go:resolver.manifestObjectKeyPart": {SurfaceManifest, SurfaceTags},
-	"internal/live/markerstrip/markerstrip.go":                         {SurfaceTags},
 	"internal/live/projection/build.go:builder.prepareRead":            {SurfaceManifest, SurfaceTags},
 	"internal/live/projection/readconcurrency.go":                      {SurfaceManifest, SurfaceTags},
 }

@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/markers"
 )
@@ -53,6 +55,13 @@ type ControllerHeldResource struct {
 	// shape, withheld from the removal set. Addr is that address.
 	Marked bool
 	Addr   addrs.AbsResourceInstance
+
+	// Resource is the full listed object, carried through from the
+	// [OwnedResource] or [UnclaimedResource] this was built from, so a
+	// consumer can match on content without listing again - GitHub issue
+	// #1628, the lookalike guard's own content match against a create's
+	// identity-bearing arguments. cty.NilVal when the provider sent none.
+	Resource cty.Value
 }
 
 // String renders one controller-held resource on one line.
@@ -101,6 +110,7 @@ func applyControllerHeld(res *Result) {
 			HeldBy:      hold.Describe(),
 			Marked:      true,
 			Addr:        o.Addr,
+			Resource:    o.Resource,
 		})
 	}
 	if len(withheld) > 0 {
@@ -128,6 +138,7 @@ func applyControllerHeld(res *Result) {
 				DisplayName: u.DisplayName,
 				Controller:  string(hold.Controller),
 				HeldBy:      hold.Describe(),
+				Resource:    u.Resource,
 			})
 		}
 		res.Unclaimed = kept

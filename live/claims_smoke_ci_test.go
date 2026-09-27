@@ -42,6 +42,11 @@ var claimsSmokeExcluded = map[string]string{
 	// this claim's untaggable, record-recoverable resource to be exempted
 	// by.
 	"record-only-survives-cache-loss": "#1637",
+	// #1636: the BREAK control's own denied() check greps the whole apply
+	// transcript, and matches an unrelated sweep warning that also
+	// contains the string "AccessDenied" - a false positive, not a
+	// regression in the tag boundary the claim proves.
+	"the-tag-is-the-boundary": "#1636",
 }
 
 // claimsSmokeNightlyOnly is a proven, non-real-AWS AWS cell measured over

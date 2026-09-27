@@ -152,23 +152,43 @@ func (n *NodeResolver) stampedManifest(addr addrs.AbsResourceInstance, manifestV
 		// GitHub issue #1002: see stampedTags' own note.
 		n.noteUntagRelease(addr, markers.TagEstate, elems)
 	}
-	if len(elems) == 0 {
-		// Only reachable under an untag of tofu-estate on a manifest with
-		// no labels of its own: nothing to write, nothing to change.
-		return unchanged()
-	}
-
-	var newLabels cty.Value
-	if asMap {
-		newLabels = cty.MapVal(elems)
-	} else {
-		newLabels = cty.ObjectVal(elems)
-	}
 	metaAttrs := metaVal.AsValueMap()
 	if metaAttrs == nil {
 		metaAttrs = map[string]cty.Value{}
 	}
-	metaAttrs[markers.LabelSurfaceAttr] = newLabels.WithMarks(labelMarks)
+	changed := false
+	if len(elems) > 0 {
+		// Empty only under an untag of tofu-estate on a manifest with no
+		// labels of its own: no label to write.
+		var newLabels cty.Value
+		if asMap {
+			newLabels = cty.MapVal(elems)
+		} else {
+			newLabels = cty.ObjectVal(elems)
+		}
+		metaAttrs[markers.LabelSurfaceAttr] = newLabels.WithMarks(labelMarks)
+		changed = true
+	}
+
+	// GitHub issue #1639: the block address, in manifest.metadata.
+	// annotations beside the label, built as an object when the manifest
+	// has none (the shape an object constructor produces).
+	annVal := cty.NullVal(cty.EmptyObject)
+	if metaVal.Type().HasAttribute(markers.AnnotationSurfaceAttr) {
+		annVal = metaVal.GetAttr(markers.AnnotationSurfaceAttr)
+	}
+	newAnn, annChanged, annDiags := n.stampedAddressAnnotation(addr, annVal, "manifest.metadata.annotations", false)
+	diags = diags.Append(annDiags)
+	if annDiags.HasErrors() {
+		return unchanged()
+	}
+	if annChanged {
+		metaAttrs[markers.AnnotationSurfaceAttr] = newAnn
+		changed = true
+	}
+	if !changed {
+		return unchanged()
+	}
 	manifestAttrs := manifestVal.AsValueMap()
 	manifestAttrs[markers.LabelSurfaceBlock] = cty.ObjectVal(metaAttrs)
 	return cty.ObjectVal(manifestAttrs).WithMarks(manifestMarks), diags
