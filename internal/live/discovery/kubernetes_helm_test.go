@@ -81,9 +81,8 @@ func TestKubernetesSweepHoldsHelmReleaseObjects(t *testing.T) {
 	)
 	cm := kubesweep.Kind{GVR: gvr, Kind: "ConfigMap", Namespaced: true, APIVersion: "v1", TypeNames: []string{"kubernetes_config_map_v1"}}
 	req := Request{
-		Estate:          "smoke-k8s",
-		Kubernetes:      fixedKindsClient{Client: kubesweep.NewWith(&fakediscovery.FakeDiscovery{Fake: &clienttesting.Fake{}}, dyn), kinds: []kubesweep.Kind{cm}},
-		KubernetesTypes: []string{"kubernetes_config_map_v1"},
+		Estate:   "smoke-k8s",
+		Sweepers: []Sweeper{KubernetesSweep{Client: fixedKindsClient{Client: kubesweep.NewWith(&fakediscovery.FakeDiscovery{Fake: &clienttesting.Fake{}}, dyn), kinds: []kubesweep.Kind{cm}}, Types: []string{"kubernetes_config_map_v1"}}},
 	}
 	res := &Result{}
 	if diags := sweepKubernetes(context.Background(), req, res); diags.HasErrors() {
