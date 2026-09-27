@@ -141,7 +141,7 @@ Oracle: Stock's replace of the same resource leaves the same single object.
 
 Break: Skip the destroy half; the next plan must report a collision rather than proposing nothing.
 
-On the kind substrate: not applicable, recorded as `n/a` and neutral for clear. A Kubernetes name is unique within its namespace, so nothing can be created before the object it replaces is destroyed; a forced replacement is destroy-then-create, which this stage does not measure.
+On the kind substrate: not applicable, recorded as `n/a` and neutral for clear. True only of a replacement that keeps the object's name. A Kubernetes name is unique within its namespace, so a same-name forced replacement is destroy-then-create, which this stage does not measure. A create_before_destroy rename (the content-hashed-ConfigMap pattern, where the name argument itself changes) resolves to a different live object under a new address, and stock creates it before destroying the old one; choudoufu currently orders the destroy first, a known difference (#1541) waiting on #1605. This stage turns on for kind once that order is fixed.
 
 ### 10. Crash mid-apply (`day2_crash`, active, tier-1 gated: not_run does not gate clear)
 
