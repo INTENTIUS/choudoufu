@@ -1162,7 +1162,11 @@ func (r *resolver) recordFallback(addr addrs.AbsResourceInstance, resourceType s
 	if !RecordFallbackType(resourceType, r.schemas) {
 		return Resolution{}, false
 	}
-	return Resolution{Addr: addr, Class: ClassRecordLocated}, true
+	// GitHub issue #1675: the discriminator [internal/live/projection.WriteBack]
+	// needs to tell this door apart from the other two that also produce
+	// ClassRecordLocated. See [Resolution.RecordFallback]'s own doc comment
+	// for why this is the one door that needs it.
+	return Resolution{Addr: addr, Class: ClassRecordLocated, RecordFallback: true}, true
 }
 
 func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range) (Resolution, bool) {
