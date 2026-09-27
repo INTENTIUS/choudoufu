@@ -17,6 +17,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/registry"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -95,6 +96,8 @@ func tocProvider() addrs.AbsProviderConfig {
 type fakeTagger struct {
 	calls []fakeTagCall
 	err   error
+	// writes is every post-create write the resolver asked a client for.
+	writes []substrate.Write
 }
 
 type fakeTagCall struct {
@@ -111,7 +114,10 @@ func tocResolver(t *testing.T, tagger *fakeTagger) *NodeResolver {
 	t.Helper()
 	n := &NodeResolver{Estate: "prod", Roster: tocRoster(t)}
 	if tagger != nil {
-		n.Tagger = func(addrs.AbsProviderConfig) MarkerTagger { return tagger }
+		n.Tagger = func(_ addrs.AbsProviderConfig, write substrate.Write) (MarkerTagger, error) {
+			tagger.writes = append(tagger.writes, write)
+			return tagger, nil
+		}
 	}
 	return n
 }
@@ -382,5 +388,35 @@ func TestWriteAppliedMarkers_aRefusedWriteStoresTheProvidersObject(t *testing.T)
 	}
 	if !stored.RawEquals(applied) {
 		t.Errorf("a refused write stored %#v, want the provider's object unchanged", stored)
+	}
+}
+
+// TestWriteAppliedMarkers_theSurfaceChoosesTheWriter (GitHub issue #1587):
+// the resolver asks the command layer for the writer the tag surface's
+// own post-create write names, and a writer the command layer refuses is
+// a failed write carrying the command layer's reason, never a skip.
+func TestWriteAppliedMarkers_theSurfaceChoosesTheWriter(t *testing.T) {
+	after := locatedTestAddr(t, "aws_after_thing", "x")
+	ctx := context.Background()
+
+	tagger := &fakeTagger{}
+	n := tocResolver(t, tagger)
+	if _, diags := n.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Create, tocApplied("arn:aws:after:::thing/T1", "T1", nil), tocSchema()); diags.HasErrors() {
+		t.Fatalf("write failed: %v", diags.Err())
+	}
+	if len(tagger.writes) != 1 || tagger.writes[0] != substrate.WriteTaggingAPI {
+		t.Errorf("asked the command layer for %v, want exactly [%s]", tagger.writes, substrate.WriteTaggingAPI)
+	}
+
+	refused := tocResolver(t, nil)
+	refused.Tagger = func(addrs.AbsProviderConfig, substrate.Write) (MarkerTagger, error) {
+		return nil, errors.New(`provider family graph declares the "graph-binding" post-create marker write and this build has no writer for it`)
+	}
+	_, diags := refused.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Create, tocApplied("arn:aws:after:::thing/T1", "T1", nil), tocSchema())
+	if !diags.HasErrors() {
+		t.Fatal("a refused writer was reported as a marked object")
+	}
+	if d := diags[0].Description(); d.Summary != SummaryMarkerNotWritten || !strings.Contains(d.Detail, `"graph-binding"`) || !strings.Contains(d.Detail, "family graph") {
+		t.Errorf("a refused writer's reason is not in the diagnostic:\n%s\n%s", d.Summary, d.Detail)
 	}
 }

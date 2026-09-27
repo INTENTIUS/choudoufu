@@ -26,11 +26,15 @@
 package substrate
 
 import (
+	"fmt"
+
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // Write is how a marker reaches a live object.
@@ -66,6 +70,10 @@ type Writes struct {
 	// Adopt is an existing object a migration (live-import -approve) or a
 	// move between estates (live-mv -from-estate) marks.
 	Adopt Write
+	// PostCreate is a resource this run creates whose create call cannot
+	// carry the marker, so it is written onto the object once the create
+	// returns (GitHub issue #1587, [WriteTaggingAPI], [WriteNeverNeeded]).
+	PostCreate Write
 }
 
 // Sweep is which estate-sweep client a family's provider block builds.
@@ -134,12 +142,33 @@ type Substrate interface {
 	// block's evaluated configuration (ok false when the run holds none):
 	// nil with no error for a family whose sweep runs through the
 	// configured provider itself ([SweepTaggingIndex]), and the error for a
-	// block the client cannot be built from.
-	NewSweeper(providerConfig cty.Value, ok bool) (*kubesweep.Client, error)
+	// block the client cannot be built from. The client is a [Sweeper],
+	// never a family's concrete type (GitHub issue #1580).
+	NewSweeper(providerConfig cty.Value, ok bool) (Sweeper, error)
+
+	// --- Admission (GitHub issue #1586; see identity.go) ---
+
+	// SynthesizeIdentity is how this family's schema identifies an
+	// instance of a type the ratified table does not cover, or false when
+	// the schema is not one of this family's shapes. Asked in [All]'s
+	// order by internal/live/identity's synthesizeTypeIdentity, and the
+	// first family to answer decides.
+	SynthesizeIdentity(typeName string, schema providers.Schema) (SynthesizedIdentity, bool)
+
+	// surfaceWording is GitHub issue #1584's block, below.
+	surfaceWording
+
+	// markerWriting is GitHub issue #1587's block, below.
+	markerWriting
 }
 
 // All is every family, in the order a surface question asks them.
-var All = []Substrate{AWS, Kubernetes}
+//
+// AWS is last, and that is load-bearing for [Substrate.SynthesizeIdentity]
+// (GitHub issue #1586): the AWS answer is the identity-schema route, which
+// claims every type, so a family with a convention of its own has to be
+// asked before it. The surface questions are disjoint and do not care.
+var All = []Substrate{Kubernetes, AWS}
 
 // ForProvider is the family a provider type name belongs to ("aws",
 // "kubernetes"). It matches the type name alone, which is what every
@@ -151,6 +180,30 @@ func ForProvider(providerType string) (Substrate, bool) {
 		}
 	}
 	return nil, false
+}
+
+// Sweeps reports whether providerType names a family whose own sweep leg
+// finds its objects independently of internal/live/identity's admission
+// table (GitHub issue #1581): a type belonging to such a family needs no
+// row there to be found again once its last block is removed.
+//
+// Only Kubernetes qualifies today ([SweepLabelList]): its leg lists every
+// kind the cluster serves and joins the result against the estate's
+// objects, drawing its universe from the provider and the cluster rather
+// than from the table. AWS's own sweep ([SweepTaggingIndex]) is that same
+// admission table read a different way, so a type with no row gets nothing
+// extra from it, and neither does an unregistered provider ForProvider
+// does not recognise at all.
+//
+// This is the question [internal/live/identity]'s no-orphan-recovery
+// warning needs, and it is asked by provider - the resource's own resolved
+// provider configuration, never by a type's schema shape. A type can share
+// a Kubernetes-shaped schema (an object-metadata block, say) with an
+// unrelated provider's type by coincidence; only the provider says which
+// sweep leg, if any, will actually look for it again.
+func Sweeps(providerType string) bool {
+	s, ok := ForProvider(providerType)
+	return ok && s.Sweep() == SweepLabelList
 }
 
 // For is the family a surface belongs to, or nil for the zero Surface.
@@ -229,4 +282,135 @@ func WritesOf(surface markers.Surface) Writes {
 		return Writes{}
 	}
 	return s.Writes(surface)
+}
+
+// ---- GitHub issue #1580: the sweep client behind an interface ----
+//
+// Kept in its own block: several units of #1579 add methods to this file.
+
+// Sweeper is a family's estate-sweep client as [Substrate.NewSweeper]
+// builds it from the provider block. SweepKind is the sweep it serves,
+// its family's own [Substrate.Sweep]: internal/live/discovery pairs a
+// client with the leg that lists through it by that property, never by
+// the family's name, so a third family's client plugs in by naming a
+// sweep and a leg serving it.
+type Sweeper interface {
+	SweepKind() Sweep
+}
+
+// LabelListSweeper is the Kubernetes family's client: the cluster client
+// built from the provider block, whose methods it carries
+// (kubesweep.Sweeper, kubesweep.LabelPatcher).
+type LabelListSweeper struct {
+	*kubesweep.Client
+}
+
+// SweepKind is [SweepLabelList].
+func (LabelListSweeper) SweepKind() Sweep { return SweepLabelList }
+
+// ---- GitHub issue #1584: one surface enum ----
+//
+// Until #1584 the projection kept its own marker-surface enum
+// (markerSurface, with createCollidesOnKey and carrierPhrase switching on
+// it) and live-mv kept another (mv.Surface), each mapped from
+// [markers.Surface] by hand. A surface was then declared in three places,
+// and the answers switching on the shadow enums were invisible to the
+// completeness guard, which counts only [markers.Surface] constants: a
+// fourth surface would have read as the tags attribute and as never
+// colliding on its key, with nothing going red. The answers now live on the
+// family that owns the surface, beside the rest of its answers.
+
+// surfaceWording is the part of [Substrate] #1584 added.
+type surfaceWording interface {
+	// CreateCollidesOnKey reports whether, for a declared resource on
+	// surface (one of this family's), an object read at its identity means
+	// the resource's own create would be refused by the server as a
+	// duplicate. See the package-level [CreateCollidesOnKey].
+	CreateCollidesOnKey(surface markers.Surface) bool
+
+	// CarrierPhrase names where surface's marker map lives on an object,
+	// for a message telling an operator the provider returned no such map.
+	CarrierPhrase(surface markers.Surface) string
+
+	// NotACarrier explains, for one of this family's resource types whose
+	// schema carries none of the family's surfaces, why there is nowhere on
+	// it to carry a marker. It is a sentence that names the type.
+	NotACarrier(block *configschema.Block, typeName string) string
+}
+
+// CreateCollidesOnKey reports whether, for a declared resource on surface,
+// an object read at its identity means the resource's own create would be
+// refused by the server as a duplicate: the first half of GitHub issue
+// #1546's ruling, "its identity is a server-enforced unique key". False for
+// the zero Surface.
+//
+// True for the Kubernetes label surface only, and each family's answer
+// says why its other surfaces are excluded ([kubernetes.CreateCollidesOnKey],
+// [aws.CreateCollidesOnKey]).
+func CreateCollidesOnKey(surface markers.Surface) bool {
+	s := For(surface)
+	return s != nil && s.CreateCollidesOnKey(surface)
+}
+
+// CarrierPhrase names where surface's marker map lives ("tags attribute",
+// "metadata.labels map"), for the one refusal that has to tell an operator
+// the provider returned no such map. Empty for the zero Surface, which has
+// no map to be missing: a caller asks this only of a surface it read.
+func CarrierPhrase(surface markers.Surface) string {
+	s := For(surface)
+	if s == nil {
+		return ""
+	}
+	return s.CarrierPhrase(surface)
+}
+
+// NotACarrier explains why a resource type of provider providerType has
+// nowhere to carry an ownership marker, in its family's own words: the AWS
+// "no tags map this configuration can set" (or the tags map the marker
+// vocabulary cannot round-trip, [markers.NotAMarkerSurface]), and the
+// Kubernetes "no metadata.labels map". A provider with no family gets a
+// sentence that names no carrier rather than the AWS one. The caller has
+// already established the type carries no surface ([SurfaceOf] false).
+func NotACarrier(providerType string, block *configschema.Block, typeName string) string {
+	if s, ok := ForProvider(providerType); ok {
+		return s.NotACarrier(block, typeName)
+	}
+	return fmt.Sprintf("%s is from a provider this fork has no marker surface for, so there is nowhere to carry an ownership marker.", typeName)
+}
+
+// ---- GitHub issue #1587: the post-create marker write ----
+//
+// Kept in its own block: several units of #1579 add methods to this file.
+//
+// Before #1587 the post-create write (internal/live/projection's
+// nodetagoncreate.go) asked nobody which writer to use: the command layer
+// built a Resource Groups Tagging API client when the provider type string
+// was "aws" and nil otherwise, and [Writes] had no reader outside tests. A
+// family whose marker is a side resource written after the create (GCP's
+// tag bindings are one) would have had its creates left unmarked with
+// nothing saying why. Now the surface's [Writes.PostCreate] names the
+// write, the family's [Substrate.MarkerWriter] names the writer its
+// provider configurations build, and internal/command builds the client
+// from a table keyed on the [Write], refusing by name a write it has no
+// client for.
+
+const (
+	// WriteTaggingAPI: the Resource Groups Tagging API's TagResources,
+	// addressed by the arn the provider returned, issued after the create
+	// of a type whose create call cannot carry tags (live/registry.json's
+	// tag_on_create false, GitHub issue #1084).
+	WriteTaggingAPI Write = "tagging-api"
+
+	// WriteNeverNeeded: the create call always carries the marker, so no
+	// write follows it. Named rather than left empty so that a family that
+	// has not answered is distinguishable from one that answered "never".
+	WriteNeverNeeded Write = "never-needed"
+)
+
+// markerWriting is the part of [Substrate] #1587 added.
+type markerWriting interface {
+	// MarkerWriter is the post-create write a provider configuration of
+	// this family builds a client for: [WriteNeverNeeded] for a family
+	// whose every surface rides the create call.
+	MarkerWriter(provider addrs.AbsProviderConfig) Write
 }

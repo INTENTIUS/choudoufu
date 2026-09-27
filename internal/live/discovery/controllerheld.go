@@ -15,23 +15,40 @@ import (
 	"github.com/intentius/choudoufu/internal/live/markers"
 )
 
-// ControllerHeldResource is one live resource the sweep found carrying an
-// in-cluster controller's tags ([markers.ControllerTagKeys]): made by ACK
-// or Crossplane from an object on the cluster side. GitHub issue #1606,
-// ruled on #1604: it is never an orphan and never unclaimed, so it is never
-// proposed for destroy and never offered for adoption.
+// ControllerHeldResource is one live resource the sweep found held by a
+// controller rather than a block, on either substrate (the 2026-09-26
+// ruling on GitHub issue #1604, "controller-held by default on both"):
+//
+//   - on AWS, a resource carrying an in-cluster controller's tags
+//     ([markers.ControllerTagKeys]): made by ACK or Crossplane from an
+//     object on the cluster side (#1606);
+//   - on Kubernetes, an object carrying this estate's label and Helm's
+//     release annotation: installed by that release (#1607).
+//
+// It is never an orphan and never unclaimed, so it is never proposed for
+// destroy and never offered for adoption.
 type ControllerHeldResource struct {
 	// TypeName is the resource type it was listed as.
 	TypeName string
 
-	// ImportID is its live identity, empty if the provider sent none.
+	// ImportID is its live identity, empty if the provider sent none. A
+	// Kubernetes object's is its NAMESPACE/NAME natural key.
 	ImportID string
 
 	// DisplayName is the provider's label. Display only.
 	DisplayName string
 
-	// Hold is what the tags say about the controller and its object.
-	Hold markers.ControllerHold
+	// Kind is the Kubernetes kind for an object the Kubernetes leg found,
+	// empty on AWS.
+	Kind string
+
+	// Controller is the controller that holds it: ACK, Crossplane, Helm.
+	Controller string
+
+	// HeldBy names the controller and the object of its that holds this
+	// resource, in one line an operator can act on: "Helm release web/web",
+	// "ACK s3 controller (s3-v1.0.14), custom resource in namespace team-a".
+	HeldBy string
 
 	// Marked is true when it also carries this estate's markers at an
 	// address the configuration does not declare: the sweep's orphan
@@ -53,7 +70,7 @@ func (c ControllerHeldResource) String() string {
 	if id == "" {
 		id = "(no identity)"
 	}
-	return c.TypeName + " " + id + " CONTROLLER-HELD (" + c.Hold.Describe() + ")"
+	return c.TypeName + " " + id + " CONTROLLER-HELD (" + c.HeldBy + ")"
 }
 
 // controllerHeldWithheld is the sentence an orphan gets in place of a
@@ -89,7 +106,8 @@ func applyControllerHeld(res *Result) {
 			TypeName:    o.TypeName,
 			ImportID:    o.ImportID,
 			DisplayName: o.DisplayName,
-			Hold:        hold,
+			Controller:  string(hold.Controller),
+			HeldBy:      hold.Describe(),
 			Marked:      true,
 			Addr:        o.Addr,
 			Resource:    o.Resource,
@@ -118,7 +136,8 @@ func applyControllerHeld(res *Result) {
 				TypeName:    u.TypeName,
 				ImportID:    u.ImportID,
 				DisplayName: u.DisplayName,
-				Hold:        hold,
+				Controller:  string(hold.Controller),
+				HeldBy:      hold.Describe(),
 				Resource:    u.Resource,
 			})
 		}

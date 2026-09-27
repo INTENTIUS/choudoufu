@@ -181,11 +181,15 @@ type Report struct {
 	// "none exist" from "nothing looked".
 	Unclaimed []UnclaimedResource
 
-	// ControllerHeld lists the live resources this pass saw carrying an
-	// in-cluster controller's tags (GitHub issue #1606): taken out of
-	// Unclaimed, and out of the removal set when they also carried this
-	// estate's markers. See [applyControllerHeld]. Sorted by type, then
-	// identity.
+	// ControllerHeld lists the live resources this pass saw held by a
+	// controller rather than a block, on both substrates (the 2026-09-26
+	// ruling on #1604). On AWS, those carrying an in-cluster controller's
+	// tags (GitHub issue #1606): taken out of Unclaimed, and out of the
+	// removal set when they also carried this estate's markers. See
+	// [applyControllerHeld]. On Kubernetes, the objects among
+	// KubernetesOwnerSkipped whose holder the sweep can name: today the
+	// objects a Helm release holds (#1607), which carry the estate's label
+	// but are never orphans or adoptable. Sorted by type, then identity.
 	ControllerHeld []ControllerHeldResource
 
 	// SweepGaps lists the resource types the estate-wide sweep could not

@@ -119,6 +119,7 @@ var liveTargetScopeClassification = map[string]struct {
 	"lint.Diagnostics":                    {notAPass, "renders issues"},
 	"lint.HasErrors":                      {notAPass, "reads issues"},
 	"identity.DowngradeForNodeResolution": {notAPass, "rewrites diagnostic severities"},
+	"identity.InstanceRefusals":           {notAPass, "indexes statelessResolve's already-scoped diagnostics by address; the node reads it only for an instance the targeted walk reaches (#1539)"},
 	"identity.SelectionFor":               {notAPass, "reads the live block's markers selection"},
 	"identity.NoSourceCreateFor":          {notAPass, "reads the strict profile"},
 	"identity.SecretsFor":                 {notAPass, "reads the strict profile's secrets setting, to decide whether this run keeps a state cache at all (#1375). That is a fact about the run, not about any resource, so no target set narrows it"},

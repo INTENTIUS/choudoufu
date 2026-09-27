@@ -51,21 +51,23 @@ type Lookalike struct {
 
 	// Hint is the one-line adoption command composed by the same machinery
 	// [Candidate.Hint] uses, empty for a type this fork has no composable
-	// tagging verb for. Always empty when ControllerObject is set: #1604
+	// tagging verb for. Always empty when HeldBy is set: #1604
 	// ruled a controller-held resource is never offered for adoption, so
 	// this warning names it and stops there.
 	Hint string
 
-	// ControllerObject is set when the live resource this create's
+	// HeldBy is set when the live resource this create's
 	// identity-bearing arguments matched is controller-held (GitHub issue
-	// #1628): the object that made it, exactly as
-	// [markers.ControllerHold.Describe] renders it - "ACK ec2 controller
-	// (ec2-v1.2.3), custom resource in namespace team-a", for example.
+	// #1628): the controller and its object, exactly as
+	// [discovery.ControllerHeldResource.HeldBy] names it - "ACK ec2
+	// controller (ec2-v1.2.3), custom resource in namespace team-a", for
+	// example. The same field name the plan's Controller-held section and
+	// live-ls use.
 	// Empty for every other lookalike. MarkerEstate, MarkerAddress and Hint
 	// are all empty in this case, because there is nothing to adopt: the
 	// controller owns the object, and this warning exists only so the
 	// create is not silently proposed beside it.
-	ControllerObject string
+	HeldBy string
 }
 
 // String renders a lookalike warning on one line, for logs and test failure
@@ -76,8 +78,8 @@ func (l Lookalike) String() string {
 		id = "(no identity)"
 	}
 	s := l.Addr.String() + " ~ " + l.TypeName + " " + id
-	if l.ControllerObject != "" {
-		s += " CONTROLLER-HELD (" + l.ControllerObject + ")"
+	if l.HeldBy != "" {
+		s += " CONTROLLER-HELD (" + l.HeldBy + ")"
 	}
 	return s
 }

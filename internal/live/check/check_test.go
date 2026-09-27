@@ -110,6 +110,7 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"docsref":    true, // parses the doc references refusals carry
 		"docrefs":    true, // issue #256 item 8: godoc cross-package citation sweep, not a live pass
 		"flocitest":  true, // test harness
+		"k8stest":    true, // test harness (#1596)
 		"foreign":    true, // classification of unclaimed resources, inside discovery's stage
 		"harness":    true, // the burndown and assumptions registries; measures the instrument, is not part of it
 		"lifecycle":  true,

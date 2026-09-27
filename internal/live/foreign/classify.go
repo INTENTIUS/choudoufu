@@ -652,12 +652,12 @@ func (c *classifier) controllerHeldLookalikes() {
 		}
 		seen[p.slot.addr.String()] = true
 		c.res.ControllerHeldLookalikes = append(c.res.ControllerHeldLookalikes, Lookalike{
-			Addr:             p.slot.addr,
-			TypeName:         p.ch.TypeName,
-			LiveID:           p.ch.ImportID,
-			DisplayName:      p.ch.DisplayName,
-			Matched:          p.on,
-			ControllerObject: p.ch.Hold.Describe(),
+			Addr:        p.slot.addr,
+			TypeName:    p.ch.TypeName,
+			LiveID:      p.ch.ImportID,
+			DisplayName: p.ch.DisplayName,
+			Matched:     p.on,
+			HeldBy:      p.ch.HeldBy,
 		})
 	}
 	sort.Slice(c.res.ControllerHeldLookalikes, func(i, j int) bool {

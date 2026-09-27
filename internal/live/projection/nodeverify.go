@@ -15,6 +15,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -193,8 +194,9 @@ func (n *NodeResolver) VerifyAppliedMarkers(_ context.Context, addr addrs.AbsRes
 }
 
 // carrierMarkers reads the marker-carrying map off a planned or applied
-// object, dispatching on the same three surfaces
-// [NodeResolver.AdjustConfigValue] writes into.
+// object, dispatching on the surface [substrate.SurfaceOf] answers, the
+// same one [NodeResolver.AdjustConfigValue] writes into (GitHub issue
+// #1585).
 //
 // The second return is the load-bearing one, and it is not what
 // [markers.TagsOf] and [markers.LabelsOf] report: those answer "is this
@@ -209,7 +211,9 @@ func carrierMarkers(obj cty.Value, schema providers.Schema) (map[string]string, 
 		return nil, false
 	}
 
-	if _, taggable := markers.TagSurface(schema.Block); taggable {
+	surface, _ := substrate.SurfaceOf(schema.Block)
+	switch surface {
+	case markers.SurfaceTags:
 		out := map[string]string{}
 		found := false
 		// tags is read second so an explicitly set tag wins over the same
@@ -235,9 +239,8 @@ func carrierMarkers(obj cty.Value, schema providers.Schema) (map[string]string, 
 			collectStrings(v, out)
 		}
 		return out, found
-	}
 
-	if _, labelled := markers.LabelSurface(schema.Block); labelled {
+	case markers.SurfaceLabels:
 		labels, ok := labelSurfaceLabels(obj)
 		if !ok {
 			return nil, false
@@ -245,9 +248,8 @@ func carrierMarkers(obj cty.Value, schema providers.Schema) (map[string]string, 
 		out := map[string]string{}
 		collectStrings(labels, out)
 		return out, true
-	}
 
-	if markers.ManifestSurface(schema.Block) {
+	case markers.SurfaceManifest:
 		out, ok := markers.ManifestLabelsOf(obj)
 		if !ok {
 			return nil, false

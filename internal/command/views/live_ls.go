@@ -162,12 +162,16 @@ type LiveLsItem struct {
 	Kind       string
 	APIVersion string
 
-	// ControllerHeld names the in-cluster controller and object that made
-	// this resource, when its tags are an ACK or Crossplane controller's
-	// ([markers.ControllerTagKeys], GitHub issue #1606); empty otherwise.
-	// A controller-held resource is never swept for removal and never
-	// offered for adoption, whatever markers it carries.
-	ControllerHeld string
+	// HeldBy is set for a live resource a controller holds rather than a
+	// block, on either substrate (the 2026-09-26 ruling on GitHub issue
+	// #1604), and names the controller and its object: "Helm release
+	// NAMESPACE/NAME" for a Kubernetes object carrying Helm's release
+	// annotation (#1607); "ACK s3 controller (s3-v1.0.14), custom resource
+	// in namespace team-a" or a Crossplane managed resource for an AWS
+	// resource carrying that controller's tags ([markers.ControllerTagKeys],
+	// #1606). Such a resource is never swept and never adopted, whatever
+	// markers it carries, and is listed so the markers' reach is visible.
+	HeldBy string
 }
 
 // LiveLsGap is one declared instance the listing itself cannot see, and why.
@@ -239,8 +243,8 @@ type liveLsJSONItem struct {
 	// document is byte-for-byte what it was before GitHub issue #1081.
 	Kind       string `json:"kind,omitempty"`
 	APIVersion string `json:"api_version,omitempty"`
-	// ControllerHeld appears only on a controller-held item (#1606).
-	ControllerHeld string `json:"controller_held,omitempty"`
+	// HeldBy appears on a controller-held item only, AWS or Kubernetes.
+	HeldBy string `json:"held_by,omitempty"`
 }
 
 type liveLsJSONGap struct {
@@ -298,16 +302,16 @@ func (v *LiveLsJSON) Report(rep LiveLsReport) {
 	}
 	for _, item := range rep.Items {
 		out.Items = append(out.Items, liveLsJSONItem{
-			ID:             item.ID,
-			Type:           item.Type,
-			Address:        item.Address,
-			Slot:           item.Slot,
-			Declared:       item.Declared,
-			Source:         item.Source,
-			Tags:           item.Tags,
-			Kind:           item.Kind,
-			APIVersion:     item.APIVersion,
-			ControllerHeld: item.ControllerHeld,
+			ID:         item.ID,
+			Type:       item.Type,
+			Address:    item.Address,
+			Slot:       item.Slot,
+			Declared:   item.Declared,
+			Source:     item.Source,
+			Tags:       item.Tags,
+			Kind:       item.Kind,
+			APIVersion: item.APIVersion,
+			HeldBy:     item.HeldBy,
 		})
 	}
 	for _, gap := range rep.Gaps {
@@ -370,6 +374,9 @@ func (v *LiveLsHuman) Report(rep LiveLsReport) {
 		if kubernetes {
 			fmt.Fprintf(&b, "  kind:    %s (%s)\n", item.Kind, item.APIVersion)
 		}
+		if item.HeldBy != "" {
+			fmt.Fprintf(&b, "  held by: %s (controller-held: never swept, never adopted)\n", item.HeldBy)
+		}
 		if item.Address != "" {
 			declared := ""
 			if rep.ConfigDir != "" {
@@ -380,6 +387,8 @@ func (v *LiveLsHuman) Report(rep LiveLsReport) {
 				}
 			}
 			fmt.Fprintf(&b, "  address: %s%s\n", item.Address, declared)
+		} else if item.HeldBy != "" {
+			b.WriteString("  address: (none - the holder above owns this object, not a block)\n")
 		} else if kubernetes {
 			// A Kubernetes object carries no address by design; one is
 			// listed only with DIR in hand, so an empty address here means
@@ -392,9 +401,6 @@ func (v *LiveLsHuman) Report(rep LiveLsReport) {
 			fmt.Fprintf(&b, "  slot:    %s\n", item.Slot)
 		}
 		fmt.Fprintf(&b, "  found by: %s\n", item.Source)
-		if item.ControllerHeld != "" {
-			fmt.Fprintf(&b, "  controller-held: made by %s; never swept for removal or offered for adoption\n", item.ControllerHeld)
-		}
 		if len(item.Tags) > 0 {
 			keys := make([]string, 0, len(item.Tags))
 			for k := range item.Tags {

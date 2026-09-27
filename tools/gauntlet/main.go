@@ -256,6 +256,20 @@ func emulatorPin(root string) string {
 	return strings.TrimSpace(string(b))
 }
 
+// kindNodeImagePin reads live/kind-node-image (issue #1594), the kind
+// substrate's counterpart to emulatorPin above: the digest a kind cluster
+// is actually created from, rather than whichever node image the kind
+// binary on PATH happens to default to. A missing or unreadable file reads
+// as the zero value, the same graceful-empty behaviour emulatorPin already
+// has for a missing live/floci-image.
+func kindNodeImagePin(root string) string {
+	b, err := os.ReadFile(filepath.Join(root, "live", "kind-node-image"))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
 // loadAll loads manifest and artifact and rebuilds the derived parts,
 // including the #522 behaviors-proven metric from live/behaviors.json (a
 // missing file loads as an empty index, same rule as LoadArtifact).

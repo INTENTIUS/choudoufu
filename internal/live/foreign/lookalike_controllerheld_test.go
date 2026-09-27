@@ -36,13 +36,14 @@ func TestControllerHeldLookalikeWarnsWithNoAdoptionHint(t *testing.T) {
 		TypeName:    "aws_security_group",
 		ImportID:    "sg-controller",
 		DisplayName: "stateless-e2e-main",
-		Hold: markers.ControllerHold{
+		Controller:  string(markers.ControllerACK),
+		HeldBy: markers.ControllerHold{
 			Controller: markers.ControllerACK,
 			Tags: map[string]string{
 				"services.k8s.aws/controller-version": "ec2-v1.2.3",
 				"services.k8s.aws/namespace":          "team-a",
 			},
-		},
+		}.Describe(),
 		Resource: cty.ObjectVal(map[string]cty.Value{"name": cty.StringVal("stateless-e2e-main")}),
 	}
 
@@ -82,8 +83,8 @@ func TestControllerHeldLookalikeWarnsWithNoAdoptionHint(t *testing.T) {
 	if w.MarkerEstate != "" || w.MarkerAddress != "" {
 		t.Errorf("a controller-held lookalike carries a marker pair (%q/%q) to stamp, which is not offered", w.MarkerEstate, w.MarkerAddress)
 	}
-	if !strings.Contains(w.ControllerObject, "ACK ec2 controller") || !strings.Contains(w.ControllerObject, "team-a") {
-		t.Errorf("warning does not name the controller and its object: %q", w.ControllerObject)
+	if !strings.Contains(w.HeldBy, "ACK ec2 controller") || !strings.Contains(w.HeldBy, "team-a") {
+		t.Errorf("warning does not name the controller and its object: %q", w.HeldBy)
 	}
 }
 
@@ -95,8 +96,9 @@ func TestControllerHeldLookalikeAmbiguousStaysSilent(t *testing.T) {
 	obj := cty.ObjectVal(map[string]cty.Value{"name": cty.StringVal("stateless-e2e-main")})
 	held := discovery.ControllerHeldResource{
 		TypeName: "aws_security_group", ImportID: "sg-one",
-		Hold:     markers.ControllerHold{Controller: markers.ControllerACK, Tags: map[string]string{"services.k8s.aws/controller-version": "ec2-v1.2.3"}},
-		Resource: obj,
+		Controller: string(markers.ControllerACK),
+		HeldBy:     markers.ControllerHold{Controller: markers.ControllerACK, Tags: map[string]string{"services.k8s.aws/controller-version": "ec2-v1.2.3"}}.Describe(),
+		Resource:   obj,
 	}
 	held2 := held
 	held2.ImportID = "sg-two"
