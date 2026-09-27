@@ -88,10 +88,11 @@ type StatelessAdoptionRow struct {
 	// Class is what this run found. Exactly one per row.
 	Class StatelessAdoptionClass
 
-	// CanCarryMarker is whether the provider's schema for TypeName has a
-	// tags argument of the shape live/MARKERS.md describes - markers.Taggable
-	// over the schema this run's own provider served, the same predicate
-	// live-import's UNTAGGABLE verdict is. False is not a defect and not a
+	// CanCarryMarker is whether the provider's schema for TypeName carries a
+	// marker surface live/MARKERS.md describes - substrate.SurfaceOf over the
+	// schema this run's own provider served: the AWS tags map
+	// (markers.Taggable, live-import's UNTAGGABLE verdict), the Kubernetes
+	// label, or the manifest's label. False is not a defect and not a
 	// gap: an untaggable resource is identified by its own declaration and
 	// its parents' identities, so no marker is ever written onto it and
 	// there is nothing to adopt.

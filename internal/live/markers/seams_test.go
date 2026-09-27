@@ -142,7 +142,6 @@ var surfaceSeamExemptions = map[string]surfaceSeamExemption{
 // list is checked exactly like an exemption, so it can only shrink by a
 // deliberate edit, and it never grows: a new partial seam fails.
 var surfaceSeamUntriaged = map[string][]Surface{
-	"internal/command/live_adoption.go:statelessAdoptionReport":                    {SurfaceTags},
 	"internal/live/check/roster.go":                                                {SurfaceTags},
 	"internal/live/markerstrip/markerstrip.go":                                     {SurfaceTags},
 	"internal/live/projection/nodetagoncreate.go:NodeResolver.WriteAppliedMarkers": {SurfaceTags},
