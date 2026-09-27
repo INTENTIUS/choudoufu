@@ -10,8 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"sort"
-	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -222,7 +220,6 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 
 	arn := appliedString(applied, "arn")
 	id := appliedString(applied, "id")
-	cfnType, _ := n.Roster.CloudControlTypeOrService(addr.Resource.Resource.Type)
 
 	var err error
 	switch {
@@ -242,7 +239,7 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 		}
 	}
 	if err == nil {
-		log.Printf("[DEBUG] stateless/projection: marked %s (%s) after its create: %s", addr, arn, markerTagsArgument(want))
+		log.Printf("[DEBUG] stateless/projection: marked %s (%s) after its create: %s", addr, arn, markers.TagsArgument(want))
 		return withWrittenMarkers(applied, want), diags
 	}
 
@@ -257,14 +254,10 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 		object = "an object with no arn and no id in what the provider returned"
 	}
 
-	var fix string
-	if arn != "" {
-		fix = fmt.Sprintf("Mark it, then plan again:\n\n  aws resourcegroupstaggingapi tag-resources --resource-arn-list %s --tags %s", arn, markerTagsArgument(want))
-	} else if cfnType != "" {
-		fix = fmt.Sprintf("Mark it by hand with the tag write %s takes, with the tags %s, then plan again.", cfnType, markerTagsArgument(want))
-	} else {
-		fix = fmt.Sprintf("Mark it by hand with the markers %s, then plan again.", markerTagsArgument(want))
-	}
+	// GitHub issue #1653: the manual remedy is the surface's own family's
+	// answer, not a check of whether the applied object happens to carry
+	// an arn - that says nothing about which family wrote it.
+	fix := substrate.ManualMarkFix(surface, addr.Resource.Resource.Type, arn, want, n.Roster)
 
 	diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryMarkerNotWritten,
 		fmt.Sprintf(
@@ -292,22 +285,6 @@ func (n *NodeResolver) withheldMarkers(addr addrs.AbsResourceInstance) map[strin
 		out[markers.TagSlot] = slot
 	}
 	return out
-}
-
-// markerTagsArgument renders tags as the aws CLI's --tags shorthand,
-// key=value pairs joined by commas, in key order, single-quoted so that an
-// escaped address's brackets and quotes survive a shell.
-func markerTagsArgument(tags map[string]string) string {
-	keys := make([]string, 0, len(tags))
-	for k := range tags {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	pairs := make([]string, 0, len(keys))
-	for _, k := range keys {
-		pairs = append(pairs, k+"="+tags[k])
-	}
-	return "'" + strings.Join(pairs, ",") + "'"
 }
 
 // appliedString reads one top-level string attribute off the object the
