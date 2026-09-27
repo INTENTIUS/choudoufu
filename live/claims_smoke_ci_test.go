@@ -16,7 +16,7 @@ import (
 // The rest of the AWS claims' CI story (GitHub issue #1590, part of
 // #1579). live/smoke/claims.json stated 23 proven, non-real-AWS AWS cells
 // that no workflow ran: claims 1, 2, 3, 5-20, 40, 41, 42, 43. Claim 4 and
-// 33-38 are real_aws and stay maintainer-run; claims 21-27 and 39 are
+// 33-38 are real_service and stay maintainer-run; claims 21-27 and 39 are
 // Kubernetes-only and run in k8s-smoke.yml; claims 28-32 and 44 already run
 // in bucket-smoke.yml and are not duplicated here. This file holds
 // claims-smoke.yml's two matrices - smoke (every PR) and smoke-nightly (the
@@ -62,7 +62,7 @@ var claimsSmokeNightlyOnly = map[string]bool{
 }
 
 // awsEmulatorClaimCells is every (claim, aws) cell that is proven, not
-// real_aws, and not already covered by bucket-smoke.yml's own derivation
+// real_service, and not already covered by bucket-smoke.yml's own derivation
 // (GitHub issue #1379) - the population claims-smoke.yml's two jobs
 // together must equal, once claimsSmokeExcluded is set aside.
 func awsEmulatorClaimCells(t *testing.T) []smokeScenarioCell {
