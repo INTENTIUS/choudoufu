@@ -1668,7 +1668,11 @@ func (r *statelessRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
 			))
 			continue
 		}
-		groupResult, releaseDiags := untag.Release(ctx, provider, r.untagKey, g.Targets)
+		// The cluster client, when this configuration is a Kubernetes one,
+		// is the sweep's own for the same configuration (GitHub issue
+		// #1656): a manifest-shape orphan's markers are released by an API
+		// patch through it.
+		groupResult, releaseDiags := untag.Release(ctx, provider, statelessUntagCluster(r.kubeSweepers, g.Provider), r.untagKey, g.Targets)
 		diags = diags.Append(releaseDiags)
 		if groupResult != nil {
 			result.Outcomes = append(result.Outcomes, groupResult.Outcomes...)

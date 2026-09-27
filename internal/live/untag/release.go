@@ -14,6 +14,7 @@ import (
 	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
@@ -111,7 +112,14 @@ func (r *Result) Failed() bool {
 // internal/live/liveimport's Approve follows for the declared side of this
 // same policy verb (declared_tagged = "untag", released through the
 // ordinary plan graph rather than here).
-func Release(ctx context.Context, provider providers.Interface, key string, targets []Target) (*Result, tfdiags.Diagnostics) {
+//
+// cluster is the Kubernetes API client for the same provider configuration
+// as provider, or nil when that configuration is not a Kubernetes one or
+// no client could be built for it. Only a manifest-shape target
+// (kubernetes_manifest) uses it: its release is a merge patch to the API
+// server rather than a provider plan (GitHub issue #1656; see manifest.go).
+// With a nil cluster such a target is refused by name and left untouched.
+func Release(ctx context.Context, provider providers.Interface, cluster kubesweep.LabelReleaser, key string, targets []Target) (*Result, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	res := &Result{Key: key}
 	if len(targets) == 0 {
@@ -131,7 +139,7 @@ func Release(ctx context.Context, provider providers.Interface, key string, targ
 	}
 
 	for _, t := range targets {
-		res.Outcomes = append(res.Outcomes, releaseOne(ctx, provider, schemaResp.ResourceTypes, key, t))
+		res.Outcomes = append(res.Outcomes, releaseOne(ctx, provider, cluster, schemaResp.ResourceTypes, key, t))
 	}
 
 	if res.Failed() {
@@ -162,7 +170,7 @@ func Release(ctx context.Context, provider providers.Interface, key string, targ
 // a Kubernetes object-metadata type. Before, this asked only for a tags
 // map, so a labelled Kubernetes orphan was reported as having nothing to
 // release and kept its tofu-estate label for every later sweep to find.
-func releaseOne(ctx context.Context, provider providers.Interface, schemas map[string]providers.Schema, key string, t Target) Outcome {
+func releaseOne(ctx context.Context, provider providers.Interface, cluster kubesweep.LabelReleaser, schemas map[string]providers.Schema, key string, t Target) Outcome {
 	out := Outcome{Target: t}
 
 	schema, ok := schemas[t.TypeName]
@@ -187,13 +195,10 @@ func releaseOne(ctx context.Context, provider providers.Interface, schemas map[s
 			judge:   notALabelsOnlyPlan,
 		}
 	case markers.SurfaceManifest:
-		// The manifest shape's adopt write is an API merge patch, not a
-		// provider plan (substrate.WriteAPIPatch, ruled on #1109 and
-		// #1104), and this package holds a provider and no cluster client.
-		// Refused by name, with the kubectl write that makes the same
-		// change, before anything is read.
-		out.Detail = manifestReleaseRefusal(t, key)
-		return out
+		// The manifest shape's write is an API merge patch, not a provider
+		// plan (substrate.WriteAPIPatch, ruled on #1109 and #1104; the
+		// release ruled on #1656). See manifest.go.
+		return releaseManifest(ctx, cluster, key, t)
 	default:
 		out.Detail = fmt.Sprintf("%s has no settable tags argument in the provider's schema, so there is nothing to release. Nothing was changed.", t.TypeName)
 		return out
@@ -347,16 +352,6 @@ func (w writer) system() string {
 		return "cluster"
 	}
 	return "cloud"
-}
-
-// manifestReleaseRefusal is the refusal for a manifest-declared orphan,
-// naming the kubectl write that makes the same release. The import ID is
-// the sweep's own rendering of the object's natural key
-// (kubesweep.ManifestImportID), quoted so the operator can find it.
-func manifestReleaseRefusal(t Target, key string) string {
-	return fmt.Sprintf(
-		"%s carries its whole object in one dynamic manifest argument, so its %q label sits inside manifest.metadata.labels, where no schema types it; an existing object of this shape is labelled by an API patch rather than a provider plan, and this release has no cluster client to send one through yet. Release it with the cluster's own client: kubectl label <kind> <name> -n <namespace> %s- (the object is %s). Nothing was read and nothing was changed.",
-		t.TypeName, key, key, t.ImportID)
 }
 
 // pickImported selects the imported object belonging to typeName, the same
