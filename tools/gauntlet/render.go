@@ -859,6 +859,77 @@ func boardBanner(a *Artifact) string {
 	}
 }
 
+// providerBanner is issue #1253's counterpart to boardBanner, for the two
+// provider pins (hashicorp/aws, hashicorp/kubernetes) rather than the
+// emulator image. Held to the same "assert only what the rows agree on"
+// rule, but to ScriptBanner's silence rule rather than boardBanner's own:
+// it speaks only when at least one row's recorded version disagrees with
+// another's, one lane at a time - a lane with no rows recorded, or where
+// every recorded row agrees (whether or not that agreement matches the
+// current pin - a single stale-but-uniform lane is already covered by
+// each row's own providerNote, board.go), says nothing here rather than
+// assert an agreement the rows do not need pointed out.
+func providerBanner(a *Artifact) string {
+	var lines []string
+	if l := providerLaneBanner(a, "hashicorp/aws", a.Providers.AWS, func(r EstateResult) (string, bool) {
+		if r.Substrate == SubstrateKind || r.LastRun == nil || r.LastRun.AWSProviderVersion == "" {
+			return "", false
+		}
+		return r.LastRun.AWSProviderVersion, true
+	}); l != "" {
+		lines = append(lines, l)
+	}
+	if l := providerLaneBanner(a, "hashicorp/kubernetes", a.Providers.Kubernetes, func(r EstateResult) (string, bool) {
+		if r.Substrate != SubstrateKind || r.LastRun == nil || r.LastRun.KubernetesProviderVersion == "" {
+			return "", false
+		}
+		return r.LastRun.KubernetesProviderVersion, true
+	}); l != "" {
+		lines = append(lines, l)
+	}
+	return strings.Join(lines, " ")
+}
+
+// providerLaneBanner buckets one lane's rows by the version get extracts
+// (get returns ok=false for a row outside this lane, or one that recorded
+// nothing) and reports a breakdown only when more than one distinct
+// version is recorded - the disagreement boardBanner's own default branch
+// reports for the emulator pin.
+func providerLaneBanner(a *Artifact, name, currentPin string, get func(EstateResult) (string, bool)) string {
+	counts := map[string]int{}
+	for _, r := range a.Estates {
+		if v, ok := get(r); ok {
+			counts[v]++
+		}
+	}
+	if len(counts) < 2 {
+		return ""
+	}
+	type group struct {
+		version string
+		count   int
+	}
+	var groups []group
+	for v, n := range counts {
+		groups = append(groups, group{v, n})
+	}
+	sort.Slice(groups, func(i, j int) bool {
+		if groups[i].count != groups[j].count {
+			return groups[i].count > groups[j].count
+		}
+		return groups[i].version < groups[j].version
+	})
+	var parts []string
+	for _, g := range groups {
+		label := fmt.Sprintf("`%s`", g.version)
+		if g.version == currentPin {
+			label += " (current pin)"
+		}
+		parts = append(parts, fmt.Sprintf("%d against %s", g.count, label))
+	}
+	return fmt.Sprintf("Estates were last measured against different %s versions: %s. The current pin is `%s`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.", name, strings.Join(parts, ", "), currentPin)
+}
+
 // runtimeBanner is the one board-wide sentence about wall-clock time this
 // page gets to make (#434), held to the same discipline boardBanner already
 // holds the emulator/date claims to: it may only assert what the rows below
