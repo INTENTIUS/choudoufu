@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/intentius/choudoufu/internal/addrs"
@@ -38,6 +39,11 @@ type stubSweeper struct {
 	reject    map[string]string
 	dryRunErr error
 	defaulted int
+	// listErrs is what List returns for a given kind instead of its
+	// objects, keyed by Kind - GitHub issue #1582's Forbidden case, where
+	// failKind's plain errors.New("forbidden") is not a real k8s status
+	// error and must not be classed as denied.
+	listErrs map[string]error
 }
 
 func (s *stubSweeper) Serves(_ context.Context, apiVersion, kind string) (bool, error) {
@@ -69,6 +75,9 @@ func (s *stubSweeper) Kinds(_ context.Context, _ []string, _ string) ([]kubeswee
 
 func (s *stubSweeper) List(_ context.Context, k kubesweep.Kind, key, value string) ([]kubesweep.Object, int, error) {
 	s.listed = append(s.listed, k.Kind+" "+key+"="+value)
+	if err, ok := s.listErrs[k.Kind]; ok {
+		return nil, 0, err
+	}
 	if k.Kind == s.failKind {
 		return nil, 0, errors.New("forbidden")
 	}
@@ -166,6 +175,74 @@ func TestKubernetesSweepFilesOrphansAtASyntheticAddress(t *testing.T) {
 	}
 	if len(sweeper.listed) != 3 || sweeper.listed[0] != "ConfigMap tofu-estate=smoke-k8s" {
 		t.Errorf("lists issued = %v; want one per kind, selected on the estate label", sweeper.listed)
+	}
+}
+
+// TestKubernetesSweepDeniedListIsClassedAndNamed (GitHub issue #1582): a
+// Forbidden from the cluster's own RBAC on one kind's list files the same
+// LIST_FAILED gap as any other list failure (SweepGapListFailed never
+// changes), but it is also recorded as a denial, and [kubeDeniedSweepDiag]
+// raises one warning naming the verb, the resource and the scope the
+// server's own message named, pointing at live/kubernetes/estate-grant.yaml.
+// A plain, non-status error on another kind (failKind, as
+// TestKubernetesSweepFilesOrphansAtASyntheticAddress already covers) stays
+// an ordinary gap with no denial recorded - "forbidden" in an error's text
+// is not the same thing as the API server's Forbidden.
+//
+// Before this fix, sweepKubernetes had no path to this at all: every list
+// error, 403 included, became SweepGapListFailed with the raw error text
+// and nothing else, so res.kubeSweepDenied stayed empty and
+// kubeDeniedSweepDiag raised nothing - which is the red this test pins.
+func TestKubernetesSweepDeniedListIsClassedAndNamed(t *testing.T) {
+	secret := kubesweep.Kind{GVR: schema.GroupVersionResource{Version: "v1", Resource: "secrets"}, Kind: "Secret", Namespaced: true, TypeNames: []string{"kubernetes_secret"}}
+	cm := kubesweep.Kind{GVR: schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}, Kind: "ConfigMap", Namespaced: true, TypeNames: []string{"kubernetes_config_map"}}
+	denyErr := apierrors.NewForbidden(schema.GroupResource{Resource: "secrets"}, "",
+		fmt.Errorf(`User "system:serviceaccount:default:tofu" cannot list resource "secrets" in API group "" at the cluster scope`))
+	sweeper := &stubSweeper{
+		kinds: []kubesweep.Kind{secret, cm},
+		objects: map[string][]kubesweep.Object{
+			"ConfigMap": {{Kind: "ConfigMap", Namespace: "smoke-k8s", Name: "app-config", ImportID: "smoke-k8s/app-config", Labels: map[string]string{"tofu-estate": "smoke-k8s"}}},
+		},
+		listErrs: map[string]error{"Secret": denyErr},
+	}
+	req := Request{
+		Estate:          "smoke-k8s",
+		Kubernetes:      sweeper,
+		KubernetesTypes: []string{"kubernetes_secret", "kubernetes_config_map"},
+	}
+	res := &Result{}
+	diags := sweepKubernetes(context.Background(), req, res)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected errors: %s", diags.Err())
+	}
+
+	gaps := map[string]SweepGapReason{}
+	for _, g := range res.SweepGaps {
+		gaps[g.TypeName] = g.Reason
+	}
+	if gaps["kubernetes_secret"] != SweepGapListFailed {
+		t.Fatalf("denied gap = %v, want LIST_FAILED - the same reason a denial keeps on the AWS leg", gaps["kubernetes_secret"])
+	}
+
+	if len(res.kubeSweepDenied) != 1 {
+		t.Fatalf("kubeSweepDenied = %+v, want exactly one recorded denial", res.kubeSweepDenied)
+	}
+	if got := res.kubeSweepDenied[0]; got.kind != "Secret" || got.verb != "list" || got.resource != "secrets" || got.namespace != "" {
+		t.Errorf("recorded denial = %+v, want kind Secret, verb list, resource secrets, cluster-scoped (namespace \"\")", got)
+	}
+
+	warn := kubeDeniedSweepDiag(res.kubeSweepDenied)
+	if len(warn) != 1 {
+		t.Fatalf("kubeDeniedSweepDiag = %d diagnostics, want exactly one; got %v", len(warn), warn)
+	}
+	d := warn[0].Description()
+	if d.Summary != SummaryKubernetesSweepDenied {
+		t.Errorf("summary = %q, want %q", d.Summary, SummaryKubernetesSweepDenied)
+	}
+	for _, want := range []string{"list", "secrets", "cluster scope", "Secret", "live/kubernetes/estate-grant.yaml"} {
+		if !strings.Contains(d.Detail, want) {
+			t.Errorf("denied warning does not name %q:\n%s", want, d.Detail)
+		}
 	}
 }
 

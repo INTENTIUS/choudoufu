@@ -844,6 +844,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// for all of them instead, through [DeniedSweepWarning].
 	if !req.DeferDeniedSweepWarning {
 		diags = diags.Append(deniedSweepDiag(res.sweepDenied))
+		diags = diags.Append(kubeDeniedSweepDiag(res.kubeSweepDenied))
 	}
 
 	res.sortEverything()

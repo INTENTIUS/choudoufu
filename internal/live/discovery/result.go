@@ -324,6 +324,15 @@ type Result struct {
 	// from. Unexported for the same reason the prefetch evidence above is:
 	// it is the run's own bookkeeping, not a fact about the estate.
 	sweepDenied []sweepDenial
+
+	// kubeSweepDenied is every Kubernetes list call this run's own
+	// credential was refused with Forbidden (GitHub issue #1582), the
+	// Kubernetes leg's counterpart of sweepDenied: collected by
+	// [sweepGapKubeDenied] so that [kubeDeniedSweepDiag] raises one
+	// warning for all of them, naming the verb, resource and namespace
+	// the grant lacks, the same way [deniedSweepDiag] does for AWS. The
+	// gaps themselves are in SweepGaps like any other.
+	kubeSweepDenied []kubeDenial
 }
 
 // ParentReadFinding is one live child a parent read found: an untaggable,
