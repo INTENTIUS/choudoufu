@@ -108,6 +108,28 @@ type StatelessForeign struct {
 	// carries the destroy itself for those, and this list is what says a
 	// parent read is why.
 	ParentReads []StatelessParentRead
+
+	// ControllerHeld are the live resources an in-cluster controller made
+	// from an object on the cluster side (GitHub issue #1606): never
+	// foreign, never adoptable, never destroyed here.
+	ControllerHeld []StatelessControllerHeld
+}
+
+// StatelessControllerHeld is one controller-held live resource.
+type StatelessControllerHeld struct {
+	TypeName    string
+	LiveID      string
+	DisplayName string
+
+	// Controller is the controller its tags name (ACK, Crossplane), and
+	// MadeBy the owning object as far as the tags identify it.
+	Controller string
+	MadeBy     string
+
+	// Addr is the address this estate's marker names, set only when the
+	// resource also carries this estate's markers at an address the
+	// configuration does not declare.
+	Addr string
 }
 
 // StatelessParentRead is one live child a parent read found.
@@ -666,6 +688,13 @@ type LivePlanDocument struct {
 	// TOFU_LIVE_COLLECT_UNCLAIMED=1 is how to ask.
 	Swept []string `json:"swept"`
 
+	// ControllerHeld is every live resource this run found carrying an
+	// in-cluster controller's tags (GitHub issue #1606): made by ACK or
+	// Crossplane from an object on the cluster side, and so never in
+	// Foreign or Adoptable and never proposed for destroy. Absent when
+	// there are none; -filter does not narrow it.
+	ControllerHeld []LivePlanControllerHeld `json:"controller_held,omitempty"`
+
 	// Filter is the -filter categories this document was narrowed to
 	// (GitHub issue #1197), in unowned, adoptable, foreign order. Absent
 	// when no filter was given. When present, a category it does not name
@@ -724,6 +753,22 @@ type LivePlanForeign struct {
 	// Why is the sweep's own one-line reason this resource counts as
 	// unclaimed, carried verbatim rather than re-derived.
 	Why string `json:"why,omitempty"`
+}
+
+// LivePlanControllerHeld is one row of [LivePlanDocument.ControllerHeld].
+type LivePlanControllerHeld struct {
+	TypeName    string `json:"type"`
+	LiveID      string `json:"identity"`
+	DisplayName string `json:"display_name,omitempty"`
+
+	// Controller is ACK or Crossplane; MadeBy names the owning object as
+	// far as the controller's tags identify it.
+	Controller string `json:"controller"`
+	MadeBy     string `json:"made_by"`
+
+	// Addr is the address this estate's marker names, when the resource
+	// also carries this estate's markers for an undeclared address.
+	Addr string `json:"addr,omitempty"`
 }
 
 type LivePlanAdoptable struct {
@@ -1224,6 +1269,8 @@ const statelessSweepIntro = `A classification is only as wide as the sweep behin
 
 const statelessRemovalIntro = `Each of these carries this estate's ownership marker for an address the configuration no longer declares. They are in the prior state this plan ran against, at the address their marker names, so the plan below proposes destroying them the same way it would destroy any resource whose configuration was deleted. Nothing unowned is here: a resource with no marker for this estate is never in the prior state and can never be planned for destruction.`
 
+const statelessControllerHeldIntro = `These live resources carry the tags an in-cluster controller (ACK or Crossplane) writes onto what it makes from an object on the cluster side, so they are controller-held. This run never proposes destroying one and never offers one for adoption, whatever markers it carries. To change or remove one, change or remove the object that made it.`
+
 const statelessSweepGapIntro = `Finding a resource whose block was deleted means listing its type and reading the markers off what comes back, and these types could not be searched. This estate may own resources of them that no plan will propose destroying. An empty removal list is a statement about the types that were swept and about nothing else.`
 
 // statelessSweepGapReasons is the one paragraph each standing gap gets,
@@ -1281,7 +1328,11 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 	case len(rep.Swept) > 0:
 		colored("\n[reset][bold]Foreign resources: none among the %d %s swept[reset]\n\n",
 			len(rep.Swept), noun(len(rep.Swept), "type", "types"))
-		wrapped("Every live resource of "+strings.Join(rep.Swept, ", ")+" carries an ownership marker. This is a statement about those types only.", 0)
+		if len(rep.ControllerHeld) > 0 {
+			wrapped("Every live resource of "+strings.Join(rep.Swept, ", ")+" carries an ownership marker or is controller-held (listed below). This is a statement about those types only.", 0)
+		} else {
+			wrapped("Every live resource of "+strings.Join(rep.Swept, ", ")+" carries an ownership marker. This is a statement about those types only.", 0)
+		}
 	default:
 		colored("\n[reset][bold]Foreign resources: nothing was swept[reset]\n\n")
 		wrapped("No resource type was listed in full during this run, so nothing is known about live resources that carry no ownership marker. This is not a report that there are none.", 0)
@@ -1338,6 +1389,20 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 				rm.Addr, rm.TypeName, liveIDOrNone(rm.LiveID), displaySuffix(rm.DisplayName, rm.LiveID))
 			if rm.Why != "" {
 				wrapped(rm.Why, 6)
+			}
+		}
+	}
+
+	if len(rep.ControllerHeld) > 0 {
+		colored("\n[reset][bold]Controller-held: %d live %s made by an in-cluster controller[reset]\n\n",
+			len(rep.ControllerHeld), noun(len(rep.ControllerHeld), "resource", "resources"))
+		wrapped(statelessControllerHeldIntro, 0)
+		out("\n")
+		for _, h := range rep.ControllerHeld {
+			colored("  [bold]%s[reset] %s%s [CONTROLLER-HELD]\n", h.TypeName, liveIDOrNone(h.LiveID), displaySuffix(h.DisplayName, h.LiveID))
+			wrapped("made by "+h.MadeBy, 6)
+			if h.Addr != "" {
+				wrapped(fmt.Sprintf("carries this estate's marker for %s, which the configuration does not declare; not destroyed.", h.Addr), 6)
 			}
 		}
 	}

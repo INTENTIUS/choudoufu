@@ -161,6 +161,13 @@ type LiveLsItem struct {
 	// when none does. Both empty for an AWS item.
 	Kind       string
 	APIVersion string
+
+	// ControllerHeld names the in-cluster controller and object that made
+	// this resource, when its tags are an ACK or Crossplane controller's
+	// ([markers.ControllerTagKeys], GitHub issue #1606); empty otherwise.
+	// A controller-held resource is never swept for removal and never
+	// offered for adoption, whatever markers it carries.
+	ControllerHeld string
 }
 
 // LiveLsGap is one declared instance the listing itself cannot see, and why.
@@ -232,6 +239,8 @@ type liveLsJSONItem struct {
 	// document is byte-for-byte what it was before GitHub issue #1081.
 	Kind       string `json:"kind,omitempty"`
 	APIVersion string `json:"api_version,omitempty"`
+	// ControllerHeld appears only on a controller-held item (#1606).
+	ControllerHeld string `json:"controller_held,omitempty"`
 }
 
 type liveLsJSONGap struct {
@@ -289,15 +298,16 @@ func (v *LiveLsJSON) Report(rep LiveLsReport) {
 	}
 	for _, item := range rep.Items {
 		out.Items = append(out.Items, liveLsJSONItem{
-			ID:         item.ID,
-			Type:       item.Type,
-			Address:    item.Address,
-			Slot:       item.Slot,
-			Declared:   item.Declared,
-			Source:     item.Source,
-			Tags:       item.Tags,
-			Kind:       item.Kind,
-			APIVersion: item.APIVersion,
+			ID:             item.ID,
+			Type:           item.Type,
+			Address:        item.Address,
+			Slot:           item.Slot,
+			Declared:       item.Declared,
+			Source:         item.Source,
+			Tags:           item.Tags,
+			Kind:           item.Kind,
+			APIVersion:     item.APIVersion,
+			ControllerHeld: item.ControllerHeld,
 		})
 	}
 	for _, gap := range rep.Gaps {
@@ -382,6 +392,9 @@ func (v *LiveLsHuman) Report(rep LiveLsReport) {
 			fmt.Fprintf(&b, "  slot:    %s\n", item.Slot)
 		}
 		fmt.Fprintf(&b, "  found by: %s\n", item.Source)
+		if item.ControllerHeld != "" {
+			fmt.Fprintf(&b, "  controller-held: made by %s; never swept for removal or offered for adoption\n", item.ControllerHeld)
+		}
 		if len(item.Tags) > 0 {
 			keys := make([]string, 0, len(item.Tags))
 			for k := range item.Tags {
