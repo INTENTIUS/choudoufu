@@ -132,8 +132,6 @@ var surfaceSeamUntriaged = map[string][]Surface{
 	"internal/live/markerstrip/markerstrip.go":                         {SurfaceTags},
 	"internal/live/projection/build.go:builder.prepareRead":            {SurfaceManifest, SurfaceTags},
 	"internal/live/projection/readconcurrency.go":                      {SurfaceManifest, SurfaceTags},
-	"internal/live/untag/tags.go":                                      {SurfaceTags},
-	"internal/live/untag/release.go:releaseOne":                        {SurfaceTags},
 }
 
 func TestEverySurfaceSeamHandlesEverySurface(t *testing.T) {
