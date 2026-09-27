@@ -156,6 +156,8 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 	// kind: a reader of the scan table asks "was kubernetes_manifest
 	// swept", and the kinds are the detail of the answer.
 	manifestKinds, manifestDeclared := 0, declared.Count()
+	listed := listedObjects{}
+	var undeclared []undeclaredObject
 	for _, k := range kinds {
 		objects, ownerSkipped, err := leg.Client.List(ctx, k, markers.TagEstate, req.Estate)
 		if err != nil {
@@ -218,29 +220,47 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 			})
 		}
 		for _, o := range objects {
+			listed.add(k.Kind, kubesweep.NaturalKey(o.Namespace, o.Name))
 			if _, isDeclared := declared.Declares(k.Kind, kubesweep.NaturalKey(o.Namespace, o.Name)); isDeclared {
 				continue
 			}
-			name := kubesweep.OrphanResourceName(o.Namespace, o.Name)
-			if k.Manifest {
-				name = kubesweep.ManifestOrphanResourceName(k.Kind, o.Namespace, o.Name)
-			}
-			addr := addrs.Resource{
-				Mode: addrs.ManagedResourceMode,
-				Type: typeName,
-				Name: name,
-			}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance)
-			res.Orphans = append(res.Orphans, OwnedResource{
-				TypeName:    typeName,
-				ImportID:    o.ImportID,
-				Marker:      req.Estate,
-				Normalized:  markers.EscapeAddress(addr.String()),
-				DisplayName: k.Kind + " " + kubesweep.NaturalKey(o.Namespace, o.Name),
-				Tags:        o.Labels,
-				Resource:    cty.NilVal,
-				Swept:       true,
-			})
+			undeclared = append(undeclared, undeclaredObject{kind: k, typeName: typeName, object: o})
 		}
+	}
+
+	// An object no natural key declares may still be a declared
+	// instance's: its address annotation names the block that made it
+	// (GitHub issue #1640). Decided once every kind is listed, because
+	// whether the address already has its object is a question about the
+	// whole listing.
+	bound := bindByAddress(req, leg, declared, listed, undeclared, res)
+	for i, u := range undeclared {
+		if bound[i] {
+			continue
+		}
+		k, typeName, o := u.kind, u.typeName, u.object
+		name := kubesweep.OrphanResourceName(o.Namespace, o.Name)
+		if k.Manifest {
+			name = kubesweep.ManifestOrphanResourceName(k.Kind, o.Namespace, o.Name)
+		}
+		addr := addrs.Resource{
+			Mode: addrs.ManagedResourceMode,
+			Type: typeName,
+			Name: name,
+		}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance)
+		res.Orphans = append(res.Orphans, OwnedResource{
+			TypeName:    typeName,
+			ImportID:    o.ImportID,
+			Marker:      req.Estate,
+			Normalized:  markers.EscapeAddress(addr.String()),
+			DisplayName: k.Kind + " " + kubesweep.NaturalKey(o.Namespace, o.Name),
+			Tags:        o.Labels,
+			// The annotation rides along even though it named nothing
+			// this configuration declares - see [OwnedResource].
+			AddressAnnotation: o.Address,
+			Resource:          cty.NilVal,
+			Swept:             true,
+		})
 	}
 	if manifestKinds > 0 {
 		res.Scans = append(res.Scans, TypeScan{
@@ -278,6 +298,17 @@ type KubernetesDeclared struct {
 	// declared that way meets a listed ConfigMap exactly as a
 	// kubernetes_config_map block's would.
 	Objects map[string]map[string]addrs.AbsResourceInstance
+	// Keys is Objects inverted: a declaring instance's address
+	// ([addrs.AbsResourceInstance.String]) -> the kind and natural key its
+	// configuration names. An instance whose object cannot be named yet
+	// (not concrete) is absent.
+	Keys map[string]KubernetesObjectKey
+}
+
+// KubernetesObjectKey is one object as the join reads it: its kind and its
+// natural key ([kubesweep.NaturalKey]).
+type KubernetesObjectKey struct {
+	Kind, Key string
 }
 
 // Declares reports whether the configuration declares the object of kind
@@ -313,6 +344,7 @@ func DeclaredKubernetesObjects(resolutions []identity.Resolution, typeNames []st
 	out := KubernetesDeclared{
 		Types:   map[string]bool{},
 		Objects: map[string]map[string]addrs.AbsResourceInstance{},
+		Keys:    map[string]KubernetesObjectKey{},
 	}
 	kindOf := map[string]string{}
 	for _, t := range typeNames {
@@ -328,6 +360,7 @@ func DeclaredKubernetesObjects(resolutions []identity.Resolution, typeNames []st
 			out.Objects[kind] = map[string]addrs.AbsResourceInstance{}
 		}
 		out.Objects[kind][key] = addr
+		out.Keys[addr.String()] = KubernetesObjectKey{Kind: kind, Key: key}
 	}
 	for _, r := range resolutions {
 		t := r.Addr.Resource.Resource.Type

@@ -49,6 +49,21 @@ const (
 // directory must have both.
 var smokeDemoScenarios = map[string]bool{"import": true, "greenfield": true, "full": true}
 
+// smokeSlugReadabilityPrefixes are the prefixes a slug may carry for
+// readability (the file's _comment: "k8s- for a Kubernetes proof").
+var smokeSlugReadabilityPrefixes = []string{"k8s-"}
+
+// unprefixedSlug is slug with its readability prefix removed, or slug
+// itself when it carries none.
+func unprefixedSlug(slug string) string {
+	for _, p := range smokeSlugReadabilityPrefixes {
+		if rest, ok := strings.CutPrefix(slug, p); ok {
+			return rest
+		}
+	}
+	return slug
+}
+
 // smokeProviderNames is how a page heads a provider's section: "## On AWS".
 var smokeProviderNames = map[string]string{"aws": "AWS", "kubernetes": "Kubernetes"}
 
@@ -274,11 +289,20 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 		if want := filepath.ToSlash(filepath.Join("live", smokeScenariosDir, s.Name+".sh")); cell.Scenario != want {
 			t.Errorf("%s: scenario is %q, want %q", s, cell.Scenario, want)
 		}
-		// The scenario is named for the promise, or it is a retired claim's
+		// The scenario is named for the promise, or for the promise with
+		// its readability prefix taken off, or it is a retired claim's
 		// scenario that moved into exactly this cell.
-		if s.Name != c.Slug {
+		//
+		// The second form is #1599's. A claim born on Kubernetes carries
+		// the k8s- prefix in its slug, and its Kubernetes proof already
+		// holds <slug>.sh; its proof on another provider cannot share that
+		// file, and the slug is a URL that must not move. So that proof is
+		// named for the slug without the prefix. This reads the prefix off
+		// the slug, never a provider off a file name: which provider a
+		// scenario proves is still the providers.<name> key of its cell.
+		if s.Name != c.Slug && s.Name != unprefixedSlug(c.Slug) {
 			if r, ok := retiredBySlug[s.Name]; !ok || r.Claim != c.ID || r.Provider != s.Provider {
-				t.Errorf("%s: a cell's scenario is named for its claim's slug (%s.sh), or for a retired claim whose retired entry names this claim and provider", s, c.Slug)
+				t.Errorf("%s: a cell's scenario is named for its claim's slug (%s.sh), for that slug without its readability prefix (%s.sh), or for a retired claim whose retired entry names this claim and provider", s, c.Slug, unprefixedSlug(c.Slug))
 			}
 		}
 		if want := "just smoke " + s.Name; cell.Command != want {

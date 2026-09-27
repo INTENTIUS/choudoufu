@@ -1260,7 +1260,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// would inherit the listing's failure modes with no benefit.
 		cacheVouchTypes = cacheVouchTypesFor(stateCache, merged)
 	}
-	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords, cacheVouchTypes, r.adoptionOnly, scope)
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, nodeRefusedAddrs(r.resolver.StaticRefusals), estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords, cacheVouchTypes, r.adoptionOnly, scope)
 	diags = diags.Append(discoDiags)
 	r.kubeSweepers = provs.kubernetesSweepers()
 	if discoDiags.HasErrors() {

@@ -40,6 +40,16 @@ type Verdicts struct {
 	// This is the input to projection.BuildFrom.
 	Resolutions []identity.Resolution
 
+	// KubernetesAddressBound names every declared instance the Kubernetes
+	// leg bound through an object's address annotation rather than through
+	// the natural key its configuration names (GitHub issue #1640), keyed
+	// by [addrs.AbsResourceInstance.String]. Each one also has a
+	// [Binding] and a concrete resolution naming the object. It is what
+	// [Merge] reads to keep that resolution over the configuration's
+	// own concrete one, which another pass carries unchanged: both are
+	// bound classes, so nothing else would tell them apart.
+	KubernetesAddressBound map[string]bool
+
 	// Bindings lists every declared instance that a live resource claimed,
 	// in address order.
 	Bindings []Binding
@@ -640,6 +650,14 @@ type OwnedResource struct {
 
 	// Tags are the resource's tags as listed.
 	Tags map[string]string
+
+	// AddressAnnotation is a Kubernetes object's address annotation as
+	// carried (kubesweep.AddressAnnotation, GitHub issue #1639), escaped,
+	// or empty when it carries none. Only the Kubernetes leg sets it; an
+	// AWS resource's address is its Marker. An orphan that carries one
+	// names an address the configuration does not declare, or one a
+	// sibling object already answers for (GitHub issue #1640).
+	AddressAnnotation string
 
 	// Resource is the full listed object, so that a consumer can match on
 	// content without listing again - which is what strengthens a rename

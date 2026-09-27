@@ -97,6 +97,16 @@
 # code), verified with three back-to-back local runs that each hit the
 # loser branch and each still passed.
 #
+# Claims 25 and 26 on AWS (#1599) joined the smoke job with cells that read
+# "restated", not "proven": each scenario proves the part of its promise the
+# emulator can produce, and the cell's note says which part. A restated cell
+# that carries its own scenario is held to a matrix the same as a proven one
+# (live/proven_cell_ci_test.go's cellRunsItsOwnScenario). Both were written
+# without a local run against the emulator (the maintainer's 2026-09-27 no-
+# smoke-runs rule), so neither has a measured duration yet; their claims.json
+# minutes (3 and 4) put them well inside the 10-minute budget if they run
+# like their neighbours, and the first run of this job is their measurement.
+#
 # Verdict lines, not exit codes (#1439). Every run goes through
 # live/smoke/ci-run.sh, which writes the run's output to a file as it goes
 # and then reads it back: the step fails unless the log carries the
@@ -149,6 +159,7 @@ jobs:
   smoke:
     # Every PR/push run, plus a manual dispatch. Not on schedule: the
     # nightly's job is smoke-nightly below, so a scheduled run does not
+    # also re-run these 22 (nightly-watch would then be reporting on a
     # also re-run these 21 (nightly-watch would then be reporting on a
     # conclusion that mixes budgeted and over-budget scenarios).
     if: github.event_name != 'schedule'
@@ -179,6 +190,8 @@ jobs:
           - a-killed-apply-hides-nothing
           - two-estates-at-once
           - the-tag-is-the-boundary
+          - a-held-delete-is-not-gone
+          - the-server-gets-the-last-word
           - record-only-survives-cache-loss
     env:
       # Safe here (unlike gauntlet.yml's shared mirror, #1550): nothing in
