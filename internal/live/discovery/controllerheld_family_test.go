@@ -21,7 +21,7 @@ import (
 )
 
 // fakeHoldingFamily is a third family whose only answer that matters here
-// is [substrate.Substrate.ControllerHeld]: it recognises a tag key and an
+// is [substrate.ControllerHeld]: it recognises a tag key and an
 // annotation no real family knows. It carries no surface, so it cannot
 // change any surface question. Everything else is AWS's, by embedding.
 type fakeHoldingFamily struct {
