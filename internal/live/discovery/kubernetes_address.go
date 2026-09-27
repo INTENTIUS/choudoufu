@@ -8,8 +8,6 @@ package discovery
 import (
 	"slices"
 
-	"github.com/zclconf/go-cty/cty"
-
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
@@ -123,7 +121,6 @@ func bindByAddress(req Request, leg KubernetesSweep, declared KubernetesDeclared
 			ImportID:    c.importID,
 			Marker:      u.object.Address,
 			DisplayName: u.kind.Kind + " " + kubesweep.NaturalKey(u.object.Namespace, u.object.Name),
-			Identity:    cty.NilVal,
 		})
 		if res.KubernetesAddressBound == nil {
 			res.KubernetesAddressBound = map[string]bool{}

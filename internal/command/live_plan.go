@@ -737,7 +737,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// resolution list with the discovered instances made concrete, plus the
 	// unclaimed live resources the classifier below sorts out.
 	merged := resolutions.All()
-	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estateFlag, provs, pol, hintStore, statelessView, recordShrinkStore, deposedRecords, nil, args.AdoptionOnly, scope)
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, nodeRefusedAddrs(resolver.StaticRefusals), estateFlag, provs, pol, hintStore, statelessView, recordShrinkStore, deposedRecords, nil, args.AdoptionOnly, scope)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
@@ -1279,7 +1279,7 @@ func collectDeposedRecords(ctx context.Context, store *projection.RecordStore, n
 // answer, and the third return value is what a caller uses instead for
 // materializing undeclared instances correctly, per-address, regardless of
 // which provider found them.
-func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, estateFlag string, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordShrinkStore *projection.RecordStore, deposedRecords map[string]map[string]projection.DeposedRecord, cacheVouchTypes []string, adoptionOnly bool, scope identity.Scope) (*discovery.Result, addrs.AbsProviderConfig, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
+func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, nodeRefused map[string]bool, estateFlag string, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordShrinkStore *projection.RecordStore, deposedRecords map[string]map[string]projection.DeposedRecord, cacheVouchTypes []string, adoptionOnly bool, scope identity.Scope) (*discovery.Result, addrs.AbsProviderConfig, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	var noProvider addrs.AbsProviderConfig
 
@@ -1381,7 +1381,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		providerAddr := passProviders[0]
 		// No ScopeProvider: the single-provider path is the exact call
 		// every caller made before issue #69 existed.
-		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, addrs.AbsProviderConfig{}, provs, pol, hintStore, statelessView, recordBacked, deposedRecords, cacheVouchTypes, sweepPar, collectUnclaimed, scope)
+		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), nodeRefused, estate, providerAddr, addrs.AbsProviderConfig{}, provs, pol, hintStore, statelessView, recordBacked, deposedRecords, cacheVouchTypes, sweepPar, collectUnclaimed, scope)
 		if warn, ok := statelessDiscoverProviderUnavailable(providerAddr, needsSet, discoDiags); ok {
 			diags = diags.Append(warn)
 			return nil, noProvider, nil, diags
@@ -1409,7 +1409,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 	// else's declared, owned resource rather than an orphan to remove.
 	passes := make([]discovery.Pass, 0, len(passProviders))
 	for _, providerAddr := range passProviders {
-		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, providerAddr, provs, pol, hintStore, statelessView, recordBacked, deposedRecords, cacheVouchTypes, sweepPar, collectUnclaimed, scope)
+		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), nodeRefused, estate, providerAddr, providerAddr, provs, pol, hintStore, statelessView, recordBacked, deposedRecords, cacheVouchTypes, sweepPar, collectUnclaimed, scope)
 		if warn, ok := statelessDiscoverProviderUnavailable(providerAddr, needsSet, discoDiags); ok {
 			// Sweep-only provider, unusable for the same reason stock never
 			// asks this question in one shot either: its own configuration
@@ -1576,7 +1576,7 @@ func recordKeyPrefixFor(config *configs.Config, estate string) string {
 // sweepPar is [discovery.Request.SweepParallelism] for this pass, already
 // resolved and validated by [statelessDiscover] - see
 // [sweepParallelismSetting].
-func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutions []identity.Resolution, estate string, providerAddr, scopeProvider addrs.AbsProviderConfig, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordBacked map[string]bool, deposedRecords map[string]map[string]projection.DeposedRecord, cacheVouchTypes []string, sweepPar int, collectUnclaimed bool, scope identity.Scope) (*discovery.Result, tfdiags.Diagnostics) {
+func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutions []identity.Resolution, nodeRefused map[string]bool, estate string, providerAddr, scopeProvider addrs.AbsProviderConfig, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordBacked map[string]bool, deposedRecords map[string]map[string]projection.DeposedRecord, cacheVouchTypes []string, sweepPar int, collectUnclaimed bool, scope identity.Scope) (*discovery.Result, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	provider, err := provs.ConfiguredProvider(ctx, providerAddr)
@@ -1605,6 +1605,11 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 		RecordBackedAddrs: recordBacked,
 		DeposedRecords:    deposedRecords,
 		Resolutions:       resolutions,
+		// GitHub issue #1640: the instances the node took over from the
+		// static evaluator are declared though absent from Resolutions,
+		// and the Kubernetes leg binds an object whose address
+		// annotation names one.
+		NodeRefused: nodeRefused,
 		// GitHub issue #1176: the same [identity.Scope] resolution was
 		// given, carried one pass further. Nil for an untargeted run, and
 		// then nothing in discovery behaves differently. It does NOT
@@ -4443,4 +4448,20 @@ func (p *statelessProviders) labelListClient(ctx context.Context, sub substrate.
 // #1118). It stays under this name for this package's tests of it.
 func kubernetesSweepAttrs(val cty.Value, ok bool) kubesweep.Attrs {
 	return substrate.KubernetesSweepAttrs(val, ok)
+}
+
+// nodeRefusedAddrs is the set of instance addresses the static evaluator
+// refused and the #388 plan-node seam took over - the keys of
+// [projection.NodeResolver.StaticRefusals] - as
+// [discovery.Request.NodeRefused] wants them (GitHub issue #1640). Nil for
+// nil.
+func nodeRefusedAddrs(refusals map[string]tfdiags.Diagnostics) map[string]bool {
+	if len(refusals) == 0 {
+		return nil
+	}
+	out := make(map[string]bool, len(refusals))
+	for addr := range refusals {
+		out[addr] = true
+	}
+	return out
 }

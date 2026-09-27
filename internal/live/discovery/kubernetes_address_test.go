@@ -388,3 +388,45 @@ resource "kubernetes_manifest" "cm" {
 	}
 	return loadConfig(t, dir)
 }
+
+// TestMergeKeepsTheAddressBoundResolution: on a run with an AWS provider
+// beside the Kubernetes one, every pass carries the configuration's own
+// concrete resolution for a Kubernetes block, and only the Kubernetes
+// pass rebinds it (#1541's rename). Both are bound classes, so the merge
+// must be told which one wins, whichever order the passes ran in.
+func TestMergeKeepsTheAddressBoundResolution(t *testing.T) {
+	cfg := k8sInstance(t, "kubernetes_config_map_v1", "cfg")
+	fromConfig := identity.Resolution{Addr: cfg, Class: identity.ClassConcrete, ImportID: "rep-chdf/cfg-b"}
+	rebound := identity.Resolution{Addr: cfg, Class: identity.ClassConcrete, ImportID: "rep-chdf/cfg-a"}
+
+	aws := &Result{}
+	aws.Resolutions = []identity.Resolution{fromConfig}
+	kube := &Result{}
+	kube.Resolutions = []identity.Resolution{rebound}
+	kube.KubernetesAddressBound = map[string]bool{cfg.String(): true}
+	kube.Bindings = []Binding{{Addr: cfg, TypeName: "kubernetes_config_map_v1", ImportID: "rep-chdf/cfg-a"}}
+
+	awsPass := Pass{Provider: testProviderAddr(t, ""), Result: aws}
+	kubePass := Pass{Provider: addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("kubernetes")}, Result: kube}
+	for name, passes := range map[string][]Pass{
+		"aws first":  {awsPass, kubePass},
+		"kube first": {kubePass, awsPass},
+	} {
+		t.Run(name, func(t *testing.T) {
+			merged, _, diags := Merge(estateName, passes, false)
+			assertNoErrors(t, diags)
+			var got []string
+			for _, r := range merged.Resolutions {
+				if r.Addr.String() == cfg.String() {
+					got = append(got, r.ImportID)
+				}
+			}
+			if len(got) != 1 || got[0] != "rep-chdf/cfg-a" {
+				t.Fatalf("merged resolutions at %s = %v, want [rep-chdf/cfg-a]", cfg, got)
+			}
+			if !merged.KubernetesAddressBound[cfg.String()] {
+				t.Errorf("KubernetesAddressBound lost in the merge: %v", merged.KubernetesAddressBound)
+			}
+		})
+	}
+}
