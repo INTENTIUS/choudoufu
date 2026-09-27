@@ -317,6 +317,20 @@ gauntlet_required_provider() {
   printf '%s%s = {\n%s  source  = "%s"\n%s  version = "= %s"\n%s}\n' "$indent" "$name" "$indent" "$source" "$indent" "$pin" "$indent"
 }
 
+# gauntlet_kind_node_image: prints live/kind-node-image's pinned digest, or
+# nothing if the file cannot be read. Every kind-substrate cluster is
+# created FROM this image (#1594): a bare `kind create cluster` uses
+# whatever node image the kind binary on PATH happens to default to, and
+# that default moves across kind releases (kind v0.33.0 defaults to
+# Kubernetes 1.37.0; a reference-k8s-cert-manager run was once measured on
+# v1.36.1) - two runs of the same commit can then measure two different
+# Kubernetes versions purely because of which kind happened to be
+# installed.
+gauntlet_kind_node_image() {
+  : "${ROOT:?gauntlet_kind_node_image needs \$ROOT set}"
+  cat "$ROOT/live/kind-node-image" 2>/dev/null
+}
+
 # gauntlet_kind_up <name> <kubeconfig>: the kind substrate (#1067). A
 # kubernetes-lane crossing script runs against a kind cluster instead of a
 # floci emulator: a real API server, so what the script asserts is what any
@@ -329,12 +343,15 @@ gauntlet_required_provider() {
 # stock's oracle runs on. Needs kind (https://kind.sigs.k8s.io) and kubectl
 # on PATH; prints the reason and returns 1 when either is missing, so the
 # script's own fail() records the stage it was setting up. The create is
-# logged beside the kubeconfig.
+# logged beside the kubeconfig, from the pinned node image (#1594) rather
+# than whatever kind's own default happens to be.
 gauntlet_kind_up() {
-  local name="$1" cfg="$2"
+  local name="$1" cfg="$2" image
   command -v kind >/dev/null 2>&1 || { printf 'gauntlet_kind_up: kind is not installed; this estate needs a kind cluster (brew install kind)\n' >&2; return 1; }
   command -v kubectl >/dev/null 2>&1 || { printf 'gauntlet_kind_up: kubectl is not installed\n' >&2; return 1; }
-  kind create cluster --name "$name" --kubeconfig "$cfg" --wait 120s >"${cfg}.kind.log" 2>&1 \
+  image="$(gauntlet_kind_node_image)"
+  [ -n "$image" ] || { printf 'gauntlet_kind_up: could not read the pinned node image from %s/live/kind-node-image\n' "$ROOT" >&2; return 1; }
+  kind create cluster --image "$image" --name "$name" --kubeconfig "$cfg" --wait 120s >"${cfg}.kind.log" 2>&1 \
     || { printf 'gauntlet_kind_up: kind create cluster %s failed:\n' "$name" >&2; tail -5 "${cfg}.kind.log" >&2; return 1; }
 }
 

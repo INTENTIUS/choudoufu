@@ -96,8 +96,8 @@ func (w heldWant) listedBy(k kubesweep.Kind) bool {
 // HeldKubernetesDeletes lists, once per kind that had deletes, the estate's
 // objects of that kind, and returns every deleted object that is still
 // there with a deletionTimestamp. typeNames and manifestType are the
-// universe the sweep was given ([Request.KubernetesTypes],
-// [Request.KubernetesManifestType]); the kind join is the sweep's own
+// universe the sweep was given ([KubernetesSweep.Types],
+// [KubernetesSweep.ManifestType]); the kind join is the sweep's own
 // ([kubesweep.KindOfType] for a built-in type, the manifest import id for
 // the manifest type), so no type is named here.
 //

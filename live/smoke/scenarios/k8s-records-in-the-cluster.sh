@@ -206,7 +206,7 @@ conformance_verdict() {
   { grep -E -- '--- PASS: TestKubernetesStore(VersionIsTheResourceVersion|RefusesAMissingNamespaceByName)' <<< "$out" || true; } | evidence
 }
 cmd "go test ./internal/live/staterecord -run TestKubernetesStore   # against the kind cluster"
-CONF_OUT="$( cd "$ROOT" && CHOUDOUFU_K8S_RECORD_KUBECONFIG="$KUBECONFIG" CHOUDOUFU_K8S_RECORD_NAMESPACE="$RECORDS_NS" \
+CONF_OUT="$( cd "$ROOT" && CHOUDOUFU_K8S_TEST=1 CHOUDOUFU_K8S_RECORD_KUBECONFIG="$KUBECONFIG" CHOUDOUFU_K8S_RECORD_NAMESPACE="$RECORDS_NS" \
   go test ./internal/live/staterecord -run TestKubernetesStore -count=1 -v 2>&1 )" \
   || fail "k8srec" "the conformance suite failed against the cluster: $( { grep -E '^\s+--- FAIL|FAIL' <<< "$CONF_OUT" || true; } | awk 'NR<=10' )"
 conformance_verdict "$CONF_OUT"
@@ -871,7 +871,7 @@ explain \
 RACE_NS="tofu-records-k8srec-race"
 kc create namespace "$RACE_NS" >/dev/null || fail "k8srec" "could not create the race records namespace"
 cmd "go test ./internal/live/staterecord -run TestKubernetesTwoWritersOneRecord   # against the kind cluster"
-RACE_OUT="$( cd "$ROOT" && CHOUDOUFU_K8S_RECORD_KUBECONFIG="$KUBECONFIG" CHOUDOUFU_K8S_RECORD_NAMESPACE="$RACE_NS" \
+RACE_OUT="$( cd "$ROOT" && CHOUDOUFU_K8S_TEST=1 CHOUDOUFU_K8S_RECORD_KUBECONFIG="$KUBECONFIG" CHOUDOUFU_K8S_RECORD_NAMESPACE="$RACE_NS" \
   go test ./internal/live/staterecord -run TestKubernetesTwoWritersOneRecord -count=1 -v 2>&1 )" && RACE_RC=0 || RACE_RC=$?
 # `awk NR<=3` and not `head -3`: under pipefail a head that closes the pipe
 # early can take the whole evidence pipeline down with it, and an evidence
@@ -1355,7 +1355,7 @@ if [ "${BREAK:-0}" = "1" ]; then
     "passing for some reason other than the conditional write and would" \
     "prove nothing."
   cmd "CHOUDOUFU_K8S_RECORD_RACE_BREAK=1 go test ./internal/live/staterecord -run TestKubernetesTwoWritersOneRecord"
-  BREAK_OUT="$( cd "$ROOT" && CHOUDOUFU_K8S_RECORD_RACE_BREAK=1 CHOUDOUFU_K8S_RECORD_KUBECONFIG="$KUBECONFIG" CHOUDOUFU_K8S_RECORD_NAMESPACE="$RACE_NS" \
+  BREAK_OUT="$( cd "$ROOT" && CHOUDOUFU_K8S_TEST=1 CHOUDOUFU_K8S_RECORD_RACE_BREAK=1 CHOUDOUFU_K8S_RECORD_KUBECONFIG="$KUBECONFIG" CHOUDOUFU_K8S_RECORD_NAMESPACE="$RACE_NS" \
     go test ./internal/live/staterecord -run TestKubernetesTwoWritersOneRecord -count=1 -v 2>&1 )" && BREAK_RC=0 || BREAK_RC=$?
   { grep -E 'BOTH writers reported success' <<< "$BREAK_OUT" || true; } | sed 's/^[[:space:]]*//; s/^[^:]*go:[0-9]*: //' | awk 'NR<=2' | evidence
   { grep -E 'RACE-SUMMARY case=total' <<< "$BREAK_OUT" || true; } | sed 's/^[[:space:]]*//; s/^[^:]*go:[0-9]*: //' | evidence
@@ -1413,7 +1413,7 @@ if [ "${BREAK:-0}" = "1" ]; then
     || fail "k8srec" "BREAK: the suite with no cluster to reach did not exit 0, so this is not the skip the control was built to catch: $SKIP_OUT"
   must_fail_naming "the conformance suite SKIPPED" conformance_verdict "$SKIP_OUT"
   cmd "go test ./internal/live/staterecord -run 'TestKubernetesStoreConformance/^[A-CE-Z]'   # the cases named D... left out"
-  SHORT_OUT="$( cd "$ROOT" && CHOUDOUFU_K8S_RECORD_KUBECONFIG="$KUBECONFIG" CHOUDOUFU_K8S_RECORD_NAMESPACE="$RECORDS_NS" \
+  SHORT_OUT="$( cd "$ROOT" && CHOUDOUFU_K8S_TEST=1 CHOUDOUFU_K8S_RECORD_KUBECONFIG="$KUBECONFIG" CHOUDOUFU_K8S_RECORD_NAMESPACE="$RECORDS_NS" \
     go test ./internal/live/staterecord -run 'TestKubernetesStoreConformance/^[A-CE-Z]' -count=1 -v 2>&1 )" \
     || fail "k8srec" "BREAK: the narrowed suite failed, so this is not the short run the control was built to catch: $SHORT_OUT"
   must_fail_naming "conformance cases passed against this cluster and the shared suite has $CONFORMANCE_CASES" conformance_verdict "$SHORT_OUT"

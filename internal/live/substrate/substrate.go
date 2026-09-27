@@ -34,6 +34,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // Write is how a marker reaches a live object.
@@ -141,8 +142,18 @@ type Substrate interface {
 	// block's evaluated configuration (ok false when the run holds none):
 	// nil with no error for a family whose sweep runs through the
 	// configured provider itself ([SweepTaggingIndex]), and the error for a
-	// block the client cannot be built from.
-	NewSweeper(providerConfig cty.Value, ok bool) (*kubesweep.Client, error)
+	// block the client cannot be built from. The client is a [Sweeper],
+	// never a family's concrete type (GitHub issue #1580).
+	NewSweeper(providerConfig cty.Value, ok bool) (Sweeper, error)
+
+	// --- Admission (GitHub issue #1586; see identity.go) ---
+
+	// SynthesizeIdentity is how this family's schema identifies an
+	// instance of a type the ratified table does not cover, or false when
+	// the schema is not one of this family's shapes. Asked in [All]'s
+	// order by internal/live/identity's synthesizeTypeIdentity, and the
+	// first family to answer decides.
+	SynthesizeIdentity(typeName string, schema providers.Schema) (SynthesizedIdentity, bool)
 
 	// surfaceWording is GitHub issue #1584's block, below.
 	surfaceWording
@@ -152,7 +163,12 @@ type Substrate interface {
 }
 
 // All is every family, in the order a surface question asks them.
-var All = []Substrate{AWS, Kubernetes}
+//
+// AWS is last, and that is load-bearing for [Substrate.SynthesizeIdentity]
+// (GitHub issue #1586): the AWS answer is the identity-schema route, which
+// claims every type, so a family with a convention of its own has to be
+// asked before it. The surface questions are disjoint and do not care.
+var All = []Substrate{Kubernetes, AWS}
 
 // ForProvider is the family a provider type name belongs to ("aws",
 // "kubernetes"). It matches the type name alone, which is what every
@@ -267,6 +283,30 @@ func WritesOf(surface markers.Surface) Writes {
 	}
 	return s.Writes(surface)
 }
+
+// ---- GitHub issue #1580: the sweep client behind an interface ----
+//
+// Kept in its own block: several units of #1579 add methods to this file.
+
+// Sweeper is a family's estate-sweep client as [Substrate.NewSweeper]
+// builds it from the provider block. SweepKind is the sweep it serves,
+// its family's own [Substrate.Sweep]: internal/live/discovery pairs a
+// client with the leg that lists through it by that property, never by
+// the family's name, so a third family's client plugs in by naming a
+// sweep and a leg serving it.
+type Sweeper interface {
+	SweepKind() Sweep
+}
+
+// LabelListSweeper is the Kubernetes family's client: the cluster client
+// built from the provider block, whose methods it carries
+// (kubesweep.Sweeper, kubesweep.LabelPatcher).
+type LabelListSweeper struct {
+	*kubesweep.Client
+}
+
+// SweepKind is [SweepLabelList].
+func (LabelListSweeper) SweepKind() Sweep { return SweepLabelList }
 
 // ---- GitHub issue #1584: one surface enum ----
 //

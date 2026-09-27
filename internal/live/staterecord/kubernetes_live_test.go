@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 
@@ -18,6 +17,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/intentius/choudoufu/internal/live/k8stest"
 )
 
 // kubeconfigEnvVar names the kubeconfig [TestKubernetesStoreConformance] runs
@@ -44,17 +45,15 @@ const kubeconfigEnvVar = "CHOUDOUFU_K8S_RECORD_KUBECONFIG"
 // scenario does, the way a cluster admin would.
 const namespaceEnvVar = "CHOUDOUFU_K8S_RECORD_NAMESPACE"
 
-// liveKubernetesSecrets builds the Secret client the live tests use, or skips.
+// liveKubernetesSecrets builds the Secret client the live tests use, or
+// skips (via [k8stest.Gate]) when the tier is not enabled, or fails (via
+// [k8stest.RequireEnv]) when it is enabled but a fixture the tests still
+// need is missing.
 func liveKubernetesSecrets(t *testing.T) (corev1client.SecretInterface, kubernetes.Interface, string) {
 	t.Helper()
-	path := strings.TrimSpace(os.Getenv(kubeconfigEnvVar))
-	if path == "" {
-		t.Skipf("%s is not set. This test needs a real Kubernetes API server, because client-go's fake clientset assigns no resourceVersion and every version assertion here would be vacuous against it. `just smoke k8s-records-in-the-cluster` creates a kind cluster and runs it. A skip here is not a pass.", kubeconfigEnvVar)
-	}
-	ns := strings.TrimSpace(os.Getenv(namespaceEnvVar))
-	if ns == "" {
-		t.Fatalf("%s is set and %s is not. The store never creates a namespace, so the caller has to name one it created.", kubeconfigEnvVar, namespaceEnvVar)
-	}
+	k8stest.Gate(t, "Kubernetes record store")
+	path := k8stest.RequireEnv(t, kubeconfigEnvVar, "This test needs a real Kubernetes API server, because client-go's fake clientset assigns no resourceVersion and every version assertion here would be vacuous against it. `just smoke k8s-records-in-the-cluster` creates a kind cluster and runs it.")
+	ns := k8stest.RequireEnv(t, namespaceEnvVar, "The store never creates a namespace, so the caller has to name one it created.")
 	cfg, err := clientcmd.BuildConfigFromFlags("", path)
 	if err != nil {
 		t.Fatalf("reading the kubeconfig at %s: %v", path, err)
