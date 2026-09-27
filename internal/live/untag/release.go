@@ -13,6 +13,9 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -150,9 +153,15 @@ func Release(ctx context.Context, provider providers.Interface, key string, targ
 // releaseOne is the whole provider conversation for one target: import to
 // turn its identity into a schema-shaped object (an undeclared orphan has
 // no prior state to seed a read from), read to refresh it, and - only if
-// the named key is actually present - a tags-only Plan+Apply pair that
-// removes it and nothing else, verified by reading the object back once
-// more.
+// the named key is actually present - a Plan+Apply pair confined to the
+// object's marker map that removes it and nothing else, verified by
+// reading the object back once more.
+//
+// Which map that is comes from the schema, through internal/live/substrate
+// (GitHub issue #1644): the tags map on an AWS type, metadata[0].labels on
+// a Kubernetes object-metadata type. Before, this asked only for a tags
+// map, so a labelled Kubernetes orphan was reported as having nothing to
+// release and kept its tofu-estate label for every later sweep to find.
 func releaseOne(ctx context.Context, provider providers.Interface, schemas map[string]providers.Schema, key string, t Target) Outcome {
 	out := Outcome{Target: t}
 
@@ -161,7 +170,31 @@ func releaseOne(ctx context.Context, provider providers.Interface, schemas map[s
 		out.Detail = fmt.Sprintf("The provider serves no schema for %s, so the tag release could not run. Nothing was changed.", t.TypeName)
 		return out
 	}
-	if !taggable(schema.Block) {
+
+	surface, _ := substrate.SurfaceOf(schema.Block)
+	var w writer
+	switch surface {
+	case markers.SurfaceTags:
+		w = writer{
+			noun:    "tag",
+			rewrite: withTags,
+			judge:   notATagsOnlyPlan,
+		}
+	case markers.SurfaceLabels:
+		w = writer{
+			noun:    "label",
+			rewrite: markers.WithLabels,
+			judge:   notALabelsOnlyPlan,
+		}
+	case markers.SurfaceManifest:
+		// The manifest shape's adopt write is an API merge patch, not a
+		// provider plan (substrate.WriteAPIPatch, ruled on #1109 and
+		// #1104), and this package holds a provider and no cluster client.
+		// Refused by name, with the kubectl write that makes the same
+		// change, before anything is read.
+		out.Detail = manifestReleaseRefusal(t, key)
+		return out
+	default:
 		out.Detail = fmt.Sprintf("%s has no settable tags argument in the provider's schema, so there is nothing to release. Nothing was changed.", t.TypeName)
 		return out
 	}
@@ -182,7 +215,7 @@ func releaseOne(ctx context.Context, provider providers.Interface, schemas map[s
 	imported := pickImported(importResp.ImportedResources, t.TypeName)
 	if imported == nil || imported.State == cty.NilVal || imported.State.IsNull() {
 		out.OK = true
-		out.Detail = fmt.Sprintf("The live system reports that this %s no longer exists; there is nothing to release a tag from.", t.TypeName)
+		out.Detail = fmt.Sprintf("The live system reports that this %s no longer exists; there is nothing to release a %s from.", t.TypeName, w.noun)
 		return out
 	}
 
@@ -199,33 +232,33 @@ func releaseOne(ctx context.Context, provider providers.Interface, schemas map[s
 	}
 	if readResp.NewState == cty.NilVal || readResp.NewState.IsNull() {
 		out.OK = true
-		out.Detail = fmt.Sprintf("The live system reports that this %s no longer exists; there is nothing to release a tag from.", t.TypeName)
+		out.Detail = fmt.Sprintf("The live system reports that this %s no longer exists; there is nothing to release a %s from.", t.TypeName, w.noun)
 		return out
 	}
 	live := readResp.NewState
 
-	tags, hasTags := tagsFromObj(schema.Block, live)
-	if !hasTags {
-		out.Detail = fmt.Sprintf("%s carries no readable tags, so there is nothing to release. Nothing was changed.", t.TypeName)
+	current, hasMarkers := substrate.MarkersOf(surface, live)
+	if !hasMarkers {
+		out.Detail = fmt.Sprintf("%s carries no readable %ss, so there is nothing to release. Nothing was changed.", t.TypeName, w.noun)
 		return out
 	}
-	if _, present := tags[key]; !present {
+	if _, present := current[key]; !present {
 		out.OK = true
-		out.Detail = fmt.Sprintf("Already carries no %q tag; nothing to release.", key)
+		out.Detail = fmt.Sprintf("Already carries no %q %s; nothing to release.", key, w.noun)
 		return out
 	}
 
-	desired := make(map[string]string, len(tags))
-	for k, v := range tags {
+	desired := make(map[string]string, len(current))
+	for k, v := range current {
 		if k == key {
 			continue
 		}
 		desired[k] = v
 	}
 
-	desiredObj, err := withTags(schema.Block, live, desired)
+	desiredObj, err := w.rewrite(schema.Block, live, desired)
 	if err != nil {
-		out.Detail = fmt.Sprintf("The tags of this %s could not be rewritten: %s. Nothing was changed.", t.TypeName, err)
+		out.Detail = fmt.Sprintf("The %ss of this %s could not be rewritten: %s. Nothing was changed.", w.noun, t.TypeName, err)
 		return out
 	}
 
@@ -233,12 +266,13 @@ func releaseOne(ctx context.Context, provider providers.Interface, schemas map[s
 	// synthesized - and there is more than one honest answer to "what would
 	// the HCL have said about the arguments the provider fills in for
 	// itself". [syntheticConfigs] offers them least claim first; each is
-	// planned in turn and the first plan that is a clean tags-only change
-	// wins. The refusals below are what "clean" means, and they are the same
-	// ones that already stood between a plan and an apply, so trying a
-	// second configuration widens what can be released without widening what
-	// may be. See tags.go's configClaim, and internal/live/liveimport for the
-	// two real cases that pull in opposite directions.
+	// planned in turn and the first plan that is a clean marker-only change
+	// wins. The refusals the surface's judge makes are what "clean" means,
+	// and they are the same ones that already stood between a plan and an
+	// apply, so trying a second configuration widens what can be released
+	// without widening what may be. See tags.go's configClaim, and
+	// internal/live/liveimport for the two real cases that pull in opposite
+	// directions.
 	var (
 		configVal cty.Value
 		planResp  providers.PlanResourceChangeResponse
@@ -258,7 +292,7 @@ func releaseOne(ctx context.Context, provider providers.Interface, schemas map[s
 			ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
 			PriorIdentity: imported.Identity,
 		})
-		if why := notATagsOnlyPlan(schema.Block, live, t.TypeName, key, resp); why != "" {
+		if why := w.judge(schema.Block, live, t.TypeName, key, resp); why != "" {
 			refusal = why
 			continue
 		}
@@ -283,19 +317,46 @@ func releaseOne(ctx context.Context, provider providers.Interface, schemas map[s
 		PlannedIdentity: planResp.PlannedIdentity,
 	})
 	if applyResp.Diagnostics.HasErrors() {
-		out.Detail = fmt.Sprintf("The provider failed while releasing the tag: %s. The write may have partly landed; read this resource's tags with the cloud's own API before deciding what to do next.", applyResp.Diagnostics.Err())
+		out.Detail = fmt.Sprintf("The provider failed while releasing the %s: %s. The write may have partly landed; read this resource's %ss with the %s's own API before deciding what to do next.", w.noun, applyResp.Diagnostics.Err(), w.noun, w.system())
 		return out
 	}
 
-	newTags, _ := tagsFromObj(schema.Block, applyResp.NewState)
-	if _, stillPresent := newTags[key]; stillPresent {
-		out.Detail = fmt.Sprintf("The provider reported no error, but %q is still present on the object read back afterward. Some providers do not serve tags back on a post-apply read; verify with the cloud's own API before relying on this.", key)
+	after, _ := substrate.MarkersOf(surface, applyResp.NewState)
+	if _, stillPresent := after[key]; stillPresent {
+		out.Detail = fmt.Sprintf("The provider reported no error, but %q is still present on the object read back afterward. Some providers do not serve %ss back on a post-apply read; verify with the %s's own API before relying on this.", key, w.noun, w.system())
 		return out
 	}
 
 	out.OK = true
 	out.Detail = fmt.Sprintf("Released %q. This resource is no longer managed by this estate.", key)
 	return out
+}
+
+// writer is what differs between releasing a tag and releasing a label:
+// the word an operator reads, the rewrite of the object's marker map, and
+// the guard that refuses a plan changing anything outside it.
+type writer struct {
+	noun    string
+	rewrite func(block *configschema.Block, obj cty.Value, m map[string]string) (cty.Value, error)
+	judge   func(block *configschema.Block, prior cty.Value, typeName, key string, resp providers.PlanResourceChangeResponse) string
+}
+
+// system names what an operator verifies a write against.
+func (w writer) system() string {
+	if w.noun == "label" {
+		return "cluster"
+	}
+	return "cloud"
+}
+
+// manifestReleaseRefusal is the refusal for a manifest-declared orphan,
+// naming the kubectl write that makes the same release. The import ID is
+// the sweep's own rendering of the object's natural key
+// (kubesweep.ManifestImportID), quoted so the operator can find it.
+func manifestReleaseRefusal(t Target, key string) string {
+	return fmt.Sprintf(
+		"%s carries its whole object in one dynamic manifest argument, so its %q label sits inside manifest.metadata.labels, where no schema types it; an existing object of this shape is labelled by an API patch rather than a provider plan, and this release has no cluster client to send one through yet. Release it with the cluster's own client: kubectl label <kind> <name> -n <namespace> %s- (the object is %s). Nothing was read and nothing was changed.",
+		t.TypeName, key, key, t.ImportID)
 }
 
 // pickImported selects the imported object belonging to typeName, the same
