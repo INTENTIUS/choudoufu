@@ -1278,6 +1278,10 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	{
 		r.resolver.RecordStore = r.recordStore
 		r.resolver.MarkerIndex = projection.NewMarkerIndex(merged)
+		// GitHub issue #1641: the sweep's account of objects without the
+		// address annotation, which decides whether #1617's refusal
+		// stands for an instance the static evaluator refused.
+		r.resolver.UnaddressedObjects = disco.UnaddressedAccount()
 		r.resolver.NoSourceCreate = strict.CreatesFromNoSource(identity.NoSourceCreateFor(config))
 		// GitHub issue #388's stamp half (AdjustConfigValue,
 		// internal/live/projection/nodestamp.go): Estate and Selection are

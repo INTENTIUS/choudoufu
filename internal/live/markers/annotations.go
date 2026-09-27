@@ -30,9 +30,11 @@ import (
 //
 // What it is not: a boundary. The admission fence
 // (live/kubernetes/estate-boundary.yaml) reads the estate label and nothing
-// else, by the same ruling. And as of #1639 nothing reads it at all: the
-// sweep's address join (#1640) and substrate.Kubernetes.CarriesAddress
-// flipping (#1641) are the later steps.
+// else, by the same ruling. Its readers are the sweep's address join
+// (#1640), which binds an object no natural key declares to the block the
+// annotation names, and the node's #1617 refusal, which since
+// substrate.Kubernetes.CarriesAddress flipped (#1641) stands only where the
+// sweep found an object of the type without the annotation.
 
 // AddressAnnotation is the annotation key a Kubernetes object's block
 // address is carried under. The value is [EscapeAddress] of the instance

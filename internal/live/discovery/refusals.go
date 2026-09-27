@@ -225,7 +225,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: "Two live resources claiming one address",
-		What:    "Two live resources carry the same tofu-address marker, so both claim one configuration address. Binding either would be a guess.",
+		What:    "Two live resources carry the same tofu-address marker (on Kubernetes, the same address annotation, where neither object is at the namespace and name the configuration names), so both claim one configuration address. Binding either would be a guess, and on Kubernetes destroying both as orphans would take the object the block still needs (GitHub issue #1641).",
 	},
 	{
 		Summary: "Two live resources claiming one slot",

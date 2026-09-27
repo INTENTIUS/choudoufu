@@ -51,6 +51,24 @@ type Verdicts struct {
 	// bound classes, so nothing else would tell them apart.
 	KubernetesAddressBound map[string]bool
 
+	// KubernetesUnaddressed is the Kubernetes leg's account of every
+	// instance in [Request.NodeRefused] that it did not bind (GitHub issue
+	// #1641), keyed by [addrs.AbsResourceInstance.String]. An instance is
+	// present only when the leg listed every kind its type can declare,
+	// and the value names the listed objects that could be its object and
+	// carry no address annotation: this estate's label, a kind the type
+	// manages, a namespace and name no concrete resolution declares, not
+	// terminating, and no annotation (or one that does not parse). Such an
+	// object is one an older build created, or one migrated from stock
+	// state before live-import stamped it.
+	//
+	// It is what the node's #1617 refusal reads since
+	// substrate.Kubernetes.CarriesAddress flipped: present and empty, a
+	// create is safe, because an object this block made carries the
+	// annotation and would have bound; non-empty, or absent (a kind that
+	// failed to list, a pass that never ran), the refusal stands.
+	KubernetesUnaddressed map[string][]string
+
 	// Bindings lists every declared instance that a live resource claimed,
 	// in address order.
 	Bindings []Binding
@@ -1864,4 +1882,15 @@ func (r *Result) sortEverything() {
 	sort.Slice(r.Resolutions, func(i, j int) bool {
 		return r.Resolutions[i].Addr.String() < r.Resolutions[j].Addr.String()
 	})
+}
+
+// UnaddressedAccount returns [Verdicts.KubernetesUnaddressed], nil-safely,
+// for the plan-node resolver's projection.NodeResolver.UnaddressedObjects
+// (GitHub issue #1641). A run with no discovery result has no account,
+// and the node's refusal stands wherever it applies.
+func (r *Result) UnaddressedAccount() map[string][]string {
+	if r == nil {
+		return nil
+	}
+	return r.KubernetesUnaddressed
 }

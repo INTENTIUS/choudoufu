@@ -101,13 +101,16 @@ func relabels(surface markers.Surface) bool {
 	return substrate.WritesOf(surface).Adopt == substrate.WriteLabelsPlan
 }
 
-// MarkerCarriesAddress reports whether the marker on this result's object
-// holds a tofu-address ([substrate.CarriesAddress]). True as well for a type
-// with no marker surface and for a Result that stopped before its surface
-// was read: both are on the tag path, and the report for them is the tag
-// report it has always been.
+// MarkerCarriesAddress reports whether the marker map on this result's
+// object holds a tofu-address key ([substrate.AddressInMarkers]): the tag
+// path. True as well for a type with no marker surface and for a Result
+// that stopped before its surface was read: both are on the tag path, and
+// the report for them is the tag report it has always been. A Kubernetes
+// object carries its address too ([substrate.CarriesAddress], GitHub issue
+// #1641), in an annotation outside its label map, and is false here: its
+// rewrite is the annotation's, not a tag's.
 func (r *Result) MarkerCarriesAddress() bool {
-	return r.Surface == "" || substrate.CarriesAddress(r.Surface)
+	return r.Surface == "" || substrate.AddressInMarkers(r.Surface)
 }
 
 // annotates reports whether a label-surface schema's metadata block has an

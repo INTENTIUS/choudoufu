@@ -16,9 +16,10 @@ import (
 	"github.com/intentius/choudoufu/internal/live/markers"
 )
 
-// Kubernetes is the hashicorp/kubernetes family: tofu-estate alone, in
+// Kubernetes is the hashicorp/kubernetes family: the tofu-estate label, in
 // metadata[0].labels or, for kubernetes_manifest, in
-// manifest.metadata.labels.
+// manifest.metadata.labels, with the block address in the
+// markers.AddressAnnotation annotation beside it (#1639).
 var Kubernetes Substrate = kubernetes{}
 
 type kubernetes struct{}
@@ -80,7 +81,15 @@ func (kubernetes) Writes(surface markers.Surface) Writes {
 	return Writes{}
 }
 
-func (kubernetes) CarriesAddress() bool { return false }
+// CarriesAddress: every object this family creates or adopts carries its
+// block address in markers.AddressAnnotation (#1639), and the sweep binds
+// on it (#1640). An object without the annotation is the case #1617's
+// refusal still covers, per object (#1641).
+func (kubernetes) CarriesAddress() bool { return true }
+
+// AddressInMarkers: the address is an annotation, outside the label map
+// [kubernetes.MarkersOf] reads (#1641).
+func (kubernetes) AddressInMarkers() bool { return false }
 
 func (kubernetes) Sweep() Sweep { return SweepLabelList }
 
