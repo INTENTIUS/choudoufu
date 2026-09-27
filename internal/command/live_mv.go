@@ -452,7 +452,7 @@ func liveMvReport(res *mv.Result) views.StatelessMvReport {
 		FoundBy:     liveMvFoundBy(res),
 		DryRun:      res.DryRun,
 
-		LabelSurface:   res.Surface == mv.SurfaceLabel,
+		LabelSurface:   !res.MarkerCarriesAddress(),
 		NothingToWrite: res.NothingToWrite,
 	}
 }
@@ -506,7 +506,7 @@ func liveMvJSONReport(res *mv.Result, diags tfdiags.Diagnostics, old, new addrs.
 		rep.Verified = res.Verified
 		rep.FoundBy = string(res.Path)
 		rep.NothingToWrite = res.NothingToWrite
-		if res.Surface != mv.SurfaceTags {
+		if !res.MarkerCarriesAddress() {
 			// No address on the object (#1016): the escaped markers the
 			// tag surface would have written are not what this object
 			// carries, so the document does not claim them.

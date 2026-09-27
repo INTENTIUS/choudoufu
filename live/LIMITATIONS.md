@@ -2676,6 +2676,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Created object is not marked | error | `internal/live/projection` | "Created object is not marked" |
 | - | - | projection | Cyclic parent-derived identities | error | `internal/live/projection` | "Cyclic parent-derived identities" |
 | - | - | projection | Empty import identity | error | `internal/live/projection` | "Empty import identity" |
+| - | - | projection | Identity not resolvable, and the marker carries no address | error | `internal/live/projection` | "Identity not resolvable, and the marker carries no address" |
 | - | - | projection | Ignoring an additional imported object | error | `internal/live/projection` | "Ignoring an additional imported object" |
 | - | - | projection | Import reported absence as an error | error | `internal/live/projection` | "Import reported absence as an error" |
 | - | - | projection | Live resource listed but not importable | error | `internal/live/projection` | "Live resource listed but not importable" |
@@ -2715,7 +2716,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**248 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**249 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -4188,6 +4189,14 @@ reserved for the limits wing's fixture directories, and
 #### Empty import identity
 
 **What.** A resource resolved to an import identity with no content, which no provider can import.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Identity not resolvable, and the marker carries no address
+
+**What.** The static evaluator could not resolve an instance's identity, the plan-node seam found no record, marker entry or evaluated identity for it either, and its type's marker surface carries no tofu-address (the Kubernetes label and manifest surfaces). A create there would flap against the orphan sweep, so the refusal stands instead of planning one (GitHub issue #1539).
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

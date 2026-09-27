@@ -39,8 +39,8 @@ import (
 // answers for - only the computed `object` beside it is read back - so the
 // seed is the only thing that can put a manifest in the projected prior.
 // The estate's marker lives inside it, at manifest.metadata.labels
-// ([markers.ManifestLabelsOf], which [markerSurface.markersOf] reads for
-// [surfaceManifest]), so an unseeded manifest reads as an object carrying
+// ([markers.ManifestLabelsOf], which [substrate.MarkersOf] reads for
+// [markers.SurfaceManifest]), so an unseeded manifest reads as an object carrying
 // no marker map at all. [builder.checkOwnership] then refuses the instance
 // as UNOWNED, the plan proposes CREATING an object choudoufu itself applied
 // one command earlier, and the estate sweep - which joins on the natural
