@@ -129,7 +129,7 @@
       "oracle": "Stock's replace of the same resource leaves the same single object.",
       "break": "Skip the destroy half; the next plan must report a collision rather than proposing nothing.",
       "substrates": {
-        "kind": "n/a: A Kubernetes name is unique within its namespace, so nothing can be created before the object it replaces is destroyed; a forced replacement is destroy-then-create, which this stage does not measure."
+        "kind": "A Kubernetes name is unique within its namespace, so the replacement create_before_destroy exists for here is a rename: a content-hashed name such as `cfg-${sha}` changes, and the Deployment reading the object rolls onto the new one before the old one goes. The old object carries the block's address annotation, the sweep binds it to the block (#1640), and the plan is the replace stock plans (`must be replaced`, create first). At `-parallelism=1` the apply log shows the new object's create complete before the old object's destroy starts, kubectl confirms only the new object remains, and the next plan is empty. A replacement that keeps its name is destroy-then-create on either tool and is not what this stage measures (#1541). The Break control recreates the old object, carrying the block's annotation, after the apply: the next plan must propose destroying it rather than nothing."
       }
     },
     {
@@ -360,7 +360,7 @@
     "kubernetes": {
       "label": "kubernetes lane",
       "estates": 4,
-      "clear": 4,
+      "clear": 0,
       "stages": {
         "cold_deploy": {
           "pass": 4,
@@ -390,8 +390,7 @@
         "day2_replace": {
           "pass": 0,
           "fail": 0,
-          "not_run": 0,
-          "n_a": 4
+          "not_run": 4
         },
         "day2_teardown": {
           "pass": 4,
@@ -2662,7 +2661,7 @@
         "day2_crash": "pass",
         "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "n/a",
+        "day2_replace": "not_run",
         "day2_teardown": "pass",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -2726,7 +2725,7 @@
           "date": "2026-09-23T20:22:53Z"
         }
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "bfbebd754acae07dcbdc806c313e501bbd225e97",
@@ -3801,7 +3800,7 @@
         "day2_crash": "pass",
         "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "n/a",
+        "day2_replace": "not_run",
         "day2_teardown": "pass",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -3865,7 +3864,7 @@
           "date": "2026-09-23T20:19:49Z"
         }
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "bfbebd754acae07dcbdc806c313e501bbd225e97",
@@ -3922,7 +3921,7 @@
         "day2_crash": "pass",
         "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "n/a",
+        "day2_replace": "not_run",
         "day2_teardown": "pass",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -3986,7 +3985,7 @@
           "date": "2026-09-23T20:54:50Z"
         }
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "bfbebd754acae07dcbdc806c313e501bbd225e97",
@@ -4043,7 +4042,7 @@
         "day2_crash": "pass",
         "day2_remove": "pass",
         "day2_rename": "pass",
-        "day2_replace": "n/a",
+        "day2_replace": "not_run",
         "day2_teardown": "pass",
         "drift_reconverge": "pass",
         "greenfield": "pass",
@@ -4107,7 +4106,7 @@
           "date": "2026-09-23T20:23:16Z"
         }
       },
-      "clear": true,
+      "clear": false,
       "protocol": "gauntlet",
       "last_run": {
         "commit": "bfbebd754acae07dcbdc806c313e501bbd225e97",
