@@ -205,8 +205,17 @@ type StatelessLookalike struct {
 	MarkerAddress string
 
 	// Hint is the one-line adoption command, empty for a type this fork has
-	// no composable tagging verb for.
+	// no composable tagging verb for. Always empty when ControllerObject is
+	// set.
 	Hint string
+
+	// ControllerObject is set when the live resource this create matches is
+	// controller-held (GitHub issue #1628): the object that made it, as
+	// [markers.ControllerHold.Describe] renders it. MarkerEstate,
+	// MarkerAddress and Hint are all empty in this case - #1604 ruled a
+	// controller-held resource is never offered for adoption, so this
+	// warning names it and stops there.
+	ControllerObject string
 }
 
 // StatelessRemoval is one live resource this estate owns and no longer
@@ -1821,6 +1830,16 @@ func (v *StatelessPlanHuman) Lookalikes(items []StatelessLookalike) {
 	for _, l := range items {
 		colored("  [bold]%s[reset] [POSSIBLE DUPLICATE] ~ %s %s%s\n",
 			l.Addr, l.TypeName, liveIDOrNone(l.LiveID), displaySuffix(l.DisplayName, l.LiveID))
+		if l.ControllerObject != "" {
+			// GitHub issue #1628: a controller-held resource is never
+			// offered for adoption (#1604's ruling), so this warning names
+			// the controller and its object and stops there - no matched-on
+			// line, no adopt line.
+			wrapped(fmt.Sprintf(
+				"%s will be created beside %s (made by %s); the controller owns that one, so this create will collide with it or duplicate it",
+				l.Addr, liveIDOrNone(l.LiveID), l.ControllerObject), 6)
+			continue
+		}
 		if len(l.Matched) > 0 {
 			out("      matched on: " + tagSummary(l.Matched, 0) + "\n")
 			wrapped(fmt.Sprintf(

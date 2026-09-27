@@ -51,8 +51,21 @@ type Lookalike struct {
 
 	// Hint is the one-line adoption command composed by the same machinery
 	// [Candidate.Hint] uses, empty for a type this fork has no composable
-	// tagging verb for.
+	// tagging verb for. Always empty when ControllerObject is set: #1604
+	// ruled a controller-held resource is never offered for adoption, so
+	// this warning names it and stops there.
 	Hint string
+
+	// ControllerObject is set when the live resource this create's
+	// identity-bearing arguments matched is controller-held (GitHub issue
+	// #1628): the object that made it, exactly as
+	// [markers.ControllerHold.Describe] renders it - "ACK ec2 controller
+	// (ec2-v1.2.3), custom resource in namespace team-a", for example.
+	// Empty for every other lookalike. MarkerEstate, MarkerAddress and Hint
+	// are all empty in this case, because there is nothing to adopt: the
+	// controller owns the object, and this warning exists only so the
+	// create is not silently proposed beside it.
+	ControllerObject string
 }
 
 // String renders a lookalike warning on one line, for logs and test failure
@@ -62,7 +75,11 @@ func (l Lookalike) String() string {
 	if id == "" {
 		id = "(no identity)"
 	}
-	return l.Addr.String() + " ~ " + l.TypeName + " " + id
+	s := l.Addr.String() + " ~ " + l.TypeName + " " + id
+	if l.ControllerObject != "" {
+		s += " CONTROLLER-HELD (" + l.ControllerObject + ")"
+	}
+	return s
 }
 
 // Lookalikes is the lookalike guard. Given the addresses a plan actually
@@ -71,9 +88,17 @@ func (l Lookalike) String() string {
 // returns one warning for every create that a live resource this estate does
 // not own might be the very thing being duplicated.
 //
-// Two paths, both as conservative as [Classify] itself, and neither one
+// Three paths, all as conservative as [Classify] itself, and none of them
 // re-derives what [Classify] already decided:
 //
+//   - A type with a [matchTable] entry whose identity-bearing arguments
+//     exactly match a controller-held resource ([Result.ControllerHeldLookalikes],
+//     built by [classifier.controllerHeldLookalikes] on the same one-to-one
+//     rule as an adoption candidate) warns with no adoption hint: #1604
+//     ruled a controller-held resource is never offered for adoption, and
+//     #1628 is that dropping the warning too would turn it into silence,
+//     because a controller-held orphan leaves [discovery.Report.Unclaimed]
+//     and is otherwise invisible to this guard.
 //   - A type with a [matchTable] entry warns only when [Result.Candidates]
 //     already offers this exact address a match - the one-to-one,
 //     every-argument-equal content match [Classify] computed once. A
@@ -102,6 +127,11 @@ func Lookalikes(req Request, res *Result, creates []addrs.AbsResourceInstance) [
 	var out []Lookalike
 	for _, addr := range creates {
 		typeName := addr.Resource.Resource.Type
+
+		if l, ok := res.ControllerHeldLookalikeFor(addr); ok {
+			out = append(out, l)
+			continue
+		}
 
 		if c, ok := res.CandidateFor(addr); ok {
 			out = append(out, Lookalike{

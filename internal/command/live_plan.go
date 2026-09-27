@@ -2688,14 +2688,15 @@ func statelessLookalikeReport(warnings []foreign.Lookalike) []views.StatelessLoo
 			matched = append(matched, views.StatelessTag{Key: m.Attr, Value: m.Value})
 		}
 		out = append(out, views.StatelessLookalike{
-			Addr:          w.Addr.String(),
-			TypeName:      w.TypeName,
-			LiveID:        w.LiveID,
-			DisplayName:   w.DisplayName,
-			Matched:       matched,
-			MarkerEstate:  w.MarkerEstate,
-			MarkerAddress: w.MarkerAddress,
-			Hint:          w.Hint,
+			Addr:             w.Addr.String(),
+			TypeName:         w.TypeName,
+			LiveID:           w.LiveID,
+			DisplayName:      w.DisplayName,
+			Matched:          matched,
+			MarkerEstate:     w.MarkerEstate,
+			MarkerAddress:    w.MarkerAddress,
+			Hint:             w.Hint,
+			ControllerObject: w.ControllerObject,
 		})
 	}
 	return out

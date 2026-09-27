@@ -1730,6 +1730,16 @@ narrowing bought (`live/costs/plan-cost.md`) is unchanged. Between
 any filterable type at all, and `TOFU_LIVE_COLLECT_UNCLAIMED=1` was the
 only route to the warning.
 
+A controller-held resource (an in-cluster controller's tags, GitHub issue
+#1606) never reaches the match-table pass above: it leaves the unclaimed
+population entirely, for the plan's Controller-held section instead, and
+`#1604` ruled it is never offered for adoption. Issue #1628: a create whose
+identity-bearing arguments match one still gets the same
+`[POSSIBLE DUPLICATE]` warning, naming the controller and its object rather
+than an adoption command - dropping the adoption hint is the ruling, but
+dropping the warning too would turn it into silence about a collision the
+apply will actually hit.
+
 Taken together: a tag policy cannot do this job at all, an
 SCP narrows who can strip a marker and where, and the plan-time guard
 catches it when someone does it regardless.
