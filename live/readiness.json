@@ -25915,17 +25915,17 @@
     "counts": {
       "types": 4,
       "tiers": {
-        "": 4
+        "marker-carried": 4
       },
       "statuses": {
-        "awaiting-ruling": 4
+        "in-contract": 4
       }
     },
     "types": [
       {
         "type": "kubernetes_cluster_role_binding",
-        "tier": "",
-        "status": "awaiting-ruling",
+        "tier": "marker-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
           "survey_path": "",
@@ -25933,13 +25933,14 @@
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
+          "label_surface": true,
           "rejected": false
         }
       },
       {
         "type": "kubernetes_config_map",
-        "tier": "",
-        "status": "awaiting-ruling",
+        "tier": "marker-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
           "survey_path": "",
@@ -25947,13 +25948,14 @@
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
+          "label_surface": true,
           "rejected": false
         }
       },
       {
         "type": "kubernetes_namespace",
-        "tier": "",
-        "status": "awaiting-ruling",
+        "tier": "marker-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
           "survey_path": "",
@@ -25961,13 +25963,14 @@
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
+          "label_surface": true,
           "rejected": false
         }
       },
       {
         "type": "kubernetes_storage_class",
-        "tier": "",
-        "status": "awaiting-ruling",
+        "tier": "marker-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
           "survey_path": "",
@@ -25975,6 +25978,7 @@
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
+          "label_surface": true,
           "rejected": false
         }
       }

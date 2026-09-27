@@ -102,6 +102,40 @@ func TestClassifyNonAWSRefusesAnUnlistedType(t *testing.T) {
 	}
 }
 
+// TestKubernetesLabelSurfaceTypesAreTierA is the maintainer's 2026-09-27
+// ruling on #1600 (tier A reads the substrate's own marker: tags on AWS,
+// labels on Kubernetes), applied once #1630 confirmed LabelSurface against
+// the real hashicorp/kubernetes 3.2.1 schema for all four types (verified
+// 2026-09-26 via internal/live/pluginschema against the warm plugin cache:
+// LabelSurface=true, TagSurface=false for every one of them, 81 resource
+// types total). They must classify as marker-carried and in-contract, not
+// sit in kubernetesAwaitingRuling any longer.
+func TestKubernetesLabelSurfaceTypesAreTierA(t *testing.T) {
+	for _, typeName := range []string{
+		"kubernetes_cluster_role_binding",
+		"kubernetes_config_map",
+		"kubernetes_namespace",
+		"kubernetes_storage_class",
+	} {
+		row, err := classifyNonAWS(typeName, map[string]bool{})
+		if err != nil {
+			t.Fatalf("classifyNonAWS(%s): %v", typeName, err)
+		}
+		if row.Tier != TierMarkerCarried {
+			t.Errorf("%s: tier = %q, want %q", typeName, row.Tier, TierMarkerCarried)
+		}
+		if row.Status != StatusInContract {
+			t.Errorf("%s: status = %q, want %q", typeName, row.Status, StatusInContract)
+		}
+		if kubernetesAwaitingRuling[typeName] {
+			t.Errorf("%s is still in kubernetesAwaitingRuling; the ruling resolved it into tier A", typeName)
+		}
+		if !row.Facts.LabelSurface {
+			t.Errorf("%s: Facts.LabelSurface = false, want true (the confirmed evidence for this ruling)", typeName)
+		}
+	}
+}
+
 // TestKubernetesAwaitingRulingLedgerMatchesAdmission is the ratchet half:
 // every ledger entry must actually be an admitted, NonAWSProvider type today
 // - the same hygiene live/harness's credential-exclusion ledgers and
@@ -117,6 +151,23 @@ func TestKubernetesAwaitingRulingLedgerMatchesAdmission(t *testing.T) {
 		}
 		if !entry.NonAWSProvider {
 			t.Errorf("kubernetesAwaitingRuling names %s, which is admitted but not NonAWSProvider; delete the entry", typeName)
+		}
+	}
+}
+
+// TestKubernetesLabelSurfaceLedgerMatchesAdmission is
+// TestKubernetesAwaitingRulingLedgerMatchesAdmission's twin for
+// [kubernetesLabelSurfaceTypes]: every entry must actually be an admitted,
+// NonAWSProvider type today.
+func TestKubernetesLabelSurfaceLedgerMatchesAdmission(t *testing.T) {
+	for typeName := range kubernetesLabelSurfaceTypes {
+		entry, ok := identity.LookupType(typeName)
+		if !ok {
+			t.Errorf("kubernetesLabelSurfaceTypes names %s, which is not in identity.DefaultTable at all; delete the entry", typeName)
+			continue
+		}
+		if !entry.NonAWSProvider {
+			t.Errorf("kubernetesLabelSurfaceTypes names %s, which is admitted but not NonAWSProvider; delete the entry", typeName)
 		}
 	}
 }

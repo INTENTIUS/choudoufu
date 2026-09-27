@@ -4920,14 +4920,23 @@ every case, which is the half of `computed_fields` that matters most:
 `aws_workspacesweb_user_settings_association`, `aws_xray_encryption_config`,
 `aws_xray_resource_policy`, `aws_xray_trace_segment_destination`,
 `kubernetes_cluster_role_binding`, `kubernetes_config_map`,
-`kubernetes_namespace` and `kubernetes_storage_class`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
-has nothing to search on for any of them. Their identity is built from
-their own configuration, which is a problem the moment a resource block is
-removed rather than destroyed: with no marker to search on and no
-configuration left to build the identity from, deleting the resource block
-looks indistinguishable from the resource never having existed. Issue #60
-is the two ways this fork closes that gap, and the residue left once both
-are applied.
+`kubernetes_namespace` and `kubernetes_storage_class`<!-- survey-gen:end untaggable-admitted --> carry no `tags` argument - the AWS-shaped test this roster runs. For the AWS
+types above that means no marker-based sweep has anything to search on:
+their identity is built from their own configuration, which is a problem
+the moment a resource block is removed rather than destroyed. With no
+marker to search on and no configuration left to build the identity from,
+deleting the resource block looks indistinguishable from the resource
+never having existed. Issue #60 is the two ways this fork closes that gap
+for them, and the residue left once both are applied.
+
+The four Kubernetes types are a different case, not a genuinely markerless
+one: `hashicorp/kubernetes` has no `tags` argument on any type, but these
+four carry a settable `metadata.labels` map, this substrate's own marker
+(`markers.LabelSurface`, issue #1016/#1061), and the ordinary Kubernetes
+estate sweep already finds them by their `tofu-estate` label. They appear
+in this roster only because "carries no `tags` argument" is the test it
+runs, not because nothing marks them - see issue #1600's ruling (tier A
+reads the substrate's own marker: tags on AWS, labels on Kubernetes).
 
 **Some are swept via a parent read instead (issue #60).** An untaggable
 type whose identity is composed from an admitted, taggable parent's own
@@ -5275,12 +5284,19 @@ Classic and WAF Classic Regional match-set entries are a third shape: they
 carry no `tags` argument in the pinned v6.59.0 provider (only the rules and
 web ACLs of those two services do), and their identity is a bare
 server-minted id with no parent argument in it, so neither path reaches
-them. For these,
+them. For these AWS entries,
 issue #60 changes nothing: destroy the resource before removing its block,
 or delete it out of band. Every plan still names this narrower list under
 "Not swept for removal". The parent-readable set above is reported there
 too when it is report-only, and left out of it entirely on the one row this
 pass also removes.
+
+The four Kubernetes types are not really residue: as the untaggable-admitted
+entry above says, they carry `hashicorp/kubernetes`'s own marker
+(`metadata.labels`) and the ordinary Kubernetes estate sweep already finds
+them by it. They land in this roster only because "neither taggable nor
+parent-readable" is the AWS-shaped test this partition runs; issue #60's
+destroy-or-delete-out-of-band prescription is not needed for them.
 
 **An import-derived prior state cannot hold config-only attributes, unless
 an estate declares a `record_store`.** A provider attribute that the cloud
