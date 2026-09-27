@@ -14,45 +14,17 @@ import (
 	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
-// This file is the read-and-rewrite half of a tags-only object write, the
-// same shape internal/live/liveimport's tags.go and internal/live/mv's
-// rewrite.go already have: given a resource's schema and a live object,
-// tell whether it carries a tags argument this package can act on, replace
-// that argument, and tell whether a plan changed anything besides tags.
+// This file is the rewrite half of a tags-only object write, the same shape
+// internal/live/liveimport's tags.go and internal/live/mv's rewrite.go
+// already have: given a resource's schema and a live object, replace its
+// tags argument, and tell whether a plan changed anything besides tags.
+// Which surface a type carries and how its markers are read are
+// internal/live/substrate's answers, asked by releaseOne (GitHub issue
+// #1644); this file is reached only for the tag surface.
 // Duplicated rather than imported - see this package's doc comment for why.
-
-// taggable reports whether a resource type carries the tag map the marker
-// spec describes. It is [markers.Taggable] and nothing else, the same way
-// internal/live/stamp's taggable is, because "can this type carry a marker"
-// has to have one answer across every path that writes one.
-//
-// It was a copy until this line: the shape test - top-level, settable,
-// map(string) - written out again here, in internal/live/liveimport and in
-// internal/live/mv, each with the same four clauses and its own comment
-// saying it matched the others. When issue #243 gave [markers.TagSurface] a
-// fifth clause ([markers.VocabularyRefusal], which refuses a tags map whose
-// keys the provider has documented as its own namespace), stamping stopped
-// writing markers into those maps and these three copies did not. A release
-// path is a write path: it reads the marker back off the object and asks the
-// provider to put the object back without it, so a type the copy admitted
-// and markers.Taggable refuses was one this package would act on and
-// stamping would never have marked.
-func taggable(block *configschema.Block) bool { return markers.Taggable(block) }
-
-// tagsFromObj reads a resource object's tags, deferring to
-// [markers.TagsOf] for the actual read - the same "tags_all" then "tags"
-// precedence discovery already reads listed objects with - so this file
-// only needs the write half markers.TagsOf deliberately does not have.
-func tagsFromObj(block *configschema.Block, obj cty.Value) (map[string]string, bool) {
-	if block == nil || !taggable(block) {
-		return nil, false
-	}
-	return markers.TagsOf(obj)
-}
 
 // withTags returns obj with its tags attribute replaced by tags.
 func withTags(block *configschema.Block, obj cty.Value, tags map[string]string) (cty.Value, error) {
@@ -258,6 +230,14 @@ func mapElements(val cty.Value, f func(cty.Value) cty.Value) cty.Value {
 // write's own assertion that it proposes nothing but the release, each
 // rendered "name (prior -> next)".
 func changedOutsideTags(block *configschema.Block, prior, planned cty.Value) []string {
+	return changedAttrs(block, prior, planned, map[string]bool{"tags": true, "tags_all": true})
+}
+
+// changedAttrs names every attribute and nested block of block, outside
+// skip, whose value differs between prior and planned, each rendered
+// "name (prior -> next)". The tag release compares the top level of the
+// object with it and the label release the metadata block as well.
+func changedAttrs(block *configschema.Block, prior, planned cty.Value, skip map[string]bool) []string {
 	if prior == cty.NilVal || prior.IsNull() || planned == cty.NilVal || planned.IsNull() {
 		return nil
 	}
@@ -271,7 +251,6 @@ func changedOutsideTags(block *configschema.Block, prior, planned cty.Value) []s
 	}
 	sort.Strings(names)
 
-	skip := map[string]bool{"tags": true, "tags_all": true}
 	var out []string
 	for _, name := range names {
 		if skip[name] {
