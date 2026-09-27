@@ -347,11 +347,27 @@ smoke_stall() {
 # sets SMOKE_TIMER_PID. Its own output goes to the stderr smoke.sh started
 # with and never to a pipe the caller is capturing: a `$(...)` does not
 # return while anything still holds its write end.
+#
+# The trap goes on before sleep is forked, not after (#1593, measured under
+# CPU pressure that starves this subshell of scheduling): a TERM landing in
+# the gap between the fork and installing the trap left the sleep behind as
+# a live orphan when this subshell exited without it. Reordering only
+# narrows that gap - a TERM can still land between the fork completing and
+# `nap=$!` running, since bash only checks for one at a command boundary -
+# so the sleep also has SMOKE_ERR_FD explicitly closed: it is smoke.sh's
+# real fd 9, inherited into every child by default, and an orphan holding
+# it open blocks any `$(...)` capturing smoke.sh's output for up to the
+# full bound, seconds after the scenario itself already printed its
+# verdict and exited. Measured live under stress-ng: reordering alone still
+# left the sleep as a pipe-holding orphan; closing its copy of fd 9 does
+# not, however it is left behind. nap is empty until the fork returns;
+# killing an empty pid is a no-op.
 smoke_timer() { # <secs> <before> <after>, the two halves of smoke_stall's verdict
   (
-    sleep "$1" >/dev/null 2>&1 &
-    nap=$!
+    nap=""
     trap 'kill "$nap" 2>/dev/null; exit 0' TERM
+    sleep "$1" >/dev/null 2>&1 9>&- &
+    nap=$!
     wait "$nap" || exit 0
     smoke_stall "$2" "$3"
   ) >/dev/null 2>&"${SMOKE_ERR_FD:-2}" &

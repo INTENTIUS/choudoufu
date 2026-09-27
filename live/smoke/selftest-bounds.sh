@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# live/smoke/selftest-bounds.sh: proof for issue #1457.
+# live/smoke/selftest-bounds.sh: proof for issue #1457 and #1593.
 #
 # On 2026-09-21 one k8s smoke sat in its scenario step for 35 minutes, was
 # cancelled by the job timeout and left no log. Nothing between `just smoke
@@ -9,6 +9,14 @@ set -uo pipefail
 # on a kubectl request, none on a choudoufu call made against a fail-closed
 # webhook, and a wait loop that counted tries while one try could block for
 # ever.
+#
+# #1457's fix only bounded scenarios named `k8s-*`, on the theory that only
+# those needed one. That left the 29 scenarios run against the floci
+# emulator - the great majority, and none of them prefixed - with no bound
+# at all. #1593 reads the bound's one real carve-out, real_aws, off the
+# claim in claims.json instead, so every scenario is bounded except the
+# seven that tear down against a real AWS account in an EXIT trap of their
+# own.
 #
 # This self-test runs the SHIPPED smoke.sh and lib.sh, copied into a scratch
 # tree, against a stub `kubectl` that never returns, a stub `choudoufu` that
@@ -160,6 +168,22 @@ case "$SELFTEST_STALL" in
 esac
 step "3. a step that must never start"
 SCEOF
+  # An emulator-style scenario, named with no k8s- prefix on purpose (#1593):
+  # most bounded scenarios run against floci, not a kind cluster, and this is
+  # what one looks like. Its stall is a plain `chdf` call, the way every
+  # shipped floci scenario calls choudoufu - unlike chdf_bounded above, chdf
+  # carries no bound of its own, so only the scenario watchdog can catch it.
+  cat > "$1/selftest-stall.sh" <<'SCEOF'
+# selftest-stall
+# selftest-bounds.sh's own emulator-style scenario (#1593): step 2 never
+# returns, and the name carries no k8s- prefix - proof the bound is decided
+# from claims.json's real_aws flag and not from a slug.
+step "1. a step that returns"
+true
+step "2. the step that stalls"
+OUT="$(chdf apply -auto-approve 2>&1)" || fail "selftest-stall" "apply failed: $OUT"
+step "3. a step that must never start"
+SCEOF
 }
 
 # sandbox <name>: a scratch tree shaped like the repository as far as lib.sh
@@ -214,10 +238,12 @@ stubs_all_gone() {
   echo "$left"; return 1
 }
 
-# check_stall_verdict <scenario> <the whole FAIL line, word for word>: the
-# properties every bound owes, read off one finished run.
+# check_stall_verdict <scenario> <the whole FAIL line, word for word> [want_cluster=1]:
+# the properties every bound owes, read off one finished run. want_cluster=0
+# skips the kind-delete-cluster check for a scenario that never calls
+# cluster_up (#1593's emulator-style stall has no cluster to tear down).
 check_stall_verdict() {
-  local scenario="$1" line="$2" n left
+  local scenario="$1" line="$2" want_cluster="${3:-1}" n left
   if [ "$HUNG" = "1" ]; then
     bad "the run was still going after ${ELAPSED}s and this script killed it: nothing bounded the stall"
     return 0
@@ -237,8 +263,10 @@ check_stall_verdict() {
   if grep -q 'a step that must never start' "$OUT"; then bad "the scenario carried on past the stalled step"
   else ok "nothing after the stalled step ran"; fi
   if grep -q '^PASS:' "$OUT"; then bad "the run printed a PASS line"; else ok "no PASS line"; fi
-  if grep -q '^delete cluster' "$SB/kind.log"; then ok "the EXIT trap still ran: kind delete cluster was called"
-  else bad "kind delete cluster was never called, so a stalled run leaves its cluster behind"; fi
+  if [ "$want_cluster" = "1" ]; then
+    if grep -q '^delete cluster' "$SB/kind.log"; then ok "the EXIT trap still ran: kind delete cluster was called"
+    else bad "kind delete cluster was never called, so a stalled run leaves its cluster behind"; fi
+  fi
   if left="$(stubs_all_gone)"; then ok "no stub process outlived the run (the stalled call and its sleep were grandchildren)"
   else bad "still running after the run ended:$left"; fi
 }
@@ -356,10 +384,10 @@ if wanted mutant-no-watchdog; then
   # A call wrapped with a backslash cannot be replaced one line at a time:
   # the second half is left behind and runs as a command, which is how this
   # case once exited 127 without saying why. Refuse that shape by name.
-  if grep -q '^    smoke_timer "\$BOUND".*\\$' "$SB/tree/live/smoke/smoke.sh"; then
+  if grep -q '^  smoke_timer "\$BOUND".*\\$' "$SB/tree/live/smoke/smoke.sh"; then
     bad "smoke.sh's 'smoke_timer \"\$BOUND\"' call ends in a backslash; the mutant is built by replacing that one line, so put the call on a single line"
-  elif grep -q '^    smoke_timer "\$BOUND".*' "$SB/tree/live/smoke/smoke.sh"; then
-    sed 's/^    smoke_timer "\$BOUND".*/    SMOKE_TIMER_PID=""/' "$SB/tree/live/smoke/smoke.sh" > "$SB/smoke.mutant" \
+  elif grep -q '^  smoke_timer "\$BOUND".*' "$SB/tree/live/smoke/smoke.sh"; then
+    sed 's/^  smoke_timer "\$BOUND".*/  SMOKE_TIMER_PID=""/' "$SB/tree/live/smoke/smoke.sh" > "$SB/smoke.mutant" \
       && mv "$SB/smoke.mutant" "$SB/tree/live/smoke/smoke.sh"
     run_smoke k8s-selftest-stall 20 SELFTEST_STALL=kubectl KUBECTL_STALL_GLOB='*create namespace*' \
       SMOKE_TIMEOUT_SECS=10 SMOKE_KILL_GRACE_SECS=2
@@ -375,10 +403,29 @@ if wanted mutant-no-watchdog; then
   reap_stubs
 fi
 
+# --- 7. the scenario bound on an emulator-style scenario, no k8s- prefix ---
+# Issue #1593: on main the case that starts the watchdog only matches
+# `k8s-*`, so a scenario named like the 29 floci ones - no prefix at all -
+# stalls with no bound and no log until the CI job timeout kills the whole
+# run. selftest-stall.sh is that shape: it never calls cluster_up, and its
+# stall is a plain `chdf` call, the way every shipped floci scenario talks
+# to choudoufu. This scenario is not in claims.json at all, so the fix has
+# to read that as "not real_aws" and bound it, not read it as "not k8s-*"
+# and skip it.
+if wanted watchdog-floci; then
+  sandbox watchdog-floci
+  run_smoke selftest-stall 20 CHDF_STALL_GLOB='apply*' \
+    SMOKE_TIMEOUT_SECS=10 SMOKE_KILL_GRACE_SECS=2
+  check_stall_verdict selftest-stall 'FAIL [selftest-stall]: stalled in step "2. the step that stalls" and killed after 10s. Raise the bound with SMOKE_TIMEOUT_SECS=<seconds>.' 0
+  if grep -q 'still running: .*choudoufu.*apply' "$OUT"; then ok "the stalled command is named above the verdict"
+  else bad "the output does not name the command that was still running"; fi
+  [ "$PASS" = "1" ] || show_out
+fi
+
 log ""
 if [ "$PASS" = "1" ]; then
-  log "PASS: selftest-bounds - every stalled call failed by name inside its bound, and the cluster was still deleted (#1457)"
+  log "PASS: selftest-bounds - every stalled call failed by name inside its bound, and the cluster was still deleted (#1457, #1593)"
   exit 0
 fi
-log "FAIL: selftest-bounds - see the FAIL lines above (#1457)"
+log "FAIL: selftest-bounds - see the FAIL lines above (#1457, #1593)"
 exit 1
