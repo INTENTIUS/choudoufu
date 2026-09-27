@@ -21,27 +21,29 @@
 # claims.json's own `minutes` field: that field is a CI-timeout input
 # (live/smoke/smoke.sh's scenario_bound_secs, which doubles it), not a
 # runtime estimate, and every scenario here ran in well under a third of
-# its claims.json minutes. The slowest of the 20 scenarios in the `smoke`
+# its claims.json minutes. The slowest of the 21 scenarios in the `smoke`
 # job below was carve-by-retag at 3m14s + 2m12s = 5m26s combined; every
 # other one finished faster. no-secret-survives-in-what-the-tool-keeps
 # measured 9m21s + 6m18s = 15m39s combined - three times the next
 # heaviest scenario - and runs nightly only, in the `smoke-nightly` job.
 #
-# Two claims measured here are excluded rather than added red:
+# One claim measured here is excluded rather than added red:
 #   - claim 13, the-tag-is-the-boundary: its BREAK control's own `denied()`
 #     check greps the whole apply transcript for "AccessDenied", which
 #     also matches an unrelated, harmless sweep warning
 #     (`aws_iam_policy`/`iam:ListPolicies` 403) quoted in choudoufu's own
 #     output, so it reads Bob's successful cross-half write as still
 #     refused. Filed as #1636.
-#   - claim 17, record-only-survives-cache-loss: fails at its first apply,
-#     both arms, on issue #950's node-path unmarked-apply refusal, which
-#     fires unconditionally on a first apply of an untaggable,
-#     record-recoverable resource because no record can exist yet for it
-#     to be exempted by. Filed as #1637.
-# Both are substrate-parity / lane:proof-ci findings against #1579, not
-# regressions this unit introduced or can fix; re-add them here once
+# It is a substrate-parity / lane:proof-ci finding against #1579, not a
+# regression this unit introduced or can fix; re-add it here once
 # resolved.
+#
+# Claim 17, record-only-survives-cache-loss, was excluded the same way
+# until #1637: #950's unmarked-apply refusal stopped its first apply. The
+# refusal now steps aside when the run's record store is writable, and the
+# claim runs in the smoke job below. Measured locally against the pinned
+# emulator on 2026-09-26 before the no-smoke-runs rule: 1m40s + 1m27s =
+# 3m07s combined.
 #
 # Verdict lines, not exit codes (#1439). Every run goes through
 # live/smoke/ci-run.sh, which writes the run's output to a file as it goes
@@ -85,7 +87,7 @@ jobs:
   smoke:
     # Every PR/push run, plus a manual dispatch. Not on schedule: the
     # nightly's job is smoke-nightly below, so a scheduled run does not
-    # also re-run these 20 (nightly-watch would then be reporting on a
+    # also re-run these 21 (nightly-watch would then be reporting on a
     # conclusion that mixes budgeted and over-budget scenarios).
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
@@ -114,6 +116,7 @@ jobs:
           - the-estate-answers-in-the-present-tense
           - a-killed-apply-hides-nothing
           - two-estates-at-once
+          - record-only-survives-cache-loss
     steps:
       - uses: actions/checkout@v7
         with:
