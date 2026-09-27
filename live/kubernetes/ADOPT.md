@@ -84,14 +84,24 @@ On AWS the marker carries the config address, because AWS hands back opaque
 ids and the tag is the only way from a live object back to a line of
 configuration. Kubernetes returns the natural key: group, kind, namespace and
 name, with the name authored in the configuration this fork already parses.
-So the address does not need to be on the object.
+So re-binding does not need the address on the object.
 
-The marker is one label, `tofu-estate`, and re-binding goes through the
-natural key. Measured against the identity golden set, nearly half of real config
-addresses are illegal as a label value and a 63-character cap binds at once
-on ordinary module-nested shapes; putting the address in a label would need
-three or four continuation labels per object and would break the exact-match
-condition a policy wants. An estate-only label fits by construction.
+The ownership marker is one label, `tofu-estate`, and re-binding goes
+through the natural key, not the address. Measured against the identity
+golden set, nearly half of real config addresses are illegal as a label
+value and a 63-character cap binds at once on ordinary module-nested
+shapes; putting the address in a label would need three or four
+continuation labels per object and would break the exact-match condition
+a policy wants. An estate-only label fits by construction.
+
+Since #1639 (#1605's ruling of 2026-09-26) the address goes on the object
+too, in an annotation beside the label,
+`choudoufu.intentius.io/tofu-address`, which has no length cap and no
+label grammar to break. It is a join key for the sweep and `live-mv`
+(#1640, #1641), not the ownership marker and not what re-binding depends
+on: an object with the label but no annotation, or one whose annotation
+is stale, still resolves through the natural key exactly as before, and
+the next plan or `live-mv` rewrites the annotation to match.
 
 ## Refused, not guessed
 

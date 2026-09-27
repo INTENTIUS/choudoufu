@@ -11,11 +11,12 @@ deeper:
 
 ## Rename
 
-There is no address on the object, so renaming a block changes nothing live
-and the plan is empty. Changing a type's version suffix,
-`kubernetes_config_map` to `kubernetes_config_map_v1`, is the same. Moving an
-object to another estate is a relabel, through `live-mv -from-estate` or
-`kubectl label --overwrite`.
+Renaming a block rewrites the address annotation beside the label
+(#1639), through `live-mv <old> <new>` or the next plan and apply.
+Changing a type's version suffix, `kubernetes_config_map` to
+`kubernetes_config_map_v1`, still replans empty. Moving an object to
+another estate is a relabel, through `live-mv -from-estate` or `kubectl
+label --overwrite`.
 
 ### Records
 

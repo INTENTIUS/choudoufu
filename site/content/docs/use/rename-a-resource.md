@@ -19,13 +19,12 @@ A destination address absent from your configuration is refused unless you pass
 `-allow-missing-config`. `-dry-run` shows what it would write. Full options in
 `choudoufu live-mv -help`.
 
-On Kubernetes there is no address on the object to rewrite, so a rename is
-the config edit alone and the next plan is empty; `live-mv` has nothing
-governed to do there. The same holds for changing a block's type between
-the two spellings of a kind, `kubernetes_config_map` to
-`kubernetes_config_map_v1`: that is an `api_version` change, not a move,
-and needs no `moved` block ([Operate]({{< relref "/kubernetes/operate" >}})
-on the Kubernetes hub).
+On Kubernetes the write is the address annotation beside the label,
+since #1639: `live-mv <old> <new>` rewrites it, or the next plan and
+apply do it unasked, and neither needs a `moved` block. The two
+spellings of a kind, `kubernetes_config_map` to `kubernetes_config_map_v1`,
+are an `api_version` change, not a move, and still replan empty
+([Operate]({{< relref "/kubernetes/operate" >}}) on the Kubernetes hub).
 
 ## Moving a resource to another estate
 
@@ -49,11 +48,11 @@ walks a whole split this way.
 
 ## On Kubernetes
 
-The marker is one label, `tofu-estate`, and the object carries no
-address: it is bound to its block by its own kind, namespace and name. A
-rename within an estate therefore has nothing to write. Rename the block,
-and the next plan is empty. `live-mv` run out of habit reports
-`Nothing to write` and exits 0.
+Since #1639 the object also carries the block address in an
+annotation beside the label, `tofu-estate`. A rename within an estate
+rewrites just that annotation: run `live-mv <old> <new>`, or let the next
+plan and apply do it. `live-mv` reports `Nothing to write` once that
+annotation already names the new address.
 
 Moving an object to another estate is the same `-from-estate` command as
 above, run in the destination's configuration. It rewrites the label

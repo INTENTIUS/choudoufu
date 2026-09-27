@@ -24,6 +24,9 @@ const (
 	shardCommit   = "1111111111111111111111111111111111111111"
 	shardDate     = "2026-09-23T00:00:00Z"
 	shardEmulator = "ghcr.io/lex00/floci@sha256:aaaa"
+	// shardKindImage is the kind node image the kind-substrate fixtures pin
+	// against, live/kind-node-image's counterpart to shardEmulator above.
+	shardKindImage = "kindest/node@sha256:kkkk"
 )
 
 // shardTestManifest is a manifest with one estate of every shape the
@@ -116,6 +119,51 @@ func shardOf(t *testing.T, root string, base *Artifact, estate string) ShardArti
 	return ShardArtifact{Estate: estate, Path: "shard-" + estate + ".json", Artifact: a}
 }
 
+// measureKind writes into a the row a kind-substrate `gauntlet run <estate>`
+// actually leaves (RunEstates, run.go, issue #1594): LastRun.SubstrateImage
+// set to the kind node image the cluster was created from, LastRun.Emulator
+// left empty, because a kind-substrate estate never launches floci and
+// stamping Emulator would record what a DIFFERENT estate's run used. This is
+// measure's counterpart for the kind substrate - measure alone stamps every
+// row the floci-substrate way, which is not what a real kind-lane estate's
+// row looks like.
+func measureKind(t *testing.T, root string, a *Artifact, estate, commit, kindImage string) {
+	t.Helper()
+	m, err := LoadManifest(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for i := range a.Estates {
+		if a.Estates[i].Name != estate {
+			continue
+		}
+		found = true
+		r := &a.Estates[i]
+		r.Protocol = ProtocolGauntlet
+		r.Stages = stagesAllPass()
+		r.StageRuns = map[string]StageRun{}
+		for id := range r.Stages {
+			r.StageRuns[id] = StageRun{Commit: commit, Date: shardDate}
+		}
+		r.LastRun = &LastRun{Commit: commit, Date: shardDate, SubstrateImage: kindImage, DurationS: 1}
+	}
+	if !found {
+		t.Fatalf("no row for %q to measure", estate)
+	}
+	a.Rebuild(m, nil, shardEmulator, OracleVersions{}, ProviderVersions{})
+}
+
+// shardOfKind is shardOf's counterpart for a kind-substrate estate: the
+// shard's own row is stamped the way a real kind-substrate run stamps it
+// (measureKind), not the floci shape shardOf uses.
+func shardOfKind(t *testing.T, root string, base *Artifact, estate, kindImage string) ShardArtifact {
+	t.Helper()
+	a := copyArtifact(t, base)
+	measureKind(t, root, a, estate, shardCommit, kindImage)
+	return ShardArtifact{Estate: estate, Path: "shard-" + estate + ".json", Artifact: a}
+}
+
 // TestShardEstatesCoversEveryEstateTheRunMeasures: the matrix is computed
 // from the manifest so an estate added to the corpus cannot silently drop
 // out of the board. The wanted set is walked out of the fixture manifest
@@ -194,17 +242,19 @@ func TestCombineShardsAggregatesEqualASerialRun(t *testing.T) {
 	root := shardTestRoot(t, shardTestManifest())
 	base := shardBase(t, root)
 
-	shards := []ShardArtifact{shardOf(t, root, base, "alpha"), shardOf(t, root, base, "kube")}
-	got, err := CombineShards(root, base, shards, []string{"alpha", "kube"}, shardCommit, shardEmulator)
+	shards := []ShardArtifact{shardOf(t, root, base, "alpha"), shardOfKind(t, root, base, "kube", shardKindImage)}
+	got, err := CombineShards(root, base, shards, []string{"alpha", "kube"}, shardCommit, shardEmulator, shardKindImage)
 	if err != nil {
 		t.Fatalf("CombineShards: %v", err)
 	}
 
 	// What one serial `gauntlet run alpha kube` would have produced: the
-	// same two rows written into the same base, rebuilt once.
+	// same two rows written into the same base, rebuilt once. "kube" is a
+	// kind-substrate estate, so its row is stamped the SubstrateImage way
+	// (measureKind), not the floci way "alpha" gets.
 	want := copyArtifact(t, base)
 	measure(t, root, want, "alpha", shardCommit, shardEmulator)
-	measure(t, root, want, "kube", shardCommit, shardEmulator)
+	measureKind(t, root, want, "kube", shardCommit, shardKindImage)
 
 	if !reflect.DeepEqual(got.Sets, want.Sets) {
 		t.Errorf("combined sets:\n got %+v\nwant %+v", got.Sets, want.Sets)
@@ -230,9 +280,55 @@ func TestCombineShardsAggregatesEqualASerialRun(t *testing.T) {
 	}
 }
 
+// TestCombineShardsAcceptsAKindSubstrateRowMeasuredAgainstThePinnedNodeImage
+// is the red-first guard for issue #1685's nightly failure. A kind-substrate
+// estate never launches floci (#1594), so its row leaves LastRun.Emulator
+// empty and records LastRun.SubstrateImage instead. Before this fix,
+// combine-shards held EVERY row, kind-substrate ones included, to
+// `row.LastRun.Emulator == emulator`, so a kind row's permanently-empty
+// Emulator field compared unequal to the floci pin forever, no matter what
+// it actually ran against - exactly the nightly's own refusal (run
+// 36308900723): `estate "corpus-quickpizza" was measured against emulator
+// <none> and this run pins ghcr.io/lex00/floci@sha256:6c3d...`.
+func TestCombineShardsAcceptsAKindSubstrateRowMeasuredAgainstThePinnedNodeImage(t *testing.T) {
+	root := shardTestRoot(t, shardTestManifest())
+	base := shardBase(t, root)
+	shard := shardOfKind(t, root, base, "kube", shardKindImage)
+
+	got, err := CombineShards(root, base, []ShardArtifact{shard}, []string{"kube"}, shardCommit, shardEmulator, shardKindImage)
+	if err != nil {
+		t.Fatalf("CombineShards refused a kind-substrate row measured against the pinned kind node image (empty Emulator is correct for a kind row): %v", err)
+	}
+	row, ok := indexRows(got.Estates)["kube"]
+	if !ok || row.LastRun == nil || row.LastRun.SubstrateImage != shardKindImage {
+		t.Fatalf("combined row for kube does not carry the kind node image: %+v", row)
+	}
+	if row.LastRun.Emulator != "" {
+		t.Errorf("combined row for kube carries an emulator digest (%q); a kind-substrate row must never claim to have launched floci", row.LastRun.Emulator)
+	}
+}
+
+// TestCombineShardsRefusesAKindNodeImageDisagreement mirrors
+// TestCombineShardsRefusesAnEmulatorDisagreement for the kind substrate: a
+// real mismatch - a kind shard measured against a different node image than
+// this run pins - must still refuse. The fix above must not turn every kind
+// row into an unconditional pass.
+func TestCombineShardsRefusesAKindNodeImageDisagreement(t *testing.T) {
+	root := shardTestRoot(t, shardTestManifest())
+	base := shardBase(t, root)
+	shard := shardOfKind(t, root, base, "kube", "kindest/node@sha256:wrong")
+
+	msg := combineErr(t, root, base, []ShardArtifact{shard}, []string{"kube"})
+	for _, want := range []string{"kube", "sha256:wrong", shardKindImage} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("refusal does not name %q: %s", want, msg)
+		}
+	}
+}
+
 func combineErr(t *testing.T, root string, base *Artifact, shards []ShardArtifact, expect []string) string {
 	t.Helper()
-	_, err := CombineShards(root, base, shards, expect, shardCommit, shardEmulator)
+	_, err := CombineShards(root, base, shards, expect, shardCommit, shardEmulator, shardKindImage)
 	if err == nil {
 		t.Fatal("CombineShards accepted this; it must refuse rather than guess")
 	}
