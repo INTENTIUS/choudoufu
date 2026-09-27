@@ -26,7 +26,7 @@ name: nightly-watch
 
 on:
   workflow_run:
-    workflows: [Gauntlet, floci-tier, bucket-smoke, claims-smoke]
+    workflows: [Gauntlet, floci-tier, bucket-smoke, claims-smoke, kind-tier]
     types: [completed]
 
 permissions:
