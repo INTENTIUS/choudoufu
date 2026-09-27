@@ -178,6 +178,10 @@ var refusals = []Refusal{
 		What:    "A resource resolved to an import identity with no content, which no provider can import.",
 	},
 	{
+		Summary: SummaryIdentityUnresolvedNoAddress,
+		What:    "The static evaluator could not resolve an instance's identity, the plan-node seam found no record, marker entry or evaluated identity for it either, and its type's marker surface carries no tofu-address (the Kubernetes label and manifest surfaces). A create there would flap against the orphan sweep, so the refusal stands instead of planning one (GitHub issue #1539).",
+	},
+	{
 		Summary: "Ignoring an additional imported object",
 		What:    "An import returned more than one object where one was expected; the extra objects are dropped and this says so rather than choosing silently.",
 	},

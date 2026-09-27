@@ -20,6 +20,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
@@ -223,10 +224,12 @@ type Result struct {
 	Path Path
 
 	// Surface is where the marker lives on the live object (label.go):
-	// [SurfaceTags] for the AWS tag map, [SurfaceLabel] for a Kubernetes
-	// metadata block, [SurfaceManifest] for a manifest-declared object.
-	// Read off the provider's schema for the type, never off its name.
-	Surface Surface
+	// [markers.SurfaceTags] for the AWS tag map, [markers.SurfaceLabels]
+	// for a Kubernetes metadata block, [markers.SurfaceManifest] for a
+	// manifest-declared object, and the zero Surface for a type with none
+	// (which takes the tag path). Read off the provider's schema for the
+	// type, never off its name.
+	Surface markers.Surface
 
 	// NothingToWrite is true when this rename had nothing governed to
 	// write on the live system and stopped, successfully, before reading
@@ -384,13 +387,17 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// name on the manifest shape until that rewrite exists.
 	res.Surface = surfaceOf(schema.Block)
 	switch {
-	case res.Surface == SurfaceTags:
+	case res.MarkerCarriesAddress():
+		// The tag path, which a type with no surface takes too.
 	case req.FromEstate == "":
 		// Nothing on the cluster; the estate's own records still follow
 		// the address, exactly as after a tag rewrite.
 		res.NothingToWrite = true
 		return res, diags.Append(m.propagateModuleRename(ctx))
-	case res.Surface == SurfaceManifest:
+	case !relabels(res.Surface):
+		// The one cross-estate write built here for an addressless marker
+		// is the labels-only plan; the manifest shape's label patch is not
+		// (#1104), so it is refused by name.
 		return res, diags.Append(manifestMoveRefusal(res.TypeName, anchor, req.FromEstate, req.Estate))
 	}
 
@@ -871,7 +878,7 @@ func (m *mover) find(ctx context.Context) (*states.ResourceInstanceObject, tfdia
 	if idDiags.HasErrors() {
 		return nil, diags
 	}
-	if listable && m.res.Surface != SurfaceLabel {
+	if listable && !relabels(m.res.Surface) {
 		// On the label surface the address is not on the object, so no
 		// second object can "already carry" it: the natural key the
 		// configuration names is the whole identity, and one key names
@@ -1142,7 +1149,7 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 		return nil, diags
 	}
 
-	if m.res.Surface == SurfaceLabel {
+	if relabels(m.res.Surface) {
 		return m.locateLabelled(obj, resolution)
 	}
 

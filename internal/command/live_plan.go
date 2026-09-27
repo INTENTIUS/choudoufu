@@ -623,6 +623,11 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		// resolves the instance at all and the run would plan a create
 		// over an object it could not identify. live_mode.go's own copy
 		// reads r.nodeResolve for the same reason.
+		//
+		// GitHub issue #1539: the refusals reach the resolver first, so
+		// on a marker surface that carries no address the static refusal
+		// stands at the node. See projection.NodeResolver.StaticRefusals.
+		resolver.StaticRefusals = identity.InstanceRefusals(idDiags)
 		idDiags = identity.DowngradeForNodeResolution(idDiags)
 	}
 	diags = diags.Append(idDiags)
