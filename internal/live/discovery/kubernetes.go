@@ -156,8 +156,8 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 	// kind: a reader of the scan table asks "was kubernetes_manifest
 	// swept", and the kinds are the detail of the answer.
 	manifestKinds, manifestDeclared := 0, declared.Count()
-	listed := listedObjects{}
-	var undeclared []undeclaredObject
+	listed := ListedObjects{}
+	var undeclared []UndeclaredObject
 	for _, k := range kinds {
 		objects, ownerSkipped, err := leg.Client.List(ctx, k, markers.TagEstate, req.Estate)
 		if err != nil {
@@ -220,11 +220,11 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 			})
 		}
 		for _, o := range objects {
-			listed.add(k.Kind, kubesweep.NaturalKey(o.Namespace, o.Name))
+			listed.Add(k.Kind, kubesweep.NaturalKey(o.Namespace, o.Name))
 			if _, isDeclared := declared.Declares(k.Kind, kubesweep.NaturalKey(o.Namespace, o.Name)); isDeclared {
 				continue
 			}
-			undeclared = append(undeclared, undeclaredObject{kind: k, typeName: typeName, object: o})
+			undeclared = append(undeclared, UndeclaredObject{Kind: k, TypeName: typeName, Object: o})
 		}
 	}
 
@@ -238,7 +238,7 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 		if bound[i] {
 			continue
 		}
-		k, typeName, o := u.kind, u.typeName, u.object
+		k, typeName, o := u.Kind, u.TypeName, u.Object
 		name := kubesweep.OrphanResourceName(o.Namespace, o.Name)
 		if k.Manifest {
 			name = kubesweep.ManifestOrphanResourceName(k.Kind, o.Namespace, o.Name)
