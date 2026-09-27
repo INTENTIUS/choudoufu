@@ -274,9 +274,32 @@ func TestMove_LabelSurfaceMovesBetweenEstates(t *testing.T) {
 	}
 }
 
+// labelTestSchemaWithoutAnnotations is [labelTestSchema] with no
+// annotations attribute in its metadata block, and
+// labelTestObjectWithoutAnnotations an object of it: a label-surface shape
+// with nowhere to carry the address annotation (GitHub issue #1639), the
+// one on which a same-estate rename still has nothing to write.
+func labelTestSchemaWithoutAnnotations() providers.Schema {
+	s := labelTestSchema()
+	delete(s.Block.BlockTypes["metadata"].Block.Attributes, "annotations")
+	return s
+}
+
+func labelTestObjectWithoutAnnotations(labels map[string]string) cty.Value {
+	attrs := labelTestObject(labels).AsValueMap()
+	meta := attrs["metadata"].Index(cty.NumberIntVal(0)).AsValueMap()
+	delete(meta, "annotations")
+	attrs["metadata"] = cty.ListVal([]cty.Value{cty.ObjectVal(meta)})
+	return cty.ObjectVal(attrs)
+}
+
+// Every hashicorp/kubernetes metadata block has an annotations map, and a
+// rename of such an object rewrites the address annotation
+// (address_annotation_test.go). A metadata block with none has no address
+// on the object, and the rename is still the pre-#1639 "nothing to write".
 func TestMove_LabelSurfaceRenameHasNothingToWrite(t *testing.T) {
 	ctx := t.Context()
-	cluster := newLabelTestCluster(t, labelTestSchema(), labelTestObject(map[string]string{markers.TagEstate: "app"}))
+	cluster := newLabelTestCluster(t, labelTestSchemaWithoutAnnotations(), labelTestObjectWithoutAnnotations(map[string]string{markers.TagEstate: "app"}))
 	old := mustAddr(t, labelTestType+".database")
 	renamed := mustAddr(t, labelTestType+".database_renamed")
 
@@ -410,11 +433,6 @@ func TestMove_ManifestSurfaceMoveIsRefusedByName(t *testing.T) {
 		t.Errorf("a by-name refusal still reached the cluster: %d reads, %d applies", cluster.reads, cluster.applies)
 	}
 
-	// A same-estate rename on the manifest surface has nothing to write
-	// either, exactly as on the metadata-block surface.
-	renamed := mustAddr(t, labelTestType+".database_renamed")
-	res, diags = Move(t.Context(), labelTestRequest(t, cluster, labelTestConfig(t, labelTestType, "database_renamed"), addr, renamed, "", "app"))
-	if diags.HasErrors() || !res.NothingToWrite {
-		t.Errorf("a same-estate rename of a manifest-declared object: NothingToWrite = %v, diags = %v", res.NothingToWrite, diags.Err())
-	}
+	// A same-estate rename on the manifest surface is an annotation patch
+	// (GitHub issue #1639); address_annotation_test.go covers it.
 }

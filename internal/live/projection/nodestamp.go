@@ -113,7 +113,7 @@ func (n *NodeResolver) AdjustConfigValue(ctx context.Context, addr addrs.AbsReso
 // adjustConfigValue is [NodeResolver.AdjustConfigValue] and
 // [NodeResolver.AdjustCreateConfigValue] behind one body. creating is the
 // only difference between the two: a create of a type whose create call
-// cannot carry tags (GitHub issue #1084, [NodeResolver.tagsAfterCreate])
+// cannot carry tags (GitHub issue #1084, [NodeResolver.postCreateNeeded])
 // is checked for marker conflicts exactly as an update is and then left
 // unstamped, for [NodeResolver.WriteAppliedMarkers] to mark after the
 // provider has created it. See nodetagoncreate.go.
@@ -209,6 +209,15 @@ func (n *NodeResolver) stampSurface(surface markers.Surface, addr addrs.AbsResou
 		if labelDiags.HasErrors() {
 			return config, diags
 		}
+		if creating && n.withholdsAtCreate(addr, surface) {
+			// GitHub issue #1653: whether a create needs the post-create
+			// write is asked of every surface, not only tags - a family
+			// whose labels or manifest surface answers true here has the
+			// same conflict check above and the same withholding below
+			// that #1084 gave the tags surface alone.
+			log.Printf("[DEBUG] stateless/projection: %s: markers withheld from the create call; written after the create", addr)
+			return config, diags
+		}
 		configElems[markers.LabelSurfaceBlock] = newMeta
 		return cty.ObjectVal(configElems), diags
 
@@ -223,6 +232,11 @@ func (n *NodeResolver) stampSurface(surface markers.Surface, addr addrs.AbsResou
 		if manifestDiags.HasErrors() {
 			return config, diags
 		}
+		if creating && n.withholdsAtCreate(addr, surface) {
+			// GitHub issue #1653: see the SurfaceLabels arm above.
+			log.Printf("[DEBUG] stateless/projection: %s: markers withheld from the create call; written after the create", addr)
+			return config, diags
+		}
 		configElems[markers.ManifestSurfaceAttr] = newManifest
 		return cty.ObjectVal(configElems), diags
 
@@ -235,7 +249,7 @@ func (n *NodeResolver) stampSurface(surface markers.Surface, addr addrs.AbsResou
 		if tagDiags.HasErrors() {
 			return config, diags
 		}
-		if creating && n.tagsAfterCreate(addr) {
+		if creating && n.withholdsAtCreate(addr, surface) {
 			// GitHub issue #1084: the create call cannot carry these tags,
 			// so they are withheld from it - the operator's own tags go
 			// through as stock sends them, this fork's markers do not - and
@@ -407,9 +421,18 @@ const SummaryMarkerConflict = "Ownership marker conflict"
 // proceeds to write its own value exactly as it did before this check
 // existed.
 func markerConflictDiag(addr addrs.AbsResourceInstance, elems map[string]cty.Value, key, want string) tfdiags.Diagnostics {
+	return markerConflictDiagAt(addr, elems, key, key, want)
+}
+
+// markerConflictDiagAt is [markerConflictDiag] for a marker carried under a
+// key other than its own name: the Kubernetes address annotation (GitHub
+// issue #1639) carries the tofu-address marker under
+// [markers.AddressAnnotation]. carrier is the key read from elems and named
+// in the message; key is the marker it carries, which picks the message.
+func markerConflictDiagAt(addr addrs.AbsResourceInstance, elems map[string]cty.Value, carrier, key, want string) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
-	existing, ok := elems[key]
+	existing, ok := elems[carrier]
 	if !ok || existing.IsNull() || !existing.IsKnown() || existing.IsMarked() || existing.Type() != cty.String {
 		return diags
 	}
@@ -438,11 +461,11 @@ func markerConflictDiag(addr addrs.AbsResourceInstance, elems map[string]cty.Val
 	case markers.TagEstate:
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryMarkerConflict, fmt.Sprintf(
 			"%s declares %s = %q and this run is stamping the estate %q. A plan never overwrites a marker naming another estate: name %s in the live block (or with -estate, if this configuration has no live block) if that is the estate this run is for, or correct the tag.",
-			addr, markers.TagEstate, got, want, got)))
+			addr, carrier, got, want, got)))
 	case markers.TagAddress:
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryMarkerConflict, fmt.Sprintf(
 			"%s declares %s = %q, but its address in this configuration is %q. A marker naming another address is a rename: run `choudoufu live-mv %s %s`, or fix the tag. See live/MARKERS.md, \"The rename rule\".",
-			addr, markers.TagAddress, got, want, got, want)))
+			addr, carrier, got, want, got, want)))
 	}
 	return diags
 }

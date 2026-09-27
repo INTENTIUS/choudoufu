@@ -165,7 +165,7 @@ func cmdBackfillStageProvenance(root string, args []string, stdout io.Writer) er
 	if err != nil {
 		return err
 	}
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root))
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root))
 	tt, err := LoadTypeIndexTotals(root)
 	if err != nil {
 		return err

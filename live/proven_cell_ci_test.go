@@ -47,9 +47,12 @@ import (
 // moment a listed scenario reaches a workflow matrix, so a name can be
 // deleted here but never re-added once its finding is fixed and it lands.
 var provenCellCIAllowlist = map[string]string{
+	// #1637: claim 17 fails at the first apply, both arms, on #950's
+	// node-path unmarked-apply refusal, which fires before any record can
+	// exist for this claim's untaggable, record-recoverable resource to
+	// be exempted by.
 	// #1636: claim 13's BREAK control false-positives on an unrelated
 	// sweep warning that happens to contain "AccessDenied".
-	"the-tag-is-the-boundary": "claim 13 (aws); #1636",
 }
 
 // provenCellIssueRef matches a GitHub issue reference (#1590, #1636, ...),
@@ -106,6 +109,17 @@ func provenCellWiredScenarios(t *testing.T) map[string]bool {
 	return out
 }
 
+// cellRunsItsOwnScenario is true for a cell whose status rests on a
+// scenario of its own: proven, or restated with a scenario (the promise
+// holds in a weaker form, and that scenario is what shows the weaker form
+// holds - claim 7 on Kubernetes, claims 25 and 26 on AWS, #1599). Both are
+// a "this runs" statement in the claims table, so both are held to a
+// workflow. Before #1599 only "proven" was, and a restated cell's scenario
+// could sit in no matrix with nothing saying so.
+func cellRunsItsOwnScenario(c smokeClaimProviderCell) bool {
+	return c.Scenario != "" && (c.Status == "proven" || c.Status == "restated")
+}
+
 // TestProvenCellsRunInAWorkflowOrCarryDatedEvidence is the guard #1591
 // asks for: every proven cell that carries its own scenario either has
 // that scenario's name in some workflow's matrix, or, if the cell is
@@ -121,10 +135,12 @@ func TestProvenCellsRunInAWorkflowOrCarryDatedEvidence(t *testing.T) {
 
 	proven := 0
 	for _, s := range smokeScenarioCells(f) {
-		if s.Cell.Status != "proven" {
+		if !cellRunsItsOwnScenario(s.Cell) {
 			continue
 		}
-		proven++
+		if s.Cell.Status == "proven" {
+			proven++
+		}
 
 		if s.Cell.RealService {
 			if len(s.Cell.Evidence) == 0 {
@@ -164,7 +180,7 @@ func TestProvenCellsRunInAWorkflowOrCarryDatedEvidence(t *testing.T) {
 			}
 			continue
 		}
-		t.Errorf("%s: proven and runs on an emulator or kind, but no .github/workflows/*.yml scenario matrix names %q; a claim no job runs is a claim whose \"proven\" cell is one laptop's word, which is how claim 28 stayed red across several merges (#1379)", s, s.Name)
+		t.Errorf("%s: %s on a scenario that runs on an emulator or kind, but no .github/workflows/*.yml scenario matrix names %q; a claim no job runs is a claim whose %q cell is one laptop's word, which is how claim 28 stayed red across several merges (#1379)", s, s.Cell.Status, s.Name, s.Cell.Status)
 	}
 	if proven == 0 {
 		t.Fatal("no cell has status proven; this guard is checking nothing")

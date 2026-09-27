@@ -1,0 +1,128 @@
+{
+  "generated_by": "go run ./tools/substrates-gen",
+  "floci_pin": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
+  "rows": [
+    {
+      "family": "aws",
+      "identity": {
+        "carries_address": true,
+        "address_in_markers": true,
+        "description": "the block address is a key of the marker map itself, beside tofu-estate"
+      },
+      "surfaces": [
+        {
+          "surface": "tags",
+          "marker_noun": "tag",
+          "carrier_phrase": "tags attribute",
+          "carrier_paths": [
+            "tags",
+            "tags_all"
+          ],
+          "collides_on_key": false,
+          "writes": {
+            "create": "in-create",
+            "adopt": "tags-only-plan",
+            "post_create": "tagging-api"
+          },
+          "post_create_writer": "tagging-api"
+        }
+      ],
+      "sweep": {
+        "kind": "tagging-index",
+        "description": "runs through the configured provider itself; no separate client is built from the provider block"
+      },
+      "controller_held": {
+        "recognized": true,
+        "mechanism": "the resource's own tags carry one of the fixed controller tag keys (markers.ControllerTagKeys: ACK, Crossplane)",
+        "keys": [
+          "crossplane-kind",
+          "crossplane-name",
+          "crossplane-namespace",
+          "crossplane-providerconfig",
+          "crossplane-providerconfig-kind",
+          "services.k8s.aws/controller-version",
+          "services.k8s.aws/namespace"
+        ]
+      },
+      "untaggable": {
+        "definition": "an admitted AWS type whose schema carries no settable tags map (live/readiness.json facts.taggable=false)",
+        "count": 852,
+        "by_tier": {
+          "declaration-carried": 379,
+          "excluded by design": 2,
+          "record-carried": 471
+        }
+      },
+      "fence": "IAM conditions on aws:ResourceTag, reads and writes, per principal (live/MARKERS.md).",
+      "harness": {
+        "name": "floci",
+        "pin_file": "live/floci-image",
+        "pin": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
+        "notes": "GHCR image pinned by digest; live/floci-capabilities.json probes per-AWS-service coverage against it."
+      }
+    },
+    {
+      "family": "kubernetes",
+      "identity": {
+        "carries_address": true,
+        "address_in_markers": false,
+        "description": "the block address is carried outside the marker map, in its own annotation"
+      },
+      "surfaces": [
+        {
+          "surface": "labels",
+          "marker_noun": "label",
+          "carrier_phrase": "metadata.labels map",
+          "carrier_paths": [
+            "metadata[0].labels"
+          ],
+          "collides_on_key": true,
+          "writes": {
+            "create": "in-create",
+            "adopt": "labels-only-plan",
+            "post_create": "never-needed"
+          },
+          "post_create_writer": "never-needed"
+        },
+        {
+          "surface": "manifest",
+          "marker_noun": "label",
+          "carrier_phrase": "manifest.metadata.labels map",
+          "carrier_paths": [
+            "manifest.metadata.labels"
+          ],
+          "collides_on_key": false,
+          "writes": {
+            "create": "in-create",
+            "adopt": "api-patch",
+            "post_create": "never-needed"
+          },
+          "post_create_writer": "never-needed"
+        }
+      ],
+      "sweep": {
+        "kind": "label-list",
+        "description": "a cluster client built from the provider block's own connection arguments (Substrate.NewSweeper)"
+      },
+      "controller_held": {
+        "recognized": true,
+        "mechanism": "the object's Helm release annotation (kubesweep.HelmReleaseNameAnnotation), read off the object itself rather than off the label marker map",
+        "keys": [
+          "meta.helm.sh/release-name"
+        ]
+      },
+      "untaggable": {
+        "definition": "an admitted Kubernetes type whose schema carries no metadata.labels block (live/readiness.json kubernetes.types facts.label_surface=false)",
+        "count": 0,
+        "by_tier": {}
+      },
+      "fence": "One ValidatingAdmissionPolicy, writes only, enforced per principal through the cluster's authorizer.",
+      "harness": {
+        "name": "kind",
+        "pin_file": "live/kind-node-image",
+        "pin": "kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5",
+        "notes": "a kind cluster on the pinned node image; no per-service capability probe like floci's exists for it."
+      }
+    }
+  ]
+}

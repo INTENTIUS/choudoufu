@@ -53,12 +53,20 @@ func TestEverySubstrateAnswersEveryQuestion(t *testing.T) {
 			if CarriesAddress(surface) != s.CarriesAddress() {
 				t.Errorf("CarriesAddress(%q) disagrees with %s", surface, s.Name())
 			}
+			if AddressInMarkers(surface) != s.AddressInMarkers() {
+				t.Errorf("AddressInMarkers(%q) disagrees with %s", surface, s.Name())
+			}
+			// GitHub issue #1641: an address in the marker map is an
+			// address carried; the converse is Kubernetes' annotation.
+			if AddressInMarkers(surface) && !CarriesAddress(surface) {
+				t.Errorf("%s surface %q holds tofu-address in its marker map but says it carries no address", s.Name(), surface)
+			}
 			if CarrierPhrase(surface) == "" {
 				t.Errorf("%s surface %q has no carrier phrase, so a missing marker map on it would be reported without saying which map", s.Name(), surface)
 			}
 		}
 	}
-	if For("") != nil || CarriesAddress("") || WritesOf("") != (Writes{}) || CreateCollidesOnKey("") || CarrierPhrase("") != "" {
+	if For("") != nil || CarriesAddress("") || AddressInMarkers("") || WritesOf("") != (Writes{}) || CreateCollidesOnKey("") || CarrierPhrase("") != "" {
 		t.Error("the zero Surface belongs to a family")
 	}
 	if _, ok := MarkersOf("", cty.EmptyObjectVal); ok {
@@ -232,5 +240,77 @@ func TestPostCreateWrites(t *testing.T) {
 	}
 	if got := Kubernetes.MarkerWriter(provider); got != WriteNeverNeeded {
 		t.Errorf("Kubernetes marker writer %q, want %q", got, WriteNeverNeeded)
+	}
+}
+
+// fakeManualMarkFacts is a [CreateTagFacts] this test controls directly,
+// so AWS's [Substrate.ManualMarkFix] can be pinned without a real
+// registry.Roster.
+type fakeManualMarkFacts struct {
+	cfnType string
+	known   bool
+}
+
+func (f fakeManualMarkFacts) CloudControlTypeOrService(string) (string, bool) {
+	return f.cfnType, f.known
+}
+func (fakeManualMarkFacts) TagsAfterCreate(string) bool { return true }
+
+// TestManualMarkFix_awsKeepsTodaysThreeBranches pins GitHub issue #1084's
+// wording byte-for-byte across its three branches - an ARN takes the
+// Tagging API command, no ARN but a known CloudFormation type names its
+// own tag write, neither names only the markers - now asked through
+// [Substrate.ManualMarkFix] instead of built inline by the projection.
+func TestManualMarkFix_awsKeepsTodaysThreeBranches(t *testing.T) {
+	want := map[string]string{"tofu-estate": "prod"}
+	tagsArg := markers.TagsArgument(want)
+
+	if got, want := ManualMarkFix(markers.SurfaceTags, "aws_after_thing", "arn:aws:after:::thing/T1", want, fakeManualMarkFacts{cfnType: "AWS::After::Thing", known: true}),
+		"Mark it, then plan again:\n\n  aws resourcegroupstaggingapi tag-resources --resource-arn-list arn:aws:after:::thing/T1 --tags "+tagsArg; got != want {
+		t.Errorf("with an arn:\n got %q\nwant %q", got, want)
+	}
+	if got, want := ManualMarkFix(markers.SurfaceTags, "aws_after_thing", "", want, fakeManualMarkFacts{cfnType: "AWS::After::Thing", known: true}),
+		"Mark it by hand with the tag write AWS::After::Thing takes, with the tags "+tagsArg+", then plan again."; got != want {
+		t.Errorf("no arn, known CFN type:\n got %q\nwant %q", got, want)
+	}
+	if got, want := ManualMarkFix(markers.SurfaceTags, "aws_after_thing", "", want, fakeManualMarkFacts{known: false}),
+		"Mark it by hand with the markers "+tagsArg+", then plan again."; got != want {
+		t.Errorf("no arn, no CFN type:\n got %q\nwant %q", got, want)
+	}
+	if got, want := ManualMarkFix(markers.SurfaceTags, "aws_after_thing", "", want, nil),
+		"Mark it by hand with the markers "+tagsArg+", then plan again."; got != want {
+		t.Errorf("no arn, nil facts:\n got %q\nwant %q", got, want)
+	}
+}
+
+// TestManualMarkFix_zeroSurfaceIsGeneric: a surface with no family gets the
+// generic sentence naming only the markers, since there is no family to
+// name a command.
+func TestManualMarkFix_zeroSurfaceIsGeneric(t *testing.T) {
+	want := map[string]string{"tofu-estate": "prod"}
+	got := ManualMarkFix("", "aws_after_thing", "some-arn", want, nil)
+	if wantStr := "Mark it by hand with the markers " + markers.TagsArgument(want) + ", then plan again."; got != wantStr {
+		t.Errorf("zero surface: got %q, want %q", got, wantStr)
+	}
+}
+
+// TestEveryFamilyCarriesTheAddress is GitHub issue #1641's flip, pinned
+// per surface: both families carry the block address (#1605's ruling), and
+// only the AWS tag map holds it as a marker key.
+func TestEveryFamilyCarriesTheAddress(t *testing.T) {
+	for _, tc := range []struct {
+		surface           markers.Surface
+		carries, inTheMap bool
+	}{
+		{markers.SurfaceTags, true, true},
+		{markers.SurfaceLabels, true, false},
+		{markers.SurfaceManifest, true, false},
+	} {
+		if got := CarriesAddress(tc.surface); got != tc.carries {
+			t.Errorf("CarriesAddress(%q) = %v, want %v", tc.surface, got, tc.carries)
+		}
+		if got := AddressInMarkers(tc.surface); got != tc.inTheMap {
+			t.Errorf("AddressInMarkers(%q) = %v, want %v", tc.surface, got, tc.inTheMap)
+		}
 	}
 }

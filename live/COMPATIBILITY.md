@@ -176,9 +176,13 @@ set narrows back to the unescaped one: letters, digits, space and
 The rule lives in `internal/live/markerkey`, and both enforcement points,
 lint and the resolver, read it from there, so the two cannot drift.
 
-A Kubernetes object's marker carries no address, only the estate name
-(`live/MARKERS.md`, "Kubernetes: one label"), so this subsection does not
-apply to that substrate: there is no `tofu-address` to escape a key into.
+Since [#1639](https://github.com/INTENTIUS/choudoufu/issues/1639)
+(merged), a Kubernetes object carries its block address too, as the
+`choudoufu.intentius.io/tofu-address` annotation beside the estate label
+(`live/MARKERS.md`, "Kubernetes: one label"), escaped through this same
+rule. An instance key becomes part of it exactly as it becomes part of
+the AWS tag value; the one difference is that an annotation has no length
+cap, so there is no continuation-key splitting.
 
 ### Identity arguments
 
@@ -299,9 +303,12 @@ The one piece #59 left for later is provider aliasing that crosses a module
 boundary. A module inheriting its caller's provider, the overwhelmingly common
 case, is unaffected.
 
-A Kubernetes object's marker carries no address, only the estate name, so
-`live-mv`'s role is narrower there: see `live/kubernetes/COMPATIBILITY.md`'s
-"Crossing a module boundary".
+A Kubernetes object now carries its block address too, as an annotation
+beside the estate label ([#1639](https://github.com/INTENTIUS/choudoufu/issues/1639)),
+so `live-mv` rewrites it there the same way it rewrites the AWS tag,
+with one gap: a cross-estate move of a `kubernetes_manifest` object is
+still refused by name. See `live/kubernetes/COMPATIBILITY.md`'s "Crossing
+a module boundary".
 
 ## Your accounts and regions
 
@@ -333,15 +340,21 @@ multi-pass machinery already exists.
 
 **Kubernetes.** Every Kubernetes type resolves its identity from the
 block's own `metadata.namespace`/`metadata.name`, or a manifest's natural
-key, never from a live list against the cluster, so the client-named
-versus server-assigned split above collapses: every Kubernetes type is
-client-named, and none of them trips the one-bound restriction. One
-`provider "kubernetes" {}` per cluster or context spans as freely as one
-`provider "aws"` per client-named type does. A root mixing `aws_*` and
-`kubernetes_*` resources is ordinary, each substrate's admission, marker
-and sweep independent; `live/kubernetes/COMPATIBILITY.md`'s "Mixed
-estates" has the EKS `aws-auth` ConfigMap case, where the interesting
-behavior actually lives.
+key, in the ordinary case - no live list against the cluster needed. An
+identity argument that cannot resolve at all can fall back to a live
+match on the block's own address annotation since
+[#1605](https://github.com/INTENTIUS/choudoufu/issues/1605), but that
+fallback is a same-estate, same-sweep affair scoped to the one provider
+configuration the block already uses, not a second cluster or context.
+So nothing about a Kubernetes type demands sharing a provider
+configuration with another one the way an AWS server-assigned type's
+cross-configuration discovery does: one `provider "kubernetes" {}` per
+cluster or context spans as freely as one `provider "aws"` per
+client-named type does. A root mixing `aws_*` and `kubernetes_*`
+resources is ordinary, each substrate's admission, marker and sweep
+independent; `live/kubernetes/COMPATIBILITY.md`'s "Mixed estates" has the
+EKS `aws-auth` ConfigMap case, where the interesting behavior actually
+lives.
 
 A module call's `providers` mapping is honoured, and used to be refused. Since
 [#188](https://github.com/INTENTIUS/choudoufu/issues/188)
@@ -397,12 +410,16 @@ resource block already did - see
 [#320](https://github.com/INTENTIUS/choudoufu/issues/320).
 
 **Kubernetes.** The command-level refusals above are unchanged; what's
-different is a plan reaching the cluster at all, and one lifecycle
-ordering. `live/kubernetes/COMPATIBILITY.md`'s "How you run it" has the
-`kubernetes_manifest` dry-run and unserved-CRD-kind behavior, and its
-"Known differences" has the one case where a `create_before_destroy`
-replace orders differently here than on AWS
-([#1541](https://github.com/INTENTIUS/choudoufu/issues/1541)).
+different is a plan reaching the cluster at all.
+`live/kubernetes/COMPATIBILITY.md`'s "How you run it" has the
+`kubernetes_manifest` dry-run and unserved-CRD-kind behavior. Its "Known
+differences" section is now a fixed one: a `create_before_destroy` replace
+that also renamed the object used to order destroy-then-create here
+against AWS's create-then-destroy
+([#1541](https://github.com/INTENTIUS/choudoufu/issues/1541)), and
+[#1605](https://github.com/INTENTIUS/choudoufu/issues/1605)'s address
+annotation fixed it: `day2_replace` now runs on the kind substrate and
+creates first, the same order as AWS.
 
 ## Constructs this page used to refuse, and no longer does
 
@@ -524,6 +541,14 @@ silently. Refused now, the same way and for the same reason as the AWS
 case; `live/kubernetes/COMPATIBILITY.md`'s version of this section has the
 manifest-surface equivalents. Ignoring a label key of your own stays
 admitted, the same over-refusal guard `tags["Owner"]` has.
+
+A related gap closed the same month: the stateful un-migration guard
+(issue #613) that refuses a state-backed plan dropping this fork's
+ownership marker used to read only the AWS tags map. Since
+[#1649](https://github.com/INTENTIUS/choudoufu/issues/1649) (merged) it
+reads the Kubernetes label and manifest surfaces too, so a state-backed
+plan that would strip `tofu-estate` off a live Kubernetes object is
+refused the same way a stripped tag is.
 
 **A module call's child-side `providers` mapping can name an alias nothing
 resolves.** The refused shape is `configuration_aliases`,

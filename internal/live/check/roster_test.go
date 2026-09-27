@@ -201,3 +201,18 @@ func TestBuildRoster_DedupesAnAddressSeenTwice(t *testing.T) {
 		t.Errorf("the resolved entry was overwritten by the refused one: %+v", roster[0])
 	}
 }
+
+// TestRungForType_TheMarkerIsTheSubstratesOwn is GitHub issue #1565, under
+// the 2026-09-27 ruling on #1600: tier A reads the substrate's own marker,
+// tags on AWS and the estate label on Kubernetes. A label-surface type
+// (hashicorp/kubernetes' object-metadata shape) and the manifest shape are
+// both marker-carried. Asked through markers.Taggable alone, both read as
+// declaration-carried.
+func TestRungForType_TheMarkerIsTheSubstratesOwn(t *testing.T) {
+	schemas := kubernetesNeedsDiscoverySchemas()
+	for _, typeName := range []string{"kubernetes_config_map_v1", "kubernetes_manifest"} {
+		if got := rungForType(schemas, typeName); got != RungTagGovernable {
+			t.Errorf("rungForType(%s) = %q, want %q", typeName, got, RungTagGovernable)
+		}
+	}
+}

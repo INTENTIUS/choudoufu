@@ -37,7 +37,7 @@ kind the cluster does not serve is refused by name, with the CRD to install.
 | `metadata.generate_name` | The server picks the name, so the object cannot be found again. Set `name` |
 | A namespaced object with no `namespace` | Refused and not defaulted, for the same reason |
 | `kubernetes_labels`, `kubernetes_annotations`, `kubernetes_env`, the `*_data` types | They patch an object and are not one |
-| `helm_release` | A release is many objects Helm makes. Run Helm roots without a `live` block, where they behave as stock. An object carrying Helm's release annotation is controller-held: never swept or adopted, even with `tofu-estate` in chart values; listed with its release |
+| `helm_release` | A release is many objects Helm makes. Run Helm roots without a `live` block, where they behave as stock. An object carrying Helm's release annotation is controller-held while that release exists: never swept or adopted, even with `tofu-estate` in chart values; listed with its release |
 
 ## Running it
 

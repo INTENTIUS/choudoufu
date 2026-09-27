@@ -59,6 +59,7 @@ var flociImageFields = map[string]string{
 	"gauntlet.json":          "emulator",
 	"gauntlet-scale.json":    "emulator",
 	"cohort-triage.json":     "image",
+	"substrates.json":        "floci_pin",
 }
 
 // staleFlociMeasurements are artifacts knowingly measured against an older

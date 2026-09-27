@@ -131,6 +131,17 @@ opt-in that brings a release inside the boundary: the ruling deferred it,
 because a label written by a post-renderer is one an out-of-band
 `helm upgrade` strips.
 
+The annotation alone is not trusted forever: the sweep also checks that
+the release it names still has a history secret
+(`sh.helm.release.v1.<name>.v*`, labelled `owner=helm,name=<name>`) in the
+release's namespace ([#1625](https://github.com/INTENTIUS/choudoufu/issues/1625)).
+Moving an object off Helm without re-creating it - adopting it into a
+`kubernetes_manifest` block by import, then removing the release's
+bookkeeping - leaves the annotation in place, because server-side apply
+only touches fields its own writer claims. Once no release by that name
+exists, the object is an ordinary `tofu-estate`-labelled object again:
+swept, adoptable, and no longer reported under "Controller-held".
+
 ## How your configuration is written
 
 ### Expansion
@@ -142,11 +153,16 @@ to a `kubernetes_*` resource exactly as they do to an `aws_*` one.
 
 ### `for_each` keys
 
-Does not apply. An instance key is escaped into the `tofu-address` marker
-on AWS, and a Kubernetes object's marker carries no address at all - only
-the estate name (`live/MARKERS.md`, "Kubernetes: one label"). With no
-address to build, there is no per-instance key to escape into one, so this
-whole subsection has nothing to say for this substrate.
+Applies the same way as AWS, since
+[#1639](https://github.com/INTENTIUS/choudoufu/issues/1639) (merged): the
+block address goes on the object as an annotation,
+`choudoufu.intentius.io/tofu-address`, "escaped exactly as the AWS
+`tofu-address` tag value is" (`live/MARKERS.md`, "Kubernetes: one label"),
+so an instance key becomes part of it through the same
+`internal/live/markerkey` rule - the same runes need no escaping, the same
+six are excluded. One difference: an annotation value has no length cap,
+so there is no continuation-key splitting the way a long AWS address
+needs `tofu-address-2` through `tofu-address-4`.
 
 ### Identity arguments
 
@@ -178,6 +194,25 @@ not set" AWS already documents:
 | A namespaced kind with no `namespace` | refused rather than defaulted to `default`, for the same reason: a resolver that guessed would fabricate an identity the configuration never stated |
 | A `kubernetes_manifest` whose `manifest` is computed some other way, `yamldecode(file(...))` or a module output | the key is read without evaluating the manifest, so a value that does not exist as a literal object constructor yet has no key to read |
 
+An identity argument the static evaluator cannot resolve at all - reading
+a sibling's non-identity attribute, the shape AWS calls
+`identity.ClassNeedsDiscovery` - used to be an outright node-level
+refusal on this substrate, because the marker carried no address to bind
+the object it might already own. Since the address annotation
+([#1639](https://github.com/INTENTIUS/choudoufu/issues/1639)) and the
+sweep that binds on it
+([#1640](https://github.com/INTENTIUS/choudoufu/issues/1640)), ruled on
+[#1539](https://github.com/INTENTIUS/choudoufu/issues/1539) (2026-09-26):
+if the sweep found no object of that kind carrying this estate's label
+and no such annotation, the create is planned; if it found one without
+the annotation, or could not list every kind the type can declare, the
+static refusal stands, naming the object -
+`live/LIMITATIONS.md`'s "Identity not resolvable, and the marker carries
+no address" has the message. Two annotated objects both claiming one
+block - the crash window a `create_before_destroy` replacement leaves -
+is the AWS collision refusal, naming both objects, and destroys neither
+until an operator picks one.
+
 ## Your modules
 
 The rules for `count` and `for_each` on a module call, and for a module
@@ -187,15 +222,20 @@ holding `kubernetes_*` resources exactly as written.
 
 ### Crossing a module boundary
 
-A Kubernetes object's marker carries no address, only the estate name
-(`live/MARKERS.md`, "Kubernetes: one label"), so `live-mv`'s role here is
-narrower than on AWS. `live-mv` runs on every object-metadata type: a
-rename within an estate reports nothing to write and exits 0, and
-`-from-estate` rewrites the `tofu-estate` label through the provider under
-your own credential, so the admission policy judges it like any other
-write ([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081)); a
-move of a `kubernetes_manifest` object is refused by name with the
-equivalent `kubectl label`.
+The block address does go on a Kubernetes object now, beside the estate
+label, as the `choudoufu.intentius.io/tofu-address` annotation
+([#1639](https://github.com/INTENTIUS/choudoufu/issues/1639), merged), so
+`live-mv` writes more here than it used to. On a metadata-block type, a
+rename within an estate rewrites the annotation in place through the
+provider, the same way an AWS rename rewrites the `tofu-address` tag, and
+`-from-estate` rewrites the `tofu-estate` label and the address annotation
+together, so the admission policy judges it like any other write
+([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081)). On the
+manifest shape, a same-estate rename is one annotation merge patch under
+the run's own credential (`internal/live/mv/manifest.go`); a cross-estate
+move of a `kubernetes_manifest` object is still refused by name, because
+the label patch a move needs has no manifest-shape counterpart yet
+([#1104](https://github.com/INTENTIUS/choudoufu/issues/1104)).
 
 `choudoufu live-import` traverses every managed resource instance in the
 whole state, root and child modules alike, for this substrate the same
@@ -204,16 +244,21 @@ way it does for AWS's.
 ## Your accounts and regions
 
 Every Kubernetes type's identity resolves from the block's own
-`metadata.namespace`/`metadata.name`, or a manifest's natural key, never
-from a live list against the cluster - the shape AWS calls
-`identity.ClassNeedsDiscovery` is exactly what
-[#1016](https://github.com/INTENTIUS/choudoufu/issues/1016) refuses to
-bring back for this substrate (`metadata.generate_name`, above, is that
-refusal). So AWS's split between client-named types, which span
-configurations freely, and server-assigned types, which must share one,
-collapses here: every Kubernetes type is client-named, and none of them
-trips the "one bound" restriction `live/COMPATIBILITY.md`'s "Your
-accounts and regions" describes.
+`metadata.namespace`/`metadata.name`, or a manifest's natural key, in the
+ordinary case - no live list against the cluster needed. Where that
+static resolution fails outright, `metadata.generate_name` is refused
+unconditionally, with no fallback (Identity arguments, above); where only
+one *argument* fails to resolve, the plan-node fallback described there
+(the address annotation and the sweep that binds on it,
+[#1605](https://github.com/INTENTIUS/choudoufu/issues/1605)) is a
+same-estate, same-sweep affair, scoped to whichever one provider
+configuration that block's own resources already use - it does not ask a
+second cluster or context anything. So AWS's split between client-named
+types, which span configurations freely, and server-assigned types, which
+must share one, still collapses here in the sense that matters for this
+section: nothing about a Kubernetes type demands sharing a provider
+configuration with another one, the way an AWS server-assigned type's
+cross-configuration discovery does.
 
 One `provider "kubernetes" {}` block per cluster or context, resources
 pinned with the `provider` meta-argument, spans freely for the same
@@ -274,33 +319,31 @@ submitted. An object whose namespace the same plan creates is reported
 rather than submitted, and a server that cannot answer is a warning.
 `live-check` does not ask.
 
-### Known differences
+### Known differences (fixed)
 
-A replacement under `create_before_destroy` that also changes the
-object's name is destroy-then-create here, where stock is
-create-then-destroy. The label carries no address, so a renamed block
-resolves to a new object at its new name and binds nothing; the sweep
-finds the old object by its label and files it at a synthetic orphan
-address, leaving two unrelated changes with no edge between them for
-`create_before_destroy` to order. On AWS the marker names the block's
-address, so the same edit is a replace and the lifecycle holds.
+A replacement under `create_before_destroy` that also changed the
+object's name used to be destroy-then-create here, where stock is
+create-then-destroy: with no address on the object, a renamed block
+resolved to a new object at its new name and bound nothing, so the sweep
+found the old object by its label alone and filed it at a synthetic
+orphan address, leaving two unrelated changes with no edge between them
+for `create_before_destroy` to order.
 
-The case this bites is a content-hashed ConfigMap kept alive across a
-rollout: `name = "cfg-${sha}"` with `create_before_destroy`, so a
-Deployment can roll onto the new copy before the old one goes. Applying a
-changed `sha` here destroys `cfg-a` before creating `cfg-b`; for the
-length of that window neither object exists, and a Deployment whose pods
-mount `cfg-a` sees it gone before `cfg-b` exists. Both sides converge on
-the same object and the next plan is empty either way.
-
-Tracked as [#1541](https://github.com/INTENTIUS/choudoufu/issues/1541).
-The fix waits on [#1605](https://github.com/INTENTIUS/choudoufu/issues/1605)
-(should the address ride an annotation, which would make a rename a
-replace again); until then `day2_replace` stays `n/a` on the kind
-substrate for this case (`tools/gauntlet/stages.go`, `live/GAUNTLET.md`).
-[#1684](https://github.com/INTENTIUS/choudoufu/issues/1684) is open and
-would settle the address-carrying question; this note stays until it
-merges.
+[#1605](https://github.com/INTENTIUS/choudoufu/issues/1605)'s ruling of
+2026-09-26 fixed it by putting the address on the object, as the
+`choudoufu.intentius.io/tofu-address` annotation
+([#1639](https://github.com/INTENTIUS/choudoufu/issues/1639)); the estate
+sweep binds an object to its declared block through that annotation
+([#1640](https://github.com/INTENTIUS/choudoufu/issues/1640)); and
+`day2_replace` now runs on the kind substrate
+(`tools/gauntlet/stages.go`, [#1684](https://github.com/INTENTIUS/choudoufu/issues/1684)/[#1641](https://github.com/INTENTIUS/choudoufu/issues/1641)),
+proving the content-hashed-name case: `name = "cfg-${sha}"` with
+`create_before_destroy` now creates `cfg-b` before destroying `cfg-a`,
+the same order stock and AWS both use, so a Deployment mounting `cfg-a`
+never sees the name gone. A replacement that keeps its name is
+destroy-then-create on either tool and always was; that is not this
+case. Tracked as [#1541](https://github.com/INTENTIUS/choudoufu/issues/1541),
+closed by the above.
 
 ## Constructs this page used to refuse, and no longer does
 
@@ -351,6 +394,16 @@ The second hazard, a module call's child-side `providers` mapping naming
 an alias nothing resolves, is OpenTofu-level and provider-agnostic:
 `live/COMPATIBILITY.md`'s description applies to a Kubernetes provider
 alias exactly as written.
+
+A third, this substrate's own: the stateful un-migration guard
+(`internal/command/live_unmigrate_guard.go`, issue #613) refuses a
+state-backed plan that would drop this fork's ownership marker from a
+live object. Until [#1649](https://github.com/INTENTIUS/choudoufu/issues/1649)
+(merged) it read only the AWS tags map, so a state-backed plan dropping
+`tofu-estate` from `metadata.labels` (or `manifest.metadata.labels`) un-migrated
+the object with no refusal. It now reads every marker surface, tags,
+`metadata.labels` and `manifest.metadata.labels` alike, and refuses the
+same way on any of them, with the `UnmigrateEnvVar` escape unchanged.
 
 ## Editors and linters
 

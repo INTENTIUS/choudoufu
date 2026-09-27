@@ -240,6 +240,7 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 	// provider configuration rather than adding information.
 	sweepGapSeen := make(map[string]bool)
 	sweepCoveredSeen := make(map[string]bool)
+	addressBound := make(map[string]bool)
 
 	for pi, p := range passes {
 		p.Result.AttributeOrphans(p.Provider)
@@ -281,8 +282,43 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 		res.Scans = append(res.Scans, p.Result.Scans...)
 		res.ParentReads = append(res.ParentReads, p.Result.ParentReads...)
 
+		// Each pass accounts only for the instances its own provider
+		// configuration owns (GitHub issue #1641), so the passes' keys
+		// are disjoint and the union is the whole account.
+		for key, objects := range p.Result.KubernetesUnaddressed {
+			if res.KubernetesUnaddressed == nil {
+				res.KubernetesUnaddressed = map[string][]string{}
+			}
+			res.KubernetesUnaddressed[key] = append(res.KubernetesUnaddressed[key], objects...)
+			if res.KubernetesUnaddressed[key] == nil {
+				res.KubernetesUnaddressed[key] = []string{}
+			}
+		}
+		for key := range p.Result.KubernetesAddressBound {
+			if res.KubernetesAddressBound == nil {
+				res.KubernetesAddressBound = map[string]bool{}
+			}
+			res.KubernetesAddressBound[key] = true
+		}
 		for _, r := range p.Result.Resolutions {
 			if !r.Undeclared {
+				if p.Result.KubernetesAddressBound[r.Addr.String()] {
+					// The Kubernetes leg bound this address through the
+					// object's annotation (GitHub issue #1640), which
+					// can rebind a concrete resolution every other pass
+					// still carries as the configuration named it. Both
+					// are bound classes, so pickBase would keep whichever
+					// came first; the pass that listed the object wins.
+					if _, ok := base[r.Addr.String()]; !ok {
+						baseOrder = append(baseOrder, r.Addr.String())
+					}
+					base[r.Addr.String()] = r
+					addressBound[r.Addr.String()] = true
+					continue
+				}
+				if addressBound[r.Addr.String()] {
+					continue
+				}
 				pickBase(r.Addr.String(), r)
 				continue
 			}

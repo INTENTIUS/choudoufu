@@ -1260,7 +1260,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// would inherit the listing's failure modes with no benefit.
 		cacheVouchTypes = cacheVouchTypesFor(stateCache, merged)
 	}
-	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords, cacheVouchTypes, r.adoptionOnly, scope)
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, nodeRefusedAddrs(r.resolver.StaticRefusals), estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords, cacheVouchTypes, r.adoptionOnly, scope)
 	diags = diags.Append(discoDiags)
 	r.kubeSweepers = provs.kubernetesSweepers()
 	if discoDiags.HasErrors() {
@@ -1288,6 +1288,10 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	{
 		r.resolver.RecordStore = r.recordStore
 		r.resolver.MarkerIndex = projection.NewMarkerIndex(merged)
+		// GitHub issue #1641: the sweep's account of objects without the
+		// address annotation, which decides whether #1617's refusal
+		// stands for an instance the static evaluator refused.
+		r.resolver.UnaddressedObjects = disco.UnaddressedAccount()
 		r.resolver.NoSourceCreate = strict.CreatesFromNoSource(identity.NoSourceCreateFor(config))
 		// GitHub issue #388's stamp half (AdjustConfigValue,
 		// internal/live/projection/nodestamp.go): Estate and Selection are
@@ -1664,7 +1668,11 @@ func (r *statelessRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
 			))
 			continue
 		}
-		groupResult, releaseDiags := untag.Release(ctx, provider, r.untagKey, g.Targets)
+		// The cluster client, when this configuration is a Kubernetes one,
+		// is the sweep's own for the same configuration (GitHub issue
+		// #1656): a manifest-shape orphan's markers are released by an API
+		// patch through it.
+		groupResult, releaseDiags := untag.Release(ctx, provider, statelessUntagCluster(r.kubeSweepers, g.Provider), r.untagKey, g.Targets)
 		diags = diags.Append(releaseDiags)
 		if groupResult != nil {
 			result.Outcomes = append(result.Outcomes, groupResult.Outcomes...)

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
@@ -287,5 +289,50 @@ func TestPlanRejectAdoptionOnly(t *testing.T) {
 	}
 	if diags := planRejectAdoptionOnly(false, false); diags.HasErrors() {
 		t.Errorf("an ordinary plan was refused: %s", diags.Err())
+	}
+}
+
+// TestStatelessAdoptionReport_everySurfaceCarriesAMarker is GitHub issue
+// #1565's: a Kubernetes object carries its marker as the tofu-estate label
+// (metadata.labels, or manifest.metadata.labels on kubernetes_manifest), so
+// its row belongs in the marker half. Asked through markers.Taggable alone,
+// every Kubernetes row landed in "Identity by declaration" and was told its
+// type has no tags argument, which is the AWS answer to a question the
+// schema already answered differently.
+func TestStatelessAdoptionReport_everySurfaceCarriesAMarker(t *testing.T) {
+	schemas := adoptionSchemas()
+	schemas["kubernetes_config_map_v1"] = providers.Schema{Block: &configschema.Block{
+		BlockTypes: map[string]*configschema.NestedBlock{
+			"metadata": {Block: configschema.Block{Attributes: map[string]*configschema.Attribute{
+				"name":   {Type: cty.String, Optional: true},
+				"labels": {Type: cty.Map(cty.String), Optional: true},
+			}}, Nesting: configschema.NestingList, MinItems: 1, MaxItems: 1},
+		},
+	}}
+	schemas["kubernetes_manifest"] = providers.Schema{Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{
+		"manifest": {Type: cty.DynamicPseudoType, Required: true},
+		"object":   {Type: cty.DynamicPseudoType, Optional: true, Computed: true},
+	}}}
+	res := &projection.Result{
+		Materialized: []addrs.AbsResourceInstance{
+			adoptionAddr(t, "aws_thing_tagged.a"),
+			adoptionAddr(t, "aws_thing_attachment.c"),
+			adoptionAddr(t, "kubernetes_config_map_v1.d"),
+			adoptionAddr(t, "kubernetes_manifest.e"),
+		},
+	}
+
+	out := renderAdoption(t, statelessAdoptionReport(res, views.StatelessForeign{}, nil, schemas, "dev", true))
+
+	if !strings.Contains(out, "Identity by marker: 3 of 4 instances") {
+		t.Errorf("the marker half does not hold the tags map, the label and the manifest label:\n%s", out)
+	}
+	if !strings.Contains(out, "Identity by declaration: 1 of 4 instances") {
+		t.Errorf("the declaration half holds more than the attachment:\n%s", out)
+	}
+	for _, not := range []string{"1  kubernetes_config_map_v1", "1  kubernetes_manifest"} {
+		if strings.Contains(out, not) {
+			t.Errorf("a Kubernetes type is tallied in the declaration half (%q):\n%s", not, out)
+		}
 	}
 }

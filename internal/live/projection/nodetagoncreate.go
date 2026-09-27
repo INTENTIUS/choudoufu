@@ -10,8 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"sort"
-	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -60,7 +58,7 @@ import (
 //
 //   - [NodeResolver.AdjustCreateConfigValue] (tofu.CreateConfigValueAdjuster)
 //     is [NodeResolver.AdjustConfigValue] for an instance being created.
-//     For a type [NodeResolver.tagsAfterCreate] answers true for, it runs
+//     For a type [NodeResolver.postCreateNeeded] answers true for, it runs
 //     the same conflict checks and then returns the configuration UNSTAMPED:
 //     the provider's create call carries the operator's own tags and none
 //     of this fork's. Every other type, and every update, is stamped
@@ -170,17 +168,17 @@ func (n *NodeResolver) AdjustCreateConfigValue(ctx context.Context, addr addrs.A
 	return n.adjustConfigValue(ctx, addr, config, schema, true)
 }
 
-// tagsAfterCreate reports whether addr's type is one whose create call
-// cannot carry tags: live/registry.json's tagging.tag_on_create, read
-// through the roster for the Terraform type's CloudFormation counterpart.
-// False for a run with no roster, a type the mapping never joined, and a
-// type the registry cannot vouch for - all of which take the ordinary path.
-func (n *NodeResolver) tagsAfterCreate(addr addrs.AbsResourceInstance) bool {
-	cfnType, ok := n.Roster.CloudControlTypeOrService(addr.Resource.Resource.Type)
-	if !ok {
-		return false
-	}
-	return n.Roster.TagsAfterCreate(cfnType)
+// postCreateNeeded reports whether addr's type, whose schema carries
+// surface, is one whose create call cannot carry the marker, and the
+// sentence naming why. It is the surface's family's answer (GitHub issue
+// #1642, [substrate.PostCreateNeeded]): AWS reads live/registry.json's
+// tagging.tag_on_create through the roster for the Terraform type's
+// CloudFormation counterpart, as #1084 did here; Kubernetes answers never;
+// another family answers for its own types. False for a run with no
+// roster, a type the mapping never joined, and a type the registry cannot
+// vouch for - all of which take the ordinary path.
+func (n *NodeResolver) postCreateNeeded(addr addrs.AbsResourceInstance, surface markers.Surface) (string, bool) {
+	return substrate.PostCreateNeeded(surface, addr.Resource.Resource.Type, n.Roster)
 }
 
 // WriteAppliedMarkers implements internal/tofu.AppliedMarkerWriter.
@@ -190,15 +188,18 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 	if action != plans.Create || n.Estate == "" || schema.Block == nil {
 		return applied, diags
 	}
-	if !n.tagsAfterCreate(addr) {
-		return applied, diags
-	}
 	// GitHub issue #1587: the surface's own post-create write chooses the
 	// writer, rather than a provider type string. The tag surface's is the
 	// Tagging API; a surface whose marker always rides the create call
 	// answers WriteNeverNeeded and there is nothing to do.
 	surface, carries := substrate.SurfaceOf(schema.Block)
 	if !carries {
+		return applied, diags
+	}
+	// GitHub issue #1642: whether this create needed the write at all is
+	// the surface's family's answer, not the AWS registry's alone.
+	why, needed := n.postCreateNeeded(addr, surface)
+	if !needed {
 		return applied, diags
 	}
 	write := substrate.WritesOf(surface).PostCreate
@@ -219,7 +220,6 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 
 	arn := appliedString(applied, "arn")
 	id := appliedString(applied, "id")
-	cfnType, _ := n.Roster.CloudControlTypeOrService(addr.Resource.Resource.Type)
 
 	var err error
 	switch {
@@ -239,7 +239,7 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 		}
 	}
 	if err == nil {
-		log.Printf("[DEBUG] stateless/projection: marked %s (%s) after its create: %s", addr, arn, markerTagsArgument(want))
+		log.Printf("[DEBUG] stateless/projection: marked %s (%s) after its create: %s", addr, arn, markers.TagsArgument(want))
 		return withWrittenMarkers(applied, want), diags
 	}
 
@@ -254,17 +254,15 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 		object = "an object with no arn and no id in what the provider returned"
 	}
 
-	var fix string
-	if arn != "" {
-		fix = fmt.Sprintf("Mark it, then plan again:\n\n  aws resourcegroupstaggingapi tag-resources --resource-arn-list %s --tags %s", arn, markerTagsArgument(want))
-	} else {
-		fix = fmt.Sprintf("Mark it by hand with the tag write %s takes, with the tags %s, then plan again.", cfnType, markerTagsArgument(want))
-	}
+	// GitHub issue #1653: the manual remedy is the surface's own family's
+	// answer, not a check of whether the applied object happens to carry
+	// an arn - that says nothing about which family wrote it.
+	fix := substrate.ManualMarkFix(surface, addr.Resource.Resource.Type, arn, want, n.Roster)
 
 	diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryMarkerNotWritten,
 		fmt.Sprintf(
-			"%s was created as %s and could not be marked: %s.\n\n%s does not take tags in its create call (live/registry.json: tag_on_create false), so this run withheld the ownership markers from the create and wrote them afterwards, and that write failed. The object exists and carries no marker naming estate %q; the next plan will not find it at this address. %s",
-			addr, object, err, cfnType, n.Estate, fix,
+			"%s was created as %s and could not be marked: %s.\n\n%s, so this run withheld the ownership markers from the create and wrote them afterwards, and that write failed. The object exists and carries no marker naming estate %q; the next plan will not find it at this address. %s",
+			addr, object, err, why, n.Estate, fix,
 		)))
 	return applied, diags
 }
@@ -287,22 +285,6 @@ func (n *NodeResolver) withheldMarkers(addr addrs.AbsResourceInstance) map[strin
 		out[markers.TagSlot] = slot
 	}
 	return out
-}
-
-// markerTagsArgument renders tags as the aws CLI's --tags shorthand,
-// key=value pairs joined by commas, in key order, single-quoted so that an
-// escaped address's brackets and quotes survive a shell.
-func markerTagsArgument(tags map[string]string) string {
-	keys := make([]string, 0, len(tags))
-	for k := range tags {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	pairs := make([]string, 0, len(keys))
-	for _, k := range keys {
-		pairs = append(pairs, k+"="+tags[k])
-	}
-	return "'" + strings.Join(pairs, ",") + "'"
 }
 
 // appliedString reads one top-level string attribute off the object the
@@ -374,4 +356,11 @@ func markedAt(pvm []cty.PathValueMarks, name string) bool {
 		}
 	}
 	return false
+}
+
+// withholdsAtCreate is [NodeResolver.postCreateNeeded] without the reason,
+// for the create-side half ([NodeResolver.AdjustCreateConfigValue]).
+func (n *NodeResolver) withholdsAtCreate(addr addrs.AbsResourceInstance, surface markers.Surface) bool {
+	_, needed := n.postCreateNeeded(addr, surface)
+	return needed
 }

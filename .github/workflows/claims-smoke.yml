@@ -11,6 +11,13 @@
 # k8s-smoke.yml; claims 28-32 and 44 already run in bucket-smoke.yml and
 # are not duplicated here.
 #
+# Claim 45 (#1624) joined this matrix later, proven and never excluded: a
+# single small resource and no Go build, so it runs in the smoke job with
+# the rest rather than in smoke-nightly. Not yet measured against the
+# emulator in CI (written and left for the orchestrator's smoke pass); if
+# it turns out to sit over budget, move it to smoke-nightly rather than
+# re-deriving the number here.
+#
 # Budget: 10 minutes per scenario, both arms combined (2026-09-26 ruling
 # on #1590: "same rule as the kubernetes lane" - every PR that touches the
 # code runs the matrix, except scenarios over the budget, which run
@@ -23,11 +30,28 @@
 # runtime estimate, and every scenario here ran in well under a third of
 # its claims.json minutes. The slowest of the 21 scenarios in the `smoke`
 # job below was carve-by-retag at 3m14s + 2m12s = 5m26s combined; every
-# other one finished faster. no-secret-survives-in-what-the-tool-keeps
+# other one finished faster, including claim 13 (the-tag-is-the-boundary)
+# at 1m38s + 56s = 2m34s combined. no-secret-survives-in-what-the-tool-keeps
 # measured 9m21s + 6m18s = 15m39s combined - three times the next
 # heaviest scenario - and runs nightly only, in the `smoke-nightly` job.
 #
 # One claim measured here is excluded rather than added red:
+#   - claim 17, record-only-survives-cache-loss: fails at its first apply,
+#     both arms, on issue #950's node-path unmarked-apply refusal, which
+#     fires unconditionally on a first apply of an untaggable,
+#     record-recoverable resource because no record can exist yet for it
+#     to be exempted by. Filed as #1637.
+# It is a substrate-parity / lane:proof-ci finding against #1579, not a
+# regression this unit introduced or can fix; re-add it here once resolved.
+#
+# Claim 13, the-tag-is-the-boundary, was excluded here for the same reason
+# until #1636 fixed it: its BREAK control's own `denied()` check greps the
+# whole apply transcript for "AccessDenied", which also matched two
+# unrelated, harmless sweep-gap reports (`aws_iam_policy`/`iam:ListPolicies`
+# 403, quoted verbatim in both live_plan.go's pre-diff coverage report and
+# the post-apply "Incomplete sweep" warning), reading Bob's successful
+# cross-half write as still refused. live/smoke/lib.sh's
+# strip_incomplete_sweep_warning now scopes the check past both.
 #   - claim 13, the-tag-is-the-boundary: its BREAK control's own `denied()`
 #     check greps the whole apply transcript for "AccessDenied", which
 #     also matches an unrelated, harmless sweep warning
@@ -79,6 +103,16 @@
 # scenario itself (`|| rc=$?` neutralises set -e without discarding the
 # code), verified with three back-to-back local runs that each hit the
 # loser branch and each still passed.
+#
+# Claims 25 and 26 on AWS (#1599) joined the smoke job with cells that read
+# "restated", not "proven": each scenario proves the part of its promise the
+# emulator can produce, and the cell's note says which part. A restated cell
+# that carries its own scenario is held to a matrix the same as a proven one
+# (live/proven_cell_ci_test.go's cellRunsItsOwnScenario). Both were written
+# without a local run against the emulator (the maintainer's 2026-09-27 no-
+# smoke-runs rule), so neither has a measured duration yet; their claims.json
+# minutes (3 and 4) put them well inside the 10-minute budget if they run
+# like their neighbours, and the first run of this job is their measurement.
 #
 # Verdict lines, not exit codes (#1439). Every run goes through
 # live/smoke/ci-run.sh, which writes the run's output to a file as it goes
@@ -132,6 +166,7 @@ jobs:
   smoke:
     # Every PR/push run, plus a manual dispatch. Not on schedule: the
     # nightly's job is smoke-nightly below, so a scheduled run does not
+    # also re-run these 22 (nightly-watch would then be reporting on a
     # also re-run these 21 (nightly-watch would then be reporting on a
     # conclusion that mixes budgeted and over-budget scenarios).
     if: github.event_name != 'schedule'
@@ -161,6 +196,10 @@ jobs:
           - the-estate-answers-in-the-present-tense
           - a-killed-apply-hides-nothing
           - two-estates-at-once
+          - an-ignored-tag-is-not-drift
+          - the-tag-is-the-boundary
+          - a-held-delete-is-not-gone
+          - the-server-gets-the-last-word
           - record-only-survives-cache-loss
     env:
       # Safe here (unlike gauntlet.yml's shared mirror, #1550): nothing in
