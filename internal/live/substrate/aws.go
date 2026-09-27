@@ -8,6 +8,7 @@ package substrate
 import (
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
@@ -46,10 +47,12 @@ func (aws) MarkersOf(surface markers.Surface, obj cty.Value) (map[string]string,
 
 // Writes: the tags map is set in the create call, and an existing object's
 // is rewritten by a plan-then-apply that may change nothing else
-// (internal/live/liveimport's tags.go, internal/live/mv's rewrite.go).
+// (internal/live/liveimport's tags.go, internal/live/mv's rewrite.go). A
+// type whose create call cannot carry tags is marked through the Tagging
+// API once the create returns (GitHub issue #1084, #1587).
 func (aws) Writes(surface markers.Surface) Writes {
 	if surface == markers.SurfaceTags {
-		return Writes{Create: WriteInCreate, Adopt: WriteTagsPlan}
+		return Writes{Create: WriteInCreate, Adopt: WriteTagsPlan, PostCreate: WriteTaggingAPI}
 	}
 	return Writes{}
 }
@@ -81,3 +84,10 @@ func (aws) CarrierPhrase(surface markers.Surface) string {
 func (aws) NotACarrier(block *configschema.Block, typeName string) string {
 	return markers.NotAMarkerSurface(block, typeName)
 }
+
+// ---- GitHub issue #1587: the post-create marker write ----
+
+// MarkerWriter is [WriteTaggingAPI] for every AWS provider configuration:
+// internal/command builds the Tagging API client signed as that
+// configuration's own principal.
+func (aws) MarkerWriter(addrs.AbsProviderConfig) Write { return WriteTaggingAPI }
