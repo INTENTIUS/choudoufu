@@ -900,14 +900,16 @@ gauntlet_kind_day2_replace "$ADOPTED" "$ORACLE" "$NS"
 # The two readings, both asserted below:
 #
 #   - the record for the object the crash DID create holds
-#     metadata.labels = [tofu-estate] and metadata.annotations = [], the
+#     metadata.labels = [tofu-estate] and
+#     metadata.annotations = [choudoufu.intentius.io/tofu-address], the
 #     block declaring neither map and this fork stamping the estate
-#     marker into labels on its behalf. The marker key being IN the
-#     recorded set is the load-bearing half: #1211's removal set is
-#     (recorded declared keys) \ (currently declared keys), so a record
-#     that omitted it would have the very next plan propose removing the
-#     marker the interrupted apply had just written - which is the
-#     binding this stage then rests on.
+#     marker into labels and the escaped address into annotations on its
+#     behalf (#1639). Both marker keys being IN the recorded set is the
+#     load-bearing half: #1211's removal set is (recorded declared keys)
+#     \ (currently declared keys), so a record that omitted either would
+#     have the very next plan propose removing the marker the interrupted
+#     apply had just written - which is the binding this stage then rests
+#     on.
 #   - the file count goes up by exactly one across the interrupted apply,
 #     because the apply committed exactly one object before the SIGTERM
 #     and durably recorded it. This is #1188 section 3's 7 -> 8 on a type
@@ -961,6 +963,13 @@ exists_a issuer crash-second && { printf '%s\n' "$X_OUT" | tail -20; fail "crash
 # object.
 kca get issuer -n "$NS" -l "tofu-estate=$ESTATE" -o name 2>/dev/null | grep -qE '(^|/)crash-first$' \
   || fail "crash-first was created by the interrupted apply but does not come back under tofu-estate=$ESTATE - the marker the rerun is supposed to find is not there (labels: $(kca get issuer crash-first -n "$NS" --show-labels --no-headers 2>&1 | tr -s ' ' | cut -d' ' -f4))"
+# #1639's node stamp writes the escaped address into a manifest's
+# metadata.annotations the same way it writes tofu-estate into labels, so
+# the object the crash DID create must carry it even though crash-first's
+# own block declares no annotations of its own.
+X_ADDR_ANN="$(kca get issuer crash-first -n "$NS" -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}' 2>&1)"
+[ "$X_ADDR_ANN" = "kubernetes_manifest.crash_first" ] \
+  || fail "crash-first's choudoufu.intentius.io/tofu-address annotation reads '$X_ADDR_ANN', want kubernetes_manifest.crash_first - the interrupted apply committed this object's create, and #1639's stamp is not something a crash between two creates should be able to skip"
 X_RECORDS_AFTER="$(gauntlet_record_envelope_count "$ADOPTED/.tofu-records")"
 
 # The record reading, asserted by value rather than printed as a count
@@ -973,7 +982,7 @@ X_KEYS_L="$(gauntlet_record_manifest_keys "$X_REC" labels)" \
 X_KEYS_A="$(gauntlet_record_manifest_keys "$X_REC" annotations)" \
   || fail "the record at $X_REC carries no residue.manifest_metadata_keys entry for annotations; an object declaring no annotations must record an EMPTY set rather than no set, or 'the last annotation was just deleted' reads as 'nothing is known' and the deletion is never planned (#1211)"
 [ "$X_KEYS_L" = "tofu-estate" ] || fail "the record at $X_REC says the applied manifest declared metadata.labels [$X_KEYS_L]; crash-first's block declares no labels of its own and this fork stamps tofu-estate into that map on the configuration's behalf, so the recorded set must be exactly tofu-estate. #1211's removal set is (recorded declared keys) \\ (currently declared keys), so a set missing tofu-estate has the next plan propose removing the marker this apply just wrote - and a set carrying anything else names a key nothing declared"
-[ -z "$X_KEYS_A" ] || fail "the record at $X_REC says the applied manifest declared metadata.annotations [$X_KEYS_A]; crash-first's block declares no annotations, so the recorded set must be present and empty"
+[ "$X_KEYS_A" = "choudoufu.intentius.io/tofu-address" ] || fail "the record at $X_REC says the applied manifest declared metadata.annotations [$X_KEYS_A]; crash-first's block declares no annotations of its own and this fork stamps the escaped address into that map on the configuration's behalf (#1639), so the recorded set must be exactly choudoufu.intentius.io/tofu-address. #1211's removal set is (recorded declared keys) \\ (currently declared keys), so a set missing it has the next plan propose removing the annotation this apply just wrote - and a set carrying anything else names a key nothing declared"
 [ "$X_RECORDS_AFTER" = "$((X_RECORDS_BEFORE + 1))" ] || fail "records went $X_RECORDS_BEFORE -> $X_RECORDS_AFTER across the interrupted apply, want exactly one more. The apply committed exactly one of its two objects - kubectl above confirms crash-first exists and crash-second does not - and since #1211 an applied kubernetes_manifest records its declared metadata keys, so the interrupted apply must have durably recorded the one object it created and nothing else. A count that did not move means the crash took the record with the process; a count that moved by two means an object exists that kubectl cannot see"
 log "  crash-first exists and is labelled; crash-second does not exist; records $X_RECORDS_BEFORE -> $X_RECORDS_AFTER, and the record for kubernetes_manifest.crash_first declares labels [$X_KEYS_L] and annotations [$X_KEYS_A]"
 
