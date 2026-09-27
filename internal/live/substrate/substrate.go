@@ -26,6 +26,8 @@
 package substrate
 
 import (
+	"fmt"
+
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
@@ -136,6 +138,9 @@ type Substrate interface {
 	// configured provider itself ([SweepTaggingIndex]), and the error for a
 	// block the client cannot be built from.
 	NewSweeper(providerConfig cty.Value, ok bool) (*kubesweep.Client, error)
+
+	// surfaceWording is GitHub issue #1584's block, below.
+	surfaceWording
 }
 
 // All is every family, in the order a surface question asks them.
@@ -229,4 +234,74 @@ func WritesOf(surface markers.Surface) Writes {
 		return Writes{}
 	}
 	return s.Writes(surface)
+}
+
+// ---- GitHub issue #1584: one surface enum ----
+//
+// Until #1584 the projection kept its own marker-surface enum
+// (markerSurface, with createCollidesOnKey and carrierPhrase switching on
+// it) and live-mv kept another (mv.Surface), each mapped from
+// [markers.Surface] by hand. A surface was then declared in three places,
+// and the answers switching on the shadow enums were invisible to the
+// completeness guard, which counts only [markers.Surface] constants: a
+// fourth surface would have read as the tags attribute and as never
+// colliding on its key, with nothing going red. The answers now live on the
+// family that owns the surface, beside the rest of its answers.
+
+// surfaceWording is the part of [Substrate] #1584 added.
+type surfaceWording interface {
+	// CreateCollidesOnKey reports whether, for a declared resource on
+	// surface (one of this family's), an object read at its identity means
+	// the resource's own create would be refused by the server as a
+	// duplicate. See the package-level [CreateCollidesOnKey].
+	CreateCollidesOnKey(surface markers.Surface) bool
+
+	// CarrierPhrase names where surface's marker map lives on an object,
+	// for a message telling an operator the provider returned no such map.
+	CarrierPhrase(surface markers.Surface) string
+
+	// NotACarrier explains, for one of this family's resource types whose
+	// schema carries none of the family's surfaces, why there is nowhere on
+	// it to carry a marker. It is a sentence that names the type.
+	NotACarrier(block *configschema.Block, typeName string) string
+}
+
+// CreateCollidesOnKey reports whether, for a declared resource on surface,
+// an object read at its identity means the resource's own create would be
+// refused by the server as a duplicate: the first half of GitHub issue
+// #1546's ruling, "its identity is a server-enforced unique key". False for
+// the zero Surface.
+//
+// True for the Kubernetes label surface only, and each family's answer
+// says why its other surfaces are excluded ([kubernetes.CreateCollidesOnKey],
+// [aws.CreateCollidesOnKey]).
+func CreateCollidesOnKey(surface markers.Surface) bool {
+	s := For(surface)
+	return s != nil && s.CreateCollidesOnKey(surface)
+}
+
+// CarrierPhrase names where surface's marker map lives ("tags attribute",
+// "metadata.labels map"), for the one refusal that has to tell an operator
+// the provider returned no such map. Empty for the zero Surface, which has
+// no map to be missing: a caller asks this only of a surface it read.
+func CarrierPhrase(surface markers.Surface) string {
+	s := For(surface)
+	if s == nil {
+		return ""
+	}
+	return s.CarrierPhrase(surface)
+}
+
+// NotACarrier explains why a resource type of provider providerType has
+// nowhere to carry an ownership marker, in its family's own words: the AWS
+// "no tags map this configuration can set" (or the tags map the marker
+// vocabulary cannot round-trip, [markers.NotAMarkerSurface]), and the
+// Kubernetes "no metadata.labels map". A provider with no family gets a
+// sentence that names no carrier rather than the AWS one. The caller has
+// already established the type carries no surface ([SurfaceOf] false).
+func NotACarrier(providerType string, block *configschema.Block, typeName string) string {
+	if s, ok := ForProvider(providerType); ok {
+		return s.NotACarrier(block, typeName)
+	}
+	return fmt.Sprintf("%s is from a provider this fork has no marker surface for, so there is nowhere to carry an ownership marker.", typeName)
 }

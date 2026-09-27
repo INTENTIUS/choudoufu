@@ -49,9 +49,9 @@ type StatelessMvReport struct {
 	DryRun bool
 
 	// LabelSurface means the marker on this object is the single
-	// tofu-estate label a Kubernetes object carries (mv.SurfaceLabel):
-	// there is no tofu-address to report, and a cross-estate move is the
-	// one label write.
+	// tofu-estate label a Kubernetes object carries
+	// (mv.Result.MarkerCarriesAddress is false): there is no tofu-address
+	// to report, and a cross-estate move is the one label write.
 	LabelSurface bool
 
 	// NothingToWrite means the rename stopped, successfully, before
