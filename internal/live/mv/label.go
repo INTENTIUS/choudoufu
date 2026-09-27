@@ -59,26 +59,6 @@ import (
 // built here yet and is refused by name ([SummaryManifestMoveUnsupported])
 // with the equivalent kubectl write, which the same policy governs.
 
-// Surface is where the ownership marker lives on the live object, which
-// decides what a rename or a move has to write.
-type Surface string
-
-const (
-	// SurfaceTags is the AWS shape: tofu-estate and tofu-address in the
-	// object's tags map ([markers.TagSurface]). The zero value, so every
-	// caller and test that never heard of a second surface keeps reading
-	// the tag path it always did.
-	SurfaceTags Surface = ""
-
-	// SurfaceLabel is the Kubernetes shape: tofu-estate alone, in
-	// metadata[0].labels ([markers.LabelSurface]).
-	SurfaceLabel Surface = "LABEL"
-
-	// SurfaceManifest is the kubernetes_manifest shape: the same one label,
-	// inside a dynamic manifest argument ([markers.ManifestSurface]).
-	SurfaceManifest Surface = "MANIFEST"
-)
-
 // SummaryManifestMoveUnsupported is the summary [surfaceOf]'s caller raises
 // for a cross-estate move of a manifest-declared object. Exported for the
 // reason [SummaryLocatedRenameUnsupported] is.
@@ -86,21 +66,37 @@ const SummaryManifestMoveUnsupported = "Moving a manifest-declared object betwee
 
 // surfaceOf reads the marker surface off the resource type's schema, never
 // off its name: [substrate.SurfaceOf], the question live-import's carrier
-// choice asks too (GitHub issue #1118). Every surface is named below, so the
-// completeness guard reports one this switch has not learned. A type that carries no marker surface at all reads as
-// SurfaceTags, the path it has always taken here, where the tag path finds
-// no tags map to read ("Resource type with no tags").
-func surfaceOf(block *configschema.Block) Surface {
+// choice asks too (GitHub issue #1118). A type that carries no marker
+// surface at all reads as the zero Surface, which [Move] sends down the tag
+// path it has always taken, where the tag path finds no tags map to read
+// ("Resource type with no tags").
+//
+// GitHub issue #1584: this package used to map the answer onto its own
+// Surface enum. It now keeps the [markers.Surface] itself, and asks
+// [substrate] what that surface means for a move ([relabels],
+// [Result.MarkerCarriesAddress]) rather than naming the surfaces, so a new
+// one is taught in internal/live/substrate alone.
+func surfaceOf(block *configschema.Block) markers.Surface {
 	surface, _ := substrate.SurfaceOf(block)
-	switch surface {
-	case markers.SurfaceTags:
-		return SurfaceTags
-	case markers.SurfaceManifest:
-		return SurfaceManifest
-	case markers.SurfaceLabels:
-		return SurfaceLabel
-	}
-	return SurfaceTags
+	return surface
+}
+
+// relabels reports whether a move on surface writes its marker by the
+// labels-only plan-then-apply of [mover.relabel] ([substrate.WriteLabelsPlan],
+// the Kubernetes metadata-block shape). Every other surface, and the zero
+// one, takes the tag path; the manifest shape never gets this far (Move
+// refuses it by name first).
+func relabels(surface markers.Surface) bool {
+	return substrate.WritesOf(surface).Adopt == substrate.WriteLabelsPlan
+}
+
+// MarkerCarriesAddress reports whether the marker on this result's object
+// holds a tofu-address ([substrate.CarriesAddress]). True as well for a type
+// with no marker surface and for a Result that stopped before its surface
+// was read: both are on the tag path, and the report for them is the tag
+// report it has always been.
+func (r *Result) MarkerCarriesAddress() bool {
+	return r.Surface == "" || substrate.CarriesAddress(r.Surface)
 }
 
 // locateLabelled is [mover.locateByIdentity]'s label-surface half: the

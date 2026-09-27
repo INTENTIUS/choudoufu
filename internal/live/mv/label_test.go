@@ -30,8 +30,8 @@ import (
 // schema fallback produced: before, Move refused every such type as
 // "outside the live-markers subset" before reading anything.
 //
-// Proving them red: make Move's surface switch treat SurfaceLabel as
-// SurfaceTags and TestMove_LabelSurfaceMovesBetweenEstates fails with
+// Proving them red: make Move's surface switch treat markers.SurfaceLabels as
+// the tag surface and TestMove_LabelSurfaceMovesBetweenEstates fails with
 // "Resource type with no tags" and TestMove_LabelSurfaceRenameHasNothingToWrite
 // with a read the object never asked for; make changedOutsideLabels skip
 // the whole metadata block and the "a rename inside the metadata block"
@@ -232,8 +232,8 @@ func TestMove_LabelSurfaceMovesBetweenEstates(t *testing.T) {
 	if diags.HasErrors() {
 		t.Fatalf("the move was refused: %s", diags.Err())
 	}
-	if res.Surface != SurfaceLabel {
-		t.Errorf("Surface = %q, want %q", res.Surface, SurfaceLabel)
+	if res.Surface != markers.SurfaceLabels {
+		t.Errorf("Surface = %q, want %q", res.Surface, markers.SurfaceLabels)
 	}
 	if !res.Written || !res.Verified {
 		t.Errorf("Written = %v, Verified = %v, want both true", res.Written, res.Verified)
@@ -304,8 +304,8 @@ func TestMove_LabelSurfaceRenameHasNothingToWrite(t *testing.T) {
 	if !res.NothingToWrite {
 		t.Fatal("NothingToWrite is false: the marker carries no address, so a rename has nothing governed to write")
 	}
-	if res.Surface != SurfaceLabel {
-		t.Errorf("Surface = %q, want %q", res.Surface, SurfaceLabel)
+	if res.Surface != markers.SurfaceLabels {
+		t.Errorf("Surface = %q, want %q", res.Surface, markers.SurfaceLabels)
 	}
 	if res.Written || res.Verified {
 		t.Errorf("Written = %v, Verified = %v on a rename with nothing to write", res.Written, res.Verified)
@@ -403,8 +403,8 @@ func TestMove_ManifestSurfaceMoveIsRefusedByName(t *testing.T) {
 	if !found {
 		t.Errorf("no %q diagnostic; got %s", SummaryManifestMoveUnsupported, diags.Err())
 	}
-	if res.Surface != SurfaceManifest {
-		t.Errorf("Surface = %q, want %q", res.Surface, SurfaceManifest)
+	if res.Surface != markers.SurfaceManifest {
+		t.Errorf("Surface = %q, want %q", res.Surface, markers.SurfaceManifest)
 	}
 	if cluster.reads != 0 || cluster.applies != 0 {
 		t.Errorf("a by-name refusal still reached the cluster: %d reads, %d applies", cluster.reads, cluster.applies)
