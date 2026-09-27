@@ -181,6 +181,13 @@ type Report struct {
 	// "none exist" from "nothing looked".
 	Unclaimed []UnclaimedResource
 
+	// ControllerHeld lists the live resources this pass saw carrying an
+	// in-cluster controller's tags (GitHub issue #1606): taken out of
+	// Unclaimed, and out of the removal set when they also carried this
+	// estate's markers. See [applyControllerHeld]. Sorted by type, then
+	// identity.
+	ControllerHeld []ControllerHeldResource
+
 	// SweepGaps lists the resource types the estate-wide sweep could not
 	// enumerate: types the provider cannot list, and types whose list call
 	// failed. An orphan of one of them is invisible to this run, so its
@@ -1778,6 +1785,9 @@ func (r *Result) String() string {
 	for _, u := range r.Unclaimed {
 		b.WriteString("UNCLAIMED " + u.String() + "\n")
 	}
+	for _, c := range r.ControllerHeld {
+		b.WriteString("HELD      " + c.String() + "\n")
+	}
 	for _, g := range r.SweepGaps {
 		b.WriteString("SWEEPGAP  " + g.String() + "\n")
 	}
@@ -1791,6 +1801,7 @@ func (r *Result) String() string {
 }
 
 func (r *Result) sortEverything() {
+	sortControllerHeld(r.ControllerHeld)
 	sort.Slice(r.Bindings, func(i, j int) bool {
 		return r.Bindings[i].Addr.String() < r.Bindings[j].Addr.String()
 	})
