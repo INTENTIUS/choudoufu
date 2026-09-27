@@ -40,7 +40,7 @@ import (
 func (m *mover) rewrite(ctx context.Context, prior *states.ResourceInstanceObject) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
-	if m.res.Surface == SurfaceLabel {
+	if relabels(m.res.Surface) {
 		return m.relabel(ctx, prior)
 	}
 
@@ -192,7 +192,7 @@ func (m *mover) planAndApply(ctx context.Context, prior *states.ResourceInstance
 // the partial-write message: the new address on the tag surface, the
 // destination estate on the label surface.
 func (m *mover) markerDestination() string {
-	if m.res.Surface == SurfaceLabel {
+	if relabels(m.res.Surface) {
 		return "tofu-estate = " + m.req.Estate
 	}
 	return m.res.New.String()
@@ -244,7 +244,7 @@ func (m *mover) checkPlan(priorVal cty.Value, resp providers.PlanResourceChangeR
 	}
 
 	extra, only := changedOutsideTags(m.schema.Block, priorVal, planned), "A rename is a tags-only write"
-	if m.res.Surface == SurfaceLabel {
+	if relabels(m.res.Surface) {
 		extra, only = changedOutsideLabels(m.schema.Block, priorVal, planned), "A move is a labels-only write"
 	}
 	if len(extra) > 0 {
