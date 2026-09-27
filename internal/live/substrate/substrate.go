@@ -153,6 +153,30 @@ func ForProvider(providerType string) (Substrate, bool) {
 	return nil, false
 }
 
+// Sweeps reports whether providerType names a family whose own sweep leg
+// finds its objects independently of internal/live/identity's admission
+// table (GitHub issue #1581): a type belonging to such a family needs no
+// row there to be found again once its last block is removed.
+//
+// Only Kubernetes qualifies today ([SweepLabelList]): its leg lists every
+// kind the cluster serves and joins the result against the estate's
+// objects, drawing its universe from the provider and the cluster rather
+// than from the table. AWS's own sweep ([SweepTaggingIndex]) is that same
+// admission table read a different way, so a type with no row gets nothing
+// extra from it, and neither does an unregistered provider ForProvider
+// does not recognise at all.
+//
+// This is the question [internal/live/identity]'s no-orphan-recovery
+// warning needs, and it is asked by provider - the resource's own resolved
+// provider configuration, never by a type's schema shape. A type can share
+// a Kubernetes-shaped schema (an object-metadata block, say) with an
+// unrelated provider's type by coincidence; only the provider says which
+// sweep leg, if any, will actually look for it again.
+func Sweeps(providerType string) bool {
+	s, ok := ForProvider(providerType)
+	return ok && s.Sweep() == SweepLabelList
+}
+
 // For is the family a surface belongs to, or nil for the zero Surface.
 func For(surface markers.Surface) Substrate {
 	for _, s := range All {
