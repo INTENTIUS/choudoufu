@@ -31,6 +31,10 @@ func crontabTarget() Target {
 }
 
 func liveCrontab(labels map[string]string) *unstructured.Unstructured {
+	return liveCrontabAnnotated(labels, nil)
+}
+
+func liveCrontabAnnotated(labels, annotations map[string]string) *unstructured.Unstructured {
 	u := &unstructured.Unstructured{Object: map[string]any{
 		"apiVersion": "stable.example.com/v1",
 		"kind":       "CronTab",
@@ -39,6 +43,9 @@ func liveCrontab(labels map[string]string) *unstructured.Unstructured {
 	}}
 	if labels != nil {
 		u.SetLabels(labels)
+	}
+	if annotations != nil {
+		u.SetAnnotations(annotations)
 	}
 	return u
 }
@@ -55,9 +62,10 @@ type fakeReleaser struct {
 }
 
 type releaseCall struct {
-	ref    kubesweep.ObjectRef
-	keys   []string
-	dryRun bool
+	ref         kubesweep.ObjectRef
+	keys        []string
+	annotations []string
+	dryRun      bool
 }
 
 func (f *fakeReleaser) ReadObject(_ context.Context, ref kubesweep.ObjectRef) (*unstructured.Unstructured, bool, error) {
@@ -68,8 +76,8 @@ func (f *fakeReleaser) ReadObject(_ context.Context, ref kubesweep.ObjectRef) (*
 	return f.live.DeepCopy(), true, nil
 }
 
-func (f *fakeReleaser) DeleteLabels(_ context.Context, ref kubesweep.ObjectRef, keys []string, _ string, dryRun bool) (*unstructured.Unstructured, string, error) {
-	f.calls = append(f.calls, releaseCall{ref: ref, keys: keys, dryRun: dryRun})
+func (f *fakeReleaser) DeleteMarkers(_ context.Context, ref kubesweep.ObjectRef, keys, annotations []string, _ string, dryRun bool) (*unstructured.Unstructured, string, error) {
+	f.calls = append(f.calls, releaseCall{ref: ref, keys: keys, annotations: annotations, dryRun: dryRun})
 	if f.rejectAs != "" {
 		return nil, f.rejectAs, nil
 	}
@@ -79,6 +87,15 @@ func (f *fakeReleaser) DeleteLabels(_ context.Context, ref kubesweep.ObjectRef, 
 		delete(labels, k)
 	}
 	next.SetLabels(labels)
+	if ann := next.GetAnnotations(); ann != nil {
+		for _, k := range annotations {
+			delete(ann, k)
+		}
+		if len(ann) == 0 {
+			ann = nil // the API server omits an emptied map, as it does labels
+		}
+		next.SetAnnotations(ann)
+	}
 	next.SetResourceVersion("42")
 	if dryRun {
 		if f.dryHook != nil {
@@ -106,7 +123,9 @@ func manifestProvider() *fakeCluster {
 
 func TestRelease_ManifestSurfaceReleasesTheEstateLabelThroughAPatch(t *testing.T) {
 	p := manifestProvider()
-	k := &fakeReleaser{live: liveCrontab(map[string]string{"app": "cron", markers.TagEstate: "smoke-crd"})}
+	k := &fakeReleaser{live: liveCrontabAnnotated(
+		map[string]string{"app": "cron", markers.TagEstate: "smoke-crd"},
+		map[string]string{"note": "keep", markers.AddressAnnotation: "kubernetes_manifest.cron"})}
 
 	res, diags := Release(context.Background(), p, k, testKey, []Target{crontabTarget()})
 	out := res.Outcomes[0]
@@ -118,12 +137,15 @@ func TestRelease_ManifestSurfaceReleasesTheEstateLabelThroughAPatch(t *testing.T
 		t.Fatalf("calls = %+v, want a dry run then one write", k.calls)
 	}
 	for _, c := range k.calls {
-		if c.ref != wantRef || !reflect.DeepEqual(c.keys, []string{markers.TagEstate}) {
-			t.Errorf("call = %+v, want %s with keys [%s]", c, wantRef, markers.TagEstate)
+		if c.ref != wantRef || !reflect.DeepEqual(c.keys, []string{markers.TagEstate}) || !reflect.DeepEqual(c.annotations, []string{markers.AddressAnnotation}) {
+			t.Errorf("call = %+v, want %s with label %s and annotation %s", c, wantRef, markers.TagEstate, markers.AddressAnnotation)
 		}
 	}
 	if got := k.live.GetLabels(); !reflect.DeepEqual(got, map[string]string{"app": "cron"}) {
 		t.Errorf("labels after release = %v, want app=cron alone", got)
+	}
+	if got := k.live.GetAnnotations(); !reflect.DeepEqual(got, map[string]string{"note": "keep"}) {
+		t.Errorf("annotations after release = %v, want note=keep alone", got)
 	}
 	if p.ImportResourceStateCalled || p.applied != 0 {
 		t.Errorf("the provider was used for a manifest release: imported %v, applied %d", p.ImportResourceStateCalled, p.applied)
@@ -167,10 +189,17 @@ func TestRelease_ManifestSurfaceRefusesADryRunThatChangesMoreThanTheLabel(t *tes
 			l["injected"] = "yes"
 			u.SetLabels(l)
 		},
+		"metadata.annotations.note": func(u *unstructured.Unstructured) {
+			a := u.GetAnnotations()
+			delete(a, "note")
+			u.SetAnnotations(a)
+		},
 	}
 	for name, hook := range cases {
 		t.Run(name, func(t *testing.T) {
-			k := &fakeReleaser{live: liveCrontab(map[string]string{"app": "cron", markers.TagEstate: "smoke-crd"}), dryHook: hook}
+			k := &fakeReleaser{live: liveCrontabAnnotated(
+				map[string]string{"app": "cron", markers.TagEstate: "smoke-crd"},
+				map[string]string{"note": "keep", markers.AddressAnnotation: "kubernetes_manifest.cron"}), dryHook: hook}
 			res, _ := Release(context.Background(), manifestProvider(), k, testKey, []Target{crontabTarget()})
 			out := res.Outcomes[0]
 			if out.OK || k.writes() != 0 {
@@ -208,7 +237,7 @@ func TestRelease_ManifestSurfaceWithNoClusterClientIsRefusedByName(t *testing.T)
 	if out.OK || p.applied != 0 || p.ImportResourceStateCalled {
 		t.Fatalf("outcome = %s; want a refusal that touches nothing", out)
 	}
-	for _, want := range []string{"kubectl label", "tofu-estate-", "kind=CronTab", "no cluster client"} {
+	for _, want := range []string{"kubectl label", "tofu-estate-", "kubectl annotate", markers.AddressAnnotation + "-", "kind=CronTab", "no cluster client"} {
 		if !strings.Contains(out.Detail, want) {
 			t.Errorf("the refusal does not carry %q: %s", want, out.Detail)
 		}
@@ -220,5 +249,19 @@ func TestRelease_ManifestSurfaceUnreadableImportIDIsRefused(t *testing.T) {
 	res, _ := Release(context.Background(), manifestProvider(), k, testKey, []Target{{TypeName: "kubernetes_manifest", ImportID: "orphans/stale"}})
 	if out := res.Outcomes[0]; out.OK || len(k.reads) != 0 || len(k.calls) != 0 {
 		t.Fatalf("outcome = %s, reads %d, patches %d; want a refusal before any request", out, len(k.reads), len(k.calls))
+	}
+}
+
+// The address annotation alone, with the label already gone (a release
+// that half landed before #1639 put both in one patch), is still released.
+func TestRelease_ManifestSurfaceReleasesAStrayAddressAnnotation(t *testing.T) {
+	k := &fakeReleaser{live: liveCrontabAnnotated(map[string]string{"app": "cron"},
+		map[string]string{markers.AddressAnnotation: "kubernetes_manifest.cron"})}
+	res, _ := Release(context.Background(), manifestProvider(), k, testKey, []Target{crontabTarget()})
+	if out := res.Outcomes[0]; !out.OK || k.writes() != 1 {
+		t.Fatalf("outcome = %s, writes %d; want the annotation released", out, k.writes())
+	}
+	if _, still := k.live.GetAnnotations()[markers.AddressAnnotation]; still {
+		t.Error("the address annotation is still on the object")
 	}
 }

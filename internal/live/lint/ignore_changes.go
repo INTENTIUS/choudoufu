@@ -228,8 +228,9 @@ func checkIgnoreChangesTags(resource *configs.Resource, addr string, path addrs.
 // markerPath is the full cty.Path of the one marker this surface carries -
 // [markers.LabelSurfacePath] for SurfaceLabels, [markers.ManifestLabelPath]
 // for SurfaceManifest - always ending in the tofu-estate index step, since
-// neither Kubernetes surface carries tofu-address ([substrate.Kubernetes]'s
-// CarriesAddress is false).
+// neither Kubernetes label map carries tofu-address
+// ([substrate.AddressInMarkers] is false for both; the address rides in an
+// annotation, GitHub issue #1641).
 //
 // An ignore_changes entry is refused when its own path is a PREFIX of
 // markerPath (including the whole path, which is the entry naming the

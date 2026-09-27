@@ -19,6 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
@@ -163,6 +164,22 @@ type Request struct {
 	// resolves it once and passes it, exactly as [Request.Region] and
 	// [Request.Tagging] arrive.
 	ReadParallelism int
+
+	// Clusters supplies the Kubernetes cluster client for a provider
+	// configuration, the seam internal/live/liveimport's Request.Clusters
+	// names for the same reason: a manifest-declared object's markers are
+	// written by an API merge patch, never through the provider
+	// (internal/live/kubesweep/patch.go). live-mv needs it for one write,
+	// the address annotation a same-estate rename of such an object
+	// rewrites (GitHub issue #1639). Nil refuses that rename by name and
+	// leaves every other move exactly as it was.
+	Clusters Clusters
+}
+
+// Clusters is [Request.Clusters]'s interface: internal/command's
+// statelessProviders implements it for live-import already.
+type Clusters interface {
+	LabelPatcher(ctx context.Context, addr addrs.AbsProviderConfig) (kubesweep.LabelPatcher, error)
 }
 
 // Path is how the live resource was found.
@@ -233,14 +250,23 @@ type Result struct {
 
 	// NothingToWrite is true when this rename had nothing governed to
 	// write on the live system and stopped, successfully, before reading
-	// or writing anything there: a same-estate rename on a surface whose
-	// marker carries no address (label.go). The object is bound to its
-	// block by the natural key the configuration authors, so renaming the
-	// block is the whole rename. The estate's own record store, when it
+	// or writing anything there: a same-estate rename on a label-surface
+	// schema whose metadata block has no annotations map, so no address
+	// on the object (label.go). Since GitHub issue #1639 every
+	// hashicorp/kubernetes type carries its address in an annotation and
+	// is rewritten instead; this remains for a schema that could not. The estate's own record store, when it
 	// has one, is still re-keyed from the old address to the new
 	// ([mover.propagateModuleRename]) - the local half every rename makes,
 	// and GitHub issue #412's stale-key shape otherwise.
 	NothingToWrite bool
+
+	// AlreadyMarked is true when a same-estate rename of a Kubernetes
+	// object found the object already carrying the new address in its
+	// address annotation (GitHub issue #1639) - a plan and apply of the
+	// renamed block wrote it first - so nothing was written, and the
+	// marker it carries is the one this rename would have written.
+	// Verified is true beside it.
+	AlreadyMarked bool
 
 	// Swept is true when the whole resource type was enumerated, which is
 	// what makes "nothing else claims the destination address" a complete
@@ -378,26 +404,38 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		return res, diags
 	}
 
-	m := &mover{req: req, res: res, provider: provider, schema: schema}
+	m := &mover{req: req, res: res, provider: provider, providerAddr: providerAddr, schema: schema}
 
 	// The marker surface decides what there is to write (label.go). On a
-	// surface with no address on the object, a rename within one estate
-	// has nothing governed to do and says so; a move between estates is
-	// the one label write, on the metadata-block shape, and is refused by
-	// name on the manifest shape until that rewrite exists.
+	// Kubernetes surface the ownership marker is the estate label and the
+	// block address is an annotation beside it (GitHub issue #1639): a
+	// rename within one estate rewrites the annotation, and a move between
+	// estates rewrites the label and the annotation together, on the
+	// metadata-block shape; on the manifest shape the move is refused by
+	// name until that rewrite exists (#1104), and the rename is one
+	// annotation patch (manifest.go).
 	res.Surface = surfaceOf(schema.Block)
 	switch {
 	case res.MarkerCarriesAddress():
 		// The tag path, which a type with no surface takes too.
+	case relabels(res.Surface):
+		if req.FromEstate == "" && !annotates(schema.Block) {
+			// A metadata block with no annotations attribute carries no
+			// address to rewrite: nothing on the cluster, and the estate's
+			// own records still follow the address.
+			res.NothingToWrite = true
+			return res, diags.Append(m.propagateModuleRename(ctx))
+		}
 	case req.FromEstate == "":
-		// Nothing on the cluster; the estate's own records still follow
-		// the address, exactly as after a tag rewrite.
-		res.NothingToWrite = true
+		diags = diags.Append(m.reannotateManifest(ctx))
+		if diags.HasErrors() || req.DryRun {
+			return res, diags
+		}
 		return res, diags.Append(m.propagateModuleRename(ctx))
-	case !relabels(res.Surface):
-		// The one cross-estate write built here for an addressless marker
-		// is the labels-only plan; the manifest shape's label patch is not
-		// (#1104), so it is refused by name.
+	default:
+		// The one cross-estate write built here for a Kubernetes marker
+		// is the metadata block's plan; the manifest shape's label patch
+		// is not (#1104), so it is refused by name.
 		return res, diags.Append(manifestMoveRefusal(res.TypeName, anchor, req.FromEstate, req.Estate))
 	}
 
@@ -411,6 +449,13 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		return res, diags
 	}
 
+	if res.AlreadyMarked {
+		// The object already carries the new address (label.go's
+		// locateLabelled): nothing to write, and the records still follow.
+		res.Verified = true
+		return res, diags.Append(m.propagateModuleRename(ctx))
+	}
+
 	diags = diags.Append(m.rewrite(ctx, prior))
 	if diags.HasErrors() {
 		return res, diags
@@ -421,10 +466,11 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 
 // mover carries one rename's inputs through the find and write halves.
 type mover struct {
-	req      Request
-	res      *Result
-	provider providers.Interface
-	schema   providers.Schema
+	req          Request
+	res          *Result
+	provider     providers.Interface
+	providerAddr addrs.AbsProviderConfig
+	schema       providers.Schema
 }
 
 // sourceEstate is the estate the live resource is looked for under: the

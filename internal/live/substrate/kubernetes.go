@@ -16,9 +16,10 @@ import (
 	"github.com/intentius/choudoufu/internal/live/markers"
 )
 
-// Kubernetes is the hashicorp/kubernetes family: tofu-estate alone, in
+// Kubernetes is the hashicorp/kubernetes family: the tofu-estate label, in
 // metadata[0].labels or, for kubernetes_manifest, in
-// manifest.metadata.labels.
+// manifest.metadata.labels, with the block address in the
+// markers.AddressAnnotation annotation beside it (#1639).
 var Kubernetes Substrate = kubernetes{}
 
 type kubernetes struct{}
@@ -67,7 +68,15 @@ func (kubernetes) Writes(surface markers.Surface) Writes {
 	return Writes{}
 }
 
-func (kubernetes) CarriesAddress() bool { return false }
+// CarriesAddress: every object this family creates or adopts carries its
+// block address in markers.AddressAnnotation (#1639), and the sweep binds
+// on it (#1640). An object without the annotation is the case #1617's
+// refusal still covers, per object (#1641).
+func (kubernetes) CarriesAddress() bool { return true }
+
+// AddressInMarkers: the address is an annotation, outside the label map
+// [kubernetes.MarkersOf] reads (#1641).
+func (kubernetes) AddressInMarkers() bool { return false }
 
 func (kubernetes) Sweep() Sweep { return SweepLabelList }
 
@@ -347,3 +356,34 @@ func (k kubernetes) NotACarrier(_ *configschema.Block, typeName string) string {
 // MarkerWriter is [WriteNeverNeeded]: the label rides the create call on
 // both surfaces, so there is nothing to write after it.
 func (kubernetes) MarkerWriter(addrs.AbsProviderConfig) Write { return WriteNeverNeeded }
+
+// ---- GitHub issue #1642: whether a create needs the post-create write ----
+
+// PostCreateNeeded is never: both surfaces carry the label in the create
+// call ([WriteNeverNeeded]).
+func (kubernetes) PostCreateNeeded(markers.Surface, string, CreateTagFacts) (string, bool) {
+	return "", false
+}
+
+// ---- GitHub issue #1649: the carrier's wholly-known read ----
+
+// CarrierPaths: metadata[0].labels, and manifest.metadata.labels. The label
+// map alone, never the whole metadata block: a planned object's
+// resource_version or generation can be unknown while its labels are not.
+func (kubernetes) CarrierPaths(surface markers.Surface) []cty.Path {
+	switch surface {
+	case markers.SurfaceLabels:
+		return []cty.Path{cty.GetAttrPath(markers.LabelSurfaceBlock).IndexInt(0).GetAttr(markers.LabelSurfaceAttr)}
+	case markers.SurfaceManifest:
+		return []cty.Path{cty.GetAttrPath(markers.ManifestSurfaceAttr).GetAttr(markers.LabelSurfaceBlock).GetAttr(markers.LabelSurfaceAttr)}
+	}
+	return nil
+}
+
+func (kubernetes) MarkerNoun(surface markers.Surface) string {
+	switch surface {
+	case markers.SurfaceLabels, markers.SurfaceManifest:
+		return "label"
+	}
+	return ""
+}

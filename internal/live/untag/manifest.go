@@ -14,23 +14,27 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
+	"github.com/intentius/choudoufu/internal/live/markers"
 )
 
 // releaseManifest is [releaseOne] for a manifest-shape target, a
 // kubernetes_manifest orphan (GitHub issue #1656, ruled 2026-09-27: allow
 // the label-delete patch). Its object is one dynamic argument, so there is
 // no typed labels map for a provider plan to be confined to; the release
-// is the second write internal/live/kubesweep/patch.go makes, a merge
-// patch deleting key from metadata.labels, under the same safety live-
-// import's adoption patch has (internal/live/liveimport/manifest.go):
+// is the second write internal/live/kubesweep/patch.go makes, one merge
+// patch deleting key from metadata.labels and the block-address
+// annotation (markers.AddressAnnotation, GitHub issue #1639) from
+// metadata.annotations, under the same safety live-import's adoption patch
+// has (internal/live/liveimport/manifest.go):
 //
-//  1. read the object; gone is nothing to release, unlabelled is done;
+//  1. read the object; gone is nothing to release, and an object carrying
+//     neither marker is done;
 //  2. send the patch with dryRun=All, and refuse if the server's answer
-//     differs from the live object anywhere but key - outside the labels
-//     map ([kubesweep.ChangedOutsideLabels]) or inside it (a webhook that
-//     adds or drops another label);
-//  3. send it for real, and confirm the object the server returns no
-//     longer carries key.
+//     differs from the live object anywhere but those two keys - outside
+//     the markers ([kubesweep.ChangedOutsideMarkers]) or inside the labels
+//     map (a webhook that adds or drops another label);
+//  3. send it for real, and confirm the object the server returns carries
+//     neither marker.
 //
 // The patch goes under [kubesweep.DefaultFieldManager]: an undeclared
 // orphan has no configuration to name a field_manager block, and a merge
@@ -40,8 +44,8 @@ func releaseManifest(ctx context.Context, cluster kubesweep.LabelReleaser, key s
 
 	if cluster == nil {
 		out.Detail = fmt.Sprintf(
-			"%s carries its whole object in one dynamic manifest argument, so its %q label is released by an API patch rather than a provider plan, and this run has no cluster client for the provider configuration it releases through. Release it with the cluster's own client: kubectl label <kind> <name> -n <namespace> %s- (the object is %s). Nothing was read and nothing was changed.",
-			t.TypeName, key, key, t.ImportID)
+			"%s carries its whole object in one dynamic manifest argument, so its %q label is released by an API patch rather than a provider plan, and this run has no cluster client for the provider configuration it releases through. Release it with the cluster's own client: kubectl label <kind> <name> -n <namespace> %s- and kubectl annotate <kind> <name> -n <namespace> %s- (the object is %s). Nothing was read and nothing was changed.",
+			t.TypeName, key, key, markers.AddressAnnotation, t.ImportID)
 		return out
 	}
 
@@ -62,14 +66,17 @@ func releaseManifest(ctx context.Context, cluster kubesweep.LabelReleaser, key s
 		out.Detail = fmt.Sprintf("The live system reports that this %s no longer exists; there is nothing to release a label from.", t.TypeName)
 		return out
 	}
-	if _, present := live.GetLabels()[key]; !present {
+	_, hasLabel := live.GetLabels()[key]
+	_, hasAddress := live.GetAnnotations()[markers.AddressAnnotation]
+	if !hasLabel && !hasAddress {
 		out.OK = true
 		out.Detail = fmt.Sprintf("Already carries no %q label; nothing to release.", key)
 		return out
 	}
 
 	keys := []string{key}
-	dry, rejected, err := cluster.DeleteLabels(ctx, ref, keys, kubesweep.DefaultFieldManager, true)
+	annotations := []string{markers.AddressAnnotation}
+	dry, rejected, err := cluster.DeleteMarkers(ctx, ref, keys, annotations, kubesweep.DefaultFieldManager, true)
 	if err != nil {
 		out.Detail = fmt.Sprintf("The label release on %s could not be submitted to the cluster for a dry run: %s. Nothing was changed.", ref, err)
 		return out
@@ -82,7 +89,7 @@ func releaseManifest(ctx context.Context, cluster kubesweep.LabelReleaser, key s
 		out.Detail = fmt.Sprintf("The cluster's dry run of the label release on %s returned no object to check. Nothing was changed.", ref)
 		return out
 	}
-	extra := kubesweep.ChangedOutsideLabels(live.Object, dry.Object)
+	extra := kubesweep.ChangedOutsideMarkers(live.Object, dry.Object, markers.AddressAnnotation)
 	extra = append(extra, labelsMovedBesides(live, dry, keys)...)
 	if len(extra) > 0 {
 		sort.Strings(extra)
@@ -90,7 +97,7 @@ func releaseManifest(ctx context.Context, cluster kubesweep.LabelReleaser, key s
 		return out
 	}
 
-	written, rejected, err := cluster.DeleteLabels(ctx, ref, keys, kubesweep.DefaultFieldManager, false)
+	written, rejected, err := cluster.DeleteMarkers(ctx, ref, keys, annotations, kubesweep.DefaultFieldManager, false)
 	if err != nil {
 		out.Detail = fmt.Sprintf("The label release on %s failed: %s. The write may have partly landed; read the object's labels with kubectl before deciding what to do next.", ref, err)
 		return out
@@ -107,6 +114,10 @@ func releaseManifest(ctx context.Context, cluster kubesweep.LabelReleaser, key s
 		out.Detail = fmt.Sprintf("The cluster reported no error, but %q is still present on the object it returned. Verify with kubectl before relying on this.", key)
 		return out
 	}
+	if _, still := written.GetAnnotations()[markers.AddressAnnotation]; still {
+		out.Detail = fmt.Sprintf("The cluster reported no error, but the %q annotation is still present on the object it returned. Verify with kubectl before relying on this.", markers.AddressAnnotation)
+		return out
+	}
 
 	out.OK = true
 	out.Detail = fmt.Sprintf("Released %q. This resource is no longer managed by this estate.", key)
@@ -115,7 +126,7 @@ func releaseManifest(ctx context.Context, cluster kubesweep.LabelReleaser, key s
 
 // labelsMovedBesides names every label, other than the released keys,
 // whose value the dry-run answer does not carry exactly as the live object
-// does: the one map [kubesweep.ChangedOutsideLabels] leaves to its caller.
+// does: the one map [kubesweep.ChangedOutsideMarkers] leaves to its caller.
 func labelsMovedBesides(live, dry *unstructured.Unstructured, released []string) []string {
 	skip := make(map[string]bool, len(released))
 	for _, k := range released {

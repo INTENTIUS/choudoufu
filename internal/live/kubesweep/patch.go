@@ -19,23 +19,24 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-// This file holds the two WRITES this package makes, and each is a label
-// write through one merge patch, under the caller's own credential, sent
-// first with dryRun=All so the server's verdict - its validation, its
-// admission policies, its RBAC - is read before anything is persisted:
+// This file holds the two WRITES this package makes. Each is one merge
+// patch confined to the ownership markers, metadata.labels[tofu-estate]
+// and, since GitHub issue #1639, the address annotation
+// metadata.annotations[choudoufu.intentius.io/tofu-address] beside it,
+// under the caller's own credential, sent first with dryRun=All so the
+// server's verdict - its validation, its admission policies, its RBAC - is
+// read before anything is persisted:
 //
-//   - [Client.PatchLabel] sets metadata.labels[tofu-estate] on a live
-//     object (GitHub issues #1104 and #1109, ruled 2026-09-13 by the
-//     maintainer on both): live-import's adoption of a manifest-shape
-//     object and live-mv's cross-estate move of one.
-//   - [Client.DeleteLabels] removes label keys from a live object, the
-//     body naming each key with a null value (GitHub issue #1656, ruled
-//     2026-09-27): live-untag's release of a manifest-shape orphan under
-//     undeclared_tagged = "untag". Once the address annotation (#1639)
-//     lands, the release deletes it in the same patch.
+//   - [Client.PatchMarkers] sets the markers (GitHub issues #1104 and
+//     #1109, ruled 2026-09-13 by the maintainer on both): live-import's
+//     adoption of a manifest-shape object, and live-mv's cross-estate move
+//     and rename of one.
+//   - [Client.DeleteMarkers] removes them, the body naming each key with a
+//     null value (GitHub issue #1656, ruled 2026-09-27): live-untag's
+//     release of a manifest-shape orphan under undeclared_tagged = "untag".
 //
-// Both callers diff the dry-run answer against the live object with
-// [ChangedOutsideLabels] before sending the real write, so the argument
+// Every caller diffs the dry-run answer against the live object with
+// [ChangedOutsideMarkers] before sending the real write, so the argument
 // below holds for each.
 //
 // # Why a patch rather than a write through the provider
@@ -112,9 +113,13 @@ type LabelPatcher interface {
 	// thing.
 	ReadObject(ctx context.Context, ref ObjectRef) (obj *unstructured.Unstructured, found bool, err error)
 
-	// PatchLabel sets metadata.labels[key] = value on the object at ref
-	// through a merge patch under fieldManager, and returns the object
-	// the server produced.
+	// PatchMarkers sets every entry of labels into metadata.labels and
+	// every entry of annotations into metadata.annotations on the object
+	// at ref, through ONE merge patch under fieldManager, and returns the
+	// object the server produced. The label is the tofu-estate marker; the
+	// annotation is the block address beside it (GitHub issue #1639), and
+	// the two go in one request so an object is never left carrying one
+	// without the other by a write that half landed.
 	//
 	// With dryRun the server validates, defaults, runs admission and
 	// persists nothing, so the returned object is what the real write
@@ -122,7 +127,7 @@ type LabelPatcher interface {
 	// refusal it answered with (a validation failure, an admission
 	// policy's denial, a 403 from RBAC) and is empty when the server
 	// accepted; err is a cluster that could not answer at all.
-	PatchLabel(ctx context.Context, ref ObjectRef, key, value, fieldManager string, dryRun bool) (obj *unstructured.Unstructured, rejected string, err error)
+	PatchMarkers(ctx context.Context, ref ObjectRef, labels, annotations map[string]string, fieldManager string, dryRun bool) (obj *unstructured.Unstructured, rejected string, err error)
 }
 
 var _ LabelPatcher = (*Client)(nil)
@@ -180,24 +185,40 @@ func (c *Client) ReadObject(ctx context.Context, ref ObjectRef) (*unstructured.U
 	return obj, true, nil
 }
 
-// PatchLabel implements [LabelPatcher]. The body is a JSON merge patch
-// naming one key inside metadata.labels and nothing else, so the request
-// itself cannot carry a change to any other field; what the SERVER then
-// does with it is the caller's to check, which is what the dry run is
-// for.
-func (c *Client) PatchLabel(ctx context.Context, ref ObjectRef, key, value, fieldManager string, dryRun bool) (*unstructured.Unstructured, string, error) {
-	if key == "" {
-		return nil, "", fmt.Errorf("a label patch needs a label key")
+// PatchMarkers implements [LabelPatcher]. The body is a JSON merge patch
+// naming the given keys inside metadata.labels and metadata.annotations
+// and nothing else, so the request itself cannot carry a change to any
+// other field; what the SERVER then does with it is the caller's to
+// check, which is what the dry run is for.
+func (c *Client) PatchMarkers(ctx context.Context, ref ObjectRef, labels, annotations map[string]string, fieldManager string, dryRun bool) (*unstructured.Unstructured, string, error) {
+	if ref.APIVersion == "" || ref.Kind == "" || ref.Name == "" {
+		return nil, "", fmt.Errorf("an object needs an apiVersion, a kind and a name to be patched")
 	}
-	return c.mergePatch(ctx, ref, map[string]any{
-		"metadata": map[string]any{
-			"labels": map[string]any{key: value},
-		},
-	}, fieldManager, dryRun)
+	if len(labels) == 0 && len(annotations) == 0 {
+		return nil, "", fmt.Errorf("a marker patch needs a label or an annotation to write")
+	}
+	for k := range labels {
+		if k == "" {
+			return nil, "", fmt.Errorf("a label patch needs a label key")
+		}
+	}
+	for k := range annotations {
+		if k == "" {
+			return nil, "", fmt.Errorf("an annotation patch needs an annotation key")
+		}
+	}
+	meta := map[string]any{}
+	if len(labels) > 0 {
+		meta["labels"] = labels
+	}
+	if len(annotations) > 0 {
+		meta["annotations"] = annotations
+	}
+	return c.mergePatch(ctx, ref, map[string]any{"metadata": meta}, fieldManager, dryRun)
 }
 
-// LabelReleaser is the cluster half of a label release (GitHub issue
-// #1656): read the object as it is, and delete label keys from it. It is
+// LabelReleaser is the cluster half of a marker release (GitHub issue
+// #1656): read the object as it is, and delete marker keys from it. It is
 // what internal/live/untag needs to release a manifest-shape orphan under
 // undeclared_tagged = "untag". [Client] implements it against a real API
 // server; a test stands in for one.
@@ -205,47 +226,55 @@ type LabelReleaser interface {
 	// ReadObject is [LabelPatcher.ReadObject].
 	ReadObject(ctx context.Context, ref ObjectRef) (obj *unstructured.Unstructured, found bool, err error)
 
-	// DeleteLabels removes every key in keys from metadata.labels on the
-	// object at ref through a merge patch under fieldManager, and returns
-	// the object the server produced. dryRun, rejected and err mean what
-	// they mean on [LabelPatcher.PatchLabel].
-	DeleteLabels(ctx context.Context, ref ObjectRef, keys []string, fieldManager string, dryRun bool) (obj *unstructured.Unstructured, rejected string, err error)
+	// DeleteMarkers removes every key in labels from metadata.labels and
+	// every key in annotations from metadata.annotations on the object at
+	// ref, through ONE merge patch under fieldManager, and returns the
+	// object the server produced. dryRun, rejected and err mean what they
+	// mean on [LabelPatcher.PatchMarkers].
+	DeleteMarkers(ctx context.Context, ref ObjectRef, labels, annotations []string, fieldManager string, dryRun bool) (obj *unstructured.Unstructured, rejected string, err error)
 }
 
 var _ LabelReleaser = (*Client)(nil)
 
-// DeleteLabels implements [LabelReleaser]. The body is a JSON merge patch
-// naming each key inside metadata.labels with a null value, which RFC 7386
-// defines as "remove this key", and nothing else - the request cannot
-// carry a change to any other field, for the same reason
-// [Client.PatchLabel]'s cannot. A key the object does not carry is a no-op
-// on the server, not an error.
-func (c *Client) DeleteLabels(ctx context.Context, ref ObjectRef, keys []string, fieldManager string, dryRun bool) (*unstructured.Unstructured, string, error) {
-	if len(keys) == 0 {
-		return nil, "", fmt.Errorf("a label release needs at least one label key")
+// DeleteMarkers implements [LabelReleaser]. The body is a JSON merge patch
+// naming each key inside metadata.labels and metadata.annotations with a
+// null value, which RFC 7386 defines as "remove this key", and nothing
+// else - the request cannot carry a change to any other field, for the
+// same reason [Client.PatchMarkers]'s cannot. A key the object does not
+// carry is a no-op on the server, not an error.
+func (c *Client) DeleteMarkers(ctx context.Context, ref ObjectRef, labels, annotations []string, fieldManager string, dryRun bool) (*unstructured.Unstructured, string, error) {
+	if ref.APIVersion == "" || ref.Kind == "" || ref.Name == "" {
+		return nil, "", fmt.Errorf("an object needs an apiVersion, a kind and a name to be patched")
 	}
-	labels := make(map[string]any, len(keys))
-	for _, k := range keys {
-		if k == "" {
-			return nil, "", fmt.Errorf("a label release cannot name an empty label key")
+	if len(labels) == 0 && len(annotations) == 0 {
+		return nil, "", fmt.Errorf("a marker release needs a label or an annotation to delete")
+	}
+	meta := map[string]any{}
+	for field, keys := range map[string][]string{"labels": labels, "annotations": annotations} {
+		if len(keys) == 0 {
+			continue
 		}
-		labels[k] = nil
+		m := make(map[string]any, len(keys))
+		for _, k := range keys {
+			if k == "" {
+				return nil, "", fmt.Errorf("a marker release cannot name an empty key")
+			}
+			m[k] = nil
+		}
+		meta[field] = m
 	}
-	return c.mergePatch(ctx, ref, map[string]any{"metadata": map[string]any{"labels": labels}}, fieldManager, dryRun)
+	return c.mergePatch(ctx, ref, map[string]any{"metadata": meta}, fieldManager, dryRun)
 }
 
 // mergePatch sends body as a JSON merge patch to the object at ref: the
 // one request both writes in this file make.
 func (c *Client) mergePatch(ctx context.Context, ref ObjectRef, body map[string]any, fieldManager string, dryRun bool) (*unstructured.Unstructured, string, error) {
-	if ref.APIVersion == "" || ref.Kind == "" || ref.Name == "" {
-		return nil, "", fmt.Errorf("an object needs an apiVersion, a kind and a name to be patched")
-	}
 	if fieldManager == "" {
 		fieldManager = DefaultFieldManager
 	}
 	raw, err := json.Marshal(body)
 	if err != nil {
-		return nil, "", fmt.Errorf("building the label patch: %w", err)
+		return nil, "", fmt.Errorf("building the marker patch: %w", err)
 	}
 	client, err := c.resourceClient(ref.APIVersion, ref.Kind, ref.Namespace)
 	if err != nil {

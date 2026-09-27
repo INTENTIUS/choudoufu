@@ -90,6 +90,16 @@ type Result struct {
 	// the object its tags name, and nothing else.
 	ControllerHeld []discovery.ControllerHeldResource
 
+	// ControllerHeldLookalikes lists the declared, unbound instances whose
+	// identity-bearing arguments exactly match a controller-held resource
+	// (GitHub issue #1628): the content match [matchTable] would otherwise
+	// have offered as an adoption candidate, had the live resource not left
+	// [discovery.Report.Unclaimed] for [ControllerHeld] instead. [Lookalikes]
+	// reads this the same way it reads [Candidates], to warn a create beside
+	// one rather than say nothing at all - #1604's ruling drops the
+	// adoption hint, not the warning.
+	ControllerHeldLookalikes []Lookalike
+
 	// OtherEstates counts the live resources carrying another estate's
 	// marker, by estate name, sorted. An entry with an empty Estate is the
 	// count discovery kept without recording which estate it belonged to
@@ -548,6 +558,18 @@ func (r *Result) CandidateFor(addr addrs.AbsResourceInstance) (Candidate, bool) 
 		}
 	}
 	return Candidate{}, false
+}
+
+// ControllerHeldLookalikeFor returns the controller-held lookalike warning
+// for one declared address.
+func (r *Result) ControllerHeldLookalikeFor(addr addrs.AbsResourceInstance) (Lookalike, bool) {
+	want := addr.String()
+	for _, l := range r.ControllerHeldLookalikes {
+		if l.Addr.String() == want {
+			return l, true
+		}
+	}
+	return Lookalike{}, false
 }
 
 // RenameFor returns the rename candidate offered for one declared address.

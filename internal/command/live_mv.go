@@ -338,6 +338,10 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 		ServiceTags:        serviceTags,
 		RecordStore:        projection.NewRecordEnvelopeStore(recordStore, recordKeyPrefixFor(config, estate)),
 		ReadParallelism:    readPar,
+		// GitHub issue #1639: a manifest-declared object's rename is an
+		// annotation patch through the cluster's own client, the one
+		// live-import's adoption of the same shape builds.
+		Clusters: provs,
 	})
 	diags = diags.Append(moveDiags)
 	return res, diags
@@ -454,6 +458,8 @@ func liveMvReport(res *mv.Result) views.StatelessMvReport {
 
 		LabelSurface:   !res.MarkerCarriesAddress(),
 		NothingToWrite: res.NothingToWrite,
+		Reannotated:    !res.MarkerCarriesAddress() && res.FromEstate == "" && !res.NothingToWrite,
+		AlreadyMarked:  res.AlreadyMarked,
 	}
 }
 
@@ -506,12 +512,17 @@ func liveMvJSONReport(res *mv.Result, diags tfdiags.Diagnostics, old, new addrs.
 		rep.Verified = res.Verified
 		rep.FoundBy = string(res.Path)
 		rep.NothingToWrite = res.NothingToWrite
+		rep.AlreadyMarked = res.AlreadyMarked
 		if !res.MarkerCarriesAddress() {
-			// No address on the object (#1016): the escaped markers the
-			// tag surface would have written are not what this object
-			// carries, so the document does not claim them.
 			rep.MarkerSurface = "label"
-			rep.From.Marker, rep.To.Marker = "", ""
+			if res.NothingToWrite {
+				// No address on the object: the escaped markers the tag
+				// surface would have written are not what this object
+				// carries, so the document does not claim them. Every
+				// other Kubernetes object carries them in its address
+				// annotation (GitHub issue #1639).
+				rep.From.Marker, rep.To.Marker = "", ""
+			}
 		}
 	}
 
@@ -591,16 +602,19 @@ Usage: choudoufu [global options] live-mv [options] <old-address> <new-address>
   nothing in the destination estate may already carry it, and the source's
   record for the resource stays behind: the first apply here records it.
 
-  On Kubernetes the marker is one label, tofu-estate, and the object carries
-  no address: it is bound to its block by its own kind, namespace and name.
-  So a rename within one estate has nothing to write - this command says so
-  and exits 0, and renaming the block is the whole rename - while
-  -from-estate is the one governed write: the tofu-estate label is rewritten
-  through the provider, as a labels-only plan and apply on that object, and
-  the cluster's admission policy (live/kubernetes/estate-boundary.yaml)
-  judges it under this run's credential exactly as it judges a plain kubectl
-  label. An object declared through a manifest block is refused by name
-  with the equivalent kubectl write.
+  On Kubernetes the ownership marker is one label, tofu-estate, and the
+  object is bound to its block by its own kind, namespace and name. The
+  block address sits beside the label in the annotation
+  choudoufu.intentius.io/tofu-address. So a rename within one estate
+  rewrites that annotation and nothing else, through the provider for an
+  object with a metadata block and as one annotation patch for an object
+  declared through a manifest block. -from-estate rewrites the tofu-estate
+  label and the annotation together, through the provider, as a
+  markers-only plan and apply on that object, and the cluster's admission
+  policy (live/kubernetes/estate-boundary.yaml) judges it under this run's
+  credential exactly as it judges a plain kubectl label; the policy reads
+  the label, never the annotation. A move of an object declared through a
+  manifest block is refused by name with the equivalent kubectl write.
 
   This command reads and writes the live system. It never reads or writes a
   state file, and it does not run a plan over the rest of the configuration.

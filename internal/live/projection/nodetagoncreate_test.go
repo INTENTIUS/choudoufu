@@ -114,9 +114,9 @@ func tocResolver(t *testing.T, tagger *fakeTagger) *NodeResolver {
 	t.Helper()
 	n := &NodeResolver{Estate: "prod", Roster: tocRoster(t)}
 	if tagger != nil {
-		n.Tagger = func(_ addrs.AbsProviderConfig, write substrate.Write) (MarkerTagger, error) {
+		n.MarkerWriter = func(_ addrs.AbsProviderConfig, write substrate.Write) (MarkerWriter, error) {
 			tagger.writes = append(tagger.writes, write)
-			return tagger, nil
+			return TaggingAPIWriter{Tagger: tagger}, nil
 		}
 	}
 	return n
@@ -247,7 +247,7 @@ func TestWriteAppliedMarkers_writesTheWithheldMarkers(t *testing.T) {
 	ordinary := locatedTestAddr(t, "aws_ordinary_thing", "x")
 	_, _ = n.WriteAppliedMarkers(ctx, ordinary, tocProvider(), plans.Create, applied, tocSchema())
 	_, _ = n.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Update, applied, tocSchema())
-	noEstate := &NodeResolver{Roster: tocRoster(t), Tagger: n.Tagger}
+	noEstate := &NodeResolver{Roster: tocRoster(t), MarkerWriter: n.MarkerWriter}
 	_, _ = noEstate.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Create, applied, tocSchema())
 	if len(tagger.calls) != 0 {
 		t.Errorf("a write was made where none was due: %v", tagger.calls)
@@ -409,7 +409,7 @@ func TestWriteAppliedMarkers_theSurfaceChoosesTheWriter(t *testing.T) {
 	}
 
 	refused := tocResolver(t, nil)
-	refused.Tagger = func(addrs.AbsProviderConfig, substrate.Write) (MarkerTagger, error) {
+	refused.MarkerWriter = func(addrs.AbsProviderConfig, substrate.Write) (MarkerWriter, error) {
 		return nil, errors.New(`provider family graph declares the "graph-binding" post-create marker write and this build has no writer for it`)
 	}
 	_, diags := refused.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Create, tocApplied("arn:aws:after:::thing/T1", "T1", nil), tocSchema())
@@ -418,5 +418,188 @@ func TestWriteAppliedMarkers_theSurfaceChoosesTheWriter(t *testing.T) {
 	}
 	if d := diags[0].Description(); d.Summary != SummaryMarkerNotWritten || !strings.Contains(d.Detail, `"graph-binding"`) || !strings.Contains(d.Detail, "family graph") {
 		t.Errorf("a refused writer's reason is not in the diagnostic:\n%s\n%s", d.Summary, d.Detail)
+	}
+}
+
+// TestWriteAppliedMarkers_theWriterReceivesTheCreatedInstance (GitHub issue
+// #1638): the post-create writer is handed the created instance - its
+// address, the provider configuration it was applied under, and the object
+// the provider returned - never a pre-derived ARN. A non-AWS family's
+// writer (a GCP tag binding, say) addresses the object by something other
+// than an arn, so an applied object with no arn attribute at all must still
+// reach it, and whatever it needs it reads off the instance itself.
+func TestWriteAppliedMarkers_theWriterReceivesTheCreatedInstance(t *testing.T) {
+	n := tocResolver(t, nil)
+	graph := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("graph")}
+	after := locatedTestAddr(t, "aws_after_thing", "x")
+
+	writer := &fakeObjectWriter{}
+	n.MarkerWriter = func(provider addrs.AbsProviderConfig, _ substrate.Write) (MarkerWriter, error) {
+		if !provider.Provider.Equals(graph.Provider) {
+			t.Errorf("writer built for %s, want %s", provider, graph)
+		}
+		return writer, nil
+	}
+
+	// The object a non-AWS provider returns: an id and a name, no arn.
+	applied := tocApplied("", "projects/p/things/T1", nil)
+	stored, diags := n.WriteAppliedMarkers(context.Background(), after, graph, plans.Create, applied, tocSchema())
+	if diags.HasErrors() {
+		t.Fatalf("a non-AWS writer never got the object: %v", diags.Err())
+	}
+	if len(writer.calls) != 1 {
+		t.Fatalf("want exactly 1 write, got %d", len(writer.calls))
+	}
+	got := writer.calls[0]
+	if !got.created.Addr.Equal(after) {
+		t.Errorf("writer got address %s, want %s", got.created.Addr, after)
+	}
+	if !got.created.Provider.Provider.Equals(graph.Provider) {
+		t.Errorf("writer got provider %s, want %s", got.created.Provider, graph)
+	}
+	if !got.created.Object.RawEquals(applied) {
+		t.Errorf("writer got object %#v, want the provider's object %#v", got.created.Object, applied)
+	}
+	if got.tags[markers.TagEstate] != "prod" || got.tags[markers.TagAddress] != "aws_after_thing.x" {
+		t.Errorf("writer got markers %v, want the withheld ones", got.tags)
+	}
+	if tags := stored.GetAttr("tags"); tags.IsNull() || tags.AsValueMap()[markers.TagEstate].AsString() != "prod" {
+		t.Errorf("a successful write did not store the written markers: %#v", tags)
+	}
+}
+
+// fakeObjectWriter is a non-AWS family's post-create writer: it records the
+// created instance it was handed.
+type fakeObjectWriter struct {
+	calls []fakeObjectWrite
+}
+
+type fakeObjectWrite struct {
+	created CreatedInstance
+	tags    map[string]string
+}
+
+func (f *fakeObjectWriter) WriteMarkers(_ context.Context, created CreatedInstance, tags map[string]string) error {
+	f.calls = append(f.calls, fakeObjectWrite{created: created, tags: tags})
+	return nil
+}
+
+// bindingSurface is the fake family's marker surface: a synthetic value no
+// real family owns, so nothing here may be answered by AWS's registry.
+const bindingSurface markers.Surface = "graph-binding-surface"
+
+// bindingFamily is a non-AWS family whose marker cannot ride its types'
+// create calls and is written by a binding once the create returns (GitHub
+// issue #1642). It carries the surface on a schema with a "binding_target"
+// attribute, and declares the post-create write for its own types by its
+// own rule, reading no registry.
+type bindingFamily struct{ substrate.Substrate }
+
+func (bindingFamily) Name() string                                         { return "graph" }
+func (bindingFamily) Surfaces() []markers.Surface                          { return []markers.Surface{bindingSurface} }
+func (bindingFamily) CarriesAddress() bool                                 { return true }
+func (bindingFamily) MarkerWriter(addrs.AbsProviderConfig) substrate.Write { return "graph-binding" }
+func (bindingFamily) SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
+	if _, ok := block.Attributes["binding_target"]; ok {
+		return bindingSurface, true
+	}
+	return "", false
+}
+func (f bindingFamily) OwnershipSurfaceOf(block *configschema.Block) (markers.Surface, bool) {
+	return f.SurfaceOf(block)
+}
+func (bindingFamily) Writes(surface markers.Surface) substrate.Writes {
+	if surface == bindingSurface {
+		return substrate.Writes{Create: substrate.WriteInCreate, Adopt: "graph-binding", PostCreate: "graph-binding"}
+	}
+	return substrate.Writes{}
+}
+func (bindingFamily) PostCreateNeeded(surface markers.Surface, typeName string, _ substrate.CreateTagFacts) (string, bool) {
+	if surface == bindingSurface && strings.HasPrefix(typeName, "graph_") {
+		return typeName + " takes its marker as a binding after the create", true
+	}
+	return "", false
+}
+
+// TestWriteAppliedMarkers_aFamilyDeclaresItsOwnPostCreate (GitHub issue
+// #1642): whether a create needs the post-create write is the family's
+// answer, not the AWS CloudFormation registry's. A non-AWS type with no
+// registry row at all, whose family declares the write, reaches that
+// family's writer with the created instance; the same family's answer of
+// false, and the Kubernetes family's never, leave the create alone.
+func TestWriteAppliedMarkers_aFamilyDeclaresItsOwnPostCreate(t *testing.T) {
+	saved := substrate.All
+	substrate.All = append(append([]substrate.Substrate(nil), saved...), bindingFamily{substrate.AWS})
+	t.Cleanup(func() { substrate.All = saved })
+
+	schema := providers.Schema{Block: &configschema.Block{
+		Attributes: map[string]*configschema.Attribute{
+			"id":             {Type: cty.String, Computed: true},
+			"name":           {Type: cty.String, Required: true},
+			"binding_target": {Type: cty.String, Computed: true},
+		},
+	}}
+	applied := cty.ObjectVal(map[string]cty.Value{
+		"id":             cty.StringVal("projects/p/things/T1"),
+		"name":           cty.StringVal("thing"),
+		"binding_target": cty.StringVal("//graph/projects/p/things/T1"),
+	})
+	graph := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("graph")}
+
+	n := tocResolver(t, nil)
+	writer := &fakeObjectWriter{}
+	var asked []substrate.Write
+	n.MarkerWriter = func(_ addrs.AbsProviderConfig, write substrate.Write) (MarkerWriter, error) {
+		asked = append(asked, write)
+		return writer, nil
+	}
+
+	thing := locatedTestAddr(t, "graph_thing", "x")
+	if _, diags := n.WriteAppliedMarkers(context.Background(), thing, graph, plans.Create, applied, schema); diags.HasErrors() {
+		t.Fatalf("write failed: %v", diags.Err())
+	}
+	if len(writer.calls) != 1 {
+		t.Fatalf("the family declared a post-create write for graph_thing and its writer got %d writes, want 1", len(writer.calls))
+	}
+	if len(asked) != 1 || asked[0] != "graph-binding" {
+		t.Errorf("asked the command layer for %v, want exactly [graph-binding]", asked)
+	}
+	if got := writer.calls[0]; !got.created.Addr.Equal(thing) || got.tags[markers.TagEstate] != "prod" || got.tags[markers.TagAddress] != "graph_thing.x" {
+		t.Errorf("writer got %s with %v", got.created.Addr, got.tags)
+	}
+
+	// The family's own false: a type it does not declare takes the
+	// create-call path.
+	other := locatedTestAddr(t, "notgraph_thing", "x")
+	if _, diags := n.WriteAppliedMarkers(context.Background(), other, graph, plans.Create, applied, schema); diags.HasErrors() {
+		t.Fatalf("write failed: %v", diags.Err())
+	}
+	if len(writer.calls) != 1 {
+		t.Errorf("a type the family does not declare reached the writer: %d writes", len(writer.calls))
+	}
+}
+
+// TestPostCreateNeeded_eachFamilyAnswers pins the three answers #1642
+// moves onto the families: AWS reads the registry exactly as the
+// projection did (the tag_on_create false type only, and only on the tags
+// surface), Kubernetes never, and the zero surface nothing.
+func TestPostCreateNeeded_eachFamilyAnswers(t *testing.T) {
+	r := tocRoster(t)
+	if why, ok := substrate.PostCreateNeeded(markers.SurfaceTags, "aws_after_thing", r); !ok || why != "AWS::After::Thing does not take tags in its create call (live/registry.json: tag_on_create false)" {
+		t.Errorf("aws_after_thing: %v %q", ok, why)
+	}
+	for _, typ := range []string{"aws_ordinary_thing", "aws_unmapped_thing"} {
+		if _, ok := substrate.PostCreateNeeded(markers.SurfaceTags, typ, r); ok {
+			t.Errorf("%s needs a post-create write, want the create-call path", typ)
+		}
+	}
+	var nilRoster *registry.Roster
+	if _, ok := substrate.PostCreateNeeded(markers.SurfaceTags, "aws_after_thing", nilRoster); ok {
+		t.Error("a run with no roster needs a post-create write")
+	}
+	for _, surface := range []markers.Surface{markers.SurfaceLabels, markers.SurfaceManifest, ""} {
+		if _, ok := substrate.PostCreateNeeded(surface, "aws_after_thing", r); ok {
+			t.Errorf("surface %q needs a post-create write", surface)
+		}
 	}
 }

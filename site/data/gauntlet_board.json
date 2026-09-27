@@ -3,7 +3,7 @@
   "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
   "banner": "Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, recorded between 2026-09-23T20:13:04Z and 2026-09-23T22:13:39Z. Each row below carries its own `last_run` date; they are not all the same run.",
   "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 4h43m13s, but not from one sweep: 10m29.1s across 1 estate(s) at commit `58d3e89ec3`; 4h32m43.9s across 30 estate(s) at commit `bfbebd754a`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
-  "script_banner": "Every row below was measured against the estate files and the shared protocol library that are in the tree now.",
+  "script_banner": "**31 of 31 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 27 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-stateful, terralith-scale.",
   "stage_count": 14,
   "stages": [
     {
@@ -194,6 +194,8 @@
       "runtime_cells": "cold_deploy 1m46s, migrate 1m19s, test_plan 10s, test_apply 11s, drift_reconverge 51s, day2_rename 40s, day2_remove 39s, day2_count 1m52s, day2_replace 50s, plan_approval 54s, greenfield 1m53s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:22:46Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 11m5.7s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -321,6 +323,8 @@
       "runtime_cells": "cold_deploy 1m41s, migrate 1m17s, test_plan 10s, test_apply 12s, drift_reconverge 22s, day2_rename 41s, day2_remove 34s, day2_count 2m3s, day2_replace 36s, plan_approval 56s, greenfield 1m51s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:34:38Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 10m23.3s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -448,6 +452,8 @@
       "runtime_cells": "cold_deploy 41s, migrate 57s, test_plan 4s, test_apply 5s, drift_reconverge 10s, day2_rename 18s, day2_remove 11s, day2_count 46s, day2_replace 20s, plan_approval 23s, greenfield 37s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:31:14Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 4m32s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -574,6 +580,8 @@
       "runtime_cells": "cold_deploy 1m15s, migrate 43s, test_plan 14s, test_apply 10s, drift_reconverge 16s, day2_rename 32s, day2_remove 39s, day2_count 3m14s, day2_replace 1m2s, plan_approval 40s, greenfield 1m12s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:21:12Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 9m58.2s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -701,6 +709,8 @@
       "runtime_cells": "cold_deploy 1m30s, migrate 56s, test_plan 34s, test_apply 8s, drift_reconverge 16s, day2_rename 58s, day2_remove 20s, day2_count 1m15s, day2_replace 21s, plan_approval 37s, greenfield 2m39s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:19:53Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 9m34.7s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -828,6 +838,8 @@
       "runtime_cells": "cold_deploy 1m11s, migrate 44s, test_plan 12s, test_apply 14s, drift_reconverge 28s, day2_rename 49s, day2_remove 39s, day2_count 2m17s, day2_replace 40s, plan_approval 1m10s, greenfield 2m13s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:22:23Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 10m39s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -955,6 +967,8 @@
       "runtime_cells": "cold_deploy 36s, migrate 31s, test_plan 7s, test_apply 4s, drift_reconverge 9s, day2_rename 17s, day2_remove 12s, day2_count 24s, day2_replace 18s, plan_approval 23s, greenfield 37s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:27:29Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 3m37.9s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1082,6 +1096,8 @@
       "runtime_cells": "cold_deploy 30s, migrate 21s, test_plan 6s, test_apply 15s, drift_reconverge 10s, day2_rename 22s, day2_remove 12s, day2_count 1m28s, day2_replace 19s, plan_approval 25s, greenfield 25s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:15:28Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 4m33s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1209,6 +1225,8 @@
       "runtime_cells": "cold_deploy 29s, migrate 12s, test_plan 6s, test_apply 5s, drift_reconverge 10s, day2_rename 18s, day2_remove 13s, day2_count 1m18s, day2_replace 14s, plan_approval 25s, greenfield 1m11s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:15:41Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 4m42s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1336,6 +1354,8 @@
       "runtime_cells": "cold_deploy 26s, migrate 35s, test_plan 7s, test_apply 8s, drift_reconverge 13s, day2_rename 21s, day2_remove 17s, day2_count 51s, day2_replace 17s, plan_approval 31s, greenfield 45s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:15:34Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 4m31s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1463,6 +1483,8 @@
       "runtime_cells": "cold_deploy 37s, migrate 43s, test_plan 6s, test_apply 5s, drift_reconverge 11s, day2_rename 21s, day2_remove 12s, day2_count 38s, day2_replace 17s, plan_approval 24s, greenfield 56s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:15:18Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 4m30.4s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1590,6 +1612,8 @@
       "runtime_cells": "cold_deploy 29s, migrate 14s, test_plan 5s, test_apply 14s, drift_reconverge 10s, day2_rename 18s, day2_remove 14s, day2_count 1m4s, day2_replace 15s, plan_approval 26s, greenfield 44s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:15:07Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 4m13s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1717,6 +1741,8 @@
       "runtime_cells": "cold_deploy 23s, migrate 51s, test_plan 5s, test_apply 6s, drift_reconverge 11s, day2_rename 20s, day2_remove 13s, day2_count 41s, day2_replace 15s, plan_approval 37s, greenfield 26s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:21:46Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 4m7.9s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1844,6 +1870,8 @@
       "runtime_cells": "cold_deploy 35s, migrate 25s, test_plan 5s, test_apply 12s, drift_reconverge 30s, day2_rename 43s, day2_remove 20s, day2_count 1m3s, day2_replace 28s, plan_approval 34s, greenfield 39s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:26:01Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 5m34s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1971,6 +1999,8 @@
       "runtime_cells": "cold_deploy 27s, migrate 29s, test_plan 3s, test_apply 4s, drift_reconverge 7s, day2_rename 9s, day2_remove 9s, day2_count 26s, day2_replace 9s, plan_approval 17s, greenfield 21s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:13:04Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 2m41.7s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2098,6 +2128,8 @@
       "runtime_cells": "cold_deploy 1m14s, migrate 1m6s, test_plan 22s, test_apply 18s, drift_reconverge 16s, day2_rename 1m42s, day2_remove 59s, day2_count 1m26s, day2_replace 15s, plan_approval 29s, greenfield 2m4s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:27:50Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 10m11.2s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2225,6 +2257,8 @@
       "runtime_cells": "cold_deploy 1m45s, migrate 29s, test_plan 19s, test_apply 11s, drift_reconverge 18s, day2_rename 34s, day2_remove 1m42s, day2_count 1m37s, day2_replace 3m7s, plan_approval 46s, greenfield 3m19s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:25:40Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 14m8.5s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2352,6 +2386,8 @@
       "runtime_cells": "cold_deploy 1m26s, migrate 1m24s, test_plan 7s, test_apply 17s, drift_reconverge 30s, day2_rename 35s, day2_remove 29s, day2_count 1m27s, day2_replace 32s, plan_approval 53s, greenfield 2m51s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:21:37Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 10m30.8s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2479,6 +2515,8 @@
       "runtime_cells": "cold_deploy 34s, migrate 46s, test_plan 10s, test_apply 8s, drift_reconverge 15s, day2_rename 27s, day2_remove 19s, day2_count 55s, day2_replace 22s, plan_approval 37s, greenfield 33s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:25:43Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 5m6.1s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2606,6 +2644,8 @@
       "runtime_cells": "cold_deploy 1m31s, migrate 1m13s, test_plan 13s, test_apply 35s, drift_reconverge 31s, day2_rename 37s, day2_remove 34s, day2_count 1m13s, day2_replace 1m17s, plan_approval 1m2s, greenfield 3m17s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:23:11Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 12m3.3s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2733,6 +2773,8 @@
       "runtime_cells": "cold_deploy 1m19s, migrate 2m30s, test_plan 6s, test_apply 6s, drift_reconverge 10s, day2_rename 19s, day2_remove 57s, day2_count 2m19s, day2_replace 1m22s, plan_approval 27s, greenfield 3m23s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:38:35Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 12m58.4s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2860,6 +2902,8 @@
       "runtime_cells": "cold_deploy 1m35s, migrate 3m59s, test_plan 28s, test_apply 27s, drift_reconverge 52s, day2_rename 1m38s, day2_remove 40s, day2_count 4m46s, day2_replace 1m55s, plan_approval 2m11s, greenfield 3m11s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:34:40Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 18m32s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2987,6 +3031,8 @@
       "runtime_cells": "cold_deploy 41s, migrate 1m46s, test_plan 11s, test_apply 10s, drift_reconverge 20s, day2_rename 33s, day2_remove 35s, day2_count 2m23s, day2_replace 35s, plan_approval 44s, greenfield 1m3s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:19:30Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 7m58.2s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3114,6 +3160,8 @@
       "runtime_cells": "cold_deploy 56s, migrate 39s, test_plan 8s, test_apply 7s, drift_reconverge 17s, day2_rename 22s, day2_remove 26s, day2_count 46s, day2_replace 17s, plan_approval 31s, greenfield 56s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:26:13Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 5m25.6s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3239,6 +3287,8 @@
       "runtime_cells": "cold_deploy 1m51s, migrate 43s, test_plan 5s, test_apply 6s, drift_reconverge 11s, day2_rename 21s, day2_remove 14s, day2_count 42s, day2_replace 36s, day2_crash 47s, plan_approval 29s, greenfield 10s, strict -",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:32:16Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 6m15.2s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3367,6 +3417,8 @@
       "runtime_cells": "cold_deploy 2m26s, migrate 41s, test_plan 12s, test_apply 16s, drift_reconverge 45s, day2_rename 32s, day2_remove 17s, day2_count 35s, day2_replace 23s, plan_approval 32s, greenfield 1m51s, strict -",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:29:14Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 8m30.4s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3495,6 +3547,8 @@
       "runtime_cells": "cold_deploy 2m15s, migrate 41s, test_plan 5s, test_apply 8s, drift_reconverge 27s, day2_rename 18s, day2_remove 30s, day2_count 57s, day2_replace 45s, plan_approval 26s, greenfield 3m57s",
       "last_run_note": "Last run at commit `58d3e89ec3` on 2026-09-23T22:13:39Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 10m29.1s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.12.6`.",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3595,7 +3649,7 @@
       "set": "growing",
       "lane": "kubernetes",
       "substrate": "kind",
-      "clear": true,
+      "clear": false,
       "source": "grafana/quickpizza deployments/terraform (tag v0.15.28), Grafana Labs' QuickPizza demo application's own Kubernetes deployment root: a namespace, seven Deployments with their Services, a Postgres StatefulSet, ConfigMaps, Secrets, a ServiceAccount and a ClusterRoleBinding; the kubernetes lane's first published estate",
       "url": "https://github.com/grafana/quickpizza.git",
       "pin": "v0.15.28",
@@ -3610,7 +3664,7 @@
         "pass",
         "pass",
         "pass",
-        "n/a",
+        "not run",
         "pass",
         "pass",
         "pass",
@@ -3621,6 +3675,8 @@
       "runtime_cells": "cold_deploy 2m44s, migrate 4s, test_plan 13s, test_apply 14s, drift_reconverge 28s, day2_rename 28s, day2_remove 41s, day2_count 1m24s, day2_crash 1m34s, day2_teardown 41s, plan_approval 40s, greenfield 1m40s, strict 26s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:22:53Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 11m21.3s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-quickpizza/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3681,8 +3737,7 @@
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
-          "verdict": "n/a",
-          "detail": "True only of a replacement that keeps the object's name. A Kubernetes name is unique within its namespace, so a same-name forced replacement is destroy-then-create, which this stage does not measure. A create_before_destroy rename (the content-hashed-ConfigMap pattern, where the name argument itself changes) resolves to a different live object under a new address, and stock creates it before destroying the old one; choudoufu currently orders the destroy first, a known difference (#1541) waiting on #1605. This stage turns on for kind once that order is fixed."
+          "verdict": "not run"
         },
         {
           "id": "day2_crash",
@@ -3726,7 +3781,7 @@
       "set": "growing",
       "lane": "kubernetes",
       "substrate": "kind",
-      "clear": true,
+      "clear": false,
       "source": "hand-written reference shape kept in this repository, built on live/e2e/estate-k8s (namespace, ConfigMap, ServiceAccount, Service) plus a Deployment on the node image's own pause container and a two-instance count ConfigMap; the kubernetes lane's first estate, run against a kind cluster (#1067)",
       "script": "live/e2e/reference-k8s/run.sh",
       "protocol": "gauntlet",
@@ -3739,7 +3794,7 @@
         "pass",
         "pass",
         "pass",
-        "n/a",
+        "not run",
         "pass",
         "pass",
         "pass",
@@ -3750,6 +3805,8 @@
       "runtime_cells": "cold_deploy 1m34s, migrate 3s, test_plan 11s, test_apply 12s, drift_reconverge 24s, day2_rename 24s, day2_remove 35s, day2_count 58s, day2_crash 1m22s, day2_teardown 25s, plan_approval 35s, greenfield 1m9s, strict 18s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:19:49Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 8m11.1s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/reference-k8s/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3810,8 +3867,7 @@
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
-          "verdict": "n/a",
-          "detail": "True only of a replacement that keeps the object's name. A Kubernetes name is unique within its namespace, so a same-name forced replacement is destroy-then-create, which this stage does not measure. A create_before_destroy rename (the content-hashed-ConfigMap pattern, where the name argument itself changes) resolves to a different live object under a new address, and stock creates it before destroying the old one; choudoufu currently orders the destroy first, a known difference (#1541) waiting on #1605. This stage turns on for kind once that order is fixed."
+          "verdict": "not run"
         },
         {
           "id": "day2_crash",
@@ -3855,7 +3911,7 @@
       "set": "growing",
       "lane": "kubernetes",
       "substrate": "kind",
-      "clear": true,
+      "clear": false,
       "source": "cert-manager v1.21.2's own install bundle (cert-manager.yaml at the release, 1,034,400 bytes, sha256 e03b668ec8675214af6b0a671699d088f2601fa3878e0dbe1b41d3feafd1879f, Apache-2.0 with the licence header inside the artifact) converted mechanically to 47 kubernetes_manifest blocks with tfk8s v0.1.10, plus the three custom resources from cert-manager's own self-signed documentation (ClusterIssuer, Issuer, Certificate) written here: 50 objects over 13 kinds, 6 CRDs, ClusterIssuer the lane's only cluster-scoped custom kind. reference- rather than corpus- because cert-manager ships YAML and the Terraform root is ours (#1174); live/e2e/reference-k8s-cert-manager/convert.sh reproduces it",
       "script": "live/e2e/reference-k8s-cert-manager/run.sh",
       "protocol": "gauntlet",
@@ -3868,7 +3924,7 @@
         "pass",
         "pass",
         "pass",
-        "n/a",
+        "not run",
         "pass",
         "pass",
         "pass",
@@ -3879,6 +3935,8 @@
       "runtime_cells": "cold_deploy 2m57s, migrate 47s, test_plan 35s, test_apply 54s, drift_reconverge 1m48s, day2_rename 1m48s, day2_remove 3m56s, day2_count 5m57s, day2_crash 5m17s, day2_teardown 1m34s, plan_approval 4m4s, greenfield 3m44s, strict 58s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:54:50Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 34m21.7s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/reference-k8s-cert-manager/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3939,8 +3997,7 @@
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
-          "verdict": "n/a",
-          "detail": "True only of a replacement that keeps the object's name. A Kubernetes name is unique within its namespace, so a same-name forced replacement is destroy-then-create, which this stage does not measure. A create_before_destroy rename (the content-hashed-ConfigMap pattern, where the name argument itself changes) resolves to a different live object under a new address, and stock creates it before destroying the old one; choudoufu currently orders the destroy first, a known difference (#1541) waiting on #1605. This stage turns on for kind once that order is fixed."
+          "verdict": "not run"
         },
         {
           "id": "day2_crash",
@@ -3984,7 +4041,7 @@
       "set": "growing",
       "lane": "kubernetes",
       "substrate": "kind",
-      "clear": true,
+      "clear": false,
       "source": "hand-written reference shape kept in this repository, the kubernetes lane's stateful estate (#1175, surface 2 of #1107): a Namespace, ServiceAccount, Secret, two ConfigMaps and a two-instance count ConfigMap, headless Services and StatefulSets for postgres:17-alpine (1 replica) and redis:7-alpine (2 replicas) whose volume_claim_template labels disagree with its selector on purpose, a ClusterIP Service and Deployment reading both, and a PodDisruptionBudget - 14 objects over eight kinds, typed _v1 resources only, no StorageClass so kind's own standard class does the WaitForFirstConsumer binding. #1107's second research comment fetched and ran the published field for this surface and nothing cleared the bar, so this is that issue's explicit hand-written fallback",
       "script": "live/e2e/reference-k8s-stateful/run.sh",
       "protocol": "gauntlet",
@@ -3997,7 +4054,7 @@
         "pass",
         "pass",
         "pass",
-        "n/a",
+        "not run",
         "pass",
         "pass",
         "pass",
@@ -4008,6 +4065,8 @@
       "runtime_cells": "cold_deploy 2m5s, migrate 3s, test_plan 12s, test_apply 13s, drift_reconverge 25s, day2_rename 25s, day2_remove 1m34s, day2_count 1m0s, day2_crash 1m23s, day2_teardown 1m59s, plan_approval 35s, greenfield 1m26s, strict 1m5s",
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:23:16Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 12m26.3s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/reference-k8s-stateful/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4068,8 +4127,7 @@
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
-          "verdict": "n/a",
-          "detail": "True only of a replacement that keeps the object's name. A Kubernetes name is unique within its namespace, so a same-name forced replacement is destroy-then-create, which this stage does not measure. A create_before_destroy rename (the content-hashed-ConfigMap pattern, where the name argument itself changes) resolves to a different live object under a new address, and stock creates it before destroying the old one; choudoufu currently orders the destroy first, a known difference (#1541) waiting on #1605. This stage turns on for kind once that order is fixed."
+          "verdict": "not run"
         },
         {
           "id": "day2_crash",

@@ -468,6 +468,10 @@ CT="$(kc get crontab my-crontab -n smoke-crd -o jsonpath='{.spec.cronSpec}{" "}{
   || fail "k8s-custom-resource" "kubectl cannot read the CronTab: $CT"
 echo "$CT" | evidence
 grep -q 'tofu-estate=smoke-crd$' <<< "$CT" || fail "k8s-custom-resource" "the CronTab does not carry tofu-estate=smoke-crd: $CT"
+CT_ADDR="$(kc get crontab my-crontab -n smoke-crd -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}')"
+echo "choudoufu.intentius.io/tofu-address: $CT_ADDR" | evidence
+[ "$CT_ADDR" = "kubernetes_manifest.crontab" ] \
+  || fail "k8s-custom-resource" "the CronTab's address annotation reads '$CT_ADDR', want kubernetes_manifest.crontab (#1639)"
 proof "the CronTab exists with the spec the configuration declared and the one label the configuration never wrote, tofu-estate=smoke-crd; no terraform.tfstate exists."
 
 if [ "${BREAK:-0}" = "1" ]; then
@@ -852,6 +856,10 @@ ADOPTED_IMAGE="$(kc get crontab adopted-crontab -n smoke-crd-stock -o jsonpath='
 [ "$ADOPTED_IMAGE" = "my-awesome-cron-image" ] \
   || fail "k8s-custom-resource" "the label write moved the object's spec.image to $ADOPTED_IMAGE"
 kc get crontab adopted-crontab -n smoke-crd-stock -o jsonpath='{.metadata.labels}{"\n"}' | evidence
+ADOPTED_ADDR="$(kc get crontab adopted-crontab -n smoke-crd-stock -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}')"
+echo "choudoufu.intentius.io/tofu-address: $ADOPTED_ADDR" | evidence
+[ "$ADOPTED_ADDR" = "kubernetes_manifest.crontab" ] \
+  || fail "k8s-custom-resource" "the adopted CronTab's address annotation reads '${ADOPTED_ADDR:-none}', want kubernetes_manifest.crontab: live-import writes it in the same patch as the label (#1639)"
 proof "2 newly stamped, 0 failed, 0 skipped; kubectl reads tofu-estate=smoke-crd-stock on the custom resource and its spec is untouched. Before #1109 this line read \"1 newly stamped ... 1 skipped\" and the CronTab carried no label: the manifest shape was not a live-import carrier, so a migrated custom resource was bound and counted but left outside the boundary."
 
 step "12. a label the stock configuration declared, removed after the migration, is removed from the object"

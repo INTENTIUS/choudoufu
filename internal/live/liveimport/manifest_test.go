@@ -154,6 +154,7 @@ type fakeCluster struct {
 type fakePatch struct {
 	ref          kubesweep.ObjectRef
 	key, value   string
+	annotations  map[string]string
 	fieldManager string
 	dryRun       bool
 }
@@ -168,8 +169,15 @@ func (c *fakeCluster) ReadObject(_ context.Context, ref kubesweep.ObjectRef) (*u
 	return c.object.DeepCopy(), true, nil
 }
 
-func (c *fakeCluster) PatchLabel(_ context.Context, ref kubesweep.ObjectRef, key, value, fieldManager string, dryRun bool) (*unstructured.Unstructured, string, error) {
-	c.patches = append(c.patches, fakePatch{ref: ref, key: key, value: value, fieldManager: fieldManager, dryRun: dryRun})
+// PatchMarkers records the patch. The one label it is sent is recorded as
+// key and value, which is what every label assertion here reads; the
+// annotations are recorded beside them (GitHub issue #1639).
+func (c *fakeCluster) PatchMarkers(_ context.Context, ref kubesweep.ObjectRef, setLabels, setAnnotations map[string]string, fieldManager string, dryRun bool) (*unstructured.Unstructured, string, error) {
+	p := fakePatch{ref: ref, annotations: setAnnotations, fieldManager: fieldManager, dryRun: dryRun}
+	for k, v := range setLabels {
+		p.key, p.value = k, v
+	}
+	c.patches = append(c.patches, p)
 	if c.rejects != "" {
 		return nil, c.rejects, nil
 	}
@@ -178,8 +186,20 @@ func (c *fakeCluster) PatchLabel(_ context.Context, ref kubesweep.ObjectRef, key
 	if labels == nil {
 		labels = map[string]string{}
 	}
-	labels[key] = value
+	for k, v := range setLabels {
+		labels[k] = v
+	}
 	next.SetLabels(labels)
+	if len(setAnnotations) > 0 {
+		ann := next.GetAnnotations()
+		if ann == nil {
+			ann = map[string]string{}
+		}
+		for k, v := range setAnnotations {
+			ann[k] = v
+		}
+		next.SetAnnotations(ann)
+	}
 	// The server's own bookkeeping moves on any write, dry run included.
 	next.SetResourceVersion("813")
 	unstructured.SetNestedSlice(next.Object, []any{map[string]any{"manager": fieldManager, "operation": "Update"}}, "metadata", "managedFields")

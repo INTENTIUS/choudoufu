@@ -140,6 +140,7 @@ var liveTargetScopeClassification = map[string]struct {
 	"statelessNeedsDiscoverySet":          {notAPass, "indexes resolutions already in hand"},
 	"statelessUnownedReport":              {notAPass, "renders"},
 	"statelessUntagTargets":               {notAPass, "reads discovery's result"},
+	"statelessUntagCluster":               {notAPass, "a map lookup into the cluster clients the sweep already built; it sends no request, and the targets it serves are the ones untag.Release was already handed (GitHub issue #1656)"},
 	"statelessReleasedReport":             {notAPass, "renders untag.Release's outcome"},
 	"statelessNoSweepAnswer":              {notAPass, "renders -filter's answer for a run that swept nothing (#1197); reads no resource"},
 }

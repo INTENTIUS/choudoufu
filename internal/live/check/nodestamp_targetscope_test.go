@@ -107,7 +107,7 @@ func TestNodeStampUnmarkedApplyHonoursTheTargetScope(t *testing.T) {
 	}
 
 	t.Run("no scope: both refuse, exactly as before", func(t *testing.T) {
-		diags := NodeStampUnmarkedApply(cfg, result, schemas, "target-scope-1203", nil, nil)
+		diags := NodeStampUnmarkedApply(cfg, result, schemas, "target-scope-1203", nil, nil, false)
 		if n := countSummary(diags, stamp.SummaryUnmarkedApply); n != 2 {
 			t.Fatalf("want two %q on an untargeted run, got %d. %s",
 				stamp.SummaryUnmarkedApply, n, rendered(diags))
@@ -115,7 +115,7 @@ func TestNodeStampUnmarkedApplyHonoursTheTargetScope(t *testing.T) {
 	})
 
 	t.Run("scope keeps one: that one still refuses", func(t *testing.T) {
-		diags := NodeStampUnmarkedApply(cfg, result, schemas, "target-scope-1203", nil, only("targeted"))
+		diags := NodeStampUnmarkedApply(cfg, result, schemas, "target-scope-1203", nil, only("targeted"), false)
 		if n := countSummary(diags, stamp.SummaryUnmarkedApply); n != 1 {
 			t.Fatalf("want exactly one %q, got %d. Narrowing a run must not disable the check for a block the run still holds. %s",
 				stamp.SummaryUnmarkedApply, n, rendered(diags))
@@ -129,7 +129,7 @@ func TestNodeStampUnmarkedApplyHonoursTheTargetScope(t *testing.T) {
 	})
 
 	t.Run("scope keeps neither: nothing refuses", func(t *testing.T) {
-		diags := NodeStampUnmarkedApply(cfg, result, schemas, "target-scope-1203", nil, only("neither"))
+		diags := NodeStampUnmarkedApply(cfg, result, schemas, "target-scope-1203", nil, only("neither"), false)
 		if diags.HasErrors() {
 			t.Fatalf("a run whose plan graph holds neither block must not be refused for either. %s",
 				rendered(diags))

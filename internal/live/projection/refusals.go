@@ -94,6 +94,14 @@ var refusals = []Refusal{
 		What:    "The record store could not be listed, so record-backed resources whose configuration block was removed cannot be found.",
 	},
 	{
+		Summary: "Cannot merge the address annotation into this annotations value",
+		What:    "GitHub issue #1639's address annotation (NodeResolver.stampedAddressAnnotation) found a Kubernetes metadata.annotations value, on a typed metadata block or inside a kubernetes_manifest, it does not know how to add the choudoufu.intentius.io/tofu-address annotation into - a value that is neither a map nor an object, or one holding a non-string element - so it left the annotations exactly as evaluated. The tofu-estate label beside it is still written; only the address annotation is missing.",
+	},
+	{
+		Summary: "Cannot set the address annotation on an unresolved annotations value",
+		What:    "GitHub issue #1639's address annotation found a Kubernetes metadata.annotations value that is not yet known at plan time, so it could not add the choudoufu.intentius.io/tofu-address annotation and left the annotations exactly as evaluated. The tofu-estate label beside it is still written.",
+	},
+	{
 		Summary: "Cannot merge ownership markers into this labels value",
 		What:    "GitHub issue #1061's label branch of the node-path stamp (NodeResolver.stampedMetadata) found a Kubernetes metadata.labels value it does not know how to add the tofu-estate marker into - a non-map value, or a map holding a non-string element - so it left the resource's configuration value exactly as evaluated. The Kubernetes sibling of \"Cannot merge ownership markers into this tags value\".",
 	},
@@ -179,7 +187,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: SummaryIdentityUnresolvedNoAddress,
-		What:    "The static evaluator could not resolve an instance's identity, the plan-node seam found no record, marker entry or evaluated identity for it either, and its type's marker surface carries no tofu-address (the Kubernetes label and manifest surfaces). A create there would flap against the orphan sweep, so the refusal stands instead of planning one (GitHub issue #1539).",
+		What:    "The static evaluator could not resolve an instance's identity, the plan-node seam found no record, marker entry or evaluated identity for it either, and a live object this block may already have created cannot be bound back to it: on Kubernetes, the sweep found an object of the type carrying the estate label and no address annotation (one an older build made, or one migrated from stock state before live-import stamped it), or could not list every kind the type can declare. A create there would flap against the orphan sweep, so the refusal stands instead of planning one (GitHub issues #1539, #1641). Where the sweep listed every kind and found no such object, the create is planned, and the object it makes carries the annotation the next sweep binds.",
 	},
 	{
 		Summary: "Ignoring an additional imported object",

@@ -966,25 +966,36 @@ cmd "choudoufu apply -auto-approve   # in net/, as bob - reconciling his own too
 grep -q 'owner' <<< "$(labels_of router net)" && fail "boundary" "the reconciling apply did not remove the stray label"
 proof "reconciled, still under Bob's own ServiceAccount. The estate is clean again before the carve begins."
 
-step "12. a rename is a configuration edit: live-mv has nothing governed to write"
+step "12. a rename rewrites the address annotation: live-mv writes it, the label does not move"
 explain \
   "On AWS a rename ends with live-mv rewriting tofu-address on the live" \
-  "object. Here the object carries no address: it is bound to its block by" \
-  "its own kind, namespace and name, all authored in configuration. Bob" \
-  "renames the router block, runs the same live-mv an AWS runbook would," \
-  "and it reports that there is nothing governed to write and exits 0." \
-  "The next plan binds the object at its new address with no change."
+  "object. Here the object is bound to its block by its own kind," \
+  "namespace and name, and carries its block address beside the estate" \
+  "label in an annotation, choudoufu.intentius.io/tofu-address (#1639)." \
+  "Bob renames the router block and runs the same live-mv an AWS runbook" \
+  "would: it rewrites that annotation to the new address, under his own" \
+  "credential, and leaves the tofu-estate label alone. The admission" \
+  "policy reads the label only, so the write is his to make. The next" \
+  "plan binds the object at its new address with no change."
 cmd "sed router=router_renamed net/main.tf ; choudoufu live-mv kubernetes_config_map.router kubernetes_config_map.router_renamed ; choudoufu plan   # in net/, as bob"
 sed_i "$NET/main.tf" 's/"kubernetes_config_map" "router"/"kubernetes_config_map" "router_renamed"/'
 grep -q '"router_renamed"' "$NET/main.tf" || fail "boundary" "the router block was not renamed in net"
+ROUTER_ADDR="$(kc get configmap router -n net -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}')"
+[ "$ROUTER_ADDR" = "kubernetes_config_map.router" ] \
+  || fail "boundary" "before the rename the router's address annotation reads '$ROUTER_ADDR', want kubernetes_config_map.router (#1639)"
 OUT="$(cd "$NET" && as_role bob chdf live-mv -no-color kubernetes_config_map.router kubernetes_config_map.router_renamed 2>&1)" || fail "boundary" "live-mv on a same-estate Kubernetes rename did not exit 0: $OUT"
-grep -q 'Nothing to write' <<< "$OUT" || fail "boundary" "live-mv did not say there is nothing to write: $OUT"
-grep -E 'Nothing to write' <<< "$OUT" | evidence
+grep -q 'Rewrote the address annotation on one live object' <<< "$OUT" || fail "boundary" "live-mv did not report the annotation rewrite: $OUT"
+grep -E 'Rewrote the address annotation|annotation ' <<< "$OUT" | evidence
+ROUTER_ADDR="$(kc get configmap router -n net -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}')"
+[ "$ROUTER_ADDR" = "kubernetes_config_map.router_renamed" ] \
+  || fail "boundary" "after live-mv the router's address annotation reads '$ROUTER_ADDR', want kubernetes_config_map.router_renamed"
+grep -q '"tofu-estate":"net"' <<< "$(labels_of router net)" || fail "boundary" "the rename moved the router's estate label"
+echo "choudoufu.intentius.io/tofu-address: $ROUTER_ADDR" | evidence
 OUT="$(cd "$NET" && as_role bob chdf plan -input=false -no-color 2>&1)" || fail "boundary" "net does not plan after the rename: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
 printf '%s\n' "$OUT" > "$LOGS/net-renamed.plan"
 grep -q "No changes." <<< "$OUT" || fail "boundary" "net does not plan clean after the rename (full plan in $LOGS/net-renamed.plan): $(grep -E '^Plan:|will be|orphan|UNOWNED' <<< "$OUT" | head -4)"
 echo "net under bob, block renamed: No changes." | evidence
-proof "exit 0 and one sentence: nothing to write. The block is renamed, the object is untouched, and the plan is empty - the rename was the edit."
+proof "exit 0: live-mv rewrote the address annotation, kubectl reads the new address back, the estate label did not move, and the plan is empty."
 
 step "13. the carve begins with a git move, and the relabel is refused from both sides"
 explain \

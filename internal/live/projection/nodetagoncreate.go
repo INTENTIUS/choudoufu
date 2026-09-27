@@ -60,7 +60,7 @@ import (
 //
 //   - [NodeResolver.AdjustCreateConfigValue] (tofu.CreateConfigValueAdjuster)
 //     is [NodeResolver.AdjustConfigValue] for an instance being created.
-//     For a type [NodeResolver.tagsAfterCreate] answers true for, it runs
+//     For a type [NodeResolver.postCreateNeeded] answers true for, it runs
 //     the same conflict checks and then returns the configuration UNSTAMPED:
 //     the provider's create call carries the operator's own tags and none
 //     of this fork's. Every other type, and every update, is stamped
@@ -68,9 +68,11 @@ import (
 //   - [NodeResolver.WriteAppliedMarkers] (tofu.AppliedMarkerWriter) runs
 //     after ApplyResourceChange has returned the created object and before
 //     the PostApply hook prints "Creation complete". For the same types it
-//     writes the withheld markers onto the object through the Resource
-//     Groups Tagging API's TagResources ([MarkerTagger]), addressed by the
-//     arn attribute the provider returned. That write is generic in both
+//     writes the withheld markers onto the object through the writer the
+//     surface and family name ([MarkerWriter]), handed the created
+//     instance; for AWS that is the Resource Groups Tagging API's
+//     TagResources, addressed by the arn attribute the provider returned
+//     ([TaggingAPIWriter]). That write is generic in both
 //     directions: one operation for every type on the list, and the same
 //     store the discovery sweep reads (internal/live/discovery's
 //     markerIndex, GetResources), so the marker written here is what the
@@ -96,12 +98,62 @@ import (
 // SummaryMarkerNotWritten is the one diagnostic this file raises.
 const SummaryMarkerNotWritten = "Created object is not marked"
 
-// MarkerTagger is the one write [NodeResolver.WriteAppliedMarkers] makes:
-// the Resource Groups Tagging API's TagResources, an upsert of tags onto
-// every ARN listed. *internal/live/cloudcontrol.Client implements it; the
-// unit tests fake it.
+// CreatedInstance is what a post-create marker write addresses (GitHub
+// issue #1638): the instance this run just created, as the run knows it -
+// its address, the provider configuration it was applied under, and the
+// object the provider returned, which carries whatever identity the cloud
+// assigned it. Each family's writer derives what its own write needs from
+// it: the Tagging API writer reads the arn attribute ([TaggingAPIWriter]),
+// a write that binds a marker to a resource name (a GCP tag binding, say)
+// would read that name instead. The resolver no longer decides for every
+// family that an object is addressed by ARN.
+type CreatedInstance struct {
+	Addr     addrs.AbsResourceInstance
+	Provider addrs.AbsProviderConfig
+	// Object is the object ApplyResourceChange returned, before
+	// [withWrittenMarkers] merges anything into it.
+	Object cty.Value
+}
+
+// MarkerWriter is the one write [NodeResolver.WriteAppliedMarkers] makes: an
+// upsert of the withheld markers onto the created instance, through
+// whichever write the instance's surface and family name
+// ([substrate.Writes.PostCreate], [substrate.Substrate]'s MarkerWriter). The
+// command layer builds one per provider configuration and write; the unit
+// tests fake it.
+type MarkerWriter interface {
+	WriteMarkers(ctx context.Context, created CreatedInstance, markers map[string]string) error
+}
+
+// MarkerTagger is the Resource Groups Tagging API's TagResources, an upsert
+// of tags onto every ARN listed. *internal/live/cloudcontrol.Client
+// implements it; [TaggingAPIWriter] adapts it to [MarkerWriter].
 type MarkerTagger interface {
 	TagResources(ctx context.Context, arns []string, tags map[string]string) error
+}
+
+// errNoARN is the Tagging API writer's refusal of an object it cannot
+// address.
+var errNoARN = errors.New("the object the provider returned carries no arn attribute to address the write to")
+
+// TaggingAPIWriter is the AWS family's post-create writer
+// ([substrate.WriteTaggingAPI]): it derives the ARN from the arn attribute
+// the provider returned and tags it through the Tagging API, exactly the
+// write GitHub issue #1084 made before #1638 moved the derivation here.
+type TaggingAPIWriter struct {
+	Tagger MarkerTagger
+}
+
+// WriteMarkers implements [MarkerWriter].
+func (w TaggingAPIWriter) WriteMarkers(ctx context.Context, created CreatedInstance, tags map[string]string) error {
+	arn := appliedString(created.Object, "arn")
+	if arn == "" {
+		return errNoARN
+	}
+	if w.Tagger == nil {
+		return errors.New("this run has no tagging client")
+	}
+	return w.Tagger.TagResources(ctx, []string{arn}, tags)
 }
 
 // The two seams are reached by type assertions on the value
@@ -118,17 +170,17 @@ func (n *NodeResolver) AdjustCreateConfigValue(ctx context.Context, addr addrs.A
 	return n.adjustConfigValue(ctx, addr, config, schema, true)
 }
 
-// tagsAfterCreate reports whether addr's type is one whose create call
-// cannot carry tags: live/registry.json's tagging.tag_on_create, read
-// through the roster for the Terraform type's CloudFormation counterpart.
-// False for a run with no roster, a type the mapping never joined, and a
-// type the registry cannot vouch for - all of which take the ordinary path.
-func (n *NodeResolver) tagsAfterCreate(addr addrs.AbsResourceInstance) bool {
-	cfnType, ok := n.Roster.CloudControlTypeOrService(addr.Resource.Resource.Type)
-	if !ok {
-		return false
-	}
-	return n.Roster.TagsAfterCreate(cfnType)
+// postCreateNeeded reports whether addr's type, whose schema carries
+// surface, is one whose create call cannot carry the marker, and the
+// sentence naming why. It is the surface's family's answer (GitHub issue
+// #1642, [substrate.PostCreateNeeded]): AWS reads live/registry.json's
+// tagging.tag_on_create through the roster for the Terraform type's
+// CloudFormation counterpart, as #1084 did here; Kubernetes answers never;
+// another family answers for its own types. False for a run with no
+// roster, a type the mapping never joined, and a type the registry cannot
+// vouch for - all of which take the ordinary path.
+func (n *NodeResolver) postCreateNeeded(addr addrs.AbsResourceInstance, surface markers.Surface) (string, bool) {
+	return substrate.PostCreateNeeded(surface, addr.Resource.Resource.Type, n.Roster)
 }
 
 // WriteAppliedMarkers implements internal/tofu.AppliedMarkerWriter.
@@ -138,15 +190,18 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 	if action != plans.Create || n.Estate == "" || schema.Block == nil {
 		return applied, diags
 	}
-	if !n.tagsAfterCreate(addr) {
-		return applied, diags
-	}
 	// GitHub issue #1587: the surface's own post-create write chooses the
 	// writer, rather than a provider type string. The tag surface's is the
 	// Tagging API; a surface whose marker always rides the create call
 	// answers WriteNeverNeeded and there is nothing to do.
 	surface, carries := substrate.SurfaceOf(schema.Block)
 	if !carries {
+		return applied, diags
+	}
+	// GitHub issue #1642: whether this create needed the write at all is
+	// the surface's family's answer, not the AWS registry's alone.
+	why, needed := n.postCreateNeeded(addr, surface)
+	if !needed {
 		return applied, diags
 	}
 	write := substrate.WritesOf(surface).PostCreate
@@ -171,21 +226,19 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 
 	var err error
 	switch {
-	case arn == "":
-		err = errors.New("the object the provider returned carries no arn attribute to address the write to")
 	case write == "":
 		err = fmt.Errorf("the %s surface names no post-create write, so nothing can mark the object", surface)
-	case n.Tagger == nil:
+	case n.MarkerWriter == nil:
 		err = errors.New("this run has no tagging client")
 	default:
-		tagger, terr := n.Tagger(provider, write)
+		writer, werr := n.MarkerWriter(provider, write)
 		switch {
-		case terr != nil:
-			err = terr
-		case tagger == nil:
+		case werr != nil:
+			err = werr
+		case writer == nil:
 			err = fmt.Errorf("this run has no tagging client for provider configuration %s", provider)
 		default:
-			err = tagger.TagResources(ctx, []string{arn}, want)
+			err = writer.WriteMarkers(ctx, CreatedInstance{Addr: addr, Provider: provider, Object: applied}, want)
 		}
 	}
 	if err == nil {
@@ -207,14 +260,16 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 	var fix string
 	if arn != "" {
 		fix = fmt.Sprintf("Mark it, then plan again:\n\n  aws resourcegroupstaggingapi tag-resources --resource-arn-list %s --tags %s", arn, markerTagsArgument(want))
-	} else {
+	} else if cfnType != "" {
 		fix = fmt.Sprintf("Mark it by hand with the tag write %s takes, with the tags %s, then plan again.", cfnType, markerTagsArgument(want))
+	} else {
+		fix = fmt.Sprintf("Mark it by hand with the markers %s, then plan again.", markerTagsArgument(want))
 	}
 
 	diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryMarkerNotWritten,
 		fmt.Sprintf(
-			"%s was created as %s and could not be marked: %s.\n\n%s does not take tags in its create call (live/registry.json: tag_on_create false), so this run withheld the ownership markers from the create and wrote them afterwards, and that write failed. The object exists and carries no marker naming estate %q; the next plan will not find it at this address. %s",
-			addr, object, err, cfnType, n.Estate, fix,
+			"%s was created as %s and could not be marked: %s.\n\n%s, so this run withheld the ownership markers from the create and wrote them afterwards, and that write failed. The object exists and carries no marker naming estate %q; the next plan will not find it at this address. %s",
+			addr, object, err, why, n.Estate, fix,
 		)))
 	return applied, diags
 }
@@ -324,4 +379,11 @@ func markedAt(pvm []cty.PathValueMarks, name string) bool {
 		}
 	}
 	return false
+}
+
+// withholdsAtCreate is [NodeResolver.postCreateNeeded] without the reason,
+// for the create-side half ([NodeResolver.AdjustCreateConfigValue]).
+func (n *NodeResolver) withholdsAtCreate(addr addrs.AbsResourceInstance, surface markers.Surface) bool {
+	_, needed := n.postCreateNeeded(addr, surface)
+	return needed
 }

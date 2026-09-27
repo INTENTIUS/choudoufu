@@ -24,6 +24,16 @@
 # The kind binary version and the node image are read from their pins,
 # live/kind-version and live/kind-node-image (#1594), like every other
 # kind call site.
+#
+# The smoke trigger rule (issue #1592, HANDOFF.md "CI: smoke workflow
+# triggers") is a whole workflow's worth of exception here rather than one
+# scenario's: standing up a kind cluster and then running three separate
+# test suites against it is over any pull-request-sized budget, so unlike
+# k8s-smoke.yml, bucket-smoke.yml and claims-smoke.yml this workflow carries
+# no pull_request or push trigger at all. What the rule still requires it
+# has: nightly (the schedule below), workflow_dispatch, and a name in
+# nightly-watch.yml's workflows list. live/smoke_trigger_rule_test.go checks
+# those three against this file too.
 name: kind-tier
 
 on:

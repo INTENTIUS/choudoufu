@@ -61,13 +61,20 @@ func (n *NodeResolver) AdjustIgnoreChanges(_ context.Context, addr addrs.AbsReso
 	}
 	if _, labelled := markers.LabelSurface(schema.Block); labelled {
 		// The Kubernetes shape (GitHub issue #1061): the one label the
-		// stamp would otherwise write, at metadata[0].labels["tofu-estate"].
-		return []cty.Path{markers.LabelSurfacePath(markers.TagEstate)}
+		// stamp would otherwise write, at metadata[0].labels["tofu-estate"],
+		// and the address annotation beside it (GitHub issue #1639).
+		return []cty.Path{
+			markers.LabelSurfacePath(markers.TagEstate),
+			markers.LabelAnnotationPath(markers.AddressAnnotation),
+		}
 	}
 	if markers.ManifestSurface(schema.Block) {
 		// The manifest shape (GitHub issue #1079): the same label, at
-		// manifest.metadata.labels["tofu-estate"].
-		return []cty.Path{markers.ManifestLabelPath(markers.TagEstate)}
+		// manifest.metadata.labels["tofu-estate"], and the same annotation.
+		return []cty.Path{
+			markers.ManifestLabelPath(markers.TagEstate),
+			markers.ManifestAnnotationPath(markers.AddressAnnotation),
+		}
 	}
 	if _, taggable := markers.TagSurface(schema.Block); !taggable {
 		return nil

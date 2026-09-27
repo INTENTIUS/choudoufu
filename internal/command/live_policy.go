@@ -8,6 +8,8 @@ package command
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/command/views"
@@ -305,23 +307,41 @@ func statelessPolicyReport(projResult *projection.Result, disco *discovery.Resul
 	return rep
 }
 
+// untagGroup is the untag verb's work for one provider configuration: the
+// targets whose sweep pass listed through it, which is the only
+// configuration that can reach them again (GitHub issue #1657).
+type untagGroup struct {
+	Provider addrs.AbsProviderConfig
+	Targets  []untag.Target
+}
+
 // statelessUntagTargets narrows discovery's withheld undeclared_tagged
 // orphans to the ones this run's policy actually named "untag" - not
 // "keep" or "report", which are also withheld from the sweep but have
 // nothing for [untag.Release] to do - and turns each into the identity
-// evidence [untag.Release] needs to import and read it fresh. See
-// [statelessRunner.AfterApply] for why this runs during PriorState and the
-// result is only acted on later, from AfterApply.
-func statelessUntagTargets(disco *discovery.Result) []untag.Target {
+// evidence [untag.Release] needs to import and read it fresh, grouped by
+// the provider configuration that found it ([discovery.OwnedResource.
+// Provider]). Groups are in provider-address order, targets in discovery's
+// own order. See [statelessRunner.AfterApply] for why this runs during
+// PriorState and the result is only acted on later, from AfterApply.
+func statelessUntagTargets(disco *discovery.Result) []untagGroup {
 	if disco == nil {
 		return nil
 	}
-	var out []untag.Target
+	byKey := make(map[string]int)
+	var out []untagGroup
 	for _, o := range disco.Orphans {
 		if o.PolicyVerb != policy.Untag {
 			continue
 		}
-		out = append(out, untag.Target{
+		key := untagGroupKey(o.Provider)
+		i, ok := byKey[key]
+		if !ok {
+			i = len(out)
+			byKey[key] = i
+			out = append(out, untagGroup{Provider: o.Provider})
+		}
+		out[i].Targets = append(out[i].Targets, untag.Target{
 			TypeName:    o.TypeName,
 			ImportID:    o.ImportID,
 			Identity:    o.Identity,
@@ -329,14 +349,36 @@ func statelessUntagTargets(disco *discovery.Result) []untag.Target {
 			DisplayName: o.DisplayName,
 		})
 	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return untagGroupKey(out[i].Provider) < untagGroupKey(out[j].Provider)
+	})
 	return out
+}
+
+// untagGroupKey is a provider configuration's address, or "" for the zero
+// value: an orphan no caller attributed to a pass.
+func untagGroupKey(p addrs.AbsProviderConfig) string {
+	if p.Provider.Type == "" {
+		return ""
+	}
+	return p.String()
+}
+
+// untagTargetList names targets on one line, for a diagnostic.
+func untagTargetList(targets []untag.Target) string {
+	names := make([]string, len(targets))
+	for i, t := range targets {
+		names[i] = t.String()
+	}
+	return strings.Join(names, ", ")
 }
 
 // statelessUntagCluster is the cluster client [untag.Release] releases a
 // manifest-shape orphan through (GitHub issue #1656): the one the marker
-// sweep built for the same provider configuration the release runs
-// through, or nil when that configuration built none - not a Kubernetes
-// configuration, or one this run could not connect with - in which case
+// sweep built for the provider configuration that found the orphan, which
+// is the one its group releases through (GitHub issue #1657), or nil when
+// that configuration built none - not a Kubernetes configuration, or one
+// this run could not connect with - in which case
 // the release refuses such a target by name and touches nothing. It never
 // borrows another configuration's client: a label release sent to the
 // wrong cluster is a write on an object this run never read.

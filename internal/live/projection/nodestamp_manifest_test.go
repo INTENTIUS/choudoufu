@@ -193,7 +193,7 @@ func TestNodeResolver_AdjustConfigValue_refusesAManifestNamingAnotherEstate(t *t
 	}
 }
 
-func TestNodeResolver_AdjustConfigValue_manifestUntagWritesNothing(t *testing.T) {
+func TestNodeResolver_AdjustConfigValue_manifestUntagWritesNoLabel(t *testing.T) {
 	addr := manifestAddr(t)
 	resolver := &NodeResolver{Estate: "smoke-crd", PolicyUntag: map[string]string{addr.String(): markers.TagEstate}}
 	in := manifestTestConfig(manifestTestManifest(cty.NilVal))
@@ -201,8 +201,15 @@ func TestNodeResolver_AdjustConfigValue_manifestUntagWritesNothing(t *testing.T)
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
-	if !got.RawEquals(in) {
-		t.Fatalf("an untagged instance's manifest was changed: %#v", got)
+	if labels, _ := markers.ManifestLabelsOf(got); len(labels) != 0 {
+		t.Fatalf("an untagged instance's manifest was labelled: %v", labels)
+	}
+	// The release is per marker key, as it is on AWS (stampedTags): an
+	// untag of tofu-estate withholds the label and still writes the
+	// address annotation (GitHub issue #1639), the way the AWS path still
+	// writes tofu-address.
+	if ann, _ := markers.ManifestAnnotationsOf(got); len(ann) != 1 || ann[markers.AddressAnnotation] != addr.String() {
+		t.Fatalf("annotations = %v, want only the address annotation", ann)
 	}
 }
 

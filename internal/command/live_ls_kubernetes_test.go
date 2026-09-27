@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -24,6 +25,8 @@ import (
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
+	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -111,7 +114,7 @@ func TestLiveLsKubernetesList(t *testing.T) {
 		liveLsK8sResolution(t, "kubernetes_manifest", "crontab", "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-k8s,name=my-crontab"),
 	}
 
-	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, types, "kubernetes_manifest", resolutions)
+	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, types, "kubernetes_manifest", resolutions, nil)
 	if diags.HasErrors() {
 		t.Fatalf("unexpected errors: %s", diags.Err())
 	}
@@ -181,7 +184,7 @@ func boolWord(declared bool) string {
 // the AWS listing's own severity for an unreachable tagging index.
 func TestLiveLsKubernetesList_discoveryFailureIsTheSweepsWarning(t *testing.T) {
 	sweeper := &liveLsStubSweeper{kindsErr: errors.New("dial tcp 127.0.0.1:6443: connection refused")}
-	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, []string{"kubernetes_namespace"}, "", nil)
+	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, []string{"kubernetes_namespace"}, "", nil, nil)
 	if len(items) != 0 {
 		t.Errorf("items = %+v, want none", items)
 	}
@@ -256,8 +259,8 @@ func liveLsLoadConfig(t *testing.T, hcl string) *configs.Config {
 
 // TestLiveLsSubstrates: the substrates are read off the configuration's
 // managed resources' providers, and everything that is not a
-// configuration - no DIR, a failed load - or names neither provider is
-// the AWS listing this command has always been.
+// configuration - no DIR, a failed load - or names no substrate in
+// [substrate.All] is the AWS listing this command has always been.
 func TestLiveLsSubstrates(t *testing.T) {
 	kubernetesOnly := liveLsLoadConfig(t, `
 provider "kubernetes" {}
@@ -277,22 +280,87 @@ resource "null_resource" "x" {}
 	var loadFailed tfdiags.Diagnostics
 	loadFailed = loadFailed.Append(tfdiags.Sourceless(tfdiags.Error, "Unreadable", "not a configuration"))
 
+	awsOnly := liveLsSubstrateSet{sweeps: map[substrate.Sweep]bool{substrate.SweepTaggingIndex: true}}
+	kubeOnly := liveLsSubstrateSet{sweeps: map[substrate.Sweep]bool{substrate.SweepLabelList: true}}
+	awsAndKube := liveLsSubstrateSet{sweeps: map[substrate.Sweep]bool{substrate.SweepTaggingIndex: true, substrate.SweepLabelList: true}}
+
 	for name, tc := range map[string]struct {
 		config *configs.Config
 		diags  tfdiags.Diagnostics
 		want   liveLsSubstrateSet
 	}{
-		"no DIR":             {nil, nil, liveLsSubstrateSet{aws: true}},
-		"load failed":        {kubernetesOnly, loadFailed, liveLsSubstrateSet{aws: true}},
-		"kubernetes only":    {kubernetesOnly, nil, liveLsSubstrateSet{kubernetes: true}},
-		"aws and kubernetes": {both, nil, liveLsSubstrateSet{aws: true, kubernetes: true}},
-		"neither":            {neither, nil, liveLsSubstrateSet{aws: true}},
+		"no DIR":             {nil, nil, awsOnly},
+		"load failed":        {kubernetesOnly, loadFailed, awsOnly},
+		"kubernetes only":    {kubernetesOnly, nil, kubeOnly},
+		"aws and kubernetes": {both, nil, awsAndKube},
+		"neither":            {neither, nil, awsOnly},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if got := liveLsSubstrates(tc.config, tc.diags); got != tc.want {
+			if got := liveLsSubstrates(tc.config, tc.diags); !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("liveLsSubstrates = %+v, want %+v", got, tc.want)
 			}
 		})
+	}
+}
+
+// fakeThirdSubstrate stands in for a family that is neither AWS nor
+// Kubernetes - GitHub issue #1583's red proof - registered into
+// [substrate.All] only for the duration of
+// TestLiveLsSubstratesCoversAThirdSubstrateWithNoNewArm. Its methods
+// beyond Name and Sweep are never asked by [liveLsSubstrates]; they exist
+// only to satisfy [substrate.Substrate].
+type fakeThirdSubstrate struct {
+	// Embedded so a method added to substrate.Substrate later reaches this
+	// fake without an edit here; the methods below override what the test
+	// is about.
+	substrate.Substrate
+}
+
+func (fakeThirdSubstrate) Name() string                { return "fake" }
+func (fakeThirdSubstrate) Surfaces() []markers.Surface { return nil }
+func (fakeThirdSubstrate) Sweep() substrate.Sweep      { return substrate.Sweep("fake-sweep") }
+func (fakeThirdSubstrate) CarriesAddress() bool        { return false }
+func (fakeThirdSubstrate) SurfaceOf(*configschema.Block) (markers.Surface, bool) {
+	return "", false
+}
+func (fakeThirdSubstrate) OwnershipSurfaceOf(*configschema.Block) (markers.Surface, bool) {
+	return "", false
+}
+func (fakeThirdSubstrate) MarkersOf(markers.Surface, cty.Value) (map[string]string, bool) {
+	return nil, false
+}
+func (fakeThirdSubstrate) Writes(markers.Surface) substrate.Writes { return substrate.Writes{} }
+func (fakeThirdSubstrate) NewSweeper(cty.Value, bool) (substrate.Sweeper, error) {
+	return nil, nil
+}
+func (fakeThirdSubstrate) CreateCollidesOnKey(markers.Surface) bool { return false }
+func (fakeThirdSubstrate) CarrierPhrase(markers.Surface) string     { return "" }
+func (fakeThirdSubstrate) NotACarrier(*configschema.Block, string) string {
+	return ""
+}
+
+// TestLiveLsSubstratesCoversAThirdSubstrateWithNoNewArm is GitHub issue
+// #1583's own red proof: a third substrate registered in [substrate.All],
+// used by a managed resource and nothing else, must be reflected in
+// [liveLsSubstrates]'s answer - not silently folded into the AWS default,
+// which is what a switch naming only [substrate.AWS] and
+// [substrate.Kubernetes] does to anything else. Before the fix, this test
+// does not compile: liveLsSubstrateSet had an aws/kubernetes bool pair
+// with nowhere to record a third family at all.
+func TestLiveLsSubstratesCoversAThirdSubstrateWithNoNewArm(t *testing.T) {
+	orig := substrate.All
+	substrate.All = append(append([]substrate.Substrate{}, orig...), fakeThirdSubstrate{Substrate: substrate.AWS})
+	t.Cleanup(func() { substrate.All = orig })
+
+	config := liveLsLoadConfig(t, `
+resource "fake_thing" "x" {}
+`)
+	got := liveLsSubstrates(config, nil)
+	if !got.has(fakeThirdSubstrate{Substrate: substrate.AWS}.Sweep()) {
+		t.Errorf("liveLsSubstrates(config with only a fake_thing resource) = %+v, want the fake substrate's sweep listed", got)
+	}
+	if got.has(substrate.SweepTaggingIndex) {
+		t.Errorf("liveLsSubstrates(config with only a fake_thing resource) = %+v, want no AWS tagging-index listing (there is no aws provider here)", got)
 	}
 }
 
@@ -358,7 +426,7 @@ func TestLiveLsKubernetesListsControllerHeld(t *testing.T) {
 			"ConfigMap": {{Kind: "ConfigMap", Namespace: "web", Name: "web-greeting", Labels: map[string]string{"tofu-estate": "smoke-k8s"}, HeldBy: "Helm release web/web"}},
 		},
 	}
-	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, []string{"kubernetes_config_map_v1"}, "", nil)
+	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, []string{"kubernetes_config_map_v1"}, "", nil, nil)
 	if diags.HasErrors() {
 		t.Fatalf("unexpected errors: %s", diags.Err())
 	}
@@ -369,4 +437,92 @@ func TestLiveLsKubernetesListsControllerHeld(t *testing.T) {
 	if it.ID != "web/web-greeting" || it.HeldBy != "Helm release web/web" || it.Declared || it.Address != "" || it.Tags["tofu-estate"] != "smoke-k8s" {
 		t.Errorf("item = %+v", it)
 	}
+}
+
+// TestLiveLsKubernetesList_BindsByAddressAnnotation (GitHub issue #1677):
+// live-ls must read the same address-annotation join the plan's Kubernetes
+// sweep binds by ([discovery.KubernetesAddressBindings], from GitHub issue
+// #1640), not the natural-key join alone. Two shapes, #1640's own:
+//
+//   - #1541's: the configuration renamed the object. The resolution is
+//     concrete and names the NEW object (not yet listed); the OLD object is
+//     still on the cluster, carrying the annotation of the block that
+//     declared it. Needs nothing beyond req.Resolutions.
+//   - #1539's: the static evaluator refused the instance and the plan-node
+//     seam took it over, so it never reaches req.Resolutions at all - only
+//     nodeRefused says the address is declared. Proven both ways: bound
+//     when the caller passes nodeRefused, still an orphan when it does not,
+//     so the wiring from liveLsGaps is what a reader can trust, not an
+//     accident of addressCandidate's other conditions.
+func TestLiveLsKubernetesList_BindsByAddressAnnotation(t *testing.T) {
+	cm := kubesweep.Kind{GVR: schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}, Kind: "ConfigMap", Namespaced: true, APIVersion: "v1", TypeNames: []string{"kubernetes_config_map_v1"}}
+	types := []string{"kubernetes_config_map_v1"}
+
+	t.Run("renamed object binds from a resolution alone", func(t *testing.T) {
+		sweeper := &liveLsStubSweeper{
+			kinds: []kubesweep.Kind{cm},
+			objects: map[string][]kubesweep.Object{
+				"ConfigMap": {{
+					Kind: "ConfigMap", Namespace: "rep-chdf", Name: "cfg-a",
+					ImportID: "rep-chdf/cfg-a",
+					Labels:   map[string]string{"tofu-estate": "smoke-k8s"},
+					Address:  "kubernetes_config_map_v1.cfg",
+				}},
+			},
+		}
+		// The resolution names the new object, cfg-b, which nothing has
+		// listed yet - stock's own create-before-destroy shape.
+		resolutions := []identity.Resolution{liveLsK8sResolution(t, "kubernetes_config_map_v1", "cfg", "rep-chdf/cfg-b")}
+
+		items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, types, "", resolutions, nil)
+		if diags.HasErrors() {
+			t.Fatalf("unexpected errors: %s", diags.Err())
+		}
+		if len(items) != 1 {
+			t.Fatalf("items = %+v, want the one renamed object", items)
+		}
+		it := items[0]
+		if !it.Declared || it.Address != "kubernetes_config_map_v1.cfg" || it.Type != "kubernetes_config_map_v1" {
+			t.Errorf("cfg-a = %+v, want declared at kubernetes_config_map_v1.cfg", it)
+		}
+	})
+
+	t.Run("node-refused instance binds only when the caller hands its refusal in", func(t *testing.T) {
+		newSweeper := func() *liveLsStubSweeper {
+			return &liveLsStubSweeper{
+				kinds: []kubesweep.Kind{cm},
+				objects: map[string][]kubesweep.Object{
+					"ConfigMap": {{
+						Kind: "ConfigMap", Namespace: "m1116-res", Name: "my-awesome-cron-image-reader",
+						ImportID: "m1116-res/my-awesome-cron-image-reader",
+						Labels:   map[string]string{"tofu-estate": "smoke-k8s"},
+						Address:  "kubernetes_config_map_v1.reader",
+					}},
+				},
+			}
+		}
+		nodeRefused := map[string]bool{"kubernetes_config_map_v1.reader": true}
+
+		items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", newSweeper(), types, "", nil, nodeRefused)
+		if diags.HasErrors() {
+			t.Fatalf("unexpected errors: %s", diags.Err())
+		}
+		if len(items) != 1 {
+			t.Fatalf("items = %+v, want the one object", items)
+		}
+		if it := items[0]; !it.Declared || it.Address != "kubernetes_config_map_v1.reader" {
+			t.Errorf("with nodeRefused: item = %+v, want bound at kubernetes_config_map_v1.reader", it)
+		}
+
+		// The control: with no resolution and no nodeRefused entry, nothing
+		// says the annotation names a declared instance, so the object stays
+		// exactly the orphan it always was.
+		items, diags = liveLsKubernetesList(context.Background(), "smoke-k8s", newSweeper(), types, "", nil, nil)
+		if diags.HasErrors() {
+			t.Fatalf("unexpected errors: %s", diags.Err())
+		}
+		if it := items[0]; it.Declared || it.Address != "" {
+			t.Errorf("without nodeRefused: item = %+v, want undeclared", it)
+		}
+	})
 }

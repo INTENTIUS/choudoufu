@@ -40,6 +40,34 @@ type Verdicts struct {
 	// This is the input to projection.BuildFrom.
 	Resolutions []identity.Resolution
 
+	// KubernetesAddressBound names every declared instance the Kubernetes
+	// leg bound through an object's address annotation rather than through
+	// the natural key its configuration names (GitHub issue #1640), keyed
+	// by [addrs.AbsResourceInstance.String]. Each one also has a
+	// [Binding] and a concrete resolution naming the object. It is what
+	// [Merge] reads to keep that resolution over the configuration's
+	// own concrete one, which another pass carries unchanged: both are
+	// bound classes, so nothing else would tell them apart.
+	KubernetesAddressBound map[string]bool
+
+	// KubernetesUnaddressed is the Kubernetes leg's account of every
+	// instance in [Request.NodeRefused] that it did not bind (GitHub issue
+	// #1641), keyed by [addrs.AbsResourceInstance.String]. An instance is
+	// present only when the leg listed every kind its type can declare,
+	// and the value names the listed objects that could be its object and
+	// carry no address annotation: this estate's label, a kind the type
+	// manages, a namespace and name no concrete resolution declares, not
+	// terminating, and no annotation (or one that does not parse). Such an
+	// object is one an older build created, or one migrated from stock
+	// state before live-import stamped it.
+	//
+	// It is what the node's #1617 refusal reads since
+	// substrate.Kubernetes.CarriesAddress flipped: present and empty, a
+	// create is safe, because an object this block made carries the
+	// annotation and would have bound; non-empty, or absent (a kind that
+	// failed to list, a pass that never ran), the refusal stands.
+	KubernetesUnaddressed map[string][]string
+
 	// Bindings lists every declared instance that a live resource claimed,
 	// in address order.
 	Bindings []Binding
@@ -641,6 +669,14 @@ type OwnedResource struct {
 	// Tags are the resource's tags as listed.
 	Tags map[string]string
 
+	// AddressAnnotation is a Kubernetes object's address annotation as
+	// carried (kubesweep.AddressAnnotation, GitHub issue #1639), escaped,
+	// or empty when it carries none. Only the Kubernetes leg sets it; an
+	// AWS resource's address is its Marker. An orphan that carries one
+	// names an address the configuration does not declare, or one a
+	// sibling object already answers for (GitHub issue #1640).
+	AddressAnnotation string
+
 	// Resource is the full listed object, so that a consumer can match on
 	// content without listing again - which is what strengthens a rename
 	// pairing. cty.NilVal when the provider sent no object.
@@ -668,6 +704,18 @@ type OwnedResource struct {
 	// resource never reached policy at all (already withheld for a possible
 	// rename before policy ever saw it).
 	PolicyVerb policy.Verb
+
+	// Provider is the provider configuration whose pass found this
+	// resource, set by [Merge] (and by a single-pass caller that skips
+	// it, through [Result.AttributeOrphans]). An orphan has no resource
+	// block to name one, and the account, region or cluster it was listed
+	// in is the only place it can be read or written again: GitHub issue
+	// #1657, where every undeclared_tagged = "untag" target was released
+	// through the estate's first provider configuration instead, so a
+	// Kubernetes orphan reached the AWS provider and an orphan in a second
+	// region was imported in the first, found missing, and reported
+	// released. The zero value means no caller attributed it.
+	Provider addrs.AbsProviderConfig
 }
 
 // String renders an owned-but-undeclared resource on one line.
@@ -1859,4 +1907,15 @@ func (r *Result) sortEverything() {
 	sort.Slice(r.Resolutions, func(i, j int) bool {
 		return r.Resolutions[i].Addr.String() < r.Resolutions[j].Addr.String()
 	})
+}
+
+// UnaddressedAccount returns [Verdicts.KubernetesUnaddressed], nil-safely,
+// for the plan-node resolver's projection.NodeResolver.UnaddressedObjects
+// (GitHub issue #1641). A run with no discovery result has no account,
+// and the node's refusal stands wherever it applies.
+func (r *Result) UnaddressedAccount() map[string][]string {
+	if r == nil {
+		return nil
+	}
+	return r.KubernetesUnaddressed
 }
