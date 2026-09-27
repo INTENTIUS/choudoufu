@@ -121,6 +121,7 @@ var surfaceSeamExemptions = map[string]surfaceSeamExemption{
 	"internal/live/lint/lint.go:checkManagedResources":                 {Handles: []Surface{SurfaceTags}, Why: "reaches the markers package only through checkIgnoreChanges; GitHub issue #1645"},
 	"internal/live/projection/build.go:builder.prepareRead":            {Handles: []Surface{SurfaceManifest, SurfaceTags}, Why: "the read seeds: the tags arm is configuredTagsSeed (AWS default_tags, exempted above) and the manifest arm is the manifest seed that stands in for the configuration in state (#1079, #1262). A label-surface type needs no seed: its metadata.labels comes back whole from the provider's read of the live object"},
 	"internal/live/projection/readconcurrency.go":                      {Handles: []Surface{SurfaceManifest, SurfaceTags}, Why: "reaches the markers package only through builder.prepareRead; see its entry"},
+	"internal/live/markerstrip/markerstrip.go":                         {Handles: []Surface{SurfaceTags}, Why: "a hole: the stateful un-migration guard (#613) reads only the tags map, so a state-backed plan that drops a Kubernetes object's estate label passes it. Seeing the label adds a refusal, so it waits on a ruling in GitHub issue #1649"},
 	"internal/live/untag/tags.go":                                      {Handles: []Surface{SurfaceTags}, Why: "a hole: undeclared_tagged = \"untag\" never releases a Kubernetes label, because the release writes only a tags map. GitHub issue #1644"},
 	"internal/live/untag/release.go:releaseOne":                        {Handles: []Surface{SurfaceTags}, Why: "the release itself, asking tags.go's taggable; GitHub issue #1644"},
 	"tools/estate-gen/gen.go":                                          {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
@@ -144,7 +145,6 @@ var surfaceSeamExemptions = map[string]surfaceSeamExemption{
 var surfaceSeamUntriaged = map[string][]Surface{
 	"internal/command/live_adoption.go:statelessAdoptionReport":                    {SurfaceTags},
 	"internal/live/check/roster.go":                                                {SurfaceTags},
-	"internal/live/markerstrip/markerstrip.go":                                     {SurfaceTags},
 	"internal/live/projection/nodetagoncreate.go:NodeResolver.WriteAppliedMarkers": {SurfaceTags},
 }
 
