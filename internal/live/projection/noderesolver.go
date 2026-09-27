@@ -173,13 +173,13 @@ type NodeResolver struct {
 	// Roster is live/mapping.json joined against live/registry.json
 	// (registry.Embedded in production), read for one fact: whether an
 	// instance's type can carry tags in its create call (GitHub issue
-	// #1084, [NodeResolver.tagsAfterCreate], nodetagoncreate.go). Nil is
+	// #1084, [NodeResolver.postCreateNeeded], nodetagoncreate.go). Nil is
 	// an ordinary value - a run that could not parse the embedded
 	// artifacts - and reads as "every type takes tags at create", the
 	// path every type took before #1084.
 	Roster *registry.Roster
 
-	// Tagger builds the client [NodeResolver.WriteAppliedMarkers] writes a
+	// MarkerWriter builds the writer [NodeResolver.WriteAppliedMarkers] writes a
 	// withheld marker through, for the provider configuration the
 	// instance was applied under - so a two-account estate marks each
 	// object as the principal that created it. The command layer supplies
@@ -189,7 +189,9 @@ type NodeResolver struct {
 	// result or an error is a failed write for the instances that need
 	// one, and is reported as such rather than left silent. The error is
 	// the command layer's reason, naming the write it could not serve.
-	Tagger func(provider addrs.AbsProviderConfig, write substrate.Write) (MarkerTagger, error)
+	// The writer is handed the created instance, not an ARN (GitHub issue
+	// #1638): each family's writer derives its own address.
+	MarkerWriter func(provider addrs.AbsProviderConfig, write substrate.Write) (MarkerWriter, error)
 
 	// StaticRefusals is every instance the static evaluator refused
 	// before the #388 downgrade turned its refusal into a warning, keyed

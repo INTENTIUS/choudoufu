@@ -13,6 +13,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/markerstrip"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -202,12 +203,14 @@ func unmigrateDiagnostics(removals []markerstrip.Removal, approvedRaw string) tf
 // and the two ways forward - because a refusal that does not name a way
 // forward is read as a bug in the tool.
 func unmigrateRefusalDetail(estate string, group []markerstrip.Removal) string {
+	_, plural := markerNouns(group)
 	var b strings.Builder
 	fmt.Fprintf(&b,
-		"This plan removes the %s from %s. Those tags are what \"choudoufu live-import\" wrote when estate %q was migrated onto live resource markers, and they are that estate's whole ownership record - see live/MARKERS.md.\n\n",
-		keyPhrase(group), instancePhrase(len(group)), estate)
-	b.WriteString(
-		"The diff above is correct. This configuration does not declare those tags and the state file has no record of them, so a state-backed run can only read them as drift and can only propose reverting it. Applying it would remove the markers from the live resources: nothing would then say which configuration owns them, a later run under a live block would not find them, and the migration would have to be redone.\n\n")
+		"This plan removes the %s from %s. Those %s are what \"choudoufu live-import\" wrote when estate %q was migrated onto live resource markers, and they are that estate's whole ownership record - see live/MARKERS.md.\n\n",
+		keyPhrase(group), instancePhrase(len(group)), plural, estate)
+	fmt.Fprintf(&b,
+		"The diff above is correct. This configuration does not declare those %s and the state file has no record of them, so a state-backed run can only read them as drift and can only propose reverting it. Applying it would remove the markers from the live resources: nothing would then say which configuration owns them, a later run under a live block would not find them, and the migration would have to be redone.\n\n",
+		plural)
 	b.WriteString(affectedList(group))
 	fmt.Fprintf(&b,
 		"\nTo keep the estate, run this configuration the way it was migrated - with its live block present, where \"choudoufu plan\" and \"choudoufu apply\" read the markers instead of proposing to remove them.\n\n"+
@@ -257,16 +260,35 @@ func keyPhrase(group []markerstrip.Removal) string {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
+	singular, plural := markerNouns(group)
 	switch len(keys) {
 	case 0:
 		return "ownership markers"
 	case 1:
-		return fmt.Sprintf("%s tag", keys[0])
+		return fmt.Sprintf("%s %s", keys[0], singular)
 	case 2:
-		return fmt.Sprintf("%s and %s tags", keys[0], keys[1])
+		return fmt.Sprintf("%s and %s %s", keys[0], keys[1], plural)
 	default:
-		return fmt.Sprintf("%s and %s tags", strings.Join(keys[:len(keys)-1], ", "), keys[len(keys)-1])
+		return fmt.Sprintf("%s and %s %s", strings.Join(keys[:len(keys)-1], ", "), keys[len(keys)-1], plural)
 	}
+}
+
+// markerNouns is what the removed markers are called, in the surface's own
+// word (GitHub issue #1649): "tag" for the AWS tags map, "label" for a
+// Kubernetes object's labels. A Kubernetes reader has no tags map to look
+// for. A group spanning both families, one configuration declaring AWS and
+// Kubernetes resources, gets the word that covers both.
+func markerNouns(group []markerstrip.Removal) (singular, plural string) {
+	nouns := make(map[string]struct{})
+	for _, r := range group {
+		nouns[substrate.MarkerNoun(r.Surface)] = struct{}{}
+	}
+	if len(nouns) == 1 {
+		for n := range nouns {
+			return n, n + "s"
+		}
+	}
+	return "marker", "markers"
 }
 
 // instancePhrase renders a count with its noun, so that the one-resource case

@@ -776,7 +776,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		// GitHub issue #1084: the registry flag the create path keys on,
 		// and the client the post-create marker write goes through.
 		resolver.Roster = markerRoster()
-		resolver.Tagger = provs.markerTagger
+		resolver.MarkerWriter = provs.markerTagger
 	}
 
 	// GitHub issue #67's undeclared_untagged = "delete" scoped account
@@ -1125,6 +1125,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 			Foreign:          livePlanForeign(foreignReport),
 			Adoptable:        adoptable,
 			Swept:            swept,
+			ControllerHeld:   livePlanControllerHeld(foreignReport),
 			Diagnostics:      livePlanDiagnostics(append(append(tfdiags.Diagnostics(nil), preDiags...), diags...)),
 		}, args.Filter))
 	} else {
@@ -1395,6 +1396,10 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		if discoDiags.HasErrors() {
 			return nil, noProvider, nil, denied(diags)
 		}
+		// What discovery.Merge does for every pass of the multi-provider
+		// path below, done here because this path skips Merge: GitHub
+		// issue #1657.
+		res.AttributeOrphans(providerAddr)
 		return res, providerAddr, nil, denied(diags)
 	}
 
@@ -2196,6 +2201,14 @@ func statelessMarkerEstate(ctx context.Context, config *configs.Config, estateFl
 //   - the refusal itself, inside [check.NodeStampUnmarkedApply]. See that
 //     function's own doc comment for the ruling and for why an in-scope
 //     block still refuses.
+//
+// GitHub issue #1637 (ruled 2026-09-27) narrows it once more: when the
+// refusal would fire and store is open, this asks whether the store is
+// writable ([projection.RecordStore.ProbeWritable]). If it is, the apply
+// records each such instance's identity and a later run finds the object
+// by that record, so the refusal is skipped for every type whose identity
+// the apply can record ([projection.ApplyRecordsIdentity]). With no store,
+// or a store this run may only read, it fires as before.
 func statelessUnmarkedApplyGaps(ctx context.Context, config *configs.Config, resolutions *identity.Result, resourceSchemas map[string]providers.Schema, store *projection.RecordStore, estate string, scope identity.Scope) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	needs := statelessInScopeResolutions(resolutions.NeedsDiscovery(), scope)
@@ -2204,7 +2217,24 @@ func statelessUnmarkedApplyGaps(ctx context.Context, config *configs.Config, res
 	if recordDiags.HasErrors() {
 		return diags
 	}
-	return diags.Append(check.NodeStampUnmarkedApply(config, resolutions, resourceSchemas, estate, recordBacked, scope))
+	refusals := check.NodeStampUnmarkedApply(config, resolutions, resourceSchemas, estate, recordBacked, scope, false)
+	if !refusals.HasErrors() || store == nil {
+		return diags.Append(refusals)
+	}
+	// GitHub issue #1637, ruled 2026-09-27: a run whose record store is
+	// writable records the identity of what it cannot mark, so the refusal
+	// steps aside for it. Asked only now, with a refusal in hand, because
+	// the answer costs a write (see [projection.RecordStore.ProbeWritable]).
+	writable, err := store.ProbeWritable(ctx)
+	if err != nil {
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, "Could not tell whether the record store is writable", fmt.Sprintf(
+			"A resource below has nowhere to carry an ownership marker, and this run could create it anyway if it could record the identity in the estate's record store. Writing to the store to find out failed: %s. The run treats the store as read-only.", err,
+		)))
+	}
+	if !writable {
+		return diags.Append(refusals)
+	}
+	return diags.Append(check.NodeStampUnmarkedApply(config, resolutions, resourceSchemas, estate, recordBacked, scope, true))
 }
 
 // statelessInScopeResolutions drops the resolutions whose block a
@@ -2477,6 +2507,27 @@ func livePlanForeign(rep views.StatelessForeign) []views.LivePlanForeign {
 	return out
 }
 
+// livePlanControllerHeld projects the controller-held rows, AWS and
+// Kubernetes alike (#1606, #1607), into the document; nil for none, which the field omits.
+func livePlanControllerHeld(rep views.StatelessForeign) []views.LivePlanControllerHeld {
+	if len(rep.ControllerHeld) == 0 {
+		return nil
+	}
+	out := make([]views.LivePlanControllerHeld, 0, len(rep.ControllerHeld))
+	for _, h := range rep.ControllerHeld {
+		out = append(out, views.LivePlanControllerHeld{
+			TypeName:    h.TypeName,
+			LiveID:      h.LiveID,
+			DisplayName: h.DisplayName,
+			Kind:        h.Kind,
+			Controller:  h.Controller,
+			HeldBy:      h.HeldBy,
+			Addr:        h.Addr,
+		})
+	}
+	return out
+}
+
 func livePlanAdoptable(rep views.StatelessForeign) ([]views.LivePlanAdoptable, []string) {
 	adoptable := make([]views.LivePlanAdoptable, 0, len(rep.Candidates))
 	for _, c := range rep.Candidates {
@@ -2519,13 +2570,6 @@ func statelessForeignReport(res *foreign.Result, disco *discovery.Result) views.
 		// so rather than let "nothing was swept" read as "there is
 		// nothing". See [discovery.Result.NativeSweepSkipped].
 		rep.NativeSweepSkipped = disco.NativeSweepSkipped
-		for _, h := range disco.KubernetesHeld {
-			rep.ControllerHeld = append(rep.ControllerHeld, views.StatelessControllerHeld{
-				Kind:   h.Kind,
-				ID:     kubesweep.NaturalKey(h.Namespace, h.Name),
-				HeldBy: h.HeldBy,
-			})
-		}
 	}
 	for _, rm := range res.Removals {
 		rep.Removals = append(rep.Removals, views.StatelessRemoval{
@@ -2615,6 +2659,20 @@ func statelessForeignReport(res *foreign.Result, disco *discovery.Result) views.
 			Detail:   u.Detail,
 		})
 	}
+	for _, h := range res.ControllerHeld {
+		row := views.StatelessControllerHeld{
+			TypeName:    h.TypeName,
+			LiveID:      h.ImportID,
+			DisplayName: h.DisplayName,
+			Kind:        h.Kind,
+			Controller:  h.Controller,
+			HeldBy:      h.HeldBy,
+		}
+		if h.Marked {
+			row.Addr = h.Addr.String()
+		}
+		rep.ControllerHeld = append(rep.ControllerHeld, row)
+	}
 	for _, f := range res.ParentReads {
 		rep.ParentReads = append(rep.ParentReads, views.StatelessParentRead{
 			TypeName:    f.TypeName,
@@ -2674,6 +2732,7 @@ func statelessLookalikeReport(warnings []foreign.Lookalike) []views.StatelessLoo
 			MarkerEstate:  w.MarkerEstate,
 			MarkerAddress: w.MarkerAddress,
 			Hint:          w.Hint,
+			HeldBy:        w.HeldBy,
 		})
 	}
 	return out

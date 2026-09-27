@@ -369,25 +369,31 @@ if [ "${BREAK:-}" = "1" ]; then
   perl -0777 -pi -e 's/(resource "kubernetes_service_account_v1" "alloy" \{\n  metadata \{\n    name      = )"alloy"/$1"alloy-renamed"/' "$ADOPTED/terraform/alloy.tf"
   grep -q '"alloy-renamed"' "$ADOPTED/terraform/alloy.tf" || fail "BREAK: could not rename the ServiceAccount's metadata.name"
   R_PLAN="$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$R_PLAN" | tail -20; fail "BREAK: the plan after renaming the object failed"; }
-  grep -qE "^No changes|Plan: 0 to add, 0 to change, 0 to destroy" <<< "$R_PLAN" && fail "BREAK=1: renaming the object's own name still planned zero churn"
+  grep -qE 'will be (created|destroyed)' <<< "$R_PLAN" || fail "BREAK=1: renaming the object's own name did not plan a destroy and a create - the marker-rewritten-in-place assertion is not load-bearing: $(grep -E '^Plan:' <<< "$R_PLAN" | head -1)"
   grep -q "1 to add" <<< "$R_PLAN" && grep -q "1 to destroy" <<< "$R_PLAN" || { printf '%s\n' "$R_PLAN" | tail -20; fail "BREAK=1: renaming the object's own name did not plan a destroy and a create: $(grep -E '^Plan:' <<< "$R_PLAN" | head -1)"; }
   log "  BREAK=1: caught - renaming metadata.name plans $(grep -E '^Plan:' <<< "$R_PLAN" | head -1)"
   perl -pi -e 's/"alloy-renamed"/"alloy"/' "$ADOPTED/terraform/alloy.tf"
   rename_sa "$ADOPTED"; rename_sa "$ORACLE"
   ( chdf_a "$ADOPTED" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK: the moved-block apply failed"
   ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK: stock's moved-block apply failed on B"
-  gauntlet_stage day2_rename pass "BREAK=1 control: renaming the object's own metadata.name plans a replace ($(grep -E '^Plan:' <<< "$R_PLAN" | head -1)), so the zero-churn assertion correctly fails to hold; a bare block rename is zero churn on this substrate because the block name is not part of the object's identity; the moved block then applied"
+  gauntlet_stage day2_rename pass "BREAK=1 control: renaming the object's own metadata.name plans a replace ($(grep -E '^Plan:' <<< "$R_PLAN" | head -1)), so the marker-rewritten-in-place assertion correctly fails to hold; a bare block rename plans the same one in-place annotation change as the moved block, since the block name is not part of the object's identity; the moved block then applied"
 else
   rename_sa "$ADOPTED"; rename_sa "$ORACLE"
   O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's moved-block plan failed on B"; }
   grep -qE "^No changes|Plan: 0 to add, 0 to change, 0 to destroy" <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's moved-block plan on B is not zero churn"; }
   ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's moved-block apply failed on B"
   R_PLAN="$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$R_PLAN" | tail -20; fail "the moved-block plan failed"; }
-  grep -qE "^No changes|Plan: 0 to add, 0 to change, 0 to destroy" <<< "$R_PLAN" || { printf '%s\n' "$R_PLAN" | tail -20; fail "the moved-block plan is not zero churn"; }
-  ( chdf_a "$ADOPTED" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "the moved-block apply failed"
+  grep -qE 'will be (created|destroyed)' <<< "$R_PLAN" \
+    && { printf '%s\n' "$R_PLAN" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a create or a destroy - not the marker rewritten in place"; }
+  grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$R_PLAN" \
+    || { printf '%s\n' "$R_PLAN" | tail -20; fail "the moved-block plan is not exactly one in-place change (the address annotation rewrite)"; }
+  grep -qE '~ +"choudoufu\.intentius\.io/tofu-address" = ".*" -> ".*"' <<< "$R_PLAN" \
+    || { printf '%s\n' "$R_PLAN"; fail "the moved-block plan does not show the tofu-address annotation being rewritten"; }
+  R_APPLY_OUT="$(chdf_a "$ADOPTED" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$R_APPLY_OUT" | tail -20; fail "the moved-block apply failed"; }
+  grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$R_APPLY_OUT" || { printf '%s\n' "$R_APPLY_OUT" | tail -10; fail "the moved-block apply was not exactly one in-place change"; }
   exists_a serviceaccount alloy || fail "the ServiceAccount is gone after the rename"
   [ "$(count_a)" = "26" ] || fail "$(count_a) labelled objects after the rename, want 26"
-  gauntlet_stage day2_rename pass "moved block: kubernetes_service_account_v1.alloy -> .collector, with the ClusterRoleBinding's subject and the Deployment's service_account_name references following, zero churn (no add, no change, no destroy); the live object untouched and still labelled; stock's plan for the same moved block on the oracle cluster is also zero churn. The moved-block half only: live-mv has no Kubernetes leg (#1066). BREAK=1 renames the object's own metadata.name and the zero-churn assertion correctly fails"
+  gauntlet_stage day2_rename pass "moved block: kubernetes_service_account_v1.alloy -> .collector, with the ClusterRoleBinding's subject and the Deployment's service_account_name references following, no add and no destroy, one in-place change confined to the address annotation rewrite (0 add, 1 change, 0 destroy) - the marker rewritten in place, the same shape the AWS lanes assert for a rename, not literal zero churn; the live object untouched and still labelled; stock's plan for the same moved block on the oracle cluster is zero churn, since stock never writes this annotation. The moved-block half only: live-mv also has a Kubernetes leg since #1639, not exercised by this stage. BREAK=1 renames the object's own metadata.name and the marker-rewritten-in-place assertion correctly fails"
 fi
 
 # ── 8. day2_remove ────────────────────────────────────────────────────────

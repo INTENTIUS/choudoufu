@@ -46,39 +46,24 @@ parent is.
 
 ### Record-carried
 
-Untaggable *and* server-minted: the provider mints this type's identity at
-create time and the type carries no `tags` argument, so every instance
-would need marker discovery to be found again and there is nowhere to write
-the marker. Where the record-located mechanism already reaches a type, a
-declared `record_store` holds its identity and recovers it. For the rest,
-losing the record loses the object, the same way losing a stock state file
-loses it under plain OpenTofu.
+Untaggable and server-minted: the provider mints the identity at create
+time, so nothing in configuration recovers it and there is no tag to
+discover it by. A declared `record_store` recovers a type the
+record-located mechanism already reaches; for the rest, losing the record
+loses the object, the way losing a stock state file loses it under plain
+OpenTofu.
 
-**Two different populations answer to this tier's name, and they differ
-threefold.** The paragraph above defines
-`internal/live/identity.MarkerlessTypes`, the roster derived on every
-generator run from taggability and the server-assignment verdict:
-**159 types**, in `internal/live/identity/markerless_generated.go`. The count
-in this page's table is **471**, and the gap is not a discrepancy. It is that
-`tools/readiness-gen` also lands a type here by elimination: untaggable, no
-admission row yet, and a survey path ("moves to Ops" or "enumerable,
-unbindable") that leaves nowhere else to put it. That is **313 further
-types**, *destined* for this tier rather than record-carried today.
-
-The arithmetic closes exactly. 158 of the roster's members are classified
-here, plus 313 by elimination, is 471. The 159th, `aws_wafv2_api_key`, is
-excluded by design and counted in that tier instead, so it never reaches the
-classifier's markerless branch at all.
-
-Both numbers are real and they answer different questions. **159** is how
-many types the record-located mechanism is on the hook for. **471** is how
-many types this page's table shows in the tier. Quoting the second where the
-first is meant overstates that mechanism's population threefold, which two
-issues did before it was caught. Recount either at any commit:
-`live/readiness.json`'s `facts.markerless` and `tier` fields give the 158 and
-the 471, and the map literal in `markerless_generated.go` gives the 159. The
-counts named in this section were taken at commit `cfd0dc58d4` against
-provider `hashicorp/aws` `6.59.0`.
+Two populations share this tier's name. `identity.MarkerlessTypes`
+(`internal/live/identity/markerless_generated.go`) is **159** types, derived
+from taggability and server-assignment. This page's table counts **471**:
+the 158 of those 159 that land here (the 159th, `aws_wafv2_api_key`, is
+excluded by design instead) plus **313** more `tools/readiness-gen` adds by
+elimination - untaggable, unadmitted, and out of any other tier's survey
+path. **159** answers "how many types does the located mechanism cover";
+**471** answers "how many types does this table's tier show" - two issues
+quoted the second where the first was meant. Recount from
+`live/readiness.json` (`facts.markerless`, `tier`) and
+`markerless_generated.go`, at provider `hashicorp/aws` `6.59.0`.
 
 ### Excluded by design
 
@@ -93,11 +78,24 @@ so there is nothing to lose because nothing is ever kept.
 ## Coverage today
 
 Every tier crossed with every status, tallied from `live/readiness.json`'s
-own per-type rows. `in-contract` is the only status that means "usable
-today" - every other one is a form of not yet, and the lookup table below
-says why for each type that carries it.
+own per-type rows, for AWS - the only provider with a survey artifact this
+generator can classify against. `in-contract` is the only status that means
+"usable today" - every other one is a form of not yet, and the lookup table
+below says why for each type that carries it.
 
 {{< readiness "tiers" >}}
+
+## Kubernetes
+
+Tier A's own test is a top-level `tags` argument, an AWS-only shape no
+Kubernetes type has ever had; the label surface, `metadata.labels`, is this
+substrate's marker instead, and it landed after today's Kubernetes rows were
+ratified. Which tier a label-carried type maps to needs a ruling before this
+generator assigns one, so the table below lists them unclassified rather
+than guessed. See
+[issue #1600](https://github.com/INTENTIUS/choudoufu/issues/1600).
+
+{{< readiness "kubernetes" >}}
 
 ## Look up your own resource type
 

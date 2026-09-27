@@ -21,16 +21,19 @@ func TestForeign_controllerHeldNamesTheRelease(t *testing.T) {
 	NewStatelessPlan(NewView(streams).SetRunningInAutomation(true)).Foreign(StatelessForeign{
 		Estate: "smoke-k8s",
 		ControllerHeld: []StatelessControllerHeld{
-			{Kind: "ConfigMap", ID: "smoke-k8s/web-greeting", HeldBy: "Helm release smoke-k8s/web"},
+			{TypeName: "kubernetes_config_map_v1", Kind: "ConfigMap", LiveID: "smoke-k8s/web-greeting", Controller: "Helm", HeldBy: "Helm release smoke-k8s/web"},
 		},
 	})
 	out := done(t).Stdout()
+	// The renderer word-wraps; compare with whitespace collapsed.
+	flat := strings.Join(strings.Fields(out), " ")
 	for _, want := range []string{
-		"Controller-held: 1 live object carries this estate's label and is not swept",
+		"Controller-held: 1 live resource held by a controller, not a block",
 		"ConfigMap smoke-k8s/web-greeting held by Helm release smoke-k8s/web",
-		"never proposed for destruction",
+		"never proposes destroying one",
+		"take tofu-estate out of the chart's values",
 	} {
-		if !strings.Contains(out, want) {
+		if !strings.Contains(flat, want) {
 			t.Errorf("the plan does not say %q:\n%s", want, out)
 		}
 	}

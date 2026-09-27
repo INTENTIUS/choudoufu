@@ -40,19 +40,6 @@ func (kubernetes) SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
 	return "", false
 }
 
-// OwnershipSurfaceOf asks the label shape before the manifest shape, the
-// order the ownership read always asked them in; they are disjoint, so the
-// order decides nothing.
-func (kubernetes) OwnershipSurfaceOf(block *configschema.Block) (markers.Surface, bool) {
-	if _, ok := markers.LabelSurface(block); ok {
-		return markers.SurfaceLabels, true
-	}
-	if markers.ManifestSurface(block) {
-		return markers.SurfaceManifest, true
-	}
-	return "", false
-}
-
 // MarkersOf on the manifest surface reads the prior manifest, which is
 // where the projection's mirror of the live object's own estate label
 // lands (#1079).
@@ -369,3 +356,34 @@ func (k kubernetes) NotACarrier(_ *configschema.Block, typeName string) string {
 // MarkerWriter is [WriteNeverNeeded]: the label rides the create call on
 // both surfaces, so there is nothing to write after it.
 func (kubernetes) MarkerWriter(addrs.AbsProviderConfig) Write { return WriteNeverNeeded }
+
+// ---- GitHub issue #1642: whether a create needs the post-create write ----
+
+// PostCreateNeeded is never: both surfaces carry the label in the create
+// call ([WriteNeverNeeded]).
+func (kubernetes) PostCreateNeeded(markers.Surface, string, CreateTagFacts) (string, bool) {
+	return "", false
+}
+
+// ---- GitHub issue #1649: the carrier's wholly-known read ----
+
+// CarrierPaths: metadata[0].labels, and manifest.metadata.labels. The label
+// map alone, never the whole metadata block: a planned object's
+// resource_version or generation can be unknown while its labels are not.
+func (kubernetes) CarrierPaths(surface markers.Surface) []cty.Path {
+	switch surface {
+	case markers.SurfaceLabels:
+		return []cty.Path{cty.GetAttrPath(markers.LabelSurfaceBlock).IndexInt(0).GetAttr(markers.LabelSurfaceAttr)}
+	case markers.SurfaceManifest:
+		return []cty.Path{cty.GetAttrPath(markers.ManifestSurfaceAttr).GetAttr(markers.LabelSurfaceBlock).GetAttr(markers.LabelSurfaceAttr)}
+	}
+	return nil
+}
+
+func (kubernetes) MarkerNoun(surface markers.Surface) string {
+	switch surface {
+	case markers.SurfaceLabels, markers.SurfaceManifest:
+		return "label"
+	}
+	return ""
+}

@@ -121,31 +121,26 @@ func manifestBlock() *configschema.Block {
 	}}
 }
 
-// TestSurfaceOfAndOwnershipSurfaceOf pins both questions, including the
-// one place they differ: a tags attribute the configuration cannot set is
-// an ownership surface (the projection has always read it) and not a
-// surface a marker is written to (live-mv and live-import never wrote
-// one). The extraction kept each caller on the question it asked.
-func TestSurfaceOfAndOwnershipSurfaceOf(t *testing.T) {
+// TestSurfaceOf pins the one question every caller now asks, including the
+// dispatch package: live-mv's surface switch, live-import's carrier choice,
+// and (GitHub issue #1589) the projection's ownership read all ask this
+// same [SurfaceOf], not a second, looser question of their own.
+func TestSurfaceOf(t *testing.T) {
 	cases := map[string]struct {
-		block          *configschema.Block
-		surface, owner markers.Surface
+		block   *configschema.Block
+		surface markers.Surface
 	}{
-		"nil":                {nil, "", ""},
-		"settable tags":      {tagsBlock(true, true), markers.SurfaceTags, markers.SurfaceTags},
-		"computed-only tags": {tagsBlock(false, true), "", markers.SurfaceTags},
-		"metadata labels":    {labelsBlock(), markers.SurfaceLabels, markers.SurfaceLabels},
-		"manifest":           {manifestBlock(), markers.SurfaceManifest, markers.SurfaceManifest},
-		"no surface":         {&configschema.Block{}, "", ""},
+		"nil":                {nil, ""},
+		"settable tags":      {tagsBlock(true, true), markers.SurfaceTags},
+		"computed-only tags": {tagsBlock(false, true), ""},
+		"metadata labels":    {labelsBlock(), markers.SurfaceLabels},
+		"manifest":           {manifestBlock(), markers.SurfaceManifest},
+		"no surface":         {&configschema.Block{}, ""},
 	}
 	for name, tc := range cases {
 		got, ok := SurfaceOf(tc.block)
 		if got != tc.surface || ok != (tc.surface != "") {
 			t.Errorf("%s: SurfaceOf = %q, %v; want %q", name, got, ok, tc.surface)
-		}
-		got, ok = OwnershipSurfaceOf(tc.block)
-		if got != tc.owner || ok != (tc.owner != "") {
-			t.Errorf("%s: OwnershipSurfaceOf = %q, %v; want %q", name, got, ok, tc.owner)
 		}
 		if tc.surface != "" {
 			if fam, ok := For(tc.surface).SurfaceOf(tc.block); !ok || fam != tc.surface {
@@ -253,7 +248,7 @@ func TestPostCreateWrites(t *testing.T) {
 // only the AWS tag map holds it as a marker key.
 func TestEveryFamilyCarriesTheAddress(t *testing.T) {
 	for _, tc := range []struct {
-		surface          markers.Surface
+		surface           markers.Surface
 		carries, inTheMap bool
 	}{
 		{markers.SurfaceTags, true, true},
