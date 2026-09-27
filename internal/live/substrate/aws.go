@@ -6,10 +6,12 @@
 package substrate
 
 import (
+	"fmt"
+
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 )
 
@@ -30,13 +32,6 @@ func (aws) SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
 	return "", false
 }
 
-func (aws) OwnershipSurfaceOf(block *configschema.Block) (markers.Surface, bool) {
-	if markers.HasTagsAttribute(block) {
-		return markers.SurfaceTags, true
-	}
-	return "", false
-}
-
 func (aws) MarkersOf(surface markers.Surface, obj cty.Value) (map[string]string, bool) {
 	if surface == markers.SurfaceTags {
 		return markers.TagsOf(obj)
@@ -46,19 +41,24 @@ func (aws) MarkersOf(surface markers.Surface, obj cty.Value) (map[string]string,
 
 // Writes: the tags map is set in the create call, and an existing object's
 // is rewritten by a plan-then-apply that may change nothing else
-// (internal/live/liveimport's tags.go, internal/live/mv's rewrite.go).
+// (internal/live/liveimport's tags.go, internal/live/mv's rewrite.go). A
+// type whose create call cannot carry tags is marked through the Tagging
+// API once the create returns (GitHub issue #1084, #1587).
 func (aws) Writes(surface markers.Surface) Writes {
 	if surface == markers.SurfaceTags {
-		return Writes{Create: WriteInCreate, Adopt: WriteTagsPlan}
+		return Writes{Create: WriteInCreate, Adopt: WriteTagsPlan, PostCreate: WriteTaggingAPI}
 	}
 	return Writes{}
 }
 
 func (aws) CarriesAddress() bool { return true }
 
+// AddressInMarkers: the address is the tofu-address tag (#1641).
+func (aws) AddressInMarkers() bool { return true }
+
 func (aws) Sweep() Sweep { return SweepTaggingIndex }
 
-func (aws) NewSweeper(cty.Value, bool) (*kubesweep.Client, error) { return nil, nil }
+func (aws) NewSweeper(cty.Value, bool) (Sweeper, error) { return nil, nil }
 
 // ---- GitHub issue #1584: the answers the projection's shadow enum held ----
 
@@ -80,4 +80,46 @@ func (aws) CarrierPhrase(surface markers.Surface) string {
 // whose keys the marker vocabulary cannot round-trip.
 func (aws) NotACarrier(block *configschema.Block, typeName string) string {
 	return markers.NotAMarkerSurface(block, typeName)
+}
+
+// ---- GitHub issue #1587: the post-create marker write ----
+
+// MarkerWriter is [WriteTaggingAPI] for every AWS provider configuration:
+// internal/command builds the Tagging API client signed as that
+// configuration's own principal.
+func (aws) MarkerWriter(addrs.AbsProviderConfig) Write { return WriteTaggingAPI }
+
+// ---- GitHub issue #1642: whether a create needs the post-create write ----
+
+// PostCreateNeeded is the answer #1084 read in the projection, unchanged:
+// the tags surface of a type whose CloudFormation counterpart
+// (live/mapping.json) is taggable with tag_on_create false
+// (live/registry.json). A type the mapping never joined, or the registry
+// cannot vouch for, takes the create-call path.
+func (aws) PostCreateNeeded(surface markers.Surface, typeName string, facts CreateTagFacts) (string, bool) {
+	if surface != markers.SurfaceTags || facts == nil {
+		return "", false
+	}
+	cfnType, ok := facts.CloudControlTypeOrService(typeName)
+	if !ok || !facts.TagsAfterCreate(cfnType) {
+		return "", false
+	}
+	return fmt.Sprintf("%s does not take tags in its create call (live/registry.json: tag_on_create false)", cfnType), true
+}
+
+// ---- GitHub issue #1649: the carrier's wholly-known read ----
+
+// CarrierPaths: both maps [markers.TagsOf] reads.
+func (aws) CarrierPaths(surface markers.Surface) []cty.Path {
+	if surface == markers.SurfaceTags {
+		return []cty.Path{cty.GetAttrPath("tags"), cty.GetAttrPath("tags_all")}
+	}
+	return nil
+}
+
+func (aws) MarkerNoun(surface markers.Surface) string {
+	if surface == markers.SurfaceTags {
+		return "tag"
+	}
+	return ""
 }

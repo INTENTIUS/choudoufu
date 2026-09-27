@@ -21,8 +21,12 @@
 // dispatch below until it is handled.
 //
 // It is an extraction: every answer here is the answer the dispatch it
-// replaced gave, including the one place two of them disagree (see
-// [OwnershipSurfaceOf]).
+// replaced gave. GitHub issue #1589: the projection's ownership read used to
+// ask a looser tag question than [SurfaceOf] (markers.HasTagsAttribute (since deleted)),
+// kept apart in case the two ever disagreed on a real AWS or Kubernetes
+// type. The 2026-09-26 decision package measured the disagreement empty at
+// every pinned provider version, so the ownership read now asks [SurfaceOf]
+// like every other caller and the second question is gone.
 package substrate
 
 import (
@@ -30,9 +34,11 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // Write is how a marker reaches a live object.
@@ -68,6 +74,10 @@ type Writes struct {
 	// Adopt is an existing object a migration (live-import -approve) or a
 	// move between estates (live-mv -from-estate) marks.
 	Adopt Write
+	// PostCreate is a resource this run creates whose create call cannot
+	// carry the marker, so it is written onto the object once the create
+	// returns (GitHub issue #1587, [WriteTaggingAPI], [WriteNeverNeeded]).
+	PostCreate Write
 }
 
 // Sweep is which estate-sweep client a family's provider block builds.
@@ -114,10 +124,6 @@ type Substrate interface {
 	// name.
 	SurfaceOf(block *configschema.Block) (markers.Surface, bool)
 
-	// OwnershipSurfaceOf is SurfaceOf as the projection's ownership read
-	// asks it. See the package-level [OwnershipSurfaceOf].
-	OwnershipSurfaceOf(block *configschema.Block) (markers.Surface, bool)
-
 	// MarkersOf reads the marker map off an object from wherever surface,
 	// one of this family's, keeps it.
 	MarkersOf(surface markers.Surface, obj cty.Value) (map[string]string, bool)
@@ -125,8 +131,11 @@ type Substrate interface {
 	// Writes is how surface's marker, one of this family's, is written.
 	Writes(surface markers.Surface) Writes
 
-	// CarriesAddress is whether this family's marker holds a tofu-address
-	// beside tofu-estate.
+	// CarriesAddress is whether this family's objects carry the block
+	// address beside tofu-estate, so that the sweep can bind a live object
+	// back to the block that made it: the AWS tofu-address tag, or the
+	// Kubernetes address annotation (GitHub issues #1639 to #1641). Where
+	// the address sits is [Substrate.AddressInMarkers]'s question.
 	CarriesAddress() bool
 
 	// Sweep is which sweep client the family's provider block builds.
@@ -136,15 +145,41 @@ type Substrate interface {
 	// block's evaluated configuration (ok false when the run holds none):
 	// nil with no error for a family whose sweep runs through the
 	// configured provider itself ([SweepTaggingIndex]), and the error for a
-	// block the client cannot be built from.
-	NewSweeper(providerConfig cty.Value, ok bool) (*kubesweep.Client, error)
+	// block the client cannot be built from. The client is a [Sweeper],
+	// never a family's concrete type (GitHub issue #1580).
+	NewSweeper(providerConfig cty.Value, ok bool) (Sweeper, error)
+
+	// --- Admission (GitHub issue #1586; see identity.go) ---
+
+	// SynthesizeIdentity is how this family's schema identifies an
+	// instance of a type the ratified table does not cover, or false when
+	// the schema is not one of this family's shapes. Asked in [All]'s
+	// order by internal/live/identity's synthesizeTypeIdentity, and the
+	// first family to answer decides.
+	SynthesizeIdentity(typeName string, schema providers.Schema) (SynthesizedIdentity, bool)
 
 	// surfaceWording is GitHub issue #1584's block, below.
 	surfaceWording
+
+	// markerWriting is GitHub issue #1587's block, below.
+	markerWriting
+
+	// postCreateNeed is GitHub issue #1642's block, below.
+	postCreateNeed
+	// markerCarrier is GitHub issue #1649's block, below.
+	markerCarrier
+
+	// addressCarrier is GitHub issue #1641's block, below.
+	addressCarrier
 }
 
 // All is every family, in the order a surface question asks them.
-var All = []Substrate{AWS, Kubernetes}
+//
+// AWS is last, and that is load-bearing for [Substrate.SynthesizeIdentity]
+// (GitHub issue #1586): the AWS answer is the identity-schema route, which
+// claims every type, so a family with a convention of its own has to be
+// asked before it. The surface questions are disjoint and do not care.
+var All = []Substrate{Kubernetes, AWS}
 
 // ForProvider is the family a provider type name belongs to ("aws",
 // "kubernetes"). It matches the type name alone, which is what every
@@ -211,22 +246,6 @@ func SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
 	return "", false
 }
 
-// OwnershipSurfaceOf is [SurfaceOf] as the projection's ownership read has
-// always asked it, and differs in the tag arm alone: any "tags" or
-// "tags_all" attribute at all counts ([markers.HasTagsAttribute]), settable
-// or not, where [SurfaceOf] asks for a settable tag map the marker
-// vocabulary can round-trip ([markers.Taggable]). Narrowing it would change
-// which AWS types the ownership rule covers, so the two questions stay two
-// and this extraction keeps each caller on the one it asked.
-func OwnershipSurfaceOf(block *configschema.Block) (markers.Surface, bool) {
-	for _, s := range All {
-		if surface, ok := s.OwnershipSurfaceOf(block); ok {
-			return surface, true
-		}
-	}
-	return "", false
-}
-
 // MarkersOf reads the marker map off an object from wherever surface keeps
 // it. The second return is the surface reader's own: false means the object
 // has no such map at all, which on a type whose schema declares one is a
@@ -239,11 +258,16 @@ func MarkersOf(surface markers.Surface, obj cty.Value) (map[string]string, bool)
 	return s.MarkersOf(surface, obj)
 }
 
-// CarriesAddress reports whether surface's marker holds a tofu-address,
-// which is its family's [Substrate.CarriesAddress]. Only the AWS tag map
-// does: #1016's ruling is that the Kubernetes marker is the estate label
-// alone, because the object's group, kind, namespace and name are the join
-// key back to configuration. False for the zero Surface.
+// CarriesAddress reports whether an object on surface carries its block
+// address, which is its family's [Substrate.CarriesAddress]. Both families
+// do: AWS in the tofu-address tag, Kubernetes in the address annotation
+// beside the estate label (GitHub issue #1641, step 3 of the ruling on
+// #1605). False for the zero Surface.
+//
+// On Kubernetes an object can still lack the annotation - one an older
+// build created, or one migrated from stock state before live-import
+// stamped it - so a reader that needs the address of one particular
+// object asks that object, not this.
 func CarriesAddress(surface markers.Surface) bool {
 	s := For(surface)
 	return s != nil && s.CarriesAddress()
@@ -259,6 +283,30 @@ func WritesOf(surface markers.Surface) Writes {
 	}
 	return s.Writes(surface)
 }
+
+// ---- GitHub issue #1580: the sweep client behind an interface ----
+//
+// Kept in its own block: several units of #1579 add methods to this file.
+
+// Sweeper is a family's estate-sweep client as [Substrate.NewSweeper]
+// builds it from the provider block. SweepKind is the sweep it serves,
+// its family's own [Substrate.Sweep]: internal/live/discovery pairs a
+// client with the leg that lists through it by that property, never by
+// the family's name, so a third family's client plugs in by naming a
+// sweep and a leg serving it.
+type Sweeper interface {
+	SweepKind() Sweep
+}
+
+// LabelListSweeper is the Kubernetes family's client: the cluster client
+// built from the provider block, whose methods it carries
+// (kubesweep.Sweeper, kubesweep.LabelPatcher).
+type LabelListSweeper struct {
+	*kubesweep.Client
+}
+
+// SweepKind is [SweepLabelList].
+func (LabelListSweeper) SweepKind() Sweep { return SweepLabelList }
 
 // ---- GitHub issue #1584: one surface enum ----
 //
@@ -328,4 +376,197 @@ func NotACarrier(providerType string, block *configschema.Block, typeName string
 		return s.NotACarrier(block, typeName)
 	}
 	return fmt.Sprintf("%s is from a provider this fork has no marker surface for, so there is nowhere to carry an ownership marker.", typeName)
+}
+
+// ---- GitHub issue #1587: the post-create marker write ----
+//
+// Kept in its own block: several units of #1579 add methods to this file.
+//
+// Before #1587 the post-create write (internal/live/projection's
+// nodetagoncreate.go) asked nobody which writer to use: the command layer
+// built a Resource Groups Tagging API client when the provider type string
+// was "aws" and nil otherwise, and [Writes] had no reader outside tests. A
+// family whose marker is a side resource written after the create (GCP's
+// tag bindings are one) would have had its creates left unmarked with
+// nothing saying why. Now the surface's [Writes.PostCreate] names the
+// write, the family's [Substrate.MarkerWriter] names the writer its
+// provider configurations build, and internal/command builds the client
+// from a table keyed on the [Write], refusing by name a write it has no
+// client for.
+
+const (
+	// WriteTaggingAPI: the Resource Groups Tagging API's TagResources,
+	// addressed by the arn the provider returned, issued after the create
+	// of a type whose create call cannot carry tags (live/registry.json's
+	// tag_on_create false, GitHub issue #1084).
+	WriteTaggingAPI Write = "tagging-api"
+
+	// WriteNeverNeeded: the create call always carries the marker, so no
+	// write follows it. Named rather than left empty so that a family that
+	// has not answered is distinguishable from one that answered "never".
+	WriteNeverNeeded Write = "never-needed"
+)
+
+// markerWriting is the part of [Substrate] #1587 added.
+type markerWriting interface {
+	// MarkerWriter is the post-create write a provider configuration of
+	// this family builds a client for: [WriteNeverNeeded] for a family
+	// whose every surface rides the create call.
+	MarkerWriter(provider addrs.AbsProviderConfig) Write
+}
+
+// ---- GitHub issue #1642: whether a create needs the post-create write ----
+//
+// Kept in its own block, like #1587's above.
+//
+// #1587 let the family name the post-create writer and #1638 handed that
+// writer the created instance, but whether a create needs the write at all
+// was still asked of the AWS CloudFormation registry alone
+// (internal/live/projection's tagsAfterCreate read live/mapping.json and
+// live/registry.json's tag_on_create). A type with no CloudFormation
+// counterpart read false, so no other family's type ever reached its
+// writer. The question is now the family's: AWS answers from the registry
+// exactly as before, Kubernetes answers never, and a family whose marker is
+// written after the create (a GCP tag binding, say) answers for its own
+// types.
+
+// CreateTagFacts is the registry read the AWS family answers from:
+// live/mapping.json's Terraform-to-CloudFormation join and
+// live/registry.json's tagging.tag_on_create. *internal/live/registry.Roster
+// implements it, nil included (every answer false). An interface so this
+// package stays below the registry.
+type CreateTagFacts interface {
+	CloudControlTypeOrService(tfType string) (string, bool)
+	TagsAfterCreate(cfnType string) bool
+}
+
+// postCreateNeed is the part of [Substrate] #1642 added.
+type postCreateNeed interface {
+	// PostCreateNeeded reports whether a create of typeName, whose schema
+	// carries surface (one of this family's), cannot carry the marker in
+	// its create call, so the marker is withheld from the create and
+	// written once it returns through [Writes.PostCreate]. The reason is
+	// the sentence an operator reads when that write fails, naming the
+	// fact the answer came from; empty when the answer is false. facts may
+	// hold nothing for a family that does not read it.
+	PostCreateNeeded(surface markers.Surface, typeName string, facts CreateTagFacts) (reason string, needed bool)
+}
+
+// PostCreateNeeded is [Substrate.PostCreateNeeded] asked of surface's
+// family. False for the zero Surface.
+func PostCreateNeeded(surface markers.Surface, typeName string, facts CreateTagFacts) (string, bool) {
+	s := For(surface)
+	if s == nil {
+		return "", false
+	}
+	return s.PostCreateNeeded(surface, typeName, facts)
+}
+
+// ---- GitHub issue #1649: the carrier's wholly-known read ----
+//
+// The stateful un-migration guard (internal/live/markerstrip) compares the
+// marker map on a planned update's prior and planned objects. A surface
+// reader answers "this object carries no markers" for an unknown map
+// ([markers.LabelsOf] returns an empty map, ok true), which is right for the
+// question it answers and wrong for that comparison: a planned object whose
+// labels are not yet known would read as one whose marker was removed. So
+// the known-ness check sits outside the reader, on the carrier alone.
+
+// markerCarrier is the part of [Substrate] #1649 added.
+type markerCarrier interface {
+	// CarrierPaths are the paths, from a resource object's root, of the
+	// maps surface's marker lives in: tags and tags_all, metadata[0].labels,
+	// manifest.metadata.labels.
+	CarrierPaths(surface markers.Surface) []cty.Path
+
+	// MarkerNoun is what one entry of surface's marker map is called, for
+	// wording that names it: "tag" or "label".
+	MarkerNoun(surface markers.Surface) string
+}
+
+// KnownMarkersOf is [MarkersOf] for a caller that must not read an unknown
+// marker map as an empty one. It reports false when the object is null or
+// unknown, when any carrier path reaches an unknown value (the map, or
+// anything on the way to it), or when the surface reader itself reports
+// false. A value beside the carrier being unknown, such as a planned
+// object's metadata.resource_version, does not hide a marker that is known.
+//
+// A carrier path that ends early at a null, or indexes past an empty list,
+// is not unknown: the reader decides what that object carries.
+func KnownMarkersOf(surface markers.Surface, obj cty.Value) (map[string]string, bool) {
+	s := For(surface)
+	if s == nil || obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() || !obj.Type().IsObjectType() {
+		return nil, false
+	}
+	for _, path := range s.CarrierPaths(surface) {
+		if !carrierKnown(obj, path) {
+			return nil, false
+		}
+	}
+	return s.MarkersOf(surface, obj)
+}
+
+// carrierKnown walks path from obj and reports whether it reaches a wholly
+// known value, or stops at a null or a missing step before it.
+func carrierKnown(obj cty.Value, path cty.Path) bool {
+	// Known-ness is all this asks, and a mark never changes it; the
+	// reader keeps its own discipline about reading a marked value.
+	v, _ := obj.UnmarkDeep()
+	for _, step := range path {
+		if !v.IsKnown() {
+			return false
+		}
+		if v.IsNull() {
+			return true
+		}
+		next, err := step.Apply(v)
+		if err != nil {
+			// A missing attribute, a non-object, an index past the end:
+			// no carrier here, which the reader answers for itself.
+			return true
+		}
+		v = next
+	}
+	return v.IsWhollyKnown()
+}
+
+// MarkerNoun is what one entry of surface's marker map is called ("tag",
+// "label"), or "marker" for the zero Surface.
+func MarkerNoun(surface markers.Surface) string {
+	if s := For(surface); s != nil {
+		if n := s.MarkerNoun(surface); n != "" {
+			return n
+		}
+	}
+	return "marker"
+}
+
+// ---- GitHub issue #1641: where the address rides ----
+//
+// Until #1641, [Substrate.CarriesAddress] answered two questions at once,
+// because only one family carried an address: whether an object carries
+// its block address at all, and whether that address is a key of the
+// marker map [MarkersOf] reads (tofu-address and its continuation tags).
+// Kubernetes carries the address in an annotation, outside the label map
+// that is its marker, so the two answers part there. #1617's refusal asks
+// the first; the ownership read's address check, the stale-record check,
+// the adoption hint and live-mv's tag path ask the second, and each of
+// those still reads or writes the tofu-address tag key specifically.
+
+// addressCarrier is the part of [Substrate] #1641 added.
+type addressCarrier interface {
+	// AddressInMarkers is whether the block address is a key of the
+	// marker map [Substrate.MarkersOf] reads, written as tofu-address
+	// beside tofu-estate: true for the AWS tag map. False for Kubernetes,
+	// whose marker map is the labels and whose address is the
+	// markers.AddressAnnotation annotation beside them.
+	AddressInMarkers() bool
+}
+
+// AddressInMarkers reports whether surface's marker map holds the
+// tofu-address key, which is its family's [Substrate.AddressInMarkers].
+// False for the zero Surface.
+func AddressInMarkers(surface markers.Surface) bool {
+	s := For(surface)
+	return s != nil && s.AddressInMarkers()
 }

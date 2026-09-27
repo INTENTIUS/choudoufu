@@ -3,7 +3,7 @@
   "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
   "banner": "Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, recorded between 2026-09-23T20:13:04Z and 2026-09-23T22:13:39Z. Each row below carries its own `last_run` date; they are not all the same run.",
   "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 4h43m13s, but not from one sweep: 10m29.1s across 1 estate(s) at commit `58d3e89ec3`; 4h32m43.9s across 30 estate(s) at commit `bfbebd754a`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
-  "script_banner": "**31 of 31 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 31 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-stateful, terralith-scale.",
+  "script_banner": "**31 of 31 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 27 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-stateful, terralith-scale.",
   "stage_count": 14,
   "stages": [
     {
@@ -3649,7 +3649,7 @@
       "set": "growing",
       "lane": "kubernetes",
       "substrate": "kind",
-      "clear": true,
+      "clear": false,
       "source": "grafana/quickpizza deployments/terraform (tag v0.15.28), Grafana Labs' QuickPizza demo application's own Kubernetes deployment root: a namespace, seven Deployments with their Services, a Postgres StatefulSet, ConfigMaps, Secrets, a ServiceAccount and a ClusterRoleBinding; the kubernetes lane's first published estate",
       "url": "https://github.com/grafana/quickpizza.git",
       "pin": "v0.15.28",
@@ -3664,7 +3664,7 @@
         "pass",
         "pass",
         "pass",
-        "n/a",
+        "not run",
         "pass",
         "pass",
         "pass",
@@ -3676,7 +3676,7 @@
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:22:53Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 11m21.3s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-quickpizza/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3737,8 +3737,7 @@
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
-          "verdict": "n/a",
-          "detail": "A Kubernetes name is unique within its namespace, so nothing can be created before the object it replaces is destroyed; a forced replacement is destroy-then-create, which this stage does not measure."
+          "verdict": "not run"
         },
         {
           "id": "day2_crash",
@@ -3782,7 +3781,7 @@
       "set": "growing",
       "lane": "kubernetes",
       "substrate": "kind",
-      "clear": true,
+      "clear": false,
       "source": "hand-written reference shape kept in this repository, built on live/e2e/estate-k8s (namespace, ConfigMap, ServiceAccount, Service) plus a Deployment on the node image's own pause container and a two-instance count ConfigMap; the kubernetes lane's first estate, run against a kind cluster (#1067)",
       "script": "live/e2e/reference-k8s/run.sh",
       "protocol": "gauntlet",
@@ -3795,7 +3794,7 @@
         "pass",
         "pass",
         "pass",
-        "n/a",
+        "not run",
         "pass",
         "pass",
         "pass",
@@ -3807,7 +3806,7 @@
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:19:49Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 8m11.1s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/reference-k8s/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3868,8 +3867,7 @@
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
-          "verdict": "n/a",
-          "detail": "A Kubernetes name is unique within its namespace, so nothing can be created before the object it replaces is destroyed; a forced replacement is destroy-then-create, which this stage does not measure."
+          "verdict": "not run"
         },
         {
           "id": "day2_crash",
@@ -3913,7 +3911,7 @@
       "set": "growing",
       "lane": "kubernetes",
       "substrate": "kind",
-      "clear": true,
+      "clear": false,
       "source": "cert-manager v1.21.2's own install bundle (cert-manager.yaml at the release, 1,034,400 bytes, sha256 e03b668ec8675214af6b0a671699d088f2601fa3878e0dbe1b41d3feafd1879f, Apache-2.0 with the licence header inside the artifact) converted mechanically to 47 kubernetes_manifest blocks with tfk8s v0.1.10, plus the three custom resources from cert-manager's own self-signed documentation (ClusterIssuer, Issuer, Certificate) written here: 50 objects over 13 kinds, 6 CRDs, ClusterIssuer the lane's only cluster-scoped custom kind. reference- rather than corpus- because cert-manager ships YAML and the Terraform root is ours (#1174); live/e2e/reference-k8s-cert-manager/convert.sh reproduces it",
       "script": "live/e2e/reference-k8s-cert-manager/run.sh",
       "protocol": "gauntlet",
@@ -3926,7 +3924,7 @@
         "pass",
         "pass",
         "pass",
-        "n/a",
+        "not run",
         "pass",
         "pass",
         "pass",
@@ -3938,7 +3936,7 @@
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:54:50Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 34m21.7s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/reference-k8s-cert-manager/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3999,8 +3997,7 @@
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
-          "verdict": "n/a",
-          "detail": "A Kubernetes name is unique within its namespace, so nothing can be created before the object it replaces is destroyed; a forced replacement is destroy-then-create, which this stage does not measure."
+          "verdict": "not run"
         },
         {
           "id": "day2_crash",
@@ -4044,7 +4041,7 @@
       "set": "growing",
       "lane": "kubernetes",
       "substrate": "kind",
-      "clear": true,
+      "clear": false,
       "source": "hand-written reference shape kept in this repository, the kubernetes lane's stateful estate (#1175, surface 2 of #1107): a Namespace, ServiceAccount, Secret, two ConfigMaps and a two-instance count ConfigMap, headless Services and StatefulSets for postgres:17-alpine (1 replica) and redis:7-alpine (2 replicas) whose volume_claim_template labels disagree with its selector on purpose, a ClusterIP Service and Deployment reading both, and a PodDisruptionBudget - 14 objects over eight kinds, typed _v1 resources only, no StorageClass so kind's own standard class does the WaitForFirstConsumer binding. #1107's second research comment fetched and ran the published field for this surface and nothing cleared the bar, so this is that issue's explicit hand-written fallback",
       "script": "live/e2e/reference-k8s-stateful/run.sh",
       "protocol": "gauntlet",
@@ -4057,7 +4054,7 @@
         "pass",
         "pass",
         "pass",
-        "n/a",
+        "not run",
         "pass",
         "pass",
         "pass",
@@ -4069,7 +4066,7 @@
       "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:23:16Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 12m26.3s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/reference-k8s-stateful/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4130,8 +4127,7 @@
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
-          "verdict": "n/a",
-          "detail": "A Kubernetes name is unique within its namespace, so nothing can be created before the object it replaces is destroyed; a forced replacement is destroy-then-create, which this stage does not measure."
+          "verdict": "not run"
         },
         {
           "id": "day2_crash",

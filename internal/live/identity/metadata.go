@@ -6,10 +6,8 @@
 package identity
 
 import (
-	"github.com/zclconf/go-cty/cty"
-
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 )
 
 // This file is the Kubernetes admission rule (GitHub issue #1064, under
@@ -60,41 +58,17 @@ import (
 // ObjectMetaShape reports whether block carries Kubernetes object metadata,
 // and whether the kind it describes is namespaced. Read from the schema,
 // never from a type-name list, for the same reason markers.Taggable is.
-func ObjectMetaShape(block *configschema.Block) (namespaced bool, ok bool) {
-	if block == nil {
-		return false, false
-	}
-	nested, has := block.BlockTypes["metadata"]
-	if !has || nested == nil {
-		return false, false
-	}
-	if nested.Nesting != configschema.NestingList || nested.MaxItems != 1 {
-		return false, false
-	}
-	attrs := nested.Block.Attributes
-	name, hasName := attrs["name"]
-	if !hasName || name == nil || name.Type != cty.String || (!name.Optional && !name.Required) {
-		return false, false
-	}
-	uid, hasUID := attrs["uid"]
-	if !hasUID || uid == nil || !uid.Computed || uid.Type != cty.String {
-		return false, false
-	}
-	labels, hasLabels := attrs["labels"]
-	if !hasLabels || labels == nil || !labels.Type.IsMapType() {
-		return false, false
-	}
-	ns, hasNS := attrs["namespace"]
-	namespaced = hasNS && ns != nil && ns.Type == cty.String && (ns.Optional || ns.Required)
-	return namespaced, true
-}
-
-// synthesizeMetadataIdentity builds the entry for a type whose schema has
-// [ObjectMetaShape]: NAMESPACE/NAME for a namespaced kind, NAME otherwise,
-// each component read from the metadata block the way [Component.Block]
-// reads a singular nested block, under its own name as the identity
-// attribute. It is the same entry the four ratified rows carry, so a
-// reference from another resource to metadata[0].name resolves through
+//
+// The predicate and the entry it admits are the Kubernetes family's answer
+// to [substrate.Substrate.SynthesizeIdentity] (GitHub issue #1586), which
+// [synthesizeTypeIdentity] asks; this is the same predicate, kept here for
+// the callers that ask the identity package.
+//
+// The entry is NAMESPACE/NAME for a namespaced kind, NAME otherwise, each
+// component read from the metadata block the way [Component.Block] reads
+// a singular nested block, under its own name as the identity attribute.
+// It is the same entry the four ratified rows carry, so a reference from
+// another resource to metadata[0].name resolves through
 // [Resolution.attrParts] exactly as it does for those rows.
 //
 // The entry also claims "id" as an identity attribute (GitHub issue
@@ -108,34 +82,6 @@ func ObjectMetaShape(block *configschema.Block) (namespaced bool, ok bool) {
 // attribute". The four ratified rows carry no IdentityAttrs of their own
 // and [schemaReproducesRow] disregards "id", so the rule still reproduces
 // them.
-func synthesizeMetadataIdentity(typeName string, schema providers.Schema) (TypeIdentity, bool) {
-	namespaced, ok := ObjectMetaShape(schema.Block)
-	if !ok {
-		return TypeIdentity{}, false
-	}
-	name := Component{Attrs: []string{"name"}, Block: "metadata", IdentityAttr: SameNameIdentity}
-	if !namespaced {
-		return TypeIdentity{
-			Type:           typeName,
-			NonAWSProvider: true,
-			Components:     []Component{name},
-			ImportSyntax:   "NAME",
-			IdentityAttrs:  []string{"id"},
-			Synthesized:    true,
-			Admits:         AdmitSchema,
-		}, true
-	}
-	return TypeIdentity{
-		Type:           typeName,
-		NonAWSProvider: true,
-		Components: []Component{
-			{Attrs: []string{"namespace"}, Block: "metadata", IdentityAttr: SameNameIdentity},
-			{Literal: "/"},
-			name,
-		},
-		ImportSyntax:  "NAMESPACE/NAME",
-		IdentityAttrs: []string{"id"},
-		Synthesized:   true,
-		Admits:        AdmitSchema,
-	}, true
+func ObjectMetaShape(block *configschema.Block) (namespaced bool, ok bool) {
+	return substrate.ObjectMetaShape(block)
 }

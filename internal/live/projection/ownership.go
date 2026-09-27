@@ -161,7 +161,7 @@ const (
 // manages, which is not power the issue asks this quadrant to have.
 //
 // "Marker", likewise, is whichever carrier the type's own schema has -
-// [substrate.OwnershipSurfaceOf]. GitHub issue #1108: the surface read used to be the
+// [substrate.SurfaceOf]. GitHub issue #1108: the surface read used to be the
 // AWS tag map and nothing else, so every Kubernetes type fell through the
 // "nowhere to put a marker" case below and was admitted without its label
 // ever being read. The consequences were both of the ones this function
@@ -225,7 +225,7 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 // a create at the declared one would not collide with it.
 func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, importID string, schema providers.Schema, obj cty.Value, declared, located, recordFirst, atDeclaredKey bool) ownershipVerdict {
 	own := b.opts.Ownership
-	surface, _ := substrate.OwnershipSurfaceOf(schema.Block)
+	surface, _ := substrate.SurfaceOf(schema.Block)
 	switch {
 	case own == nil:
 		return ownershipOK
@@ -310,11 +310,11 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		// nothing on it that says whose it is.
 		b.unowned(addr, typeName, importID, "", fmt.Sprintf(
 			"The provider read the %s with identity %q back without a %s, so nothing on it says which estate owns it. A resource enters the prior state only when it carries this estate's %s marker, so it was left alone: nothing in this plan reads, changes or destroys it.",
-			typeName, importID, substrate.CarrierPhrase(surface), markers.TagEstate), noMarkerCause(typeName), substrate.CarriesAddress(surface), false)
+			typeName, importID, substrate.CarrierPhrase(surface), markers.TagEstate), noMarkerCause(typeName), substrate.AddressInMarkers(surface), false)
 		return ownershipUnowned
 	}
 
-	if recordFirst && substrate.CarriesAddress(surface) {
+	if recordFirst && substrate.AddressInMarkers(surface) {
 		// The stale-record rule ("In upstream terms", #389, ruled
 		// 2026-08-23): a record is trusted for a taggable type only while
 		// the live object's own tofu-address marker still names this
@@ -361,17 +361,22 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		// -from-estate` are the deliberate routes, both unchanged by this,
 		// and the refusal names them.
 		b.unowned(addr, typeName, importID, estate, anotherEstateDetail(typeName, importID, estate, own.Policy.Verb(true, false)),
-			noMarkerCause(typeName), substrate.CarriesAddress(surface), false)
+			noMarkerCause(typeName), substrate.AddressInMarkers(surface), false)
 		return ownershipUnowned
 	}
 
-	if tagged && substrate.CarriesAddress(surface) {
+	if tagged && substrate.AddressInMarkers(surface) {
 		// This estate's marker is on the object, so the second half of the
 		// marker spec's ownership question applies: WHICH of this estate's
 		// instances is it? GitHub issue #244 - both this layer and discovery
 		// deferred that to the other, in comments, and neither performed it.
 		//
-		// Only on the tag surface: see [substrate.CarriesAddress].
+		// Only on the tag surface: see [substrate.AddressInMarkers]. A
+		// Kubernetes object carries its address too, in an annotation
+		// outside the label map read here (GitHub issue #1641), and this
+		// check does not read it: the natural key the configuration names
+		// is that object's identity, and a rename rewrites the annotation
+		// in place (#1639).
 		if detail, cause, ok := b.addressNames(addr, typeName, importID, tags); !ok {
 			b.unownedAddress(addr, typeName, importID, estate, detail, cause)
 			return ownershipUnowned
@@ -479,7 +484,7 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		detail = fmt.Sprintf(
 			"A live %s with identity %q carries no %s marker and nothing in this configuration declares %s, so it was left out of the prior state and this plan does not touch it. policy { declared_untagged } does not apply to a resource the configuration does not declare. To manage it, add a resource block for it and re-run.",
 			typeName, importID, markers.TagEstate, addr)
-	case estate == "" && !substrate.CarriesAddress(surface):
+	case estate == "" && !substrate.AddressInMarkers(surface):
 		// The Kubernetes wording. Same quadrant, same verdict, same two
 		// ways out; what differs is that the marker to write is one
 		// label and there is no address to write beside it (#1016).
@@ -498,7 +503,7 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 			markers.TagEstate, own.Estate,
 			markers.TagAddress, markers.EscapeAddress(addr.String()))
 	}
-	b.unowned(addr, typeName, importID, estate, detail, noMarkerCause(typeName), substrate.CarriesAddress(surface), nonDefault && verb == policy.Keep)
+	b.unowned(addr, typeName, importID, estate, detail, noMarkerCause(typeName), substrate.AddressInMarkers(surface), nonDefault && verb == policy.Keep)
 	return ownershipUnowned
 }
 
@@ -771,7 +776,7 @@ func (b *builder) unownedAddress(addr addrs.AbsResourceInstance, typeName, impor
 		ImportID: importID,
 		Estate:   estate,
 		// Only the tag surface reaches this refusal at all - see
-		// [substrate.CarriesAddress].
+		// [substrate.AddressInMarkers].
 		AddressMarker: true,
 		Detail:        detail,
 	})
@@ -784,15 +789,19 @@ func (b *builder) unownedAddress(addr addrs.AbsResourceInstance, typeName, impor
 }
 
 // The marker surface a type carries is [markers.Surface], read off the
-// provider's own schema by [substrate.OwnershipSurfaceOf], never off a list
+// provider's own schema by [substrate.SurfaceOf], never off a list
 // of type names. GitHub issue #1108: until the surface read learned a
 // second carrier it returned "no surface" for every Kubernetes type, so
 // [builder.checkOwnership] admitted a Kubernetes object without ever
 // reading its label - another estate's object relabelled by the plan, an
 // unlabelled one adopted in silence, and the ownership policy's verbs never
-// reached on that substrate at all. Its tag arm is the looser "is there a
-// tags or tags_all attribute at all", not [markers.Taggable], and
-// [substrate.OwnershipSurfaceOf]'s doc comment says why.
+// reached on that substrate at all. GitHub issue #1589: the ownership read
+// used to ask a looser tag question than [substrate.SurfaceOf] here
+// (the since-deleted markers.HasTagsAttribute, any "tags" or "tags_all" attribute at all,
+// settable or not), kept apart in case a real type ever needed the wider
+// reading. The 2026-09-26 decision package measured the two questions
+// agreeing on every type in the pinned AWS and Kubernetes schemas, so the
+// ownership read now asks [substrate.SurfaceOf] like every other caller.
 //
 // GitHub issue #1584: this package used to keep its own enum for the
 // surfaces, with the per-surface answers (which carries an address, which

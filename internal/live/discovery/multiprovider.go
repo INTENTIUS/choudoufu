@@ -164,6 +164,11 @@ func (p Pass) label() string {
 // [strandedAcrossProviderConfigs] and outofscope.go. It does not reach
 // [crossProviderOrphanCollisions], which is a different finding about two
 // live objects that both already exist, and which no toggle relaxes.
+//
+// Every pass's orphans leave here attributed to the provider configuration
+// that pass listed through ([OwnedResource.Provider]), so a later write to
+// one of them - the untag verb's release, GitHub issue #1657 - goes back
+// through the configuration that can reach it.
 func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
@@ -179,6 +184,7 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 		// rebuilt field by field so a single-provider caller gets exactly
 		// what a direct call to Discover would have given it.
 		p := passes[0]
+		p.Result.AttributeOrphans(p.Provider)
 		for _, r := range p.Result.Resolutions {
 			if r.Undeclared {
 				providerOf[r.Addr.String()] = p.Provider
@@ -234,11 +240,14 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 	// provider configuration rather than adding information.
 	sweepGapSeen := make(map[string]bool)
 	sweepCoveredSeen := make(map[string]bool)
+	addressBound := make(map[string]bool)
 
 	for pi, p := range passes {
+		p.Result.AttributeOrphans(p.Provider)
 		res.Bindings = append(res.Bindings, p.Result.Bindings...)
 		res.Unbound = append(res.Unbound, p.Result.Unbound...)
 		res.Unclaimed = append(res.Unclaimed, p.Result.Unclaimed...)
+		res.ControllerHeld = append(res.ControllerHeld, p.Result.ControllerHeld...)
 		// VerifiedDeclared: see this func's own doc comment above (issue
 		// #905) for why a plain concatenation is sound despite this field
 		// not being ScopeProvider-gated the way Bindings is.
@@ -273,8 +282,43 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 		res.Scans = append(res.Scans, p.Result.Scans...)
 		res.ParentReads = append(res.ParentReads, p.Result.ParentReads...)
 
+		// Each pass accounts only for the instances its own provider
+		// configuration owns (GitHub issue #1641), so the passes' keys
+		// are disjoint and the union is the whole account.
+		for key, objects := range p.Result.KubernetesUnaddressed {
+			if res.KubernetesUnaddressed == nil {
+				res.KubernetesUnaddressed = map[string][]string{}
+			}
+			res.KubernetesUnaddressed[key] = append(res.KubernetesUnaddressed[key], objects...)
+			if res.KubernetesUnaddressed[key] == nil {
+				res.KubernetesUnaddressed[key] = []string{}
+			}
+		}
+		for key := range p.Result.KubernetesAddressBound {
+			if res.KubernetesAddressBound == nil {
+				res.KubernetesAddressBound = map[string]bool{}
+			}
+			res.KubernetesAddressBound[key] = true
+		}
 		for _, r := range p.Result.Resolutions {
 			if !r.Undeclared {
+				if p.Result.KubernetesAddressBound[r.Addr.String()] {
+					// The Kubernetes leg bound this address through the
+					// object's annotation (GitHub issue #1640), which
+					// can rebind a concrete resolution every other pass
+					// still carries as the configuration named it. Both
+					// are bound classes, so pickBase would keep whichever
+					// came first; the pass that listed the object wins.
+					if _, ok := base[r.Addr.String()]; !ok {
+						baseOrder = append(baseOrder, r.Addr.String())
+					}
+					base[r.Addr.String()] = r
+					addressBound[r.Addr.String()] = true
+					continue
+				}
+				if addressBound[r.Addr.String()] {
+					continue
+				}
 				pickBase(r.Addr.String(), r)
 				continue
 			}
@@ -519,6 +563,21 @@ func resolveSameLiveObjectAcrossPasses(passes []Pass, locs []orphanLoc, markSkip
 				"the same live %s (identity %s) was independently found by another provider configuration's own pass (%s), which already accounts for it; only one pass's proposal for one live object survives a merge",
 				o.TypeName, o.ImportID, passes[keep.pass].label())
 			markSkip(loc.pass, o.Addr.String())
+		}
+	}
+}
+
+// AttributeOrphans records provider as the provider configuration that
+// found every orphan in r not already attributed to one. [Merge] calls it
+// for each pass; a caller holding one pass's Result directly, without
+// merging, calls it the same way. See [OwnedResource.Provider].
+func (r *Result) AttributeOrphans(provider addrs.AbsProviderConfig) {
+	if r == nil {
+		return
+	}
+	for i := range r.Orphans {
+		if r.Orphans[i].Provider.Provider.Type == "" {
+			r.Orphans[i].Provider = provider
 		}
 	}
 }

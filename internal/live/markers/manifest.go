@@ -49,8 +49,9 @@ const ManifestSurfaceAttr = "manifest"
 const ManifestLiveAttr = "object"
 
 // AnnotationSurfaceAttr is the other metadata map beside
-// [LabelSurfaceAttr]. No marker is ever written to it - #1016's ruling is
-// that the Kubernetes marker is the estate label alone - but the
+// [LabelSurfaceAttr]. The ownership marker is never written to it - #1016's
+// ruling is that the Kubernetes marker is the estate label alone - but the
+// block address is, as [AddressAnnotation] (GitHub issue #1639), and the
 // provider's computed_fields default governs it exactly as it governs
 // labels, so the projection has to treat the two the same way when it
 // builds a prior manifest.
@@ -145,7 +146,7 @@ func ManifestLabelsOf(obj cty.Value) (map[string]string, bool) {
 // object is bound by, as it is written inside a manifest-surface
 // resource's own dynamic argument: apiVersion, kind, and metadata.name
 // with metadata.namespace for a namespaced kind. It is the same four
-// components internal/live/identity's synthesizeManifestIdentity reads
+// components internal/live/substrate's manifestIdentity reads
 // out of the CONFIGURATION to render the provider's import id; this
 // reads them out of an evaluated object, which is what a migration
 // (GitHub issue #1109) has instead of a declaration.
@@ -222,6 +223,12 @@ func manifestKey(manifest cty.Value) (ManifestKey, bool) {
 
 // manifestLabels reads metadata.labels off an evaluated manifest value.
 func manifestLabels(manifest cty.Value) (map[string]string, bool) {
+	return manifestMetadataMap(manifest, LabelSurfaceAttr)
+}
+
+// manifestMetadataMap reads one string map, attr, off an evaluated
+// manifest value's metadata: labels or annotations.
+func manifestMetadataMap(manifest cty.Value, attr string) (map[string]string, bool) {
 	if manifest.IsNull() || !manifest.IsKnown() || manifest.IsMarked() || !manifest.Type().IsObjectType() {
 		return nil, false
 	}
@@ -233,17 +240,17 @@ func manifestLabels(manifest cty.Value) (map[string]string, bool) {
 		return nil, false
 	}
 	out := map[string]string{}
-	if !meta.Type().HasAttribute(LabelSurfaceAttr) {
+	if !meta.Type().HasAttribute(attr) {
 		return out, true
 	}
-	labels := meta.GetAttr(LabelSurfaceAttr)
-	if labels.IsNull() || !labels.IsKnown() {
+	m := meta.GetAttr(attr)
+	if m.IsNull() || !m.IsKnown() {
 		return out, true
 	}
-	if labels.IsMarked() || !labels.CanIterateElements() {
+	if m.IsMarked() || !m.CanIterateElements() {
 		return nil, false
 	}
-	for lit := labels.ElementIterator(); lit.Next(); {
+	for lit := m.ElementIterator(); lit.Next(); {
 		k, v := lit.Element()
 		if k.Type() != cty.String || k.IsNull() || v.IsNull() || !v.IsKnown() || v.IsMarked() || v.Type() != cty.String {
 			continue

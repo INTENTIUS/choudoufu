@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/live/strict"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -172,20 +173,25 @@ type NodeResolver struct {
 	// Roster is live/mapping.json joined against live/registry.json
 	// (registry.Embedded in production), read for one fact: whether an
 	// instance's type can carry tags in its create call (GitHub issue
-	// #1084, [NodeResolver.tagsAfterCreate], nodetagoncreate.go). Nil is
+	// #1084, [NodeResolver.postCreateNeeded], nodetagoncreate.go). Nil is
 	// an ordinary value - a run that could not parse the embedded
 	// artifacts - and reads as "every type takes tags at create", the
 	// path every type took before #1084.
 	Roster *registry.Roster
 
-	// Tagger builds the client [NodeResolver.WriteAppliedMarkers] writes a
+	// MarkerWriter builds the writer [NodeResolver.WriteAppliedMarkers] writes a
 	// withheld marker through, for the provider configuration the
 	// instance was applied under - so a two-account estate marks each
 	// object as the principal that created it. The command layer supplies
-	// it (internal/command's statelessProviders.markerTagger); nil, or a
-	// nil result, is a failed write for the instances that need one, and
-	// is reported as such rather than left silent.
-	Tagger func(provider addrs.AbsProviderConfig) MarkerTagger
+	// it (internal/command's statelessProviders.markerTagger), for the
+	// post-create write the instance's surface names
+	// ([substrate.Writes.PostCreate], GitHub issue #1587); nil, a nil
+	// result or an error is a failed write for the instances that need
+	// one, and is reported as such rather than left silent. The error is
+	// the command layer's reason, naming the write it could not serve.
+	// The writer is handed the created instance, not an ARN (GitHub issue
+	// #1638): each family's writer derives its own address.
+	MarkerWriter func(provider addrs.AbsProviderConfig, write substrate.Write) (MarkerWriter, error)
 
 	// StaticRefusals is every instance the static evaluator refused
 	// before the #388 downgrade turned its refusal into a warning, keyed
@@ -195,6 +201,19 @@ type NodeResolver struct {
 	// node-resolving. [NodeResolver.refuseAddresslessMarker] is its one
 	// reader (GitHub issue #1539).
 	StaticRefusals map[string]tfdiags.Diagnostics
+
+	// UnaddressedObjects is the sweep's account, for the instances in
+	// StaticRefusals, of the live objects that could be each one's and
+	// carry no address - discovery's KubernetesUnaddressed (GitHub issue
+	// #1641), keyed by [addrs.AbsResourceInstance.String]. A key is
+	// present only when the sweep listed every kind the instance's type
+	// can declare; its value names the objects it found that could be the
+	// instance's and carry no address. It is read only for a surface whose
+	// objects carry the address outside the marker map
+	// ([substrate.CarriesAddress] and not [substrate.AddressInMarkers]):
+	// see [NodeResolver.refuseAddresslessMarker]. Nil is ordinary, and
+	// leaves that refusal standing wherever it applies.
+	UnaddressedObjects map[string][]string
 	// releases collects which of PolicyUntag's instances the writer
 	// actually released a key from, during the walk (GitHub issue #1002).
 	// Read it through [NodeResolver.UntagReleases]. It holds a mutex, so a

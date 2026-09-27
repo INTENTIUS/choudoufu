@@ -22,8 +22,8 @@ import (
 // binds by the natural key written inside its manifest argument, rendered
 // as the provider's own import id.
 //
-// Proving it red: delete the synthesizeManifestIdentity call from
-// synthesizeTypeIdentity and every case below that expects a resolution
+// Proving it red: delete the manifest arm of the Kubernetes
+// substrate's SynthesizeIdentity and every case below that expects a resolution
 // reports unadmitted; drop the OmitIfAbsent from the namespace component
 // and the cluster-scoped case is refused.
 

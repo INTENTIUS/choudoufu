@@ -65,6 +65,10 @@
 #   BREAK_REMOVE   keep the ClusterRoleBinding block; no destroy may be proposed.
 #   BREAK_COUNT    assert the wrong instance was destroyed on the scale-down.
 #   BREAK_APPROVAL apply the saved plan after the world moved and expect success.
+#   BREAK_REPLACE  set to 1 to recreate the renamed ConfigMap's old object,
+#                  carrying the estate label and the block's address
+#                  annotation, after day2_replace's apply; the next plan
+#                  must propose destroying it (day2_replace's Break line).
 #   BREAK_CRASH    after the same real interrupt, assert nothing is proposed
 #                  (day2_crash's own Break line); must fail.
 #   BREAK_CRASH_UNBOUND
@@ -365,25 +369,31 @@ if [ "${BREAK:-}" = "1" ]; then
   perl -0777 -pi -e 's/(resource "kubernetes_service_account_v1" "alloy" \{\n  metadata \{\n    name      = )"alloy"/$1"alloy-renamed"/' "$ADOPTED/terraform/alloy.tf"
   grep -q '"alloy-renamed"' "$ADOPTED/terraform/alloy.tf" || fail "BREAK: could not rename the ServiceAccount's metadata.name"
   R_PLAN="$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$R_PLAN" | tail -20; fail "BREAK: the plan after renaming the object failed"; }
-  grep -qE "^No changes|Plan: 0 to add, 0 to change, 0 to destroy" <<< "$R_PLAN" && fail "BREAK=1: renaming the object's own name still planned zero churn"
+  grep -qE 'will be (created|destroyed)' <<< "$R_PLAN" || fail "BREAK=1: renaming the object's own name did not plan a destroy and a create - the marker-rewritten-in-place assertion is not load-bearing: $(grep -E '^Plan:' <<< "$R_PLAN" | head -1)"
   grep -q "1 to add" <<< "$R_PLAN" && grep -q "1 to destroy" <<< "$R_PLAN" || { printf '%s\n' "$R_PLAN" | tail -20; fail "BREAK=1: renaming the object's own name did not plan a destroy and a create: $(grep -E '^Plan:' <<< "$R_PLAN" | head -1)"; }
   log "  BREAK=1: caught - renaming metadata.name plans $(grep -E '^Plan:' <<< "$R_PLAN" | head -1)"
   perl -pi -e 's/"alloy-renamed"/"alloy"/' "$ADOPTED/terraform/alloy.tf"
   rename_sa "$ADOPTED"; rename_sa "$ORACLE"
   ( chdf_a "$ADOPTED" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK: the moved-block apply failed"
   ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK: stock's moved-block apply failed on B"
-  gauntlet_stage day2_rename pass "BREAK=1 control: renaming the object's own metadata.name plans a replace ($(grep -E '^Plan:' <<< "$R_PLAN" | head -1)), so the zero-churn assertion correctly fails to hold; a bare block rename is zero churn on this substrate because the block name is not part of the object's identity; the moved block then applied"
+  gauntlet_stage day2_rename pass "BREAK=1 control: renaming the object's own metadata.name plans a replace ($(grep -E '^Plan:' <<< "$R_PLAN" | head -1)), so the marker-rewritten-in-place assertion correctly fails to hold; a bare block rename plans the same one in-place annotation change as the moved block, since the block name is not part of the object's identity; the moved block then applied"
 else
   rename_sa "$ADOPTED"; rename_sa "$ORACLE"
   O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's moved-block plan failed on B"; }
   grep -qE "^No changes|Plan: 0 to add, 0 to change, 0 to destroy" <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's moved-block plan on B is not zero churn"; }
   ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's moved-block apply failed on B"
   R_PLAN="$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$R_PLAN" | tail -20; fail "the moved-block plan failed"; }
-  grep -qE "^No changes|Plan: 0 to add, 0 to change, 0 to destroy" <<< "$R_PLAN" || { printf '%s\n' "$R_PLAN" | tail -20; fail "the moved-block plan is not zero churn"; }
-  ( chdf_a "$ADOPTED" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "the moved-block apply failed"
+  grep -qE 'will be (created|destroyed)' <<< "$R_PLAN" \
+    && { printf '%s\n' "$R_PLAN" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a create or a destroy - not the marker rewritten in place"; }
+  grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$R_PLAN" \
+    || { printf '%s\n' "$R_PLAN" | tail -20; fail "the moved-block plan is not exactly one in-place change (the address annotation rewrite)"; }
+  grep -qE '~ +"choudoufu\.intentius\.io/tofu-address" = ".*" -> ".*"' <<< "$R_PLAN" \
+    || { printf '%s\n' "$R_PLAN"; fail "the moved-block plan does not show the tofu-address annotation being rewritten"; }
+  R_APPLY_OUT="$(chdf_a "$ADOPTED" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$R_APPLY_OUT" | tail -20; fail "the moved-block apply failed"; }
+  grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$R_APPLY_OUT" || { printf '%s\n' "$R_APPLY_OUT" | tail -10; fail "the moved-block apply was not exactly one in-place change"; }
   exists_a serviceaccount alloy || fail "the ServiceAccount is gone after the rename"
   [ "$(count_a)" = "26" ] || fail "$(count_a) labelled objects after the rename, want 26"
-  gauntlet_stage day2_rename pass "moved block: kubernetes_service_account_v1.alloy -> .collector, with the ClusterRoleBinding's subject and the Deployment's service_account_name references following, zero churn (no add, no change, no destroy); the live object untouched and still labelled; stock's plan for the same moved block on the oracle cluster is also zero churn. The moved-block half only: live-mv has no Kubernetes leg (#1066). BREAK=1 renames the object's own metadata.name and the zero-churn assertion correctly fails"
+  gauntlet_stage day2_rename pass "moved block: kubernetes_service_account_v1.alloy -> .collector, with the ClusterRoleBinding's subject and the Deployment's service_account_name references following, no add and no destroy, one in-place change confined to the address annotation rewrite (0 add, 1 change, 0 destroy) - the marker rewritten in place, the same shape the AWS lanes assert for a rename, not literal zero churn; the live object untouched and still labelled; stock's plan for the same moved block on the oracle cluster is zero churn, since stock never writes this annotation. The moved-block half only: live-mv also has a Kubernetes leg since #1639, not exercised by this stage. BREAK=1 renames the object's own metadata.name and the marker-rewritten-in-place assertion correctly fails"
 fi
 
 # ── 8. day2_remove ────────────────────────────────────────────────────────
@@ -474,12 +484,24 @@ else
   gauntlet_stage day2_count pass "a two-instance count ConfigMap added beside the published root (the estate's own shape has no count block): scaling 2 to 1 destroyed exactly shard-1, planned at the sweep's orphan address $C_ADDR since the label carries no index (shard-0 untouched, both read with kubectl); back to 2 created exactly kubernetes_config_map_v1.shard[1] under the same name; the next plan is empty; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
 fi
 
+# ── 9b. day2_replace: a create_before_destroy rename ───────────────────
+#
+# #1541, switched on by #1641: a Kubernetes name is unique within its
+# namespace, so the replacement create_before_destroy is used for here is
+# a rename, and since #1640 it plans as stock's replace. The stage body is
+# shared by the four kind estates: live/e2e/lib/gauntlet.sh's
+# gauntlet_kind_day2_replace, which adds its own block and removes it again.
+gauntlet_begin_stage day2_replace
+log "=== 9b. day2_replace: a content-hashed ConfigMap renamed under create_before_destroy ==="
+gauntlet_kind_day2_replace "$ADOPTED/terraform" "$ORACLE/terraform" "$NS"
+
 # ── 10. day2_crash ────────────────────────────────────────────────────────
 #
 # day2_crash on the kind substrate (#1110, part 4). The stage's own window
 # on AWS - after a create_before_destroy create, before the paired destroy -
 # cannot exist here: a name is unique in its namespace, so nothing is
-# created before the object it replaces is gone (day2_replace's n/a). The
+# created before the object it replaces is gone, except by a rename, which
+# day2_replace measures and this stage does not interrupt (#1683). The
 # Kubernetes window with the same question in it is an apply that creates
 # several objects. Kill it after one object exists and before the next
 # does, and the next plan has to propose exactly the remainder, with the

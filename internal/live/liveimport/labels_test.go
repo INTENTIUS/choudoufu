@@ -152,13 +152,16 @@ func TestApproveLabel_WritesTheEstateLabelAndNothingElse(t *testing.T) {
 	if meta.GetAttr("name").AsString() != "app-config" || meta.GetAttr("namespace").AsString() != "refk8s" {
 		t.Errorf("the object's name or namespace moved: %#v", meta)
 	}
-	if !strings.Contains(out.Detail, "no address") {
-		t.Errorf("the detail does not say the marker carries no address: %s", out.Detail)
+	if !strings.Contains(out.Detail, markers.AddressAnnotation) {
+		t.Errorf("the detail does not name the address annotation written beside the label (#1639): %s", out.Detail)
 	}
 }
 
 func TestApproveLabel_AlreadyStampedIsIdempotent(t *testing.T) {
-	e, p := configMapEligible(map[string]string{"app": "web", markers.TagEstate: testEstate})
+	e, p := configMapEligible(nil)
+	// Both markers present: the label, and since #1639 the address
+	// annotation. A label alone is TestApproveLabel_LabelledObjectWithoutTheAnnotationGetsIt.
+	e.applied = configMapObjectWith(map[string]string{"app": "web", markers.TagEstate: testEstate}, map[string]string{markers.AddressAnnotation: "kubernetes_config_map.app"})
 	out := approveOne(context.Background(), testEstate, mustAddr(t, "kubernetes_config_map.app"), e, "")
 	if out.Outcome != OutcomeAlreadyStamped {
 		t.Fatalf("outcome = %s (%s), want ALREADY_STAMPED", out.Outcome, out.Detail)

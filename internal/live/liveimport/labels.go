@@ -31,11 +31,16 @@ import (
 // stage on exactly that line.
 //
 // What differs from the tag path, and why, is [markers.LabelSurface]'s
-// whole doc comment: the marker is ONE label, tofu-estate, because the
-// object's own group, kind, namespace and name are the join key back to
-// configuration; there is no tofu-address, no continuation label and no
-// tofu-slot, so nothing here escapes or splits an address, and the slot
-// pass (slot.go) never settles a label-surface member. An estate name that
+// whole doc comment: the ownership marker is ONE label, tofu-estate; there
+// is no continuation label and no tofu-slot, and the slot pass (slot.go)
+// never settles a label-surface member. The block address goes beside it
+// in an annotation, [markers.AddressAnnotation] (GitHub issue #1639,
+// #1605's ruling), with the escaped value the AWS tofu-address tag
+// carries and no splitting, because an annotation has no value cap. The
+// adoption cases follow the tag path's: a label and annotation that
+// already say this estate and this address are ALREADY_STAMPED, a label
+// alone gets its annotation, and an annotation naming another address is
+// a rename, which is live-mv's and never an import's. An estate name that
 // is not a legal label value is refused rather than written, the same
 // refusal projection's stampedMetadata makes at apply time.
 
@@ -80,16 +85,6 @@ func labelsFromObject(schema providers.Schema, obj cty.Value) (map[string]string
 	return markers.LabelsOf(obj)
 }
 
-// withLabels is [markers.WithLabels]: the object with its metadata[0].labels
-// replaced and everything else carried across, the sibling of [withTags]
-// for the label shape. It lives in markers rather than here because
-// internal/live/mv's cross-estate move writes the same label through the
-// same rewrite (#1081), and two copies of "what a labels-only write leaves
-// alone" is the disagreement markerstest exists to catch for tags.
-func withLabels(block *configschema.Block, obj cty.Value, labels map[string]string) (cty.Value, error) {
-	return markers.WithLabels(block, obj, labels)
-}
-
 // changedOutsideLabels is [changedOutsideTags] for the label shape: every
 // top-level argument but the metadata block is compared whole, and inside
 // the metadata block every attribute but labels is compared, so a plan
@@ -119,8 +114,13 @@ func changedOutsideLabels(block *configschema.Block, prior, planned cty.Value) [
 	if !pok || !nok {
 		return out
 	}
-	for _, c := range changedAttrs(&nested.Block, priorElem, plannedElem, map[string]bool{markers.LabelSurfaceAttr: true}) {
+	for _, c := range changedAttrs(&nested.Block, priorElem, plannedElem, map[string]bool{markers.LabelSurfaceAttr: true, markers.AnnotationSurfaceAttr: true}) {
 		out = append(out, markers.LabelSurfaceBlock+"."+c)
+	}
+	// GitHub issue #1639: the address annotation is the one annotation
+	// this write may move; every other one is still compared.
+	if _, has := nested.Block.Attributes[markers.AnnotationSurfaceAttr]; has && markers.AnnotationsChangedBesides(prior, planned, markers.AddressAnnotation) {
+		out = append(out, markers.LabelSurfaceBlock+"."+markers.AnnotationSurfaceAttr)
 	}
 	return out
 }
@@ -163,14 +163,26 @@ func approveLabel(ctx context.Context, estate string, addr addrs.AbsResourceInst
 		return out
 	}
 
+	// GitHub issue #1639: the address annotation beside the label. A
+	// schema whose metadata block has no annotations attribute gets the
+	// label alone, as before.
+	wantAddress := markers.EscapeAddress(addr.String())
+	annotations, carriesAnnotations := markers.AnnotationsOf(e.applied)
+	gotAddress := annotations[markers.AddressAnnotation]
+	addressOK := !carriesAnnotations || (gotAddress != "" && markers.AddressMatches(markers.EscapeAddress(gotAddress), addr.String()))
+
 	switch got := labels[markers.TagEstate]; {
-	case got == estate:
+	case got == estate && addressOK:
 		out.Outcome = OutcomeAlreadyStamped
-		out.Detail = "Already carries this estate's label; nothing written."
+		out.Detail = "Already carries this estate's label and this block's address annotation; nothing written."
 		return out
-	case got != "":
+	case got != "" && got != estate:
 		out.Outcome = OutcomeFailed
 		out.Detail = fmt.Sprintf("Carries the label tofu-estate = %q, owned by another estate. A migration never adopts another estate's object; nothing was written.", got)
+		return out
+	case gotAddress != "" && !addressOK:
+		out.Outcome = OutcomeFailed
+		out.Detail = fmt.Sprintf("Already carries the annotation %s = %q. Rewriting it here would be a rename, which is choudoufu live-mv's job, not a side effect of an import; nothing was written.", markers.AddressAnnotation, gotAddress)
 		return out
 	}
 
@@ -179,7 +191,15 @@ func approveLabel(ctx context.Context, estate string, addr addrs.AbsResourceInst
 		desiredLabels[k] = v
 	}
 	desiredLabels[markers.TagEstate] = estate
-	desired, err := withLabels(e.schema.Block, e.applied, desiredLabels)
+	var desiredAnnotations map[string]string
+	if carriesAnnotations {
+		desiredAnnotations = make(map[string]string, len(annotations)+1)
+		for k, v := range annotations {
+			desiredAnnotations[k] = v
+		}
+		desiredAnnotations[markers.AddressAnnotation] = wantAddress
+	}
+	desired, err := markers.WithMetadataMaps(e.schema.Block, e.applied, desiredLabels, desiredAnnotations)
 	if err != nil {
 		out.Outcome = OutcomeFailed
 		out.Detail = fmt.Sprintf("The labels of this %s could not be replaced: %s.", e.typeName, err)
@@ -196,9 +216,14 @@ func approveLabel(ctx context.Context, estate string, addr addrs.AbsResourceInst
 	}
 
 	out.Outcome = OutcomeStamped
-	out.Detail = "Wrote the tofu-estate label. The Kubernetes marker carries no address: the object is re-bound by its namespace and name."
+	out.Detail = "Wrote the tofu-estate label."
+	if carriesAnnotations {
+		out.Detail = fmt.Sprintf("Wrote the tofu-estate label and the %s annotation.", markers.AddressAnnotation)
+	}
 	if got, readOK := labelsFromObject(e.schema, newState); !readOK || got[markers.TagEstate] != estate {
 		out.Detail = "The write reported no error, but the object read back afterwards does not carry the tofu-estate label. Verify with kubectl before relying on this."
+	} else if ann, _ := markers.AnnotationsOf(newState); carriesAnnotations && ann[markers.AddressAnnotation] != wantAddress {
+		out.Detail = fmt.Sprintf("The write reported no error, but the object read back afterwards does not carry the %s annotation. Verify with kubectl before relying on this.", markers.AddressAnnotation)
 	}
 	return out
 }

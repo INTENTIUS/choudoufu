@@ -114,8 +114,9 @@ func TestNoKubernetesTypeNeedsDiscovery(t *testing.T) {
 		t.Errorf("resolved %d Kubernetes instances, want the fixture's 8", kubernetes)
 	}
 
-	// And the check itself says nothing about any of them.
-	for _, d := range NodeStampUnmarkedApply(report.Load.Config, result, schemas, "k8s-1565", nil, nil) {
+	// And the check itself says nothing about any of them, even with no
+	// writable record store (storeWritable false, #1637), where it refuses most.
+	for _, d := range NodeStampUnmarkedApply(report.Load.Config, result, schemas, "k8s-1565", nil, nil, false) {
 		if strings.Contains(d.Description().Detail, "kubernetes_") {
 			t.Errorf("NodeStampUnmarkedApply spoke about a Kubernetes block: %s: %s", d.Description().Summary, d.Description().Detail)
 		}
