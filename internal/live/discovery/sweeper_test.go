@@ -85,3 +85,45 @@ func TestLegsNameTheirSweep(t *testing.T) {
 		t.Errorf("KubernetesSweep serves %q, the Kubernetes family asks for %q", got, substrate.Kubernetes.Sweep())
 	}
 }
+
+// TestEmptySweepersRunNoLeg (GitHub issue #1707): a request listing no
+// legs runs none. Nil still means the one leg every caller before
+// Request.Sweepers ran, but an empty list is a caller saying "nothing
+// sweeps through this provider", and before this it quietly became the
+// AWS legs: 1009 TYPE_NOT_LISTABLE gaps naming AWS types on a provider
+// that serves none of them.
+func TestEmptySweepersRunNoLeg(t *testing.T) {
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+
+	res, diags := discoverFixture(t, cloud, Request{Sweep: true, Sweepers: []Sweeper{}})
+	assertNoErrors(t, diags)
+	for _, g := range res.SweepGaps {
+		if g.Reason == SweepGapNotListable {
+			t.Fatalf("an empty leg list ran the tagging-index leg anyway: %s", g)
+		}
+	}
+}
+
+// TestUnclaimedNoSweepLegNamesTheProvider (GitHub issue #1707): the gap a
+// provider no family claims files names the provider, and says no family
+// claims it, rather than naming an empty sweep kind.
+func TestUnclaimedNoSweepLegNamesTheProvider(t *testing.T) {
+	cloud := newFakeCloud()
+	ownWholeEstate(cloud)
+
+	res, diags := discoverFixture(t, cloud, Request{Sweep: true, Sweepers: []Sweeper{NoSweepLeg{Family: "hashicorp/azurerm"}}})
+	assertNoErrors(t, diags)
+	var gap *SweepGap
+	for i := range res.SweepGaps {
+		if res.SweepGaps[i].Reason == SweepGapNoSweepLeg {
+			gap = &res.SweepGaps[i]
+		}
+	}
+	if gap == nil {
+		t.Fatalf("no %s gap for an unclaimed provider; gaps: %v", SweepGapNoSweepLeg, res.SweepGaps)
+	}
+	if gap.TypeName != "hashicorp/azurerm" || !strings.Contains(gap.Detail, "No provider family claims provider hashicorp/azurerm") || strings.Contains(gap.Detail, `""`) {
+		t.Errorf("the unclaimed provider's gap does not say what it is: %s", gap)
+	}
+}

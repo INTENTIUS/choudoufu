@@ -23,6 +23,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
@@ -142,17 +143,20 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 	// is what says which substrates the estate lives on (GitHub issue
 	// #1081): an aws provider among its managed resources' providers means
 	// the AWS listing below, a kubernetes provider the cluster listing
-	// liveLsGaps runs, both means both. No DIR, or one that will not load,
-	// or one naming neither, is the AWS listing this command has always
-	// been - liveLsSubstrates. The load's own diagnostics travel to
-	// liveLsGaps, which phrases the skip exactly as it did when it loaded
-	// the configuration itself.
+	// liveLsGaps runs, both means both. No DIR, one that will not load, or
+	// one naming no provider at all is the AWS listing this command has
+	// always been. A DIR naming only providers no family claims lists
+	// neither, and a family or provider nothing here lists is named "Not
+	// listed" (GitHub issue #1707) - liveLsSubstrates. The load's own
+	// diagnostics travel to liveLsGaps, which phrases the skip exactly as
+	// it did when it loaded the configuration itself.
 	var config *configs.Config
 	var cfgDiags tfdiags.Diagnostics
 	if args.ConfigDir != "" {
 		config, cfgDiags = c.loadConfig(ctx, args.ConfigDir)
 	}
 	substrates := liveLsSubstrates(config, cfgDiags)
+	diags = diags.Append(liveLsNotListed(args.Estate, substrates))
 
 	// GitHub issue #1044: the region, in the order -region, then DIR's own
 	// provider block (the region live-plan and live-check on the same DIR
@@ -254,7 +258,7 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 	}
 
 	if args.ConfigDir != "" {
-		cmp, gapDiags := c.liveLsGaps(ctx, args.Estate, args.ConfigDir, config, cfgDiags, substrates.has(substrate.SweepLabelList), items)
+		cmp, gapDiags := c.liveLsGaps(ctx, args.Estate, args.ConfigDir, config, cfgDiags, substrates.has(substrate.SweepLabelList), substrates.unclaimed, items)
 		diags = diags.Append(gapDiags)
 		rep.Gaps = cmp.Gaps
 		rep.GapsSkipped = cmp.Skipped
@@ -682,7 +686,7 @@ func pollConsistentEvery(ctx context.Context, read func(ctx context.Context) ([]
 // after resolution, since what it calls declared is a resolution's kind and
 // natural key. Its items come back in the comparison's Kubernetes field
 // and are counted found for the gap list below.
-func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, config *configs.Config, cfgDiags tfdiags.Diagnostics, kubernetes bool, items []views.LiveLsItem) (liveLsComparison, tfdiags.Diagnostics) {
+func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, config *configs.Config, cfgDiags tfdiags.Diagnostics, kubernetes bool, unclaimed []addrs.AbsProviderConfig, items []views.LiveLsItem) (liveLsComparison, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	// Whether provider schemas were read, tracked across the skip paths
 	// below rather than only on the path that completes: a comparison that
@@ -733,6 +737,10 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 			log.Printf("[WARN] live-ls: closing providers after the declared-instance comparison: %s", cd.Err())
 		}
 	}
+
+	// GitHub issue #1707: a provider no family claims is named here,
+	// where its schema can first be read, and before any skip below.
+	diags = diags.Append(liveLsUnclaimedNotListed(ctx, estate, provs, unclaimed))
 
 	resourceSchemas := provs.resourceSchemas(ctx)
 	schemasRead = len(resourceSchemas) > 0
@@ -840,6 +848,67 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 // caller already makes.
 type liveLsSubstrateSet struct {
 	sweeps map[substrate.Sweep]bool
+
+	// families is every family DIR's managed resources' providers belong
+	// to, in [substrate.All]'s order, so a family whose sweep has no
+	// listing ([liveLsListings]) can be named (GitHub issue #1707).
+	families []substrate.Substrate
+
+	// unclaimed is every provider configuration DIR's managed resources
+	// use that no family claims. Nothing lists through one, and before
+	// GitHub issue #1707 a DIR naming only such providers fell back to
+	// the AWS listing.
+	unclaimed []addrs.AbsProviderConfig
+}
+
+// liveLsListings is every sweep this command has a listing for, and what
+// that listing is (GitHub issue #1707). A family in DIR whose sweep has no
+// entry is named in a "Not listed" warning ([liveLsNotListed]) rather
+// than listed as anything else, and TestEverySubstrateSweepHasAListing
+// holds this table to [substrate.All] the way the plan's sweep legs are
+// held to it.
+var liveLsListings = map[substrate.Sweep]string{
+	substrate.SweepTaggingIndex: "the Resource Groups Tagging API index and the IAM role pass",
+	substrate.SweepLabelList:    "one label-selected list per kind each cluster serves",
+}
+
+// liveLsNotListed is the warning for every family in set whose sweep
+// this command has no listing for, or nil when there is none.
+func liveLsNotListed(estate string, set liveLsSubstrateSet) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	for _, sub := range set.families {
+		if _, ok := liveLsListings[sub.Sweep()]; ok {
+			continue
+		}
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, "Not listed",
+			fmt.Sprintf("DIR uses provider family %s, and live-ls has no listing for it: provider family %s asks for the %q sweep, so nothing estate %q owns through it is listed below.", sub.Name(), sub.Name(), string(sub.Sweep()), estate)))
+	}
+	return diags
+}
+
+// liveLsUnclaimedNotListed is the warning for the provider configurations
+// in unclaimed whose schema has a type a marker is written onto
+// ([statelessProviders.mayCarryMarkers]): no family claims them, so
+// nothing lists what the estate marked through them. A provider whose
+// schema has no such type holds nothing a listing could find, and is not
+// named.
+func liveLsUnclaimedNotListed(ctx context.Context, estate string, provs *statelessProviders, unclaimed []addrs.AbsProviderConfig) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	var names []string
+	seen := map[string]bool{}
+	for _, addr := range unclaimed {
+		name := addr.Provider.ForDisplay()
+		if seen[name] || !provs.mayCarryMarkers(ctx, addr.Provider) {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	if len(names) == 0 {
+		return diags
+	}
+	return diags.Append(tfdiags.Sourceless(tfdiags.Warning, "Not listed",
+		fmt.Sprintf("No provider family claims %s, so nothing estate %q marked through it is listed below. Their resource types carry a marker surface, so the estate may hold objects there this listing cannot show.", strings.Join(names, ", "), estate)))
 }
 
 // has reports whether the listing covers a substrate whose
@@ -853,29 +922,45 @@ func (s liveLsSubstrateSet) has(sw substrate.Sweep) bool { return s.sweeps[sw] }
 // configuration among the managed resources
 // ([statelessManagedResourceProviders], which falls back to the root's
 // declared provider blocks when nothing is declared), each asked for its
-// own [substrate.Substrate.Sweep] rather than switched on by name - a
-// third substrate registered in [substrate.All] is covered the moment a
-// managed resource uses its provider, with no new arm here. No
-// configuration at all (no DIR, or one whose load failed - cfgDiags
-// carries the error the comparison will report) or one naming no
-// substrate in [substrate.All] is the AWS listing alone
-// ([substrate.SweepTaggingIndex]), which is what this command was before
-// GitHub issue #1081 and stays for every caller that passes no DIR.
+// own [substrate.Substrate.Sweep] rather than switched on by name. A
+// third substrate registered in [substrate.All] is in the set the moment a
+// managed resource uses its provider, with no new arm here, and is then
+// either listed ([liveLsListings] has its sweep) or named "Not listed"
+// ([liveLsNotListed]). No configuration at all (no DIR, or one whose load
+// failed - cfgDiags carries the error the comparison will report) is the
+// AWS listing alone ([substrate.SweepTaggingIndex]), which is what this
+// command was before GitHub issue #1081 and stays for every caller that
+// passes no DIR, and for a DIR that names no provider at all (a root of
+// record-backed resources whose aws blocks were all deleted, say): nothing
+// there says where the estate lives either. A DIR that names a provider
+// lists exactly the families it names, and each provider no family claims
+// is kept in unclaimed to be named, never listed as AWS (GitHub issue
+// #1707).
 func liveLsSubstrates(config *configs.Config, cfgDiags tfdiags.Diagnostics) liveLsSubstrateSet {
-	awsOnly := liveLsSubstrateSet{sweeps: map[substrate.Sweep]bool{substrate.SweepTaggingIndex: true}}
+	awsOnly := liveLsSubstrateSet{sweeps: map[substrate.Sweep]bool{substrate.SweepTaggingIndex: true}, families: []substrate.Substrate{substrate.AWS}}
 	if config == nil || config.Module == nil || cfgDiags.HasErrors() {
 		return awsOnly
 	}
-	sweeps := map[substrate.Sweep]bool{}
+	set := liveLsSubstrateSet{sweeps: map[substrate.Sweep]bool{}}
+	named := map[string]bool{}
 	for _, addr := range statelessManagedResourceProviders(config) {
-		if sub, ok := substrate.ForProvider(addr.Provider.Type); ok {
-			sweeps[sub.Sweep()] = true
+		sub, ok := substrate.ForProvider(addr.Provider.Type)
+		if !ok {
+			set.unclaimed = append(set.unclaimed, addr)
+			continue
 		}
+		set.sweeps[sub.Sweep()] = true
+		named[sub.Name()] = true
 	}
-	if len(sweeps) == 0 {
+	if len(named) == 0 && len(set.unclaimed) == 0 {
 		return awsOnly
 	}
-	return liveLsSubstrateSet{sweeps: sweeps}
+	for _, sub := range substrate.All {
+		if named[sub.Name()] {
+			set.families = append(set.families, sub)
+		}
+	}
+	return set
 }
 
 // liveLsKubernetes lists the estate's objects through every kubernetes
@@ -1127,6 +1212,12 @@ Usage: choudoufu [global options] live-ls -estate=NAME [options] [DIR]
   provider and no aws provider lists the cluster alone. A cluster this run
   cannot reach is a warning, "Kubernetes sweep unavailable", and the rest of
   the listing stands. -consistent polls the AWS listing only.
+
+  A provider in DIR that neither listing serves is named in a "Not listed"
+  warning rather than read as AWS: a provider family this command has no
+  listing for, and a provider no family claims whose resource types carry
+  a marker (a tags map, say). A DIR whose providers include no aws provider
+  makes no AWS call.
 
   With DIR given, the listing is cross-referenced against that directory's
   declared instances: one this listing cannot find is reported as a gap, named

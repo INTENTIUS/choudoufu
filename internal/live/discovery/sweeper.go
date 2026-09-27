@@ -55,9 +55,12 @@ type SweepInput struct {
 }
 
 // sweepLegs is the pass's legs: [Request.Sweepers], or the one leg every
-// caller before that field existed ran.
+// caller before that field existed ran when it is nil. An empty, non-nil
+// list is a caller saying no leg sweeps through this provider (GitHub
+// issue #1707: a provider no family claims whose schema has nothing a
+// marker is written onto), and runs none.
 func sweepLegs(req Request) []Sweeper {
-	if len(req.Sweepers) > 0 {
+	if req.Sweepers != nil {
 		return req.Sweepers
 	}
 	return []Sweeper{TaggingIndexSweep{}}
@@ -68,15 +71,19 @@ func sweepLegs(req Request) []Sweeper {
 // proposed for removal.
 const SweepGapNoSweepLeg SweepGapReason = "NO_SWEEP_LEG"
 
-// NoSweepLeg stands in for a family whose [substrate.Sweep] no leg serves.
-// It lists nothing and files one [SweepGapNoSweepLeg] gap naming the
-// family and the sweep it asked for, with the incomplete-sweep warning,
-// so a missing leg reads as a named gap in coverage and never as an
-// estate with nothing to remove.
+// NoSweepLeg stands in for a family whose [substrate.Sweep] no leg serves,
+// or for a provider no family claims at all (GitHub issue #1707). It
+// lists nothing and files one [SweepGapNoSweepLeg] gap naming the family
+// and the sweep it asked for, or the unclaimed provider, with the
+// incomplete-sweep warning, so a missing leg reads as a named gap in
+// coverage and never as an estate with nothing to remove.
 type NoSweepLeg struct {
-	// Family is the provider family's name ([substrate.Substrate.Name]).
+	// Family is the provider family's name ([substrate.Substrate.Name]),
+	// or, when Kind is empty, the provider no family claims
+	// (its addrs.Provider.ForDisplay).
 	Family string
-	// Kind is the sweep the family asked for.
+	// Kind is the sweep the family asked for, empty for a provider no
+	// family claims.
 	Kind substrate.Sweep
 }
 
@@ -85,11 +92,16 @@ func (n NoSweepLeg) Leg() substrate.Sweep { return n.Kind }
 
 // Sweep files the gap.
 func (n NoSweepLeg) Sweep(_ context.Context, in *SweepInput) tfdiags.Diagnostics {
+	detail := fmt.Sprintf("No sweep leg serves provider family %s's %q sweep, so nothing estate %q owns through it was listed this run and a resource whose block was deleted is not proposed for removal.",
+		n.Family, string(n.Kind), in.Request.Estate)
+	if n.Kind == "" {
+		detail = fmt.Sprintf("No provider family claims provider %s, so no sweep leg lists what estate %q marks through it: a resource of one of its marker-carrying types whose block was deleted is not proposed for removal this run. Resources the estate's record store holds are still found.",
+			n.Family, in.Request.Estate)
+	}
 	return sweepGapDiag(in.Result, SweepGap{
 		TypeName: n.Family,
 		Reason:   SweepGapNoSweepLeg,
-		Detail: fmt.Sprintf("No sweep leg serves provider family %s's %q sweep, so nothing estate %q owns through it was listed this run and a resource whose block was deleted is not proposed for removal.",
-			n.Family, string(n.Kind), in.Request.Estate),
+		Detail:   detail,
 	})
 }
 

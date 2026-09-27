@@ -259,8 +259,9 @@ func liveLsLoadConfig(t *testing.T, hcl string) *configs.Config {
 
 // TestLiveLsSubstrates: the substrates are read off the configuration's
 // managed resources' providers, and everything that is not a
-// configuration - no DIR, a failed load - or names no substrate in
-// [substrate.All] is the AWS listing this command has always been.
+// configuration - no DIR, a failed load - or names no provider at all is
+// the AWS listing this command has always been. A provider no family
+// claims is not (GitHub issue #1707).
 func TestLiveLsSubstrates(t *testing.T) {
 	kubernetesOnly := liveLsLoadConfig(t, `
 provider "kubernetes" {}
@@ -276,6 +277,9 @@ resource "kubernetes_namespace" "app" {
 `)
 	neither := liveLsLoadConfig(t, `
 resource "null_resource" "x" {}
+`)
+	unclaimedOnly := liveLsLoadConfig(t, `
+resource "azurerm_resource_group" "rg" {}
 `)
 	var loadFailed tfdiags.Diagnostics
 	loadFailed = loadFailed.Append(tfdiags.Sourceless(tfdiags.Error, "Unreadable", "not a configuration"))
@@ -293,13 +297,84 @@ resource "null_resource" "x" {}
 		"load failed":        {kubernetesOnly, loadFailed, awsOnly},
 		"kubernetes only":    {kubernetesOnly, nil, kubeOnly},
 		"aws and kubernetes": {both, nil, awsAndKube},
-		"neither":            {neither, nil, awsOnly},
+		// A root that names no provider at all says nothing about where
+		// the estate lives, the same as no DIR.
+		"neither": {neither, nil, awsOnly},
+		// GitHub issue #1707: a root whose only provider no family claims
+		// used to fall back to the AWS listing. It now lists no substrate,
+		// and the provider is named rather than listed as AWS.
+		"unclaimed only": {unclaimedOnly, nil, liveLsSubstrateSet{sweeps: map[substrate.Sweep]bool{}}},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if got := liveLsSubstrates(tc.config, tc.diags); !reflect.DeepEqual(got, tc.want) {
-				t.Errorf("liveLsSubstrates = %+v, want %+v", got, tc.want)
+			if got := liveLsSubstrates(tc.config, tc.diags); !reflect.DeepEqual(got.sweeps, tc.want.sweeps) {
+				t.Errorf("liveLsSubstrates = %+v, want %+v", got.sweeps, tc.want.sweeps)
 			}
 		})
+	}
+	if got := liveLsSubstrates(unclaimedOnly, nil).unclaimed; len(got) != 1 || got[0].Provider.Type != "azurerm" {
+		t.Errorf("liveLsSubstrates(azurerm only).unclaimed = %v, want the azurerm provider configuration", got)
+	}
+}
+
+// TestEverySubstrateSweepHasAListing (GitHub issue #1707): every family's
+// sweep has a live-ls listing, the way TestEverySubstrateSweepHasALeg
+// holds the plan's legs to substrate.All. A family written without one is
+// named "not listed" by the command rather than folded into the AWS
+// listing, and fails here by name.
+func TestEverySubstrateSweepHasAListing(t *testing.T) {
+	for _, sub := range substrate.All {
+		if _, ok := liveLsListings[sub.Sweep()]; !ok {
+			t.Errorf("provider family %s asks for the %q sweep and live-ls has no listing for it", sub.Name(), sub.Sweep())
+		}
+	}
+}
+
+// TestLiveLsNamesWhatItCannotList (GitHub issue #1707): a third family
+// live-ls has no listing for, and a provider no family claims, are each
+// named in a warning, and neither is listed through the AWS index.
+func TestLiveLsNamesWhatItCannotList(t *testing.T) {
+	orig := substrate.All
+	substrate.All = append(append([]substrate.Substrate{}, orig...), fakeThirdSubstrate{Substrate: substrate.AWS})
+	t.Cleanup(func() { substrate.All = orig })
+
+	srv := &fakeLiveLsServer{t: t}
+	server := srv.start()
+	t.Setenv("TOFU_LIVE_CLOUDCONTROL", "")
+	t.Setenv("AWS_ENDPOINT_URL", server.URL)
+	t.Setenv("AWS_ACCESS_KEY_ID", "test")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
+	t.Setenv("AWS_REGION", "us-east-1")
+	touched := false
+	server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		touched = true
+		http.Error(w, "the AWS listing ran against a configuration with no aws provider", http.StatusInternalServerError)
+	})
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(`
+resource "fake_thing" "x" {}
+resource "azurerm_resource_group" "rg" {}
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	view, done := testView(t)
+	c := &LiveLsCommand{Meta: Meta{WorkingDir: workdir.NewDir("."), View: view}}
+	code := c.Run([]string{"-no-color", "-estate=app", dir})
+	out := done(t)
+	// Unwrapped, since the view wraps a warning's detail at its width.
+	all := strings.Join(strings.Fields(out.Stdout()+out.Stderr()), " ")
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\n%s", code, all)
+	}
+	if touched {
+		t.Error("the AWS endpoint was called for a configuration with no aws provider")
+	}
+	if !strings.Contains(all, "Not listed") || !strings.Contains(all, `provider family fake asks for the "fake-sweep" sweep`) {
+		t.Errorf("the fake family is not named as unlisted:\n%s", all)
+	}
+	if !strings.Contains(all, "hashicorp/azurerm") {
+		t.Errorf("the unclaimed azurerm provider is not named as unlisted:\n%s", all)
 	}
 }
 
