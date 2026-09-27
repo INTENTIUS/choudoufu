@@ -17,6 +17,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -140,7 +141,16 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 	if !n.tagsAfterCreate(addr) {
 		return applied, diags
 	}
-	if _, taggable := markers.TagSurface(schema.Block); !taggable {
+	// GitHub issue #1587: the surface's own post-create write chooses the
+	// writer, rather than a provider type string. The tag surface's is the
+	// Tagging API; a surface whose marker always rides the create call
+	// answers WriteNeverNeeded and there is nothing to do.
+	surface, carries := substrate.SurfaceOf(schema.Block)
+	if !carries {
+		return applied, diags
+	}
+	write := substrate.WritesOf(surface).PostCreate
+	if write == substrate.WriteNeverNeeded {
 		return applied, diags
 	}
 	if n.recordSelected(addr, schema) {
@@ -163,13 +173,18 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 	switch {
 	case arn == "":
 		err = errors.New("the object the provider returned carries no arn attribute to address the write to")
+	case write == "":
+		err = fmt.Errorf("the %s surface names no post-create write, so nothing can mark the object", surface)
 	case n.Tagger == nil:
 		err = errors.New("this run has no tagging client")
 	default:
-		tagger := n.Tagger(provider)
-		if tagger == nil {
+		tagger, terr := n.Tagger(provider, write)
+		switch {
+		case terr != nil:
+			err = terr
+		case tagger == nil:
 			err = fmt.Errorf("this run has no tagging client for provider configuration %s", provider)
-		} else {
+		default:
 			err = tagger.TagResources(ctx, []string{arn}, want)
 		}
 	}
