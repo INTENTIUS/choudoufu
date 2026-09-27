@@ -792,7 +792,7 @@ func (b *builder) unownedAddress(addr addrs.AbsResourceInstance, typeName, impor
 // unlabelled one adopted in silence, and the ownership policy's verbs never
 // reached on that substrate at all. GitHub issue #1589: the ownership read
 // used to ask a looser tag question than [substrate.SurfaceOf] here
-// ([markers.HasTagsAttribute], any "tags" or "tags_all" attribute at all,
+// (the since-deleted markers.HasTagsAttribute, any "tags" or "tags_all" attribute at all,
 // settable or not), kept apart in case a real type ever needed the wider
 // reading. The 2026-09-26 decision package measured the two questions
 // agreeing on every type in the pinned AWS and Kubernetes schemas, so the
