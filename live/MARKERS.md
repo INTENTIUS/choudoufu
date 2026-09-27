@@ -63,11 +63,10 @@ marker is a single label:
 |---|---|---|
 | `tofu-estate` | The estate that owns the object. | Every managed object whose type has a `metadata` block with a `labels` map (75 of hashicorp/kubernetes 3.2.1's 82 types), and every `kubernetes_manifest` object, where the same label goes into `manifest.metadata.labels` (#1079). Since #1064 the same block is what admits the type: 73 of the 82 carry the full object-metadata shape, 48 namespaced and 25 cluster-scoped, and resolve to NAMESPACE/NAME or NAME with no row each. |
 
-There is no `tofu-address`, no continuation label and no `tofu-slot`. The
-object's own group, kind, namespace and name are the join key back to the
-configuration block that declares it, because those are authored in the
-configuration this fork already parses; the address never goes on the
-object. The provider's `id` on such an object is that same join key (the
+There is no `tofu-address` label, no continuation label and no
+`tofu-slot`. The object's own group, kind, namespace and name are the join
+key back to the configuration block that declares it, because those are
+authored in the configuration this fork already parses. The provider's `id` on such an object is that same join key (the
 name for a cluster-scoped kind, `NAMESPACE/NAME` for a namespaced one), so
 a sibling reading `kubernetes_namespace_v1.x.id` reads the parent's whole
 identity and resolves; grafana/quickpizza's root, the kubernetes lane's
@@ -75,6 +74,23 @@ first published estate, writes exactly that on every namespaced object
 (#1067). #1016 measured the alternative: nearly half of real addresses are
 illegal as a label value (the instance-key `:`), and a 63-character cap
 binds at once on ordinary module-nested shapes.
+
+The block address does go on the object, since #1605's ruling of
+2026-09-26 (#1639), as an annotation beside the label:
+
+| Annotation | Meaning | Present on |
+|---|---|---|
+| `choudoufu.intentius.io/tofu-address` | The object's block address, escaped exactly as the AWS `tofu-address` tag value is ("Escaping", above). | Every object the label is on: written by the node stamp into `metadata.annotations` or `manifest.metadata.annotations` on every plan, by `live-import -approve` in the same write as the label, and rewritten by `live-mv`. |
+
+An annotation value has no grammar and no length cap, so nothing is split
+and there are no continuation keys. The prefix is the one the record
+store's `choudoufu.intentius.io/record-key` annotation already uses. It is
+a join key, not a boundary: the admission policy below reads the label
+alone, and nothing binds on the annotation yet (#1640 reads it in the
+sweep; #1641 flips the substrate's `CarriesAddress`). A configuration that
+sets it to another address is the same "Ownership marker conflict" the AWS
+tag raises. A rename therefore plans one in-place annotation change, as an
+AWS rename plans the tag rewrite, unless `live-mv` has already written it.
 
 A label value is at most 63 characters and matches
 `(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?`. An estate name over 63
@@ -188,8 +204,10 @@ A change of type between the two spellings of a kind
 (`kubernetes_config_map` to `kubernetes_config_map_v1`) is not a move and
 needs no `moved` block (#1081, item 2): the suffix is the API version the
 block is written against, both spellings render the same natural key, the
-sweep files both under the one kind, and the label carries no address to
-rewrite, so the replan is empty. Claim 7's Kubernetes scenario measures
+sweep files both under the one kind, and the replan finds the same
+object. Since #1639 it plans one in-place update, the address annotation's
+rewrite to the new spelling's address, and never a create or a destroy.
+Claim 7's Kubernetes scenario measures
 it, step 6.
 
 `helm_release` is refused, by the ordinary unadmitted-type refusal, with
@@ -334,9 +352,12 @@ is never edited for either. Claim 13 on Kubernetes
 kind cluster with two ServiceAccounts, and `BREAK=1` removes the policy to
 show the refusals were its doing. `live-mv -from-estate` is the governed
 relabel made through the provider under the caller's own credential, so
-the policy judges it exactly as it judges a plain `kubectl label`; a
-rename within one estate has nothing to write on this surface and
-`live-mv` says so, exit 0 (#1081).
+the policy judges it exactly as it judges a plain `kubectl label`, and it
+writes the address annotation in the same write. A rename within one
+estate rewrites only the address annotation (#1639): through the provider
+for an object with a metadata block, as one annotation merge patch for a
+`kubernetes_manifest` object. The policy reads no annotation, so the
+estate's own holder can make that write.
 
 `live/kubernetes/estate-boundary.yaml`, applied once by a cluster admin:
 

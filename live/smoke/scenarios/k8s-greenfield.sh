@@ -205,10 +205,11 @@ explain \
   "object. Uniqueness on a cluster is group, kind, namespace and name, so" \
   "this edits the block's type from the plain spelling to _v1 with the" \
   "same metadata and no moved block. On AWS a type change with no moved" \
-  "block is a destroy and a create; here the natural key is unchanged," \
-  "the marker carries no address, and the replan must find the same" \
-  "object. An in-place update for a representation difference is" \
-  "allowed; a create or a destroy is not (#1081, item 2)."
+  "block is a destroy and a create; here the natural key is unchanged" \
+  "and the replan must find the same object. An in-place update is" \
+  "allowed - a representation difference, or the address annotation" \
+  "naming the new spelling (#1639) - and a create or a destroy is not" \
+  "(#1081, item 2)."
 cmd "sed -i 's/resource \"kubernetes_config_map\" \"app\"/resource \"kubernetes_config_map_v1\" \"app\"/' main.tf && choudoufu plan"
 sed_i "$SMOKE_WORK/main.tf" 's/^resource "kubernetes_config_map" "app"/resource "kubernetes_config_map_v1" "app"/'
 grep -q '^resource "kubernetes_config_map_v1" "app"' "$SMOKE_WORK/main.tf" \
