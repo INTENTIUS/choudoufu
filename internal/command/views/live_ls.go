@@ -162,11 +162,15 @@ type LiveLsItem struct {
 	Kind       string
 	APIVersion string
 
-	// HeldBy is set for a Kubernetes object a controller holds rather than
-	// a block: "Helm release NAMESPACE/NAME" for an object carrying Helm's
-	// release annotation (GitHub issue #1607, the 2026-09-26 ruling on
-	// #1604). Such an object carries the estate's label, is never swept
-	// and never adopted, and is listed so the label's reach is visible.
+	// HeldBy is set for a live resource a controller holds rather than a
+	// block, on either substrate (the 2026-09-26 ruling on GitHub issue
+	// #1604), and names the controller and its object: "Helm release
+	// NAMESPACE/NAME" for a Kubernetes object carrying Helm's release
+	// annotation (#1607); "ACK s3 controller (s3-v1.0.14), custom resource
+	// in namespace team-a" or a Crossplane managed resource for an AWS
+	// resource carrying that controller's tags ([markers.ControllerTagKeys],
+	// #1606). Such a resource is never swept and never adopted, whatever
+	// markers it carries, and is listed so the markers' reach is visible.
 	HeldBy string
 }
 
@@ -239,7 +243,7 @@ type liveLsJSONItem struct {
 	// document is byte-for-byte what it was before GitHub issue #1081.
 	Kind       string `json:"kind,omitempty"`
 	APIVersion string `json:"api_version,omitempty"`
-	// HeldBy appears on a controller-held Kubernetes object only.
+	// HeldBy appears on a controller-held item only, AWS or Kubernetes.
 	HeldBy string `json:"held_by,omitempty"`
 }
 

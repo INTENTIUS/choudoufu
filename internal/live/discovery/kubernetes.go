@@ -200,11 +200,22 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 			}
 		}
 		res.KubernetesOwnerSkipped += ownerSkipped.Count
-		res.KubernetesHeld = append(res.KubernetesHeld, ownerSkipped.Held...)
 
 		typeName := manifestType
 		if !k.Manifest {
 			typeName, _ = kubesweep.TypeFor(kindTypes, declaredTypes, k.Kind)
+		}
+		// What a Helm release holds is controller-held, reported in the
+		// same list as an ACK or Crossplane resource on AWS (the
+		// 2026-09-26 ruling on #1604; #1607).
+		for _, h := range ownerSkipped.Held {
+			res.ControllerHeld = append(res.ControllerHeld, ControllerHeldResource{
+				TypeName:   typeName,
+				ImportID:   kubesweep.NaturalKey(h.Namespace, h.Name),
+				Kind:       h.Kind,
+				Controller: h.Controller,
+				HeldBy:     h.HeldBy,
+			})
 		}
 		for _, o := range objects {
 			if _, isDeclared := declared.Declares(k.Kind, kubesweep.NaturalKey(o.Namespace, o.Name)); isDeclared {

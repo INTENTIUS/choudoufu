@@ -97,15 +97,6 @@ type StatelessForeign struct {
 	// looking than the wording alone implies.
 	NativeSweepSkipped int
 
-	// ControllerHeld are the live objects carrying this estate's marker
-	// that the sweep set aside because a controller holds them, with the
-	// holder named: today the objects a Helm release installed
-	// ([discovery.Result.KubernetesHeld]; GitHub issue #1607, the
-	// 2026-09-26 ruling on #1604). They are never removals and never
-	// adoptable. They are rendered so that a chart value carrying
-	// tofu-estate reads as what it is rather than as nothing.
-	ControllerHeld []StatelessControllerHeld
-
 	// Unswept are the types this classification cannot speak for, with a
 	// reason code and a sentence each.
 	Unswept []StatelessUnsweptType
@@ -117,6 +108,41 @@ type StatelessForeign struct {
 	// carries the destroy itself for those, and this list is what says a
 	// parent read is why.
 	ParentReads []StatelessParentRead
+
+	// ControllerHeld are the live resources a controller holds rather than
+	// a block, on either substrate, with the holder named
+	// ([discovery.Result.ControllerHeld]; the 2026-09-26 ruling on #1604):
+	// on AWS what ACK or Crossplane made from an object on the cluster side
+	// (#1606), on Kubernetes what a Helm release installed (#1607). They
+	// are never foreign, never adoptable and never destroyed here, and are
+	// rendered so that markers on them read as what they are rather than
+	// as nothing.
+	ControllerHeld []StatelessControllerHeld
+}
+
+// StatelessControllerHeld is one controller-held live resource, AWS or
+// Kubernetes, in one shape.
+type StatelessControllerHeld struct {
+	TypeName    string
+	LiveID      string
+	DisplayName string
+
+	// Kind is the Kubernetes kind of a Kubernetes object, empty on AWS.
+	// The plan names the object by it when set, since that is the name a
+	// cluster's operator knows it by.
+	Kind string
+
+	// Controller is the controller that holds it (ACK, Crossplane, Helm),
+	// and HeldBy that controller and its object, as far as the resource
+	// identifies it: "Helm release web/web", "ACK s3 controller
+	// (s3-v1.0.14), custom resource in namespace team-a".
+	Controller string
+	HeldBy     string
+
+	// Addr is the address this estate's marker names, set only when the
+	// resource also carries this estate's markers at an address the
+	// configuration does not declare.
+	Addr string
 }
 
 // StatelessParentRead is one live child a parent read found.
@@ -223,14 +249,6 @@ type StatelessRemoval struct {
 }
 
 // StatelessSweepGap is one resource type the removal sweep could not cover.
-// StatelessControllerHeld is one live object a controller holds: its kind
-// and NAMESPACE/NAME, and the holder in words ("Helm release web/web").
-type StatelessControllerHeld struct {
-	Kind   string
-	ID     string
-	HeldBy string
-}
-
 type StatelessSweepGap struct {
 	TypeName string
 	Reason   string
@@ -683,6 +701,14 @@ type LivePlanDocument struct {
 	// TOFU_LIVE_COLLECT_UNCLAIMED=1 is how to ask.
 	Swept []string `json:"swept"`
 
+	// ControllerHeld is every live resource this run found held by a
+	// controller rather than a block (the 2026-09-26 ruling on #1604): on
+	// AWS made by ACK or Crossplane from an object on the cluster side
+	// (#1606), on Kubernetes installed by a Helm release (#1607). Never in
+	// Foreign or Adoptable and never proposed for destroy. Absent when
+	// there are none; -filter does not narrow it.
+	ControllerHeld []LivePlanControllerHeld `json:"controller_held,omitempty"`
+
 	// Filter is the -filter categories this document was narrowed to
 	// (GitHub issue #1197), in unowned, adoptable, foreign order. Absent
 	// when no filter was given. When present, a category it does not name
@@ -741,6 +767,25 @@ type LivePlanForeign struct {
 	// Why is the sweep's own one-line reason this resource counts as
 	// unclaimed, carried verbatim rather than re-derived.
 	Why string `json:"why,omitempty"`
+}
+
+// LivePlanControllerHeld is one row of [LivePlanDocument.ControllerHeld].
+type LivePlanControllerHeld struct {
+	TypeName    string `json:"type"`
+	LiveID      string `json:"identity"`
+	DisplayName string `json:"display_name,omitempty"`
+
+	// Kind is a Kubernetes object's kind, absent on AWS.
+	Kind string `json:"kind,omitempty"`
+
+	// Controller is ACK, Crossplane or Helm; HeldBy names the controller
+	// and its object, the same words and the same key live-ls -json uses.
+	Controller string `json:"controller"`
+	HeldBy     string `json:"held_by"`
+
+	// Addr is the address this estate's marker names, when the resource
+	// also carries this estate's markers for an undeclared address.
+	Addr string `json:"addr,omitempty"`
 }
 
 type LivePlanAdoptable struct {
@@ -1241,7 +1286,12 @@ const statelessSweepIntro = `A classification is only as wide as the sweep behin
 
 const statelessRemovalIntro = `Each of these carries this estate's ownership marker for an address the configuration no longer declares. They are in the prior state this plan ran against, at the address their marker names, so the plan below proposes destroying them the same way it would destroy any resource whose configuration was deleted. Nothing unowned is here: a resource with no marker for this estate is never in the prior state and can never be planned for destruction.`
 
-const statelessControllerHeldIntro = `A controller made these, not a block: each carries Helm's release annotation, so it belongs to that release, and the estate's label on it came from the chart's values. They are never proposed for destruction and never offered for adoption. To stop listing them, take tofu-estate out of the chart's values; to own them, render the chart into kubernetes_manifest blocks. helm_release itself is refused in a live root.`
+const statelessControllerHeldIntro = `A controller made these from an object of its own, not a block, so they are controller-held: on AWS, a resource carrying ACK's or Crossplane's tags; on Kubernetes, an object carrying Helm's release annotation. This run never proposes destroying one and never offers one for adoption, whatever markers it carries. To change or remove one, change or remove the object that holds it.`
+
+// statelessControllerHeldHelm is added under the intro when a Helm release
+// holds any of them: the estate's label on such an object came from the
+// chart's values, and these are the two ways out.
+const statelessControllerHeldHelm = `An object a Helm release holds got this estate's label from the chart's values. To stop listing it, take tofu-estate out of the chart's values; to own it, render the chart into kubernetes_manifest blocks. helm_release itself is refused in a live root.`
 
 const statelessSweepGapIntro = `Finding a resource whose block was deleted means listing its type and reading the markers off what comes back, and these types could not be searched. This estate may own resources of them that no plan will propose destroying. An empty removal list is a statement about the types that were swept and about nothing else.`
 
@@ -1300,7 +1350,11 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 	case len(rep.Swept) > 0:
 		colored("\n[reset][bold]Foreign resources: none among the %d %s swept[reset]\n\n",
 			len(rep.Swept), noun(len(rep.Swept), "type", "types"))
-		wrapped("Every live resource of "+strings.Join(rep.Swept, ", ")+" carries an ownership marker. This is a statement about those types only.", 0)
+		if len(rep.ControllerHeld) > 0 {
+			wrapped("Every live resource of "+strings.Join(rep.Swept, ", ")+" carries an ownership marker or is controller-held (listed below). This is a statement about those types only.", 0)
+		} else {
+			wrapped("Every live resource of "+strings.Join(rep.Swept, ", ")+" carries an ownership marker. This is a statement about those types only.", 0)
+		}
 	default:
 		colored("\n[reset][bold]Foreign resources: nothing was swept[reset]\n\n")
 		wrapped("No resource type was listed in full during this run, so nothing is known about live resources that carry no ownership marker. This is not a report that there are none.", 0)
@@ -1362,13 +1416,26 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 	}
 
 	if len(rep.ControllerHeld) > 0 {
-		colored("\n[reset][bold]Controller-held: %d live %s %s this estate's label and %s not swept[reset]\n\n",
-			len(rep.ControllerHeld), noun(len(rep.ControllerHeld), "object", "objects"),
-			noun(len(rep.ControllerHeld), "carries", "carry"), noun(len(rep.ControllerHeld), "is", "are"))
+		colored("\n[reset][bold]Controller-held: %d live %s held by a controller, not a block[reset]\n\n",
+			len(rep.ControllerHeld), noun(len(rep.ControllerHeld), "resource", "resources"))
 		wrapped(statelessControllerHeldIntro, 0)
+		for _, h := range rep.ControllerHeld {
+			if h.Controller == "Helm" { // kubesweep.ControllerHelm, not imported into views
+				out("\n")
+				wrapped(statelessControllerHeldHelm, 0)
+				break
+			}
+		}
 		out("\n")
 		for _, h := range rep.ControllerHeld {
-			colored("  [bold]%s %s[reset] held by %s\n", h.Kind, h.ID, h.HeldBy)
+			what := h.TypeName
+			if h.Kind != "" {
+				what = h.Kind
+			}
+			colored("  [bold]%s %s[reset]%s held by %s\n", what, liveIDOrNone(h.LiveID), displaySuffix(h.DisplayName, h.LiveID), h.HeldBy)
+			if h.Addr != "" {
+				wrapped(fmt.Sprintf("carries this estate's marker for %s, which the configuration does not declare; not destroyed.", h.Addr), 6)
+			}
 		}
 	}
 

@@ -670,6 +670,11 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 
 	diags = diags.Append(classifyOrphans(ctx, req, schemas, res))
 
+	// Controller-held resources (GitHub issue #1606) leave the removal set
+	// and the unclaimed population here, before the parent-read legs below
+	// read res.Resolutions for removed parents.
+	applyControllerHeld(res)
+
 	// The three removal legs that read res.Resolutions rather than the tag
 	// sweep, all of them after bind and classifyOrphans: each needs to know
 	// which parent instances this pass resolved and which children are
