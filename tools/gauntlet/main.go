@@ -17,7 +17,7 @@
 //	go run ./tools/gauntlet notes <old.json> <new.json> # release-highlights markdown from a snapshot diff
 //	go run ./tools/gauntlet check                  # exit 1 if a rendered file is stale; always prints which rows predate their own estate script (#1264, reported, never fatal)
 //	go run ./tools/gauntlet estates [-set core|all] [-json] [name...] # the estates one CI run measures, from the manifest: the matrix the board is sharded over (#1550)
-//	go run ./tools/gauntlet combine-shards -shards <dir> [-set core|all | -estates 'a b'] # fold one shard-per-estate CI run back into one live/gauntlet.json (#1550)
+//	go run ./tools/gauntlet combine-shards -shards <dir> [-set core|all | -estates 'a b'] [-kind-image DIGEST] # fold one shard-per-estate CI run back into one live/gauntlet.json (#1550)
 //	go run ./tools/gauntlet merge-artifact <base> <ours> <theirs> # row-granular artifact merge across sibling estate PRs (#488)
 //	go run ./tools/gauntlet merge-rendered <path> <ours-file> # git merge driver for the rendered files: keep ours whole, re-render after (#1308)
 //	go run ./tools/gauntlet scale-backfill [rev...]  # regenerate live/gauntlet-scale.json (#1051) from live/gauntlet.json at HEAD and, optionally, past revisions
@@ -111,7 +111,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | live-cert-state <estate> [-commit SHA] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | estates [-set core|all] [-json] [name...] | combine-shards -shards <dir> [-set core|all] [-estates 'a b'] [-commit SHA] [-emulator DIGEST] [-out path] | merge-artifact <base> <ours> <theirs> | merge-rendered <path> <ours-file> | scale-backfill [rev...] | scale-import-slice [-estate name] <slice_out.json> | scale-patch-seconds -estate E -target T -scale N [-stage id=seconds]... [-note text] [-accounting-inconsistent] | backfill-stage-provenance [-n] | check")
+	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | live-cert-state <estate> [-commit SHA] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | estates [-set core|all] [-json] [name...] | combine-shards -shards <dir> [-set core|all] [-estates 'a b'] [-commit SHA] [-emulator DIGEST] [-kind-image DIGEST] [-out path] | merge-artifact <base> <ours> <theirs> | merge-rendered <path> <ours-file> | scale-backfill [rev...] | scale-import-slice [-estate name] <slice_out.json> | scale-patch-seconds -estate E -target T -scale N [-stage id=seconds]... [-note text] [-accounting-inconsistent] | backfill-stage-provenance [-n] | check")
 }
 
 // cmdNext prints the next unit(s) of work, deterministically, from the
@@ -1179,7 +1179,8 @@ func cmdCombineShards(root string, args []string, out io.Writer) error {
 	set := fs.String("set", "", "expect a shard for every estate in this set: core or all")
 	estates := fs.String("estates", "", "space-separated estate names this run measured; overrides -set")
 	commit := fs.String("commit", "", "the commit every shard must have measured (default: HEAD)")
-	emulator := fs.String("emulator", "", "the emulator digest every shard must have measured against (default: live/floci-image)")
+	emulator := fs.String("emulator", "", "the emulator digest every floci-substrate shard must have measured against (default: live/floci-image)")
+	kindImage := fs.String("kind-image", "", "the kind node image digest every kind-substrate shard must have measured against (default: live/kind-node-image)")
 	outPath := fs.String("out", "", "where to write the combined artifact (default: "+ArtifactPath+")")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -1211,6 +1212,9 @@ func cmdCombineShards(root string, args []string, out io.Writer) error {
 	if *emulator == "" {
 		*emulator = emulatorPin(root)
 	}
+	if *kindImage == "" {
+		*kindImage = kindNodeImagePin(root)
+	}
 	base, err := LoadArtifact(root)
 	if err != nil {
 		return err
@@ -1219,7 +1223,7 @@ func cmdCombineShards(root string, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	combined, err := CombineShards(root, base, shards, expect, *commit, *emulator)
+	combined, err := CombineShards(root, base, shards, expect, *commit, *emulator, *kindImage)
 	if err != nil {
 		return err
 	}

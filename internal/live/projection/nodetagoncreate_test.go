@@ -50,6 +50,13 @@ func tocRoster(t *testing.T) *registry.Roster {
 	return r
 }
 
+// tocFacts is [tocRoster] as the AWS family's entry in the run's facts,
+// where internal/command puts the embedded roster (GitHub issue #1708).
+func tocFacts(t *testing.T) substrate.Facts {
+	t.Helper()
+	return substrate.Facts{substrate.AWS.Name(): tocRoster(t)}
+}
+
 func tocSchema() providers.Schema {
 	return providers.Schema{Block: &configschema.Block{
 		Attributes: map[string]*configschema.Attribute{
@@ -113,7 +120,7 @@ func (f *fakeTagger) TagResources(_ context.Context, arns []string, tags map[str
 
 func tocResolver(t *testing.T, tagger *fakeTagger) *NodeResolver {
 	t.Helper()
-	n := &NodeResolver{Estate: "prod", Roster: tocRoster(t)}
+	n := &NodeResolver{Estate: "prod", Facts: tocFacts(t)}
 	if tagger != nil {
 		n.MarkerWriter = func(_ addrs.AbsProviderConfig, write substrate.Write) (MarkerWriter, error) {
 			tagger.writes = append(tagger.writes, write)
@@ -248,7 +255,7 @@ func TestWriteAppliedMarkers_writesTheWithheldMarkers(t *testing.T) {
 	ordinary := locatedTestAddr(t, "aws_ordinary_thing", "x")
 	_, _ = n.WriteAppliedMarkers(ctx, ordinary, tocProvider(), plans.Create, applied, tocSchema())
 	_, _ = n.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Update, applied, tocSchema())
-	noEstate := &NodeResolver{Roster: tocRoster(t), MarkerWriter: n.MarkerWriter}
+	noEstate := &NodeResolver{Facts: tocFacts(t), MarkerWriter: n.MarkerWriter}
 	_, _ = noEstate.WriteAppliedMarkers(ctx, after, tocProvider(), plans.Create, applied, tocSchema())
 	if len(tagger.calls) != 0 {
 		t.Errorf("a write was made where none was due: %v", tagger.calls)
@@ -516,8 +523,8 @@ func (bindingFamily) Writes(surface markers.Surface) substrate.Writes {
 	}
 	return substrate.Writes{}
 }
-func (bindingFamily) PostCreateNeeded(surface markers.Surface, typeName string, _ substrate.CreateTagFacts) (string, bool) {
-	if surface == bindingSurface && strings.HasPrefix(typeName, "graph_") {
+func (bindingFamily) PostCreateNeeded(surface markers.Surface, created substrate.Created, _ substrate.Facts) (string, bool) {
+	if typeName := created.Type(); surface == bindingSurface && strings.HasPrefix(typeName, "graph_") {
 		return typeName + " takes its marker as a binding after the create", true
 	}
 	return "", false
@@ -586,21 +593,22 @@ func TestWriteAppliedMarkers_aFamilyDeclaresItsOwnPostCreate(t *testing.T) {
 // projection did (the tag_on_create false type only, and only on the tags
 // surface), Kubernetes never, and the zero surface nothing.
 func TestPostCreateNeeded_eachFamilyAnswers(t *testing.T) {
-	r := tocRoster(t)
-	if why, ok := substrate.PostCreateNeeded(markers.SurfaceTags, "aws_after_thing", r); !ok || why != "AWS::After::Thing does not take tags in its create call (live/registry.json: tag_on_create false)" {
+	r := tocFacts(t)
+	created := func(typ string) substrate.Created { return substrate.Created{Addr: locatedTestAddr(t, typ, "x")} }
+	if why, ok := substrate.PostCreateNeeded(markers.SurfaceTags, created("aws_after_thing"), r); !ok || why != "AWS::After::Thing does not take tags in its create call (live/registry.json: tag_on_create false)" {
 		t.Errorf("aws_after_thing: %v %q", ok, why)
 	}
 	for _, typ := range []string{"aws_ordinary_thing", "aws_unmapped_thing"} {
-		if _, ok := substrate.PostCreateNeeded(markers.SurfaceTags, typ, r); ok {
+		if _, ok := substrate.PostCreateNeeded(markers.SurfaceTags, created(typ), r); ok {
 			t.Errorf("%s needs a post-create write, want the create-call path", typ)
 		}
 	}
 	var nilRoster *registry.Roster
-	if _, ok := substrate.PostCreateNeeded(markers.SurfaceTags, "aws_after_thing", nilRoster); ok {
+	if _, ok := substrate.PostCreateNeeded(markers.SurfaceTags, created("aws_after_thing"), substrate.Facts{substrate.AWS.Name(): nilRoster}); ok {
 		t.Error("a run with no roster needs a post-create write")
 	}
 	for _, surface := range []markers.Surface{markers.SurfaceLabels, markers.SurfaceManifest, ""} {
-		if _, ok := substrate.PostCreateNeeded(surface, "aws_after_thing", r); ok {
+		if _, ok := substrate.PostCreateNeeded(surface, created("aws_after_thing"), r); ok {
 			t.Errorf("surface %q needs a post-create write", surface)
 		}
 	}
@@ -639,14 +647,14 @@ func (widgetFamily) Writes(surface markers.Surface) substrate.Writes {
 	}
 	return substrate.Writes{}
 }
-func (widgetFamily) PostCreateNeeded(surface markers.Surface, typeName string, _ substrate.CreateTagFacts) (string, bool) {
+func (widgetFamily) PostCreateNeeded(surface markers.Surface, created substrate.Created, _ substrate.Facts) (string, bool) {
 	if surface == widgetSurface {
-		return typeName + " takes its marker as a widget binding after the create", true
+		return created.Type() + " takes its marker as a widget binding after the create", true
 	}
 	return "", false
 }
-func (widgetFamily) ManualMarkFix(typeName, arn string, want map[string]string, _ substrate.CreateTagFacts) string {
-	return fmt.Sprintf("Run: widgetctl adopt --type %s --arn %s --tags %s", typeName, arn, markers.TagsArgument(want))
+func (widgetFamily) ManualMarkFix(created substrate.Created, want map[string]string, _ substrate.Facts) string {
+	return fmt.Sprintf("Run: widgetctl adopt --type %s --arn %s --tags %s", created.Type(), appliedString(created.Object, "arn"), markers.TagsArgument(want))
 }
 
 // TestWriteAppliedMarkers_theFixHintIsTheFamilysAnswer (GitHub issue

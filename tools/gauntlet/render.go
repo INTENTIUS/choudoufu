@@ -90,7 +90,7 @@ func Render(root string, m *Manifest, a *Artifact, tt TypeIndexTotals, scale []b
 	}
 	// The board: every display value the site's progress pages need, as
 	// data. The pages themselves live in site/ and are never written here.
-	bb, err := buildBoard(m, a, st).Canonical()
+	bb, err := buildBoard(m, a, st, kindNodeImagePin(root)).Canonical()
 	if err != nil {
 		return nil, err
 	}

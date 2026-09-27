@@ -13,7 +13,6 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -170,14 +169,18 @@ type NodeResolver struct {
 	// exception").
 	PolicyUntag map[string]string
 
-	// Roster is live/mapping.json joined against live/registry.json
-	// (registry.Embedded in production), read for one fact: whether an
-	// instance's type can carry tags in its create call (GitHub issue
-	// #1084, [NodeResolver.postCreateNeeded], nodetagoncreate.go). Nil is
-	// an ordinary value - a run that could not parse the embedded
-	// artifacts - and reads as "every type takes tags at create", the
-	// path every type took before #1084.
-	Roster *registry.Roster
+	// Facts is what each provider family reads about types beyond their
+	// schemas, keyed by family ([substrate.Facts], GitHub issue #1708),
+	// injected once by the command layer. The post-create questions
+	// ([NodeResolver.postCreateNeeded], nodetagoncreate.go) hand it to the
+	// instance's family: AWS reads its entry, live/mapping.json joined
+	// against live/registry.json (registry.Embedded in production), for
+	// whether a type can carry tags in its create call (GitHub issue
+	// #1084). Nil, or no entry for a family, is an ordinary value - a run
+	// that could not parse the embedded artifacts - and reads as "every
+	// type takes its marker at create", the path every type took before
+	// #1084.
+	Facts substrate.Facts
 
 	// MarkerWriter builds the writer [NodeResolver.WriteAppliedMarkers] writes a
 	// withheld marker through, for the provider configuration the

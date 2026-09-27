@@ -773,9 +773,10 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		resolver.Estate = estate
 		resolver.Selection = identity.SelectionFor(config)
 		resolver.Slots = disco.SlotTable()
-		// GitHub issue #1084: the registry flag the create path keys on,
+		// GitHub issue #1084: the registry flag the create path keys on (the
+		// AWS family's facts, #1708),
 		// and the client the post-create marker write goes through.
-		resolver.Roster = markerRoster()
+		resolver.Facts = markerFacts()
 		resolver.MarkerWriter = provs.markerTagger
 	}
 
@@ -4424,11 +4425,10 @@ var sweepLegBuilders = map[substrate.Sweep]sweepLegBuilder{
 // statelessSweepLegs is one provider configuration's sweep legs and its
 // [discovery.Request.Sweep]: the leg its family's sweep is served by, or
 // [discovery.NoSweepLeg] when none is. A provider no family claims (known
-// false) keeps what every such pass ran before families existed, the AWS
-// legs with Sweep on, and no Cloud Control client (the caller's gate).
+// false) is [statelessProviders.unclaimedSweepLegs]'s.
 func (p *statelessProviders) statelessSweepLegs(ctx context.Context, sub substrate.Substrate, known bool, addr addrs.AbsProviderConfig) ([]discovery.Sweeper, bool, tfdiags.Diagnostics) {
 	if !known {
-		return []discovery.Sweeper{discovery.TaggingIndexSweep{}}, true, nil
+		return p.unclaimedSweepLegs(ctx, addr)
 	}
 	build, ok := sweepLegBuilders[sub.Sweep()]
 	if !ok {
@@ -4438,10 +4438,65 @@ func (p *statelessProviders) statelessSweepLegs(ctx context.Context, sub substra
 	if leg == nil {
 		// No leg could be built (the Kubernetes leg's cluster client, say):
 		// the builder's warning already says so, and the pass lists nothing
-		// through this family, exactly as a nil client always meant.
-		return nil, sweep, diags
+		// through this family, exactly as a nil client always meant. The
+		// list is empty rather than nil, which discovery would read as
+		// "the AWS legs" (GitHub issue #1707).
+		return []discovery.Sweeper{}, sweep, diags
 	}
 	return []discovery.Sweeper{leg}, sweep, diags
+}
+
+// unclaimedSweepLegs is the sweep for a provider configuration no family
+// claims (GitHub issue #1707): azurerm, google, helm, or the provider
+// blocks a record-only root falls back to. It used to get the AWS
+// tagging-index legs, which list the admission table's types through a
+// provider that serves none of them and file one TYPE_NOT_LISTABLE gap
+// per AWS type (1009 on the discovery fixture), all of them false.
+//
+// No leg lists such a provider's objects, so the answer is what its
+// schema says could need listing. The node stamp writes a marker onto any
+// type [substrate.SurfaceOf] answers for, whichever provider serves it,
+// so a schema with one such type gets [discovery.NoSweepLeg] naming the
+// provider: a deleted block of that type is a named gap, not an estate
+// with nothing to remove. A schema with none gets no leg at all, since
+// nothing it holds carries a marker to be found by. A schema that cannot
+// be read is treated as one that might, and gets the gap.
+//
+// Sweep stays on in both cases. It also gates the removal legs that read
+// the estate's record store and its resolved parents
+// ([discovery.Request.Sweep]), which belong to no family: a google-only
+// estate, or a root whose only resources are record-backed and whose pass
+// is its random or null provider block, finds its deleted blocks through
+// them and nothing else.
+func (p *statelessProviders) unclaimedSweepLegs(ctx context.Context, addr addrs.AbsProviderConfig) ([]discovery.Sweeper, bool, tfdiags.Diagnostics) {
+	if !p.mayCarryMarkers(ctx, addr.Provider) {
+		return []discovery.Sweeper{}, true, nil
+	}
+	return []discovery.Sweeper{discovery.NoSweepLeg{Family: addr.Provider.ForDisplay()}}, true, nil
+}
+
+// mayCarryMarkers reports whether provider's schema has a resource type
+// [substrate.SurfaceOf] answers for, which is every type the node stamp
+// writes a marker onto whatever provider serves it. A schema that cannot
+// be read answers true: the question is whether something might be
+// missed, and an unread schema cannot say nothing would be. It is the
+// question [statelessProviders.unclaimedSweepLegs] and live-ls's
+// not-listed warning both ask of a provider no family claims (GitHub
+// issue #1707).
+func (p *statelessProviders) mayCarryMarkers(ctx context.Context, provider addrs.Provider) bool {
+	if p.mgr == nil {
+		return true
+	}
+	schema, diags := p.mgr.GetProviderSchema(ctx, provider)
+	if diags.HasErrors() {
+		return true
+	}
+	for _, rs := range schema.ResourceTypes {
+		if _, ok := substrate.SurfaceOf(rs.Block); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // labelListLeg builds the Kubernetes estate sweep for one provider
