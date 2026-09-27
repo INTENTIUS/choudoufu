@@ -91,7 +91,7 @@ var surfaceSeamExemptions = map[string]surfaceSeamExemption{
 	"internal/live/liveimport/labels.go":                           {Handles: []Surface{SurfaceLabels}, Why: "the label carrier, reached only through ratifyOne's and stamp.go's surface dispatch"},
 	"internal/live/liveimport/manifest.go":                         {Handles: []Surface{SurfaceManifest}, Why: "the manifest carrier (#1109), reached only through ratifyOne's surface dispatch"},
 	"internal/live/liveimport/tags.go":                             {Handles: []Surface{SurfaceTags}, Why: "the tag carrier, reached only through ratifyOne's and stamp.go's surface dispatch"},
-	"internal/live/mv/label.go":                                    {Handles: []Surface{SurfaceLabels}, Why: "the label path, reached only when surfaceOf answered SurfaceLabel"},
+	"internal/live/mv/label.go":                                    {Handles: []Surface{SurfaceLabels}, Why: "the label path, reached only when relabels answered true for the surface surfaceOf read"},
 	"internal/live/mv/rewrite.go:mover.rewrite":                    {Handles: []Surface{SurfaceLabels, SurfaceTags}, Why: "mv.go refuses SurfaceManifest by name (SummaryManifestMoveUnsupported) before rewrite runs; #1104 replaces that refusal with the label patch"},
 	"internal/live/mv/mv.go:mover.locateByIdentity":                {Handles: []Surface{SurfaceLabels, SurfaceTags}, Why: "the manifest shape is refused by name in the same file before a locate runs (SummaryManifestMoveUnsupported); #1104 replaces that refusal"},
 	"internal/live/mv/rewrite.go:tagsFromObject":                   {Handles: []Surface{SurfaceTags}, Why: "the tag path's reader, reached only on SurfaceTags"},

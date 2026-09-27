@@ -15,11 +15,12 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/policy"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // GitHub issue #1108. [builder.checkOwnership] read one marker surface, the
-// AWS tag map, so [markerCapable] answered false for every Kubernetes type
+// AWS tag map, so the then markerCapable answered false for every Kubernetes type
 // and the switch admitted the live object before any label was read. A
 // declared block bound its object by natural key whether the object carried
 // this estate's label, another estate's, or none - so the plan proposed
@@ -30,7 +31,10 @@ import (
 // executed there at all.
 //
 // These tests are the regression. Every one of them is proved red by
-// restoring the tags-only body of [markerSurfaceOf]:
+// restoring the tags-only surface read it had then (since GitHub issue
+// #1584 the read is [substrate.OwnershipSurfaceOf], and the same body
+// restored as the AWS family's OwnershipSurfaceOf, with the Kubernetes
+// family's answering false, is the equivalent revert):
 //
 //	func markerSurfaceOf(block *configschema.Block) markerSurface {
 //		if block == nil {
@@ -145,18 +149,19 @@ func k8sConfigMapAddr(t *testing.T) addrs.AbsResourceInstance {
 func TestK8sOwnership_surfaceIsReadFromTheSchema(t *testing.T) {
 	for name, tc := range map[string]struct {
 		block *configschema.Block
-		want  markerSurface
+		want  markers.Surface
 	}{
-		"kubernetes_config_map": {configMapTypeSchema().Block, surfaceLabels},
-		"kubernetes_manifest":   {manifestTypeSchema().Block, surfaceManifest},
-		"aws taggable":          {fakeSchemas()["aws_cloudwatch_log_group"].Block, surfaceTags},
-		"nil":                   {nil, surfaceNone},
+		"kubernetes_config_map": {configMapTypeSchema().Block, markers.SurfaceLabels},
+		"kubernetes_manifest":   {manifestTypeSchema().Block, markers.SurfaceManifest},
+		"aws taggable":          {fakeSchemas()["aws_cloudwatch_log_group"].Block, markers.SurfaceTags},
+		"nil":                   {nil, ""},
 	} {
-		if got := markerSurfaceOf(tc.block); got != tc.want {
-			t.Errorf("%s: markerSurfaceOf = %d, want %d", name, got, tc.want)
+		got, ok := substrate.OwnershipSurfaceOf(tc.block)
+		if got != tc.want {
+			t.Errorf("%s: OwnershipSurfaceOf = %q, want %q", name, got, tc.want)
 		}
-		if got, want := markerCapable(tc.block), tc.want != surfaceNone; got != want {
-			t.Errorf("%s: markerCapable = %v, want %v", name, got, want)
+		if want := tc.want != ""; ok != want {
+			t.Errorf("%s: OwnershipSurfaceOf ok = %v, want %v", name, ok, want)
 		}
 	}
 }

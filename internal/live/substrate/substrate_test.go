@@ -46,9 +46,12 @@ func TestEverySubstrateAnswersEveryQuestion(t *testing.T) {
 			if CarriesAddress(surface) != s.CarriesAddress() {
 				t.Errorf("CarriesAddress(%q) disagrees with %s", surface, s.Name())
 			}
+			if CarrierPhrase(surface) == "" {
+				t.Errorf("%s surface %q has no carrier phrase, so a missing marker map on it would be reported without saying which map", s.Name(), surface)
+			}
 		}
 	}
-	if For("") != nil || CarriesAddress("") || WritesOf("") != (Writes{}) {
+	if For("") != nil || CarriesAddress("") || WritesOf("") != (Writes{}) || CreateCollidesOnKey("") || CarrierPhrase("") != "" {
 		t.Error("the zero Surface belongs to a family")
 	}
 	if _, ok := MarkersOf("", cty.EmptyObjectVal); ok {
@@ -169,6 +172,42 @@ func TestMarkersOfReadsEachSurface(t *testing.T) {
 		got, ok := MarkersOf(surface, obj)
 		if !ok || got[markers.TagEstate] != "e" {
 			t.Errorf("MarkersOf(%q) = %v, %v; want tofu-estate=e", surface, got, ok)
+		}
+	}
+}
+
+// TestSurfaceWording pins GitHub issue #1584's answers, which the
+// projection's own surface enum held before: the carrier each refusal names,
+// the one surface whose create collides on its key (#1546), and the
+// no-carrier sentence in each family's words.
+func TestSurfaceWording(t *testing.T) {
+	for surface, want := range map[markers.Surface]struct {
+		phrase   string
+		collides bool
+	}{
+		markers.SurfaceTags:     {"tags attribute", false},
+		markers.SurfaceLabels:   {"metadata.labels map", true},
+		markers.SurfaceManifest: {"manifest.metadata.labels map", false},
+	} {
+		if got := CarrierPhrase(surface); got != want.phrase {
+			t.Errorf("CarrierPhrase(%q) = %q, want %q", surface, got, want.phrase)
+		}
+		if got := CreateCollidesOnKey(surface); got != want.collides {
+			t.Errorf("CreateCollidesOnKey(%q) = %v, want %v", surface, got, want.collides)
+		}
+	}
+
+	block := &configschema.Block{Attributes: map[string]*configschema.Attribute{
+		"name": {Type: cty.String, Required: true},
+	}}
+	for provider, want := range map[string]string{
+		"aws":        "aws_thing has no tags map this configuration can set, so there is nowhere to carry an ownership marker.",
+		"kubernetes": "kubernetes_labels has no metadata.labels map and no manifest.metadata.labels map, so there is nowhere on it to carry an ownership marker.",
+		"google":     "google_thing is from a provider this fork has no marker surface for, so there is nowhere to carry an ownership marker.",
+	} {
+		typeName := map[string]string{"aws": "aws_thing", "kubernetes": "kubernetes_labels", "google": "google_thing"}[provider]
+		if got := NotACarrier(provider, block, typeName); got != want {
+			t.Errorf("NotACarrier(%q):\n got %q\nwant %q", provider, got, want)
 		}
 	}
 }
