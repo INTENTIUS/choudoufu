@@ -10,6 +10,7 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
@@ -72,9 +73,9 @@ func (kubernetes) MarkersOf(surface markers.Surface, obj cty.Value) (map[string]
 func (kubernetes) Writes(surface markers.Surface) Writes {
 	switch surface {
 	case markers.SurfaceLabels:
-		return Writes{Create: WriteInCreate, Adopt: WriteLabelsPlan}
+		return Writes{Create: WriteInCreate, Adopt: WriteLabelsPlan, PostCreate: WriteNeverNeeded}
 	case markers.SurfaceManifest:
-		return Writes{Create: WriteInCreate, Adopt: WriteAPIPatch}
+		return Writes{Create: WriteInCreate, Adopt: WriteAPIPatch, PostCreate: WriteNeverNeeded}
 	}
 	return Writes{}
 }
@@ -353,3 +354,9 @@ func (k kubernetes) NotACarrier(_ *configschema.Block, typeName string) string {
 		"%s has no %s and no %s, so there is nowhere on it to carry an ownership marker.",
 		typeName, k.CarrierPhrase(markers.SurfaceLabels), k.CarrierPhrase(markers.SurfaceManifest))
 }
+
+// ---- GitHub issue #1587: the post-create marker write ----
+
+// MarkerWriter is [WriteNeverNeeded]: the label rides the create call on
+// both surfaces, so there is nothing to write after it.
+func (kubernetes) MarkerWriter(addrs.AbsProviderConfig) Write { return WriteNeverNeeded }
