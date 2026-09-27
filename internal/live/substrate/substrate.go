@@ -168,6 +168,8 @@ type Substrate interface {
 	postCreateNeed
 	// postCreateFix is GitHub issue #1653's block, below.
 	postCreateFix
+	// createdPhrase is GitHub issue #1708's block, below.
+	createdPhrase
 	// markerCarrier is GitHub issue #1649's block, below.
 	markerCarrier
 
@@ -435,36 +437,33 @@ type markerWriting interface {
 // written after the create (a GCP tag binding, say) answers for its own
 // types.
 
-// CreateTagFacts is the registry read the AWS family answers from:
-// live/mapping.json's Terraform-to-CloudFormation join and
-// live/registry.json's tagging.tag_on_create. *internal/live/registry.Roster
-// implements it, nil included (every answer false). An interface so this
-// package stays below the registry.
-type CreateTagFacts interface {
-	CloudControlTypeOrService(tfType string) (string, bool)
-	TagsAfterCreate(cfnType string) bool
-}
-
-// postCreateNeed is the part of [Substrate] #1642 added.
+// postCreateNeed is the part of [Substrate] #1642 added. GitHub issue
+// #1708 replaced its AWS-shaped inputs (a type name and the registry read)
+// with the neutral [Created] and [Facts].
 type postCreateNeed interface {
-	// PostCreateNeeded reports whether a create of typeName, whose schema
+	// PostCreateNeeded reports whether a create of created, whose schema
 	// carries surface (one of this family's), cannot carry the marker in
 	// its create call, so the marker is withheld from the create and
 	// written once it returns through [Writes.PostCreate]. The reason is
 	// the sentence an operator reads when that write fails, naming the
-	// fact the answer came from; empty when the answer is false. facts may
-	// hold nothing for a family that does not read it.
-	PostCreateNeeded(surface markers.Surface, typeName string, facts CreateTagFacts) (reason string, needed bool)
+	// fact the answer came from; empty when the answer is false.
+	//
+	// It is asked twice for one instance, before the create (to withhold)
+	// and after it (to write), and the two answers must agree, so only
+	// created.Addr is set: the provider configuration and the object are
+	// not known on the create side. facts is the run's [Facts]; a family
+	// reads its own entry and nothing else.
+	PostCreateNeeded(surface markers.Surface, created Created, facts Facts) (reason string, needed bool)
 }
 
 // PostCreateNeeded is [Substrate.PostCreateNeeded] asked of surface's
 // family. False for the zero Surface.
-func PostCreateNeeded(surface markers.Surface, typeName string, facts CreateTagFacts) (string, bool) {
+func PostCreateNeeded(surface markers.Surface, created Created, facts Facts) (string, bool) {
 	s := For(surface)
 	if s == nil {
 		return "", false
 	}
-	return s.PostCreateNeeded(surface, typeName, facts)
+	return s.PostCreateNeeded(surface, created, facts)
 }
 
 // ---- GitHub issue #1653: the manual-mark hint is the family's answer ----
@@ -482,23 +481,27 @@ func PostCreateNeeded(surface markers.Surface, typeName string, facts CreateTagF
 // postCreateFix is the part of [Substrate] #1653 added.
 type postCreateFix interface {
 	// ManualMarkFix names the command or step an operator runs by hand to
-	// mark a created instance of typeName, once the post-create write
-	// ([Writes.PostCreate]) failed: the family's own manual remedy, given
-	// arn - the applied object's arn attribute, empty when it has none -
-	// and want, the markers the write was trying to set. facts is the
-	// same [CreateTagFacts] [Substrate.PostCreateNeeded] read, so AWS can
-	// still name the CloudFormation type when the object carries no arn.
-	ManualMarkFix(typeName, arn string, want map[string]string, facts CreateTagFacts) string
+	// mark created, once the post-create write ([Writes.PostCreate])
+	// failed: the family's own manual remedy, given want, the markers the
+	// write was trying to set. The family reads whatever it addresses the
+	// object by off created.Object itself (GitHub issue #1708), and facts
+	// is the same [Facts] [Substrate.PostCreateNeeded] read.
+	ManualMarkFix(created Created, want map[string]string, facts Facts) string
 }
 
 // ManualMarkFix is [Substrate.ManualMarkFix] asked of surface's family. A
 // surface with no family - the zero Surface, or one [For] does not
 // recognise - gets the generic sentence naming only the markers, since
 // there is no family to name a command for.
-func ManualMarkFix(surface markers.Surface, typeName, arn string, want map[string]string, facts CreateTagFacts) string {
+func ManualMarkFix(surface markers.Surface, created Created, want map[string]string, facts Facts) string {
 	if s := For(surface); s != nil {
-		return s.ManualMarkFix(typeName, arn, want, facts)
+		return s.ManualMarkFix(created, want, facts)
 	}
+	return genericMarkFix(want)
+}
+
+// genericMarkFix is the manual remedy that names only the markers.
+func genericMarkFix(want map[string]string) string {
 	return fmt.Sprintf("Mark it by hand with the markers %s, then plan again.", markers.TagsArgument(want))
 }
 
@@ -679,4 +682,82 @@ func ControllerHeld(ev HoldEvidence) (Hold, bool) {
 		}
 	}
 	return Hold{}, false
+}
+
+// ---- GitHub issue #1708: the post-create questions take neutral inputs ----
+//
+// Kept in its own block: several units of #1579 add methods to this file.
+//
+// #1642 and #1653 moved the post-create questions onto the families but
+// kept AWS's inputs on the shared interface: a CreateTagFacts parameter
+// whose two methods were live/mapping.json's CloudFormation join and
+// live/registry.json's tag_on_create, and an arn the shared node path
+// pulled off the applied object, which also phrased a failed object as
+// having "no arn and no id". Now every family is handed the same two
+// things - the created instance ([Created]) and the run's facts ([Facts]) -
+// and AWS reads its registry and its arn inside aws.go.
+
+// Created is the instance a post-create question or write is about: its
+// address, the provider configuration it was applied under, and the object
+// the provider returned. internal/live/projection's CreatedInstance, which
+// the post-create writer is handed, is this type.
+type Created struct {
+	Addr     addrs.AbsResourceInstance
+	Provider addrs.AbsProviderConfig
+	// Object is the object ApplyResourceChange returned; cty.NilVal where
+	// the question is asked before the create.
+	Object cty.Value
+}
+
+// Type is the created instance's resource type name.
+func (c Created) Type() string { return c.Addr.Resource.Resource.Type }
+
+// Facts is what the run knows about types beyond their schemas, keyed by
+// family [Substrate.Name] and built once per run by the command layer (for
+// AWS, the registry roster: see [AWSCreateTagFacts]). Each family reads
+// its own entry and asserts it to the shape it owns; an absent entry, a
+// nil one, or one of another shape reads as a family with no facts, which
+// is an ordinary state (a run whose embedded artifacts did not parse).
+type Facts map[string]any
+
+// Of is family's entry, or nil.
+func (f Facts) Of(family string) any { return f[family] }
+
+// createdPhrase is the part of [Substrate] #1708 added.
+type createdPhrase interface {
+	// CreatedObject names created's object for an operator, as the family
+	// addresses it: the words after "was created as" when its post-create
+	// write failed.
+	CreatedObject(created Created) string
+}
+
+// CreatedObject is [Substrate.CreatedObject] asked of surface's family. A
+// surface with no family gets the object's id, the one attribute every
+// provider's object has.
+func CreatedObject(surface markers.Surface, created Created) string {
+	if s := For(surface); s != nil {
+		return s.CreatedObject(created)
+	}
+	return idPhrase(created.Object)
+}
+
+// idPhrase is "[id=...]", or a sentence saying the object has no id.
+func idPhrase(obj cty.Value) string {
+	if id := objectString(obj, "id"); id != "" {
+		return fmt.Sprintf("[id=%s]", id)
+	}
+	return "an object with no id in what the provider returned"
+}
+
+// objectString reads one top-level string attribute off obj, or "" when
+// it is absent, null, unknown, marked or not a string.
+func objectString(obj cty.Value, name string) string {
+	if obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() || obj.IsMarked() || !obj.Type().IsObjectType() || !obj.Type().HasAttribute(name) {
+		return ""
+	}
+	v := obj.GetAttr(name)
+	if v.IsNull() || !v.IsKnown() || v.IsMarked() || v.Type() != cty.String {
+		return ""
+	}
+	return v.AsString()
 }

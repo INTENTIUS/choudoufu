@@ -205,9 +205,9 @@ func TestNodeResolver_AdjustConfigValue_awsShapeUnaffectedByLabelBranch(t *testi
 // asking it.
 type alwaysWithholdLabels struct{ substrate.Substrate }
 
-func (alwaysWithholdLabels) PostCreateNeeded(surface markers.Surface, typeName string, _ substrate.CreateTagFacts) (string, bool) {
+func (alwaysWithholdLabels) PostCreateNeeded(surface markers.Surface, created substrate.Created, _ substrate.Facts) (string, bool) {
 	if surface == markers.SurfaceLabels {
-		return typeName + " cannot carry its label at create in this fake family", true
+		return created.Type() + " cannot carry its label at create in this fake family", true
 	}
 	return "", false
 }

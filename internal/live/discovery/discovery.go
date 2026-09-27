@@ -166,10 +166,12 @@ type Request struct {
 	// path. The caller picks them by its substrate's [substrate.Sweep]
 	// property: [TaggingIndexSweep] for the AWS legs, [KubernetesSweep]
 	// for the label-selected cluster list (GitHub issue #1065), and
-	// [NoSweepLeg] for a family no leg serves, which files a named gap
-	// rather than sweeping nothing in silence. Empty means the one leg
-	// every caller before this field existed ran, [TaggingIndexSweep],
-	// which does nothing unless [Request.Sweep] is set. See sweeper.go.
+	// [NoSweepLeg] for a family no leg serves or a provider no family
+	// claims, which files a named gap rather than sweeping nothing in
+	// silence. Nil means the one leg every caller before this field
+	// existed ran, [TaggingIndexSweep], which does nothing unless
+	// [Request.Sweep] is set; an empty, non-nil list runs no leg at all
+	// (GitHub issue #1707). See sweeper.go.
 	Sweepers []Sweeper
 
 	// Region is the region to list in, passed to any list configuration

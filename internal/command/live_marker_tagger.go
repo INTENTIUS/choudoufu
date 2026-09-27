@@ -90,6 +90,19 @@ var markerWriters = map[substrate.Write]func(*statelessProviders, addrs.AbsProvi
 // parse failure is already reported where the sweep needs the same roster
 // (live_plan.go's "Cloud Control fallback unavailable"), so it is not
 // repeated here.
+// markerFacts is the per-family facts the node writer's post-create
+// questions read (GitHub issue #1708, [substrate.Facts]): the AWS family's
+// entry is [markerRoster]. It is built here, once per run, so the shared
+// node path never names the registry.
+func markerFacts() substrate.Facts {
+	return substrate.Facts{substrate.AWS.Name(): markerRoster()}
+}
+
+// The AWS family reads its [substrate.Facts] entry by type assertion, so a
+// renamed roster method would silently read as "no facts" rather than fail
+// to compile. This does.
+var _ substrate.AWSCreateTagFacts = (*registry.Roster)(nil)
+
 func markerRoster() *registry.Roster {
 	roster, err := registry.Embedded()
 	if err != nil {
