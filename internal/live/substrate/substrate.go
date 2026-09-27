@@ -136,8 +136,9 @@ type Substrate interface {
 	// block's evaluated configuration (ok false when the run holds none):
 	// nil with no error for a family whose sweep runs through the
 	// configured provider itself ([SweepTaggingIndex]), and the error for a
-	// block the client cannot be built from.
-	NewSweeper(providerConfig cty.Value, ok bool) (*kubesweep.Client, error)
+	// block the client cannot be built from. The client is a [Sweeper],
+	// never a family's concrete type (GitHub issue #1580).
+	NewSweeper(providerConfig cty.Value, ok bool) (Sweeper, error)
 
 	// surfaceWording is GitHub issue #1584's block, below.
 	surfaceWording
@@ -156,6 +157,30 @@ func ForProvider(providerType string) (Substrate, bool) {
 		}
 	}
 	return nil, false
+}
+
+// Sweeps reports whether providerType names a family whose own sweep leg
+// finds its objects independently of internal/live/identity's admission
+// table (GitHub issue #1581): a type belonging to such a family needs no
+// row there to be found again once its last block is removed.
+//
+// Only Kubernetes qualifies today ([SweepLabelList]): its leg lists every
+// kind the cluster serves and joins the result against the estate's
+// objects, drawing its universe from the provider and the cluster rather
+// than from the table. AWS's own sweep ([SweepTaggingIndex]) is that same
+// admission table read a different way, so a type with no row gets nothing
+// extra from it, and neither does an unregistered provider ForProvider
+// does not recognise at all.
+//
+// This is the question [internal/live/identity]'s no-orphan-recovery
+// warning needs, and it is asked by provider - the resource's own resolved
+// provider configuration, never by a type's schema shape. A type can share
+// a Kubernetes-shaped schema (an object-metadata block, say) with an
+// unrelated provider's type by coincidence; only the provider says which
+// sweep leg, if any, will actually look for it again.
+func Sweeps(providerType string) bool {
+	s, ok := ForProvider(providerType)
+	return ok && s.Sweep() == SweepLabelList
 }
 
 // For is the family a surface belongs to, or nil for the zero Surface.
@@ -235,6 +260,30 @@ func WritesOf(surface markers.Surface) Writes {
 	}
 	return s.Writes(surface)
 }
+
+// ---- GitHub issue #1580: the sweep client behind an interface ----
+//
+// Kept in its own block: several units of #1579 add methods to this file.
+
+// Sweeper is a family's estate-sweep client as [Substrate.NewSweeper]
+// builds it from the provider block. SweepKind is the sweep it serves,
+// its family's own [Substrate.Sweep]: internal/live/discovery pairs a
+// client with the leg that lists through it by that property, never by
+// the family's name, so a third family's client plugs in by naming a
+// sweep and a leg serving it.
+type Sweeper interface {
+	SweepKind() Sweep
+}
+
+// LabelListSweeper is the Kubernetes family's client: the cluster client
+// built from the provider block, whose methods it carries
+// (kubesweep.Sweeper, kubesweep.LabelPatcher).
+type LabelListSweeper struct {
+	*kubesweep.Client
+}
+
+// SweepKind is [SweepLabelList].
+func (LabelListSweeper) SweepKind() Sweep { return SweepLabelList }
 
 // ---- GitHub issue #1584: one surface enum ----
 //
