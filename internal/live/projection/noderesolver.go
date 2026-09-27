@@ -191,6 +191,14 @@ type NodeResolver struct {
 	// the command layer's reason, naming the write it could not serve.
 	Tagger func(provider addrs.AbsProviderConfig, write substrate.Write) (MarkerTagger, error)
 
+	// StaticRefusals is every instance the static evaluator refused
+	// before the #388 downgrade turned its refusal into a warning, keyed
+	// by [addrs.AbsResourceInstance.String], with the refusals themselves
+	// ([identity.InstanceRefusals]). The command layer sets it at the
+	// downgrade. Nil is ordinary: nothing was refused, or the run is not
+	// node-resolving. [NodeResolver.refuseAddresslessMarker] is its one
+	// reader (GitHub issue #1539).
+	StaticRefusals map[string]tfdiags.Diagnostics
 	// releases collects which of PolicyUntag's instances the writer
 	// actually released a key from, during the walk (GitHub issue #1002).
 	// Read it through [NodeResolver.UntagReleases]. It holds a mutex, so a
@@ -333,6 +341,14 @@ func (n *NodeResolver) ResolveResourceIdentity(ctx context.Context, addr addrs.A
 				return target, true, diags
 			}
 		}
+	}
+
+	// Nothing found, and the static evaluator refused this instance, on a
+	// marker surface that carries no address: the refusal stands (GitHub
+	// issue #1539). Ahead of every exemption below, because none of them
+	// can bind an object the marker cannot name.
+	if refusal := n.refuseAddresslessMarker(addr, schema); refusal != nil {
+		return providers.ImportTarget{}, false, diags.Append(refusal)
 	}
 
 	// Nothing found. Ruling 4 (#365) governs exactly ONE shape of absence,
