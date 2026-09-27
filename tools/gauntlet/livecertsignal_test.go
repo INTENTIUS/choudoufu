@@ -342,6 +342,68 @@ func runLogText(t *testing.T, root, estate string) string {
 
 // ── the orphan ──────────────────────────────────────────────────────────
 
+// TestOrphanDetectionSurvivesALateStartedSupervisorGoroutine is #1618's
+// reproduction of the hosted-runner failure, without needing a starved
+// machine or a real orphaned process to hit it.
+//
+// TestOrphanedLiveCertRunTearsItselfDown failed once on a hosted runner
+// (2026-09-27, PR #1609's `fast` job, which touches nothing under
+// tools/gauntlet): the orphaned supervisor survived the test's full 90s
+// bound and the run record still read state="running", signal="".
+//
+// The cause: the supervisor's poll loop watches for a TRANSITION - its own
+// ppid moving from something else to 1 - and the "something else" baseline
+// used to be read as the very first statement of the goroutine
+// superviseLiveCert runs on. A goroutine carries no promise about when it
+// first executes. If it is scheduled late enough that its own first read of
+// "what is my parent right now" already sees the post-orphan world (which
+// ambient load from every OTHER package's tests competing for the same
+// cores is enough to cause once in a while), the baseline it records is
+// already 1, "moved from something else to 1" can never be true again, and
+// the run is orphaned forever as far as this process is concerned.
+//
+// This reproduces that exact shape deterministically: currentPPID is made
+// to answer 1 from the very first call, standing in for a goroutine that
+// only gets to run after the real reparenting already happened, and
+// StartPPID carries 4242, standing in for the value a caller captured
+// EARLIER, at the one point in RunLiveCert where the wrapper is provably
+// still alive (immediately after cmd.Start(), before this goroutine exists
+// at all). The two disagreeing - StartPPID says "not yet orphaned when I
+// was captured", currentPPID says "orphaned now" - is exactly what an
+// orphaning-during-goroutine-startup looks like, and the fix (StartPPID
+// captured by the caller rather than read lazily in here) is what makes
+// that still detectable.
+func TestOrphanDetectionSurvivesALateStartedSupervisorGoroutine(t *testing.T) {
+	old := currentPPID
+	t.Cleanup(func() { currentPPID = old })
+	currentPPID = func() int { return 1 }
+
+	s := &liveCertSupervisor{}
+	done := make(chan struct{})
+	defer close(done)
+	go superviseLiveCert(s, superviseOpts{
+		PGID:      99999, // not a real group; signalling it is a no-op error this test ignores
+		StartPPID: 4242,  // captured "earlier", before the simulated race window
+		Sigc:      make(chan os.Signal),
+		Done:      done,
+		Tick:      time.Hour,
+		Say:       func(string, ...any) {},
+		OnStop:    func(string) {},
+	})
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if signalled, signal, _ := s.Report(); signalled {
+			if signal != "orphaned" {
+				t.Fatalf("stop reason = %q, want %q", signal, "orphaned")
+			}
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("superviseLiveCert never noticed the orphaning within 5s: currentPPID() has read 1 since before this goroutine's first tick, and StartPPID=4242 says the process was NOT already orphaned when the caller captured it - the two disagreeing IS the orphan (#1618). If this fails, the ppid baseline is being read late again, inside the goroutine, instead of being handed in from RunLiveCert.")
+}
+
 // orphanHelperEnv makes this test binary run one supervised live-cert instead
 // of a test suite, so the orphaning can be done to a real process. Re-exec of
 // the test binary is the standard way to get a second process without

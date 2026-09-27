@@ -2513,6 +2513,7 @@ refused, and each says so in its own entry.
 | - | - | discovery | Kubernetes dry run unavailable | warning | `internal/live/discovery` | "Kubernetes dry run unavailable" |
 | - | - | discovery | Kubernetes kind could not be verified | warning | `internal/live/discovery` | "Kubernetes kind could not be verified" |
 | - | - | discovery | Kubernetes kind not served by the cluster | error | `internal/live/discovery` | "Kubernetes kind not served by the cluster" |
+| - | - | discovery | Kubernetes sweep denied | warning | `internal/live/discovery` | "Kubernetes sweep denied" |
 | - | - | discovery | Kubernetes sweep unavailable | warning | `internal/live/discovery` | "Kubernetes sweep unavailable" |
 | - | - | discovery | Listed resource matched more than one tagged resource | error | `internal/live/discovery` | "Listed resource matched more than one tagged resource" |
 | - | - | discovery | Listed resource with no identity | error | `internal/live/discovery` | "Listed resource with no identity" |
@@ -2716,7 +2717,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**249 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**250 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -3053,6 +3054,14 @@ reserved for the limits wing's fixture directories, and
 #### Kubernetes kind not served by the cluster
 
 **What.** A kubernetes_manifest block names an apiVersion and kind the cluster does not serve - the CustomResourceDefinition is not installed, or is served at another version (GitHub issue #1079's fourth ruling). Refused by name at the plan's first cluster contact, naming the block, the kind, the apiVersion and the CRD that would have to be installed, ahead of the provider's own error when it asks the cluster for a schema it has not got. live-check, which is offline, cannot ask the cluster and does not raise it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Kubernetes sweep denied
+
+**What.** The Kubernetes leg of the estate sweep (GitHub issue #1065) could list the cluster, but its list call was refused by RBAC for one or more kinds - the identity running this estate lacks `list` on that kind (GitHub issue #1582), the Kubernetes counterpart of AWS's AccessDeniedException grouping under "Incomplete sweep for undeclared resources". Reported once for the whole run, naming the count of denied kinds, the first five and the verb, resource and scope (cluster-wide or one namespace) the server's own message named for each, with every denied kind logged the same way at TF_LOG=WARN. The plan still runs; a resource of a denied kind that this estate owns but no longer declares is not proposed for removal until the grant is fixed and a run can list it. A list call that fails for any other reason stays a LIST_FAILED sweep gap with no warning of its own, exactly as before this ruling.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
@@ -4920,14 +4929,23 @@ every case, which is the half of `computed_fields` that matters most:
 `aws_workspacesweb_user_settings_association`, `aws_xray_encryption_config`,
 `aws_xray_resource_policy`, `aws_xray_trace_segment_destination`,
 `kubernetes_cluster_role_binding`, `kubernetes_config_map`,
-`kubernetes_namespace` and `kubernetes_storage_class`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
-has nothing to search on for any of them. Their identity is built from
-their own configuration, which is a problem the moment a resource block is
-removed rather than destroyed: with no marker to search on and no
-configuration left to build the identity from, deleting the resource block
-looks indistinguishable from the resource never having existed. Issue #60
-is the two ways this fork closes that gap, and the residue left once both
-are applied.
+`kubernetes_namespace` and `kubernetes_storage_class`<!-- survey-gen:end untaggable-admitted --> carry no tags argument - the AWS-shaped test this roster runs. For the AWS
+types above that means no marker-based sweep has anything to search on:
+their identity is built from their own configuration, which is a problem
+the moment a resource block is removed rather than destroyed. With no
+marker to search on and no configuration left to build the identity from,
+deleting the resource block looks indistinguishable from the resource
+never having existed. Issue #60 is the two ways this fork closes that gap
+for them, and the residue left once both are applied.
+
+The four Kubernetes types are a different case, not a genuinely markerless
+one: `hashicorp/kubernetes` has no `tags` argument on any type, but these
+four carry a settable `metadata.labels` map, this substrate's own marker
+(`markers.LabelSurface`, issue #1016/#1061), and the ordinary Kubernetes
+estate sweep already finds them by their `tofu-estate` label. They appear
+in this roster only because "carries no `tags` argument" is the test it
+runs, not because nothing marks them - see issue #1600's ruling (tier A
+reads the substrate's own marker: tags on AWS, labels on Kubernetes).
 
 **Some are swept via a parent read instead (issue #60).** An untaggable
 type whose identity is composed from an admitted, taggable parent's own
@@ -5275,12 +5293,19 @@ Classic and WAF Classic Regional match-set entries are a third shape: they
 carry no `tags` argument in the pinned v6.59.0 provider (only the rules and
 web ACLs of those two services do), and their identity is a bare
 server-minted id with no parent argument in it, so neither path reaches
-them. For these,
+them. For these AWS entries,
 issue #60 changes nothing: destroy the resource before removing its block,
 or delete it out of band. Every plan still names this narrower list under
 "Not swept for removal". The parent-readable set above is reported there
 too when it is report-only, and left out of it entirely on the one row this
 pass also removes.
+
+The four Kubernetes types are not really residue: as the untaggable-admitted
+entry above says, they carry `hashicorp/kubernetes`'s own marker
+(`metadata.labels`) and the ordinary Kubernetes estate sweep already finds
+them by it. They land in this roster only because "neither taggable nor
+parent-readable" is the AWS-shaped test this partition runs; issue #60's
+destroy-or-delete-out-of-band prescription is not needed for them.
 
 **An import-derived prior state cannot hold config-only attributes, unless
 an estate declares a `record_store`.** A provider attribute that the cloud

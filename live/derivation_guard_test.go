@@ -363,8 +363,14 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"identity.LocatedType's bare-id fallback needs and this generator's other two static proxies " +
 			"(identity.NotImportable, identity.IDNotProvenWholeTypes) cannot see. Same shape as this file's own " +
 			"harness.SanctionedCredentialExclusions entry: a live-schema fact readiness-gen's committed inputs " +
-			"cannot derive, named rather than guessed at.",
-		Data: 3, Code: 0,
+			"cannot derive, named rather than guessed at. Plus, since issue #1600: kubernetesAwaitingRuling's four " +
+			"names (kubernetes_cluster_role_binding, kubernetes_config_map, kubernetes_namespace, " +
+			"kubernetes_storage_class) - every admitted Kubernetes-provider type today, none of which this " +
+			"generator's AWS-only inputs (live/survey-full.json) carry a row for. It is not a taggability answer " +
+			"this fork could compute and chose not to; it is a maintainer ruling still pending (the decision " +
+			"package on #1600) over which of the four tiers this substrate's own label-surface marker maps to. " +
+			"The ledger shrinks only as a ruling resolves a member into a real tier.",
+		Data: 7, Code: 0,
 	},
 
 	// ---- the cohort roster --------------------------------------------
@@ -677,7 +683,16 @@ const (
 	// survey's taggable and list_resource signals and the roster's
 	// EnumerationSource. The hand half is one operation/input pair,
 	// iam:ListRoles/PathPrefix, and the reserved path it names.
-	typeLiteralDataTotal = 1178
+	// 1178 -> 1182 data, code unchanged at 131, on 2026-09-26 (issue #1600):
+	// tools/readiness-gen/build.go's new kubernetesAwaitingRuling registers
+	// four table literals, the whole current roster of admitted
+	// Kubernetes-provider types. Code did not move: classifyNonAWS branches
+	// on the map, not on any type name in its own control flow. Membership
+	// is not derivable from this generator's other committed inputs
+	// (live/survey-full.json is AWS-only) and is not a taggability answer
+	// this fork could compute either way - it is a maintainer ruling still
+	// open on #1600 over which tier the Kubernetes label surface maps to.
+	typeLiteralDataTotal = 1182
 	typeLiteralCodeTotal = 131
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
