@@ -355,3 +355,26 @@ func (kubernetes) MarkerWriter(addrs.AbsProviderConfig) Write { return WriteNeve
 func (kubernetes) PostCreateNeeded(markers.Surface, string, CreateTagFacts) (string, bool) {
 	return "", false
 }
+
+// ---- GitHub issue #1649: the carrier's wholly-known read ----
+
+// CarrierPaths: metadata[0].labels, and manifest.metadata.labels. The label
+// map alone, never the whole metadata block: a planned object's
+// resource_version or generation can be unknown while its labels are not.
+func (kubernetes) CarrierPaths(surface markers.Surface) []cty.Path {
+	switch surface {
+	case markers.SurfaceLabels:
+		return []cty.Path{cty.GetAttrPath(markers.LabelSurfaceBlock).IndexInt(0).GetAttr(markers.LabelSurfaceAttr)}
+	case markers.SurfaceManifest:
+		return []cty.Path{cty.GetAttrPath(markers.ManifestSurfaceAttr).GetAttr(markers.LabelSurfaceBlock).GetAttr(markers.LabelSurfaceAttr)}
+	}
+	return nil
+}
+
+func (kubernetes) MarkerNoun(surface markers.Surface) string {
+	switch surface {
+	case markers.SurfaceLabels, markers.SurfaceManifest:
+		return "label"
+	}
+	return ""
+}

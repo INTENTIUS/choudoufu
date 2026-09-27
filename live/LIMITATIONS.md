@@ -2783,7 +2783,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Unmarked apply of a marker-only resource
 
-**What.** Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the warning above - "Ownership markers not stamped" - because applying this one unmarked would create a live object no later run could recognise as this estate's. Fires at two seams that answer the identical question from the same schema predicate (markers.Taggable): as a plan-time error, before a plan is ever approved (internal/command's live_plan.go and live_mode.go - GitHub issue #950, the node-path equivalent of the HCL-rewriting stamp's own plan-time refusal, which issue #644/#944 retired with no replacement until #950 restored one), and as this same finding in the offline `choudoufu live-check` report (internal/live/check's NodeStampUnmarkedApply, issue #454's port), for a configuration nobody has planned yet. A needs-discovery instance whose estate record already holds an identity (issue #364) is exempt from the plan-time form, and so is one this run's -target/-exclude leaves out of the plan graph (issue #1203), since that block will not be applied at all.
+**What.** Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the warning above - "Ownership markers not stamped" - because applying this one unmarked would create a live object no later run could recognise as this estate's. Fires at two seams that answer the identical question from the same schema predicate (markers.Taggable): as a plan-time error, before a plan is ever approved (internal/command's live_plan.go and live_mode.go - GitHub issue #950, the node-path equivalent of the HCL-rewriting stamp's own plan-time refusal, which issue #644/#944 retired with no replacement until #950 restored one), and as this same finding in the offline `choudoufu live-check` report (internal/live/check's NodeStampUnmarkedApply, issue #454's port), for a configuration nobody has planned yet. A needs-discovery instance whose estate record already holds an identity (issue #364) is exempt from the plan-time form, and so is one this run's -target/-exclude leaves out of the plan graph (issue #1203), since that block will not be applied at all. Since issue #1637 (ruled 2026-09-27) the plan-time form also steps aside when this run's record store is writable and the type's identity is one the apply can record: the apply writes that record, and later runs find the object by it. Writability is proved by a write (the store's sentinel is rewritten unchanged), so a store this run may only read, or no store at all, still refuses. The offline report has no store and still reports every site.
 
 **Where.** The stamp pass, raised by `internal/live/stamp`.
 
@@ -4929,14 +4929,23 @@ every case, which is the half of `computed_fields` that matters most:
 `aws_workspacesweb_user_settings_association`, `aws_xray_encryption_config`,
 `aws_xray_resource_policy`, `aws_xray_trace_segment_destination`,
 `kubernetes_cluster_role_binding`, `kubernetes_config_map`,
-`kubernetes_namespace` and `kubernetes_storage_class`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
-has nothing to search on for any of them. Their identity is built from
-their own configuration, which is a problem the moment a resource block is
-removed rather than destroyed: with no marker to search on and no
-configuration left to build the identity from, deleting the resource block
-looks indistinguishable from the resource never having existed. Issue #60
-is the two ways this fork closes that gap, and the residue left once both
-are applied.
+`kubernetes_namespace` and `kubernetes_storage_class`<!-- survey-gen:end untaggable-admitted --> carry no tags argument - the AWS-shaped test this roster runs. For the AWS
+types above that means no marker-based sweep has anything to search on:
+their identity is built from their own configuration, which is a problem
+the moment a resource block is removed rather than destroyed. With no
+marker to search on and no configuration left to build the identity from,
+deleting the resource block looks indistinguishable from the resource
+never having existed. Issue #60 is the two ways this fork closes that gap
+for them, and the residue left once both are applied.
+
+The four Kubernetes types are a different case, not a genuinely markerless
+one: `hashicorp/kubernetes` has no `tags` argument on any type, but these
+four carry a settable `metadata.labels` map, this substrate's own marker
+(`markers.LabelSurface`, issue #1016/#1061), and the ordinary Kubernetes
+estate sweep already finds them by their `tofu-estate` label. They appear
+in this roster only because "carries no `tags` argument" is the test it
+runs, not because nothing marks them - see issue #1600's ruling (tier A
+reads the substrate's own marker: tags on AWS, labels on Kubernetes).
 
 **Some are swept via a parent read instead (issue #60).** An untaggable
 type whose identity is composed from an admitted, taggable parent's own
@@ -5284,12 +5293,19 @@ Classic and WAF Classic Regional match-set entries are a third shape: they
 carry no `tags` argument in the pinned v6.59.0 provider (only the rules and
 web ACLs of those two services do), and their identity is a bare
 server-minted id with no parent argument in it, so neither path reaches
-them. For these,
+them. For these AWS entries,
 issue #60 changes nothing: destroy the resource before removing its block,
 or delete it out of band. Every plan still names this narrower list under
 "Not swept for removal". The parent-readable set above is reported there
 too when it is report-only, and left out of it entirely on the one row this
 pass also removes.
+
+The four Kubernetes types are not really residue: as the untaggable-admitted
+entry above says, they carry `hashicorp/kubernetes`'s own marker
+(`metadata.labels`) and the ordinary Kubernetes estate sweep already finds
+them by it. They land in this roster only because "neither taggable nor
+parent-readable" is the AWS-shaped test this partition runs; issue #60's
+destroy-or-delete-out-of-band prescription is not needed for them.
 
 **An import-derived prior state cannot hold config-only attributes, unless
 an estate declares a `record_store`.** A provider attribute that the cloud

@@ -144,6 +144,14 @@ const (
 	StatusExcluded            = "excluded"
 )
 
+// StatusAwaitingRuling is a seventh status, used only on [Substrate] rows
+// (issue #1600), never inside [Artifact.Types] or [Artifact.Counts]: it
+// marks an admitted non-AWS-provider type this generator does not yet tier,
+// pending the maintainer's ruling that decides which of the four tiers its
+// substrate's own marker mechanism maps to. See [kubernetesAwaitingRuling]'s
+// doc comment for why the answer is not mechanical.
+const StatusAwaitingRuling = "awaiting-ruling"
+
 // Committed artifact paths, repo-relative.
 const (
 	SurveyFullJSONRel = "live/survey-full.json"
@@ -205,6 +213,28 @@ type Artifact struct {
 	ProviderVersion string `json:"provider_version"`
 	Counts          Counts `json:"counts"`
 	Types           []Row  `json:"types"`
+
+	// Kubernetes is issue #1600's addition: every admitted non-AWS-provider
+	// type ([identity.TypeIdentity.NonAWSProvider]), classified by the same
+	// generator and the same tier/status vocabulary above wherever a ruling
+	// has settled one, and carrying [StatusAwaitingRuling] where it has not.
+	// A separate field rather than folded into Types/Counts, deliberately:
+	// TestPartitionGuard and live/readiness_docs_pin_test.go both hold
+	// Types/Counts to a strict one-row-per-live/survey-full.json-type
+	// invariant that predates any second provider, and a Kubernetes type has
+	// no row in that AWS-only, CloudFormation-registry-backed artifact to be
+	// counted against.
+	Kubernetes Substrate `json:"kubernetes"`
+}
+
+// Substrate is one non-AWS provider's admitted types and their readiness
+// verdicts (issue #1600). Its own Counts mirror [Counts] but are never
+// added into [Artifact.Counts]: the two providers' rosters do not share a
+// survey artifact to be partitioned against, so nothing sums them today.
+type Substrate struct {
+	Provider string `json:"provider"`
+	Counts   Counts `json:"counts"`
+	Types    []Row  `json:"types"`
 }
 
 // Counts is the partition summary: every type sorted into exactly one tier
@@ -267,6 +297,16 @@ type Facts struct {
 	// TierD is whether harness.SanctionedCredentialExclusions names the
 	// type - the maintainer's hand ruling, not a derived signal.
 	TierD bool `json:"tier_d"`
+
+	// LabelSurface is set only on a [Substrate] row (issue #1600/#1630):
+	// whether the type carries its substrate's marker read as
+	// substrate-native rather than literally as an AWS tags argument -
+	// markers.LabelSurface for Kubernetes today. It is the Kubernetes
+	// sibling of Taggable above, and the fact the 2026-09-27 ruling on
+	// #1600 turns on: tier A reads the substrate's own marker (tags on
+	// AWS, labels on Kubernetes), not "carries a tags argument" applied
+	// literally to a provider that has never had one.
+	LabelSurface bool `json:"label_surface,omitempty"`
 
 	// Rejected is whether tools/row-gen/rejected.json carries an entry for
 	// the type, and RejectedReason is its free-text reason when it has one
@@ -426,13 +466,136 @@ func Build(root string) (Artifact, error) {
 		counts.Statuses[r.Status]++
 	}
 
+	kubernetes, err := buildKubernetesSubstrate(tierD)
+	if err != nil {
+		return Artifact{}, err
+	}
+
 	return Artifact{
 		GeneratedBy:     GeneratedBy,
 		Provider:        survey.Provider,
 		ProviderVersion: survey.ProviderVersion,
 		Counts:          counts,
 		Types:           rows,
+		Kubernetes:      kubernetes,
 	}, nil
+}
+
+// KubernetesProviderVersion is the hashicorp/kubernetes release every
+// NonAWSProvider ratified row and doc comment in internal/live/identity and
+// internal/live/markers cites as last-verified (metadata.go, labels.go): no
+// artifact in this tree pins it the way live/survey-full.json's own header
+// pins the AWS provider's version, because the offline doc cache this
+// generator's other inputs read from has no Kubernetes provider data at all.
+const KubernetesProviderVersion = "3.2.1"
+
+// kubernetesAwaitingRuling names every admitted Kubernetes-provider type
+// ([identity.TypeIdentity.NonAWSProvider]) this generator does not yet
+// tier, and is issue #1600's explicit, checked exemption from
+// TestEveryAdmittedTypeHasATierOrIsAwaitingRuling below. Empty today - see
+// [kubernetesLabelSurfaceTypes] for the four types that used to be the
+// whole population here - but kept, rather than deleted, as the seam a
+// future NonAWSProvider type this generator genuinely cannot tier yet
+// lands in.
+//
+// Why a ledger and not a mechanical answer, historically: the tier
+// definitions (#417) fix tier A by one AWS-shaped test - "the schema
+// carries a settable top-level tags argument" (markers.TagSurface) - and no
+// hashicorp/kubernetes type has ever had one, so applying that test
+// literally would place every Kubernetes type in tier B or C regardless of
+// how it actually recovers. #1016/#1061 (landed 2026-09-11) gave this
+// substrate its own marker, metadata.labels
+// (internal/live/markers.LabelSurface); the maintainer ruled 2026-09-27 on
+// #1600 that tier A reads that marker read as substrate-native (tags on
+// AWS, labels on Kubernetes), contingent on #1630 confirming LabelSurface
+// against the real provider schema - which it did, so the four types this
+// map used to hold now live in [kubernetesLabelSurfaceTypes] instead.
+//
+// Shrinks only as a ruling resolves a type into a real tier; grows only for
+// a type table.go itself marks NonAWSProvider, which
+// buildKubernetesSubstrate below enforces the same way tierD's membership is
+// enforced against harness.SanctionedCredentialExclusions.
+var kubernetesAwaitingRuling = map[string]bool{}
+
+// kubernetesLabelSurfaceTypes names every admitted Kubernetes-provider type
+// the 2026-09-27 ruling on #1600 resolved into tier A, marker-carried,
+// in-contract: its identity is recoverable from its substrate's own marker,
+// read as substrate-native rather than literally as an AWS tags argument.
+//
+// Confirmed against the real hashicorp/kubernetes 3.2.1 schema for issue
+// #1630, 2026-09-26, via internal/live/pluginschema.ResourceTypes against
+// the warm plugin cache (InitBin "terraform", no network): every one of
+// these four types has markers.LabelSurface true and markers.TagSurface
+// false, out of 81 resource types total in that schema pull. That is
+// stronger evidence than build.go used to have - internal/live/identity's
+// ObjectMetaShape admission convention requiring a settable "labels" map
+// was circumstantial; this is the schema itself, read the same way
+// TestLocatedTypePopulation (internal/live/identity/located_test.go) reads
+// hashicorp/aws for the AWS side of this generator.
+//
+// Grows only when a ruling resolves a further Kubernetes type into tier A
+// the same way; classifyNonAWS checks tierD and this map before falling
+// back to [kubernetesAwaitingRuling], so a type here always outranks a
+// stale awaiting-ruling entry.
+var kubernetesLabelSurfaceTypes = map[string]bool{
+	"kubernetes_cluster_role_binding": true,
+	"kubernetes_config_map":           true,
+	"kubernetes_namespace":            true,
+	"kubernetes_storage_class":        true,
+}
+
+// classifyNonAWS builds one admitted non-AWS-provider type's row. Tier D is
+// checked first, exactly as classify's rule 1 does for AWS, so the
+// precedence is identical across substrates even though no Kubernetes type
+// is on that ledger today. A type that is neither tier D, nor named in
+// [kubernetesLabelSurfaceTypes], nor named in [kubernetesAwaitingRuling] has
+// no rule this generator can apply to it, so this returns an error rather
+// than guessing - the guard TestEveryAdmittedTypeHasATierOrIsAwaitingRuling
+// exists to make that error reachable from a real Build() the moment a new
+// NonAWSProvider type is admitted without updating either this function or
+// a ledger.
+func classifyNonAWS(typeName string, tierD map[string]bool) (Row, error) {
+	facts := Facts{Admitted: true, TierD: tierD[typeName]}
+	if facts.TierD {
+		return Row{Type: typeName, Tier: TierExcludedByDesign, Status: StatusExcluded, Facts: facts}, nil
+	}
+	if kubernetesLabelSurfaceTypes[typeName] {
+		facts.LabelSurface = true
+		return Row{Type: typeName, Tier: TierMarkerCarried, Status: StatusInContract, Facts: facts}, nil
+	}
+	if kubernetesAwaitingRuling[typeName] {
+		return Row{Type: typeName, Tier: "", Status: StatusAwaitingRuling, Facts: facts}, nil
+	}
+	return Row{}, fmt.Errorf(
+		"%s is an admitted non-AWS-provider type with no tier rule, no kubernetesLabelSurfaceTypes entry and no "+
+			"kubernetesAwaitingRuling entry; classify it in classifyNonAWS or add it to a ledger with a reason (issue #1600)", typeName)
+}
+
+// buildKubernetesSubstrate classifies every admitted Kubernetes-provider
+// type ([identity.TypeIdentity.NonAWSProvider]), sorted, the same way Build
+// classifies AWS's from live/survey-full.json - see [Artifact.Kubernetes]
+// for why the result is a separate field rather than folded into Types.
+func buildKubernetesSubstrate(tierD map[string]bool) (Substrate, error) {
+	var rows []Row
+	for _, typeName := range identity.AdmittedTypes() {
+		entry, ok := identity.LookupType(typeName)
+		if !ok || !entry.NonAWSProvider {
+			continue
+		}
+		row, err := classifyNonAWS(typeName, tierD)
+		if err != nil {
+			return Substrate{}, err
+		}
+		rows = append(rows, row)
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Type < rows[j].Type })
+
+	counts := Counts{Types: len(rows), Tiers: map[string]int{}, Statuses: map[string]int{}}
+	for _, r := range rows {
+		counts.Tiers[r.Tier]++
+		counts.Statuses[r.Status]++
+	}
+	return Substrate{Provider: "hashicorp/kubernetes " + KubernetesProviderVersion, Counts: counts, Types: rows}, nil
 }
 
 // classify is the whole tier/status rule, applied to one type. Precedence,

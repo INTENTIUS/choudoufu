@@ -103,3 +103,20 @@ func (aws) PostCreateNeeded(surface markers.Surface, typeName string, facts Crea
 	}
 	return fmt.Sprintf("%s does not take tags in its create call (live/registry.json: tag_on_create false)", cfnType), true
 }
+
+// ---- GitHub issue #1649: the carrier's wholly-known read ----
+
+// CarrierPaths: both maps [markers.TagsOf] reads.
+func (aws) CarrierPaths(surface markers.Surface) []cty.Path {
+	if surface == markers.SurfaceTags {
+		return []cty.Path{cty.GetAttrPath("tags"), cty.GetAttrPath("tags_all")}
+	}
+	return nil
+}
+
+func (aws) MarkerNoun(surface markers.Surface) string {
+	if surface == markers.SurfaceTags {
+		return "tag"
+	}
+	return ""
+}
