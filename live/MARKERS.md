@@ -228,6 +228,17 @@ nothing owned), or the chart rendered into `kubernetes_manifest` blocks
 opt-in that would bring a release inside the boundary is deferred by the
 #1604 ruling and not built.
 
+The annotation is not trusted past the release itself (#1625): the sweep
+also checks for the release's history secret
+(`sh.helm.release.v1.<name>.v*`, labelled `owner=helm,name=<name>`) in the
+release's namespace before calling an object held, because moving an
+object off Helm without re-creating it - adopting it into a
+`kubernetes_manifest` block by import, then removing the release's
+bookkeeping - leaves the annotation on the object; server-side apply
+touches only the fields its own writer claims. Once no such secret exists,
+the object is judged like any other, on owner references and managedFields
+authorship alone.
+
 The estate sweep (#1065) is one cluster-wide, label-selected list per kind
 the cluster serves with list and delete verbs, found through API
 discovery: a kind the provider has a resource type for, served at the
@@ -1750,6 +1761,16 @@ narrowing bought (`live/costs/plan-cost.md`) is unchanged. Between
 `09d180f921` and that fix, an ordinary plan could not fire this guard for
 any filterable type at all, and `TOFU_LIVE_COLLECT_UNCLAIMED=1` was the
 only route to the warning.
+
+A controller-held resource (an in-cluster controller's tags, GitHub issue
+#1606) never reaches the match-table pass above: it leaves the unclaimed
+population entirely, for the plan's Controller-held section instead, and
+`#1604` ruled it is never offered for adoption. Issue #1628: a create whose
+identity-bearing arguments match one still gets the same
+`[POSSIBLE DUPLICATE]` warning, naming the controller and its object rather
+than an adoption command - dropping the adoption hint is the ruling, but
+dropping the warning too would turn it into silence about a collision the
+apply will actually hit.
 
 Taken together: a tag policy cannot do this job at all, an
 SCP narrows who can strip a marker and where, and the plan-time guard

@@ -111,7 +111,7 @@ Oracle: Stock with the same `moved` block plans zero churn. The two plans, norma
 
 Break: Rename without the `moved` block; the plan must show a destroy and a create.
 
-On the kind substrate: The moved-block half only: live-mv has no Kubernetes leg, because the object carries no address to rewrite (#1066). A rename without a moved block is zero churn here too, since the block name is not part of the object's identity, so the Break control is a rename of the object's own metadata.name instead, which is a replace and must plan a destroy and a create.
+On the kind substrate: The moved-block half only: live-mv also has a Kubernetes leg since #1639, not exercised by this stage. A bare rename without a moved block plans the same one in-place change to the address annotation, since the block name is not part of the object's identity, so the Break control is a rename of the object's own metadata.name instead, which is a genuine identity change and must plan a destroy and a create.
 
 ### 7. Remove a block (`day2_remove`, active)
 
@@ -141,7 +141,7 @@ Oracle: Stock's replace of the same resource leaves the same single object.
 
 Break: Skip the destroy half; the next plan must report a collision rather than proposing nothing.
 
-On the kind substrate: not applicable, recorded as `n/a` and neutral for clear. A Kubernetes name is unique within its namespace, so nothing can be created before the object it replaces is destroyed; a forced replacement is destroy-then-create, which this stage does not measure.
+On the kind substrate: not applicable, recorded as `n/a` and neutral for clear. True only of a replacement that keeps the object's name. A Kubernetes name is unique within its namespace, so a same-name forced replacement is destroy-then-create, which this stage does not measure. A create_before_destroy rename (the content-hashed-ConfigMap pattern, where the name argument itself changes) resolves to a different live object under a new address, and stock creates it before destroying the old one; choudoufu currently orders the destroy first, a known difference (#1541) waiting on #1605. This stage turns on for kind once that order is fixed.
 
 ### 10. Crash mid-apply (`day2_crash`, active, tier-1 gated: not_run does not gate clear)
 

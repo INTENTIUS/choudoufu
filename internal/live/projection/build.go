@@ -396,16 +396,36 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 		return b.policyList[i].Addr.String() < b.policyList[j].Addr.String()
 	})
 
+	// GitHub issue #1675: every resolution reached through the record
+	// fallback door, read straight off the resolutions this call was
+	// handed - not recomputed - since [identity.Resolution.RecordFallback]
+	// is the resolver's own answer to "did this instance need the record
+	// because nothing else could carry its identity", and re-deriving that
+	// from the type and the configuration alone at write-back time cannot
+	// tell it apart from an ordinary instance of the same
+	// [identity.RecordFallbackType]-eligible type whose identity folds
+	// straight from configuration.
+	var recordFallbackAddrs []addrs.AbsResourceInstance
+	for _, r := range resolutions {
+		if r.Class == identity.ClassRecordLocated && r.RecordFallback {
+			recordFallbackAddrs = append(recordFallbackAddrs, r.Addr)
+		}
+	}
+	sort.Slice(recordFallbackAddrs, func(i, j int) bool {
+		return recordFallbackAddrs[i].String() < recordFallbackAddrs[j].String()
+	})
+
 	res := &Result{
-		cacheHits:        b.cacheHits,
-		boundIdentities:  b.boundIdentities,
-		State:            b.state,
-		Materialized:     b.materialized,
-		Omitted:          b.omissionList,
-		Unowned:          b.unownedList,
-		RecordVersions:   b.recordVersions,
-		EnvelopeVersions: b.envelopeVersions,
-		Policy:           b.policyList,
+		cacheHits:           b.cacheHits,
+		boundIdentities:     b.boundIdentities,
+		State:               b.state,
+		Materialized:        b.materialized,
+		Omitted:             b.omissionList,
+		Unowned:             b.unownedList,
+		RecordVersions:      b.recordVersions,
+		EnvelopeVersions:    b.envelopeVersions,
+		RecordFallbackAddrs: recordFallbackAddrs,
+		Policy:              b.policyList,
 	}
 	// Issue #685: report the cache's effect, always, including zero. A cache
 	// that is configured and never hits looks exactly like one that is working

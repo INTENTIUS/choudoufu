@@ -5,6 +5,48 @@ claim: k8s-a-held-delete-is-not-gone
 
 # Claim 25: A held delete is not a finished delete
 
+## On AWS
+
+This proof is restated rather than proven: it covers the half of the
+promise AWS can produce. An AWS delete that is accepted but not finished
+is usually a scheduled one. Secrets Manager's `DeleteSecret` with a
+recovery window, like KMS's `ScheduleKeyDeletion`, answers success, and
+the resource stays in the account with its tags until the window ends.
+hashicorp/aws reads that resource as gone: `findSecretByID` returns
+NotFound once `DeletedDate` is set, and the delete waits on exactly that.
+So the promise on AWS is the provider's half. The plan after the delete
+is empty, as stock's is. It does not propose a second destroy, which AWS
+would refuse for the whole window, and it does not refuse the object the
+sweep can still see.
+
+```text
+Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
+(docker info) and the AWS CLI is installed. If Go is not installed,
+export CHOUDOUFU_VERSION=<latest tag from
+https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
+
+  just smoke a-held-delete-is-not-gone
+
+Explain each step's verdict line to me as it prints. Then run
+BREAK=1 just smoke a-held-delete-is-not-gone and report the "caught"
+line: the control sets the recovery window to zero, and the secret must
+then really go.
+```
+
+The steps: two secrets apply, both marked; the block for one of them is
+removed and the plan proposes one destroy; the apply reports one
+destroyed while `describe-secret` still returns the secret with a
+`DeletedDate` and `tofu-estate`; two plans after it both read
+`No changes.`
+
+The other half, an object the provider still reads as present after its
+own delete returned, is an eventually consistent delete. The pinned
+emulator does not model that lag
+([lex00/floci#216](https://github.com/lex00/floci/issues/216)), and most
+hashicorp/aws deletes wait it out.
+
+## On Kubernetes
+
 A finalizer turns DELETE into a request. The API server sets
 `metadata.deletionTimestamp`, returns success, and the object stays in the
 cluster until the controller that registered the finalizer takes it off.

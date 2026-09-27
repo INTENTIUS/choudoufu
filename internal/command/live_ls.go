@@ -175,8 +175,9 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 	ep, on := cloudControlTarget()
 	var tagging *cloudcontrol.Client
 	var iamClient *iam.Client
-	if !substrates.aws {
-		// A Kubernetes-only configuration: no AWS client at all, and no
+	if !substrates.has(substrate.SweepTaggingIndex) {
+		// A configuration with no tagging-index substrate present (a
+		// Kubernetes-only one, today): no AWS client at all, and no
 		// warning about one, because nothing in DIR could carry an AWS
 		// tag for this listing to find - and no region to explain, so the
 		// source is cleared and the report prints no region line.
@@ -253,7 +254,7 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 	}
 
 	if args.ConfigDir != "" {
-		cmp, gapDiags := c.liveLsGaps(ctx, args.Estate, args.ConfigDir, config, cfgDiags, substrates.kubernetes, items)
+		cmp, gapDiags := c.liveLsGaps(ctx, args.Estate, args.ConfigDir, config, cfgDiags, substrates.has(substrate.SweepLabelList), items)
 		diags = diags.Append(gapDiags)
 		rep.Gaps = cmp.Gaps
 		rep.GapsSkipped = cmp.Skipped
@@ -289,17 +290,25 @@ type liveLsRegion struct {
 
 // liveLsRootRegion is the region DIR's own configuration names for its aws
 // provider, read the way live-plan and live-check read it (GitHub issue
-// #1044): the block [providerBlockFor] finds for each aws provider
-// configuration the managed resources use, its `region` argument evaluated
-// by the root's own StaticEvaluator - the one Meta.loadConfig bound to
-// TF_VAR_* and the tfvars files, which is how `region = var.aws_region`
-// resolves here to the same value the plan would configure the provider
-// with.
+// #1044): the block [providerBlockFor] finds for each tagging-index
+// substrate's provider configuration the managed resources use (the sweep
+// named [substrate.SweepTaggingIndex] - AWS today, and any future family
+// whose estate-wide sweep is driven the same regional way), its `region`
+// argument evaluated by the root's own StaticEvaluator - the one
+// Meta.loadConfig bound to TF_VAR_* and the tfvars files, which is how
+// `region = var.aws_region` resolves here to the same value the plan would
+// configure the provider with. The filter asks [substrate.ForProvider] and
+// [substrate.Substrate.Sweep] rather than comparing addr.Provider.Type
+// against "aws" directly (GitHub issue #1583), the same dispatch
+// [liveLsSubstrates] and [LiveLsCommand.liveLsKubernetes] use: a
+// label-list substrate (Kubernetes today) names no region here, because its
+// location hint is a cluster context, not a region, and this function
+// stays the region-shaped half of that pair.
 //
-// Anything short of one known string for every aws block is the SDK chain
+// Anything short of one known string for every such block is the SDK chain
 // (Source "sdk") with Note saying why, never a guess: no DIR, a DIR that
 // did not load (its diagnostics travel to liveLsGaps, which reports them),
-// no aws block, a block with for_each, a block that sets no region, a
+// no such block, a block with for_each, a block that sets no region, a
 // region this command cannot evaluate statically (an unset variable, a
 // reference to something no static evaluation reaches), a sensitive one,
 // or two blocks that name different regions - the same refusals
@@ -317,7 +326,7 @@ func liveLsRootRegion(ctx context.Context, configDir string, config *configs.Con
 
 	var regions, names []string
 	for _, addr := range statelessManagedResourceProviders(config) {
-		if addr.Provider.Type != "aws" {
+		if sub, ok := substrate.ForProvider(addr.Provider.Type); !ok || sub.Sweep() != substrate.SweepTaggingIndex {
 			continue
 		}
 		owner := config.Descendent(addr.Module)
@@ -549,6 +558,9 @@ func liveLsItemFromTags(id string, tags map[string]string, source string) views.
 	}
 	if item.Type == "" {
 		item.Type = arnTypeLabel(id)
+	}
+	if hold, ok := markers.ControllerHeld(tags); ok {
+		item.HeldBy = hold.Describe()
 	}
 	return item
 }
@@ -820,41 +832,50 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 }
 
 // liveLsSubstrateSet is which substrates a listing covers, read off DIR's
-// configuration by [liveLsSubstrates].
+// configuration by [liveLsSubstrates]. It is keyed by [substrate.Sweep]
+// rather than by a bool per named family (GitHub issue #1583: "two-armed
+// switches become three-armed switches") so that a third entry in
+// [substrate.All] needs no new field and no new case here - only its own
+// Sweep answer, which [has] then reports through the same call every
+// caller already makes.
 type liveLsSubstrateSet struct {
-	aws        bool
-	kubernetes bool
+	sweeps map[substrate.Sweep]bool
 }
+
+// has reports whether the listing covers a substrate whose
+// [substrate.Substrate.Sweep] is sw - "is the tagging-index listing on", "is
+// the label-list (cluster) listing on" - generically over however many
+// substrates [substrate.All] names, rather than a field per family.
+func (s liveLsSubstrateSet) has(sw substrate.Sweep) bool { return s.sweeps[sw] }
 
 // liveLsSubstrates reads the substrates off a configuration the way the
 // estate-wide sweep picks its provider passes: every distinct provider
 // configuration among the managed resources
 // ([statelessManagedResourceProviders], which falls back to the root's
-// declared provider blocks when nothing is declared). An aws provider
-// among them is the AWS listing, a kubernetes provider the cluster
-// listing. No configuration at all (no DIR, or one whose load failed -
-// cfgDiags carries the error the comparison will report) or one naming
-// neither provider is the AWS listing alone, which is what this command
-// was before GitHub issue #1081 and stays for every caller that passes no
-// DIR.
+// declared provider blocks when nothing is declared), each asked for its
+// own [substrate.Substrate.Sweep] rather than switched on by name - a
+// third substrate registered in [substrate.All] is covered the moment a
+// managed resource uses its provider, with no new arm here. No
+// configuration at all (no DIR, or one whose load failed - cfgDiags
+// carries the error the comparison will report) or one naming no
+// substrate in [substrate.All] is the AWS listing alone
+// ([substrate.SweepTaggingIndex]), which is what this command was before
+// GitHub issue #1081 and stays for every caller that passes no DIR.
 func liveLsSubstrates(config *configs.Config, cfgDiags tfdiags.Diagnostics) liveLsSubstrateSet {
+	awsOnly := liveLsSubstrateSet{sweeps: map[substrate.Sweep]bool{substrate.SweepTaggingIndex: true}}
 	if config == nil || config.Module == nil || cfgDiags.HasErrors() {
-		return liveLsSubstrateSet{aws: true}
+		return awsOnly
 	}
-	var s liveLsSubstrateSet
+	sweeps := map[substrate.Sweep]bool{}
 	for _, addr := range statelessManagedResourceProviders(config) {
-		sub, _ := substrate.ForProvider(addr.Provider.Type)
-		switch sub {
-		case substrate.AWS:
-			s.aws = true
-		case substrate.Kubernetes:
-			s.kubernetes = true
+		if sub, ok := substrate.ForProvider(addr.Provider.Type); ok {
+			sweeps[sub.Sweep()] = true
 		}
 	}
-	if !s.aws && !s.kubernetes {
-		s.aws = true
+	if len(sweeps) == 0 {
+		return awsOnly
 	}
-	return s
+	return liveLsSubstrateSet{sweeps: sweeps}
 }
 
 // liveLsKubernetes lists the estate's objects through every kubernetes

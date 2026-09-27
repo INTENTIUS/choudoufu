@@ -24,8 +24,9 @@
 # Substrates notes: identities are NAMESPACE/NAME read with kubectl; the
 # marker count is `kubectl get <kind> -A -l tofu-estate=<estate>` summed over
 # the six kinds KINDS names; the out-of-band mutation is a kubectl patch or
-# label; the rename is the moved-block half only, since live-mv has no
-# Kubernetes leg (#1066). day2_replace does not apply (a name is unique
+# label; this script exercises the moved-block half only - live-mv also has
+# a Kubernetes leg since #1639, not exercised here. day2_replace does not
+# apply (a name is unique
 # within its namespace, so nothing can be created before the object it
 # replaces is gone) and is recorded n/a by the runner, not by this script.
 # day2_crash's own create-before-destroy window does not exist here for the
@@ -56,10 +57,12 @@
 #                  greenfield's negative controls instead of the real checks:
 #                  a second object is tampered and the single-object
 #                  assertion must fail; the ServiceAccount's own
-#                  metadata.name is changed (a block rename without a moved
-#                  block is zero churn on Kubernetes, because the block name
-#                  is not part of the object's identity) and the zero-churn
-#                  assertion must fail; the
+#                  metadata.name is changed instead (a bare block rename
+#                  without a moved block plans the same one in-place
+#                  address-annotation change as the moved block, because the
+#                  block name is not part of the object's identity, so it
+#                  cannot serve as the negative control) and the
+#                  marker-rewritten-in-place assertion must fail; the
 #                  Deployment is dropped from greenfield's expected inventory
 #                  and the object-by-object match must fail.
 #   BREAK_REMOVE   set to 1 to keep the ServiceAccount block and assert no
@@ -517,10 +520,11 @@ EOF
 }
 if [ "${BREAK:-}" = "1" ]; then
   # The AWS Break line (rename without a moved block, expect churn) cannot
-  # fire here: with no address on the object the block name is not part
-  # of its identity, and the plan after a bare block rename is empty too
-  # (measured 2026-09-12: Plan: 0/0/0). The control that can fire is a
-  # rename of the object's own metadata.name, which is a replace.
+  # fire here: with no address bearing on the object's identity, a bare
+  # block rename does not destroy it either - it plans the same one
+  # in-place address-annotation change the moved block plans below, not a
+  # destroy-and-create (live/MARKERS.md, #1639). The control that can fire
+  # is a rename of the object's own metadata.name, which is a replace.
   write_config "$ADOPTED" live app 2 '    reviewed = "yes"'
   python3 - "$ADOPTED/main.tf" <<'PYIN' || fail "BREAK: could not rename the ServiceAccount's metadata.name"
 import sys
@@ -530,8 +534,8 @@ assert old in s
 open(p, 'w').write(s.replace(old, old.replace('name      = "app"', 'name      = "app-renamed"'), 1))
 PYIN
   R_PLAN="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$R_PLAN" | tail -20; fail "BREAK: the plan after renaming the object failed"; }
-  if grep -qE "^No changes|Plan: 0 to add, 0 to change, 0 to destroy" <<< "$R_PLAN"; then
-    fail "BREAK=1: renaming the object's own name still planned zero churn - the zero-churn assertion is not load-bearing"
+  if ! grep -qE 'will be (created|destroyed)' <<< "$R_PLAN"; then
+    fail "BREAK=1: renaming the object's own name did not plan a destroy and a create - the marker-rewritten-in-place assertion is not load-bearing: $(grep -E '^Plan:' <<< "$R_PLAN" | head -1)"
   fi
   grep -q "1 to add" <<< "$R_PLAN" && grep -q "1 to destroy" <<< "$R_PLAN" || { printf '%s\n' "$R_PLAN" | tail -20; fail "BREAK=1: renaming the object's own name did not plan a destroy and a create: $(grep -E '^Plan:' <<< "$R_PLAN" | head -1)"; }
   log "  BREAK=1: caught - renaming metadata.name plans $(grep -E '^Plan:' <<< "$R_PLAN" | head -1); the real moved-block check below is skipped"
@@ -539,7 +543,7 @@ PYIN
   ( cd "$ADOPTED" && "$TOFU" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK: the moved-block apply failed"
   { write_config "$ORACLE" stock team 2 '    reviewed = "yes"'; moved_block >> "$ORACLE/main.tf"; }
   ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK: stock's moved-block apply failed on B"
-  gauntlet_stage day2_rename pass "BREAK=1 control: renaming the object's own metadata.name plans a replace ($(grep -E '^Plan:' <<< "$R_PLAN" | head -1)), so the zero-churn assertion correctly fails to hold; a bare block rename without a moved block is zero churn on this substrate because the block name is not part of the object's identity; the moved block then applied"
+  gauntlet_stage day2_rename pass "BREAK=1 control: renaming the object's own metadata.name plans a replace ($(grep -E '^Plan:' <<< "$R_PLAN" | head -1)), so the marker-rewritten-in-place assertion correctly fails to hold; a bare block rename without a moved block plans the same one in-place annotation change as the moved block, since the block name is not part of the object's identity; the moved block then applied"
 else
   { write_config "$ADOPTED" live team 2 '    reviewed = "yes"'; moved_block >> "$ADOPTED/main.tf"; }
   { write_config "$ORACLE" stock team 2 '    reviewed = "yes"'; moved_block >> "$ORACLE/main.tf"; }
@@ -547,11 +551,17 @@ else
   grep -qE "^No changes|Plan: 0 to add, 0 to change, 0 to destroy" <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's moved-block plan on B is not zero churn"; }
   ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's moved-block apply failed on B"
   R_PLAN="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$R_PLAN" | tail -20; fail "the moved-block plan failed"; }
-  grep -qE "^No changes|Plan: 0 to add, 0 to change, 0 to destroy" <<< "$R_PLAN" || { printf '%s\n' "$R_PLAN" | tail -20; fail "the moved-block plan is not zero churn"; }
-  ( cd "$ADOPTED" && "$TOFU" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "the moved-block apply failed"
+  grep -qE 'will be (created|destroyed)' <<< "$R_PLAN" \
+    && { printf '%s\n' "$R_PLAN" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a create or a destroy - not the marker rewritten in place"; }
+  grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$R_PLAN" \
+    || { printf '%s\n' "$R_PLAN" | tail -20; fail "the moved-block plan is not exactly one in-place change (the address annotation rewrite)"; }
+  grep -qE '~ +"choudoufu\.intentius\.io/tofu-address" = ".*" -> ".*"' <<< "$R_PLAN" \
+    || { printf '%s\n' "$R_PLAN"; fail "the moved-block plan does not show the tofu-address annotation being rewritten"; }
+  R_APPLY_OUT="$(cd "$ADOPTED" && "$TOFU" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$R_APPLY_OUT" | tail -20; fail "the moved-block apply failed"; }
+  grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$R_APPLY_OUT" || { printf '%s\n' "$R_APPLY_OUT" | tail -10; fail "the moved-block apply was not exactly one in-place change"; }
   exists_a serviceaccount app || fail "the ServiceAccount is gone after the rename"
   [ "$(count_a)" = "7" ] || fail "$(count_a) labelled objects after the rename, want 7"
-  gauntlet_stage day2_rename pass "moved block: kubernetes_service_account.app -> .team with zero churn (no add, no change, no destroy), the live object untouched and still labelled, read with kubectl; stock's plan for the same moved block on the oracle cluster is also zero churn. The moved-block half only: live-mv has no Kubernetes leg, because the object carries no address to rewrite (#1066). A bare block rename without a moved block is zero churn here too, since the block name is not part of the object's identity; BREAK=1 renames the object's own metadata.name instead, which plans a replace, and the zero-churn assertion correctly fails"
+  gauntlet_stage day2_rename pass "moved block: kubernetes_service_account.app -> .team, no add and no destroy, one in-place change confined to the address annotation rewrite (0 add, 1 change, 0 destroy) - the marker rewritten in place, the same shape the AWS lanes assert for a rename, not literal zero churn; the live object untouched and still labelled, read with kubectl; stock's plan for the same moved block on the oracle cluster is zero churn, since stock never writes this annotation. The moved-block half only: live-mv also has a Kubernetes leg since #1639, not exercised by this stage. A bare block rename without a moved block plans the same one in-place change, since the block name is not part of the object's identity; BREAK=1 renames the object's own metadata.name instead, which is a genuine identity change and plans a destroy and a create"
 fi
 
 # ── 8. day2_remove: delete the ServiceAccount's block ────────────────────
