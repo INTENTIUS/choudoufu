@@ -118,7 +118,7 @@ func assertControllerHeld(t *testing.T, res *Result, id string) {
 	t.Helper()
 	for _, c := range res.ControllerHeld {
 		if c.ImportID == id {
-			if c.Hold.Describe() == "" {
+			if c.HeldBy == "" || c.Controller == "" {
 				t.Errorf("controller-held %s has no description", id)
 			}
 			return

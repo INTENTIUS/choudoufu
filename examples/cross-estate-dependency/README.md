@@ -36,6 +36,20 @@ arrangement at all — it does not know it is being read.
 resource with a data source of its own type, with no new construct, no
 namespace and no lint rule.
 
+## Substrate
+
+AWS-only. The read this project demonstrates is a filter on two tags,
+`tag:tofu-estate` and `tag:tofu-address`, which is an AWS provider idiom:
+`aws_vpc`'s `filter` block queries the EC2 API's own tag index. A Kubernetes
+data source reads by name and namespace, not by an arbitrary label filter
+with an implicit "must match exactly one or the read fails" contract, so a
+Kubernetes producer/consumer pair would demonstrate a different mechanism
+(a `kubernetes_resources` read with `label_selector`) rather than the same
+one on a second provider, and is not a small addition to this project as it
+stands: the pipelines, scripts and tests under `forgejo/`, `github/`,
+`gitlab/`, `scripts/` and `tests/` are all written for the two AWS roots
+here.
+
 ## What there is no copy of
 
 The producer declares no `output` block. That is not a stylistic choice; it is

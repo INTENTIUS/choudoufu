@@ -22,7 +22,6 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
@@ -149,20 +148,17 @@ type Request struct {
 	// *plugin.GRPCProvider or *plugin6.GRPCProvider.
 	Provider any
 
-	// Kubernetes is the estate sweep for a Kubernetes provider
-	// configuration (GitHub issue #1065): one cluster-wide, label-selected
-	// list per kind. Nil for every other provider, in which case the leg
-	// does nothing. KubernetesTypes are the provider's resource types the
-	// object-metadata rule admits (identity.ObjectMetaShape), the
-	// universe the leg joins to what the cluster serves, plus
-	// KubernetesManifestType when the provider has one: the type the
-	// manifest shape admits (identity.ManifestShape), under which every
-	// served kind no other type manages is listed (GitHub issue #1079).
-	// Empty when the provider has no such type, and then those kinds are
-	// not listed. See kubernetes.go.
-	Kubernetes             kubesweep.Sweeper
-	KubernetesTypes        []string
-	KubernetesManifestType string
+	// Sweepers are this pass's estate-sweep legs (GitHub issue #1580), run
+	// in order after the config-driven scan and the cache-vouching pass,
+	// ahead of bind, so every leg's orphans take the same classification
+	// path. The caller picks them by its substrate's [substrate.Sweep]
+	// property: [TaggingIndexSweep] for the AWS legs, [KubernetesSweep]
+	// for the label-selected cluster list (GitHub issue #1065), and
+	// [NoSweepLeg] for a family no leg serves, which files a named gap
+	// rather than sweeping nothing in silence. Empty means the one leg
+	// every caller before this field existed ran, [TaggingIndexSweep],
+	// which does nothing unless [Request.Sweep] is set. See sweeper.go.
+	Sweepers []Sweeper
 
 	// Region is the region to list in, passed to any list configuration
 	// that accepts a region argument. Empty leaves it unset, which lets the
@@ -555,7 +551,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	if declDiags.HasErrors() {
 		return res, diags
 	}
-	if len(decl.types) == 0 && len(decl.recordBacked) == 0 && !req.Sweep && len(req.CacheVouchTypes) == 0 && req.Kubernetes == nil {
+	if len(decl.types) == 0 && len(decl.recordBacked) == 0 && !req.Sweep && len(req.CacheVouchTypes) == 0 && len(req.Sweepers) == 0 {
 		// Nothing waits on discovery, no sweep was asked for and no cache
 		// vouching either, which is a legitimate configuration: every
 		// instance was named by static analysis, and without a sweep or a
@@ -651,118 +647,14 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		}
 	}
 
-	// The sweep runs after the config-driven scan so that a type appearing
-	// in both is scanned once, on the terms the configuration set.
-	if req.Sweep {
-		if req.TaggingSweep && req.Tagging != nil && req.Roster != nil {
-			// Issue #51: one estate-wide GetResources call replaces the
-			// per-type loop below, for every type [partitionSweepTypes]
-			// doesn't carve out. See [sweepViaTagging] and
-			// [Request.TaggingSweep]. It is one round trip rather than one
-			// per type, so it gets no progress events of its own - there is
-			// nothing to report between, only before and after.
-			taggingUniverse, nativeUniverse := partitionSweepTypes(req, schemas, decl)
-			diags = diags.Append(sweepViaTagging(ctx, req, schemas, decl, res, taggingUniverse))
-			// the stale-state ruling's (#604) CollectUnclaimed
-			// ruling. The tagging leg above is untouched by it - it is one
-			// call and it covers every ARN-placeable type across the whole
-			// account - and so is every removal leg below. What narrows is
-			// the per-type list loop, which is the term that tracks the
-			// admission table rather than the estate. See nativesweep.go
-			// for what that gives up and why it fails toward sweeping.
-			nativeUniverse, res.NativeSweepSkipped = estateScopedNativeSweep(ctx, req, decl, nativeUniverse)
-			// GitHub issue #1037/#1039: a type sweepTypes() adds back purely
-			// for being a taggingAPIUnservedType (today, every aws_iam_*
-			// type) was ALSO scanned a moment ago by the config-driven loop
-			// above whenever the configuration declares a needs-discovery
-			// instance of it - decl.types[typeName] != nil is exactly that
-			// condition (declared.typeNames(), the loop's own universe). That
-			// scan already ran with scan.Scope = ScopeAll (supportsTagFilter
-			// is false for these types regardless of sweep=true/false, so the
-			// two calls would build the identical list configuration) and
-			// already appends every one of this estate's own markers found on
-			// an undeclared address to res.Orphans - res.Orphans is filled
-			// without a `sweep` gate anywhere above line ~2420 - so listing
-			// the same type again here would refetch the whole account
-			// (paying its per-object provider Read a second time, in
-			// aws_iam_policy's case a GetPolicyVersion per policy on top of
-			// the config-driven pass's own) and then discard every result:
-			// orphanAlreadyPresent's dedup guard rejects a repeat orphan
-			// and decl.entryFor/decl.declares handle a repeat claimant the
-			// same way. Removed from nativeUniverse before the prefetch
-			// plans anything, not skipped in the consuming loop below, so
-			// [sweepPrefetch.finish] never reports a wasted plan for it.
-			nativeUniverse = dedupAlreadyConfigScanned(nativeUniverse, decl, res)
-			// GitHub issue #605: the list calls this loop is about to make
-			// go out concurrently, up to [Request.SweepParallelism] at a
-			// time, and the loop below is unchanged - it consumes each
-			// type's answer in this same order, from the same scanType
-			// body, so every diagnostic, scan row, claim and gap is produced
-			// by exactly the code that produced it sequentially. See
-			// sweepconcurrency.go.
-			req.sweepFetch = startSweepPrefetch(ctx, req, schemas, decl, nativeUniverse, func(typeName string) bool {
-				return req.CollectUnclaimed && decl.recordBacked[typeName] != nil
-			})
-			// Issue #394: a companion pair whose identities diverge
-			// ([typeNeedsResourceObjectToRecompose]) can only ever bind
-			// through a native list call's own resource object, which the
-			// tag sweep's ARN-joined candidate never carries - so these few
-			// types still go through the per-type loop even though
-			// TaggingSweep is set.
-			for _, typeName := range nativeUniverse {
-				// GitHub issue #388 edge 3's foreign-coverage fix: a type
-				// [partitionSweepTypes] routed here purely because it is
-				// entirely record-backed (see that function's own doc
-				// comment) still owes this run its unclaimed population
-				// when the caller asked for one - sweepViaTagging's single
-				// GetResources call is server-side estate-filtered and
-				// structurally could never have seen an unmarked sibling,
-				// which is exactly why partitionSweepTypes sends it here
-				// instead. Every other type in nativeUniverse is a true
-				// [typeNeedsResourceObjectToRecompose] companion the
-				// configuration may not even declare, for which
-				// "unclaimed" keeps its original, narrower meaning (see
-				// TypeScan.Sweep's own doc comment).
-				collectUnclaimed := req.CollectUnclaimed && decl.recordBacked[typeName] != nil
-				diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, true, collectUnclaimed, &typesScanned, &resourcesFound))
-			}
-			res.sweepPrefetchWasted = append(res.sweepPrefetchWasted, req.sweepFetch.finish()...)
-			res.sweepPrefetchUnplanned = append(res.sweepPrefetchUnplanned, req.sweepFetch.unplannedCalls()...)
-			res.sweepPrefetchMismatched += req.sweepFetch.mismatches()
-			req.sweepFetch = nil
-		} else {
-			// #64's guided leg: guidedSweepUniverse returns sweepTypes(req,
-			// decl) unmodified (and an empty fallback reason) whenever
-			// Request.Guided is false, so this is a no-op for every
-			// existing caller. See the Request.Guided doc comment and
-			// guided.go for what changes when it is set.
-			universe, skipped, fallback := guidedSweepUniverse(ctx, req, decl)
-			res.Guided = req.Guided && fallback == ""
-			res.GuidedFallback = fallback
-			res.GuidedSweepSkipped = skipped
-			// Issue #605's other leg, the same shape as the one above.
-			req.sweepFetch = startSweepPrefetch(ctx, req, schemas, decl, universe, func(typeName string) bool {
-				return req.CollectUnclaimed && decl.recordBacked[typeName] != nil
-			})
-			for _, typeName := range universe {
-				// Same reasoning as the TaggingSweep leg just above: a type
-				// present here only because every one of its declared
-				// instances is record-backed still needs its unclaimed
-				// population collected when the caller asked for one.
-				collectUnclaimed := req.CollectUnclaimed && decl.recordBacked[typeName] != nil
-				diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, true, collectUnclaimed, &typesScanned, &resourcesFound))
-			}
-			res.sweepPrefetchWasted = append(res.sweepPrefetchWasted, req.sweepFetch.finish()...)
-			res.sweepPrefetchUnplanned = append(res.sweepPrefetchUnplanned, req.sweepFetch.unplannedCalls()...)
-			res.sweepPrefetchMismatched += req.sweepFetch.mismatches()
-			req.sweepFetch = nil
-		}
+	// The sweep legs run after the config-driven scan so that a type
+	// appearing in both is scanned once, on the terms the configuration
+	// set, and ahead of bind and classifyOrphans so their orphans take the
+	// same classification path (GitHub issue #1580; see sweeper.go).
+	in := &SweepInput{Request: req, Result: res, schemas: schemas, decl: decl, typesScanned: &typesScanned, resourcesFound: &resourcesFound}
+	for _, leg := range sweepLegs(req) {
+		diags = diags.Append(leg.Sweep(ctx, in))
 	}
-
-	// The Kubernetes leg (kubernetes.go), ahead of bind and
-	// classifyOrphans so its orphans take the same classification path
-	// every AWS leg's do.
-	diags = diags.Append(sweepKubernetes(ctx, req, res))
 
 	diags = diags.Append(bind(ctx, req, decl, res))
 

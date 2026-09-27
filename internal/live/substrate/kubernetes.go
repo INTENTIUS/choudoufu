@@ -6,8 +6,11 @@
 package substrate
 
 import (
+	"fmt"
+
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
@@ -70,9 +73,9 @@ func (kubernetes) MarkersOf(surface markers.Surface, obj cty.Value) (map[string]
 func (kubernetes) Writes(surface markers.Surface) Writes {
 	switch surface {
 	case markers.SurfaceLabels:
-		return Writes{Create: WriteInCreate, Adopt: WriteLabelsPlan}
+		return Writes{Create: WriteInCreate, Adopt: WriteLabelsPlan, PostCreate: WriteNeverNeeded}
 	case markers.SurfaceManifest:
-		return Writes{Create: WriteInCreate, Adopt: WriteAPIPatch}
+		return Writes{Create: WriteInCreate, Adopt: WriteAPIPatch, PostCreate: WriteNeverNeeded}
 	}
 	return Writes{}
 }
@@ -84,12 +87,18 @@ func (kubernetes) Sweep() Sweep { return SweepLabelList }
 // NewSweeper is the cluster client the provider block's own connection
 // arguments build ([KubernetesSweepAttrs] mirrors hashicorp/kubernetes'
 // precedence).
-func (kubernetes) NewSweeper(providerConfig cty.Value, ok bool) (*kubesweep.Client, error) {
+// On an error the client is a nil [Sweeper], never a [LabelListSweeper]
+// holding a nil cluster client.
+func (kubernetes) NewSweeper(providerConfig cty.Value, ok bool) (Sweeper, error) {
 	cfg, err := kubesweep.RestConfig(KubernetesSweepAttrs(providerConfig, ok))
 	if err != nil {
 		return nil, err
 	}
-	return kubesweep.New(cfg)
+	client, err := kubesweep.New(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return LabelListSweeper{Client: client}, nil
 }
 
 // KubernetesSweepAttrs reads the connection arguments the Kubernetes sweep
@@ -284,3 +293,70 @@ func sweepExecBlock(block cty.Value) (*kubesweep.ExecCredential, bool) {
 	}
 	return e, true
 }
+
+// ---- GitHub issue #1584: the answers the projection's shadow enum held ----
+
+// CreateCollidesOnKey is true on the label surface alone, and each
+// exclusion is deliberate.
+//
+//   - SurfaceLabels is every built-in Kubernetes type whose schema carries
+//     metadata[0].labels: ConfigMap, Secret, Deployment, Service,
+//     Namespace, ServiceAccount, the RBAC kinds and the rest. The API
+//     server stores each object under (group, resource, namespace, name) -
+//     or (group, resource, name) for a cluster-scoped kind - and answers a
+//     create at a key already held with 409 AlreadyExists. The provider's
+//     import id for these types is that namespace/name (or name), and it
+//     comes from the block's own metadata.name and metadata.namespace:
+//     metadata.generate_name, the one way a Kubernetes create does not
+//     name its key, is refused by internal/live/lint before a plan runs
+//     (#1064). The types that patch an object someone else created
+//     (kubernetes_labels, kubernetes_annotations,
+//     kubernetes_config_map_v1_data, kubernetes_env, kubernetes_node_taint)
+//     have no metadata.labels in their schema, so they carry no surface and
+//     never reach this question. Nor does kubernetes_default_service_account,
+//     whose create adopts the existing object: the projection's
+//     adoptsOnCreate is checked beside this.
+//   - SurfaceManifest has the same key, and already has the server's own
+//     answer at plan time: the dry run (#1081,
+//     discovery.DryRunKubernetesManifests) submits the planned create with
+//     dryRun=All and turns the 409 into an Error quoting the server. A
+//     second refusal ahead of it would stop the plan before the dry run
+//     runs and replace the server's words with this tool's.
+func (kubernetes) CreateCollidesOnKey(surface markers.Surface) bool {
+	switch surface {
+	case markers.SurfaceLabels:
+		return true
+	case markers.SurfaceManifest:
+		return false
+	}
+	return false
+}
+
+// CarrierPhrase names the labels map on each shape.
+func (kubernetes) CarrierPhrase(surface markers.Surface) string {
+	switch surface {
+	case markers.SurfaceLabels:
+		return markers.LabelSurfaceBlock + "." + markers.LabelSurfaceAttr + " map"
+	case markers.SurfaceManifest:
+		return "manifest." + markers.LabelSurfaceBlock + "." + markers.LabelSurfaceAttr + " map"
+	}
+	return ""
+}
+
+// NotACarrier: a Kubernetes type with neither of the family's surfaces,
+// such as the patch types (kubernetes_labels,
+// kubernetes_config_map_v1_data), has nowhere of its own to carry the
+// estate label. It names both carriers it lacks, and never says "tags":
+// that is the AWS word, and a Kubernetes reader has no tags map to look
+// for.
+func (k kubernetes) NotACarrier(_ *configschema.Block, typeName string) string {
+	return fmt.Sprintf(
+		"%s has no %s and no %s, so there is nowhere on it to carry an ownership marker.",
+		typeName, k.CarrierPhrase(markers.SurfaceLabels), k.CarrierPhrase(markers.SurfaceManifest))
+}
+
+// ---- GitHub issue #1587: the post-create marker write ----
+
+// MarkerWriter is [WriteNeverNeeded]: the label rides the create call on
+// both surfaces, so there is nothing to write after it.
+func (kubernetes) MarkerWriter(addrs.AbsProviderConfig) Write { return WriteNeverNeeded }

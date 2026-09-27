@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/foreign"
+	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/terminal"
 )
@@ -22,7 +23,9 @@ import (
 // TestLiveLs_controllerHeldItemIsNamed (GitHub issue #1606): a resource the
 // listing finds under the estate's marker that also carries an ACK
 // controller's tags gets a line naming it controller-held and the object
-// that made it, in the prose and in the JSON document.
+// that made it, in the prose and in the JSON document, in the same words
+// and under the same key a Helm-held Kubernetes object gets (#1607;
+// TestLiveLsHuman_ControllerHeldObject): "held by:" and "held_by".
 func TestLiveLs_controllerHeldItemIsNamed(t *testing.T) {
 	item := liveLsItemFromTags("arn:aws:s3:::ack-made-bucket", map[string]string{
 		"tofu-estate":                         "prod",
@@ -35,7 +38,7 @@ func TestLiveLs_controllerHeldItemIsNamed(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
 	views.NewLiveLs(arguments.ViewOptions{ViewType: arguments.ViewHuman}, views.NewView(streams)).Report(rep)
 	human := done(t).Stdout()
-	want := "controller-held: made by ACK s3 controller (s3-v1.0.14), custom resource in namespace team-a"
+	want := "  held by: ACK s3 controller (s3-v1.0.14), custom resource in namespace team-a (controller-held: never swept, never adopted)"
 	if !strings.Contains(human, want) {
 		t.Errorf("live-ls does not name the ACK-made bucket controller-held; want %q in:\n%s", want, human)
 	}
@@ -48,8 +51,11 @@ func TestLiveLs_controllerHeldItemIsNamed(t *testing.T) {
 	if err := json.Unmarshal([]byte(done(t).Stdout()), &doc); err != nil {
 		t.Fatalf("decoding the live-ls document: %v", err)
 	}
-	if len(doc.Items) != 1 || doc.Items[0]["controller_held"] == nil {
-		t.Errorf("the live-ls document carries no controller_held for the ACK-made bucket: %v", doc.Items)
+	if len(doc.Items) != 1 || doc.Items[0]["held_by"] != "ACK s3 controller (s3-v1.0.14), custom resource in namespace team-a" {
+		t.Errorf("the live-ls document carries no held_by for the ACK-made bucket: %v", doc.Items)
+	}
+	if _, two := doc.Items[0]["controller_held"]; two {
+		t.Errorf("the live-ls document names a controller-held item under a second key: %v", doc.Items)
 	}
 
 	// An ordinary item says nothing about controllers.
@@ -64,10 +70,10 @@ func TestLiveLs_controllerHeldItemIsNamed(t *testing.T) {
 	}
 }
 
-// TestLivePlan_controllerHeldSection (GitHub issue #1606): the plan's
-// report carries every controller-held resource discovery set aside, in
-// its own section and in the -json document, and none of them in the
-// foreign or adoptable ones.
+// TestLivePlan_controllerHeldSection (GitHub issues #1606, #1607): the
+// plan's report carries every controller-held resource discovery set
+// aside, AWS and Kubernetes in one section with one line shape and in one
+// -json list, and none of them in the foreign or adoptable ones.
 func TestLivePlan_controllerHeldSection(t *testing.T) {
 	ack, _ := markers.ControllerHeld(map[string]string{
 		"services.k8s.aws/controller-version": "s3-v1.0.14",
@@ -86,8 +92,9 @@ func TestLivePlan_controllerHeldSection(t *testing.T) {
 		Estate: "prod",
 		Swept:  []string{"aws_s3_bucket"},
 		ControllerHeld: []discovery.ControllerHeldResource{
-			{TypeName: "aws_s3_bucket", ImportID: "ack-made-bucket", Hold: ack},
-			{TypeName: "aws_s3_bucket", ImportID: "xp-made-bucket", Hold: xp, Marked: true, Addr: orphanAddr},
+			{TypeName: "aws_s3_bucket", ImportID: "ack-made-bucket", Controller: string(ack.Controller), HeldBy: ack.Describe()},
+			{TypeName: "aws_s3_bucket", ImportID: "xp-made-bucket", Controller: string(xp.Controller), HeldBy: xp.Describe(), Marked: true, Addr: orphanAddr},
+			{TypeName: "kubernetes_config_map_v1", ImportID: "smoke-k8s/web-greeting", Kind: "ConfigMap", Controller: kubesweep.ControllerHelm, HeldBy: "Helm release smoke-k8s/web"},
 		},
 	}
 	rep := statelessForeignReport(res, nil)
@@ -101,10 +108,11 @@ func TestLivePlan_controllerHeldSection(t *testing.T) {
 	// The renderer word-wraps; compare with whitespace collapsed.
 	flat := strings.Join(strings.Fields(human), " ")
 	for _, want := range []string{
-		"Controller-held: 2 live resources made by an in-cluster controller",
-		"aws_s3_bucket ack-made-bucket [CONTROLLER-HELD]",
-		"made by ACK s3 controller (s3-v1.0.14), custom resource in namespace team-a",
-		`made by Crossplane managed resource bucket.s3.aws.upbound.io "assets" (providerconfig default)`,
+		"Controller-held: 3 live resources held by a controller, not a block",
+		"aws_s3_bucket ack-made-bucket held by ACK s3 controller (s3-v1.0.14), custom resource in namespace team-a",
+		`aws_s3_bucket xp-made-bucket held by Crossplane managed resource bucket.s3.aws.upbound.io "assets" (providerconfig default)`,
+		"ConfigMap smoke-k8s/web-greeting held by Helm release smoke-k8s/web",
+		"take tofu-estate out of the chart's values",
 		"carries this estate's marker for aws_s3_bucket.gone, which the configuration does not declare; not destroyed.",
 		"carries an ownership marker or is controller-held",
 	} {
@@ -114,8 +122,25 @@ func TestLivePlan_controllerHeldSection(t *testing.T) {
 	}
 
 	rows := livePlanControllerHeld(rep)
-	if len(rows) != 2 || rows[0].Controller != "ACK" || rows[1].Controller != "Crossplane" || rows[1].Addr != "aws_s3_bucket.gone" {
+	if len(rows) != 3 || rows[0].Controller != "ACK" || rows[1].Controller != "Crossplane" || rows[1].Addr != "aws_s3_bucket.gone" ||
+		rows[2].Controller != "Helm" || rows[2].Kind != "ConfigMap" || rows[2].HeldBy != "Helm release smoke-k8s/web" || rows[0].HeldBy != ack.Describe() {
 		t.Errorf("the -json document's controller_held rows are wrong: %+v", rows)
+	}
+	encoded, err := json.Marshal(rows[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(encoded), `"held_by":`) || strings.Contains(string(encoded), `"made_by"`) {
+		t.Errorf("a controller_held row names its holder under a key other than live-ls's held_by: %s", encoded)
+	}
+
+	// The Helm remedy is for Helm: an AWS-only section does not print it.
+	awsOnly := rep
+	awsOnly.ControllerHeld = rep.ControllerHeld[:2]
+	streams, done = terminal.StreamsForTesting(t)
+	views.NewStatelessPlan(views.NewView(streams).SetRunningInAutomation(true)).Foreign(awsOnly)
+	if out := done(t).Stdout(); strings.Contains(out, "chart's values") {
+		t.Errorf("an AWS-only controller-held section carries the Helm remedy:\n%s", out)
 	}
 	if got := livePlanForeign(rep); got != nil {
 		t.Errorf("the -json document reports a controller-held resource as foreign: %+v", got)

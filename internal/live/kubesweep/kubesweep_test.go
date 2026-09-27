@@ -116,8 +116,8 @@ func TestListExcludesControllerOwnedObjects(t *testing.T) {
 	for _, o := range got {
 		names = append(names, o.ImportID)
 	}
-	if skipped != 1 {
-		t.Errorf("ownerSkipped = %d, want 1 (the ReplicaSet-owned copy)", skipped)
+	if skipped.Count != 1 {
+		t.Errorf("ownerSkipped = %d, want 1 (the ReplicaSet-owned copy)", skipped.Count)
 	}
 	for _, o := range got {
 		if o.Name == "copied" {
@@ -525,5 +525,79 @@ func TestServesReportsAClusterThatCannotAnswer(t *testing.T) {
 	}
 	if served {
 		t.Error("Serves reported true from a cluster that cannot answer")
+	}
+}
+
+// helmEntry is the managedFields entry `helm install` leaves on a
+// ConfigMap it created: the helm client authored the content (f:data), so
+// neither the owner-reference signal nor the content-writer signal fires.
+var helmEntry = metav1.ManagedFieldsEntry{
+	Manager:   "helm",
+	Operation: metav1.ManagedFieldsOperationUpdate,
+	FieldsV1:  &metav1.FieldsV1{Raw: []byte(`{"f:data":{".":{},"f:greeting":{}},"f:metadata":{"f:annotations":{".":{},"f:meta.helm.sh/release-name":{},"f:meta.helm.sh/release-namespace":{}},"f:labels":{".":{},"f:app.kubernetes.io/managed-by":{},"f:tofu-estate":{}}}}`)},
+}
+
+// TestControllerMadeHelmRelease (GitHub issue #1607): Helm's release
+// annotation is a signal of its own. Without it the object reads as
+// declared, because a non-control-plane manager wrote its content.
+func TestControllerMadeHelmRelease(t *testing.T) {
+	obj := configMap("web", "web-greeting", map[string]string{"tofu-estate": "smoke-k8s"}, false)
+	obj.SetManagedFields([]metav1.ManagedFieldsEntry{helmEntry})
+	if ControllerMade(obj) {
+		t.Fatal("the fixture is controller-made without the annotation; the test would prove nothing")
+	}
+	obj.SetAnnotations(map[string]string{HelmReleaseNameAnnotation: "web", HelmReleaseNamespaceAnnotation: "web"})
+	if !ControllerMade(obj) {
+		t.Error("an object carrying Helm's release annotation was judged declared; the sweep would propose destroying it from under the release")
+	}
+	rel, ok := HelmRelease(obj)
+	if !ok || rel.String() != "Helm release web/web" {
+		t.Errorf("HelmRelease = %+v %v, want Helm release web/web", rel, ok)
+	}
+
+	noNS := configMap("web", "x", nil, false)
+	noNS.SetAnnotations(map[string]string{HelmReleaseNameAnnotation: "web"})
+	if rel, ok := HelmRelease(noNS); !ok || rel.String() != "Helm release web" {
+		t.Errorf("without the namespace annotation: %+v %v", rel, ok)
+	}
+	for _, v := range []string{"", "  "} {
+		empty := configMap("web", "x", nil, false)
+		empty.SetAnnotations(map[string]string{HelmReleaseNameAnnotation: v})
+		if _, ok := HelmRelease(empty); ok {
+			t.Errorf("an empty release name %q was read as a release", v)
+		}
+	}
+}
+
+// TestListReportsHelmHeldObjects: List keeps a Helm release's object out of
+// what it returns, counts it, and names its release.
+func TestListReportsHelmHeldObjects(t *testing.T) {
+	gvr := schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}
+	held := configMap("web", "web-greeting", map[string]string{"tofu-estate": "smoke-k8s"}, false)
+	held.SetManagedFields([]metav1.ManagedFieldsEntry{helmEntry})
+	held.SetAnnotations(map[string]string{HelmReleaseNameAnnotation: "web", HelmReleaseNamespaceAnnotation: "web"})
+	dyn := fakedynamic.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
+		map[schema.GroupVersionResource]string{gvr: "ConfigMapList"},
+		held,
+		configMap("smoke-k8s", "app-config", map[string]string{"tofu-estate": "smoke-k8s"}, false),
+		configMap("smoke-k8s", "copied", map[string]string{"tofu-estate": "smoke-k8s"}, true),
+	)
+	c := NewWith(&fakediscovery.FakeDiscovery{Fake: &clienttesting.Fake{}}, dyn)
+	got, skipped, err := c.List(context.Background(), Kind{GVR: gvr, Kind: "ConfigMap", Namespaced: true}, "tofu-estate", "smoke-k8s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Name != "app-config" {
+		t.Errorf("listed %+v, want only app-config", got)
+	}
+	if skipped.Count != 2 {
+		t.Errorf("skipped = %d, want 2 (the Helm object and the owned copy)", skipped.Count)
+	}
+	if len(skipped.Held) != 1 {
+		t.Fatalf("held = %+v, want the Helm object alone: an owner-referenced copy has no named holder here", skipped.Held)
+	}
+	h := skipped.Held[0]
+	if h.Kind != "ConfigMap" || h.Namespace != "web" || h.Name != "web-greeting" || h.HeldBy != "Helm release web/web" || h.Controller != ControllerHelm || h.Labels["tofu-estate"] != "smoke-k8s" {
+		t.Errorf("held = %+v", h)
 	}
 }

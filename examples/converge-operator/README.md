@@ -15,6 +15,20 @@ This project pins chant **0.68.1**, which carries the fixes for both
 upstream findings below (chant#2395, chant#2396) — `examples/ci-pipelines`
 still pins 0.63.0, unrelated to this repin.
 
+## Substrate
+
+AWS-only. The drift this demo introduces comes from the AWS CLI
+(`aws logs delete-log-group`) against the two `aws_cloudwatch_log_group`
+resources in `terraform/main.tf`; the loop it is demonstrating, `chant
+operator` ticking a `ConvergeOp` on its own interval, is not provider-specific,
+and the two log groups could be two Kubernetes ConfigMaps with drift
+introduced by `kubectl delete` instead. It is not done here because the
+supporting scaffold - `dev-apply.op.ts`, `dev-converge.op.ts`, `chant.config.ts`,
+`tests/` and the demo script's own assertions about what a converge tick
+reports - is written and tested against the AWS shape, and duplicating and
+testing all of it for a second provider is not a small change to this
+project.
+
 ## The project
 
 One live root, two Ops:
