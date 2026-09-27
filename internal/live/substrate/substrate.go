@@ -136,8 +136,9 @@ type Substrate interface {
 	// block's evaluated configuration (ok false when the run holds none):
 	// nil with no error for a family whose sweep runs through the
 	// configured provider itself ([SweepTaggingIndex]), and the error for a
-	// block the client cannot be built from.
-	NewSweeper(providerConfig cty.Value, ok bool) (*kubesweep.Client, error)
+	// block the client cannot be built from. The client is a [Sweeper],
+	// never a family's concrete type (GitHub issue #1580).
+	NewSweeper(providerConfig cty.Value, ok bool) (Sweeper, error)
 
 	// surfaceWording is GitHub issue #1584's block, below.
 	surfaceWording
@@ -259,6 +260,30 @@ func WritesOf(surface markers.Surface) Writes {
 	}
 	return s.Writes(surface)
 }
+
+// ---- GitHub issue #1580: the sweep client behind an interface ----
+//
+// Kept in its own block: several units of #1579 add methods to this file.
+
+// Sweeper is a family's estate-sweep client as [Substrate.NewSweeper]
+// builds it from the provider block. SweepKind is the sweep it serves,
+// its family's own [Substrate.Sweep]: internal/live/discovery pairs a
+// client with the leg that lists through it by that property, never by
+// the family's name, so a third family's client plugs in by naming a
+// sweep and a leg serving it.
+type Sweeper interface {
+	SweepKind() Sweep
+}
+
+// LabelListSweeper is the Kubernetes family's client: the cluster client
+// built from the provider block, whose methods it carries
+// (kubesweep.Sweeper, kubesweep.LabelPatcher).
+type LabelListSweeper struct {
+	*kubesweep.Client
+}
+
+// SweepKind is [SweepLabelList].
+func (LabelListSweeper) SweepKind() Sweep { return SweepLabelList }
 
 // ---- GitHub issue #1584: one surface enum ----
 //

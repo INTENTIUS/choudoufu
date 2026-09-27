@@ -9,7 +9,6 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 )
 
@@ -58,7 +57,7 @@ func (aws) CarriesAddress() bool { return true }
 
 func (aws) Sweep() Sweep { return SweepTaggingIndex }
 
-func (aws) NewSweeper(cty.Value, bool) (*kubesweep.Client, error) { return nil, nil }
+func (aws) NewSweeper(cty.Value, bool) (Sweeper, error) { return nil, nil }
 
 // ---- GitHub issue #1584: the answers the projection's shadow enum held ----
 
