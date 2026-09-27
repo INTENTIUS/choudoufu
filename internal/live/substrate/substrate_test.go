@@ -243,7 +243,7 @@ func TestPostCreateWrites(t *testing.T) {
 	}
 }
 
-// fakeManualMarkFacts is a [CreateTagFacts] this test controls directly,
+// fakeManualMarkFacts is an [AWSCreateTagFacts] this test controls directly,
 // so AWS's [Substrate.ManualMarkFix] can be pinned without a real
 // registry.Roster.
 type fakeManualMarkFacts struct {
@@ -264,22 +264,37 @@ func (fakeManualMarkFacts) TagsAfterCreate(string) bool { return true }
 func TestManualMarkFix_awsKeepsTodaysThreeBranches(t *testing.T) {
 	want := map[string]string{"tofu-estate": "prod"}
 	tagsArg := markers.TagsArgument(want)
+	withARN := createdAfterThing(cty.StringVal("arn:aws:after:::thing/T1"))
+	noARN := createdAfterThing(cty.NullVal(cty.String))
+	awsFacts := func(f AWSCreateTagFacts) Facts { return Facts{AWS.Name(): f} }
 
-	if got, want := ManualMarkFix(markers.SurfaceTags, "aws_after_thing", "arn:aws:after:::thing/T1", want, fakeManualMarkFacts{cfnType: "AWS::After::Thing", known: true}),
+	if got, want := ManualMarkFix(markers.SurfaceTags, withARN, want, awsFacts(fakeManualMarkFacts{cfnType: "AWS::After::Thing", known: true})),
 		"Mark it, then plan again:\n\n  aws resourcegroupstaggingapi tag-resources --resource-arn-list arn:aws:after:::thing/T1 --tags "+tagsArg; got != want {
 		t.Errorf("with an arn:\n got %q\nwant %q", got, want)
 	}
-	if got, want := ManualMarkFix(markers.SurfaceTags, "aws_after_thing", "", want, fakeManualMarkFacts{cfnType: "AWS::After::Thing", known: true}),
+	if got, want := ManualMarkFix(markers.SurfaceTags, noARN, want, awsFacts(fakeManualMarkFacts{cfnType: "AWS::After::Thing", known: true})),
 		"Mark it by hand with the tag write AWS::After::Thing takes, with the tags "+tagsArg+", then plan again."; got != want {
 		t.Errorf("no arn, known CFN type:\n got %q\nwant %q", got, want)
 	}
-	if got, want := ManualMarkFix(markers.SurfaceTags, "aws_after_thing", "", want, fakeManualMarkFacts{known: false}),
+	if got, want := ManualMarkFix(markers.SurfaceTags, noARN, want, awsFacts(fakeManualMarkFacts{known: false})),
 		"Mark it by hand with the markers "+tagsArg+", then plan again."; got != want {
 		t.Errorf("no arn, no CFN type:\n got %q\nwant %q", got, want)
 	}
-	if got, want := ManualMarkFix(markers.SurfaceTags, "aws_after_thing", "", want, nil),
+	if got, want := ManualMarkFix(markers.SurfaceTags, noARN, want, nil),
 		"Mark it by hand with the markers "+tagsArg+", then plan again."; got != want {
 		t.Errorf("no arn, nil facts:\n got %q\nwant %q", got, want)
+	}
+}
+
+// createdAfterThing is aws_after_thing.x as created, with arn as its arn
+// attribute.
+func createdAfterThing(arn cty.Value) Created {
+	return Created{
+		Addr: addrs.Resource{Mode: addrs.ManagedResourceMode, Type: "aws_after_thing", Name: "x"}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance),
+		Object: cty.ObjectVal(map[string]cty.Value{
+			"id":  cty.NullVal(cty.String),
+			"arn": arn,
+		}),
 	}
 }
 
@@ -288,7 +303,7 @@ func TestManualMarkFix_awsKeepsTodaysThreeBranches(t *testing.T) {
 // name a command.
 func TestManualMarkFix_zeroSurfaceIsGeneric(t *testing.T) {
 	want := map[string]string{"tofu-estate": "prod"}
-	got := ManualMarkFix("", "aws_after_thing", "some-arn", want, nil)
+	got := ManualMarkFix("", createdAfterThing(cty.StringVal("some-arn")), want, nil)
 	if wantStr := "Mark it by hand with the markers " + markers.TagsArgument(want) + ", then plan again."; got != wantStr {
 		t.Errorf("zero surface: got %q, want %q", got, wantStr)
 	}

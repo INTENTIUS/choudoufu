@@ -773,9 +773,10 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		resolver.Estate = estate
 		resolver.Selection = identity.SelectionFor(config)
 		resolver.Slots = disco.SlotTable()
-		// GitHub issue #1084: the registry flag the create path keys on,
+		// GitHub issue #1084: the registry flag the create path keys on (the
+		// AWS family's facts, #1708),
 		// and the client the post-create marker write goes through.
-		resolver.Roster = markerRoster()
+		resolver.Facts = markerFacts()
 		resolver.MarkerWriter = provs.markerTagger
 	}
 

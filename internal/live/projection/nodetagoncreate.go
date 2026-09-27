@@ -105,13 +105,10 @@ const SummaryMarkerNotWritten = "Created object is not marked"
 // a write that binds a marker to a resource name (a GCP tag binding, say)
 // would read that name instead. The resolver no longer decides for every
 // family that an object is addressed by ARN.
-type CreatedInstance struct {
-	Addr     addrs.AbsResourceInstance
-	Provider addrs.AbsProviderConfig
-	// Object is the object ApplyResourceChange returned, before
-	// [withWrittenMarkers] merges anything into it.
-	Object cty.Value
-}
+//
+// Since GitHub issue #1708 it is [substrate.Created], the same value the
+// family's post-create questions are asked with.
+type CreatedInstance = substrate.Created
 
 // MarkerWriter is the one write [NodeResolver.WriteAppliedMarkers] makes: an
 // upsert of the withheld markers onto the created instance, through
@@ -172,13 +169,13 @@ func (n *NodeResolver) AdjustCreateConfigValue(ctx context.Context, addr addrs.A
 // surface, is one whose create call cannot carry the marker, and the
 // sentence naming why. It is the surface's family's answer (GitHub issue
 // #1642, [substrate.PostCreateNeeded]): AWS reads live/registry.json's
-// tagging.tag_on_create through the roster for the Terraform type's
-// CloudFormation counterpart, as #1084 did here; Kubernetes answers never;
-// another family answers for its own types. False for a run with no
-// roster, a type the mapping never joined, and a type the registry cannot
+// tagging.tag_on_create through its entry in [NodeResolver.Facts] for the
+// Terraform type's CloudFormation counterpart, as #1084 did here;
+// Kubernetes answers never; another family answers for its own types from
+// its own facts (#1708). False for a run with no AWS facts, a type the mapping never joined, and a type the registry cannot
 // vouch for - all of which take the ordinary path.
 func (n *NodeResolver) postCreateNeeded(addr addrs.AbsResourceInstance, surface markers.Surface) (string, bool) {
-	return substrate.PostCreateNeeded(surface, addr.Resource.Resource.Type, n.Roster)
+	return substrate.PostCreateNeeded(surface, substrate.Created{Addr: addr}, n.Facts)
 }
 
 // WriteAppliedMarkers implements internal/tofu.AppliedMarkerWriter.
@@ -218,8 +215,7 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 		return applied, diags
 	}
 
-	arn := appliedString(applied, "arn")
-	id := appliedString(applied, "id")
+	created := CreatedInstance{Addr: addr, Provider: provider, Object: applied}
 
 	var err error
 	switch {
@@ -235,29 +231,20 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 		case writer == nil:
 			err = fmt.Errorf("this run has no tagging client for provider configuration %s", provider)
 		default:
-			err = writer.WriteMarkers(ctx, CreatedInstance{Addr: addr, Provider: provider, Object: applied}, want)
+			err = writer.WriteMarkers(ctx, created, want)
 		}
 	}
 	if err == nil {
-		log.Printf("[DEBUG] stateless/projection: marked %s (%s) after its create: %s", addr, arn, markers.TagsArgument(want))
+		log.Printf("[DEBUG] stateless/projection: marked %s (%s) after its create: %s", addr, substrate.CreatedObject(surface, created), markers.TagsArgument(want))
 		return withWrittenMarkers(applied, want), diags
 	}
 
-	object := arn
-	if id != "" && id != arn {
-		object = fmt.Sprintf("%s [id=%s]", arn, id)
-	}
-	if arn == "" && id != "" {
-		object = fmt.Sprintf("[id=%s]", id)
-	}
-	if object == "" {
-		object = "an object with no arn and no id in what the provider returned"
-	}
-
-	// GitHub issue #1653: the manual remedy is the surface's own family's
-	// answer, not a check of whether the applied object happens to carry
-	// an arn - that says nothing about which family wrote it.
-	fix := substrate.ManualMarkFix(surface, addr.Resource.Resource.Type, arn, want, n.Roster)
+	// GitHub issue #1708: how the object is named, and the manual remedy
+	// (#1653), are the surface's own family's answers, read off the created
+	// instance by the family itself. The shared path reads no arn: an
+	// object having one says nothing about which family wrote it.
+	object := substrate.CreatedObject(surface, created)
+	fix := substrate.ManualMarkFix(surface, created, want, n.Facts)
 
 	diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryMarkerNotWritten,
 		fmt.Sprintf(
