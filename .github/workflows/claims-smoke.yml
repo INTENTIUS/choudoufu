@@ -86,6 +86,16 @@
 # step fails unless a `-> caught` proof line is there too. The logs are
 # uploaded whether the job passed or failed. live/smoke_verdict_test.go
 # holds every step that runs a scenario to the wrapper.
+#
+# The smoke trigger rule this file's paths and budget above are one
+# instance of (issue #1592, HANDOFF.md "CI: smoke workflow triggers"):
+# every smoke workflow triggers on cmd/**, internal/**, live/smoke/**,
+# go.mod and go.sum for both pull_request and push, runs nightly and on
+# workflow_dispatch, and is named in nightly-watch.yml's workflows list;
+# a scenario over its workflow's stated minutes budget moves to a
+# nightly-only job instead of every PR. k8s-smoke.yml and bucket-smoke.yml
+# follow the same rule. live/smoke_trigger_rule_test.go holds all three to
+# it.
 name: claims-smoke
 on:
   pull_request:
