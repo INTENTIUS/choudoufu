@@ -601,3 +601,37 @@ func TestListReportsHelmHeldObjects(t *testing.T) {
 		t.Errorf("held = %+v", h)
 	}
 }
+
+// TestListCarriesTheAddressAnnotation (GitHub issue #1640): the address
+// annotation #1639 stamps rides the same LIST response the labels do, so
+// an object carrying it comes back with Object.Address set, one carrying
+// none (an older build's, or one a controller stripped) with it empty, and
+// no request beyond the one list is made.
+func TestListCarriesTheAddressAnnotation(t *testing.T) {
+	gvr := schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}
+	stamped := configMap("m1116-res", "my-awesome-cron-image-reader", map[string]string{"tofu-estate": "e"}, false)
+	stamped.SetAnnotations(map[string]string{AddressAnnotation: "kubernetes_config_map_v1.reader", "other": "x"})
+	bare := configMap("m1116-res", "older", map[string]string{"tofu-estate": "e"}, false)
+	dyn := fakedynamic.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
+		map[schema.GroupVersionResource]string{gvr: "ConfigMapList"}, stamped, bare)
+	c := NewWith(&fakediscovery.FakeDiscovery{Fake: &clienttesting.Fake{}}, dyn)
+	got, _, err := c.List(context.Background(), Kind{GVR: gvr, Kind: "ConfigMap", Namespaced: true}, "tofu-estate", "e")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"m1116-res/my-awesome-cron-image-reader": "kubernetes_config_map_v1.reader",
+		"m1116-res/older":                        "",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("listed %d objects, want %d: %+v", len(got), len(want), got)
+	}
+	for _, o := range got {
+		if w, ok := want[o.ImportID]; !ok || o.Address != w {
+			t.Errorf("%s: Address = %q, want %q", o.ImportID, o.Address, w)
+		}
+	}
+	if n := len(dyn.Actions()); n != 1 {
+		t.Errorf("%d requests made, want the one list: %v", n, dyn.Actions())
+	}
+}

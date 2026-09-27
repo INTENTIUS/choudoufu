@@ -73,6 +73,18 @@ type Request struct {
 	// nothing is excluded, and the demand this pass builds is unchanged.
 	RecordBackedAddrs map[string]bool
 
+	// NodeRefused is every instance the static evaluator refused and the
+	// #388 plan-node seam took over, keyed by
+	// [addrs.AbsResourceInstance.String] - the keys of
+	// identity.InstanceRefusals, which the command layer reads before it
+	// downgrades them. Such an instance is declared but absent from
+	// Resolutions ([identity.Resolve]'s contract), and the Kubernetes leg
+	// needs to know it is declared: an object whose address annotation
+	// names it is that instance's object, not an orphan (GitHub issue
+	// #1640, #1539's shape). Nil is ordinary: nothing was refused, or the
+	// run is not node-resolving.
+	NodeRefused map[string]bool
+
 	// DeposedRecords is GitHub issue #361's crash-window recovery input,
 	// keyed by [addrs.AbsResourceInstance.String] and then by the deposed
 	// object's own key (states.DeposedKey's string form): every deposed
