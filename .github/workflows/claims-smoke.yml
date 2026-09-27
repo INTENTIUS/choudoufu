@@ -43,6 +43,42 @@
 # regressions this unit introduced or can fix; re-add them here once
 # resolved.
 #
+# The provider plugin cache (PR #1646's first CI run). Three of 23 jobs
+# came back red the first time this workflow ran for real: carve-by-retag
+# and roundtrip both failed a host-side `chdf init` with no output (its
+# stderr goes to /dev/null by design; live/smoke/scenarios/*.sh), and
+# no-self-managed-locks died under set -e with no verdict line at all.
+# Locally, against the same emulator, all 23 passed - so the difference is
+# the runner, not the scenario logic, for two of the three: `chdf` resolves
+# hashicorp/aws from registry.opentofu.org on every `chdf init` (see
+# live/oracle-versions.json's own comment on the two-registry split), and
+# with 20 scenario jobs starting at once - more concurrent cold fetches
+# than bucket-smoke.yml's 5 or k8s-smoke.yml's 8 ever produce - a registry
+# fetch that would ordinarily succeed is more likely to be the one that
+# times out. Unlike gauntlet.yml's shared mirror (#1550), nothing here uses
+# a resolved provider directory as a read-only -plugin-dir, so
+# TF_PLUGIN_CACHE_DIR is safe to export directly: `chdf init` already
+# honours it (verified locally - a scenario run with it set populated
+# registry.opentofu.org/hashicorp/aws/<version> under the cache dir), so a
+# job with several scenario-internal inits (carve-by-retag has three) only
+# ever fetches once, and actions/cache carries a warm cache from one run
+# into the next so a cold fetch is the exception rather than the rule for
+# all 20 jobs at once. No provider version is pinned in the key - `chdf`
+# resolves whatever a scenario's own versions.tf allows, not
+# aws_provider_version (that field pins the STOCK oracle side of a
+# gauntlet crossing estate, a different thing) - so the cache just
+# accumulates whatever gets fetched.
+#
+# The third failure, no-self-managed-locks, was a real scenario bug, not
+# an environment difference: its race step captured a losing apply's exit
+# code as `cmd; echo $? > file`, and under this script's inherited set -e
+# a nonzero exit from `cmd` aborts the subshell before `echo` ever runs -
+# which happens exactly when the race has an actual loser, an expected,
+# routine outcome the very next lines are written to handle. Fixed in the
+# scenario itself (`|| rc=$?` neutralises set -e without discarding the
+# code), verified with three back-to-back local runs that each hit the
+# loser branch and each still passed.
+#
 # Verdict lines, not exit codes (#1439). Every run goes through
 # live/smoke/ci-run.sh, which writes the run's output to a file as it goes
 # and then reads it back: the step fails unless the log carries the
@@ -114,6 +150,11 @@ jobs:
           - the-estate-answers-in-the-present-tense
           - a-killed-apply-hides-nothing
           - two-estates-at-once
+    env:
+      # Safe here (unlike gauntlet.yml's shared mirror, #1550): nothing in
+      # these scenarios reads this directory as a read-only -plugin-dir, so
+      # `chdf init` treats it as an ordinary, writable cache.
+      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.tf-plugin-cache
     steps:
       - uses: actions/checkout@v7
         with:
@@ -121,8 +162,16 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - name: The provider plugin cache, carried across runs
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: claims-smoke-tf-plugin-cache-${{ runner.os }}
+          restore-keys: |
+            claims-smoke-tf-plugin-cache-${{ runner.os }}
       - name: Docker and the AWS CLI, which every scenario here needs
         run: |
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
           docker info > /dev/null
           aws --version
       - name: the scenario
@@ -158,6 +207,8 @@ jobs:
       matrix:
         scenario:
           - no-secret-survives-in-what-the-tool-keeps
+    env:
+      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.tf-plugin-cache
     steps:
       - uses: actions/checkout@v7
         with:
@@ -165,8 +216,16 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - name: The provider plugin cache, carried across runs
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: claims-smoke-tf-plugin-cache-${{ runner.os }}
+          restore-keys: |
+            claims-smoke-tf-plugin-cache-${{ runner.os }}
       - name: Docker and the AWS CLI, which every scenario here needs
         run: |
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
           docker info > /dev/null
           aws --version
       - name: the scenario
