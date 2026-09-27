@@ -5,6 +5,10 @@
     "terraform": "1.16.1",
     "tofu": "1.12.6"
   },
+  "providers": {
+    "aws": "6.63.0",
+    "kubernetes": "3.2.1"
+  },
   "stages": [
     {
       "id": "cold_deploy",

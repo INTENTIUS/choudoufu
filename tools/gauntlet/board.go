@@ -43,9 +43,17 @@ type Board struct {
 	// protocol library they source, last changed (#1264, #1292).
 	// Markdown. Empty when the board was built with no checkout to read,
 	// which says nothing rather than claiming everything is current.
-	ScriptBanner string       `json:"script_banner,omitempty"`
-	StageCount   int          `json:"stage_count"`
-	Stages       []BoardStage `json:"stages"`
+	ScriptBanner string `json:"script_banner,omitempty"`
+	// ProviderBanner is providerBanner's sentence (#1253): the same
+	// disagreement-breakdown treatment boardBanner already gives the
+	// emulator pin, applied to the hashicorp/aws and hashicorp/kubernetes
+	// pins. Markdown. Empty when every row that recorded a provider
+	// version agrees with the current pin, or when no row has recorded
+	// one yet - it says nothing rather than assert agreement no row
+	// supports.
+	ProviderBanner string       `json:"provider_banner,omitempty"`
+	StageCount     int          `json:"stage_count"`
+	Stages         []BoardStage `json:"stages"`
 	// Estates is every row, core set first, then by name - the order the
 	// index table has always used.
 	Estates      []BoardEstate   `json:"estates"`
@@ -110,6 +118,12 @@ type BoardEstate struct {
 	// **Stale** marker when the oracle pin has moved. Markdown. Empty for
 	// a row whose run never recorded an oracle.
 	OracleNote string `json:"oracle_note,omitempty"`
+	// ProviderNote is the provider-version-provenance sentence (#1253):
+	// hashicorp/aws for a floci-substrate row, hashicorp/kubernetes for a
+	// kind-substrate one, with its **Stale** marker when the relevant pin
+	// has moved. Markdown. Empty for a row whose run never recorded a
+	// provider version.
+	ProviderNote string `json:"provider_note,omitempty"`
 	// StaleNote is staleStagesNote's sentence: how many of this row's
 	// verdicts were carried forward from an earlier run rather than
 	// measured by the run recorded below (#1069). Markdown. Empty when the
@@ -172,15 +186,16 @@ type BoardLiveCert struct {
 // stays empty rather than claiming every row is current.
 func buildBoard(m *Manifest, a *Artifact, st map[string]ScriptStaleness) Board {
 	b := Board{
-		Schema:        1,
-		Emulator:      a.Emulator,
-		Banner:        boardBanner(a),
-		RuntimeBanner: runtimeBanner(a),
-		ScriptBanner:  scriptStaleBanner(a, st),
-		StageCount:    len(a.Stages),
-		Lanes:         append([]string(nil), KnownLanes...),
-		ExampleEntry:  exampleEntryJSON(m),
-		LiveCert:      []BoardLiveCert{},
+		Schema:         1,
+		Emulator:       a.Emulator,
+		Banner:         boardBanner(a),
+		RuntimeBanner:  runtimeBanner(a),
+		ScriptBanner:   scriptStaleBanner(a, st),
+		ProviderBanner: providerBanner(a),
+		StageCount:     len(a.Stages),
+		Lanes:          append([]string(nil), KnownLanes...),
+		ExampleEntry:   exampleEntryJSON(m),
+		LiveCert:       []BoardLiveCert{},
 	}
 	for _, s := range a.Stages {
 		headline := "yes"
@@ -228,6 +243,7 @@ func boardEstate(r EstateResult, a *Artifact, s ScriptStaleness) BoardEstate {
 		RuntimeCells: runtimeStageCells(r, a),
 		StaleNote:    staleStagesNote(r),
 		ScriptNote:   scriptStaleNote(s, EstateDir(r)),
+		ProviderNote: providerNote(r, a),
 	}
 	if s.State == ScriptChanged || s.State == ScriptUnknown {
 		e.ScriptStale = s.State
@@ -302,6 +318,37 @@ func oracleNote(r EstateResult, a *Artifact) string {
 		return fmt.Sprintf("Oracle: stock terraform `%s`, stock tofu `%s` (matches the current pin).", r.LastRun.Oracle.Terraform, r.LastRun.Oracle.Tofu)
 	}
 	return fmt.Sprintf("Oracle: stock terraform `%s`, stock tofu `%s`. **Stale**: the current pin is terraform `%s`, tofu `%s`.", r.LastRun.Oracle.Terraform, r.LastRun.Oracle.Tofu, a.Oracle.Terraform, a.Oracle.Tofu)
+}
+
+// providerNote is the provider-version-provenance sentence (#1253),
+// mirroring oracleNote's shape exactly: silent for a row whose run never
+// recorded a provider version, and otherwise reporting a match or a
+// **Stale** marker against a.Providers. A kind-substrate row (#1067)
+// reads its Kubernetes field; every other row reads AWS - the same split
+// LastRun's own AWSProviderVersion/KubernetesProviderVersion and
+// IsProviderStale use.
+func providerNote(r EstateResult, a *Artifact) string {
+	if r.LastRun == nil {
+		return ""
+	}
+	if r.Substrate == SubstrateKind {
+		got := r.LastRun.KubernetesProviderVersion
+		if got == "" {
+			return ""
+		}
+		if got == a.Providers.Kubernetes {
+			return fmt.Sprintf("Provider: hashicorp/kubernetes `%s` (matches the current pin).", got)
+		}
+		return fmt.Sprintf("Provider: hashicorp/kubernetes `%s`. **Stale**: the current pin is `%s`.", got, a.Providers.Kubernetes)
+	}
+	got := r.LastRun.AWSProviderVersion
+	if got == "" {
+		return ""
+	}
+	if got == a.Providers.AWS {
+		return fmt.Sprintf("Provider: hashicorp/aws `%s` (matches the current pin).", got)
+	}
+	return fmt.Sprintf("Provider: hashicorp/aws `%s`. **Stale**: the current pin is `%s`.", got, a.Providers.AWS)
 }
 
 // Canonical is the board's on-disk form: two-space indented, trailing

@@ -40,6 +40,37 @@ func oracleVersions(root string) OracleVersions {
 	return OracleVersions{Terraform: pin.Terraform, Tofu: pin.Tofu}
 }
 
+// providerVersions reads live/oracle-versions.json's aws_provider_version
+// and kubernetes_provider_version fields - the CONFIGURATION half of issue
+// #1253, a.Providers's value on every Rebuild, read the same graceful-
+// empty way oracleVersions reads terraform_version/tofu_version from the
+// same file. Kept as its own type (ProviderVersions, artifact.go) rather
+// than folded into OracleVersions: unlike terraform/tofu, which are
+// PROBED because nothing forces the binary on PATH to honour the pin,
+// hashicorp/aws and hashicorp/kubernetes are FORCED onto every crossing
+// script before init (gauntlet_pin_aws_provider,
+// gauntlet_kubernetes_required_provider, live/e2e/lib/gauntlet.sh), so
+// the evidence a run records IS this same pin, read once at run time
+// (RunEstates, run.go) - never probed. Folding the two providers into
+// OracleVersions would also break oracleNote's `*r.LastRun.Oracle ==
+// a.Oracle` comparison (board.go): LastRun.Oracle never sets a provider
+// field, so every row would compare unequal to a.Oracle forever, on a
+// fact it never claimed to record there.
+func providerVersions(root string) ProviderVersions {
+	b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(OracleVersionsPin)))
+	if err != nil {
+		return ProviderVersions{}
+	}
+	var pin struct {
+		AWS        string `json:"aws_provider_version"`
+		Kubernetes string `json:"kubernetes_provider_version"`
+	}
+	if err := json.Unmarshal(b, &pin); err != nil {
+		return ProviderVersions{}
+	}
+	return ProviderVersions{AWS: pin.AWS, Kubernetes: pin.Kubernetes}
+}
+
 // oracleVersionProbe is overridden in tests so a probeOracle assertion never
 // depends on what terraform/tofu happen to be installed on the machine
 // running `go test` - see oracle_test.go.

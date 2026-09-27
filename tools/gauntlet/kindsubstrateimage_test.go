@@ -104,7 +104,7 @@ func TestKindLaneClearRowIsNeverEmulatorStale(t *testing.T) {
 	a := &Artifact{Estates: []EstateResult{
 		{Name: "k8s-clear", Protocol: ProtocolGauntlet, Stages: passEverything(), LastRun: &LastRun{Commit: "c", Date: "2026-01-01T00:00:00Z"}},
 	}}
-	a.Rebuild(m, &BehaviorIndex{}, "ghcr.io/lex00/floci@sha256:current", OracleVersions{})
+	a.Rebuild(m, &BehaviorIndex{}, "ghcr.io/lex00/floci@sha256:current", OracleVersions{}, ProviderVersions{})
 
 	for _, r := range a.Estates {
 		if r.Name == "k8s-clear" && !r.Clear {
