@@ -92,3 +92,36 @@ func ManifestAnnotationsOf(obj cty.Value) (map[string]string, bool) {
 	}
 	return manifestMetadataMap(obj.GetAttr(ManifestSurfaceAttr), AnnotationSurfaceAttr)
 }
+
+// AnnotationsChangedBesides reports whether prior and planned - two values
+// of one label-surface object - carry different metadata[0].annotations
+// once key is set aside on both sides. It is the annotations half of a
+// "nothing but the markers moved" check (GitHub issue #1639): a marker
+// write may add or rewrite the address annotation, and any other
+// annotation it moves is a change the write was not asked to make. One
+// side readable and the other not reads as a difference, so a value that
+// became unreadable is refused rather than waved through; neither side
+// readable (a schema with no annotations attribute) is no difference.
+//
+//markers:surface labels
+func AnnotationsChangedBesides(prior, planned cty.Value, key string) bool {
+	p, pok := AnnotationsOf(prior)
+	n, nok := AnnotationsOf(planned)
+	if pok != nok {
+		return true
+	}
+	if !pok {
+		return false
+	}
+	delete(p, key)
+	delete(n, key)
+	if len(p) != len(n) {
+		return true
+	}
+	for k, v := range p {
+		if got, ok := n[k]; !ok || got != v {
+			return true
+		}
+	}
+	return false
+}

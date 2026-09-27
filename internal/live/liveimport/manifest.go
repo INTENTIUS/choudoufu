@@ -160,14 +160,24 @@ func seedManifestKeys(schema providers.Schema, stateObj cty.Value) map[string][]
 	if !ok {
 		return nil
 	}
-	labels := keys[markers.LabelSurfaceAttr]
-	for _, k := range labels {
-		if k == markers.TagEstate {
-			return keys
+	// The address annotation is added the same way, for the same reason:
+	// the stamp declares it on every plan (GitHub issue #1639).
+	for field, key := range map[string]string{
+		markers.LabelSurfaceAttr:      markers.TagEstate,
+		markers.AnnotationSurfaceAttr: markers.AddressAnnotation,
+	} {
+		have := false
+		for _, k := range keys[field] {
+			if k == key {
+				have = true
+				break
+			}
+		}
+		if !have {
+			keys[field] = append(keys[field], key)
+			sort.Strings(keys[field])
 		}
 	}
-	keys[markers.LabelSurfaceAttr] = append(labels, markers.TagEstate)
-	sort.Strings(keys[markers.LabelSurfaceAttr])
 	return keys
 }
 
@@ -212,50 +222,66 @@ func approveManifest(ctx context.Context, estate string, addr addrs.AbsResourceI
 		return out
 	}
 
+	// GitHub issue #1639: the address annotation goes in the same patch as
+	// the label, and the adoption cases follow the metadata-block
+	// carrier's ([approveLabel]).
+	wantAddress := markers.EscapeAddress(addr.String())
+	gotAddress := live.GetAnnotations()[markers.AddressAnnotation]
+	addressOK := gotAddress != "" && markers.AddressMatches(markers.EscapeAddress(gotAddress), addr.String())
+
 	switch got := live.GetLabels()[markers.TagEstate]; {
-	case got == estate:
+	case got == estate && addressOK:
 		out.Outcome = OutcomeAlreadyStamped
-		out.Detail = "Already carries this estate's label; nothing written."
+		out.Detail = "Already carries this estate's label and this block's address annotation; nothing written."
 		return out
-	case got != "":
+	case got != "" && got != estate:
 		out.Outcome = OutcomeFailed
 		out.Detail = fmt.Sprintf("Carries the label tofu-estate = %q, owned by another estate. A migration never adopts another estate's object; nothing was written.", got)
 		return out
+	case gotAddress != "" && !addressOK:
+		out.Outcome = OutcomeFailed
+		out.Detail = fmt.Sprintf("Already carries the annotation %s = %q. Rewriting it here would be a rename, which is choudoufu live-mv's job, not a side effect of an import; nothing was written.", markers.AddressAnnotation, gotAddress)
+		return out
 	}
 
-	dry, rejected, err := e.patcher.PatchLabel(ctx, ref, markers.TagEstate, estate, e.fieldManager, true)
+	labels := map[string]string{markers.TagEstate: estate}
+	annotations := map[string]string{markers.AddressAnnotation: wantAddress}
+	dry, rejected, err := e.patcher.PatchMarkers(ctx, ref, labels, annotations, e.fieldManager, true)
 	if err != nil {
 		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("The label write on %s could not be submitted to the cluster for a dry run: %s. Nothing was written.", ref, err)
+		out.Detail = fmt.Sprintf("The marker write on %s could not be submitted to the cluster for a dry run: %s. Nothing was written.", ref, err)
 		return out
 	}
 	if rejected != "" {
 		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("The API server refused the label write on %s: %s. Nothing was written.", ref, rejected)
+		out.Detail = fmt.Sprintf("The API server refused the marker write on %s: %s. Nothing was written.", ref, rejected)
 		return out
 	}
 	if extra := changedOutsideManifestLabels(live.Object, dry.Object); len(extra) > 0 {
 		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("Labelling this %s would also change %s, which the server's own dry run of the patch reports. Approve is a labels-only write on a Kubernetes object; nothing was written. Something between this client and the stored object - a mutating admission webhook, most likely - rewrites more than was asked for, and that has to be resolved first.", e.typeName, strings.Join(extra, ", "))
+		out.Detail = fmt.Sprintf("Labelling this %s would also change %s, which the server's own dry run of the patch reports. Approve is a markers-only write on a Kubernetes object (the tofu-estate label and the %s annotation); nothing was written. Something between this client and the stored object - a mutating admission webhook, most likely - rewrites more than was asked for, and that has to be resolved first.", e.typeName, strings.Join(extra, ", "), markers.AddressAnnotation)
 		return out
 	}
 
-	written, rejected, err := e.patcher.PatchLabel(ctx, ref, markers.TagEstate, estate, e.fieldManager, false)
+	written, rejected, err := e.patcher.PatchMarkers(ctx, ref, labels, annotations, e.fieldManager, false)
 	if err != nil {
 		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("The label write on %s failed: %s. The write may have partly landed; read the object's labels with kubectl before deciding what to do next.", ref, err)
+		out.Detail = fmt.Sprintf("The marker write on %s failed: %s. The write may have partly landed; read the object's labels and annotations with kubectl before deciding what to do next.", ref, err)
 		return out
 	}
 	if rejected != "" {
 		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("The API server refused the label write on %s: %s. Nothing was written.", ref, rejected)
+		out.Detail = fmt.Sprintf("The API server refused the marker write on %s: %s. Nothing was written.", ref, rejected)
 		return out
 	}
 
 	out.Outcome = OutcomeStamped
-	out.Detail = "Wrote the tofu-estate label. The Kubernetes marker carries no address: the object is re-bound by the apiVersion, kind, namespace and name inside its manifest."
-	if written == nil || written.GetLabels()[markers.TagEstate] != estate {
+	out.Detail = fmt.Sprintf("Wrote the tofu-estate label and the %s annotation.", markers.AddressAnnotation)
+	switch {
+	case written == nil || written.GetLabels()[markers.TagEstate] != estate:
 		out.Detail = "The write reported no error, but the object read back afterwards does not carry the tofu-estate label. Verify with kubectl before relying on this."
+	case written.GetAnnotations()[markers.AddressAnnotation] != wantAddress:
+		out.Detail = fmt.Sprintf("The write reported no error, but the object read back afterwards does not carry the %s annotation. Verify with kubectl before relying on this.", markers.AddressAnnotation)
 	}
 	return out
 }
@@ -272,6 +298,11 @@ func approveManifest(ctx context.Context, estate string, addr addrs.AbsResourceI
 //   - labels: the one map this write exists to change, the same
 //     exemption [changedOutsideLabels] makes for the metadata block's
 //     labels attribute.
+//
+// Annotations are not exempt wholesale: the write adds one annotation,
+// [markers.AddressAnnotation] (GitHub issue #1639), and
+// [changedOutsideManifestLabels] sets that one key aside and compares
+// every other annotation.
 var manifestBookkeeping = map[string]bool{
 	"managedFields":   true,
 	"resourceVersion": true,
@@ -291,6 +322,7 @@ var manifestBookkeeping = map[string]bool{
 // beneath it.
 func changedOutsideManifestLabels(live, planned map[string]any) []string {
 	var out []string
+	live, planned = withoutAddressAnnotation(live), withoutAddressAnnotation(planned)
 	changedOutsideManifestLabelsAt(live, planned, "", &out)
 	sort.Strings(out)
 	return out
@@ -363,4 +395,44 @@ func sameJSONValue(a, b any) bool {
 		return true
 	}
 	return a == b
+}
+
+// withoutAddressAnnotation returns obj with metadata.annotations'
+// [markers.AddressAnnotation] entry removed, and the annotations map
+// removed with it when that was its only entry, so that a write adding the
+// annotation to an object that had none compares equal outside it. obj
+// itself is not modified: the maps on the path to the key are copied.
+func withoutAddressAnnotation(obj map[string]any) map[string]any {
+	meta, ok := obj["metadata"].(map[string]any)
+	if !ok {
+		return obj
+	}
+	ann, ok := meta["annotations"].(map[string]any)
+	if !ok {
+		return obj
+	}
+	if _, has := ann[markers.AddressAnnotation]; !has {
+		return obj
+	}
+	newAnn := make(map[string]any, len(ann))
+	for k, v := range ann {
+		if k != markers.AddressAnnotation {
+			newAnn[k] = v
+		}
+	}
+	newMeta := make(map[string]any, len(meta))
+	for k, v := range meta {
+		newMeta[k] = v
+	}
+	if len(newAnn) == 0 {
+		delete(newMeta, "annotations")
+	} else {
+		newMeta["annotations"] = newAnn
+	}
+	out := make(map[string]any, len(obj))
+	for k, v := range obj {
+		out[k] = v
+	}
+	out["metadata"] = newMeta
+	return out
 }
