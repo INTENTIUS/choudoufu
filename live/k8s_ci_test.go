@@ -25,6 +25,14 @@ import (
 // Proving it red: add a live/smoke/scenarios/k8s-x.sh with no matrix
 // entry, or a kubernetes-lane estate the gauntlet step does not name, or
 // change one workflow's kind pin; each fails a different check below.
+//
+// The kind binary's own version (as opposed to kubectl's, or the
+// helm/kind-action release) moved from a literal `version: vX.Y.Z` copied
+// into each job to a shared step reading the single pin file
+// live/kind-version (issue #1594): kindVersion below accepts either shape,
+// so this test still catches the two workflows disagreeing, and
+// live/kind_pin_test.go's TestWorkflowsReadTheKindVersionPin is what
+// refuses a literal from reappearing.
 
 const (
 	k8sSmokeWorkflow  = "../.github/workflows/k8s-smoke.yml"
@@ -34,7 +42,7 @@ const (
 
 var (
 	kindActionLine = regexp.MustCompile(`uses: helm/kind-action@(v[0-9]+\.[0-9]+\.[0-9]+)`)
-	kindVersion    = regexp.MustCompile(`\n\s+version: (v[0-9]+\.[0-9]+\.[0-9]+)`)
+	kindVersion    = regexp.MustCompile(`\n\s+version: (v[0-9]+\.[0-9]+\.[0-9]+|\$\{\{ steps\.kind\.outputs\.version \}\})`)
 	kubectlVersion = regexp.MustCompile(`\n\s+kubectl_version: (v[0-9]+\.[0-9]+\.[0-9]+)`)
 	matrixEntry    = regexp.MustCompile(`\n\s+- (k8s-[a-z0-9-]+)`)
 	// The shard matrix is computed, never typed: a `gauntlet estates` step
