@@ -23,6 +23,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/live/staticeval"
 	"github.com/intentius/choudoufu/internal/live/strict"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -232,6 +233,24 @@ func resolveWith(ctx context.Context, cfg *configs.Config, rctx Context) (*Resul
 // table discovery draws its universe from ([AdmittedTypes] is its keys):
 // asking it directly is what makes this warning and the sweep unable to
 // disagree, whatever else later learns to write a memo here.
+//
+// A second sweep exists beside the table's: the Kubernetes leg (GitHub
+// issue #1065) draws its own universe from the provider's own types joined
+// to what the cluster serves, not from DefaultTable, so a type it reaches
+// gets the same guarantee a table row does even with no row at all. Whether
+// a TYPE is reached by such a leg is asked of [substrate.Sweeps], given the
+// provider that type's own resources are declared under
+// ([resolver.typeProviders], [providerscope.ResolveResource]) - never of
+// entry.NonAWSProvider (GitHub issue #1581). That field is set the moment a
+// type's SCHEMA matches the Kubernetes object-metadata or manifest
+// convention ([synthesizeMetadataIdentity], [synthesizeManifestIdentity]),
+// which is a claim about shape, not about which provider serves the type: a
+// resource from an unrelated provider can share that exact shape by
+// coincidence, with no sweep leg ever reaching it, because
+// internal/command/live_plan.go only builds the Kubernetes leg for a
+// provider configuration whose own address has Type "kubernetes". Reading
+// NonAWSProvider as "swept" made the warning silently wrong for that case;
+// asking the substrate by the resource's actual provider cannot be.
 func (r *resolver) warnUnsweepableTypes() {
 	names := make([]string, 0, len(r.synth))
 	for typeName, entry := range r.synth {
@@ -241,13 +260,7 @@ func (r *resolver) warnUnsweepableTypes() {
 		if _, hasRow := LookupType(typeName); hasRow {
 			continue
 		}
-		if entry.NonAWSProvider {
-			// A type the object-metadata rule admitted (GitHub issue
-			// #1064) is reached by the Kubernetes sweep (#1065), which
-			// draws its universe from the provider's own types joined to
-			// what the cluster serves, not from DefaultTable: deleting its
-			// last block does propose the removal. The warning's claim
-			// would be false for it.
+		if substrate.Sweeps(r.typeProviders[typeName]) {
 			continue
 		}
 		names = append(names, typeName)
@@ -744,6 +757,7 @@ func newResolver(ctx context.Context, cfg *configs.Config, rctx Context) *resolv
 		instFailed:     make(map[string]bool),
 		instVisit:      make(map[string]bool),
 		synth:          make(map[string]*TypeIdentity),
+		typeProviders:  make(map[string]string),
 		scopeCtx:       make(map[string][]string),
 	}
 	// A result the index could not use is the calling code's defect, not
@@ -897,6 +911,20 @@ type resolver struct {
 	// [LookupType] itself on every such call rather than caching the
 	// negative answer's VALUE, since the row is [DefaultTable]'s to own.
 	synth map[string]*TypeIdentity
+
+	// typeProviders memoizes, once per type name, which provider (its
+	// short type name, "aws", "kubernetes", ...) the FIRST resource of that
+	// type the walk reaches is declared under
+	// ([providerscope.ResolveResource]). [resolver.warnUnsweepableTypes]
+	// asks it before crediting a type synthesized outside [DefaultTable]
+	// with sweep coverage (GitHub issue #1581): a type's SCHEMA can match a
+	// Kubernetes convention ([TypeIdentity.NonAWSProvider]) while its
+	// actual provider is something else entirely, and only the provider
+	// says which sweep leg, if any, will ever look for it again. A type
+	// resolves the same way under any two resources sharing its name (the
+	// admission table is keyed by type name alone), so the first sighting
+	// is as good as every other.
+	typeProviders map[string]string
 
 	// scopeCtx memoizes, per type, which of the provider identity schema's
 	// own attributes are scope rather than identity for that type - the
@@ -1165,6 +1193,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			"%s is not declared in this configuration, so its identity cannot be resolved.", resAddr.String())
 		return Resolution{}, false
 	}
+	r.recordTypeProvider(resAddr.Type, rc)
 
 	// The referenced instance key has to be one this resource actually
 	// expands to; otherwise a reference like aws_subnet.this.id (whole
@@ -3533,6 +3562,21 @@ func (r *resolver) resourceCloudScope(rc *configs.Resource, scope instScope) clo
 	abs := providerscope.ResolveResource(r.curCfg, rc)
 	region, ok := r.effectiveRegion(rc, abs, scope)
 	return cloudScopeKey{base: abs.String(), region: region, regionKnown: ok}
+}
+
+// recordTypeProvider memoizes rc's own resolved provider's short type name
+// (the provider address's Type, see [addrs.Provider]) under resourceType, the first time this type is
+// seen, into [resolver.typeProviders]. See that field's doc comment for
+// why: [resolver.warnUnsweepableTypes] needs to ask which provider a type
+// actually belongs to, and this is the same [providerscope.ResolveResource]
+// call [resolver.resourceCloudScope] already pays per instance - no
+// provider process, no network, just the static module tree's own
+// `providers = { ... }` mapping.
+func (r *resolver) recordTypeProvider(resourceType string, rc *configs.Resource) {
+	if _, seen := r.typeProviders[resourceType]; seen {
+		return
+	}
+	r.typeProviders[resourceType] = providerscope.ResolveResource(r.curCfg, rc).Provider.Type
 }
 
 // effectiveRegion is [resolver.resourceCloudScope]'s own region component
