@@ -361,7 +361,7 @@ func (kubernetes) MarkerWriter(addrs.AbsProviderConfig) Write { return WriteNeve
 
 // PostCreateNeeded is never: both surfaces carry the label in the create
 // call ([WriteNeverNeeded]).
-func (kubernetes) PostCreateNeeded(markers.Surface, string, CreateTagFacts) (string, bool) {
+func (kubernetes) PostCreateNeeded(markers.Surface, Created, Facts) (string, bool) {
 	return "", false
 }
 
@@ -372,8 +372,17 @@ func (kubernetes) PostCreateNeeded(markers.Surface, string, CreateTagFacts) (str
 // this. Implemented for [Substrate] completeness with the same generic
 // sentence the package-level [ManualMarkFix] gives a surface with no
 // family at all.
-func (kubernetes) ManualMarkFix(_, _ string, want map[string]string, _ CreateTagFacts) string {
-	return fmt.Sprintf("Mark it by hand with the markers %s, then plan again.", markers.TagsArgument(want))
+func (kubernetes) ManualMarkFix(_ Created, want map[string]string, _ Facts) string {
+	return genericMarkFix(want)
+}
+
+// ---- GitHub issue #1708: the created object, named ----
+
+// CreatedObject is the object's id, like the package-level
+// [CreatedObject] for a surface with no family: never asked while
+// PostCreateNeeded answers false, and never phrased in AWS's words.
+func (kubernetes) CreatedObject(created Created) string {
+	return idPhrase(created.Object)
 }
 
 // ---- GitHub issue #1649: the carrier's wholly-known read ----

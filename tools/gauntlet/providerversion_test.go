@@ -231,17 +231,17 @@ func TestBoardEstateProviderNote(t *testing.T) {
 	a := &Artifact{Providers: ProviderVersions{AWS: "6.63.0"}, Stages: Stages()}
 	r := EstateResult{Name: "x", Protocol: ProtocolGauntlet, Stages: map[string]string{}}
 
-	if note := boardEstate(r, a, ScriptStaleness{}).ProviderNote; note != "" {
+	if note := boardEstate(r, a, ScriptStaleness{}, "").ProviderNote; note != "" {
 		t.Errorf("no LastRun at all: note should be empty, got %q", note)
 	}
 
 	r.LastRun = &LastRun{Commit: "c", Date: "d", AWSProviderVersion: "6.63.0"}
-	if note := boardEstate(r, a, ScriptStaleness{}).ProviderNote; !strings.Contains(note, "matches the current pin") {
+	if note := boardEstate(r, a, ScriptStaleness{}, "").ProviderNote; !strings.Contains(note, "matches the current pin") {
 		t.Errorf("expected a matching-provider note; got %q", note)
 	}
 
 	r.LastRun.AWSProviderVersion = "6.58.0"
-	note := boardEstate(r, a, ScriptStaleness{}).ProviderNote
+	note := boardEstate(r, a, ScriptStaleness{}, "").ProviderNote
 	if !strings.Contains(note, "6.58.0") || !strings.Contains(note, "**Stale**") || !strings.Contains(note, "6.63.0") {
 		t.Errorf("expected a stale-provider note naming both versions; got %q", note)
 	}
