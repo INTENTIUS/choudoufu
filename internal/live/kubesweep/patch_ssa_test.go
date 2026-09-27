@@ -7,9 +7,11 @@ package kubesweep
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -223,5 +225,40 @@ func TestDeleteMarkersLeavesNoOwnerBehind(t *testing.T) {
 		map[string]string{"tofu-estate": "other"},
 		map[string]string{ssaTestAnnotation: "kubernetes_manifest.z"})); err != nil {
 		t.Fatalf("an apply after release conflicted: %v", err)
+	}
+}
+
+// TestPatchMarkersRetriesTheTransferOnAConflict is the race #1704's smoke
+// run measured on kind: the three cert-manager Deployments' status moved
+// between the marker patch and the ownership patch, the pinned
+// resourceVersion answered 409, and their markers stayed with the Update
+// entry. The transfer is recomputed from a fresh read and sent again.
+func TestPatchMarkersRetriesTheTransferOnAConflict(t *testing.T) {
+	c, dyn := fieldManagedCluster(t)
+	if _, err := providerApply(t, dyn, providerManifest(nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+	conflicts := 0
+	dyn.PrependReactor("patch", "crontabs", func(action clienttesting.Action) (bool, runtime.Object, error) {
+		if action.(clienttesting.PatchAction).GetPatchType() == types.JSONPatchType && conflicts == 0 {
+			conflicts++
+			return true, nil, apierrors.NewConflict(crontabGVR.GroupResource(), "my-crontab", errors.New("the object has been modified"))
+		}
+		return false, nil, nil
+	})
+	ref := ObjectRef{APIVersion: "stable.example.com/v1", Kind: "CronTab", Namespace: "smoke-crd", Name: "my-crontab"}
+	written, rejected, err := c.PatchMarkers(context.Background(), ref,
+		map[string]string{"tofu-estate": "smoke-crd"},
+		map[string]string{ssaTestAnnotation: "kubernetes_manifest.a"}, "", false)
+	if err != nil || rejected != "" {
+		t.Fatalf("PatchMarkers: err=%v rejected=%q", err, rejected)
+	}
+	if conflicts != 1 {
+		t.Fatalf("the injected conflict fired %d times", conflicts)
+	}
+	for _, e := range written.GetManagedFields() {
+		if e.Manager == DefaultFieldManager && e.Operation == metav1.ManagedFieldsOperationUpdate {
+			t.Errorf("after a retried transfer %s still holds an Update entry: %s", e.Manager, e.FieldsV1.Raw)
+		}
 	}
 }

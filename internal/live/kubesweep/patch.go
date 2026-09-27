@@ -271,30 +271,50 @@ func (c *Client) handMarkersToApply(ctx context.Context, ref ObjectRef, obj *uns
 	if fieldManager == "" {
 		fieldManager = DefaultFieldManager
 	}
-	entries, changed, err := transferMarkerOwnership(obj.GetManagedFields(), fieldManager, labels, annotations)
-	if err != nil {
-		return nil, "", fmt.Errorf("the markers on %s %s were written, but their field ownership could not be read: %w", ref.Kind, NaturalKey(ref.Namespace, ref.Name), err)
-	}
-	if !changed {
-		return obj, "", nil
-	}
-	raw, err := json.Marshal([]map[string]any{
-		{"op": "replace", "path": "/metadata/managedFields", "value": entries},
-		{"op": "replace", "path": "/metadata/resourceVersion", "value": obj.GetResourceVersion()},
-	})
-	if err != nil {
-		return nil, "", fmt.Errorf("building the ownership patch: %w", err)
-	}
 	client, err := c.resourceClient(ref.APIVersion, ref.Kind, ref.Namespace)
 	if err != nil {
 		return nil, "", err
 	}
-	out, err := client.Patch(ctx, ref.Name, types.JSONPatchType, raw, metav1.PatchOptions{FieldManager: fieldManager})
-	if err != nil {
-		return nil, "", fmt.Errorf("the markers on %s %s were written under field manager %q, but handing their ownership to that manager's server-side apply failed, so the provider's next apply that changes a marker will report a field manager conflict: %w", ref.Kind, NaturalKey(ref.Namespace, ref.Name), fieldManager, err)
+	failed := func(err error) error {
+		return fmt.Errorf("the markers on %s %s were written under field manager %q, but handing their ownership to that manager's server-side apply failed, so the provider's next apply that changes a marker will report a field manager conflict: %w", ref.Kind, NaturalKey(ref.Namespace, ref.Name), fieldManager, err)
 	}
-	return out, "", nil
+	// A controller that writes the object between the marker patch and
+	// this one - a Deployment's status, measured on kind during #1704's
+	// smoke run - moves the resourceVersion and the server answers 409.
+	// The transfer is recomputed from a fresh read and sent again.
+	for attempt := 0; ; attempt++ {
+		entries, changed, err := transferMarkerOwnership(obj.GetManagedFields(), fieldManager, labels, annotations)
+		if err != nil {
+			return nil, "", failed(err)
+		}
+		if !changed {
+			return obj, "", nil
+		}
+		raw, err := json.Marshal([]map[string]any{
+			{"op": "replace", "path": "/metadata/managedFields", "value": entries},
+			{"op": "replace", "path": "/metadata/resourceVersion", "value": obj.GetResourceVersion()},
+		})
+		if err != nil {
+			return nil, "", fmt.Errorf("building the ownership patch: %w", err)
+		}
+		out, err := client.Patch(ctx, ref.Name, types.JSONPatchType, raw, metav1.PatchOptions{FieldManager: fieldManager})
+		if err == nil {
+			return out, "", nil
+		}
+		if !apierrors.IsConflict(err) || attempt >= ownershipRetries {
+			return nil, "", failed(err)
+		}
+		fresh, getErr := client.Get(ctx, ref.Name, metav1.GetOptions{})
+		if getErr != nil {
+			return nil, "", failed(fmt.Errorf("%w; re-reading after that conflict: %w", err, getErr))
+		}
+		obj = fresh
+	}
 }
+
+// ownershipRetries bounds how many times [Client.handMarkersToApply]
+// re-reads and resends after a resourceVersion conflict.
+const ownershipRetries = 5
 
 // transferMarkerOwnership returns entries with every marker key (the given
 // label and annotation keys) that manager's Update entries own moved into
