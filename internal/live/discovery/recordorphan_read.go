@@ -206,6 +206,23 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 				continue
 			}
 		}
+		if req.ScopeProvider.Provider.Type != "" {
+			if _, served := schemas.ResourceSchema(typeName); !served {
+				// GitHub issue #1715: one pass of a multi-provider root
+				// ([Merge]) reads the estate's whole record store, so it
+				// sees the records of every provider configuration's
+				// instances, and a removal it proposes is read and
+				// destroyed through this pass's provider. A type that
+				// provider has no schema for is another pass's: the
+				// ratified branch above never asked the schema, so a
+				// helm pass proposed a removed kubernetes_config_map
+				// block's record and the projection failed reading it
+				// through helm. The pass whose provider serves the type
+				// accounts for it (the Kubernetes label sweep files the
+				// same object as its own orphan).
+				continue
+			}
+		}
 		if typeTaggable(schemas, typeName) && !selection.Selects(addr.ConfigResource()) {
 			// Taggable, meaning the ordinary tag sweep already covers it
 			// (and already ran, above, before this leg) and would already
