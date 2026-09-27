@@ -67,12 +67,12 @@ func (s *stubSweeper) Kinds(_ context.Context, _ []string, _ string) ([]kubeswee
 	return s.kinds, s.unserved, nil
 }
 
-func (s *stubSweeper) List(_ context.Context, k kubesweep.Kind, key, value string) ([]kubesweep.Object, int, error) {
+func (s *stubSweeper) List(_ context.Context, k kubesweep.Kind, key, value string) ([]kubesweep.Object, kubesweep.Skipped, error) {
 	s.listed = append(s.listed, k.Kind+" "+key+"="+value)
 	if k.Kind == s.failKind {
-		return nil, 0, errors.New("forbidden")
+		return nil, kubesweep.Skipped{}, errors.New("forbidden")
 	}
-	return s.objects[k.Kind], 1, nil
+	return s.objects[k.Kind], kubesweep.Skipped{Count: 1}, nil
 }
 
 func k8sInstance(t *testing.T, typeName, name string) addrs.AbsResourceInstance {

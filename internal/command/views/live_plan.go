@@ -97,6 +97,15 @@ type StatelessForeign struct {
 	// looking than the wording alone implies.
 	NativeSweepSkipped int
 
+	// ControllerHeld are the live objects carrying this estate's marker
+	// that the sweep set aside because a controller holds them, with the
+	// holder named: today the objects a Helm release installed
+	// ([discovery.Result.KubernetesHeld]; GitHub issue #1607, the
+	// 2026-09-26 ruling on #1604). They are never removals and never
+	// adoptable. They are rendered so that a chart value carrying
+	// tofu-estate reads as what it is rather than as nothing.
+	ControllerHeld []StatelessControllerHeld
+
 	// Unswept are the types this classification cannot speak for, with a
 	// reason code and a sentence each.
 	Unswept []StatelessUnsweptType
@@ -214,6 +223,14 @@ type StatelessRemoval struct {
 }
 
 // StatelessSweepGap is one resource type the removal sweep could not cover.
+// StatelessControllerHeld is one live object a controller holds: its kind
+// and NAMESPACE/NAME, and the holder in words ("Helm release web/web").
+type StatelessControllerHeld struct {
+	Kind   string
+	ID     string
+	HeldBy string
+}
+
 type StatelessSweepGap struct {
 	TypeName string
 	Reason   string
@@ -1224,6 +1241,8 @@ const statelessSweepIntro = `A classification is only as wide as the sweep behin
 
 const statelessRemovalIntro = `Each of these carries this estate's ownership marker for an address the configuration no longer declares. They are in the prior state this plan ran against, at the address their marker names, so the plan below proposes destroying them the same way it would destroy any resource whose configuration was deleted. Nothing unowned is here: a resource with no marker for this estate is never in the prior state and can never be planned for destruction.`
 
+const statelessControllerHeldIntro = `A controller made these, not a block: each carries Helm's release annotation, so it belongs to that release, and the estate's label on it came from the chart's values. They are never proposed for destruction and never offered for adoption. To stop listing them, take tofu-estate out of the chart's values; to own them, render the chart into kubernetes_manifest blocks. helm_release itself is refused in a live root.`
+
 const statelessSweepGapIntro = `Finding a resource whose block was deleted means listing its type and reading the markers off what comes back, and these types could not be searched. This estate may own resources of them that no plan will propose destroying. An empty removal list is a statement about the types that were swept and about nothing else.`
 
 // statelessSweepGapReasons is the one paragraph each standing gap gets,
@@ -1339,6 +1358,17 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 			if rm.Why != "" {
 				wrapped(rm.Why, 6)
 			}
+		}
+	}
+
+	if len(rep.ControllerHeld) > 0 {
+		colored("\n[reset][bold]Controller-held: %d live %s %s this estate's label and %s not swept[reset]\n\n",
+			len(rep.ControllerHeld), noun(len(rep.ControllerHeld), "object", "objects"),
+			noun(len(rep.ControllerHeld), "carries", "carry"), noun(len(rep.ControllerHeld), "is", "are"))
+		wrapped(statelessControllerHeldIntro, 0)
+		out("\n")
+		for _, h := range rep.ControllerHeld {
+			colored("  [bold]%s %s[reset] held by %s\n", h.Kind, h.ID, h.HeldBy)
 		}
 	}
 

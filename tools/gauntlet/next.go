@@ -77,7 +77,15 @@ func nextUnitsAgainst(headline []Stage, a *Artifact, set string) []Unit {
 			// should ENQUEUE units, not silently invalidate the board, so
 			// this is real work too, just lower priority than a genuine
 			// failure - see the trailing pass below.
-			if IsStale(r, a.Emulator) {
+			//
+			// r.Substrate != "" (the kind lane, #1067) is excluded: such a
+			// row's last_run.emulator is never stamped at all (#1594 - a
+			// kind-substrate estate does not launch floci, so the floci
+			// pin's movement says nothing about whether ITS evidence is
+			// stale), and treating an unstamped field as "always stale"
+			// would enqueue a permanent, meaningless re-verify unit for
+			// every clear kind estate on every render.
+			if r.Substrate == "" && IsStale(r, a.Emulator) {
 				staleClear = append(staleClear, r)
 			}
 			continue
