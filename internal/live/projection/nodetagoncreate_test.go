@@ -483,3 +483,123 @@ func (f *fakeObjectWriter) WriteMarkers(_ context.Context, created CreatedInstan
 	f.calls = append(f.calls, fakeObjectWrite{created: created, tags: tags})
 	return nil
 }
+
+// bindingSurface is the fake family's marker surface: a synthetic value no
+// real family owns, so nothing here may be answered by AWS's registry.
+const bindingSurface markers.Surface = "graph-binding-surface"
+
+// bindingFamily is a non-AWS family whose marker cannot ride its types'
+// create calls and is written by a binding once the create returns (GitHub
+// issue #1642). It carries the surface on a schema with a "binding_target"
+// attribute, and declares the post-create write for its own types by its
+// own rule, reading no registry.
+type bindingFamily struct{ substrate.Substrate }
+
+func (bindingFamily) Name() string                                         { return "graph" }
+func (bindingFamily) Surfaces() []markers.Surface                          { return []markers.Surface{bindingSurface} }
+func (bindingFamily) CarriesAddress() bool                                 { return true }
+func (bindingFamily) MarkerWriter(addrs.AbsProviderConfig) substrate.Write { return "graph-binding" }
+func (bindingFamily) SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
+	if _, ok := block.Attributes["binding_target"]; ok {
+		return bindingSurface, true
+	}
+	return "", false
+}
+func (f bindingFamily) OwnershipSurfaceOf(block *configschema.Block) (markers.Surface, bool) {
+	return f.SurfaceOf(block)
+}
+func (bindingFamily) Writes(surface markers.Surface) substrate.Writes {
+	if surface == bindingSurface {
+		return substrate.Writes{Create: substrate.WriteInCreate, Adopt: "graph-binding", PostCreate: "graph-binding"}
+	}
+	return substrate.Writes{}
+}
+func (bindingFamily) PostCreateNeeded(surface markers.Surface, typeName string, _ substrate.CreateTagFacts) (string, bool) {
+	if surface == bindingSurface && strings.HasPrefix(typeName, "graph_") {
+		return typeName + " takes its marker as a binding after the create", true
+	}
+	return "", false
+}
+
+// TestWriteAppliedMarkers_aFamilyDeclaresItsOwnPostCreate (GitHub issue
+// #1642): whether a create needs the post-create write is the family's
+// answer, not the AWS CloudFormation registry's. A non-AWS type with no
+// registry row at all, whose family declares the write, reaches that
+// family's writer with the created instance; the same family's answer of
+// false, and the Kubernetes family's never, leave the create alone.
+func TestWriteAppliedMarkers_aFamilyDeclaresItsOwnPostCreate(t *testing.T) {
+	saved := substrate.All
+	substrate.All = append(append([]substrate.Substrate(nil), saved...), bindingFamily{substrate.AWS})
+	t.Cleanup(func() { substrate.All = saved })
+
+	schema := providers.Schema{Block: &configschema.Block{
+		Attributes: map[string]*configschema.Attribute{
+			"id":             {Type: cty.String, Computed: true},
+			"name":           {Type: cty.String, Required: true},
+			"binding_target": {Type: cty.String, Computed: true},
+		},
+	}}
+	applied := cty.ObjectVal(map[string]cty.Value{
+		"id":             cty.StringVal("projects/p/things/T1"),
+		"name":           cty.StringVal("thing"),
+		"binding_target": cty.StringVal("//graph/projects/p/things/T1"),
+	})
+	graph := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("graph")}
+
+	n := tocResolver(t, nil)
+	writer := &fakeObjectWriter{}
+	var asked []substrate.Write
+	n.MarkerWriter = func(_ addrs.AbsProviderConfig, write substrate.Write) (MarkerWriter, error) {
+		asked = append(asked, write)
+		return writer, nil
+	}
+
+	thing := locatedTestAddr(t, "graph_thing", "x")
+	if _, diags := n.WriteAppliedMarkers(context.Background(), thing, graph, plans.Create, applied, schema); diags.HasErrors() {
+		t.Fatalf("write failed: %v", diags.Err())
+	}
+	if len(writer.calls) != 1 {
+		t.Fatalf("the family declared a post-create write for graph_thing and its writer got %d writes, want 1", len(writer.calls))
+	}
+	if len(asked) != 1 || asked[0] != "graph-binding" {
+		t.Errorf("asked the command layer for %v, want exactly [graph-binding]", asked)
+	}
+	if got := writer.calls[0]; !got.created.Addr.Equal(thing) || got.tags[markers.TagEstate] != "prod" || got.tags[markers.TagAddress] != "graph_thing.x" {
+		t.Errorf("writer got %s with %v", got.created.Addr, got.tags)
+	}
+
+	// The family's own false: a type it does not declare takes the
+	// create-call path.
+	other := locatedTestAddr(t, "notgraph_thing", "x")
+	if _, diags := n.WriteAppliedMarkers(context.Background(), other, graph, plans.Create, applied, schema); diags.HasErrors() {
+		t.Fatalf("write failed: %v", diags.Err())
+	}
+	if len(writer.calls) != 1 {
+		t.Errorf("a type the family does not declare reached the writer: %d writes", len(writer.calls))
+	}
+}
+
+// TestPostCreateNeeded_eachFamilyAnswers pins the three answers #1642
+// moves onto the families: AWS reads the registry exactly as the
+// projection did (the tag_on_create false type only, and only on the tags
+// surface), Kubernetes never, and the zero surface nothing.
+func TestPostCreateNeeded_eachFamilyAnswers(t *testing.T) {
+	r := tocRoster(t)
+	if why, ok := substrate.PostCreateNeeded(markers.SurfaceTags, "aws_after_thing", r); !ok || why != "AWS::After::Thing does not take tags in its create call (live/registry.json: tag_on_create false)" {
+		t.Errorf("aws_after_thing: %v %q", ok, why)
+	}
+	for _, typ := range []string{"aws_ordinary_thing", "aws_unmapped_thing"} {
+		if _, ok := substrate.PostCreateNeeded(markers.SurfaceTags, typ, r); ok {
+			t.Errorf("%s needs a post-create write, want the create-call path", typ)
+		}
+	}
+	var nilRoster *registry.Roster
+	if _, ok := substrate.PostCreateNeeded(markers.SurfaceTags, "aws_after_thing", nilRoster); ok {
+		t.Error("a run with no roster needs a post-create write")
+	}
+	for _, surface := range []markers.Surface{markers.SurfaceLabels, markers.SurfaceManifest, ""} {
+		if _, ok := substrate.PostCreateNeeded(surface, "aws_after_thing", r); ok {
+			t.Errorf("surface %q needs a post-create write", surface)
+		}
+	}
+}

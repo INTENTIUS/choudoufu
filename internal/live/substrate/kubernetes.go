@@ -348,6 +348,14 @@ func (k kubernetes) NotACarrier(_ *configschema.Block, typeName string) string {
 // both surfaces, so there is nothing to write after it.
 func (kubernetes) MarkerWriter(addrs.AbsProviderConfig) Write { return WriteNeverNeeded }
 
+// ---- GitHub issue #1642: whether a create needs the post-create write ----
+
+// PostCreateNeeded is never: both surfaces carry the label in the create
+// call ([WriteNeverNeeded]).
+func (kubernetes) PostCreateNeeded(markers.Surface, string, CreateTagFacts) (string, bool) {
+	return "", false
+}
+
 // ---- GitHub issue #1649: the carrier's wholly-known read ----
 
 // CarrierPaths: metadata[0].labels, and manifest.metadata.labels. The label
