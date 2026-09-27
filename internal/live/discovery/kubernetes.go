@@ -134,7 +134,8 @@ func sweepKubernetes(ctx context.Context, req Request, res *Result) tfdiags.Diag
 				res.SweepCovered = append(res.SweepCovered, t)
 			}
 		}
-		res.KubernetesOwnerSkipped += ownerSkipped
+		res.KubernetesOwnerSkipped += ownerSkipped.Count
+		res.KubernetesHeld = append(res.KubernetesHeld, ownerSkipped.Held...)
 
 		typeName := manifestType
 		if !k.Manifest {
