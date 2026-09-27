@@ -6,9 +6,12 @@
 package kubesweep
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -17,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
+	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 )
 
 // This file holds the two WRITES this package makes. Each is one merge
@@ -61,20 +65,47 @@ import (
 //
 // # The field manager
 //
-// The patch names the manager the provider itself writes under, so that
-// the provider's next server-side apply of the same label does not meet a
-// competing owner. [DefaultFieldManager] is the provider's own default,
-// measured rather than read from a document: after `terraform apply` of a
+// The patch names the manager the provider itself writes under.
+// [DefaultFieldManager] is the provider's own default, measured rather
+// than read from a document: after `terraform apply` of a
 // kubernetes_manifest block on kind 1.36, the object's
 // metadata.managedFields holds one entry, `manager: Terraform,
 // operation: Apply`. A block that sets `field_manager { name = ... }`
 // overrides it, and the caller passes that name instead.
 //
-// If #1106 section 3 rules that the estate is the field manager, this
-// same write becomes a server-side apply under choudoufu:<estate> and
-// the conflict report comes with it; nothing here is shaped to make that
-// harder - the manager is a parameter, and the patch body is already the
-// apply body an SSA would send.
+// Naming the manager is not enough on its own (GitHub issue #1704).
+// managedFields keys ownership on manager AND operation, so a merge patch
+// under "Terraform" records a `Terraform, Update` entry owning the markers
+// beside the provider's `Terraform, Apply` entry, and the provider's next
+// server-side apply that CHANGES a marker - a moved-block rename rewrites
+// the address annotation - fails with "conflict with \"Terraform\"". A
+// marker whose value never changes never showed it, which is why the
+// tofu-estate label written this way before #1639 did not. So after a
+// real (not dry-run) [Client.PatchMarkers], [Client.handMarkersToApply]
+// moves the marker keys, and only those, from the Update entry into the
+// Apply entry - the same rewrite kubectl's client-side to server-side
+// apply migration makes (k8s.io/client-go/util/csaupgrade), narrowed to
+// the marker paths. The provider's apply then owns the markers alone and
+// changes them without force_conflicts.
+//
+// The patch itself cannot simply be a server-side apply under the
+// provider's manager, which would have been one request: an Apply's body
+// is that manager's whole intent, so an Apply naming only the markers
+// under "Terraform" releases every other field the provider applied, and
+// the server deletes each one no other manager owns. Measured against
+// client-go's field-managed tracker (the API server's own managedfields
+// code): after the provider's apply of a CronTab, a markers-only Apply
+// under "Terraform" left spec null and the configuration's own labels
+// gone. Nor can it be an Apply under a manager of its own: the provider's
+// apply would then conflict with that manager instead.
+//
+// [Client.DeleteMarkers] needs no such step: removing a key removes every
+// manager's ownership of it, so nothing is left for a later apply to
+// conflict with (TestDeleteMarkersLeavesNoOwnerBehind).
+//
+// If #1106 section 3 rules that the estate is the field manager, the
+// transfer targets that manager's Apply entry instead; the manager is a
+// parameter.
 
 // DefaultFieldManager is the field manager hashicorp/kubernetes writes a
 // kubernetes_manifest object under when the block sets no
@@ -116,7 +147,11 @@ type LabelPatcher interface {
 	// PatchMarkers sets every entry of labels into metadata.labels and
 	// every entry of annotations into metadata.annotations on the object
 	// at ref, through ONE merge patch under fieldManager, and returns the
-	// object the server produced. The label is the tofu-estate marker; the
+	// object the server produced. A real (not dry-run) write then moves
+	// the markers' ownership from fieldManager's Update entry to its Apply
+	// entry, so the provider's own apply can change them later without a
+	// field manager conflict (GitHub issue #1704; this file's doc comment
+	// says why it is a second request). The label is the tofu-estate marker; the
 	// annotation is the block address beside it (GitHub issue #1639), and
 	// the two go in one request so an object is never left carrying one
 	// without the other by a write that half landed.
@@ -214,7 +249,176 @@ func (c *Client) PatchMarkers(ctx context.Context, ref ObjectRef, labels, annota
 	if len(annotations) > 0 {
 		meta["annotations"] = annotations
 	}
-	return c.mergePatch(ctx, ref, map[string]any{"metadata": meta}, fieldManager, dryRun)
+	obj, rejected, err := c.mergePatch(ctx, ref, map[string]any{"metadata": meta}, fieldManager, dryRun)
+	if err != nil || rejected != "" || dryRun {
+		return obj, rejected, err
+	}
+	return c.handMarkersToApply(ctx, ref, obj, slices.Collect(maps.Keys(labels)), slices.Collect(maps.Keys(annotations)), fieldManager)
+}
+
+// handMarkersToApply moves ownership of the marker keys a merge patch just
+// wrote from the field manager's Update entry to its Apply entry (GitHub
+// issue #1704). See this file's "The field manager" section for why.
+//
+// The request is a JSON patch replacing metadata.managedFields and nothing
+// else, pinned to the resourceVersion the marker patch returned so that a
+// write landing in between fails with a conflict rather than having its
+// ownership overwritten; it changes no field value, so the server records
+// no new Update entry for it. It is not dry-run first: the only thing it
+// can change is the ownership bookkeeping [ChangedOutsideMarkers] already
+// sets aside, and the marker patch before it was.
+func (c *Client) handMarkersToApply(ctx context.Context, ref ObjectRef, obj *unstructured.Unstructured, labels, annotations []string, fieldManager string) (*unstructured.Unstructured, string, error) {
+	if fieldManager == "" {
+		fieldManager = DefaultFieldManager
+	}
+	client, err := c.resourceClient(ref.APIVersion, ref.Kind, ref.Namespace)
+	if err != nil {
+		return nil, "", err
+	}
+	failed := func(err error) error {
+		return fmt.Errorf("the markers on %s %s were written under field manager %q, but handing their ownership to that manager's server-side apply failed, so the provider's next apply that changes a marker will report a field manager conflict: %w", ref.Kind, NaturalKey(ref.Namespace, ref.Name), fieldManager, err)
+	}
+	// A controller that writes the object between the marker patch and
+	// this one - a Deployment's status, measured on kind during #1704's
+	// smoke run - moves the resourceVersion and the server answers 409.
+	// The transfer is recomputed from a fresh read and sent again.
+	for attempt := 0; ; attempt++ {
+		entries, changed, err := transferMarkerOwnership(obj.GetManagedFields(), fieldManager, labels, annotations)
+		if err != nil {
+			return nil, "", failed(err)
+		}
+		if !changed {
+			return obj, "", nil
+		}
+		raw, err := json.Marshal([]map[string]any{
+			{"op": "replace", "path": "/metadata/managedFields", "value": entries},
+			{"op": "replace", "path": "/metadata/resourceVersion", "value": obj.GetResourceVersion()},
+		})
+		if err != nil {
+			return nil, "", fmt.Errorf("building the ownership patch: %w", err)
+		}
+		out, err := client.Patch(ctx, ref.Name, types.JSONPatchType, raw, metav1.PatchOptions{FieldManager: fieldManager})
+		if err == nil {
+			return out, "", nil
+		}
+		if !apierrors.IsConflict(err) || attempt >= ownershipRetries {
+			return nil, "", failed(err)
+		}
+		fresh, getErr := client.Get(ctx, ref.Name, metav1.GetOptions{})
+		if getErr != nil {
+			return nil, "", failed(fmt.Errorf("%w; re-reading after that conflict: %w", err, getErr))
+		}
+		obj = fresh
+	}
+}
+
+// ownershipRetries bounds how many times [Client.handMarkersToApply]
+// re-reads and resends after a resourceVersion conflict.
+const ownershipRetries = 5
+
+// transferMarkerOwnership returns entries with every marker key (the given
+// label and annotation keys) that manager's Update entries own moved into
+// manager's Apply entry, created from the Update entry when there is none.
+// Nothing else moves: a field an Update under the same name owned for any
+// other reason stays an Update field, because an Apply entry's fields are
+// the ones the provider's next apply removes when its manifest stops
+// naming them, and the markers are the only fields the provider's manifest
+// is known to name (the node stamp puts them there). The labels and
+// annotations maps themselves move too when the Update entry owns them and
+// owns no other key inside them, so that an emptied Update entry is
+// dropped rather than left holding a bare map. changed is false when no
+// Update entry owned a marker.
+func transferMarkerOwnership(entries []metav1.ManagedFieldsEntry, manager string, labels, annotations []string) ([]metav1.ManagedFieldsEntry, bool, error) {
+	markerSet := fieldpath.NewSet()
+	for _, k := range labels {
+		markerSet.Insert(fieldpath.MakePathOrDie("metadata", "labels", k))
+	}
+	for _, k := range annotations {
+		markerSet.Insert(fieldpath.MakePathOrDie("metadata", "annotations", k))
+	}
+	parents := []fieldpath.Path{
+		fieldpath.MakePathOrDie("metadata", "labels"),
+		fieldpath.MakePathOrDie("metadata", "annotations"),
+	}
+
+	out := make([]metav1.ManagedFieldsEntry, 0, len(entries))
+	moved := fieldpath.NewSet()
+	var from *metav1.ManagedFieldsEntry
+	for _, e := range entries {
+		if e.Manager != manager || e.Operation != metav1.ManagedFieldsOperationUpdate || e.Subresource != "" || e.FieldsV1 == nil {
+			out = append(out, e)
+			continue
+		}
+		owned := &fieldpath.Set{}
+		if err := owned.FromJSON(bytes.NewReader(e.FieldsV1.Raw)); err != nil {
+			return nil, false, fmt.Errorf("decoding %s's %s entry: %w", e.Manager, e.Operation, err)
+		}
+		take := owned.Intersection(markerSet)
+		if take.Empty() {
+			out = append(out, e)
+			continue
+		}
+		rest := owned.Difference(markerSet)
+		for _, parent := range parents {
+			if rest.Has(parent) && childrenOf(rest, parent).Empty() {
+				take.Insert(parent)
+				rest = rest.Difference(fieldpath.NewSet(parent))
+			}
+		}
+		moved = moved.Union(take)
+		if from == nil {
+			from = e.DeepCopy()
+		}
+		if rest.Empty() {
+			continue
+		}
+		raw, err := rest.ToJSON()
+		if err != nil {
+			return nil, false, fmt.Errorf("encoding %s's %s entry: %w", e.Manager, e.Operation, err)
+		}
+		e.FieldsV1 = &metav1.FieldsV1{Raw: raw}
+		out = append(out, e)
+	}
+	if from == nil {
+		return entries, false, nil
+	}
+
+	for i := range out {
+		e := &out[i]
+		if e.Manager != manager || e.Operation != metav1.ManagedFieldsOperationApply || e.Subresource != "" {
+			continue
+		}
+		owned := &fieldpath.Set{}
+		if e.FieldsV1 != nil {
+			if err := owned.FromJSON(bytes.NewReader(e.FieldsV1.Raw)); err != nil {
+				return nil, false, fmt.Errorf("decoding %s's %s entry: %w", e.Manager, e.Operation, err)
+			}
+		}
+		raw, err := owned.Union(moved).ToJSON()
+		if err != nil {
+			return nil, false, fmt.Errorf("encoding %s's %s entry: %w", e.Manager, e.Operation, err)
+		}
+		e.FieldsV1 = &metav1.FieldsV1{Raw: raw}
+		return out, true, nil
+	}
+
+	// No Apply entry under this name yet (the object was not created by
+	// the provider's apply): the Update entry's markers become one.
+	raw, err := moved.ToJSON()
+	if err != nil {
+		return nil, false, fmt.Errorf("encoding %s's Apply entry: %w", manager, err)
+	}
+	from.Operation = metav1.ManagedFieldsOperationApply
+	from.FieldsV1 = &metav1.FieldsV1{Raw: raw}
+	return append(out, *from), true, nil
+}
+
+// childrenOf is the part of s strictly under path p.
+func childrenOf(s *fieldpath.Set, p fieldpath.Path) *fieldpath.Set {
+	for _, pe := range p {
+		s = s.WithPrefix(pe)
+	}
+	return s
 }
 
 // LabelReleaser is the cluster half of a marker release (GitHub issue
