@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -192,5 +193,52 @@ func TestNodeResolver_AdjustConfigValue_awsShapeUnaffectedByLabelBranch(t *testi
 	}
 	if _, has := markers.LabelsOf(got); has {
 		t.Error("an AWS resource grew a metadata.labels")
+	}
+}
+
+// alwaysWithholdLabels stands in for a hypothetical family whose labels
+// surface, unlike the real Kubernetes family's, cannot carry the marker in
+// its create call (GitHub issue #1653's second half): before this issue's
+// fix, only nodestamp.go's tags arm asked
+// [substrate.Substrate.PostCreateNeeded] before stamping at create, so a
+// labels- or manifest-surfaced family answering true here had nothing
+// asking it.
+type alwaysWithholdLabels struct{ substrate.Substrate }
+
+func (alwaysWithholdLabels) PostCreateNeeded(surface markers.Surface, typeName string, _ substrate.CreateTagFacts) (string, bool) {
+	if surface == markers.SurfaceLabels {
+		return typeName + " cannot carry its label at create in this fake family", true
+	}
+	return "", false
+}
+
+// TestNodeResolver_AdjustCreateConfigValue_withholdsLabelsWhenTheFamilySays
+// (GitHub issue #1653): a create on the labels surface is left unstamped
+// when the surface's family says the create call cannot carry the marker,
+// exactly as the tags surface already was for GitHub issue #1084. An
+// UPDATE of the same type is unaffected - withholding is a create-only
+// question.
+func TestNodeResolver_AdjustCreateConfigValue_withholdsLabelsWhenTheFamilySays(t *testing.T) {
+	saved := substrate.All
+	substrate.All = []substrate.Substrate{alwaysWithholdLabels{substrate.Kubernetes}, substrate.AWS}
+	t.Cleanup(func() { substrate.All = saved })
+
+	resolver := &NodeResolver{Estate: "smoke-k8s"}
+	nullLabels := cty.NullVal(cty.Map(cty.String))
+
+	got, diags := resolver.AdjustCreateConfigValue(context.Background(), configMapAddr(t), configMapTestConfig(nullLabels), configMapTypeSchema())
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Err())
+	}
+	if labels, ok := markers.LabelsOf(got); !ok || len(labels) != 0 {
+		t.Errorf("labels were stamped into the create call even though the family said the post-create write was needed: ok=%v labels=%v", ok, labels)
+	}
+
+	got, diags = resolver.AdjustConfigValue(context.Background(), configMapAddr(t), configMapTestConfig(nullLabels), configMapTypeSchema())
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics on update: %s", diags.Err())
+	}
+	if labels := requireLabels(t, got); labels[markers.TagEstate] != "smoke-k8s" {
+		t.Errorf("an update was withheld too, want it stamped as before: %v", labels)
 	}
 }

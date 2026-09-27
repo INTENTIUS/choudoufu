@@ -209,6 +209,15 @@ func (n *NodeResolver) stampSurface(surface markers.Surface, addr addrs.AbsResou
 		if labelDiags.HasErrors() {
 			return config, diags
 		}
+		if creating && n.withholdsAtCreate(addr, surface) {
+			// GitHub issue #1653: whether a create needs the post-create
+			// write is asked of every surface, not only tags - a family
+			// whose labels or manifest surface answers true here has the
+			// same conflict check above and the same withholding below
+			// that #1084 gave the tags surface alone.
+			log.Printf("[DEBUG] stateless/projection: %s: markers withheld from the create call; written after the create", addr)
+			return config, diags
+		}
 		configElems[markers.LabelSurfaceBlock] = newMeta
 		return cty.ObjectVal(configElems), diags
 
@@ -223,6 +232,11 @@ func (n *NodeResolver) stampSurface(surface markers.Surface, addr addrs.AbsResou
 		if manifestDiags.HasErrors() {
 			return config, diags
 		}
+		if creating && n.withholdsAtCreate(addr, surface) {
+			// GitHub issue #1653: see the SurfaceLabels arm above.
+			log.Printf("[DEBUG] stateless/projection: %s: markers withheld from the create call; written after the create", addr)
+			return config, diags
+		}
 		configElems[markers.ManifestSurfaceAttr] = newManifest
 		return cty.ObjectVal(configElems), diags
 
@@ -235,7 +249,7 @@ func (n *NodeResolver) stampSurface(surface markers.Surface, addr addrs.AbsResou
 		if tagDiags.HasErrors() {
 			return config, diags
 		}
-		if creating && n.withholdsAtCreate(addr, markers.SurfaceTags) {
+		if creating && n.withholdsAtCreate(addr, surface) {
 			// GitHub issue #1084: the create call cannot carry these tags,
 			// so they are withheld from it - the operator's own tags go
 			// through as stock sends them, this fork's markers do not - and

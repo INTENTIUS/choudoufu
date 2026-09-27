@@ -356,6 +356,17 @@ func (kubernetes) PostCreateNeeded(markers.Surface, string, CreateTagFacts) (str
 	return "", false
 }
 
+// ---- GitHub issue #1653: the manual-mark hint ----
+
+// ManualMarkFix is never asked: PostCreateNeeded above never answers true,
+// so no Kubernetes create ever fails a post-create write that would need
+// this. Implemented for [Substrate] completeness with the same generic
+// sentence the package-level [ManualMarkFix] gives a surface with no
+// family at all.
+func (kubernetes) ManualMarkFix(_, _ string, want map[string]string, _ CreateTagFacts) string {
+	return fmt.Sprintf("Mark it by hand with the markers %s, then plan again.", markers.TagsArgument(want))
+}
+
 // ---- GitHub issue #1649: the carrier's wholly-known read ----
 
 // CarrierPaths: metadata[0].labels, and manifest.metadata.labels. The label

@@ -8,6 +8,7 @@ package projection
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -325,12 +326,13 @@ func TestWriteAppliedMarkers_noClientAndNoARNAreFailuresToo(t *testing.T) {
 
 // TestMarkerTagsArgument_keyedInstanceSurvivesAShell: the printed --tags
 // value is single-quoted, so an escaped for_each address's brackets and
-// quotes reach the CLI intact.
+// quotes reach the CLI intact. GitHub issue #1653 moved the renderer to
+// markers.TagsArgument; this pin moved with the call site.
 func TestMarkerTagsArgument_keyedInstanceSurvivesAShell(t *testing.T) {
 	n := tocResolver(t, nil)
 	addr := addrs.Resource{Mode: addrs.ManagedResourceMode, Type: "aws_after_thing", Name: "x"}.
 		Instance(addrs.StringKey("a")).Absolute(addrs.RootModuleInstance)
-	got := markerTagsArgument(n.withheldMarkers(addr))
+	got := markers.TagsArgument(n.withheldMarkers(addr))
 	if !strings.HasPrefix(got, "'") || !strings.HasSuffix(got, "'") {
 		t.Errorf("not single-quoted: %s", got)
 	}
@@ -602,4 +604,100 @@ func TestPostCreateNeeded_eachFamilyAnswers(t *testing.T) {
 			t.Errorf("surface %q needs a post-create write", surface)
 		}
 	}
+}
+
+// widgetSurface is a non-AWS family's marker surface, synthetic on purpose:
+// nothing here may be answered by AWS's registry or the Tagging API.
+const widgetSurface markers.Surface = "widget-binding-surface"
+
+// widgetFamily is a non-AWS family (GitHub issue #1653) whose created
+// objects happen to carry an "arn" attribute - the point of this fake: an
+// object having an arn says nothing about which family it belongs to, and
+// before this issue's fix the failure diagnostic printed the AWS Tagging
+// API command whenever one was present, whatever the family. widgetFamily's
+// own [substrate.Substrate.ManualMarkFix] names a wholly different remedy.
+type widgetFamily struct{ substrate.Substrate }
+
+func (widgetFamily) Name() string                { return "widget" }
+func (widgetFamily) Surfaces() []markers.Surface { return []markers.Surface{widgetSurface} }
+func (widgetFamily) CarriesAddress() bool        { return true }
+func (widgetFamily) MarkerWriter(addrs.AbsProviderConfig) substrate.Write {
+	return "widget-binding"
+}
+func (widgetFamily) SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
+	if _, ok := block.Attributes["widget_target"]; ok {
+		return widgetSurface, true
+	}
+	return "", false
+}
+func (f widgetFamily) OwnershipSurfaceOf(block *configschema.Block) (markers.Surface, bool) {
+	return f.SurfaceOf(block)
+}
+func (widgetFamily) Writes(surface markers.Surface) substrate.Writes {
+	if surface == widgetSurface {
+		return substrate.Writes{Create: substrate.WriteInCreate, Adopt: "widget-binding", PostCreate: "widget-binding"}
+	}
+	return substrate.Writes{}
+}
+func (widgetFamily) PostCreateNeeded(surface markers.Surface, typeName string, _ substrate.CreateTagFacts) (string, bool) {
+	if surface == widgetSurface {
+		return typeName + " takes its marker as a widget binding after the create", true
+	}
+	return "", false
+}
+func (widgetFamily) ManualMarkFix(typeName, arn string, want map[string]string, _ substrate.CreateTagFacts) string {
+	return fmt.Sprintf("Run: widgetctl adopt --type %s --arn %s --tags %s", typeName, arn, markers.TagsArgument(want))
+}
+
+// TestWriteAppliedMarkers_theFixHintIsTheFamilysAnswer (GitHub issue
+// #1653): the manual-remedy sentence a failed post-create write prints is
+// asked of the created instance's own family, not chosen by whether the
+// applied object happens to carry an "arn" attribute. widgetFamily's
+// objects carry one, and before this fix the diagnostic printed the AWS
+// resourcegroupstaggingapi command for them anyway.
+func TestWriteAppliedMarkers_theFixHintIsTheFamilysAnswer(t *testing.T) {
+	saved := substrate.All
+	substrate.All = append(append([]substrate.Substrate(nil), saved...), widgetFamily{substrate.AWS})
+	t.Cleanup(func() { substrate.All = saved })
+
+	schema := providers.Schema{Block: &configschema.Block{
+		Attributes: map[string]*configschema.Attribute{
+			"id":            {Type: cty.String, Computed: true},
+			"arn":           {Type: cty.String, Computed: true},
+			"name":          {Type: cty.String, Required: true},
+			"widget_target": {Type: cty.String, Computed: true},
+		},
+	}}
+	applied := cty.ObjectVal(map[string]cty.Value{
+		"id":            cty.StringVal("W1"),
+		"arn":           cty.StringVal("arn:widget:1"),
+		"name":          cty.StringVal("thing"),
+		"widget_target": cty.StringVal("//widget/W1"),
+	})
+	widget := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("widget")}
+
+	n := tocResolver(t, nil)
+	n.MarkerWriter = func(addrs.AbsProviderConfig, substrate.Write) (MarkerWriter, error) {
+		return failingWriter{err: errors.New("refused by test")}, nil
+	}
+
+	thing := locatedTestAddr(t, "widget_thing", "x")
+	_, diags := n.WriteAppliedMarkers(context.Background(), thing, widget, plans.Create, applied, schema)
+	if !diags.HasErrors() {
+		t.Fatal("a refused widget write did not fail the apply")
+	}
+	detail := diags[0].Description().Detail
+	if !strings.Contains(detail, "widgetctl adopt --type widget_thing --arn arn:widget:1") {
+		t.Errorf("the family's own fix is not in the diagnostic:\n%s", detail)
+	}
+	if strings.Contains(detail, "aws resourcegroupstaggingapi") {
+		t.Errorf("the AWS Tagging API command was printed for a non-AWS family just because the object carried an arn:\n%s", detail)
+	}
+}
+
+// failingWriter is a [MarkerWriter] that always refuses.
+type failingWriter struct{ err error }
+
+func (f failingWriter) WriteMarkers(context.Context, CreatedInstance, map[string]string) error {
+	return f.err
 }
