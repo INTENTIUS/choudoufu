@@ -19,14 +19,25 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-// This file is the one WRITE this package makes, and it is one label
-// (GitHub issues #1104 and #1109, ruled 2026-09-13 by the maintainer on
-// both) and, since GitHub issue #1639, the address annotation beside it: a
-// merge patch that sets metadata.labels[tofu-estate] and
-// metadata.annotations[choudoufu.intentius.io/tofu-address] on a live
-// object, under the caller's own credential, sent first with dryRun=All
-// so the server's verdict - its validation, its admission policies, its
-// RBAC - is read before anything is persisted.
+// This file holds the two WRITES this package makes. Each is one merge
+// patch confined to the ownership markers, metadata.labels[tofu-estate]
+// and, since GitHub issue #1639, the address annotation
+// metadata.annotations[choudoufu.intentius.io/tofu-address] beside it,
+// under the caller's own credential, sent first with dryRun=All so the
+// server's verdict - its validation, its admission policies, its RBAC - is
+// read before anything is persisted:
+//
+//   - [Client.PatchMarkers] sets the markers (GitHub issues #1104 and
+//     #1109, ruled 2026-09-13 by the maintainer on both): live-import's
+//     adoption of a manifest-shape object, and live-mv's cross-estate move
+//     and rename of one.
+//   - [Client.DeleteMarkers] removes them, the body naming each key with a
+//     null value (GitHub issue #1656, ruled 2026-09-27): live-untag's
+//     release of a manifest-shape orphan under undeclared_tagged = "untag".
+//
+// Every caller diffs the dry-run answer against the live object with
+// [ChangedOutsideMarkers] before sending the real write, so the argument
+// below holds for each.
 //
 // # Why a patch rather than a write through the provider
 //
@@ -43,7 +54,8 @@ import (
 // custom resource. A merge patch naming one key under metadata.labels
 // cannot, by the shape of the request, reach anything else; and the
 // dry-run answer is diffed against the live object anyway
-// (internal/live/liveimport/manifest.go) so that a mutating admission
+// (internal/live/liveimport/manifest.go, internal/live/untag/manifest.go)
+// so that a mutating admission
 // webhook rewriting the spec on the way past is caught rather than
 // assumed away.
 //
@@ -195,9 +207,6 @@ func (c *Client) PatchMarkers(ctx context.Context, ref ObjectRef, labels, annota
 			return nil, "", fmt.Errorf("an annotation patch needs an annotation key")
 		}
 	}
-	if fieldManager == "" {
-		fieldManager = DefaultFieldManager
-	}
 	meta := map[string]any{}
 	if len(labels) > 0 {
 		meta["labels"] = labels
@@ -205,7 +214,65 @@ func (c *Client) PatchMarkers(ctx context.Context, ref ObjectRef, labels, annota
 	if len(annotations) > 0 {
 		meta["annotations"] = annotations
 	}
-	body, err := json.Marshal(map[string]any{"metadata": meta})
+	return c.mergePatch(ctx, ref, map[string]any{"metadata": meta}, fieldManager, dryRun)
+}
+
+// LabelReleaser is the cluster half of a marker release (GitHub issue
+// #1656): read the object as it is, and delete marker keys from it. It is
+// what internal/live/untag needs to release a manifest-shape orphan under
+// undeclared_tagged = "untag". [Client] implements it against a real API
+// server; a test stands in for one.
+type LabelReleaser interface {
+	// ReadObject is [LabelPatcher.ReadObject].
+	ReadObject(ctx context.Context, ref ObjectRef) (obj *unstructured.Unstructured, found bool, err error)
+
+	// DeleteMarkers removes every key in labels from metadata.labels and
+	// every key in annotations from metadata.annotations on the object at
+	// ref, through ONE merge patch under fieldManager, and returns the
+	// object the server produced. dryRun, rejected and err mean what they
+	// mean on [LabelPatcher.PatchMarkers].
+	DeleteMarkers(ctx context.Context, ref ObjectRef, labels, annotations []string, fieldManager string, dryRun bool) (obj *unstructured.Unstructured, rejected string, err error)
+}
+
+var _ LabelReleaser = (*Client)(nil)
+
+// DeleteMarkers implements [LabelReleaser]. The body is a JSON merge patch
+// naming each key inside metadata.labels and metadata.annotations with a
+// null value, which RFC 7386 defines as "remove this key", and nothing
+// else - the request cannot carry a change to any other field, for the
+// same reason [Client.PatchMarkers]'s cannot. A key the object does not
+// carry is a no-op on the server, not an error.
+func (c *Client) DeleteMarkers(ctx context.Context, ref ObjectRef, labels, annotations []string, fieldManager string, dryRun bool) (*unstructured.Unstructured, string, error) {
+	if ref.APIVersion == "" || ref.Kind == "" || ref.Name == "" {
+		return nil, "", fmt.Errorf("an object needs an apiVersion, a kind and a name to be patched")
+	}
+	if len(labels) == 0 && len(annotations) == 0 {
+		return nil, "", fmt.Errorf("a marker release needs a label or an annotation to delete")
+	}
+	meta := map[string]any{}
+	for field, keys := range map[string][]string{"labels": labels, "annotations": annotations} {
+		if len(keys) == 0 {
+			continue
+		}
+		m := make(map[string]any, len(keys))
+		for _, k := range keys {
+			if k == "" {
+				return nil, "", fmt.Errorf("a marker release cannot name an empty key")
+			}
+			m[k] = nil
+		}
+		meta[field] = m
+	}
+	return c.mergePatch(ctx, ref, map[string]any{"metadata": meta}, fieldManager, dryRun)
+}
+
+// mergePatch sends body as a JSON merge patch to the object at ref: the
+// one request both writes in this file make.
+func (c *Client) mergePatch(ctx context.Context, ref ObjectRef, body map[string]any, fieldManager string, dryRun bool) (*unstructured.Unstructured, string, error) {
+	if fieldManager == "" {
+		fieldManager = DefaultFieldManager
+	}
+	raw, err := json.Marshal(body)
 	if err != nil {
 		return nil, "", fmt.Errorf("building the marker patch: %w", err)
 	}
@@ -217,7 +284,7 @@ func (c *Client) PatchMarkers(ctx context.Context, ref ObjectRef, labels, annota
 	if dryRun {
 		opts.DryRun = []string{metav1.DryRunAll}
 	}
-	obj, err := client.Patch(ctx, ref.Name, types.MergePatchType, body, opts)
+	obj, err := client.Patch(ctx, ref.Name, types.MergePatchType, raw, opts)
 	if err != nil {
 		if rejected, msg := serverVerdict(err); rejected {
 			return nil, msg, nil

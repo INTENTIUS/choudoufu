@@ -1108,6 +1108,29 @@
           "note": "Not stated for Kubernetes yet. With the records in the cluster (claim 39) the grant would be RBAC on the other estate's output objects, and no scenario reads across estates there."
         }
       }
+    },
+    {
+      "id": 45,
+      "slug": "an-ignored-tag-is-not-drift",
+      "title": "A tag another account's automation or an AWS service adds to a resource out of band does not churn the plan once the estate tells its provider to ignore that key, the same knob stock gives every AWS user for exactly this, and an edit to a tag the estate DOES declare still plans",
+      "theme": "operate",
+      "substrate": [
+        "aws"
+      ],
+      "providers": {
+        "aws": {
+          "status": "proven",
+          "scenario": "live/smoke/scenarios/an-ignored-tag-is-not-drift.sh",
+          "command": "just smoke an-ignored-tag-is-not-drift",
+          "minutes": 3,
+          "break_mode": "BREAK=1 removes the estate's own ignore_tags declaration - the one piece of configuration the claim is about, not a choudoufu code path - and runs the identical out-of-band AWS CLI tag write; it passes only when the plan now proposes an update naming the tag, because choudoufu has no tag-diffing of its own to defeat with a build overlay: a resource's tags are planned entirely by the real hashicorp/aws provider process, the same one a stock run talks to",
+          "note": "Filed as GitHub issue #1624 rather than folded into claim 27, whose own AWS cell (#1597, then #1598) names this exact question and explicitly leaves it to a separate claim. This proves the managed-resource half only. The record-store half of #1624's question - a tag added out of band to an object choudoufu itself wrote - is not a plan-time question: S3Store.PutIfVersion (internal/live/staterecord/s3.go) replaces an object's whole tag set on every write, and no code path reads a record object's own tags to compute a diff; they are read only to confirm the object is this estate's, never compared against a configured value. Established by reading the store's write path, not by a scenario step."
+        },
+        "kubernetes": {
+          "status": "n/a",
+          "note": "Claim 27's own step 5 already proves the Kubernetes analogue, automatically and with no estate configuration: a key the configuration never declared - the API server's own kubernetes.io/metadata.name, a controller's annotation - stays the server's and churns nothing, because kubernetes_manifest's computed_fields reads the prior manifest to decide what to keep. There is no distinct Kubernetes form of this claim to state; it would restate claim 27's own proof."
+        }
+      }
     }
   ]
 }

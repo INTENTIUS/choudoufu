@@ -166,6 +166,8 @@ type Substrate interface {
 
 	// postCreateNeed is GitHub issue #1642's block, below.
 	postCreateNeed
+	// postCreateFix is GitHub issue #1653's block, below.
+	postCreateFix
 	// markerCarrier is GitHub issue #1649's block, below.
 	markerCarrier
 
@@ -460,6 +462,41 @@ func PostCreateNeeded(surface markers.Surface, typeName string, facts CreateTagF
 		return "", false
 	}
 	return s.PostCreateNeeded(surface, typeName, facts)
+}
+
+// ---- GitHub issue #1653: the manual-mark hint is the family's answer ----
+//
+// Kept in its own block, like #1587's and #1642's above.
+//
+// Before it, the post-create write's failure diagnostic
+// (internal/live/projection's nodetagoncreate.go) chose its manual remedy
+// by whether the applied object happened to carry an "arn" attribute: with
+// one, it printed the AWS Tagging API's resourcegroupstaggingapi command
+// whatever the family, because an object having an arn says nothing about
+// which family wrote it. Now the sentence is asked of the surface's own
+// family, the same one [Substrate.PostCreateNeeded] answered.
+
+// postCreateFix is the part of [Substrate] #1653 added.
+type postCreateFix interface {
+	// ManualMarkFix names the command or step an operator runs by hand to
+	// mark a created instance of typeName, once the post-create write
+	// ([Writes.PostCreate]) failed: the family's own manual remedy, given
+	// arn - the applied object's arn attribute, empty when it has none -
+	// and want, the markers the write was trying to set. facts is the
+	// same [CreateTagFacts] [Substrate.PostCreateNeeded] read, so AWS can
+	// still name the CloudFormation type when the object carries no arn.
+	ManualMarkFix(typeName, arn string, want map[string]string, facts CreateTagFacts) string
+}
+
+// ManualMarkFix is [Substrate.ManualMarkFix] asked of surface's family. A
+// surface with no family - the zero Surface, or one [For] does not
+// recognise - gets the generic sentence naming only the markers, since
+// there is no family to name a command for.
+func ManualMarkFix(surface markers.Surface, typeName, arn string, want map[string]string, facts CreateTagFacts) string {
+	if s := For(surface); s != nil {
+		return s.ManualMarkFix(typeName, arn, want, facts)
+	}
+	return fmt.Sprintf("Mark it by hand with the markers %s, then plan again.", markers.TagsArgument(want))
 }
 
 // ---- GitHub issue #1649: the carrier's wholly-known read ----

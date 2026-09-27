@@ -134,7 +134,7 @@ func TestRelease_LabelSurfaceReleasesTheEstateLabel(t *testing.T) {
 	c := newFakeCluster("kubernetes_config_map_v1", configMapSchema(),
 		configMapObject(map[string]string{"app": "web", markers.TagEstate: "smoke-k8s"}))
 
-	res, diags := Release(context.Background(), c, testKey, []Target{configMapTarget()})
+	res, diags := Release(context.Background(), c, nil, testKey, []Target{configMapTarget()})
 	if len(res.Outcomes) != 1 {
 		t.Fatalf("outcomes = %d, want 1", len(res.Outcomes))
 	}
@@ -162,7 +162,7 @@ func TestRelease_LabelSurfaceReleasesTheEstateLabel(t *testing.T) {
 
 func TestRelease_LabelSurfaceAlreadyReleasedWritesNothing(t *testing.T) {
 	c := newFakeCluster("kubernetes_config_map_v1", configMapSchema(), configMapObject(map[string]string{"app": "web"}))
-	res, _ := Release(context.Background(), c, testKey, []Target{configMapTarget()})
+	res, _ := Release(context.Background(), c, nil, testKey, []Target{configMapTarget()})
 	if out := res.Outcomes[0]; !out.OK || c.applied != 0 {
 		t.Fatalf("outcome = %s, applied %d; want OK with no write", out, c.applied)
 	}
@@ -186,7 +186,7 @@ func TestRelease_LabelSurfaceRefusesAPlanThatChangesMoreThanLabels(t *testing.T)
 			c := newFakeCluster("kubernetes_config_map_v1", configMapSchema(),
 				configMapObject(map[string]string{markers.TagEstate: "smoke-k8s"}))
 			c.planHook = hook
-			res, _ := Release(context.Background(), c, testKey, []Target{configMapTarget()})
+			res, _ := Release(context.Background(), c, nil, testKey, []Target{configMapTarget()})
 			out := res.Outcomes[0]
 			if out.OK || c.applied != 0 {
 				t.Fatalf("outcome = %s, applied %d; want a refusal with no write", out, c.applied)
@@ -204,24 +204,4 @@ func setMeta(v cty.Value, attr string, val cty.Value) cty.Value {
 	meta[attr] = val
 	m["metadata"] = cty.ListVal([]cty.Value{cty.ObjectVal(meta)})
 	return cty.ObjectVal(m)
-}
-
-// The manifest shape's write is an API patch, not a provider plan (#1109);
-// until untag holds a cluster client it refuses by name, reading and writing
-// nothing, rather than reporting "no tags argument".
-func TestRelease_ManifestSurfaceIsRefusedByName(t *testing.T) {
-	c := newFakeCluster("kubernetes_manifest", manifestSchema(), cty.NullVal(cty.DynamicPseudoType))
-	res, _ := Release(context.Background(), c, testKey, []Target{{
-		TypeName: "kubernetes_manifest",
-		ImportID: "apiVersion=stable.example.com/v1,kind=CronTab,namespace=orphans,name=stale",
-	}})
-	out := res.Outcomes[0]
-	if out.OK || c.applied != 0 || c.ImportResourceStateCalled {
-		t.Fatalf("outcome = %s, applied %d, imported %v; want a refusal that touches nothing", out, c.applied, c.ImportResourceStateCalled)
-	}
-	for _, want := range []string{"kubectl label", "tofu-estate-", "kind=CronTab"} {
-		if !strings.Contains(out.Detail, want) {
-			t.Errorf("the refusal does not carry %q: %s", want, out.Detail)
-		}
-	}
 }

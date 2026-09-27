@@ -20,6 +20,7 @@ package markers
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -803,6 +804,25 @@ func TagsOf(obj cty.Value) (map[string]string, bool) {
 		return nil, false
 	}
 	return tags, true
+}
+
+// TagsArgument renders tags as the aws CLI's --tags shorthand, key=value
+// pairs joined by commas, in key order, single-quoted so that an escaped
+// address's brackets and quotes survive a shell. GitHub issue #1653 moved
+// it here from internal/live/projection so internal/live/substrate's AWS
+// family can render the same manual-mark hint without importing the
+// projection package that used to build it.
+func TagsArgument(tags map[string]string) string {
+	keys := make([]string, 0, len(tags))
+	for k := range tags {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	pairs := make([]string, 0, len(keys))
+	for _, k := range keys {
+		pairs = append(pairs, k+"="+tags[k])
+	}
+	return "'" + strings.Join(pairs, ",") + "'"
 }
 
 // Taggable reports whether a resource type can carry an ownership marker: a

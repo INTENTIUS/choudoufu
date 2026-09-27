@@ -107,6 +107,27 @@ func (aws) PostCreateNeeded(surface markers.Surface, typeName string, facts Crea
 	return fmt.Sprintf("%s does not take tags in its create call (live/registry.json: tag_on_create false)", cfnType), true
 }
 
+// ---- GitHub issue #1653: the manual-mark hint ----
+
+// ManualMarkFix is the text GitHub issue #1084 first printed, unchanged
+// byte-for-byte, now asked through the family rather than built inline by
+// the projection: the aws CLI's resourcegroupstaggingapi command by ARN
+// when the applied object carries one; otherwise the CloudFormation type's
+// own tag write, when the roster names one; otherwise a sentence naming
+// just the markers.
+func (aws) ManualMarkFix(typeName, arn string, want map[string]string, facts CreateTagFacts) string {
+	tagsArg := markers.TagsArgument(want)
+	if arn != "" {
+		return fmt.Sprintf("Mark it, then plan again:\n\n  aws resourcegroupstaggingapi tag-resources --resource-arn-list %s --tags %s", arn, tagsArg)
+	}
+	if facts != nil {
+		if cfnType, ok := facts.CloudControlTypeOrService(typeName); ok {
+			return fmt.Sprintf("Mark it by hand with the tag write %s takes, with the tags %s, then plan again.", cfnType, tagsArg)
+		}
+	}
+	return fmt.Sprintf("Mark it by hand with the markers %s, then plan again.", tagsArg)
+}
+
 // ---- GitHub issue #1649: the carrier's wholly-known read ----
 
 // CarrierPaths: both maps [markers.TagsOf] reads.
