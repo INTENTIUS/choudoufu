@@ -118,7 +118,7 @@ type CreatedInstance struct {
 // MarkerWriter is the one write [NodeResolver.WriteAppliedMarkers] makes: an
 // upsert of the withheld markers onto the created instance, through
 // whichever write the instance's surface and family name
-// ([substrate.Writes.PostCreate], [substrate.Substrate.MarkerWriter]). The
+// ([substrate.Writes.PostCreate], [substrate.Substrate]'s MarkerWriter). The
 // command layer builds one per provider configuration and write; the unit
 // tests fake it.
 type MarkerWriter interface {

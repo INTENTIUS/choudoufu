@@ -66,13 +66,11 @@ func TestKubernetesSweepDoesNotRefuseAManifestTargetingExcludes(t *testing.T) {
 	}
 	newReq := func(sweeper kubesweep.Sweeper, scope identity.Scope) Request {
 		return Request{
-			Estate:                 "smoke-crd",
-			Config:                 cfg,
-			Kubernetes:             sweeper,
-			KubernetesTypes:        []string{"kubernetes_config_map_v1", "kubernetes_manifest"},
-			KubernetesManifestType: "kubernetes_manifest",
-			Resolutions:            resolutions(),
-			Scope:                  scope,
+			Estate:      "smoke-crd",
+			Config:      cfg,
+			Sweepers:    []Sweeper{KubernetesSweep{Client: sweeper, Types: []string{"kubernetes_config_map_v1", "kubernetes_manifest"}, ManifestType: "kubernetes_manifest"}},
+			Resolutions: resolutions(),
+			Scope:       scope,
 		}
 	}
 

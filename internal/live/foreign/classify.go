@@ -181,6 +181,7 @@ func Classify(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	}
 
 	c := &classifier{req: req, res: res}
+	res.ControllerHeld = append([]discovery.ControllerHeldResource(nil), req.Report.ControllerHeld...)
 	c.sweepCoverage()
 	c.buildSlots(ctx)
 	c.classify()

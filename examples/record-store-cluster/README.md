@@ -70,6 +70,12 @@ once by an identity that may write, because a store with no sentinel is
 indistinguishable from an empty estate. Run the first apply as
 `choudoufu-apply`.
 
+Both Roles have one source, [`rbac/render-role.sh`](rbac/README.md), the
+cluster half of [`iam/render-policy.sh`](../record-store-bucket/iam/README.md)
+for the bucket. `manifests/records.yaml` carries them inline rather than
+shelling out to it, and a test holds the two to the same verb lists so they
+cannot drift apart.
+
 ## `just verify` reports the cluster, not a configuration
 
 `just verify <estate>` runs `choudoufu live-cluster -namespace=tofu-records-<estate> -estate=<estate>`

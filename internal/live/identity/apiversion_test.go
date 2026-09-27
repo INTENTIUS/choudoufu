@@ -31,7 +31,7 @@ import (
 // internal/live/kubesweep's KindOfType is the sweep's half of the same
 // fact, filing both spellings under one kind.
 //
-// Proving it red: give synthesizeMetadataIdentity a trailing literal
+// Proving it red: give the Kubernetes substrate's objectMetaIdentity a trailing literal
 // component for a type name ending in _v1 and every versioned spelling
 // below renders a different id from its plain one.
 func TestAPIVersionSpellingsRenderOneImportID(t *testing.T) {

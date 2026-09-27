@@ -39,19 +39,6 @@ func (kubernetes) SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
 	return "", false
 }
 
-// OwnershipSurfaceOf asks the label shape before the manifest shape, the
-// order the ownership read always asked them in; they are disjoint, so the
-// order decides nothing.
-func (kubernetes) OwnershipSurfaceOf(block *configschema.Block) (markers.Surface, bool) {
-	if _, ok := markers.LabelSurface(block); ok {
-		return markers.SurfaceLabels, true
-	}
-	if markers.ManifestSurface(block) {
-		return markers.SurfaceManifest, true
-	}
-	return "", false
-}
-
 // MarkersOf on the manifest surface reads the prior manifest, which is
 // where the projection's mirror of the live object's own estate label
 // lands (#1079).
@@ -87,12 +74,18 @@ func (kubernetes) Sweep() Sweep { return SweepLabelList }
 // NewSweeper is the cluster client the provider block's own connection
 // arguments build ([KubernetesSweepAttrs] mirrors hashicorp/kubernetes'
 // precedence).
-func (kubernetes) NewSweeper(providerConfig cty.Value, ok bool) (*kubesweep.Client, error) {
+// On an error the client is a nil [Sweeper], never a [LabelListSweeper]
+// holding a nil cluster client.
+func (kubernetes) NewSweeper(providerConfig cty.Value, ok bool) (Sweeper, error) {
 	cfg, err := kubesweep.RestConfig(KubernetesSweepAttrs(providerConfig, ok))
 	if err != nil {
 		return nil, err
 	}
-	return kubesweep.New(cfg)
+	client, err := kubesweep.New(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return LabelListSweeper{Client: client}, nil
 }
 
 // KubernetesSweepAttrs reads the connection arguments the Kubernetes sweep

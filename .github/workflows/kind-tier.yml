@@ -1,0 +1,117 @@
+# The Kubernetes live tier (issue #1596), nightly, beside floci-tier for
+# AWS. Every CHOUDOUFU_K8S_*-gated Go test now opts in through
+# internal/live/k8stest.Gate rather than reading its own environment
+# variable and skipping on its own, so this workflow has one switch
+# (CHOUDOUFU_K8S_TEST) to set rather than needing to know each test's
+# variable by name. live/kind_tier_gate_test.go holds this file to the
+# roster: every package with a k8stest.Gate call site must be named below,
+# and TestFencedIdentityOnACluster - the test issue #1596 found invoked by
+# nothing, on any schedule, anywhere - must be named specifically.
+#
+# The record-store conformance and race tests (internal/live/staterecord)
+# already ran against a real cluster inside claim 39's scenario
+# (live/smoke/scenarios/k8s-records-in-the-cluster.sh, wired into
+# k8s-smoke.yml on every pull request); this workflow runs them again, on
+# k8stest.Gate's own switch, directly with `go test`, nightly, independent
+# of that scenario ever changing its own env var wiring.
+# TestFencedIdentityOnACluster (internal/live/projection) had no fixture
+# setup anywhere - this workflow is the first thing that builds one for it.
+#
+# kind and kubectl come from helm/kind-action at a pinned release, the same
+# versions .github/workflows/k8s-smoke.yml pins, with install_only so this
+# workflow owns the cluster's life.
+#
+# The kind binary version and the node image are read from their pins,
+# live/kind-version and live/kind-node-image (#1594), like every other
+# kind call site.
+name: kind-tier
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kind-tier
+  cancel-in-progress: false
+
+jobs:
+  kind-tier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      # k8stest.EnvVar: the one switch every k8stest.Gate call reads. Without
+      # it every gated test below would skip and this workflow would measure
+      # nothing, exactly the always-green shape issue #1596 exists to end.
+      CHOUDOUFU_K8S_TEST: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Read the pinned kind version (issue #1594)
+        id: kind
+        run: echo "version=$(cat live/kind-version)" >> "$GITHUB_OUTPUT"
+      - name: kind and kubectl, pinned
+        uses: helm/kind-action@v1.15.0
+        with:
+          version: ${{ steps.kind.outputs.version }}
+          kubectl_version: v1.34.0
+          install_only: true
+      - name: create the kind cluster
+        run: |
+          set -euo pipefail
+          export KUBECONFIG="$RUNNER_TEMP/kubeconfig"
+          echo "KUBECONFIG=$KUBECONFIG" >> "$GITHUB_ENV"
+          kind create cluster --name kind-tier --image "$(cat live/kind-node-image)" --kubeconfig "$KUBECONFIG" --wait 120s
+          kubectl --kubeconfig "$KUBECONFIG" version
+      - name: install the estate boundary policy
+        run: kubectl apply -f live/kubernetes/estate-boundary.yaml
+      - name: the record-store fixtures (internal/live/staterecord)
+        run: |
+          set -euo pipefail
+          kubectl create namespace tofu-records-kind-tier
+          {
+            echo "CHOUDOUFU_K8S_RECORD_KUBECONFIG=$KUBECONFIG"
+            echo "CHOUDOUFU_K8S_RECORD_NAMESPACE=tofu-records-kind-tier"
+          } >> "$GITHUB_ENV"
+      - name: the record store's conformance and race tests
+        run: |
+          set -euo pipefail
+          go test ./internal/live/staterecord/... -run 'TestKubernetesStore|TestKubernetesTwoWritersOneRecord' -count=1 -v
+      # TestFencedIdentityOnACluster (#1448 section C, internal/live/projection)
+      # needs its own namespace and two impersonated identities: one with
+      # ordinary CRUD RBAC on Secrets and NO estate grant (the fence must
+      # refuse it), one with get/list only and no grant either (#1370's
+      # read-only path must still open the store). Neither identity needs a
+      # real ServiceAccount object: RBAC binds to the impersonated username
+      # string, and kind's admin context can impersonate anyone.
+      - name: the fenced-identity fixtures (internal/live/projection)
+        run: |
+          set -euo pipefail
+          ns=tofu-records-kind-tier-fence
+          kubectl create namespace "$ns"
+          kubectl create role fence-rw -n "$ns" --verb=get,list,create,update,delete --resource=secrets
+          kubectl create rolebinding fence-rw -n "$ns" --role=fence-rw --user=system:serviceaccount:default:fenced
+          kubectl create role fence-ro -n "$ns" --verb=get,list --resource=secrets
+          kubectl create rolebinding fence-ro -n "$ns" --role=fence-ro --user=system:serviceaccount:default:reader
+          {
+            echo "CHOUDOUFU_K8S_FENCE_ESTATE=kind-tier"
+            echo "CHOUDOUFU_K8S_FENCED_USER=system:serviceaccount:default:fenced"
+            echo "CHOUDOUFU_K8S_READER_USER=system:serviceaccount:default:reader"
+          } >> "$GITHUB_ENV"
+      - name: TestFencedIdentityOnACluster
+        env:
+          # Its own record-store namespace: the fence's RBAC above is scoped
+          # to it, not to the conformance suite's namespace above.
+          CHOUDOUFU_K8S_RECORD_NAMESPACE: tofu-records-kind-tier-fence
+        run: go test ./internal/live/projection/... -run TestFencedIdentityOnACluster -count=1 -v
+      - name: cluster logs, whatever happened to the job
+        if: always()
+        continue-on-error: true
+        run: kubectl get events -A --sort-by=.lastTimestamp || true

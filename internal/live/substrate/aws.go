@@ -12,7 +12,6 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 )
 
@@ -28,13 +27,6 @@ func (aws) Surfaces() []markers.Surface { return []markers.Surface{markers.Surfa
 
 func (aws) SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
 	if markers.Taggable(block) {
-		return markers.SurfaceTags, true
-	}
-	return "", false
-}
-
-func (aws) OwnershipSurfaceOf(block *configschema.Block) (markers.Surface, bool) {
-	if markers.HasTagsAttribute(block) {
 		return markers.SurfaceTags, true
 	}
 	return "", false
@@ -63,7 +55,7 @@ func (aws) CarriesAddress() bool { return true }
 
 func (aws) Sweep() Sweep { return SweepTaggingIndex }
 
-func (aws) NewSweeper(cty.Value, bool) (*kubesweep.Client, error) { return nil, nil }
+func (aws) NewSweeper(cty.Value, bool) (Sweeper, error) { return nil, nil }
 
 // ---- GitHub issue #1584: the answers the projection's shadow enum held ----
 
