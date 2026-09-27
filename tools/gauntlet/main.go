@@ -1048,6 +1048,18 @@ func StaleFilesReport(root string) (stale, scriptOnly []string, err error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	// Render reads the kind node-image pin from the directory it renders
+	// into (#1700's lastRunNote). The temp dir has none, so a kind row that
+	// records its SubstrateImage would render differently here than in the
+	// committed tree and read as stale; carry the pin across.
+	if pin := kindNodeImagePin(root); pin != "" {
+		if err := os.MkdirAll(filepath.Join(tmp, "live"), 0o755); err != nil {
+			return nil, nil, err
+		}
+		if err := os.WriteFile(filepath.Join(tmp, "live", "kind-node-image"), []byte(pin+"\n"), 0o644); err != nil {
+			return nil, nil, err
+		}
+	}
 	written, err := Render(tmp, m, a, tt, scale, AllScriptStaleness(root, a))
 	if err != nil {
 		return nil, nil, err
