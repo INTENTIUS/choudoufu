@@ -468,7 +468,7 @@ func TestBoardRendersScriptStaleness(t *testing.T) {
 		"unknown-estate": {State: ScriptUnknown, Why: "commit `cccccccccc` is not an ancestor of HEAD"},
 	}
 
-	b := buildBoard(m, a, st)
+	b := buildBoard(m, a, st, "")
 	byName := map[string]BoardEstate{}
 	for _, e := range b.Estates {
 		byName[e.Name] = e
@@ -490,7 +490,7 @@ func TestBoardRendersScriptStaleness(t *testing.T) {
 	}
 
 	// The nil-map arm: no checkout was read, so the board says nothing.
-	blank := buildBoard(m, a, nil)
+	blank := buildBoard(m, a, nil, "")
 	if blank.ScriptBanner != "" {
 		t.Errorf("banner = %q with no staleness map, want empty: silence, never a claim that every row is current", blank.ScriptBanner)
 	}
@@ -512,13 +512,13 @@ func TestBoardRendersScriptStaleness(t *testing.T) {
 func TestScriptStalenessDoesNotFailTheRenderedDocsGuard(t *testing.T) {
 	a := &Artifact{Schema: 1, Stages: Stages(), Estates: []EstateResult{rowWithRun("e", "live/e2e/e/run.sh", "aaaaaaaaaa")}}
 	m := &Manifest{}
-	current, err := buildBoard(m, a, map[string]ScriptStaleness{"e": {State: ScriptCurrent}}).Canonical()
+	current, err := buildBoard(m, a, map[string]ScriptStaleness{"e": {State: ScriptCurrent}}, "").Canonical()
 	if err != nil {
 		t.Fatal(err)
 	}
 	drifted, err := buildBoard(m, a, map[string]ScriptStaleness{
 		"e": {State: ScriptChanged, Changed: []string{"live/e2e/e/run.sh"}},
-	}).Canonical()
+	}, "").Canonical()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -535,7 +535,7 @@ func TestScriptStalenessDoesNotFailTheRenderedDocsGuard(t *testing.T) {
 	b.Estates[0].Stages = map[string]string{"cold_deploy": VerdictFail}
 	moved, err := buildBoard(m, &b, map[string]ScriptStaleness{
 		"e": {State: ScriptChanged, Changed: []string{"live/e2e/e/run.sh"}},
-	}).Canonical()
+	}, "").Canonical()
 	if err != nil {
 		t.Fatal(err)
 	}
