@@ -12,6 +12,22 @@ Nothing here is a template you fill in. It is a project that builds, whose five 
 names are also the five job names a branch-protection rule or a warden policy can
 require: `live-check`, `live-plan`, `live-apply`, `live-adopt`, `live-discover`.
 
+## Substrate
+
+AWS-only. `terraform/main.tf`'s estate deliberately includes an
+`aws_iam_role`, and IAM is one of three services (with Route53 and S3) whose
+tagging call choudoufu does not print a paste-ready `live-adopt` command for
+- the estate demonstrates the honest half of adoption, an unmarked resource
+refused by name rather than silently skipped, and that refusal is specific
+to how the AWS Resource Groups Tagging API and IAM interact. A Kubernetes
+root has no equivalent gap to demonstrate: a Kubernetes resource either
+carries the estate's label or it does not, with no service-specific carve-out
+in between. Three forges' worth of generated pipelines, credentials and
+tests are also written for this one root; a Kubernetes variant would need
+its own generator output, its own credential shape (a kubeconfig or an
+OIDC-issued token, not an IAM role ARN) and its own tests across all three,
+which is not small.
+
 ## The five Ops
 
 | Op / job | Trigger | What it runs | What it may do |
