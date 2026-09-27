@@ -134,15 +134,23 @@ against ownership:
   Helm's lifecycle: no rollback, no release history, no hooks, and an
   upgrade is a re-render and a plan.
 
-A chart's own objects are never the estate's by accident. Under the ruling
-an object carrying Helm's release annotation is controller-held: never
-swept, never adopted, reported with its release name. That exclusion is
-#1105's one unit and is not built yet, so until it lands do not put
-`tofu-estate` in a chart's values: an object carrying it that no block
-declares is an orphan today, and the sweep will propose removing it from
-under the release. The opt-in that would bring a release inside the
-boundary (identity through the release secret, the label written by a
-post-renderer) is designed on #1105 and not built.
+A chart's own objects are never the estate's by accident. An object
+carrying Helm's release annotation (`meta.helm.sh/release-name`) is
+controller-held (ruled on
+[#1604](https://github.com/INTENTIUS/choudoufu/issues/1604), built in
+[#1607](https://github.com/INTENTIUS/choudoufu/issues/1607)): never
+swept, never adopted, and reported with its release. So a `tofu-estate`
+put in a chart's values no longer makes each rendered object an orphan.
+The plan lists those objects under "Controller-held", each with the
+release that holds it, and proposes destroying none of them. `live-ls`
+lists them too, with a `held by: Helm release NAMESPACE/NAME` line
+(`held_by` in `-json`). The label on them does nothing useful, so take it
+out of the chart's values when you see that section. `helm template`
+writes no release annotation, so a chart rendered into
+`kubernetes_manifest` blocks is owned in the ordinary way. There is no
+opt-in that brings a release inside the boundary: the ruling deferred it,
+because a label written by a post-renderer is one an out-of-band
+`helm upgrade` strips.
 
 ## Mixed estates
 

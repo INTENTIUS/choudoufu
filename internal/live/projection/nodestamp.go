@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -140,10 +141,11 @@ func (n *NodeResolver) adjustConfigValue(_ context.Context, addr addrs.AbsResour
 	if schema.Block == nil {
 		return config, diags
 	}
-	_, taggable := markers.TagSurface(schema.Block)
-	_, labelled := markers.LabelSurface(schema.Block)
-	manifested := markers.ManifestSurface(schema.Block)
-	if !taggable && !labelled && !manifested {
+	// GitHub issue #1585: the surface is the substrate's answer, the same
+	// one live-mv and live-import ask, and the write below dispatches on
+	// it by name ([NodeResolver.stampSurface]).
+	surface, ok := substrate.SurfaceOf(schema.Block)
+	if !ok {
 		return config, diags
 	}
 
@@ -179,8 +181,24 @@ func (n *NodeResolver) adjustConfigValue(_ context.Context, addr addrs.AbsResour
 	if configElems == nil {
 		configElems = make(map[string]cty.Value, 1)
 	}
+	return n.stampSurface(surface, addr, config, configElems, creating)
+}
 
-	if labelled {
+// stampSurface writes this instance's marker into config on the one
+// surface its schema carries, which [substrate.SurfaceOf] answered. It is
+// the node stamp's per-surface dispatch (GitHub issue #1585), and it names
+// every [markers.Surface] so the completeness guard in
+// internal/live/markers/seams_test.go reads a missing arm as a hole. A
+// surface it does not know leaves config as evaluated, which is what a
+// type with no surface at all gets.
+//
+// configElems is config's own attribute map, which the caller has already
+// read off an unmarked config; the arm that writes replaces one entry in it.
+func (n *NodeResolver) stampSurface(surface markers.Surface, addr addrs.AbsResourceInstance, config cty.Value, configElems map[string]cty.Value, creating bool) (cty.Value, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+
+	switch surface {
+	case markers.SurfaceLabels:
 		// The Kubernetes shape (GitHub issue #1061): one label, no
 		// address. See nodestamp_labels.go.
 		if !config.Type().HasAttribute(markers.LabelSurfaceBlock) {
@@ -193,9 +211,8 @@ func (n *NodeResolver) adjustConfigValue(_ context.Context, addr addrs.AbsResour
 		}
 		configElems[markers.LabelSurfaceBlock] = newMeta
 		return cty.ObjectVal(configElems), diags
-	}
 
-	if manifested {
+	case markers.SurfaceManifest:
 		// The manifest shape (GitHub issue #1079): the same one label,
 		// inside the dynamic manifest argument. See nodestamp_manifest.go.
 		if !config.Type().HasAttribute(markers.ManifestSurfaceAttr) {
@@ -208,31 +225,33 @@ func (n *NodeResolver) adjustConfigValue(_ context.Context, addr addrs.AbsResour
 		}
 		configElems[markers.ManifestSurfaceAttr] = newManifest
 		return cty.ObjectVal(configElems), diags
-	}
 
-	address := markers.EscapeAddress(addr.String())
-	tagsVal := config.GetAttr(tagsArgumentName)
+	case markers.SurfaceTags:
+		address := markers.EscapeAddress(addr.String())
+		tagsVal := config.GetAttr(tagsArgumentName)
 
-	newTags, tagDiags := n.stampedTags(addr, tagsVal, address)
-	diags = diags.Append(tagDiags)
-	if tagDiags.HasErrors() {
-		return config, diags
-	}
-	if creating && n.tagsAfterCreate(addr) {
-		// GitHub issue #1084: the create call cannot carry these tags,
-		// so they are withheld from it - the operator's own tags go
-		// through as stock sends them, this fork's markers do not - and
-		// written onto the created object by WriteAppliedMarkers
-		// (nodetagoncreate.go) before the instance is reported complete.
-		// The conflict check above still ran: a hand-written marker that
-		// disagrees with this run is refused whether or not this pass
-		// would have written its own.
-		log.Printf("[DEBUG] stateless/projection: %s: markers withheld from the create call (tag_on_create false); written after the create", addr)
-		return config, diags
-	}
+		newTags, tagDiags := n.stampedTags(addr, tagsVal, address)
+		diags = diags.Append(tagDiags)
+		if tagDiags.HasErrors() {
+			return config, diags
+		}
+		if creating && n.tagsAfterCreate(addr) {
+			// GitHub issue #1084: the create call cannot carry these tags,
+			// so they are withheld from it - the operator's own tags go
+			// through as stock sends them, this fork's markers do not - and
+			// written onto the created object by WriteAppliedMarkers
+			// (nodetagoncreate.go) before the instance is reported complete.
+			// The conflict check above still ran: a hand-written marker that
+			// disagrees with this run is refused whether or not this pass
+			// would have written its own.
+			log.Printf("[DEBUG] stateless/projection: %s: markers withheld from the create call (tag_on_create false); written after the create", addr)
+			return config, diags
+		}
 
-	configElems[tagsArgumentName] = newTags
-	return cty.ObjectVal(configElems), diags
+		configElems[tagsArgumentName] = newTags
+		return cty.ObjectVal(configElems), diags
+	}
+	return config, diags
 }
 
 // tagsArgumentName is the one attribute [markers.TagSurface] ever names.

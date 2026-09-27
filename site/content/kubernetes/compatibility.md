@@ -9,34 +9,43 @@ deeper:
 
 # Compatibility
 
-Every `kubernetes_*` type with a `metadata` block works: it plans, carries
-the estate label, is swept for orphans and fenced by the admission policy.
-Custom resources work through `kubernetes_manifest`.
+## The backend
+
+Refused for the same reason as on [AWS]({{< relref "/aws/compatibility" >}}):
+the rule is provider-agnostic.
+
+## Expansions and identity arguments
+
+Does not apply: the label holds only the estate name, not an address built
+from `count` or `for_each`.
+
+## Resource types
+
+Every `kubernetes_*` resource type whose schema has a `metadata` block works:
+it plans, carries the estate label, is swept for orphans and is fenced by the
+admission policy. Custom resources work through `kubernetes_manifest`.
 
 Before a plan proposes a `kubernetes_manifest` object, it sends the object to
 the API server as a dry run and prints the server's verdict. A manifest the
-server would reject refuses the plan. A block whose kind the cluster does
-not serve is refused by name, with the CRD to install.
+server would reject refuses the plan, in the server's own words. A block whose
+kind the cluster does not serve is refused by name, with the CRD to install.
 
-## Refused
+### Refused
 
 | What | Why |
 |---|---|
 | `metadata.generate_name` | The server picks the name, so the object cannot be found again. Set `name` |
 | A namespaced object with no `namespace` | Refused and not defaulted, for the same reason |
 | `kubernetes_labels`, `kubernetes_annotations`, `kubernetes_env`, the `*_data` types | They patch an object and are not one |
-| `helm_release` | A release is many objects made by Helm, carrying Helm's labels. Run Helm roots without a `live` block, where they behave as stock |
+| `helm_release` | A release is many objects Helm makes. Run Helm roots without a `live` block, where they behave as stock. An object carrying Helm's release annotation is controller-held: never swept or adopted, even with `tofu-estate` in chart values; listed with its release |
 
-## Mixed estates
+## Running it
+
+The same plan and apply engine as AWS: `-target` and the plan-file workflow
+are not provider-specific.
+
+## Other providers
 
 An EKS module managing the `aws-auth` ConfigMap works. EKS creates it
 unlabelled; the plan stops until `declared_untagged = "adopt"` claims it. AWS
 resources carry two tags, the ConfigMap one label.
-
-## Known differences
-
-A `create_before_destroy` rename (a content-hashed ConfigMap,
-`name = "cfg-${sha}"`) destroys the old object before creating the new one;
-stock creates first. Tracked as
-[#1541](https://github.com/INTENTIUS/choudoufu/issues/1541), waiting on
-[#1605](https://github.com/INTENTIUS/choudoufu/issues/1605).

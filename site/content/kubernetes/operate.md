@@ -17,7 +17,7 @@ and the plan is empty. Changing a type's version suffix,
 object to another estate is a relabel, through `live-mv -from-estate` or
 `kubectl label --overwrite`.
 
-## Records
+### Records
 
 Every managed object has a record
 ([Records]({{< relref "/docs/model/values" >}})). Most cost nothing to lose.
@@ -39,15 +39,10 @@ that may write has applied the estate once.
 
 The first contact also checks the cluster: the records namespace and this
 identity's access, read isolation, the API server's encryption flag, and the
-estate boundary policy. Each failure names its fix and the waiver that accepts it. A stock
+estate boundary policy. Each failure names its fix. A stock
 kind cluster fails the last two, so a demo adds
 `allow_insecure = ["encryption_at_rest", "estate_boundary"]` to the
 `record_store` block. `choudoufu live-cluster` prints the report.
-
-## Two runs at once
-
-Server-side apply settles it. The loser gets a 409 that names the other
-manager and the contested fields.
 
 ## Remove
 
@@ -55,3 +50,23 @@ An object carrying your estate's label that no block declares is proposed for
 deletion. Two kinds are excluded first: anything with an owner reference, and
 anything only the control plane wrote. A controller copies labels from a pod
 template onto Pods nobody declared, and those are never yours to delete.
+
+## Scale
+
+Does not apply: the natural key already includes each instance's name, so
+scaling needs no extra tag.
+
+## Plan, review, apply
+
+The same as [AWS]({{< relref "/aws/operate" >}}): the approval check belongs
+to the engine, not the substrate.
+
+## From CI
+
+The same pipeline as [AWS]({{< relref "/aws/operate" >}}): the jobs run the
+same commands, regardless of substrate.
+
+## Two runs at once
+
+Server-side apply settles it. The loser gets a 409 that names the other
+manager and the contested fields.
