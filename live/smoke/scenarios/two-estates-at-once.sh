@@ -79,9 +79,15 @@ write_estate "$SMOKE_WORK/b" "$ESTATE_B" "smoke-concurrent-b-role"
 step "1. both estates apply at the same moment"
 cmd "(apply in a &) ; (apply in b &) ; wait"
 WALL_START="$(date +%s)"
-( cd "$SMOKE_WORK/a" && { date +%s > "$SMOKE_WORK/a.start"; chdf apply -auto-approve -input=false -no-color > "$SMOKE_WORK/a.out" 2>&1; echo $? > "$SMOKE_WORK/a.rc"; date +%s > "$SMOKE_WORK/a.end"; } ) &
-( cd "$SMOKE_WORK/b" && { date +%s > "$SMOKE_WORK/b.start"; chdf apply -auto-approve -input=false -no-color > "$SMOKE_WORK/b.out" 2>&1; echo $? > "$SMOKE_WORK/b.rc"; date +%s > "$SMOKE_WORK/b.end"; } ) &
-wait
+# `|| rc=$?`, not `; echo $?`: under the inherited set -e a failing apply
+# would end the subshell before its rc and end files were written - the
+# same shape no-self-managed-locks fixed (#1646).
+( cd "$SMOKE_WORK/a" && { date +%s > "$SMOKE_WORK/a.start"; rc=0; chdf apply -auto-approve -input=false -no-color > "$SMOKE_WORK/a.out" 2>&1 || rc=$?; echo "$rc" > "$SMOKE_WORK/a.rc"; date +%s > "$SMOKE_WORK/a.end"; } ) & PID_A=$!
+( cd "$SMOKE_WORK/b" && { date +%s > "$SMOKE_WORK/b.start"; rc=0; chdf apply -auto-approve -input=false -no-color > "$SMOKE_WORK/b.out" 2>&1 || rc=$?; echo "$rc" > "$SMOKE_WORK/b.rc"; date +%s > "$SMOKE_WORK/b.end"; } ) & PID_B=$!
+# By PID, never a bare `wait`: smoke.sh's stall watchdog is also a
+# background child of this shell (#1593), and a bare `wait` blocks until it
+# fires and kills the run.
+wait "$PID_A" "$PID_B" || true
 WALL_END="$(date +%s)"
 
 A_START="$(cat "$SMOKE_WORK/a.start")"; B_START="$(cat "$SMOKE_WORK/b.start")"
