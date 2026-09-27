@@ -2519,6 +2519,13 @@ func statelessForeignReport(res *foreign.Result, disco *discovery.Result) views.
 		// so rather than let "nothing was swept" read as "there is
 		// nothing". See [discovery.Result.NativeSweepSkipped].
 		rep.NativeSweepSkipped = disco.NativeSweepSkipped
+		for _, h := range disco.KubernetesHeld {
+			rep.ControllerHeld = append(rep.ControllerHeld, views.StatelessControllerHeld{
+				Kind:   h.Kind,
+				ID:     kubesweep.NaturalKey(h.Namespace, h.Name),
+				HeldBy: h.HeldBy,
+			})
+		}
 	}
 	for _, rm := range res.Removals {
 		rep.Removals = append(rep.Removals, views.StatelessRemoval{
