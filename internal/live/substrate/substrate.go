@@ -34,6 +34,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // Write is how a marker reaches a live object.
@@ -145,6 +146,15 @@ type Substrate interface {
 	// never a family's concrete type (GitHub issue #1580).
 	NewSweeper(providerConfig cty.Value, ok bool) (Sweeper, error)
 
+	// --- Admission (GitHub issue #1586; see identity.go) ---
+
+	// SynthesizeIdentity is how this family's schema identifies an
+	// instance of a type the ratified table does not cover, or false when
+	// the schema is not one of this family's shapes. Asked in [All]'s
+	// order by internal/live/identity's synthesizeTypeIdentity, and the
+	// first family to answer decides.
+	SynthesizeIdentity(typeName string, schema providers.Schema) (SynthesizedIdentity, bool)
+
 	// surfaceWording is GitHub issue #1584's block, below.
 	surfaceWording
 
@@ -156,7 +166,12 @@ type Substrate interface {
 }
 
 // All is every family, in the order a surface question asks them.
-var All = []Substrate{AWS, Kubernetes}
+//
+// AWS is last, and that is load-bearing for [Substrate.SynthesizeIdentity]
+// (GitHub issue #1586): the AWS answer is the identity-schema route, which
+// claims every type, so a family with a convention of its own has to be
+// asked before it. The surface questions are disjoint and do not care.
+var All = []Substrate{Kubernetes, AWS}
 
 // ForProvider is the family a provider type name belongs to ("aws",
 // "kubernetes"). It matches the type name alone, which is what every
