@@ -69,46 +69,66 @@ type surfaceSeamExemption struct {
 	Why     string
 }
 
+// discoveryAWSLeg is the reason the AWS discovery files are exempt
+// (GitHub issues #1580, #1614). Their sweep runs inside
+// discovery.TaggingIndexSweep; the Kubernetes sweep is
+// discovery.KubernetesSweep in kubernetes.go. internal/command picks the
+// legs a run lists in Request.Sweepers by each provider family's
+// substrate.Sweep property (sweepLegBuilders in live_plan.go), never by
+// marker surface, so the choice of leg is not a seam this guard measures.
+const discoveryAWSLeg = "an AWS discovery leg (tagging index, list, Cloud Control, direct read), run by discovery.TaggingIndexSweep. The Kubernetes leg is discovery.KubernetesSweep in kubernetes.go; the legs are chosen by the substrate's Sweep property (sweepLegBuilders in internal/command/live_plan.go), not by surface, so the choice is not a seam this guard measures"
+
 // surfaceSeamExemptions is keyed by a file, relative to the module root,
 // which excuses every seam in that file with the same Handles, or by
 // "<file>:<Func>" / "<file>:<Recv>.<Func>" for one seam. The unit is the
 // file or the function and never the package: #1108's hole sat in a
 // package whose other files handled every surface.
 var surfaceSeamExemptions = map[string]surfaceSeamExemption{
-	"internal/live/discovery/cloudcontrol.go":                      {Handles: []Surface{SurfaceTags}, Why: "an AWS discovery leg (tagging index, list, Cloud Control, direct read). The Kubernetes leg is sweepKubernetes in kubernetes.go, chosen by provider (Request.Kubernetes), not by surface, so it is not a seam this guard measures"},
-	"internal/live/discovery/directread.go":                        {Handles: []Surface{SurfaceTags}, Why: "an AWS discovery leg (tagging index, list, Cloud Control, direct read). The Kubernetes leg is sweepKubernetes in kubernetes.go, chosen by provider (Request.Kubernetes), not by surface, so it is not a seam this guard measures"},
-	"internal/live/discovery/discovery.go":                         {Handles: []Surface{SurfaceTags}, Why: "an AWS discovery leg (tagging index, list, Cloud Control, direct read). The Kubernetes leg is sweepKubernetes in kubernetes.go, chosen by provider (Request.Kubernetes), not by surface, so it is not a seam this guard measures"},
-	"internal/live/discovery/lookalikerelist.go":                   {Handles: []Surface{SurfaceTags}, Why: "an AWS discovery leg (tagging index, list, Cloud Control, direct read). The Kubernetes leg is sweepKubernetes in kubernetes.go, chosen by provider (Request.Kubernetes), not by surface, so it is not a seam this guard measures"},
-	"internal/live/discovery/reconcile.go":                         {Handles: []Surface{SurfaceTags}, Why: "an AWS discovery leg (tagging index, list, Cloud Control, direct read). The Kubernetes leg is sweepKubernetes in kubernetes.go, chosen by provider (Request.Kubernetes), not by surface, so it is not a seam this guard measures"},
-	"internal/live/discovery/recordorphan_read.go":                 {Handles: []Surface{SurfaceTags}, Why: "an AWS discovery leg (tagging index, list, Cloud Control, direct read). The Kubernetes leg is sweepKubernetes in kubernetes.go, chosen by provider (Request.Kubernetes), not by surface, so it is not a seam this guard measures"},
-	"internal/live/discovery/servicelist.go":                       {Handles: []Surface{SurfaceTags}, Why: "an AWS discovery leg (tagging index, list, Cloud Control, direct read). The Kubernetes leg is sweepKubernetes in kubernetes.go, chosen by provider (Request.Kubernetes), not by surface, so it is not a seam this guard measures"},
-	"internal/live/discovery/sweepconcurrency.go":                  {Handles: []Surface{SurfaceTags}, Why: "an AWS discovery leg (tagging index, list, Cloud Control, direct read). The Kubernetes leg is sweepKubernetes in kubernetes.go, chosen by provider (Request.Kubernetes), not by surface, so it is not a seam this guard measures"},
-	"internal/live/discovery/tagging.go":                           {Handles: []Surface{SurfaceTags}, Why: "an AWS discovery leg (tagging index, list, Cloud Control, direct read). The Kubernetes leg is sweepKubernetes in kubernetes.go, chosen by provider (Request.Kubernetes), not by surface, so it is not a seam this guard measures"},
-	"internal/live/discovery/tagindexfallback.go":                  {Handles: []Surface{SurfaceTags}, Why: "an AWS discovery leg (tagging index, list, Cloud Control, direct read). The Kubernetes leg is sweepKubernetes in kubernetes.go, chosen by provider (Request.Kubernetes), not by surface, so it is not a seam this guard measures"},
-	"internal/command/live_apply_kubernetes_held.go":               {Handles: []Surface{SurfaceManifest}, Why: "the Kubernetes sweep's type universe; its object-metadata arm asks identity.ObjectMetaShape, a label-shape predicate outside this package that the guard cannot see (named in the #1118 follow-up)"},
-	"internal/command/live_plan_kubernetes_dryrun.go":              {Handles: []Surface{SurfaceLabels, SurfaceManifest}, Why: "the Kubernetes server-side dry run (#1101); a tag-surface type never reaches a cluster"},
-	"internal/live/identity/manifest.go":                           {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's natural-key identity, not a marker read"},
-	"internal/live/liveimport/labels.go":                           {Handles: []Surface{SurfaceLabels}, Why: "the label carrier, reached only through ratifyOne's and stamp.go's surface dispatch"},
-	"internal/live/liveimport/manifest.go":                         {Handles: []Surface{SurfaceManifest}, Why: "the manifest carrier (#1109), reached only through ratifyOne's surface dispatch"},
-	"internal/live/liveimport/tags.go":                             {Handles: []Surface{SurfaceTags}, Why: "the tag carrier, reached only through ratifyOne's and stamp.go's surface dispatch"},
-	"internal/live/mv/label.go":                                    {Handles: []Surface{SurfaceLabels}, Why: "the label path, reached only when relabels answered true for the surface surfaceOf read"},
-	"internal/live/mv/rewrite.go:mover.rewrite":                    {Handles: []Surface{SurfaceLabels, SurfaceTags}, Why: "mv.go refuses SurfaceManifest by name (SummaryManifestMoveUnsupported) before rewrite runs; #1104 replaces that refusal with the label patch"},
-	"internal/live/mv/mv.go:mover.locateByIdentity":                {Handles: []Surface{SurfaceLabels, SurfaceTags}, Why: "the manifest shape is refused by name in the same file before a locate runs (SummaryManifestMoveUnsupported); #1104 replaces that refusal"},
-	"internal/live/mv/rewrite.go:tagsFromObject":                   {Handles: []Surface{SurfaceTags}, Why: "the tag path's reader, reached only on SurfaceTags"},
-	"internal/live/projection/manifestkeys.go":                     {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's declared-key lookup (#1079)"},
-	"internal/live/projection/manifestpartialseed.go":              {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's partial seed"},
-	"internal/live/projection/nodestamp_manifest.go":               {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's computed-fields mirror"},
-	"internal/live/projection/residue.go:residueStubIdentityAttrs": {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's identity attributes on a residue stub, not a marker read"},
-	"internal/live/projection/build.go:readImported":               {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's import read-back, not a marker read"},
-	"internal/live/projection/build.go:configuredTagsSeed":         {Handles: []Surface{SurfaceTags}, Why: "AWS default_tags: the tags_all merge exists only on the tag surface"},
-	"internal/live/substrate/aws.go":                               {Handles: []Surface{SurfaceTags}, Why: "the AWS substrate's own answers (#1118); the dispatch over substrate.All in substrate.go is the seam, and it handles every surface"},
-	"internal/live/substrate/kubernetes.go":                        {Handles: []Surface{SurfaceLabels, SurfaceManifest}, Why: "the Kubernetes substrate's own answers (#1118); the dispatch over substrate.All in substrate.go is the seam, and it handles every surface"},
-	"tools/estate-gen/gen.go":                                      {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
-	"tools/survey-gen/classify.go":                                 {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
-	"tools/survey-gen/governance_render.go":                        {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
-	"tools/survey-gen/parent_render.go":                            {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
-	"tools/survey-gen/render.go":                                   {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
-	"tools/survey-gen/untaggable_render.go":                        {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
+	"internal/live/discovery/cloudcontrol.go":                          {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
+	"internal/live/discovery/directread.go":                            {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
+	"internal/live/discovery/discovery.go":                             {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
+	"internal/live/discovery/lookalikerelist.go":                       {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
+	"internal/live/discovery/reconcile.go":                             {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
+	"internal/live/discovery/recordorphan_read.go":                     {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
+	"internal/live/discovery/servicelist.go":                           {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
+	"internal/live/discovery/sweepconcurrency.go":                      {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
+	"internal/live/discovery/tagging.go":                               {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
+	"internal/live/discovery/tagindexfallback.go":                      {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
+	"internal/command/live_apply_kubernetes_held.go":                   {Handles: []Surface{SurfaceManifest}, Why: "the Kubernetes sweep's type universe; its object-metadata arm asks identity.ObjectMetaShape, a label-shape predicate outside this package that the guard cannot see (named in the #1118 follow-up)"},
+	"internal/command/live_plan_kubernetes_dryrun.go":                  {Handles: []Surface{SurfaceLabels, SurfaceManifest}, Why: "the Kubernetes server-side dry run (#1101); a tag-surface type never reaches a cluster"},
+	"internal/live/identity/manifest.go":                               {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's natural-key identity, not a marker read"},
+	"internal/live/liveimport/labels.go":                               {Handles: []Surface{SurfaceLabels}, Why: "the label carrier, reached only through ratifyOne's and stamp.go's surface dispatch"},
+	"internal/live/liveimport/manifest.go":                             {Handles: []Surface{SurfaceManifest}, Why: "the manifest carrier (#1109), reached only through ratifyOne's surface dispatch"},
+	"internal/live/liveimport/tags.go":                                 {Handles: []Surface{SurfaceTags}, Why: "the tag carrier, reached only through ratifyOne's and stamp.go's surface dispatch"},
+	"internal/live/mv/label.go":                                        {Handles: []Surface{SurfaceLabels}, Why: "the label path, reached only when relabels answered true for the surface surfaceOf read"},
+	"internal/live/mv/rewrite.go:mover.rewrite":                        {Handles: []Surface{SurfaceLabels, SurfaceTags}, Why: "mv.go refuses SurfaceManifest by name (SummaryManifestMoveUnsupported) before rewrite runs; #1104 replaces that refusal with the label patch"},
+	"internal/live/mv/mv.go:mover.locateByIdentity":                    {Handles: []Surface{SurfaceLabels, SurfaceTags}, Why: "the manifest shape is refused by name in the same file before a locate runs (SummaryManifestMoveUnsupported); #1104 replaces that refusal"},
+	"internal/live/mv/rewrite.go:tagsFromObject":                       {Handles: []Surface{SurfaceTags}, Why: "the tag path's reader, reached only on SurfaceTags"},
+	"internal/live/projection/manifestkeys.go":                         {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's declared-key lookup (#1079)"},
+	"internal/live/projection/manifestpartialseed.go":                  {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's partial seed"},
+	"internal/live/projection/nodestamp_manifest.go":                   {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's computed-fields mirror"},
+	"internal/live/projection/residue.go:residueStubIdentityAttrs":     {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's identity attributes on a residue stub, not a marker read"},
+	"internal/live/projection/build.go:readImported":                   {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's import read-back, not a marker read"},
+	"internal/live/projection/build.go:configuredTagsSeed":             {Handles: []Surface{SurfaceTags}, Why: "AWS default_tags: the tags_all merge exists only on the tag surface"},
+	"internal/live/substrate/aws.go":                                   {Handles: []Surface{SurfaceTags}, Why: "the AWS substrate's own answers (#1118); the dispatch over substrate.All in substrate.go is the seam, and it handles every surface"},
+	"internal/live/substrate/kubernetes.go":                            {Handles: []Surface{SurfaceLabels, SurfaceManifest}, Why: "the Kubernetes substrate's own answers (#1118); the dispatch over substrate.All in substrate.go is the seam, and it handles every surface"},
+	"internal/live/check/nodestamp.go":                                 {Handles: []Surface{SurfaceTags}, Why: "NodeStampUnmarkedApply acts only on needs-discovery blocks, and no label or manifest type resolves to one: both shapes take the schema-synthesized identity (identity/metadata.go, identity/manifest.go), namespace and name from configuration, never server-assigned, with no cloud component and no *_prefix sibling; generate_name is refused by lint (RuleGenerateName), a name read off another resource resolves parent-derived, and an unresolvable one refuses at the node (#1539). TestNoKubernetesTypeNeedsDiscovery in internal/live/check pins that. nodeStampMarkerConflicts is the offline live-check reading a hand-written tags argument; a hand-written estate label is refused online by the node stamp's label and manifest arms (projection/nodestamp_labels.go, markerConflictDiag)"},
+	"internal/command/live_plan.go:statelessUnmarkedApplyGaps":         {Handles: []Surface{SurfaceTags}, Why: "reaches the markers package only through check.NodeStampUnmarkedApply; see internal/live/check/nodestamp.go's entry"},
+	"internal/live/identity/located.go:RecordFallbackType":             {Handles: []Surface{SurfaceTags}, Why: "asked only from resolveInstance's needs-discovery branches (a server-assigned identity, a missing cloud component, a server-assigned-if-absent argument, a *_prefix sibling), and a label or manifest type's synthesized identity has none of them (see check/nodestamp.go's entry and TestNoKubernetesTypeNeedsDiscovery), so it only ever answers for tag-surface types. Were one to reach it, the record rung is the answer #1539 ruled for a marker that carries no address"},
+	"internal/live/identity/resolve.go:resolver.recordFallback":        {Handles: []Surface{SurfaceTags}, Why: "the one caller of RecordFallbackType, with its reason"},
+	"internal/live/identity/resolve.go:resolver.manifestObjectKeyPart": {Handles: []Surface{SurfaceManifest, SurfaceTags}, Why: "not a marker read: it resolves kubernetes_manifest.x.object.metadata.name or .namespace from the parent's manifest argument (#1116). The tags arm is resolver.instance's, reached through the guard's by-name method resolution"},
+	"internal/live/lint/ignore_changes.go:checkIgnoreChanges":          {Handles: []Surface{SurfaceTags}, Why: "a hole: ignore_changes covering the Kubernetes estate label is not refused. Extending #103's refusal to the label and manifest carriers adds refusals, so it waits on a ruling in GitHub issue #1645"},
+	"internal/live/lint/lint.go:checkManagedResources":                 {Handles: []Surface{SurfaceTags}, Why: "reaches the markers package only through checkIgnoreChanges; GitHub issue #1645"},
+	"internal/live/projection/build.go:builder.prepareRead":            {Handles: []Surface{SurfaceManifest, SurfaceTags}, Why: "the read seeds: the tags arm is configuredTagsSeed (AWS default_tags, exempted above) and the manifest arm is the manifest seed that stands in for the configuration in state (#1079, #1262). A label-surface type needs no seed: its metadata.labels comes back whole from the provider's read of the live object"},
+	"internal/live/projection/readconcurrency.go":                      {Handles: []Surface{SurfaceManifest, SurfaceTags}, Why: "reaches the markers package only through builder.prepareRead; see its entry"},
+	"internal/live/untag/tags.go":                                      {Handles: []Surface{SurfaceTags}, Why: "a hole: undeclared_tagged = \"untag\" never releases a Kubernetes label, because the release writes only a tags map. GitHub issue #1644"},
+	"internal/live/untag/release.go:releaseOne":                        {Handles: []Surface{SurfaceTags}, Why: "the release itself, asking tags.go's taggable; GitHub issue #1644"},
+	"tools/estate-gen/gen.go":                                          {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
+	"tools/survey-gen/classify.go":                                     {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
+	"tools/survey-gen/governance_render.go":                            {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
+	"tools/survey-gen/parent_render.go":                                {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
+	"tools/survey-gen/render.go":                                       {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
+	"tools/survey-gen/untaggable_render.go":                            {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
 }
 
 // surfaceSeamUntriaged is the rest of what the guard measured on the day
@@ -123,20 +143,9 @@ var surfaceSeamExemptions = map[string]surfaceSeamExemption{
 // deliberate edit, and it never grows: a new partial seam fails.
 var surfaceSeamUntriaged = map[string][]Surface{
 	"internal/command/live_adoption.go:statelessAdoptionReport":                    {SurfaceTags},
-	"internal/command/live_plan.go:statelessUnmarkedApplyGaps":                     {SurfaceTags},
-	"internal/live/check/nodestamp.go":                                             {SurfaceTags},
 	"internal/live/check/roster.go":                                                {SurfaceTags},
-	"internal/live/identity/located.go:RecordFallbackType":                         {SurfaceTags},
-	"internal/live/identity/resolve.go:resolver.recordFallback":                    {SurfaceTags},
-	"internal/live/identity/resolve.go:resolver.manifestObjectKeyPart":             {SurfaceManifest, SurfaceTags},
-	"internal/live/lint/ignore_changes.go:checkIgnoreChanges":                      {SurfaceTags},
-	"internal/live/lint/lint.go:checkManagedResources":                             {SurfaceTags},
 	"internal/live/markerstrip/markerstrip.go":                                     {SurfaceTags},
-	"internal/live/projection/build.go:builder.prepareRead":                        {SurfaceManifest, SurfaceTags},
-	"internal/live/projection/readconcurrency.go":                                  {SurfaceManifest, SurfaceTags},
 	"internal/live/projection/nodetagoncreate.go:NodeResolver.WriteAppliedMarkers": {SurfaceTags},
-	"internal/live/untag/tags.go":                                                  {SurfaceTags},
-	"internal/live/untag/release.go:releaseOne":                                    {SurfaceTags},
 }
 
 func TestEverySurfaceSeamHandlesEverySurface(t *testing.T) {
