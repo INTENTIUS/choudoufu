@@ -150,6 +150,9 @@ type Substrate interface {
 
 	// markerWriting is GitHub issue #1587's block, below.
 	markerWriting
+
+	// markerCarrier is GitHub issue #1649's block, below.
+	markerCarrier
 }
 
 // All is every family, in the order a surface question asks them.
@@ -398,4 +401,83 @@ type markerWriting interface {
 	// this family builds a client for: [WriteNeverNeeded] for a family
 	// whose every surface rides the create call.
 	MarkerWriter(provider addrs.AbsProviderConfig) Write
+}
+
+// ---- GitHub issue #1649: the carrier's wholly-known read ----
+//
+// The stateful un-migration guard (internal/live/markerstrip) compares the
+// marker map on a planned update's prior and planned objects. A surface
+// reader answers "this object carries no markers" for an unknown map
+// ([markers.LabelsOf] returns an empty map, ok true), which is right for the
+// question it answers and wrong for that comparison: a planned object whose
+// labels are not yet known would read as one whose marker was removed. So
+// the known-ness check sits outside the reader, on the carrier alone.
+
+// markerCarrier is the part of [Substrate] #1649 added.
+type markerCarrier interface {
+	// CarrierPaths are the paths, from a resource object's root, of the
+	// maps surface's marker lives in: tags and tags_all, metadata[0].labels,
+	// manifest.metadata.labels.
+	CarrierPaths(surface markers.Surface) []cty.Path
+
+	// MarkerNoun is what one entry of surface's marker map is called, for
+	// wording that names it: "tag" or "label".
+	MarkerNoun(surface markers.Surface) string
+}
+
+// KnownMarkersOf is [MarkersOf] for a caller that must not read an unknown
+// marker map as an empty one. It reports false when the object is null or
+// unknown, when any carrier path reaches an unknown value (the map, or
+// anything on the way to it), or when the surface reader itself reports
+// false. A value beside the carrier being unknown, such as a planned
+// object's metadata.resource_version, does not hide a marker that is known.
+//
+// A carrier path that ends early at a null, or indexes past an empty list,
+// is not unknown: the reader decides what that object carries.
+func KnownMarkersOf(surface markers.Surface, obj cty.Value) (map[string]string, bool) {
+	s := For(surface)
+	if s == nil || obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() || !obj.Type().IsObjectType() {
+		return nil, false
+	}
+	for _, path := range s.CarrierPaths(surface) {
+		if !carrierKnown(obj, path) {
+			return nil, false
+		}
+	}
+	return s.MarkersOf(surface, obj)
+}
+
+// carrierKnown walks path from obj and reports whether it reaches a wholly
+// known value, or stops at a null or a missing step before it.
+func carrierKnown(obj cty.Value, path cty.Path) bool {
+	// Known-ness is all this asks, and a mark never changes it; the
+	// reader keeps its own discipline about reading a marked value.
+	v, _ := obj.UnmarkDeep()
+	for _, step := range path {
+		if !v.IsKnown() {
+			return false
+		}
+		if v.IsNull() {
+			return true
+		}
+		next, err := step.Apply(v)
+		if err != nil {
+			// A missing attribute, a non-object, an index past the end:
+			// no carrier here, which the reader answers for itself.
+			return true
+		}
+		v = next
+	}
+	return v.IsWhollyKnown()
+}
+
+// MarkerNoun is what one entry of surface's marker map is called ("tag",
+// "label"), or "marker" for the zero Surface.
+func MarkerNoun(surface markers.Surface) string {
+	if s := For(surface); s != nil {
+		if n := s.MarkerNoun(surface); n != "" {
+			return n
+		}
+	}
+	return "marker"
 }
