@@ -186,6 +186,12 @@ func Classify(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	c.buildSlots(ctx)
 	c.classify()
 	c.finish()
+	// Issue #1628: a controller-held resource never reaches [classify] or
+	// [finish] above - [applyControllerHeld] already took it out of
+	// Unclaimed before this pass ran - so a create whose identity-bearing
+	// arguments match one needs its own pairing over the same slots, or the
+	// lookalike guard would say nothing about it at all.
+	c.controllerHeldLookalikes()
 	// The rename pass reads the owned side of the discovery result - the
 	// orphans and the unbound declared instances - rather than the unclaimed
 	// side everything above works on, so it runs on its own and changes
@@ -598,6 +604,67 @@ func (c *classifier) finish() {
 	})
 }
 
+// controllerHeldLookalikes pairs the slots [buildSlots] already built against
+// [Result.ControllerHeld] (GitHub issue #1628), on the exact same content-
+// match [matches] uses for an adoption candidate and the exact same
+// one-to-one rule [finish] applies before trusting one: a controller-held
+// resource must be the only one of its type matching the slot, and the slot
+// must be the only one it matches, or neither side settles anything and this
+// stays silent, same as an ambiguous adoption pair does.
+//
+// It runs after [finish] but reads only c.slots, which buildSlots populated
+// once and finish never mutates.
+func (c *classifier) controllerHeldLookalikes() {
+	type chPair struct {
+		ch   *discovery.ControllerHeldResource
+		slot *slot
+		on   []AttrMatch
+	}
+	var pairs []chPair
+	for i := range c.req.Report.ControllerHeld {
+		ch := &c.req.Report.ControllerHeld[i]
+		for _, s := range c.slots[ch.TypeName] {
+			if s.why != "" || len(s.values) == 0 {
+				continue
+			}
+			if on, ok := matchesResource(ch.Resource, s); ok {
+				pairs = append(pairs, chPair{ch: ch, slot: s, on: on})
+			}
+		}
+	}
+
+	perCH := make(map[string][]chPair)
+	perSlot := make(map[string][]chPair)
+	for _, p := range pairs {
+		key := p.ch.TypeName + "/" + p.ch.ImportID
+		perCH[key] = append(perCH[key], p)
+		perSlot[p.slot.addr.String()] = append(perSlot[p.slot.addr.String()], p)
+	}
+
+	seen := make(map[string]bool)
+	for _, p := range pairs {
+		key := p.ch.TypeName + "/" + p.ch.ImportID
+		if len(perCH[key]) != 1 || len(perSlot[p.slot.addr.String()]) != 1 {
+			continue
+		}
+		if seen[p.slot.addr.String()] {
+			continue
+		}
+		seen[p.slot.addr.String()] = true
+		c.res.ControllerHeldLookalikes = append(c.res.ControllerHeldLookalikes, Lookalike{
+			Addr:        p.slot.addr,
+			TypeName:    p.ch.TypeName,
+			LiveID:      p.ch.ImportID,
+			DisplayName: p.ch.DisplayName,
+			Matched:     p.on,
+			HeldBy:      p.ch.HeldBy,
+		})
+	}
+	sort.Slice(c.res.ControllerHeldLookalikes, func(i, j int) bool {
+		return c.res.ControllerHeldLookalikes[i].Addr.String() < c.res.ControllerHeldLookalikes[j].Addr.String()
+	})
+}
+
 // removals reports the live resources this estate owns and no longer
 // declares, which the plan proposes destroying.
 //
@@ -801,9 +868,17 @@ func (c *classifier) hasScan(typeName string) bool {
 // be present and equal; an attribute the provider did not send is a
 // non-match, never a wildcard.
 func matches(u *discovery.UnclaimedResource, s *slot) ([]AttrMatch, bool) {
+	return matchesResource(u.Resource, s)
+}
+
+// matchesResource is [matches] over a listed object directly, rather than an
+// [discovery.UnclaimedResource] wrapping one - what [controllerHeldLookalikes]
+// needs, since a [discovery.ControllerHeldResource] carries its object the
+// same way but is never itself an UnclaimedResource.
+func matchesResource(obj cty.Value, s *slot) ([]AttrMatch, bool) {
 	on := make([]AttrMatch, 0, len(s.values))
 	for _, want := range s.values {
-		got, ok := liveString(u.Resource, want.Attr)
+		got, ok := liveString(obj, want.Attr)
 		if !ok || got != want.Value {
 			return nil, false
 		}

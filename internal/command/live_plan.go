@@ -2719,6 +2719,7 @@ func statelessLookalikeReport(warnings []foreign.Lookalike) []views.StatelessLoo
 			MarkerEstate:  w.MarkerEstate,
 			MarkerAddress: w.MarkerAddress,
 			Hint:          w.Hint,
+			HeldBy:        w.HeldBy,
 		})
 	}
 	return out
