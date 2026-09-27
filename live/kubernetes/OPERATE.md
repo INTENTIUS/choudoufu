@@ -2,10 +2,17 @@
 
 ## Rename
 
-With an estate-only label there is no address on the object to rewrite. A
-`moved` block is a config-line rename and the natural key is unchanged, so
-the plan is empty. `live-mv` has nothing governed to do, says so, and
-exits 0.
+A `moved` block is a config-line rename; the natural key is unchanged, so
+the object is found exactly as before. Since #1639 the object also
+carries the block address in an annotation beside the label, and
+`live-mv <old> <new>` rewrites just that annotation - the same governed
+rewrite the tag path makes on AWS, through the provider under the run's
+own credential. An ordinary plan and apply gets there on its own too, the
+node stamp writing the new address into the annotation the way it writes
+the label; run `live-mv` first only to make that one change ahead of a
+larger plan, or to get the address confirmed on its own. Either way,
+`live-mv` reports the rename as already done if a prior plan and apply
+already rewrote the annotation.
 
 Moving an object between estates is a relabel, `tofu-estate=<new>` on the
 object: `live-mv -from-estate=<old>` in the destination's configuration

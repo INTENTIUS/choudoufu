@@ -90,10 +90,14 @@ below says why for each type that carries it.
 Tier A's own test is a top-level `tags` argument, an AWS-only shape no
 Kubernetes type has ever had; the label surface, `metadata.labels`, is this
 substrate's marker instead, and it landed after today's Kubernetes rows were
-ratified. Which tier a label-carried type maps to needs a ruling before this
-generator assigns one, so the table below lists them unclassified rather
-than guessed. See
-[issue #1600](https://github.com/INTENTIUS/choudoufu/issues/1600).
+ratified. The maintainer ruled tier A reads each substrate's own marker -
+tags on AWS, labels on Kubernetes - and the four admitted Kubernetes types
+(`kubernetes_cluster_role_binding`, `kubernetes_config_map`,
+`kubernetes_namespace`, `kubernetes_storage_class`) confirmed against the
+pinned provider schema all carry it, so the table below lists them
+marker-carried and in-contract. See
+[issue #1600](https://github.com/INTENTIUS/choudoufu/issues/1600) and
+[issue #1630](https://github.com/INTENTIUS/choudoufu/issues/1630).
 
 {{< readiness "kubernetes" >}}
 

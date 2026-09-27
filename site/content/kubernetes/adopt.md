@@ -9,10 +9,11 @@ deeper:
 
 # Adopt
 
-On Kubernetes the marker is one label, `tofu-estate`, written when the object
-is created. There is no address on the object: Kubernetes gives every object
-a natural key, its kind, namespace and name, already in your configuration,
-so a plan finds the object again by that key.
+On Kubernetes the marker is one label, `tofu-estate`; a plan finds the
+object again by its own kind, namespace and name, already in your
+configuration, not by address. Since #1639 it also carries the block
+address in an annotation beside the label, a join key for the sweep and
+`live-mv`.
 
 Every `kubernetes_*` type with a `metadata` block works this way, and so does
 every custom resource declared through `kubernetes_manifest`, which binds by
@@ -25,9 +26,9 @@ choudoufu live-import -state=stock.tfstate -estate=my-estate
 choudoufu live-import -state=stock.tfstate -estate=my-estate -approve
 ```
 
-Each object is verified by namespace and name, and the label is written. A
-write that would change anything beyond the labels is refused, and so is an
-object already labelled for another estate.
+Each object is verified by namespace and name, and the label and address
+annotation are written. A write that would change anything beyond them is
+refused, and so is an object already labelled for another estate.
 
 ## What binds on its own
 
