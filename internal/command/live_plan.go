@@ -1673,22 +1673,13 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 	}
 	statelessApplyGuidedDiscovery(config, hintStore, &req)
 
-	// The Kubernetes leg (GitHub issue #1065): a provider configuration of
-	// a label-listed substrate (the kubernetes provider; GitHub issue #1118
-	// made the choice the substrate's) gets a cluster client built from the
-	// same arguments the provider itself connects with, and the
-	// object-metadata types as its universe. The AWS legs below are the AWS provider's.
-	if sub, ok := substrate.ForProvider(providerAddr.Provider.Type); ok && sub.Sweep() == substrate.SweepLabelList {
-		sweeper, types, manifestType, kubeDiags := provs.kubernetesSweeper(ctx, providerAddr)
-		diags = diags.Append(kubeDiags)
-		req.Kubernetes = sweeper
-		req.KubernetesTypes = types
-		req.KubernetesManifestType = manifestType
-		// The AWS sweep loops draw their universe from the admission
-		// table, which a kubernetes provider handle cannot list; the
-		// Kubernetes leg is this pass's whole sweep.
-		req.Sweep = false
-	}
+	// The sweep legs (GitHub issue #1580): chosen by the provider family's
+	// sweep property, never by its name. See [statelessSweepLegs].
+	sub, known := substrate.ForProvider(providerAddr.Provider.Type)
+	legs, sweep, legDiags := provs.statelessSweepLegs(ctx, sub, known, providerAddr)
+	diags = diags.Append(legDiags)
+	req.Sweepers = legs
+	req.Sweep = sweep
 
 	// The Cloud Control fallback (issue #47): a type with no native provider
 	// list resource can still be enumerated when its mapped CFN type is
@@ -1705,7 +1696,7 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 	// roster-mapped type the mock provider cannot list - which is how the
 	// command package's own unit suite blew its 10-minute timeout the first
 	// time this wiring landed.
-	if ep, on := cloudControlTarget(); on && providerAddr.Provider.Type == "aws" {
+	if ep, on := cloudControlTarget(); on && known && sub.Sweep() == substrate.SweepTaggingIndex {
 		if roster, err := registry.Embedded(); err != nil {
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Warning,
@@ -4336,28 +4327,81 @@ func (c *LivePlanCommand) Synopsis() string {
 	return "Show changes required by the configuration, read from the live system (experimental)"
 }
 
-// kubernetesSweeper builds the Kubernetes estate sweep for one provider
+// sweepLegBuilder builds the leg one [substrate.Sweep] is served by, for
+// one provider configuration of a family that asks for it, and says
+// whether the pass also runs [discovery.Request.Sweep]'s admission-table
+// loops and removal legs.
+type sweepLegBuilder func(ctx context.Context, p *statelessProviders, sub substrate.Substrate, addr addrs.AbsProviderConfig) (leg discovery.Sweeper, sweep bool, diags tfdiags.Diagnostics)
+
+// sweepLegBuilders is every sweep a leg serves (GitHub issue #1580). A
+// family whose [substrate.Sweep] has no entry here gets
+// [discovery.NoSweepLeg], a named gap in the plan's sweep coverage, so
+// a third family written before its leg is visible rather than silently
+// unswept. TestEverySubstrateSweepHasALeg holds this table to
+// [substrate.All].
+var sweepLegBuilders = map[substrate.Sweep]sweepLegBuilder{
+	// The AWS legs run through the configured provider itself, so
+	// nothing is built from the block, and they are the ones Request.Sweep
+	// switches on.
+	substrate.SweepTaggingIndex: func(context.Context, *statelessProviders, substrate.Substrate, addrs.AbsProviderConfig) (discovery.Sweeper, bool, tfdiags.Diagnostics) {
+		return discovery.TaggingIndexSweep{}, true, nil
+	},
+	// The Kubernetes leg (GitHub issue #1065): a cluster client built from
+	// the same arguments the provider itself connects with, and the
+	// object-metadata types as its universe. The AWS sweep loops draw
+	// their universe from the admission table, which a kubernetes
+	// provider handle cannot list, so this leg is the pass's whole sweep.
+	substrate.SweepLabelList: func(ctx context.Context, p *statelessProviders, sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, bool, tfdiags.Diagnostics) {
+		leg, diags := p.labelListLeg(ctx, sub, addr)
+		return leg, false, diags
+	},
+}
+
+// statelessSweepLegs is one provider configuration's sweep legs and its
+// [discovery.Request.Sweep]: the leg its family's sweep is served by, or
+// [discovery.NoSweepLeg] when none is. A provider no family claims (known
+// false) keeps what every such pass ran before families existed, the AWS
+// legs with Sweep on, and no Cloud Control client (the caller's gate).
+func (p *statelessProviders) statelessSweepLegs(ctx context.Context, sub substrate.Substrate, known bool, addr addrs.AbsProviderConfig) ([]discovery.Sweeper, bool, tfdiags.Diagnostics) {
+	if !known {
+		return []discovery.Sweeper{discovery.TaggingIndexSweep{}}, true, nil
+	}
+	build, ok := sweepLegBuilders[sub.Sweep()]
+	if !ok {
+		return []discovery.Sweeper{discovery.NoSweepLeg{Family: sub.Name(), Kind: sub.Sweep()}}, false, nil
+	}
+	leg, sweep, diags := build(ctx, p, sub, addr)
+	if leg == nil {
+		// No leg could be built (the Kubernetes leg's cluster client, say):
+		// the builder's warning already says so, and the pass lists nothing
+		// through this family, exactly as a nil client always meant.
+		return nil, sweep, diags
+	}
+	return []discovery.Sweeper{leg}, sweep, diags
+}
+
+// labelListLeg builds the Kubernetes estate sweep for one provider
 // configuration (GitHub issue #1065): the client from the provider block's
 // own connection arguments (kubesweep.Attrs mirrors hashicorp/kubernetes'
 // precedence), and the universe from the provider's resource types that
 // identity.ObjectMetaShape admits. A block this run cannot connect with
-// yields a nil sweeper and one warning: the plan still runs, with no
-// Kubernetes removals proposed, and says so.
-func (p *statelessProviders) kubernetesSweeper(ctx context.Context, addr addrs.AbsProviderConfig) (kubesweep.Sweeper, []string, string, tfdiags.Diagnostics) {
+// yields no leg and one warning: the plan still runs, with no Kubernetes
+// removals proposed, and says so.
+func (p *statelessProviders) labelListLeg(ctx context.Context, sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
-	client, types, manifestType, schemaDiags, err := p.kubernetesClient(ctx, addr)
+	client, types, manifestType, schemaDiags, err := p.labelListClient(ctx, sub, addr)
 	if schemaDiags.HasErrors() {
-		return nil, nil, "", diags.Append(schemaDiags)
+		return nil, diags.Append(schemaDiags)
 	}
 	if err != nil {
-		return nil, types, manifestType, diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryKubernetesSweepUnavailable,
+		return nil, diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryKubernetesSweepUnavailable,
 			fmt.Sprintf("No cluster client could be built from provider configuration %s, so no Kubernetes object owned by this estate is listed this run and an object whose block was deleted is not proposed for removal: %s.", addr, err)))
 	}
 	p.rememberKubernetesSweeper(addr, client)
-	return client, types, manifestType, diags
+	return discovery.KubernetesSweep{Client: client, Types: types, ManifestType: manifestType}, diags
 }
 
-// kubernetesClient is [statelessProviders.kubernetesSweeper] before the
+// kubernetesClient is [statelessProviders.labelListLeg] before the
 // warning is phrased: the type universe read off the provider's schema
 // (schemaDiags carries a schema that would not load), and the client or
 // the error that stood in its way, for a caller - live-ls (GitHub issue
@@ -4365,20 +4409,36 @@ func (p *statelessProviders) kubernetesSweeper(ctx context.Context, addr addrs.A
 // plan's. A nil client with a nil error does not happen: err is set on
 // every path that returns no client.
 func (p *statelessProviders) kubernetesClient(ctx context.Context, addr addrs.AbsProviderConfig) (client *kubesweep.Client, types []string, manifestType string, schemaDiags tfdiags.Diagnostics, err error) {
+	sub, _ := substrate.ForProvider(addr.Provider.Type)
+	return p.labelListClient(ctx, sub, addr)
+}
+
+// labelListClient builds the cluster client through the family's own
+// [substrate.Substrate.NewSweeper] (GitHub issue #1580), which for a
+// label-listed family is a [substrate.LabelListSweeper]. sub nil, or a
+// family that builds any other client, is an error, never a nil client.
+func (p *statelessProviders) labelListClient(ctx context.Context, sub substrate.Substrate, addr addrs.AbsProviderConfig) (client *kubesweep.Client, types []string, manifestType string, schemaDiags tfdiags.Diagnostics, err error) {
 	schema, schemaDiags := p.mgr.GetProviderSchema(ctx, addr.Provider)
 	if schemaDiags.HasErrors() {
 		return nil, nil, "", schemaDiags, schemaDiags.Err()
 	}
 	types, manifestType = kubernetesTypeUniverse(schema)
 
+	if sub == nil {
+		return nil, types, manifestType, nil, fmt.Errorf("provider %s belongs to no family that builds a cluster client", addr.Provider)
+	}
 	p.mu.Lock()
 	val, ok := p.configVals[providerCacheKey(addr)]
 	p.mu.Unlock()
-	client, err = substrate.Kubernetes.NewSweeper(val, ok)
+	built, err := sub.NewSweeper(val, ok)
 	if err != nil {
 		return nil, types, manifestType, nil, err
 	}
-	return client, types, manifestType, nil, nil
+	lls, isCluster := built.(substrate.LabelListSweeper)
+	if !isCluster || lls.Client == nil {
+		return nil, types, manifestType, nil, fmt.Errorf("provider family %s built no cluster client", sub.Name())
+	}
+	return lls.Client, types, manifestType, nil, nil
 }
 
 // kubernetesSweepAttrs is the Kubernetes substrate's reading of the
