@@ -203,8 +203,8 @@ func TestApprove_SeedsManifestDeclaredKeys(t *testing.T) {
 	if !sameKeys(keys[markers.LabelSurfaceAttr], "team", "tier", markers.TagEstate) {
 		t.Errorf("recorded labels = %v, want the state's own team and tier plus the marker key this migration writes", keys[markers.LabelSurfaceAttr])
 	}
-	if !sameKeys(keys[markers.AnnotationSurfaceAttr], "owner") {
-		t.Errorf("recorded annotations = %v, want the state's own owner", keys[markers.AnnotationSurfaceAttr])
+	if !sameKeys(keys[markers.AnnotationSurfaceAttr], markers.AddressAnnotation, "owner") {
+		t.Errorf("recorded annotations = %v, want the state's own owner plus the address annotation this migration writes (#1639)", keys[markers.AnnotationSurfaceAttr])
 	}
 	for _, k := range keys[markers.LabelSurfaceAttr] {
 		if k == "read-only-key" {
@@ -220,7 +220,7 @@ func TestApprove_SeedsManifestDeclaredKeys(t *testing.T) {
 		t.Fatalf("second Approve: %s", d.Err())
 	}
 	again := recordedManifestKeys(t, store, addr)
-	if !sameKeys(again[markers.LabelSurfaceAttr], "team", "tier", markers.TagEstate) || !sameKeys(again[markers.AnnotationSurfaceAttr], "owner") {
+	if !sameKeys(again[markers.LabelSurfaceAttr], "team", "tier", markers.TagEstate) || !sameKeys(again[markers.AnnotationSurfaceAttr], markers.AddressAnnotation, "owner") {
 		t.Errorf("a second migration left %v, want the first run's set unchanged", again)
 	}
 }

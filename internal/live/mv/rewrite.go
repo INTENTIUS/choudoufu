@@ -35,8 +35,9 @@ import (
 // otherwise lose it. Everything else on the object is carried across
 // untouched.
 //
-// On the label surface the write is [mover.relabel]'s instead: one label,
-// no address, judged by the same plan checks (label.go).
+// On the label surface the write is [mover.relabel]'s instead: the estate
+// label and the address annotation, judged by the same plan checks
+// (label.go).
 func (m *mover) rewrite(ctx context.Context, prior *states.ResourceInstanceObject) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
@@ -189,10 +190,14 @@ func (m *mover) planAndApply(ctx context.Context, prior *states.ResourceInstance
 }
 
 // markerDestination is what the marker should read after this move, for
-// the partial-write message: the new address on the tag surface, the
-// destination estate on the label surface.
+// the partial-write message: the new address on the tag surface; on the
+// label surface the destination estate for a move, and the new address
+// annotation for a rename.
 func (m *mover) markerDestination() string {
 	if relabels(m.res.Surface) {
+		if m.req.FromEstate == "" {
+			return markers.AddressAnnotation + " = " + m.res.NewMarker
+		}
 		return "tofu-estate = " + m.req.Estate
 	}
 	return m.res.New.String()
@@ -243,9 +248,17 @@ func (m *mover) checkPlan(priorVal cty.Value, resp providers.PlanResourceChangeR
 		return diags
 	}
 
-	extra, only := changedOutsideTags(m.schema.Block, priorVal, planned), "A rename is a tags-only write"
+	// Chosen before either is computed: changedOutsideTags walks the
+	// metadata block of a Kubernetes object as an ordinary attribute, and
+	// a null annotations map on one side and a map on the other (the
+	// address annotation's first write, GitHub issue #1639) is not a
+	// comparison it can make.
+	var extra []string
+	only := "A rename is a tags-only write"
 	if relabels(m.res.Surface) {
-		extra, only = changedOutsideLabels(m.schema.Block, priorVal, planned), "A move is a labels-only write"
+		extra, only = changedOutsideLabels(m.schema.Block, priorVal, planned), "A move or a rename of a Kubernetes object writes only its tofu-estate label and its "+markers.AddressAnnotation+" annotation"
+	} else {
+		extra = changedOutsideTags(m.schema.Block, priorVal, planned)
 	}
 	if len(extra) > 0 {
 		return diags.Append(refuse(

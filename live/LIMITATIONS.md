@@ -2657,6 +2657,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Cannot merge ownership markers into this manifest value | error | `internal/live/projection` | "Cannot merge ownership markers into this manifest value" |
 | - | - | projection | Cannot merge ownership markers into this metadata block | error | `internal/live/projection` | "Cannot merge ownership markers into this metadata block" |
 | - | - | projection | Cannot merge ownership markers into this tags value | error | `internal/live/projection` | "Cannot merge ownership markers into this tags value" |
+| - | - | projection | Cannot merge the address annotation into this annotations value | error | `internal/live/projection` | "Cannot merge the address annotation into this annotations value" |
 | - | - | projection | Cannot persist a record | error | `internal/live/projection` | "Cannot persist a record" |
 | - | - | projection | Cannot read a located record | error | `internal/live/projection` | "Cannot read a located record" |
 | - | - | projection | Cannot read a parent's identity from the projection | error | `internal/live/projection` | "Cannot read a parent's identity from the projection" |
@@ -2672,6 +2673,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Cannot set ownership markers on an unresolved manifest value | error | `internal/live/projection` | "Cannot set ownership markers on an unresolved manifest value" |
 | - | - | projection | Cannot set ownership markers on an unresolved metadata block | error | `internal/live/projection` | "Cannot set ownership markers on an unresolved metadata block" |
 | - | - | projection | Cannot set ownership markers on an unresolved tags value | error | `internal/live/projection` | "Cannot set ownership markers on an unresolved tags value" |
+| - | - | projection | Cannot set the address annotation on an unresolved annotations value | error | `internal/live/projection` | "Cannot set the address annotation on an unresolved annotations value" |
 | - | - | projection | Could not write the discovery hint | error | `internal/live/projection` | "Could not write the discovery hint" |
 | - | - | projection | Could not write the state cache | error | `internal/live/projection` | "Could not write the state cache" |
 | - | - | projection | Created object is not marked | error | `internal/live/projection` | "Created object is not marked" |
@@ -2717,7 +2719,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**250 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**252 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -4043,6 +4045,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Cannot merge the address annotation into this annotations value
+
+**What.** GitHub issue #1639's address annotation (NodeResolver.stampedAddressAnnotation) found a Kubernetes metadata.annotations value, on a typed metadata block or inside a kubernetes_manifest, it does not know how to add the choudoufu.intentius.io/tofu-address annotation into - a value that is neither a map nor an object, or one holding a non-string element - so it left the annotations exactly as evaluated. The tofu-estate label beside it is still written; only the address annotation is missing.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Cannot persist a record
 
 **What.** Writing a record for an effect back to the record store failed.
@@ -4158,6 +4168,14 @@ reserved for the limits wing's fixture directories, and
 #### Cannot set ownership markers on an unresolved tags value
 
 **What.** GitHub issue #388's node-path stamp found a resource's tags argument not yet known at plan time, so it could not merge the two ownership markers into it; the resource's configuration value is used unchanged.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Cannot set the address annotation on an unresolved annotations value
+
+**What.** GitHub issue #1639's address annotation found a Kubernetes metadata.annotations value that is not yet known at plan time, so it could not add the choudoufu.intentius.io/tofu-address annotation and left the annotations exactly as evaluated. The tofu-estate label beside it is still written.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

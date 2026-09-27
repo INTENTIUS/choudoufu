@@ -27,13 +27,20 @@ import (
 // no other way from a live object back to a line of configuration.
 // Kubernetes returns the natural key - group, kind, namespace, name - with
 // the name authored in the configuration this fork already parses, so
-// re-binding goes through the key and the address never goes on the
-// object. #1016 measured the alternative against the identity golden:
-// nearly half of real addresses are illegal as a label value outright (the
-// instance-key colon), and a 63-character cap binds at once on ordinary
-// module-nested shapes. So the Kubernetes marker is [TagEstate] alone,
-// written into metadata.labels, and [TagAddress], the continuation tags and
-// [TagSlot] do not carry over.
+// re-binding goes through the key. #1016 measured putting the address in a
+// label against the identity golden: nearly half of real addresses are
+// illegal as a label value outright (the instance-key colon), and a
+// 63-character cap binds at once on ordinary module-nested shapes. So the
+// Kubernetes ownership marker is [TagEstate] alone, written into
+// metadata.labels, and the continuation tags and [TagSlot] do not carry
+// over.
+//
+// The address itself does go on the object, since GitHub issue #1605's
+// ruling (2026-09-26), in an annotation rather than a label:
+// [AddressAnnotation], carrying the same escaped value [TagAddress] carries
+// on AWS. An annotation value has neither the grammar nor the length cap,
+// so nothing splits or continues. It is a join key and not a boundary: the
+// admission fence reads the estate label alone. See annotations.go.
 //
 // # What a label value may be
 //
@@ -134,6 +141,14 @@ func LabelSurfacePath(key string) cty.Path {
 //
 //markers:surface labels
 func LabelsOf(obj cty.Value) (map[string]string, bool) {
+	return metadataMapOf(obj, LabelSurfaceAttr)
+}
+
+// metadataMapOf reads one string map, attr, out of a label-surface
+// object's metadata[0]: the labels [LabelsOf] reads, or the annotations
+// [AnnotationsOf] reads. The second return distinguishes "no such map this
+// function can read" from "the map is empty".
+func metadataMapOf(obj cty.Value, attr string) (map[string]string, bool) {
 	if obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() || obj.IsMarked() || !obj.Type().IsObjectType() {
 		return nil, false
 	}
@@ -153,18 +168,18 @@ func LabelsOf(obj cty.Value) (map[string]string, bool) {
 	it := meta.ElementIterator()
 	it.Next()
 	_, elem := it.Element()
-	if elem.IsNull() || !elem.IsKnown() || elem.IsMarked() || !elem.Type().IsObjectType() || !elem.Type().HasAttribute(LabelSurfaceAttr) {
+	if elem.IsNull() || !elem.IsKnown() || elem.IsMarked() || !elem.Type().IsObjectType() || !elem.Type().HasAttribute(attr) {
 		return nil, false
 	}
-	labels := elem.GetAttr(LabelSurfaceAttr)
+	m := elem.GetAttr(attr)
 	out := map[string]string{}
-	if labels.IsNull() || !labels.IsKnown() {
+	if m.IsNull() || !m.IsKnown() {
 		return out, true
 	}
-	if labels.IsMarked() || !labels.CanIterateElements() {
+	if m.IsMarked() || !m.CanIterateElements() {
 		return nil, false
 	}
-	for lit := labels.ElementIterator(); lit.Next(); {
+	for lit := m.ElementIterator(); lit.Next(); {
 		k, v := lit.Element()
 		if k.Type() != cty.String || k.IsNull() || v.IsNull() || !v.IsKnown() || v.IsMarked() || v.Type() != cty.String {
 			continue
@@ -196,6 +211,18 @@ func NotALabelValue(estate string) string {
 //
 //markers:surface labels
 func WithLabels(block *configschema.Block, obj cty.Value, labels map[string]string) (cty.Value, error) {
+	return WithMetadataMaps(block, obj, labels, nil)
+}
+
+// WithMetadataMaps is [WithLabels] that can also replace the metadata
+// block's annotations: labels replaces metadata[0].labels, and a non-nil
+// annotations replaces metadata[0].annotations (GitHub issue #1639, where
+// the address annotation is written beside the estate label). A nil
+// annotations leaves that attribute exactly as obj carries it, which is
+// what [WithLabels] is.
+//
+//markers:surface labels
+func WithMetadataMaps(block *configschema.Block, obj cty.Value, labels, annotations map[string]string) (cty.Value, error) {
 	nested, ok := block.BlockTypes[LabelSurfaceBlock]
 	if !ok || nested == nil {
 		return cty.NilVal, fmt.Errorf("no %s block in the schema", LabelSurfaceBlock)
@@ -203,6 +230,13 @@ func WithLabels(block *configschema.Block, obj cty.Value, labels map[string]stri
 	attr, ok := nested.Block.Attributes[LabelSurfaceAttr]
 	if !ok || attr == nil {
 		return cty.NilVal, fmt.Errorf("no %s attribute in the %s block", LabelSurfaceAttr, LabelSurfaceBlock)
+	}
+	var annAttr *configschema.Attribute
+	if annotations != nil {
+		annAttr, ok = nested.Block.Attributes[AnnotationSurfaceAttr]
+		if !ok || annAttr == nil {
+			return cty.NilVal, fmt.Errorf("no %s attribute in the %s block", AnnotationSurfaceAttr, LabelSurfaceBlock)
+		}
 	}
 	meta := obj.GetAttr(LabelSurfaceBlock)
 	if meta.IsMarked() {
@@ -221,26 +255,22 @@ func WithLabels(block *configschema.Block, obj cty.Value, labels map[string]stri
 		return cty.NilVal, fmt.Errorf("the live object's %s element is not an object", LabelSurfaceBlock)
 	}
 
-	var labelVal cty.Value
-	if len(labels) == 0 {
-		labelVal = cty.MapValEmpty(cty.String)
-	} else {
-		vals := make(map[string]cty.Value, len(labels))
-		for k, v := range labels {
-			vals[k] = cty.StringVal(v)
-		}
-		labelVal = cty.MapVal(vals)
-	}
-	converted, err := convert.Convert(labelVal, attr.Type)
+	converted, err := stringMapAs(labels, attr.Type)
 	if err != nil {
 		return cty.NilVal, err
 	}
-
 	elemAttrs := elem.AsValueMap()
 	if elemAttrs == nil {
 		elemAttrs = map[string]cty.Value{}
 	}
 	elemAttrs[LabelSurfaceAttr] = converted
+	if annotations != nil {
+		convAnn, err := stringMapAs(annotations, annAttr.Type)
+		if err != nil {
+			return cty.NilVal, err
+		}
+		elemAttrs[AnnotationSurfaceAttr] = convAnn
+	}
 	newMeta := cty.ListVal([]cty.Value{cty.ObjectVal(elemAttrs)})
 
 	vals := make(map[string]cty.Value, len(block.Attributes)+len(block.BlockTypes))
@@ -252,4 +282,20 @@ func WithLabels(block *configschema.Block, obj cty.Value, labels map[string]stri
 	}
 	vals[LabelSurfaceBlock] = newMeta
 	return cty.ObjectVal(vals), nil
+}
+
+// stringMapAs builds m as a cty map of strings converted to want, the
+// schema's own type for the attribute being written.
+func stringMapAs(m map[string]string, want cty.Type) (cty.Value, error) {
+	var v cty.Value
+	if len(m) == 0 {
+		v = cty.MapValEmpty(cty.String)
+	} else {
+		vals := make(map[string]cty.Value, len(m))
+		for k, s := range m {
+			vals[k] = cty.StringVal(s)
+		}
+		v = cty.MapVal(vals)
+	}
+	return convert.Convert(v, want)
 }

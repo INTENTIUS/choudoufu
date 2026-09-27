@@ -21,7 +21,9 @@ import (
 
 // This file is the one WRITE this package makes, and it is one label
 // (GitHub issues #1104 and #1109, ruled 2026-09-13 by the maintainer on
-// both): a merge patch that sets metadata.labels[tofu-estate] on a live
+// both) and, since GitHub issue #1639, the address annotation beside it: a
+// merge patch that sets metadata.labels[tofu-estate] and
+// metadata.annotations[choudoufu.intentius.io/tofu-address] on a live
 // object, under the caller's own credential, sent first with dryRun=All
 // so the server's verdict - its validation, its admission policies, its
 // RBAC - is read before anything is persisted.
@@ -99,9 +101,13 @@ type LabelPatcher interface {
 	// thing.
 	ReadObject(ctx context.Context, ref ObjectRef) (obj *unstructured.Unstructured, found bool, err error)
 
-	// PatchLabel sets metadata.labels[key] = value on the object at ref
-	// through a merge patch under fieldManager, and returns the object
-	// the server produced.
+	// PatchMarkers sets every entry of labels into metadata.labels and
+	// every entry of annotations into metadata.annotations on the object
+	// at ref, through ONE merge patch under fieldManager, and returns the
+	// object the server produced. The label is the tofu-estate marker; the
+	// annotation is the block address beside it (GitHub issue #1639), and
+	// the two go in one request so an object is never left carrying one
+	// without the other by a write that half landed.
 	//
 	// With dryRun the server validates, defaults, runs admission and
 	// persists nothing, so the returned object is what the real write
@@ -109,7 +115,7 @@ type LabelPatcher interface {
 	// refusal it answered with (a validation failure, an admission
 	// policy's denial, a 403 from RBAC) and is empty when the server
 	// accepted; err is a cluster that could not answer at all.
-	PatchLabel(ctx context.Context, ref ObjectRef, key, value, fieldManager string, dryRun bool) (obj *unstructured.Unstructured, rejected string, err error)
+	PatchMarkers(ctx context.Context, ref ObjectRef, labels, annotations map[string]string, fieldManager string, dryRun bool) (obj *unstructured.Unstructured, rejected string, err error)
 }
 
 var _ LabelPatcher = (*Client)(nil)
@@ -167,28 +173,41 @@ func (c *Client) ReadObject(ctx context.Context, ref ObjectRef) (*unstructured.U
 	return obj, true, nil
 }
 
-// PatchLabel implements [LabelPatcher]. The body is a JSON merge patch
-// naming one key inside metadata.labels and nothing else, so the request
-// itself cannot carry a change to any other field; what the SERVER then
-// does with it is the caller's to check, which is what the dry run is
-// for.
-func (c *Client) PatchLabel(ctx context.Context, ref ObjectRef, key, value, fieldManager string, dryRun bool) (*unstructured.Unstructured, string, error) {
+// PatchMarkers implements [LabelPatcher]. The body is a JSON merge patch
+// naming the given keys inside metadata.labels and metadata.annotations
+// and nothing else, so the request itself cannot carry a change to any
+// other field; what the SERVER then does with it is the caller's to
+// check, which is what the dry run is for.
+func (c *Client) PatchMarkers(ctx context.Context, ref ObjectRef, labels, annotations map[string]string, fieldManager string, dryRun bool) (*unstructured.Unstructured, string, error) {
 	if ref.APIVersion == "" || ref.Kind == "" || ref.Name == "" {
 		return nil, "", fmt.Errorf("an object needs an apiVersion, a kind and a name to be patched")
 	}
-	if key == "" {
-		return nil, "", fmt.Errorf("a label patch needs a label key")
+	if len(labels) == 0 && len(annotations) == 0 {
+		return nil, "", fmt.Errorf("a marker patch needs a label or an annotation to write")
+	}
+	for k := range labels {
+		if k == "" {
+			return nil, "", fmt.Errorf("a label patch needs a label key")
+		}
+	}
+	for k := range annotations {
+		if k == "" {
+			return nil, "", fmt.Errorf("an annotation patch needs an annotation key")
+		}
 	}
 	if fieldManager == "" {
 		fieldManager = DefaultFieldManager
 	}
-	body, err := json.Marshal(map[string]any{
-		"metadata": map[string]any{
-			"labels": map[string]any{key: value},
-		},
-	})
+	meta := map[string]any{}
+	if len(labels) > 0 {
+		meta["labels"] = labels
+	}
+	if len(annotations) > 0 {
+		meta["annotations"] = annotations
+	}
+	body, err := json.Marshal(map[string]any{"metadata": meta})
 	if err != nil {
-		return nil, "", fmt.Errorf("building the label patch: %w", err)
+		return nil, "", fmt.Errorf("building the marker patch: %w", err)
 	}
 	client, err := c.resourceClient(ref.APIVersion, ref.Kind, ref.Namespace)
 	if err != nil {
