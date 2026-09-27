@@ -49,6 +49,12 @@ type Object struct {
 	Namespace string
 	Name      string
 	Labels    map[string]string
+	// Address is the object's [AddressAnnotation] as carried: the escaped
+	// address of the block that stamped it (GitHub issue #1639), or empty
+	// when the object carries none - one an older build made, or one a
+	// controller stripped. It is read off the same LIST response the
+	// labels are, so carrying it costs no request (GitHub issue #1640).
+	Address string
 	// ImportID is the provider's documented import id for the type the
 	// kind is filed under: NAMESPACE/NAME, or NAME for a cluster-scoped
 	// kind, for a built-in type; [ManifestImportID] for the manifest type.
@@ -371,6 +377,7 @@ func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object,
 				Namespace: item.GetNamespace(),
 				Name:      item.GetName(),
 				Labels:    item.GetLabels(),
+				Address:   item.GetAnnotations()[AddressAnnotation],
 				ImportID:  item.GetName(),
 			}
 			if k.Namespaced {
@@ -393,6 +400,13 @@ func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object,
 	sort.Slice(items, func(i, j int) bool { return items[i].ImportID < items[j].ImportID })
 	return items, skipped, nil
 }
+
+// AddressAnnotation is the annotation a stamped object carries its block's
+// escaped address in, markers.AddressAnnotation (GitHub issue #1639).
+// Spelled out here for the reason [RecordStoreObject] spells the record
+// store's strings out: this package does not import markers, and
+// internal/live/discovery's kubernetes_test.go pins the two equal.
+const AddressAnnotation = "choudoufu.intentius.io/tofu-address"
 
 // RecordStoreObject reports that obj is one of the estate's own record
 // Secrets, written by record_store "kubernetes" (GitHub issue #1392).
