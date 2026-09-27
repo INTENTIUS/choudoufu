@@ -67,12 +67,12 @@ func (s *stubSweeper) Kinds(_ context.Context, _ []string, _ string) ([]kubeswee
 	return s.kinds, s.unserved, nil
 }
 
-func (s *stubSweeper) List(_ context.Context, k kubesweep.Kind, key, value string) ([]kubesweep.Object, int, error) {
+func (s *stubSweeper) List(_ context.Context, k kubesweep.Kind, key, value string) ([]kubesweep.Object, kubesweep.Skipped, error) {
 	s.listed = append(s.listed, k.Kind+" "+key+"="+value)
 	if k.Kind == s.failKind {
-		return nil, 0, errors.New("forbidden")
+		return nil, kubesweep.Skipped{}, errors.New("forbidden")
 	}
-	return s.objects[k.Kind], 1, nil
+	return s.objects[k.Kind], kubesweep.Skipped{Count: 1}, nil
 }
 
 func k8sInstance(t *testing.T, typeName, name string) addrs.AbsResourceInstance {
@@ -103,9 +103,8 @@ func TestKubernetesSweepFilesOrphansAtASyntheticAddress(t *testing.T) {
 		failKind: "ServiceAccount",
 	}
 	req := Request{
-		Estate:          "smoke-k8s",
-		Kubernetes:      sweeper,
-		KubernetesTypes: []string{"kubernetes_config_map", "kubernetes_config_map_v1", "kubernetes_namespace", "kubernetes_service_account", "kubernetes_storage_class"},
+		Estate:   "smoke-k8s",
+		Sweepers: []Sweeper{KubernetesSweep{Client: sweeper, Types: []string{"kubernetes_config_map", "kubernetes_config_map_v1", "kubernetes_namespace", "kubernetes_service_account", "kubernetes_storage_class"}}},
 		Resolutions: []identity.Resolution{
 			{Addr: k8sInstance(t, "kubernetes_config_map", "app"), Class: identity.ClassConcrete, ImportID: "smoke-k8s/app-config"},
 			{Addr: k8sInstance(t, "kubernetes_namespace", "app"), Class: identity.ClassConcrete, ImportID: "smoke-k8s"},
@@ -200,10 +199,8 @@ func TestKubernetesSweepFilesManifestKindOrphans(t *testing.T) {
 		},
 	}
 	req := Request{
-		Estate:                 "smoke-crd",
-		Kubernetes:             sweeper,
-		KubernetesTypes:        []string{"kubernetes_config_map_v1", "kubernetes_manifest"},
-		KubernetesManifestType: "kubernetes_manifest",
+		Estate:   "smoke-crd",
+		Sweepers: []Sweeper{KubernetesSweep{Client: sweeper, Types: []string{"kubernetes_config_map_v1", "kubernetes_manifest"}, ManifestType: "kubernetes_manifest"}},
 		Resolutions: []identity.Resolution{
 			{Addr: k8sInstance(t, "kubernetes_manifest", "crontab"), Class: identity.ClassConcrete, ImportID: "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-crd,name=my-crontab"},
 			{Addr: k8sInstance(t, "kubernetes_manifest", "cm"), Class: identity.ClassConcrete, ImportID: "apiVersion=v1,kind=ConfigMap,namespace=smoke-crd,name=via-manifest"},
@@ -312,11 +309,9 @@ func TestKubernetesSweepRefusesAManifestKindTheClusterDoesNotServe(t *testing.T)
 		notServed: map[string]bool{"stable.example.com/v1 CronTab": true},
 	}
 	req := Request{
-		Estate:                 "smoke-crd",
-		Config:                 cfg,
-		Kubernetes:             sweeper,
-		KubernetesTypes:        []string{"kubernetes_config_map_v1", "kubernetes_manifest"},
-		KubernetesManifestType: "kubernetes_manifest",
+		Estate:   "smoke-crd",
+		Config:   cfg,
+		Sweepers: []Sweeper{KubernetesSweep{Client: sweeper, Types: []string{"kubernetes_config_map_v1", "kubernetes_manifest"}, ManifestType: "kubernetes_manifest"}},
 		Resolutions: []identity.Resolution{
 			{Addr: k8sInstance(t, "kubernetes_manifest", "crontab"), Class: identity.ClassConcrete, ImportID: "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-crd,name=my-crontab"},
 			{Addr: k8sKeyedInstance(t, "kubernetes_manifest", "many", "a"), Class: identity.ClassConcrete, ImportID: "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-crd,name=a"},
@@ -370,10 +365,8 @@ func TestKubernetesSweepNamesTheVersionTheClusterServes(t *testing.T) {
 	ct2 := kubesweep.Kind{GVR: schema.GroupVersionResource{Group: "stable.example.com", Version: "v2", Resource: "crontabs"}, Kind: "CronTab", Namespaced: true, APIVersion: "stable.example.com/v2", TypeNames: []string{"kubernetes_manifest"}, Manifest: true}
 	sweeper := &stubSweeper{kinds: []kubesweep.Kind{ct2}, notServed: map[string]bool{"stable.example.com/v1 CronTab": true}}
 	req := Request{
-		Estate:                 "smoke-crd",
-		Kubernetes:             sweeper,
-		KubernetesTypes:        []string{"kubernetes_manifest"},
-		KubernetesManifestType: "kubernetes_manifest",
+		Estate:   "smoke-crd",
+		Sweepers: []Sweeper{KubernetesSweep{Client: sweeper, Types: []string{"kubernetes_manifest"}, ManifestType: "kubernetes_manifest"}},
 		Resolutions: []identity.Resolution{
 			{Addr: k8sInstance(t, "kubernetes_manifest", "crontab"), Class: identity.ClassConcrete, ImportID: "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-crd,name=my-crontab"},
 		},
@@ -398,10 +391,8 @@ func TestKubernetesSweepNamesTheVersionTheClusterServes(t *testing.T) {
 func TestKubernetesSweepDoesNotRefuseWhatItCannotVerify(t *testing.T) {
 	sweeper := &stubSweeper{servesErr: errors.New("connection reset")}
 	req := Request{
-		Estate:                 "smoke-crd",
-		Kubernetes:             sweeper,
-		KubernetesTypes:        []string{"kubernetes_manifest"},
-		KubernetesManifestType: "kubernetes_manifest",
+		Estate:   "smoke-crd",
+		Sweepers: []Sweeper{KubernetesSweep{Client: sweeper, Types: []string{"kubernetes_manifest"}, ManifestType: "kubernetes_manifest"}},
 		Resolutions: []identity.Resolution{
 			{Addr: k8sInstance(t, "kubernetes_manifest", "crontab"), Class: identity.ClassConcrete, ImportID: "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-crd,name=my-crontab"},
 		},

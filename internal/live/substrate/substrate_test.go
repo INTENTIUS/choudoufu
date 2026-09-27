@@ -10,6 +10,7 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/markers"
 )
@@ -40,8 +41,14 @@ func TestEverySubstrateAnswersEveryQuestion(t *testing.T) {
 				t.Errorf("For(%q) is not %s", surface, s.Name())
 			}
 			w := WritesOf(surface)
-			if w.Create == "" || w.Adopt == "" {
-				t.Errorf("%s surface %q: writes %+v, want both occasions named", s.Name(), surface, w)
+			if w.Create == "" || w.Adopt == "" || w.PostCreate == "" {
+				t.Errorf("%s surface %q: writes %+v, want every occasion named", s.Name(), surface, w)
+			}
+			// GitHub issue #1587: a surface's post-create write is either
+			// never needed or the one its family's provider
+			// configurations build a writer for.
+			if w.PostCreate != WriteNeverNeeded && w.PostCreate != s.MarkerWriter(addrs.AbsProviderConfig{}) {
+				t.Errorf("%s surface %q: post-create write %q, but the family's provider configurations build %q", s.Name(), surface, w.PostCreate, s.MarkerWriter(addrs.AbsProviderConfig{}))
 			}
 			if CarriesAddress(surface) != s.CarriesAddress() {
 				t.Errorf("CarriesAddress(%q) disagrees with %s", surface, s.Name())
@@ -204,5 +211,26 @@ func TestSurfaceWording(t *testing.T) {
 		if got := NotACarrier(provider, block, typeName); got != want {
 			t.Errorf("NotACarrier(%q):\n got %q\nwant %q", provider, got, want)
 		}
+	}
+}
+
+// TestPostCreateWrites pins #1587's answers: AWS marks a type whose create
+// call cannot carry tags through the Tagging API, and Kubernetes never
+// needs a post-create write because the label rides the create.
+func TestPostCreateWrites(t *testing.T) {
+	provider := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("aws")}
+	if got := WritesOf(markers.SurfaceTags).PostCreate; got != WriteTaggingAPI {
+		t.Errorf("tags surface post-create write %q, want %q", got, WriteTaggingAPI)
+	}
+	if got := AWS.MarkerWriter(provider); got != WriteTaggingAPI {
+		t.Errorf("AWS marker writer %q, want %q", got, WriteTaggingAPI)
+	}
+	for _, surface := range Kubernetes.Surfaces() {
+		if got := WritesOf(surface).PostCreate; got != WriteNeverNeeded {
+			t.Errorf("%s surface post-create write %q, want %q", surface, got, WriteNeverNeeded)
+		}
+	}
+	if got := Kubernetes.MarkerWriter(provider); got != WriteNeverNeeded {
+		t.Errorf("Kubernetes marker writer %q, want %q", got, WriteNeverNeeded)
 	}
 }

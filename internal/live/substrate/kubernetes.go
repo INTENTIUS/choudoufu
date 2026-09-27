@@ -10,6 +10,7 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
@@ -59,9 +60,9 @@ func (kubernetes) MarkersOf(surface markers.Surface, obj cty.Value) (map[string]
 func (kubernetes) Writes(surface markers.Surface) Writes {
 	switch surface {
 	case markers.SurfaceLabels:
-		return Writes{Create: WriteInCreate, Adopt: WriteLabelsPlan}
+		return Writes{Create: WriteInCreate, Adopt: WriteLabelsPlan, PostCreate: WriteNeverNeeded}
 	case markers.SurfaceManifest:
-		return Writes{Create: WriteInCreate, Adopt: WriteAPIPatch}
+		return Writes{Create: WriteInCreate, Adopt: WriteAPIPatch, PostCreate: WriteNeverNeeded}
 	}
 	return Writes{}
 }
@@ -73,12 +74,18 @@ func (kubernetes) Sweep() Sweep { return SweepLabelList }
 // NewSweeper is the cluster client the provider block's own connection
 // arguments build ([KubernetesSweepAttrs] mirrors hashicorp/kubernetes'
 // precedence).
-func (kubernetes) NewSweeper(providerConfig cty.Value, ok bool) (*kubesweep.Client, error) {
+// On an error the client is a nil [Sweeper], never a [LabelListSweeper]
+// holding a nil cluster client.
+func (kubernetes) NewSweeper(providerConfig cty.Value, ok bool) (Sweeper, error) {
 	cfg, err := kubesweep.RestConfig(KubernetesSweepAttrs(providerConfig, ok))
 	if err != nil {
 		return nil, err
 	}
-	return kubesweep.New(cfg)
+	client, err := kubesweep.New(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return LabelListSweeper{Client: client}, nil
 }
 
 // KubernetesSweepAttrs reads the connection arguments the Kubernetes sweep
@@ -334,3 +341,9 @@ func (k kubernetes) NotACarrier(_ *configschema.Block, typeName string) string {
 		"%s has no %s and no %s, so there is nowhere on it to carry an ownership marker.",
 		typeName, k.CarrierPhrase(markers.SurfaceLabels), k.CarrierPhrase(markers.SurfaceManifest))
 }
+
+// ---- GitHub issue #1587: the post-create marker write ----
+
+// MarkerWriter is [WriteNeverNeeded]: the label rides the create call on
+// both surfaces, so there is nothing to write after it.
+func (kubernetes) MarkerWriter(addrs.AbsProviderConfig) Write { return WriteNeverNeeded }

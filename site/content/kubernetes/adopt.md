@@ -10,15 +10,15 @@ deeper:
 # Adopt
 
 On Kubernetes the marker is one label, `tofu-estate`, written when the object
-is created. There is no address on the object. Kubernetes already gives every
-object a natural key, its kind, namespace and name, and the name is in your
-configuration, so a plan finds the object again by that key.
+is created. There is no address on the object: Kubernetes gives every object
+a natural key, its kind, namespace and name, already in your configuration,
+so a plan finds the object again by that key.
 
 Every `kubernetes_*` type with a `metadata` block works this way, and so does
 every custom resource declared through `kubernetes_manifest`, which binds by
 the `apiVersion`, `kind`, namespace and name inside its manifest.
 
-## From a stock state file
+## The bulk path
 
 ```
 choudoufu live-import -state=stock.tfstate -estate=my-estate
@@ -27,14 +27,22 @@ choudoufu live-import -state=stock.tfstate -estate=my-estate -approve
 
 Each object is verified by namespace and name, and the label is written. A
 write that would change anything beyond the labels is refused, and so is an
-object already labelled for another estate. If the state is in the
-`kubernetes` backend, `tofu state pull > stock.tfstate` gives you the file.
-The backend's Secret is the way back to stock, so keep it until you trust the
-migration and delete it last.
+object already labelled for another estate.
 
-## Refused
+## What binds on its own
 
-Objects a controller made, Pods from a Deployment for example, are never
-adopted or deleted.
-[Compatibility]({{< relref "/kubernetes/compatibility" >}}) has the rest of
-what is refused by name.
+One group, not three: every object binds by the natural key already in your
+configuration. Objects a controller made, such as a Deployment's Pods, are
+never adopted or deleted. [Compatibility]({{< relref "/kubernetes/compatibility" >}})
+has the rest of what is refused by name.
+
+## When it goes wrong
+
+Does not apply: the label is set on the create call itself, with no
+separate write for a crash to land between.
+
+## Leaving
+
+If the state is in the `kubernetes` backend, `tofu state pull >
+stock.tfstate` gives you the file. The backend's Secret is the way back to
+stock, so keep it until you trust the migration and delete it last.
