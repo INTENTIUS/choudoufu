@@ -106,9 +106,22 @@ writing the label back is an operator's own adoption (#1108). Where AWS then
 plans the create the block declares, a Kubernetes plan stops with
 "Unlabelled live object holds the declared name": the API server would
 answer that create with 409 while the unlabelled object holds the name
-(#1546). `policy { declared_untagged = "adopt" }` adopts it instead. `marker_repair` governs the other repair, a `tofu-address` that
-is missing while `tofu-estate` is present, which cannot arise here because
-the Kubernetes marker is the estate label alone.
+(#1546). `policy { declared_untagged = "adopt" }` adopts it instead.
+
+`marker_repair` governs the other repair, a `tofu-address` that is
+missing while `tofu-estate` is present, the same way it does on AWS. That
+can now arise here too: since #1639 the address annotation beside the
+label (`choudoufu.intentius.io/tofu-address`) can be absent on an object
+stamped before that issue landed, or one hand-labelled without it, and
+the node stamp writes the annotation on every plan
+(`stampedAddressAnnotation` in `nodestamp_labels.go`) exactly as it
+writes the label, so the default `marker_repair = "repair"` fixes it the
+same emergent way a drifted `tofu-address` tag is fixed on AWS - the
+ordinary plan diff, not a write this pass makes directly. `strict {
+marker_repair = "never" }` protects an existing annotation from that
+diff instead, through `AdjustIgnoreChanges`
+(`nodestamp_ignorechanges.go`), and only alongside a `markers "record"`
+selection, same as the label and the AWS tags.
 A configuration that sets `tofu-estate` to another estate's name is the
 same "Ownership marker conflict" refusal the AWS shape raises. `strict {
 markers "record" }` withholds the label the same way it withholds the tags,
@@ -117,16 +130,19 @@ and protects an existing one through `ignore_changes` the same way.
 Migrating from a stock state file is the same bulk path as on AWS
 (#1073): `choudoufu live-import -approve` reads the state once, verifies
 each object by namespace and name, and writes the `tofu-estate` label into
-`metadata.labels` through a labels-only plan and apply, judged the way a
-tags-only write is judged - a plan that would also rename the object, move
-it between namespaces or change anything outside the labels map is
-refused, as is an object already labelled for another estate, and an
-estate name that is not a legal label value. There is no address to split
-and no `tofu-slot` to settle, so a Kubernetes count set is never
-slot-classified. Before this the label surface was not a live-import
-carrier and every `kubernetes_*` type migrated as UNTAGGABLE; the
-kubernetes lane's first estate (reference-k8s, #1067) failed its migrate
-stage on exactly that line, and passes it now.
+`metadata.labels`, with the block address into the address annotation
+beside it (#1639), through a labels-and-annotation-only plan and apply,
+judged the way a tags-only write is judged - a plan that would also
+rename the object, move it between namespaces or change anything outside
+the labels map and the address annotation is refused, as is an object
+already labelled for another estate, and an estate name that is not a
+legal label value. The address annotation has no splitting to do, since
+an annotation carries no length cap, and there is no `tofu-slot` to
+settle, so a Kubernetes count set is never slot-classified. Before this
+the label surface was not a live-import carrier and every `kubernetes_*`
+type migrated as UNTAGGABLE; the kubernetes lane's first estate
+(reference-k8s, #1067) failed its migrate stage on exactly that line, and
+passes it now.
 
 A `kubernetes_manifest` entry in that state file is migrated too (#1109,
 ruled with #1104 on 2026-09-13), and its label is written differently: not
@@ -609,12 +625,14 @@ gives its two principals
 reads on everything and writes on namespaces and ConfigMaps, beside the
 estate grant.
 
-**Splitting a Kubernetes estate is a label rewrite, then a grant.** With
-no address on the object, the write is `kubectl label --overwrite
-tofu-estate=<new>`, and the policy reads both sides of it: the caller must
-hold the estate the object is leaving and the one it is entering. There is
-no `live-mv` leg for Kubernetes; the rename rule has nothing to rewrite
-there ("Operate" on the Kubernetes hub). Kyverno and Gatekeeper could
+**Splitting a Kubernetes estate is a label rewrite, then a grant.** The
+write is `live-mv -from-estate` (or the equivalent `kubectl label
+--overwrite tofu-estate=<new>`), and the policy reads both sides of it:
+the caller must hold the estate the object is leaving and the one it is
+entering. Since #1639 the object also carries its block address in an
+annotation beside the label, and `live-mv` rewrites that annotation in
+the same write, though the policy itself still reads the label alone
+("Granting a Kubernetes estate", above). Kyverno and Gatekeeper could
 express the same policy and are unverified for it.
 
 ## `tofu-estate`
