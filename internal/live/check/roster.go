@@ -9,7 +9,7 @@ import (
 	"sort"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -45,8 +45,10 @@ type InstanceRung string
 
 const (
 	// RungTagGovernable is HANDOFF's "tag-governable": the type's schema
-	// carries a settable tags argument, so a lost record store is
-	// recoverable from the marker alone - resource-tiers.md's
+	// carries its substrate's marker surface (a settable tags argument on
+	// AWS, the estate label on Kubernetes, per #1600's ruling), so a lost
+	// record store is recoverable from the marker - with the namespace and
+	// name the configuration states, on Kubernetes - resource-tiers.md's
 	// "marker-carried" tier under a different name.
 	RungTagGovernable InstanceRung = "tag-governable"
 
@@ -176,8 +178,11 @@ func buildRoster(schemas map[string]providers.Schema, identities []identity.Reso
 // from the same taggability signal this function's own schema check reads,
 // for exactly the types that have neither a tags argument nor a
 // client-suppliable identity. A type that is not in it, and whose schema
-// (when one was read - see [Context.Schemas]) carries a settable tags
-// argument via [markers.Taggable], is tag-governable; every other admitted
+// (when one was read - see [Context.Schemas]) carries a marker surface via
+// [substrate.SurfaceOf] - a settable tags argument ([markers.Taggable]) on
+// AWS, the estate label on Kubernetes, per the 2026-09-27 ruling on GitHub
+// issue #1600 that tier A reads the substrate's own marker - is
+// tag-governable; every other admitted
 // type is declaration-carried by elimination, matching the middle tier
 // site/content/docs/use/resource-tiers.md and tools/readiness-gen's own
 // TierDeclarationCarried both name "declaration-carried" for.
@@ -196,8 +201,14 @@ func rungForType(schemas map[string]providers.Schema, resourceType string) Insta
 	if _, markerless := identity.MarkerlessTypes[resourceType]; markerless {
 		return RungRecordOnly
 	}
-	if schema, ok := schemas[resourceType]; ok && markers.Taggable(schema.Block) {
-		return RungTagGovernable
+	if schema, ok := schemas[resourceType]; ok {
+		// GitHub issue #1565, under #1600's ruling: the marker is the
+		// substrate's own - the AWS tags map, the Kubernetes estate label,
+		// the manifest's label - so the rung asks the substrate, not
+		// markers.Taggable alone.
+		if _, carries := substrate.SurfaceOf(schema.Block); carries {
+			return RungTagGovernable
+		}
 	}
 	return RungDeclarationCarried
 }
