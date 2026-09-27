@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/live/discovery"
 )
 
 // Class is the classification of one unclaimed live resource.
@@ -81,6 +82,23 @@ type Result struct {
 	// block address. They carry no command: which live resource became which
 	// key is exactly what a marker cannot say.
 	Ambiguous []RenameAmbiguity
+
+	// ControllerHeld lists the live resources an in-cluster controller
+	// (ACK, Crossplane) made from an object on the cluster side, carried
+	// through from discovery (GitHub issue #1606). None of them is foreign,
+	// a bind candidate, a rename or a removal: each is reported here, with
+	// the object its tags name, and nothing else.
+	ControllerHeld []discovery.ControllerHeldResource
+
+	// ControllerHeldLookalikes lists the declared, unbound instances whose
+	// identity-bearing arguments exactly match a controller-held resource
+	// (GitHub issue #1628): the content match [matchTable] would otherwise
+	// have offered as an adoption candidate, had the live resource not left
+	// [discovery.Report.Unclaimed] for [ControllerHeld] instead. [Lookalikes]
+	// reads this the same way it reads [Candidates], to warn a create beside
+	// one rather than say nothing at all - #1604's ruling drops the
+	// adoption hint, not the warning.
+	ControllerHeldLookalikes []Lookalike
 
 	// OtherEstates counts the live resources carrying another estate's
 	// marker, by estate name, sorted. An entry with an empty Estate is the
@@ -540,6 +558,18 @@ func (r *Result) CandidateFor(addr addrs.AbsResourceInstance) (Candidate, bool) 
 		}
 	}
 	return Candidate{}, false
+}
+
+// ControllerHeldLookalikeFor returns the controller-held lookalike warning
+// for one declared address.
+func (r *Result) ControllerHeldLookalikeFor(addr addrs.AbsResourceInstance) (Lookalike, bool) {
+	want := addr.String()
+	for _, l := range r.ControllerHeldLookalikes {
+		if l.Addr.String() == want {
+			return l, true
+		}
+	}
+	return Lookalike{}, false
 }
 
 // RenameFor returns the rename candidate offered for one declared address.

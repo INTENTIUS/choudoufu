@@ -40,8 +40,13 @@ var untaggedSchema = &providers.Schema{
 }
 
 func schemaFor(_ addrs.Provider, _ addrs.ResourceMode, typeName string) *providers.Schema {
-	if typeName == "test_untaggable" {
+	switch typeName {
+	case "test_untaggable":
 		return untaggedSchema
+	case "test_labelled":
+		return labelSchema
+	case "test_manifest":
+		return manifestSchema
 	}
 	return testSchema
 }

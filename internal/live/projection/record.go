@@ -979,6 +979,58 @@ func NewRecordEnvelopeStore(store staterecord.Store, prefix string) *RecordStore
 	return &RecordStore{store: store, prefix: staterecord.NamespacePrefix(prefix)}
 }
 
+// ProbeWritable reports whether this run can write to the store, by
+// writing: it rewrites the store's sentinel ([SentinelKey]) with the
+// payload it already holds, conditional on the version it just read. The
+// content does not change.
+//
+// GitHub issue #1637. #950's unmarked-apply refusal steps aside when the
+// apply will record the identity it cannot mark, which needs a store this
+// run can write. Opening the store does not settle that. #1370's reader
+// tolerance lets a run in that may read and not write, and the open's
+// sentinel write cannot always tell: a local store whose directory was made
+// read-only after an earlier run provisioned it answers that write with
+// "already exists" before the filesystem is asked for permission. A write
+// that has to land can tell, so this makes one, and only when the caller
+// has a refusal that depends on the answer.
+//
+// A denial ([staterecord.IsAccessDenied]) is (false, nil): an ordinary
+// read-only identity. A version conflict is (true, nil): the backend
+// evaluated the condition, so the write was authorised, and another writer
+// moved the sentinel first. Any other error is (false, err), and a caller
+// treats the store as not writable. A nil store is (false, nil).
+//
+// Like every write, this ends the run cache for the rest of the run
+// ([staterecord.RunCache]); a run that pays it is one about to write
+// records anyway.
+func (s *RecordStore) ProbeWritable(ctx context.Context) (bool, error) {
+	if s == nil {
+		return false, nil
+	}
+	key := SentinelKey(s.prefix)
+	payload, version, exists, err := s.store.Get(ctx, key)
+	if err != nil {
+		if staterecord.IsAccessDenied(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("reading the sentinel at %q: %w", key, err)
+	}
+	if !exists {
+		payload = []byte(sentinelPayload)
+		version = ""
+	}
+	_, err = s.store.PutIfVersion(ctx, key, payload, version)
+	var conflict *staterecord.VersionConflictError
+	switch {
+	case err == nil, errors.As(err, &conflict):
+		return true, nil
+	case staterecord.IsAccessDenied(err):
+		return false, nil
+	default:
+		return false, fmt.Errorf("rewriting the sentinel at %q: %w", key, err)
+	}
+}
+
 // Prefix returns the key namespace this store was built with, "" for a nil
 // receiver.
 func (s *RecordStore) Prefix() string {
