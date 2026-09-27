@@ -3564,7 +3564,7 @@ func (r *resolver) resourceCloudScope(rc *configs.Resource, scope instScope) clo
 }
 
 // recordTypeProvider memoizes rc's own resolved provider's short type name
-// ([addrs.Provider.Type]) under resourceType, the first time this type is
+// (the provider address's Type, see [addrs.Provider]) under resourceType, the first time this type is
 // seen, into [resolver.typeProviders]. See that field's doc comment for
 // why: [resolver.warnUnsweepableTypes] needs to ask which provider a type
 // actually belongs to, and this is the same [providerscope.ResolveResource]
