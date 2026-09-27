@@ -2,7 +2,7 @@
   "_comment": [
     "The claims the smoke scenarios prove (#1055). A claim is a generic promise of the product with one number, stable forever;",
     "proof is per provider (#1112). Each providers.<name> cell carries that provider's own proof: scenario, command, minutes,",
-    "needs_go, needs_floci, real_aws, break_mode and evidence describe the scenario that runs it there, and a scenario proves one",
+    "needs_go, needs_emulator, real_service, break_mode and evidence describe the scenario that runs it there, and a scenario proves one",
     "promise on one provider, which its header states: \"# CLAIM N (provider) - ... ~M min.\". import, greenfield and full are",
     "demos, not claims, and belong to no cell. live/smoke_claims_test.go holds this file to the scenario directory and to the",
     "per-claim pages, and site/data/claims.json is a byte-for-byte copy the site renders.",
@@ -12,7 +12,9 @@
     "substrate lists the providers the promise applies to: every cell that is not n/a.",
     "retired lists numbers that were a second proof of an existing promise, filed as claims of their own; each now lives in the",
     "named claim's cell for that provider, its slug is still the scenario's name, and its number is never reused.",
-    "real_aws: true marks a proof whose scenario cannot run against the emulator honestly and runs against a real AWS account instead. It is maintainer-run (SMOKE_REAL_AWS=1), never CI-gated, and its cell reads proven from a maintainer's run recorded in the note, not from CI. live/smoke_claims_test.go holds the flag to the scenario's own refusal."
+    "real_service: true marks a proof whose scenario cannot run against the emulator honestly and runs against that provider's real account instead. It is maintainer-run (SMOKE_REAL_AWS=1 for aws, the only provider this is proven true for today), never CI-gated, and its cell reads proven from a maintainer's run recorded in the note, not from CI. live/smoke_claims_test.go holds the flag to the scenario's own refusal. The field is per-cell rather than per-provider (#1598), so a second real-account provider sets real_service on its own cell instead of the schema growing a provider-named field.",
+    "needs_emulator: true marks a proof whose scenario runs on one substrate and keeps its records on another - today a Kubernetes proof that also brings up the pinned floci emulator for an S3-backed record store, on top of kind and kubectl. An aws cell is never asked to carry it: there the emulator IS the substrate, which the column already says.",
+    "Scenario file names may carry a provider-specific prefix for readability (k8s- for a Kubernetes proof); it is a naming convention only, kept because renaming the files would be noisy for no gain. No code may read a scenario's provider, or whether it needs_emulator or is real_service, off that prefix - the provider a scenario proves is always the providers.<name> key that names its cell, never its file name (#1598, #1593)."
   ],
   "themes": {
     "adopt": "Adopt live infrastructure without state surgery",
@@ -140,7 +142,7 @@
           "scenario": "live/smoke/scenarios/backend-sets-itself-up.sh",
           "command": "just smoke backend-sets-itself-up",
           "minutes": 6,
-          "real_aws": true,
+          "real_service": true,
           "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
           "evidence": [
             "live/smoke/evidence/backend-sets-itself-up.lastrun.json"
@@ -642,7 +644,7 @@
           "scenario": "live/smoke/scenarios/k8s-a-label-is-a-change.sh",
           "command": "just smoke k8s-a-label-is-a-change",
           "minutes": 10,
-          "needs_floci": true,
+          "needs_emulator": true,
           "break_mode": "BREAK=1 runs the identical kubectl command against a key the configuration does NOT declare - same object, same --overwrite, one key different - and requires the opposite outcome, \"No changes.\", with the label still on the object afterwards. Without it every plan the main arm requires would read the same if choudoufu simply planned on any difference between the configuration and the live object, and step 5's point - that the provider's computed_fields rule still keeps the server's own keys out of the plan - would be scenery. It then runs one control for steps 8 and 9 together: the same two working directories on record_store \"local\", where the second one has no record to read and must plan \"No changes.\" instead of the removal, which is what a Kubernetes estate on the implied store gives its second operator today.",
           "evidence": [
             "live/smoke/evidence/k8s-a-label-is-a-change.lastrun.json"
@@ -795,7 +797,7 @@
           "command": "just smoke cas-holds-under-every-sse-flavour",
           "minutes": 6,
           "needs_go": true,
-          "real_aws": true,
+          "real_service": true,
           "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the store checks every ETag against the payload's MD5 (go build -overlay) and passes only when that binary works under SSE-S3 and fails, on that check and nothing else, under all three KMS flavours",
           "evidence": [
             "live/smoke/evidence/cas-holds-under-every-sse-flavour.lastrun.json"
@@ -823,7 +825,7 @@
           "scenario": "live/smoke/scenarios/a-new-estate-writes-its-first-record.sh",
           "command": "just smoke a-new-estate-writes-its-first-record",
           "minutes": 4,
-          "real_aws": true,
+          "real_service": true,
           "break_mode": "BREAK=1 rewrites the published policy's write statement to condition on s3:ExistingObjectTag, the policy that reviews correctly, and passes only when a new estate's first create is denied",
           "evidence": [
             "live/smoke/evidence/a-new-estate-writes-its-first-record.lastrun.json"
@@ -851,7 +853,7 @@
           "scenario": "live/smoke/scenarios/one-bucket-many-estates.sh",
           "command": "just smoke one-bucket-many-estates",
           "minutes": 6,
-          "real_aws": true,
+          "real_service": true,
           "break_mode": "BREAK=1 has two arms. With the prefix mis-scoped and only the relabel Deny removed, it passes only when the role retags the neighbour's record and then reads it. With the prefix mis-scoped and the read Deny removed, it passes only when the record reads back. Each proves which statement was doing the refusing",
           "evidence": [
             "live/smoke/evidence/one-bucket-many-estates.lastrun.json"
@@ -880,7 +882,7 @@
           "command": "just smoke objects-carry-the-estate-tag",
           "minutes": 5,
           "needs_go": true,
-          "real_aws": true,
+          "real_service": true,
           "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the S3 store sends no tags (go build -overlay, needs Go) and passes only when the published policy then denies its first write",
           "evidence": [
             "live/smoke/evidence/objects-carry-the-estate-tag.lastrun.json"
@@ -909,7 +911,7 @@
           "scenario": "live/smoke/scenarios/the-recommended-secure-configuration.sh",
           "command": "just smoke the-recommended-secure-configuration",
           "minutes": 10,
-          "real_aws": true,
+          "real_service": true,
           "break_mode": "BREAK=1 takes the estate role out of the KMS key policy and passes only when the run is refused naming the key, the action and the key policy, not as a bare AccessDenied on PutObject",
           "evidence": [
             "live/smoke/evidence/the-recommended-secure-configuration.lastrun.json"
@@ -938,7 +940,7 @@
           "command": "just smoke a-read-only-role-can-plan",
           "minutes": 6,
           "needs_go": true,
-          "real_aws": true,
+          "real_service": true,
           "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so provisionStoreSentinel returns a denied sentinel write instead of carrying it past to its List (go build -overlay, needs Go), which is what every binary before #1416 did, and passes only when the read-only role then cannot plan at all",
           "evidence": [
             "live/smoke/evidence/a-read-only-role-can-plan.lastrun.json"
