@@ -81,7 +81,7 @@
 # and step 9 over record_store "s3" on the pinned floci emulator, which is
 # what a Kubernetes estate had before that store existed. Step 9 is why
 # this claim needs both substrates at once and why claims.json carries
-# needs_floci for it.
+# needs_emulator for it.
 #
 # Both read what had never been read for a Kubernetes address: what the
 # record itself carries - the estate marker, the address, the record key -
@@ -202,7 +202,7 @@ cluster_up
 #           cluster the claim already runs on.
 #   step 9, record_store "s3": records as objects in a bucket on the pinned
 #           floci emulator. It needs both substrates at once, which is why
-#           claims.json carries needs_floci for this claim.
+#           claims.json carries needs_emulator for this claim.
 #
 # Each reads the record object's own metadata, which no Kubernetes claim had
 # read before: the estate marker and the address on the record, and whether
@@ -291,7 +291,7 @@ sh_run() {
 }
 
 # sh_record_bucket, and not bucket_up: live/smoke_claims_test.go refuses that
-# name in a scenario whose row is not real_aws, because bucket-iam.sh's
+# name in a scenario whose row is not real_service, because bucket-iam.sh's
 # bucket_up makes a bucket in the account whose credentials are in the
 # environment. This one only ever talks to the emulator.
 #

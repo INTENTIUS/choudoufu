@@ -27,21 +27,35 @@
 # one particular line (--caught) fails without that line. The logs are
 # uploaded whether the job passed or failed. live/smoke_verdict_test.go
 # holds every step that runs a scenario to the wrapper.
+#
+# The smoke trigger rule (issue #1592, HANDOFF.md "CI: smoke workflow
+# triggers"): every PR/push that touches cmd/**, internal/**, live/smoke/**,
+# go.mod or go.sum runs this matrix - narrower paths (just
+# internal/live/staterecord/** and internal/live/projection/**) let a PR
+# touching only cmd/ or the rest of internal/ skip it, which is how claim 28
+# stayed red across several merges. It also runs nightly (the schedule
+# below) and on workflow_dispatch, and is named in nightly-watch.yml's
+# workflows list. live/smoke_trigger_rule_test.go holds this file to that
+# rule.
 name: bucket-smoke
 on:
   pull_request:
     paths:
       - ".github/workflows/bucket-smoke.yml"
+      - "cmd/**"
+      - "internal/**"
       - "live/smoke/**"
-      - "internal/live/staterecord/**"
-      - "internal/live/projection/**"
+      - "go.mod"
+      - "go.sum"
   push:
     branches: [main]
     paths:
       - ".github/workflows/bucket-smoke.yml"
+      - "cmd/**"
+      - "internal/**"
       - "live/smoke/**"
-      - "internal/live/staterecord/**"
-      - "internal/live/projection/**"
+      - "go.mod"
+      - "go.sum"
   schedule:
     # Nightly, so a repin of the emulator image or of a dependency is caught
     # against these claims on the day it happens rather than on the next

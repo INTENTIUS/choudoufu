@@ -27,7 +27,7 @@ import (
 // matrix runs it; a cell whose scenario reaches a real account cannot run
 // on every pull request (CLAUDE.md: a paid run is the maintainer's to
 // start), so it carries dated evidence instead. Which kind a cell is comes
-// from the cell itself (real_aws), not from its provider name, so this
+// from the cell itself (real_service), not from its provider name, so this
 // keeps working the day a second real-account provider exists.
 //
 // Proving it red: remove one entry from k8s-smoke.yml's or bucket-smoke.yml's
@@ -38,38 +38,30 @@ import (
 // any .github/workflows/*.yml file, not just the two that exist today - so
 // #1590's claims-smoke.yml, once it lands, needs no change here.
 
-// provenCellCIAllowlist is the cells #1590 has not yet wired: today's 23
-// proven, emulator-or-kind AWS cells that no workflow runs. Each entry
-// names the claim and provider it stands in for and points at #1590, which
-// is doing the wiring in a parallel branch. This list may only shrink -
-// TestProvenCellAllowlistOnlyShrinks fails the moment a listed scenario
-// reaches a workflow matrix, so a name can be deleted here but never
-// re-added once #1590 (or a later branch) lands it.
+// provenCellCIAllowlist is the cells #1590 measured but could not wire into
+// claims-smoke.yml's matrix: each fails against the pinned emulator for a
+// reason that is its own finding, not #1590's to fix. Every other cell
+// #1591 found unwired (claims 1, 2, 3, 5-20, 40, 41, 42, 43) now runs in
+// claims-smoke.yml (see that file's header) and is out of this list.  This
+// list may only shrink - TestProvenCellAllowlistOnlyShrinks fails the
+// moment a listed scenario reaches a workflow matrix, so a name can be
+// deleted here but never re-added once its finding is fixed and it lands.
 var provenCellCIAllowlist = map[string]string{
-	"no-silent-orphans":                         "claim 1 (aws); #1590",
-	"no-self-managed-locks":                     "claim 2 (aws); #1590",
-	"staleness-costs-reads":                     "claim 3 (aws); #1590",
-	"recovery-is-a-rerun":                       "claim 5 (aws); #1590",
-	"roundtrip":                                 "claim 6 (aws); #1590",
-	"identity-is-a-tag":                         "claim 7 (aws); #1590",
-	"stock-when-you-need-it":                    "claim 8 (aws); #1590",
-	"unchanged-is-free":                         "claim 9 (aws); #1590",
-	"cache-serves-the-whole-estate":             "claim 10 (aws); #1590",
-	"count-is-a-fungible-set":                   "claim 11 (aws); #1590",
-	"carve-by-retag":                            "claim 12 (aws); #1590",
-	"the-tag-is-the-boundary":                   "claim 13 (aws); #1590",
-	"plan-cost-tracks-the-estate":               "claim 14 (aws); #1590",
-	"apply-what-was-approved":                   "claim 15 (aws); #1590",
-	"the-boundary-holds-across-regions":         "claim 16 (aws); #1590",
-	"record-only-survives-cache-loss":           "claim 17 (aws); #1590",
-	"a-shadow-is-not-a-claimant":                "claim 18 (aws); #1590",
-	"the-boundary-holds-across-accounts":        "claim 19 (aws); #1590",
-	"plan-cost-under-foreign-load":              "claim 20 (aws); #1590",
-	"no-secret-survives-in-what-the-tool-keeps": "claim 40 (aws); #1590",
-	"the-estate-answers-in-the-present-tense":   "claim 41 (aws); #1590",
-	"a-killed-apply-hides-nothing":              "claim 42 (aws); #1590",
-	"two-estates-at-once":                       "claim 43 (aws); #1590",
+	// #1636: claim 13's BREAK control false-positives on an unrelated
+	// sweep warning that happens to contain "AccessDenied".
+	"the-tag-is-the-boundary": "claim 13 (aws); #1636",
+	// #1637: claim 17 fails at the first apply, both arms, on #950's
+	// node-path unmarked-apply refusal, which fires before any record can
+	// exist for this claim's untaggable, record-recoverable resource to
+	// be exempted by.
+	"record-only-survives-cache-loss": "claim 17 (aws); #1637",
 }
+
+// provenCellIssueRef matches a GitHub issue reference (#1590, #1636, ...),
+// so an allowlist reason can point at whichever issue is tracking it -
+// #1590 while a cell is simply not wired yet, or a fix-it issue of its own
+// once #1590 measured it and found the scenario itself broken.
+var provenCellIssueRef = regexp.MustCompile(`#\d+`)
 
 // provenCellEvidenceDate matches a lastrun evidence file's "date" field:
 // YYYY-MM-DD, the spelling every existing evidence file under
@@ -122,7 +114,7 @@ func provenCellWiredScenarios(t *testing.T) map[string]bool {
 // TestProvenCellsRunInAWorkflowOrCarryDatedEvidence is the guard #1591
 // asks for: every proven cell that carries its own scenario either has
 // that scenario's name in some workflow's matrix, or, if the cell is
-// real_aws (a real account, never run on every pull request), carries an
+// real_service (a real account, never run on every pull request), carries an
 // evidence file with a YYYY-MM-DD date. Anything else is the allowlist's
 // job, not silence.
 func TestProvenCellsRunInAWorkflowOrCarryDatedEvidence(t *testing.T) {
@@ -139,9 +131,9 @@ func TestProvenCellsRunInAWorkflowOrCarryDatedEvidence(t *testing.T) {
 		}
 		proven++
 
-		if s.Cell.RealAWS {
+		if s.Cell.RealService {
 			if len(s.Cell.Evidence) == 0 {
-				t.Errorf("%s: proven and real_aws, so it never runs in a workflow, but carries no evidence file", s)
+				t.Errorf("%s: proven and real_service, so it never runs in a workflow, but carries no evidence file", s)
 				continue
 			}
 			dated := false
@@ -163,7 +155,7 @@ func TestProvenCellsRunInAWorkflowOrCarryDatedEvidence(t *testing.T) {
 				}
 			}
 			if !dated {
-				t.Errorf("%s: proven and real_aws, but none of %v carries a YYYY-MM-DD \"date\" field; a claim resting on a hand run has to say when it ran", s, s.Cell.Evidence)
+				t.Errorf("%s: proven and real_service, but none of %v carries a YYYY-MM-DD \"date\" field; a claim resting on a hand run has to say when it ran", s, s.Cell.Evidence)
 			}
 			continue
 		}
@@ -172,8 +164,8 @@ func TestProvenCellsRunInAWorkflowOrCarryDatedEvidence(t *testing.T) {
 			continue
 		}
 		if reason, ok := provenCellCIAllowlist[s.Name]; ok {
-			if !strings.Contains(reason, "#1590") {
-				t.Errorf("%s: allowlisted with reason %q, which does not name #1590; every entry here points at the issue wiring it", s, reason)
+			if !provenCellIssueRef.MatchString(reason) {
+				t.Errorf("%s: allowlisted with reason %q, which names no issue; every entry here points at the issue tracking its wiring or its fix", s, reason)
 			}
 			continue
 		}
@@ -184,12 +176,13 @@ func TestProvenCellsRunInAWorkflowOrCarryDatedEvidence(t *testing.T) {
 	}
 }
 
-// TestProvenCellAllowlistOnlyShrinks: #1590 is wiring the 23 cells above in
-// a parallel branch. The allowlist exists so this guard can land before
-// that work finishes, not so an entry can sit there forever - the moment a
-// listed scenario appears in a workflow matrix, it has to come out of
-// provenCellCIAllowlist, and this test is what makes leaving it in a build
-// failure rather than a missed cleanup.
+// TestProvenCellAllowlistOnlyShrinks: the allowlist exists so a cell can be
+// measured and found genuinely broken (its own finding, #1636 or #1637)
+// without either adding a red scenario to a matrix or silently dropping it.
+// It is not a place to leave a cell forever - the moment a listed scenario
+// appears in a workflow matrix, it has to come out of provenCellCIAllowlist,
+// and this test is what makes leaving it in a build failure rather than a
+// missed cleanup.
 func TestProvenCellAllowlistOnlyShrinks(t *testing.T) {
 	wired := provenCellWiredScenarios(t)
 	for name, reason := range provenCellCIAllowlist {
