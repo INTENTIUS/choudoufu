@@ -173,7 +173,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not measured on Kubernetes: this claim is about a crashed create binding to its resource on the re-run, which on Kubernetes is #1110 item 4. Claim 39 step 3 kills an apply and re-runs it, but what it measures is that nothing lock-shaped is left in the records namespace, not that a create rebinds. Refs #1441."
+          "note": "The property holds and is measured, but not by a scenario in this file: GitHub issue #1110 named \"a crash mid-apply\" (item 4) as unmeasured on kind, and that gap is closed. live/GAUNTLET.md stage 10 (day2_crash, active, tier-1 gated) now injects a real SIGTERM between one object's create committing and the next object's dispatch on the kind substrate, and the next plan must bind the already-created object by its tofu-estate label, namespace and name rather than recreate or orphan it. As read on this file's own audit, it passes 4/4 on every kind-lane gauntlet estate measured (corpus-quickpizza, reference-k8s, reference-k8s-cert-manager, reference-k8s-stateful). This cell stays open only because that proof is the gauntlet's, with its own oracle and break control, and not a BREAK-controlled scenario under live/smoke: claim 39 step 3 still proves a narrower thing (no lock-shaped object survives a kill), not that a crashed create rebinds. #1110's other items (1, 2, 3, 5) are still open."
         }
       }
     },
@@ -400,8 +400,8 @@
           "note": ""
         },
         "kubernetes": {
-          "status": "restated",
-          "note": "There is no cross-kind label-filtered list. A sweep is API discovery plus one cluster-wide, label-selected list per kind the cluster serves, custom kinds included; each list returns only the estate's objects and does not grow with the cluster, but \"one call\" does not survive (#1016, #1065)."
+          "status": "open",
+          "note": "No scenario measures this on Kubernetes, so restated overstated it: nothing here has run and caught a control. What is true by the code (#1065): there is no cross-kind label-filtered list. A sweep is API discovery plus one cluster-wide, label-selected list per kind the cluster serves, custom kinds included; each list returns only the estate's objects and does not grow with the cluster, but \"one call\" does not survive. A scenario counting the API server's own apiserver_request_total series per kind (the technique k8s-records-in-the-cluster.sh's ssar_count already uses) could measure this cheaply against a padded cluster; nothing has written it yet."
         }
       }
     },
@@ -630,13 +630,12 @@
       "title": "An edit to a Kubernetes object's labels or annotations is an ordinary change: a label edited in the configuration plans one in-place update and the apply writes it, the same answer stock gives for the same edit with a state file behind it, an annotation added and then changed does the same, a label or annotation DELETED from the configuration is removed from the object and the estate then settles, a key the configuration never declared - the API server's own kubernetes.io/metadata.name, a controller's annotation - stays the server's and churns nothing, and a second working directory that holds no record of its own removes the same label when the estate shares its records, whether they are Secrets in the cluster or objects in a bucket",
       "theme": "operate",
       "substrate": [
-        "aws",
         "kubernetes"
       ],
       "providers": {
         "aws": {
-          "status": "open",
-          "note": "No AWS scenario measures this. The defect it closes is a property of one provider's plan logic rather than of the substrate: hashicorp/kubernetes's kubernetes_manifest reads the PRIOR value of metadata.labels and metadata.annotations to decide whether to keep the live one (its computed_fields argument), and a stateless run has to build that prior. The AWS tag path has no equivalent branch - configuredTagsSeed's prior feeds a provider that diffs tags against configuration directly - so the same edit on an AWS tag has always planned. What is genuinely unproven on AWS is the sibling question step 5 answers on Kubernetes: that a tag a service or another account's automation adds out of band does not churn the plan. Step 9 does run against AWS's API - it repeats step 8's removal with the estate's records as S3 objects on the pinned floci emulator instead of Secrets in the cluster - but that is a record store this claim is measured OVER, not the substrate it is measured ON, so this cell stays open. #1394."
+          "status": "n/a",
+          "note": "n/a is the honest reading (#1597), not open. This claim's promise is specifically about hashicorp/kubernetes's kubernetes_manifest reading the PRIOR value of metadata.labels and metadata.annotations to decide whether to keep the live one (its computed_fields argument) and a stateless run having to build that prior. The AWS tag path has no such branch: configuredTagsSeed's prior feeds a provider that diffs tags against configuration directly, so the same edit on an AWS tag has always planned with no special-casing to prove. There is no AWS form of the computed_fields problem to state a claim about. A separate, genuinely open question - whether a tag another account's automation adds out of band churns an AWS plan - is real but is not this claim's promise; filed separately rather than folded in here."
         },
         "kubernetes": {
           "status": "proven",
@@ -658,7 +657,8 @@
       "title": "Two estates whose names prefix one another share a bucket and none of each other's keys",
       "theme": "operate",
       "substrate": [
-        "aws"
+        "aws",
+        "kubernetes"
       ],
       "providers": {
         "aws": {
@@ -671,8 +671,8 @@
           "note": ""
         },
         "kubernetes": {
-          "status": "n/a",
-          "note": "The claim is about the record store's key layout, and the record store is the same bucket whichever platform the estate manages. There is no Kubernetes form of it to state."
+          "status": "open",
+          "note": "Not the same bucket any more (#1392): the Kubernetes record store keeps its own key layout, and KubernetesStore.storeKey joins keyPrefix and key with \"/\" the same way S3Store builds an object key (internal/live/staterecord/kubernetes.go), so the identical hazard this claim proves on AWS - a dropped delimiter letting one estate's prefix swallow another's - is structurally possible here too: two estates whose key_prefix values prefix one another and share a namespace could, under that bug, hash to overlapping storeKey strings. Unlike S3, the object NAME is a SHA-256 of the whole storeKey (decision 1, internal/live/staterecord/doc.go) with a KeyCollisionError refusal when an object's own key annotation disagrees, which changes what a broken delimiter would actually produce - a name collision or a refusal, not necessarily a silent cross-estate read - and that difference is exactly what an actual scenario would have to pin down. Nothing measures it on Kubernetes yet."
         }
       }
     },
@@ -804,7 +804,7 @@
         },
         "kubernetes": {
           "status": "n/a",
-          "note": "The claim is about the record store's bucket, which is the same bucket whichever platform the estate manages. There is no Kubernetes form of it to state."
+          "note": "Still n/a, but not because it is \"the same bucket\" (#1392 gave Kubernetes its own store). The reason is that this claim's mechanism does not exist there: KubernetesStore's compare-and-swap is metadata.resourceVersion, an opaque value the API server assigns and checks on Update/Delete, not an ETag computed from the payload's bytes. SSE-S3, SSE-KMS and SSE-KMS-with-bucket-key are three ways S3 computes that ETag, which is exactly what this claim is about; Kubernetes has no per-write encryption flavour for the client to select; encryption at rest is a cluster-wide, admin-controlled setting the store only checks is present at all (the cluster contract, claim 39 steps 6-7), and that check does not interact with resourceVersion the way SSE interacts with ETag. There is no \"every flavour\" axis on Kubernetes for this claim to be about."
         }
       }
     },
@@ -860,7 +860,7 @@
         },
         "kubernetes": {
           "status": "n/a",
-          "note": "The claim is about the record store's bucket and the IAM around it, which are the same whichever platform the estate manages. There is no Kubernetes form of it to state."
+          "note": "Still n/a, but not because it is \"the same bucket and IAM\" (#1392 gave Kubernetes its own store and its own boundary mechanism). The reason: RBAC has no predicate on a label, so nothing plays the role S3's s3:ExistingObjectTag/s3:RequestObjectTag conditions play in this claim - a shared bucket with two independent policy statements, either of which alone still refuses. Kubernetes's isolation is the NAMESPACE (decision 2, internal/live/staterecord/doc.go), all or nothing: \"anyone who can get secrets in the records namespace reads every recorded value\" (decision 5), which claim 39 step 4 measures directly by giving a role list/get on the shared namespace and showing it reads every estate in it. So a Kubernetes estate that shares a namespace gets no \"two mistakes, not one\" defense-in-depth at all; the recommended (and only enforced) shape is one namespace per estate, where the question this claim asks does not arise. There is no shared-namespace form of this claim to state as proven, restated or open - it is a different, simpler mechanism with a different bargain, and that bargain is already documented and measured elsewhere (claim 39 step 4, decision 5)."
         }
       }
     },
@@ -870,7 +870,8 @@
       "title": "Every record store object carries its estate's tag, and the tag is load-bearing",
       "theme": "operate",
       "substrate": [
-        "aws"
+        "aws",
+        "kubernetes"
       ],
       "providers": {
         "aws": {
@@ -887,8 +888,9 @@
           "note": "Real AWS and maintainer-run, not CI: the pinned emulator does not evaluate s3:ExistingObjectTag or s3:RequestObjectTag at all, so a claim that a tag is load-bearing could not fail there. Run with SMOKE_REAL_AWS=1; it creates a bucket and an IAM role and removes them. Last run 2026-09-18, us-east-2."
         },
         "kubernetes": {
-          "status": "n/a",
-          "note": "The claim is about the record store's bucket and the IAM around it, which are the same whichever platform the estate manages. There is no Kubernetes form of it to state."
+          "status": "proven",
+          "note": "Measured by claim 39 (k8s-records-in-the-cluster) step 5 (#1392): every record Secret carries the tofu-estate label, which is the label live/kubernetes/estate-boundary.yaml's objectSelector matches on (Exists) and the one its CEL diffs old vs new to decide whether a write is in-estate. Step 5's write - an identity bound to Bob's estate replacing Alice's record Secret - is refused by name (\"not bound to that estate\") only because that Secret carries the label the policy fences on: \"the record objects are inside the estate fence the cluster already has, because they carry the same label every other object in the estate carries. No policy was added for the record store\" (step 5's own proof line). Decision 3 (internal/live/staterecord/doc.go) states the same design reason: tofu-estate has to be a label because estate-boundary.yaml selects on it, \"the same split, same reason, as the object tags #1337 put on S3 objects\". This is the read-direction proof (a labelled record is protected); AWS's BREAK proves the write-direction one (an unlabelled write is refused outright), which nothing on Kubernetes measures - the estate-boundary policy's objectSelector only matches objects that already carry the label, so a record the store failed to label would not be fenced by this policy at all. That asymmetry is a real difference between the two stores, not a gap in this cell.",
+          "proven_by": 39
         }
       }
     },
@@ -898,7 +900,8 @@
       "title": "The recommended secure configuration works end to end, including recovering a deleted record",
       "theme": "operate",
       "substrate": [
-        "aws"
+        "aws",
+        "kubernetes"
       ],
       "providers": {
         "aws": {
@@ -914,8 +917,8 @@
           "note": "Real AWS and maintainer-run, not CI: the claim is about a customer managed key policy, a CloudFormation stack and IAM evaluated together, and the pinned emulator evaluates none of the three the way AWS does. Run with SMOKE_REAL_AWS=1; it deploys a stack, creates an IAM role and a KMS key (or borrows SMOKE_KMS_KEY_ARN and restores its policy) and removes them. Last run 2026-09-18, us-east-2."
         },
         "kubernetes": {
-          "status": "n/a",
-          "note": "The claim is about the record store bucket, its key and the IAM around it, which are the same whichever platform the estate manages. There is no Kubernetes form of it to state."
+          "status": "open",
+          "note": "Not \"the same bucket, key and IAM\" any more (#1392). A Kubernetes analog of \"the recommended secure configuration\" now exists and is partly measured: claim 39's cluster contract (steps 4 to 9) is exactly a namespace-scoped RBAC Role, encryption at rest checked present, and the estate boundary policy in force, which is what live/STORAGE.md recommends for a Kubernetes-only estate. What nothing measures, on either store, in one end-to-end run, is recovering a DELETED record: no Kubernetes scenario deletes a record Secret and confirms the estate recovers it (or refuses to, by name) the way this claim requires on AWS. This cell is open because that step has not been written, not because Kubernetes has no such configuration to recommend."
         }
       }
     },
