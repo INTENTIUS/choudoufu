@@ -51,7 +51,10 @@ import (
 // handles. It also cannot see a surface asked without a member - a raw
 // block.Attributes["tags"] lookup, or identity.ObjectMetaShape, which is
 // a label-shape predicate of its own - which is why the ownership read's
-// tag arm became markers.HasTagsAttribute when this landed.
+// tag arm asked a member of this package (markers.HasTagsAttribute) when
+// this landed. Issue #1589 later deleted that member: the ownership read
+// now asks substrate.SurfaceOf like every other caller, once the two
+// questions were shown to agree on every admitted type.
 // TestSurfaceSeamGuardSeesTheFixture pins every resolution rule the guard
 // relies on against a tree whose answers are known.
 
@@ -104,8 +107,8 @@ var surfaceSeamExemptions = map[string]surfaceSeamExemption{
 	"internal/live/liveimport/stamp.go:approveOne":                      {Handles: []Surface{SurfaceLabels, SurfaceTags}, Why: "its manifest arm is approveManifest, which reads and patches the live object through the cluster API (unstructured maps, kubesweep.PatchMarkers) and so names no markers member the guard can see; #1639's address annotation made the label arm visible here"},
 	"internal/live/mv/rewrite.go:mover.checkPlan":                       {Handles: []Surface{SurfaceLabels}, Why: "judges a provider plan: the label arm's changedOutsideLabels reads markers.AnnotationsChangedBesides (#1639), the tag arm's changedOutsideTags compares attributes without a markers member, and the manifest shape never plans through the provider (mv/manifest.go judges a server dry run instead)"},
 	"internal/live/mv/label.go":                                         {Handles: []Surface{SurfaceLabels}, Why: "the label path, reached only when relabels answered true for the surface surfaceOf read"},
-	"internal/live/mv/rewrite.go:mover.rewrite":                         {Handles: []Surface{SurfaceLabels, SurfaceTags}, Why: "mv.go refuses SurfaceManifest by name (SummaryManifestMoveUnsupported) before rewrite runs; #1104 replaces that refusal with the label patch"},
-	"internal/live/mv/mv.go:mover.locateByIdentity":                     {Handles: []Surface{SurfaceLabels, SurfaceTags}, Why: "the manifest shape is refused by name in the same file before a locate runs (SummaryManifestMoveUnsupported); #1104 replaces that refusal"},
+	"internal/live/mv/rewrite.go:mover.rewrite":                         {Handles: []Surface{SurfaceLabels, SurfaceTags}, Why: "mv.go's Move refuses SurfaceManifest by name (manifestMoveRefusal, defined in mv/label.go) before rewrite runs; #1104 replaces that refusal with the label patch"},
+	"internal/live/mv/mv.go:mover.locateByIdentity":                     {Handles: []Surface{SurfaceLabels, SurfaceTags}, Why: "the manifest shape is refused by name in mv/label.go's manifestMoveRefusal, called from Move in this same file before a locate runs; #1104 replaces that refusal"},
 	"internal/live/mv/rewrite.go:tagsFromObject":                        {Handles: []Surface{SurfaceTags}, Why: "the tag path's reader, reached only on SurfaceTags"},
 	"internal/live/projection/manifestkeys.go":                          {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's declared-key lookup (#1079)"},
 	"internal/live/projection/manifestpartialseed.go":                   {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's partial seed"},

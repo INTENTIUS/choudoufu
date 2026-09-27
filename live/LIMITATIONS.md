@@ -2218,6 +2218,97 @@ is the gate a configuration meets before a plan ever runs; the merge asks the
 same question again at the layer that acts, so a caller that skipped lint
 still gets the refusal rather than a silent abandonment.
 
+## The un-migration guard
+
+This one is enforced today, like every entry above it, but it earns its own
+heading rather than a `### <name>` one: those are reserved for the limits
+wing (`TestLimitationsDocCoversDirs`, `TestLimitsDirsMatchTable` in
+`internal/live/lint/limits_test.go` require one `live/e2e/limits/<name>/`
+fixture per such heading), and this guard fires on a full plan against a
+real, already-stamped prior state - not on a bare configuration load the way
+a lint fixture does. It is also not in `internal/live/check`'s `AllRefusals`
+catalog, so `tools/limits-gen` generates nothing for it either. Both are
+true of the three receipt rules this file's own introduction points at
+`live/RECEIPTS.md` for; the difference here is that this guard has no
+sibling document of its own, so it lives here instead.
+
+**Construct.** A state-backed plan - a configuration with no `live` block, or
+one whose `live` block is not yet turned on - over an estate that
+`"choudoufu live-import -approve"` has already stamped. The stamp writes
+`tofu-estate` and `tofu-address` onto every taggable managed resource
+(AWS: the `tags` map) and, on Kubernetes (GitHub issue #1649), the
+`tofu-estate` label into `metadata.labels` (or `manifest.metadata.labels` for
+a `kubernetes_manifest` object). The state file taken before the stamp has no
+record of either, so a refresh reads them as drift and proposes removing
+them - an in-place update, never a destroy or a replace.
+
+**Why banned.** GitHub issue #613. The refusal reads
+"Plan would remove this estate's ownership markers". This is the quietest
+failure the live path had, and it is worse than a refusal. Nothing warns: the plan renders as
+routine attribute drift, the apply throws the markers away, the next run's
+discovery cannot find the resource, and every run after that proposes
+creating a duplicate of something that already exists. The guard refuses
+rather than warns for the same reason `internal/live/liveimport`'s
+`notATagsOnlyPlan` refuses rather than warns: the damaging shape is
+`apply -auto-approve`, where there is no prompt for a warning to appear
+before and no operator watching the output. It does not change what the plan
+computes or shows - the diff is rendered in full, call-identical to stock,
+and only then refused, so the operator sees exactly the drift stock would
+have shown them.
+
+**What is not refused.** Only an in-place update. A `Delete` destroys the
+resource, which is not a silent un-migration and is exactly what stock would
+do; a replace drops the marker too, but because the configuration asked for a
+new object, and refusing every replacement of a stamped resource would refuse
+working configurations. An estate the stamp never reached (no `tofu-estate`
+marker on the prior object) is not this guard's business either - nothing
+here is being un-migrated.
+
+**Forwarding address.** Run the configuration the way it was migrated, with
+its `live` block present and turned on: `choudoufu plan` and `choudoufu
+apply` then read the markers instead of proposing to remove them.
+
+**`CHOUDOUFU_UNMIGRATE`, the escape hatch.** Set to the estate's name (or
+several, comma-separated) when the removal is deliberate - reverting a
+migration on purpose. It takes a name rather than an on/off value because an
+on/off value set once in a CI environment would cover every estate that
+directory ever migrates, including one migrated a year later by someone who
+never saw the setting; a name covers only the estate the operator was
+looking at. Naming an estate turns its refusal into a warning
+("Removing this estate's ownership markers"); a sibling estate the variable
+does not name in the same plan is still refused - approving one estate's
+revert is not consent for another's. After the apply, nothing on those live
+resources says which configuration owns them, and
+`choudoufu live-import -state=PATH -estate=<name> -approve` would have to
+stamp the estate again to bring it back.
+
+**Enforcement.** `statefulMarkerGuard`,
+`internal/command/live_unmigrate_guard.go`, installed only when the
+configuration has no `live` block (under one, the projection supplies
+markers on both sides of the comparison, so there is nothing to detect).
+Detection itself is `internal/live/markerstrip`'s `Scan`, which reads
+every marker surface a plan's changes carry - AWS tags or a Kubernetes
+object's labels, off the provider schema via `internal/live/substrate` - and
+reports only a `plans.Update` that drops a marker the prior object held.
+`TestPlan_statefulPlanStrippingMarkersIsRefused` and
+`TestApply_statefulApplyStrippingMarkersIsRefused` pin the AWS refusal (plan
+and apply); `TestPlan_statefulPlanStrippingALabelIsRefused` pins the
+Kubernetes one. `TestPlan_statefulMarkerStripApprovedByEnvVar` and
+`TestPlan_statefulMarkerStripEnvVarNamingAnotherEstateStillRefuses` pin
+`CHOUDOUFU_UNMIGRATE`. `TestApply_statefulDestroyOfAStampedResourceIsNotRefused`
+and `TestPlan_statefulPlanOnAnUnstampedEstateIsNotRefused` /
+`TestPlan_statefulPlanOnAnUnstampedLabelEstateIsNotRefused` pin the "what is
+not refused" paragraph above, on both substrates. All in
+`internal/command/live_unmigrate_guard_test.go` and
+`internal/command/live_unmigrate_guard_labels_test.go`.
+
+The same installed guard also carries a separate, unrelated warning (GitHub
+issue #716) for a stock-mode plan building an estate from nothing whose
+configured tags or labels already stamp ownership markers - a mid-migration
+directory whose `live` block is not on yet looks identical to a legitimate
+greenfield bootstrap from the plan alone, so that one warns rather than
+refuses. See `stockCreateWarning` in the same file.
+
 ## Documented, not yet enforced
 
 ### duplicate-identity

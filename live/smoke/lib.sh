@@ -26,6 +26,28 @@ export OPENTOFU_IMAGE="${OPENTOFU_IMAGE:-ghcr.io/opentofu/opentofu:$(python3 -c 
 export KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-$(cat "$ROOT/live/kind-node-image")}"
 export FLOCI_PORT
 
+# The oracle's provider plugin cache. By default it is the named volume in
+# docker-compose.yml, mounted at /plugins. When the host exports
+# TF_PLUGIN_CACHE_DIR (claims-smoke.yml does, since #1646), `chdf init` on
+# the host installs the provider as a symlink into that host directory, and
+# the oracle's own init installs one into its cache. A scenario that runs
+# both in one workdir (roundtrip, stock-when-you-need-it) shares one
+# .terraform/providers, and on a runner whose platform is the container's
+# (linux_amd64) both write the same entry: a host symlink dangles inside
+# the container and a /plugins symlink dangles on the host, and the next
+# run on the other side reports "there is no package ... cached in
+# .terraform/providers" (claims-smoke run 36339857046). So with a host
+# cache set, the oracle mounts that same directory at the same absolute
+# path and uses it as its cache: every symlink either side writes then
+# resolves on both.
+if [ -n "${TF_PLUGIN_CACHE_DIR:-}" ]; then
+  mkdir -p "$TF_PLUGIN_CACHE_DIR"
+  SMOKE_PLUGINS_SRC="$(cd "$TF_PLUGIN_CACHE_DIR" && pwd)"
+  SMOKE_PLUGINS_DST="$SMOKE_PLUGINS_SRC"
+  export SMOKE_PLUGINS_SRC SMOKE_PLUGINS_DST
+fi
+SMOKE_PLUGINS_MOUNT="${SMOKE_PLUGINS_DST:-/plugins}"
+
 COMPOSE=(docker compose -p "choudoufu-smoke-${SMOKE_ID}" -f "$SMOKE_DIR/docker-compose.yml")
 
 # Once a bound has fired (smoke_stall below) the scenario is being killed,
@@ -515,7 +537,7 @@ ORACLE_READY=0
 oracle_up() {
   [ "$ORACLE_READY" = "1" ] && return 0
   logged compose-oracle-plugins stack "could not prepare the oracle's plugin volume" \
-    -- "${COMPOSE[@]}" run --rm --user 0 --entrypoint sh opentofu -c "chown -R $(id -u):$(id -g) /plugins"
+    -- "${COMPOSE[@]}" run --rm --user 0 --entrypoint sh opentofu -c "chown -R $(id -u):$(id -g) '$SMOKE_PLUGINS_MOUNT'"
   ORACLE_READY=1
 }
 

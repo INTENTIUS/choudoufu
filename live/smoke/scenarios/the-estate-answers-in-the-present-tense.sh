@@ -121,7 +121,10 @@ explain \
   "Stored: the state cache the apply just wrote, read as a file. Right" \
   "after the apply the two must agree, or the queries themselves differ."
 cmd "choudoufu init && choudoufu apply -auto-approve"
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "present" "init failed"
+# Kept, not discarded: the BREAK arm of claims-smoke run 36339857046 failed
+# this init in 1.5s with its output sent to /dev/null, so the cause was
+# unrecoverable. logged keeps it and prints its tail on failure.
+logged present-init present "choudoufu init failed" -- chdf -chdir="$SMOKE_WORK" init -input=false -no-color
 APPLY="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "present" "apply failed: $APPLY"
 grep -q 'Resources: 6 added' <<< "$APPLY" || fail "present" "the apply did not create the six resources: $APPLY"
 [ -f "$CACHE" ] || fail "present" "the apply wrote no state cache at $CACHE, so there is no stored answer to compare"
