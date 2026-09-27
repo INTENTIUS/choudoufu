@@ -9143,5 +9143,36 @@
       "tier": "declaration-carried",
       "status": "in-contract"
     }
-  ]
+  ],
+  "kubernetes": {
+    "provider": "hashicorp/kubernetes 3.2.1",
+    "total": 4,
+    "awaiting_ruling": 4,
+    "types": [
+      {
+        "type": "kubernetes_cluster_role_binding",
+        "tier": "",
+        "status": "awaiting-ruling",
+        "reason": "admitted, but this substrate's own marker (the Kubernetes label surface) postdates the tier definitions, so which tier it maps to needs a ruling. See [issue #1600](https://github.com/INTENTIUS/choudoufu/issues/1600)."
+      },
+      {
+        "type": "kubernetes_config_map",
+        "tier": "",
+        "status": "awaiting-ruling",
+        "reason": "admitted, but this substrate's own marker (the Kubernetes label surface) postdates the tier definitions, so which tier it maps to needs a ruling. See [issue #1600](https://github.com/INTENTIUS/choudoufu/issues/1600)."
+      },
+      {
+        "type": "kubernetes_namespace",
+        "tier": "",
+        "status": "awaiting-ruling",
+        "reason": "admitted, but this substrate's own marker (the Kubernetes label surface) postdates the tier definitions, so which tier it maps to needs a ruling. See [issue #1600](https://github.com/INTENTIUS/choudoufu/issues/1600)."
+      },
+      {
+        "type": "kubernetes_storage_class",
+        "tier": "",
+        "status": "awaiting-ruling",
+        "reason": "admitted, but this substrate's own marker (the Kubernetes label surface) postdates the tier definitions, so which tier it maps to needs a ruling. See [issue #1600](https://github.com/INTENTIUS/choudoufu/issues/1600)."
+      }
+    ]
+  }
 }
