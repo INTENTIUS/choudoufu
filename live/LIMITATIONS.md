@@ -4920,7 +4920,7 @@ every case, which is the half of `computed_fields` that matters most:
 `aws_workspacesweb_user_settings_association`, `aws_xray_encryption_config`,
 `aws_xray_resource_policy`, `aws_xray_trace_segment_destination`,
 `kubernetes_cluster_role_binding`, `kubernetes_config_map`,
-`kubernetes_namespace` and `kubernetes_storage_class`<!-- survey-gen:end untaggable-admitted --> carry no `tags` argument - the AWS-shaped test this roster runs. For the AWS
+`kubernetes_namespace` and `kubernetes_storage_class`<!-- survey-gen:end untaggable-admitted --> carry no tags argument - the AWS-shaped test this roster runs. For the AWS
 types above that means no marker-based sweep has anything to search on:
 their identity is built from their own configuration, which is a problem
 the moment a resource block is removed rather than destroyed. With no
