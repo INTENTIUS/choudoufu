@@ -11,6 +11,13 @@
 # k8s-smoke.yml; claims 28-32 and 44 already run in bucket-smoke.yml and
 # are not duplicated here.
 #
+# Claim 45 (#1624) joined this matrix later, proven and never excluded: a
+# single small resource and no Go build, so it runs in the smoke job with
+# the rest rather than in smoke-nightly. Not yet measured against the
+# emulator in CI (written and left for the orchestrator's smoke pass); if
+# it turns out to sit over budget, move it to smoke-nightly rather than
+# re-deriving the number here.
+#
 # Budget: 10 minutes per scenario, both arms combined (2026-09-26 ruling
 # on #1590: "same rule as the kubernetes lane" - every PR that touches the
 # code runs the matrix, except scenarios over the budget, which run
@@ -150,6 +157,7 @@ jobs:
           - the-estate-answers-in-the-present-tense
           - a-killed-apply-hides-nothing
           - two-estates-at-once
+          - an-ignored-tag-is-not-drift
     env:
       # Safe here (unlike gauntlet.yml's shared mirror, #1550): nothing in
       # these scenarios reads this directory as a read-only -plugin-dir, so
