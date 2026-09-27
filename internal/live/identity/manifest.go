@@ -27,10 +27,11 @@ import (
 // `manifest` (the desired object) and `object` (the live one, computed),
 // neither of which is a flat value another resource could read as an
 // identity. The one exception is a sibling reading
-// kubernetes_manifest.x.object.metadata.name or .namespace: those are the
+// kubernetes_manifest.x.object.metadata.name or .namespace (or the same
+// two keys as manifest.metadata.name and .namespace, #1616): those are the
 // keys the manifest itself wrote, so resolveTraversal answers them from the
 // manifest argument (manifestObjectKeyPart, #1116), and every other path
-// under object is refused the way any non-identity reference is. The marker on a
+// under object or manifest is refused the way any non-identity reference is. The marker on a
 // manifest object - the same tofu-estate label, into
 // manifest.metadata.labels, written by internal/live/projection's node
 // stamp (nodestamp_manifest.go) - is the ruling's second unit; the sweep
