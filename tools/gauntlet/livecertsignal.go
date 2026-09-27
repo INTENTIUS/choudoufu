@@ -419,6 +419,12 @@ const (
 // slow enough to cost nothing over a four-hour run.
 const liveCertOrphanPoll = 1 * time.Second
 
+// currentPPID is os.Getppid, indirected so a test can make it lie about what
+// the process's parent is RIGHT NOW - see superviseOpts.StartPPID's comment
+// for why that is the only way to reproduce #1618 without needing an actual
+// starved machine.
+var currentPPID = os.Getppid
+
 // LiveCertSignalGraceEnv is an OPT-IN bound on how long the supervisor waits
 // for the script's teardown trap after forwarding a stop request. Unset, or
 // set to anything that is not a positive integer, there is NO bound: the
@@ -600,6 +606,31 @@ func signalGroup(pgid int, sig syscall.Signal) error {
 type superviseOpts struct {
 	// PGID is the script's own process group.
 	PGID int
+	// StartPPID is this process's ppid at the moment the caller started the
+	// script, captured by RunLiveCert synchronously right after cmd.Start()
+	// - NOT read lazily inside this function (#1618).
+	//
+	// A goroutine carries no promise about when it first runs. The old code
+	// read its own "before" ppid as its first statement, in the goroutine
+	// superviseLiveCert runs on; under load - many packages' tests
+	// competing for the same cores is enough - that goroutine can sit
+	// unscheduled long enough that by the time it finally runs, the wrapper
+	// has ALREADY died and this process has ALREADY been reparented to
+	// init. Its first read of its own ppid then sees 1, "before" is
+	// recorded as 1, and the transition the poll loop below watches for (a
+	// move FROM something else TO 1) can never fire again: the run is
+	// orphaned and nothing here will ever say so. That is exactly
+	// TestOrphanedLiveCertRunTearsItselfDown's hosted-runner failure -
+	// state stayed "running" and signal stayed "" for the full 90s bound
+	// (#1618).
+	//
+	// The fix is not a better read inside the goroutine - any read in there
+	// is racing the same way, however small the window looks on an idle
+	// machine. It is to never take that reading late: capture it at the
+	// one point in the program where the wrapper is PROVABLY still alive,
+	// which is the instant this process just started the script under it,
+	// and hand the value in rather than rediscovering it.
+	StartPPID int
 	// Sigc carries signals the caller registered with signal.Notify; Done
 	// is closed once cmd.Wait has returned.
 	Sigc <-chan os.Signal
@@ -644,7 +675,6 @@ type superviseOpts struct {
 // the exact `kill -KILL -<pgid>` and what it costs, so a human who really
 // does want the teardown dead can have it, by typing it.
 func superviseLiveCert(s *liveCertSupervisor, o superviseOpts) {
-	startPPID := os.Getppid()
 	poll := time.NewTicker(liveCertOrphanPoll)
 	defer poll.Stop()
 
@@ -761,7 +791,7 @@ func superviseLiveCert(s *liveCertSupervisor, o superviseOpts) {
 			// signalled, died, and this process reparented to init. No
 			// signal ever reached here, so nothing else in this loop
 			// can see it; the ppid transition is the only evidence.
-			if !orphanFired && startPPID != 1 && os.Getppid() == 1 {
+			if !orphanFired && o.StartPPID != 1 && currentPPID() == 1 {
 				orphanFired = true
 				stop("orphaned", "this process's parent exited and it reparented to init (ppid 1), which is what a signalled `go run` wrapper looks like from in here - `go run` does not pass the signal on to the binary it built (measured, go1.26.5).")
 			}

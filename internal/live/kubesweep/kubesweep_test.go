@@ -597,7 +597,7 @@ func TestListReportsHelmHeldObjects(t *testing.T) {
 		t.Fatalf("held = %+v, want the Helm object alone: an owner-referenced copy has no named holder here", skipped.Held)
 	}
 	h := skipped.Held[0]
-	if h.Kind != "ConfigMap" || h.Namespace != "web" || h.Name != "web-greeting" || h.HeldBy != "Helm release web/web" || h.Labels["tofu-estate"] != "smoke-k8s" {
+	if h.Kind != "ConfigMap" || h.Namespace != "web" || h.Name != "web-greeting" || h.HeldBy != "Helm release web/web" || h.Controller != ControllerHelm || h.Labels["tofu-estate"] != "smoke-k8s" {
 		t.Errorf("held = %+v", h)
 	}
 }
