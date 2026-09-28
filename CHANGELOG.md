@@ -37,7 +37,90 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
    `generated-from.json` alongside the pin. Skipping this step for more than
    one release cycle is what `TestCIPipelinePinIsTiedToRelease` turns red for.
 
-## choudoufu v0.20.0 (Unreleased)
+## choudoufu v0.21.0 (Unreleased)
+
+## choudoufu v0.20.0 (2026-09-27)
+
+Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.20.0.json`](live/history/v0.20.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.19.0.json live/history/v0.20.0.json`):
+
+- Core estates: 26/26 clear -> 26/26 clear (0)
+- All estates: 27/27 clear -> 27/27 clear (0)
+- Newly cleared: none
+- Regressed: none
+- Readiness: a `kubernetes` table added (hashicorp/kubernetes 3.2.1): four admitted types, all marker-carried and in contract (#1600)
+
+This release is epic #1579: AWS and Kubernetes on one approach in code, tests
+and docs, before any third substrate. Its final report is on #1579.
+
+What the evidence behind the board is. The four kubernetes-lane estates were
+re-measured on the release tree: `reference-k8s`, `reference-k8s-stateful`,
+`reference-k8s-cert-manager` and `corpus-quickpizza`, each 14/14 on kind,
+including `day2_replace`, which runs on kind for the first time in this
+release (#1641). The AWS rows were not re-measured. They carry v0.19.0's
+evidence, which was measured against the same pinned floci image, so nothing
+they were measured on has moved. They predate the per-row provider versions
+this release records (#1253), so `gauntlet next` lists them as re-measure work.
+
+UPGRADE NOTES:
+
+Kubernetes:
+
+- Every Kubernetes object now carries its block address in the annotation
+  `choudoufu.intentius.io/tofu-address`, as the AWS `tofu-address` tag does
+  (#1605, #1639, #1640, #1641). The first plan by this release over an estate
+  an older release applied adds the annotation to every object, as in-place
+  updates (`0 to add, N to change`). Apply it once; later plans read
+  `No changes`. An older release planning an estate this one applied proposes
+  removing the annotation.
+- A rename under `create_before_destroy` now creates the new object before
+  destroying the old one, as stock does (#1541). A rename through a `moved`
+  block plans one in-place annotation rewrite, like the tag rewrite on AWS.
+- An object a declared block names that exists on the cluster without the
+  `tofu-estate` label is refused under the default `declared_untagged`
+  instead of planning a create the API server would reject (#1546).
+  `declared_untagged = "adopt"` adopts it.
+- `lifecycle { ignore_changes }` that covers the estate label (`all`,
+  `metadata`, `metadata[0].labels`, the label key, or the manifest's labels)
+  is refused, as the same construct over AWS marker tags already was (#1645).
+  A state-backed plan that would strip the label is refused by the
+  un-migration guard (#1649).
+- An object carrying Helm's release annotation, while its release exists, is
+  controller-held: never swept, never adopted, listed with its release
+  (#1607, #1625).
+- `undeclared_tagged = "untag"` now releases a Kubernetes object's label and
+  address annotation, including a `kubernetes_manifest` object (#1644, #1656).
+
+AWS:
+
+- A resource ACK or Crossplane made from a Kubernetes object is
+  controller-held: never proposed for destroy or adoption, and listed as held
+  (#1604, #1606). A declared create beside one warns (#1628).
+- `live-plan -json` and `live-ls -json` report controller-held rows under one
+  key, `held_by`, on both substrates (#1629). The AWS-only
+  `controller_held`/`made_by` keys are gone.
+
+Everywhere:
+
+- `-filter unowned|adoptable|foreign` narrows the plan's report, never the
+  plan (#1197).
+- A provider no substrate claims no longer runs the AWS sweep legs; it gets a
+  named gap or no leg (#1707). In a mixed root this removes roughly a thousand
+  false AWS coverage gaps per unclaimed provider.
+- In a multi-provider root, a record-orphan removal is proposed by the pass
+  whose provider serves its type (#1715).
+- `untag` releases each target through the provider configuration that found
+  it (#1657).
+- `data "terraform_estate_outputs"` reads another estate's recorded outputs,
+  refusing by name when the grant is missing; a producer's destroy deletes
+  its recorded outputs (#1371).
+- #950's unmarked-apply refusal now steps aside when the run's record store
+  is writable (#1637).
+- Claims 21, 22 and 23 are retired into the Kubernetes proofs of claims 7, 1
+  and 13 (#1112). Claims 43, 44 and 45 are new. Every proven claim runs in a
+  CI workflow, enforced by a guard (#1590, #1591).
+
 
 ## choudoufu v0.19.0 (2026-09-23)
 
