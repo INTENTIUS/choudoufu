@@ -65,7 +65,7 @@ jobs:
       # true, and says what to do if an upstream sync ever breaks it.
       - name: gofmt (fork-owned files)
         run: |
-          out="$(gofmt -l internal/live cmd site tools live internal/backend internal/command internal/configs internal/engine/applying internal/plans internal/plugin internal/plugin6 internal/tofu)"
+          out="$(gofmt -l internal/live cmd site tools live internal/backend internal/builtin/providers/tf internal/command internal/configs internal/engine/applying internal/plans internal/plugin internal/plugin6 internal/tofu)"
           if [ -n "$out" ]; then
             echo "gofmt needed on:"
             echo "$out"
@@ -121,8 +121,35 @@ jobs:
       # remote-state backends. In the tier they are below the run-to-run
       # spread - two paired runs on a loaded machine gave 380.3s/381.4s
       # wall before and 368.9s/374.7s after.
+      # live/record_store_bucket_test.go runs the shipped `just verify` and
+      # `just down` recipes against stub binaries and asserts their exit codes
+      # (GitHub issue #1379: the guard it replaced only grepped the justfile,
+      # and stayed green with `verify` ignoring the binary and `down` no longer
+      # refusing). It fails rather than skips when just is missing, because a
+      # guard that skips is permanently green. The runner image does not ship
+      # just, so it is installed here, the way contribute.yml does.
+      - name: Install just
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq just
+      # live/record_store_bucket_test.go also BUILDS the bucket project's
+      # CloudFormation template with chant and reads DeletionPolicy,
+      # UpdateReplacePolicy and the lifecycle rule out of the result (GitHub
+      # issue #1382). It reads the built template because the TypeScript can
+      # say anything and what CloudFormation receives is the template. It
+      # fails rather than skips without node_modules, so they are installed
+      # here. This does let a registry outage redden the Go tier, which is
+      # why examples/ci-pipelines keeps its own job. The cache is keyed on
+      # the lock file so that an ordinary run reaches the registry for
+      # nothing, and `npm ci` installs exactly the locked tree.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: examples/record-store-bucket/package-lock.json
+      - name: npm ci for the bucket project's template test
+        working-directory: examples/record-store-bucket
+        run: npm ci
       - name: Fast test tier
-        run: go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/configs/ ./internal/plans/ ./internal/plugin/ ./internal/plugin6/
+        run: go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/configs/ ./internal/plans/ ./internal/plugin/ ./internal/plugin6/ ./internal/builtin/providers/tf/
       - uses: peaceiris/actions-hugo@v3
         with:
           hugo-version: 'latest'
@@ -221,3 +248,76 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npm test
+
+  # live/live-cert/selftest-kill.sh, issue #1267.
+  #
+  # #440's stage-1 proof obligation: launch live/live-cert/reference-ec2-vpc.sh
+  # against the pinned emulator, wait for stock terraform's own "Creation
+  # complete" line so the kill lands while an apply is genuinely in flight,
+  # send the harness a real SIGTERM, and check that its trap still ran the
+  # teardown. That guards the teardown of the PAID path, where a defect costs
+  # money and wall clock rather than a red cell - and until #1267 nothing in
+  # this repository ran it.
+  #
+  # The "independent verification" listing at the end of that script was
+  # unreachable on any passing run when this job was written, because the
+  # harness removed the emulator container as teardown's last step and the
+  # skipped listing logged a line that read like a confirmation. That was
+  # issue #1279; the driver now keeps the container up for its own listing
+  # and removes it afterwards, so the emptiness half of this job's verdict
+  # is evidence rather than a sentence.
+  #
+  # Here rather than in floci-tier.yml, which is the other workflow with
+  # docker: that nightly has failed on every run from 2026-09-12 to
+  # 2026-09-17, every gated test failing at 0.00s on "terraform is required by
+  # this test but is not on PATH", because it never installs the binary.
+  # Adding a guard to an already-red job reproduces the exact problem #1267 is
+  # about. live/livecert_selftests_test.go's TestCIRunsTheKillSelftest is the
+  # guard on this job.
+  #
+  # A separate job rather than a step in `fast`, the same call as the two
+  # jobs above: it is the only thing in this workflow that pulls a container
+  # image, so a registry outage names itself here instead of reddening the Go
+  # tier. Measured 2026-09-17 on a laptop with the image cached and the binary
+  # prebuilt: 19s end to end.
+  livecert-selftest-kill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      # Pinned from live/oracle-versions.json, the same read the fast job
+      # makes for the same reason (issue #544): the harness's trusted
+      # teardown shells out to a literal `terraform destroy`, and an
+      # unpinned oracle is what #498 cost.
+      - name: Read the pinned stock oracle version (issue #544)
+        id: oracle
+        run: echo "terraform=$(jq -r .terraform_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ steps.oracle.outputs.terraform }}
+          terraform_wrapper: false
+      # TOFU_BIN, so reference-ec2-vpc.sh skips its own `go build`. The
+      # driver synchronizes its kill against the apply's own progress, not
+      # against wall clock, so a cold build would not break it - but it
+      # would put a multi-minute build inside this job's bound for no
+      # reason.
+      - name: Build the binary the harness runs
+        run: go build -o "$RUNNER_TEMP/choudoufu" ./cmd/choudoufu
+      - name: selftest-kill against the pinned emulator
+        env:
+          TOFU_BIN: ${{ runner.temp }}/choudoufu
+        run: |
+          set -o pipefail
+          timeout 1200 bash live/live-cert/selftest-kill.sh 2>&1 | tee "$RUNNER_TEMP/kill.log"
+          # A zero exit is not the evidence wanted here, the same call the
+          # validate-generated-terralith job makes: require the script's own
+          # verdict line by name, so a future early `exit 0` before the
+          # assertions cannot read as a pass.
+          grep -q -- '=== selftest-kill: PASS' "$RUNNER_TEMP/kill.log" || {
+            echo "selftest-kill.sh did not reach its own PASS verdict line in this job."
+            echo "Read the log above: the script prints one line per property it confirmed and a FAIL line per one it did not."
+            exit 1
+          }

@@ -5,7 +5,13 @@
 
 package servicetags
 
-import "context"
+import (
+	"context"
+	"errors"
+	"strings"
+
+	"github.com/aws/smithy-go"
+)
 
 // Reader reads one live object's tags through the service's own tag API.
 //
@@ -22,10 +28,21 @@ type Reader interface {
 	// type with no route costs nothing at all.
 	Route(typeName string) bool
 
+	// Action is the IAM action name [ReadTags] needs for typeName, in the
+	// form a policy statement names it ("iam:ListRoleTags"), and "" for a
+	// type [Route] answers false for. A refused read's diagnostic names it
+	// as the thing to grant, so it comes from the route table and is never
+	// typed by a caller.
+	Action(typeName string) string
+
 	// ReadTags returns the tags carried by the object of typeName whose
 	// import identity is importID - the same identifier
 	// internal/live/discovery composed for the listed object, so the
-	// caller needs no second identity notion.
+	// caller needs no second identity notion. For an object a [Lister]
+	// enumerated the identifier is [Listed.ReadKey] instead, which is the
+	// import identity except where the service's tag API keys on
+	// something else (GitHub issue #1477: a service-linked role imports
+	// by ARN and iam:ListRoleTags takes its name).
 	//
 	// A nil error means the read succeeded and the map is the object's
 	// whole tag set, which may legitimately be empty: an object with no
@@ -54,4 +71,23 @@ func (e noRouteError) Error() string {
 func ErrNoRoute(err error) bool {
 	_, ok := err.(noRouteError)
 	return ok
+}
+
+// ErrorCode is the API error code carried by a failed [Reader.ReadTags],
+// for a diagnostic that names it: "AccessDenied", "Throttling". An AWS SDK
+// error carries it as smithy.APIError's ErrorCode. For any other error the
+// text before the first colon is taken when it is a single token, which is
+// how the SDK's own messages and this repository's test fakes both spell
+// one ("AccessDenied: User is not authorized ..."); otherwise the whole
+// message stands, so an error is never reported as an empty code.
+func ErrorCode(err error) string {
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) && apiErr.ErrorCode() != "" {
+		return apiErr.ErrorCode()
+	}
+	msg := strings.TrimSpace(err.Error())
+	if head, _, ok := strings.Cut(msg, ":"); ok && head != "" && !strings.ContainsAny(head, " \t") {
+		return head
+	}
+	return msg
 }

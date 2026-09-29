@@ -47,6 +47,24 @@ set -uo pipefail
 #      (IAM role/policy/instance-profile, ECS cluster/service/task-def,
 #      Route 53 zone/record, plus the VPC/subnet/SG reference-ec2-vpc.sh
 #      already covers).
+#   4. Asserts its own IAM role headroom before cold_deploy spends anything
+#      (issue #1230, #1150's third item). Quota exhausted from OUTSIDE the
+#      run - a leaked estate, another estate's live-cert, a console session
+#      - used to surface as cold_deploy failing with LimitExceeded, i.e. as
+#      "choudoufu could not deploy this estate", blaming the product for
+#      the account. iam_role_headroom_check below reads Roles/RolesQuota
+#      from `aws iam get-account-summary`, asks tools/terralith-gen
+#      (-iam-roles, the generator's own test-pinned formula: 11 roles per
+#      scale, never a constant typed here) how many aws_iam_role INSTANCES
+#      this SCALE creates, and on insufficient room emits a `GAUNTLET
+#      refused=1 ... unit=iam-roles` line and exits 2 before anything is
+#      created - recorded by tools/gauntlet as outcome: refused on its own
+#      rung (#1151), never as a failed certification. It fails OPEN,
+#      loudly, if the check itself cannot run (the CLI errors, prints a
+#      non-integer, or the generator does): an AWS blip must not become a
+#      refusal on the ladder, and cold_deploy's own failure is still there
+#      to catch the case the check missed. LIVECERT_RESUME skips it along
+#      with cold_deploy: a resumed estate already holds its roles.
 #
 # Env (beyond what reference-ec2-vpc.sh reads - see that file's own doc
 # comment for TARGET/REGION/RUN_ID/TOFU_BIN/TF_COLD_BIN/FLOCI_PORT/
@@ -54,6 +72,22 @@ set -uo pipefail
 #   SCALE           terralith-gen's own -scale (default 1, the smallest
 #                    tier - #546's own rule: prove teardown at each tier
 #                    before growing).
+#   RECORD_STORE_BACKEND  local or s3; anything else is refused before the
+#                    run starts. Default s3 for TARGET=aws, local for
+#                    TARGET=floci. s3 is the one that puts the VALUES half
+#                    of the state model in the cloud: it is checked at 4a2
+#                    and torn down at the end; local is a directory inside
+#                    WORK and goes with it. "ssm" was the third and the aws
+#                    default until GitHub issue #1346 retired Parameter
+#                    Store as a record store. choudoufu now refuses that
+#                    block, so a new run that names it is refused here
+#                    first; a teardown-only dispatch still accepts it, to
+#                    clean up what a held run from before #1346 wrote.
+#   RECORD_STORE_BUCKET  Required for RECORD_STORE_BACKEND=s3, ignored
+#                    otherwise. An EXISTING bucket the run writes two key
+#                    namespaces into and deletes those two namespaces from
+#                    at teardown; the bucket itself is never created or
+#                    deleted, and nothing else in it is touched.
 #   THROTTLE_LOG     1 (default) captures TF_LOG=DEBUG for cold_deploy's
 #                    apply and migrate's -approve (both bounded, single-pass
 #                    operations) to a file under WORK, so this run can grep
@@ -111,8 +145,9 @@ set -uo pipefail
 #                    the resumed state names real objects by PREFIX, so a
 #                    mismatch would silently plan against the wrong
 #                    account's naming. The caller must export the SAME
-#                    PREFIX/SCALE (and RECORD_STORE_BACKEND, if set
-#                    non-default) the held run used; a resumed run's
+#                    PREFIX/SCALE (and RECORD_STORE_BACKEND plus
+#                    RECORD_STORE_BUCKET, if set non-default) the held run
+#                    used; a resumed run's
 #                    cold_deploy/migrate stages are logged as
 #                    "verdict=skipped", never "pass" - they are not
 #                    GAUNTLET protocol lines and never reach
@@ -151,6 +186,20 @@ source "$LIB/live-cert.sh"
 # through the same "${VAR:-default}" form every one of them already uses.
 # Part 2, which actually runs the destroy, sits right before "0. tools"
 # below - it needs teardown()/verify_empty()/sweep() already defined.
+#
+# The marker lines below bracket each half, the way the record store
+# selection block above is bracketed, and for the same reason (#1380): a
+# self-test must never test this dispatch by EXECUTING this script. A
+# mutation of the dispatch that loses its `exit 0` falls straight through
+# into "0. tools" and then into a cold deploy, which with TARGET=aws is a
+# paid one - that is how #1346 happened, and how a mutation test started a
+# real-AWS deploy on 2026-09-18. selftest-hold-resume.sh case 3 and
+# selftest-record-store-s3.sh case 7 extract the span from part 1's opening
+# marker to part 2's closing marker (the whole prelude, function
+# definitions included, stopping before "0. tools") and run that text
+# instead. The extracted text ENDS at the dispatch, so no mutation inside it
+# can reach a deploy: there is nothing after it to reach.
+# >>> teardown-only dispatch part 1
 livecert_marker_get() {
   grep -m1 "^$2=" "$1" 2>/dev/null | cut -d= -f2-
 }
@@ -169,11 +218,19 @@ if [ -n "$TEARDOWN_ONLY_DIR" ]; then
   TARGET="${TARGET:-$(livecert_marker_get "$COLD_MARKER_EARLY" TARGET)}"
   REGION="${REGION:-$(livecert_marker_get "$COLD_MARKER_EARLY" REGION)}"
   RECORD_STORE_BACKEND="${RECORD_STORE_BACKEND:-$(livecert_marker_get "$COLD_MARKER_EARLY" RECORD_STORE_BACKEND)}"
+  # The bucket travels with the backend (#1145). Without it a held s3
+  # estate could not be torn down at all: the RECORD_STORE_BUCKET:? refusal
+  # a few dozen lines below fires before the dispatch reaches teardown(),
+  # so every object stays in the bucket and the operator is told only that
+  # a variable is missing. Empty for every other backend, where the
+  # refusal does not apply.
+  RECORD_STORE_BUCKET="${RECORD_STORE_BUCKET:-$(livecert_marker_get "$COLD_MARKER_EARLY" RECORD_STORE_BUCKET)}"
   SCALE="${SCALE:-$(livecert_marker_get "$COLD_MARKER_EARLY" SCALE)}"
   [ -n "$PREFIX" ] && [ -n "$TARGET" ] && [ -n "$REGION" ] \
     || { echo "teardown: $COLD_MARKER_EARLY is missing PREFIX/TARGET/REGION - a marker from an older script version?" >&2; exit 2; }
   LIVECERT_WORK_DIR="${LIVECERT_WORK_DIR:-$TEARDOWN_ONLY_DIR}"
 fi
+# <<< teardown-only dispatch part 1
 
 TARGET="${TARGET:-floci}"
 REGION="${REGION:-us-east-1}"
@@ -204,16 +261,36 @@ HOLD_TAG=""
 # pieces (identity as tags, values in a record store, effects as receipts),
 # only identity was genuinely under test.
 #
-# "ssm" is the default for TARGET=aws because it needs nothing created first:
-# it writes under a prefix derived from the estate name, and teardown is a
-# prefix delete. "s3" needs a bucket the run would have to make and destroy.
-# floci keeps "local", because the point there is speed and the emulator's
-# Parameter Store is not what is under test.
+# "s3" is the default for TARGET=aws, and it needs RECORD_STORE_BUCKET to
+# name a bucket that already exists - the run writes two key namespaces into
+# it and deletes those two at teardown, and never creates or destroys the
+# bucket itself. examples/record-store-bucket stands a correct one up. Until
+# GitHub issue #1346 the aws default was "ssm", which needed nothing created
+# first; Parameter Store is retired as a record store and choudoufu refuses
+# the block, so that convenience is gone with it.
+# floci keeps "local", because the point there is speed - but a floci run
+# that names s3 explicitly gets the same 4a2 values check and the same
+# record-store teardown an aws run gets, against the emulator's own
+# endpoint (#1145). That is how the s3 arms get exercised without paying
+# for a real-AWS cycle.
+# The two marker lines bracket everything that decides the backend, so
+# selftest-record-store-s3.sh can run this block alone. It must never be
+# tested by executing this script: a selection that fails to refuse lets the
+# run carry on, and with TARGET=aws that is a paid run. That happened once,
+# from a mutation test (GitHub issue #1346).
+# >>> record store backend selection
 if [ "$TARGET" = "aws" ]; then
-  RECORD_STORE_BACKEND="${RECORD_STORE_BACKEND:-ssm}"
+  RECORD_STORE_BACKEND="${RECORD_STORE_BACKEND:-s3}"
 else
   RECORD_STORE_BACKEND="${RECORD_STORE_BACKEND:-local}"
 fi
+#
+# Every branch on RECORD_STORE_BACKEND below this point is a three-way case
+# with a loud default, never an `if ssm ... else`. Issue #1145: the two that
+# were written as `if ssm` treated s3 as local disk - one skipped the
+# values-piece check while printing that the store was local disk, the other
+# skipped teardown's record-store cleanup and left every object behind.
+RECORD_KEY_PREFIX="choudoufu/livecert/$PREFIX"
 case "$RECORD_STORE_BACKEND" in
   local) RECORD_STORE_ARGS='      path = ".tofu-records"' ;;
   # key_prefix is a record KEY prefix, not an SSM parameter path, so it is
@@ -221,15 +298,41 @@ case "$RECORD_STORE_BACKEND" in
   # shape loudly). The ssm backend renders it into the parameter name
   # "/choudoufu/livecert/$PREFIX/...", which is what SSM_PREFIX below
   # counts and tears down. Issue #916.
-  ssm)   RECORD_STORE_ARGS="      key_prefix = \"choudoufu/livecert/$PREFIX\"
+  # Retired (#1346). Only a teardown-only dispatch gets past this: it
+  # generates no configuration, and it is how the parameters a held run from
+  # before #1346 wrote get deleted. The ssm arms in teardown and in the
+  # emptiness check below stay for that and nothing else.
+  ssm)   if [ -z "$TEARDOWN_ONLY_DIR" ]; then
+           echo "RECORD_STORE_BACKEND=ssm: Parameter Store is retired as a record store (GitHub issue #1346) and choudoufu refuses record_store \"ssm\", so this run could not get past its first plan. Use RECORD_STORE_BACKEND=s3 with RECORD_STORE_BUCKET naming an existing bucket (examples/record-store-bucket stands one up). Only a teardown-only dispatch of a work dir from before #1346 may still name ssm." >&2
+           exit 2
+         fi
+         RECORD_STORE_ARGS="      key_prefix = \"$RECORD_KEY_PREFIX\"
       region     = \"$REGION\"" ;;
   s3)    : "${RECORD_STORE_BUCKET:?RECORD_STORE_BACKEND=s3 needs RECORD_STORE_BUCKET}"
          RECORD_STORE_ARGS="      bucket     = \"$RECORD_STORE_BUCKET\"
-      key_prefix = \"choudoufu/livecert/$PREFIX\"
+      key_prefix = \"$RECORD_KEY_PREFIX\"
       region     = \"$REGION\"" ;;
-  *)     echo "unknown RECORD_STORE_BACKEND: $RECORD_STORE_BACKEND" >&2; exit 2 ;;
+  *)     echo "unknown RECORD_STORE_BACKEND: $RECORD_STORE_BACKEND (want local or s3)" >&2; exit 2 ;;
 esac
-SSM_PREFIX="/choudoufu/livecert/$PREFIX"
+# <<< record store backend selection
+# Where this run's records land, per backend, as an outside observer names
+# them. The ssm backend prepends "/" to the key prefix to make a legal
+# parameter path; the s3 backend uses the key prefix verbatim as an object
+# key prefix. Both measured against floci on 2026-09-17 with the fixture in
+# issue #1145's thread.
+SSM_PREFIX="/$RECORD_KEY_PREFIX"
+S3_PREFIX="$RECORD_KEY_PREFIX/"
+# The guided-discovery hint (internal/live/projection/hint_store.go's
+# HintKey) does NOT live under the configured key_prefix: it is keyed
+# "tofu-hints/<estate>/guided", deliberately disjoint from the record
+# namespace so orphan discovery can never mistake it for a record. A
+# key_prefix-scoped teardown therefore misses it. Measured against floci on
+# 2026-09-17: an apply with record_store "s3" left
+# "tofu-hints/<estate>/guided" in the bucket beside the three keys under the
+# prefix, and the ssm run left "/tofu-hints/<estate>/guided" in Parameter
+# Store - which the pre-#1145 ssm teardown, prefix-scoped, also left behind.
+HINT_SSM_PREFIX="/tofu-hints/$ESTATE"
+HINT_S3_PREFIX="tofu-hints/$ESTATE/"
 WORK="${LIVECERT_WORK_DIR:-${LIVECERT_RESUME:-$(mktemp -d)}}"
 mkdir -p "$WORK"
 FLOCI_PORT="${FLOCI_PORT:-4817}"
@@ -251,7 +354,185 @@ ADOPTED_DIR="$WORK/adopted"
 EXPECTED=$((74 * SCALE + 5))    # total resources
 VERIFIED=$((33 * SCALE + 5))    # taggable (VERIFIED/DRIFTED-eligible) resources - 18 named-team + 1 service-exec-role + 6 count-expanded + 6 module-nested + 2 container per scale, plus a fixed 5 (zone, VPC, subnet, SG, cluster)
 
+# ── what the tag index can actually hold (issue #1143) ──────────────────
+#
+# VERIFIED above counts what migrate STAMPS. index_wait() used to poll the
+# Resource Groups Tagging API for that same number, which cannot be reached:
+# a majority of the stamped objects are of types GetResources never returns,
+# or returns only in a region this run does not query. The wait therefore
+# burned its whole bound on every real-AWS run - 3600s of dead time at scale
+# 50 - and then printed a line that read like a measurement of index lag.
+# It was not measuring lag. The target was wrong.
+#
+# index_partition() splits VERIFIED three ways, by TYPE, against what real
+# AWS was measured to do on #1134/#1144:
+#
+#   regional   2*SCALE + 4   aws_ecs_task_definition, aws_ecs_service (1 each
+#                            per scale); aws_ecs_cluster, aws_vpc,
+#                            aws_subnet, aws_security_group (1 each, fixed).
+#                            Ordinary regional objects: the index holds them
+#                            in the region they live in, which is this run's.
+#
+#   global    20*SCALE + 1   aws_iam_policy, aws_iam_instance_profile (10
+#                            each per scale: 6 named-team + 2 count-expanded
+#                            + 2 module-nested); aws_route53_zone (1, fixed).
+#                            IAM and Route53 are global services and the tag
+#                            index holds their objects in us-east-1 ONLY,
+#                            whatever region the caller is in (#1144). So
+#                            these count toward the target only when this
+#                            run's own REGION is us-east-1.
+#
+#   unindexed 11*SCALE       aws_iam_role (6 named-team + 2 count-expanded +
+#                            2 module-nested + 1 service-exec per scale).
+#                            GetResources returns NOTHING for iam:role in any
+#                            region, while iam:ListRoleTags confirms every
+#                            one of them carries tofu-estate (#1134, 550 of
+#                            550 at scale 50, stable over 35 minutes). These
+#                            are unreachable from the tag index anywhere, so
+#                            no bound can ever absorb them.
+#
+# The split is not an estimate. It reproduces all three real-AWS plateaus on
+# record, to the object:
+#
+#   scale  50, us-east-2 -> 2*50+4  = 104   measured 104 (101 ecs + 3 ec2)
+#   scale  50, us-east-1 -> 22*50+5 = 1105  measured 1105 (104 + 1000 iam + 1 zone, unioned)
+#   scale 128, us-east-2 -> 2*128+4 = 260   measured 260 (257 ecs + 3 ec2)
+#
+# DECISION, the one #1143 asks for explicitly: livecert_rgta_count keeps
+# querying $REGION alone; it does NOT additionally query us-east-1 for the
+# global types. The wait exists to let the index settle before test_plan
+# READS it, and what test_plan reads is (a) 4a2's own identity check, the
+# same single-region livecert_rgta_count, and (b) choudoufu's own sweep,
+# which is region-pinned. Unioning us-east-1 into the target would make the
+# run wait on objects nothing downstream of the wait consults.
+#
+# #1144 HAS NOW LANDED, and this is the comment that said it would be the
+# place to record what it decided. Two things, and neither moves this
+# function:
+#
+#   The product's sweep became region-aware, and it did so by KNOWING where
+#   the index holds a type rather than by querying a second region for it.
+#   internal/live/discovery's taggingAPITypeCoverage records that
+#   GetResources holds aws_iam_policy and aws_iam_instance_profile in
+#   us-east-1 only, and arnJoinReaches routes accordingly: in us-east-1
+#   those two types now ride the estate-wide GetResources call, and outside
+#   it they still go to the per-type leg. No cross-region call was added, on
+#   either side.
+#
+#   So the sentence this comment used to carry - "routes every aws_iam_ type
+#   away from the tagging leg entirely" - is now FALSE for a us-east-1 run,
+#   and that makes the wait MORE load-bearing there, not less: test_plan's
+#   sweep reads the index for two of the three IAM types. index_partition
+#   already counts the global bucket toward the target only when REGION is
+#   us-east-1, which is exactly the condition under which the product now
+#   reads it, so the split needs no change. aws_iam_role stays in the
+#   unindexed bucket and stays routed away, in every region, on both sides.
+index_partition() {
+  local region="$1"
+  local regional=$(( 2 * SCALE + 4 ))
+  local global=$(( 20 * SCALE + 1 ))
+  local unindexed=$(( 11 * SCALE ))
+  local target=$regional
+  if [ "$region" = "us-east-1" ]; then
+    target=$(( regional + global ))
+  fi
+  printf '%s %s %s %s\n' "$target" "$regional" "$global" "$unindexed"
+}
+
+# index_partition_is_total returns 0 when the split covers every stamped
+# object exactly once, and non-zero with a diagnosis on stdout when it does
+# not. The partition MUST be total: if it is not, either terralith-gen's
+# composition moved under the VERIFIED formula or the formula moved under the
+# split, and either way the target index_wait polls to has stopped being
+# derived from anything. A kept-separate function rather than an inline `if`
+# so selftest-index-wait.sh can extract it verbatim and prove it red.
+index_partition_is_total() {
+  local _target regional global unindexed sum
+  IFS=' ' read -r _target regional global unindexed <<< "$(index_partition "$1")"
+  sum=$(( regional + global + unindexed ))
+  if [ "$sum" -ne "$VERIFIED" ]; then
+    printf 'index_partition at scale=%s splits VERIFIED into %s regional + %s global + %s unindexed = %s, but VERIFIED is %s - the split and the formula have drifted apart, so index_wait has no derivable target (issue #1143)\n' \
+      "$SCALE" "$regional" "$global" "$unindexed" "$sum" "$VERIFIED"
+    return 1
+  fi
+  return 0
+}
+
+# Checked at CONFIG time, before a single billable object exists: the whole
+# point of #1143 is not to discover a bad target after cold_deploy has
+# already spent the money.
+INDEX_PARTITION_DIAG="$(index_partition_is_total "$REGION")" \
+  || { echo "$INDEX_PARTITION_DIAG" >&2; exit 2; }
+
 log() { printf '%s\n' "$*"; }
+
+# >>> heartbeat block
+# ── heartbeat (issue #1324) ─────────────────────────────────────────────
+#
+# This log is written at stage boundaries only, and the gaps between them
+# are hours. Measured on the scale-128 run #1324 was filed from:
+#
+#   Apply complete! Resources: 9477 added ... in 5633s   <- 1h34m of silence
+#   stock-terraform plan run 1: 811s (empty)             <- 13.5m of silence
+#
+# For 1h34m the file does not grow, so a healthy cold_deploy and a wedged
+# one are byte-identical from outside and the only way to tell them apart is
+# to attach to the process. That is not a theoretical hazard here: a
+# scale-50 run blocked for ~40 minutes at 0% CPU on
+# CreatePolicy/EntityAlreadyExists and was unblocked by a hand SIGTERM,
+# which is why UNTRUSTED_TEARDOWN_TIMEOUT_S exists at all.
+#
+# One line per interval naming the stage and its elapsed seconds is enough.
+# It is not progress and does not try to be - it is evidence the process is
+# alive, which is the one thing the silence takes away.
+#
+# It runs as its own subshell rather than as anything inside a stage. Two
+# reasons: a stage is a straight line of blocking commands with nowhere to
+# put a periodic call, and index_wait in particular must keep reading the
+# clock exactly as often as it does today, because
+# live/live-cert/selftest-index-wait.sh shadows `date` and `sleep` and pins
+# its poll and clock-read counts (#1410).
+LIVECERT_HEARTBEAT_S="${LIVECERT_HEARTBEAT_S:-60}"
+HEARTBEAT_PID=""
+
+# heartbeat_stop is called far more often than heartbeat_start: at every
+# stage end, at the start of the next stage, from fail(), from on_signal()
+# and from teardown(). A heartbeat that outlives its stage would interleave
+# its lines with teardown's, and one that outlives the SCRIPT is worse than
+# noise: a background child holding the stdout pipe open makes the Go side's
+# cmd.Wait() sit out its whole WaitDelay after the script has already
+# exited, turning a finished run into "WaitDelay expired before I/O
+# complete" 30 seconds later.
+heartbeat_stop() {
+  [ -n "$HEARTBEAT_PID" ] || return 0
+  kill "$HEARTBEAT_PID" 2>/dev/null
+  wait "$HEARTBEAT_PID" 2>/dev/null
+  HEARTBEAT_PID=""
+}
+
+# heartbeat_start begins a heartbeat for one stage. LIVECERT_HEARTBEAT_S=0
+# turns it off entirely, which is what the selftests that count lines do.
+heartbeat_start() {
+  heartbeat_stop
+  case "${LIVECERT_HEARTBEAT_S:-0}" in
+    ''|*[!0-9]*) return 0 ;;
+    0) return 0 ;;
+  esac
+  local stage="$1" parent=$$ started
+  started="$(date +%s)"
+  (
+    while :; do
+      sleep "$LIVECERT_HEARTBEAT_S"
+      # Do not outlive the script. If the parent is gone - killed, or
+      # SIGKILLed past its own trap - this subshell exits on its own
+      # rather than printing into a pipe nobody is reading.
+      kill -0 "$parent" 2>/dev/null || exit 0
+      printf 'HEARTBEAT stage=%s elapsed_s=%s\n' "$stage" "$(( $(date +%s) - started ))"
+    done
+  ) &
+  HEARTBEAT_PID=$!
+}
+# <<< heartbeat block
 
 case "$TARGET" in
   floci) ENDPOINT="http://127.0.0.1:${FLOCI_PORT}" ;;
@@ -280,13 +561,77 @@ UNTRUSTED_TEARDOWN_TIMEOUT_S="${UNTRUSTED_TEARDOWN_TIMEOUT_S:-180}"
 # the same bug in teardown skipped the delete loop and left 75 parameters
 # behind. Counting names line-by-line aggregates across pages correctly.
 ssm_prefix_count() {
-  aws ssm get-parameters-by-path --path "$1" --recursive \
+  livecert_aws ssm get-parameters-by-path --path "$1" --recursive \
     --query 'Parameters[].Name' --output text 2>/dev/null \
     | tr '\t' '\n' | grep -c . || true
 }
 
+# s3_prefix_count is ssm_prefix_count's opposite number for the s3 backend:
+# same line-counting shape, for the same paging reason, with one extra trap
+# of its own.
+#
+# `Contents` is ABSENT from a list-objects-v2 response that matched nothing,
+# where `Parameters` is present-and-empty in the ssm case. JMESPath projects
+# a missing key to null, and `--output text` renders null as the literal
+# string "None" - so the direct transliteration of ssm_prefix_count returns
+# 1 for an empty prefix. Measured against floci on 2026-09-17:
+#
+#   $ aws s3api list-objects-v2 --bucket B --prefix nothing/here/ \
+#       --query 'Contents[].Key' --output text | od -c
+#   0000000    N   o   n   e  \n
+#
+# That number is wrong in the direction that hides both defects this
+# function exists for: the values-piece check would pass on a store nothing
+# ever wrote to, and teardown's "remaining after delete" would report one
+# phantom object forever. `|| `[]`` makes the empty case an empty list,
+# which --output text renders as nothing at all.
+#
+# A listing that FAILS is not a count of zero (#1421). This used to be
+# `2>/dev/null ... || true`, which read a throttled, denied or
+# unauthenticated list-objects-v2 as 0. In the values check that is a false
+# failure, which is loud; in teardown it is the quiet direction: "0
+# object(s) to delete", the `s3 rm` skipped, and the run's records left in
+# the operator's bucket under a line that reads clean. Now the count reaches
+# stdout only when the listing succeeded and every line of it is a key
+# under the prefix. Otherwise a FATAL line on stderr names the bucket, the
+# prefix and what went wrong, nothing goes to stdout, and the status is
+# non-zero, so a caller that ignores the status gets an empty string and a
+# caller that checks it can refuse by name. Every caller checks it.
+s3_prefix_count() {
+  local raw rc n key
+  raw="$(livecert_aws s3api list-objects-v2 --bucket "$RECORD_STORE_BUCKET" --prefix "$1" \
+    --query 'Contents[].Key || `[]`' --output text 2>&1)"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf 'FATAL: s3_prefix_count: list-objects-v2 on s3://%s/%s exited %s: %s\n' \
+      "$RECORD_STORE_BUCKET" "$1" "$rc" "$(printf '%s' "$raw" | tr '\n' ' ' | cut -c1-400)" >&2
+    return 1
+  fi
+  # A key listed under --prefix starts with that prefix. Anything else on
+  # stdout - the literal "None", a warning the CLI put there, an HTML page
+  # from a proxy - is not a listing, and a count of its lines would be a
+  # number that measured nothing.
+  n=0
+  while IFS= read -r key; do
+    [ -n "$key" ] || continue
+    case "$key" in
+      "$1"*) n=$((n + 1)) ;;
+      *)
+        printf 'FATAL: s3_prefix_count: list-objects-v2 on s3://%s/%s printed a line that is not a key under that prefix: %s\n' \
+          "$RECORD_STORE_BUCKET" "$1" "$(printf '%s' "$key" | cut -c1-200)" >&2
+        return 1
+        ;;
+    esac
+  done <<< "$(printf '%s\n' "$raw" | tr '\t' '\n')"
+  printf '%s\n' "$n"
+}
+
 teardown() {
   [ "$TEARDOWN_DONE" = "1" ] && return 0
+  # Before the banner, so no heartbeat line lands in the middle of
+  # teardown's own output and nothing is left holding the stdout pipe
+  # after this function returns (#1324).
+  heartbeat_stop
   log "=== TEARDOWN (target=$TARGET run=$RUN_ID prefix=$PREFIX scale=$SCALE) ==="
 
   # LIVECERT_HOLD=1 (#1032): the maintainer's own complaint, verbatim -
@@ -373,16 +718,85 @@ EOF
   # The record store is not tagged and no destroy reaches it, so it needs its
   # own teardown. Doing it here rather than in sweep() because it must run on
   # every exit path, including a run that never reached test_plan.
-  if [ "$RECORD_STORE_BACKEND" = "ssm" ] && [ "$TARGET" = "aws" ]; then
-    rs_left="$(ssm_prefix_count "$SSM_PREFIX")"
-    log "  record store (ssm $SSM_PREFIX): $rs_left parameter(s) to delete"
-    if [ "${rs_left:-0}" -gt 0 ]; then
-      aws ssm get-parameters-by-path --path "$SSM_PREFIX" --recursive \
-        --query 'Parameters[].Name' --output text 2>/dev/null | tr '\t' '\n' \
-        | while read -r n; do [ -n "$n" ] && aws ssm delete-parameter --name "$n" >/dev/null 2>&1; done
-      log "    remaining after delete: $(ssm_prefix_count "$SSM_PREFIX")"
-    fi
-  fi
+  #
+  # Three-way, with a loud default (#1145). The two namespaces are deleted
+  # separately because the guided-discovery hint does not live under the
+  # configured key_prefix - see HINT_SSM_PREFIX/HINT_S3_PREFIX above. The
+  # TARGET=aws gate the ssm arm used to carry is gone with it: both arms now
+  # go through livecert_aws, which addresses floci's endpoint on a floci run
+  # and the account on an aws one, so the cleanup a real run will do is the
+  # cleanup an emulator run exercises.
+  case "$RECORD_STORE_BACKEND" in
+    local)
+      # Nothing to delete out of band: the local store is ".tofu-records"
+      # inside $ADOPTED_DIR, which is inside $WORK, which this function
+      # removes wholesale at its very end (LIVECERT_KEEP_WORK=1 opts out,
+      # and then the records are meant to still be there).
+      log "  record store (local disk): a directory inside \$WORK, removed with it at the end of teardown unless LIVECERT_KEEP_WORK=1; nothing to delete out of band"
+      ;;
+    ssm)
+      rs_left="$(ssm_prefix_count "$SSM_PREFIX")"
+      log "  record store (ssm $SSM_PREFIX): $rs_left parameter(s) to delete"
+      if [ "${rs_left:-0}" -gt 0 ]; then
+        livecert_aws ssm get-parameters-by-path --path "$SSM_PREFIX" --recursive \
+          --query 'Parameters[].Name' --output text 2>/dev/null | tr '\t' '\n' \
+          | while read -r n; do [ -n "$n" ] && livecert_aws ssm delete-parameter --name "$n" >/dev/null 2>&1; done
+        log "    remaining after delete: $(ssm_prefix_count "$SSM_PREFIX")"
+      fi
+      hint_left="$(ssm_prefix_count "$HINT_SSM_PREFIX")"
+      log "  guided-discovery hint (ssm $HINT_SSM_PREFIX): $hint_left parameter(s) to delete"
+      if [ "${hint_left:-0}" -gt 0 ]; then
+        livecert_aws ssm get-parameters-by-path --path "$HINT_SSM_PREFIX" --recursive \
+          --query 'Parameters[].Name' --output text 2>/dev/null | tr '\t' '\n' \
+          | while read -r n; do [ -n "$n" ] && livecert_aws ssm delete-parameter --name "$n" >/dev/null 2>&1; done
+        log "    remaining after delete: $(ssm_prefix_count "$HINT_SSM_PREFIX")"
+      fi
+      ;;
+    s3)
+      # `s3 rm --recursive` rather than a per-key delete-object loop: it
+      # batches 1000 keys per DeleteObjects request and pages the listing
+      # itself, which is what makes this survivable at the 10k rung the s3
+      # backend exists for. It exits 0 on a prefix that matches nothing.
+      # The BUCKET is the operator's and is never deleted - only the two key
+      # namespaces this run wrote.
+      #
+      # Each count is taken only if s3_prefix_count could list the prefix
+      # (#1421). When it could not, this arm stops for that prefix with a
+      # line that says so: no "0 object(s) to delete", no "remaining after
+      # delete: 0", no `s3 rm` fired at a prefix nothing enumerated, and
+      # the command that cleans it by hand. verify_empty below lists the
+      # same store and refuses its own EMPTY verdict on the same failure.
+      if rs_left="$(s3_prefix_count "$S3_PREFIX")"; then
+        log "  record store (s3 s3://$RECORD_STORE_BUCKET/$S3_PREFIX): $rs_left object(s) to delete"
+        if [ "$rs_left" -gt 0 ]; then
+          livecert_aws s3 rm "s3://$RECORD_STORE_BUCKET/$S3_PREFIX" --recursive >/dev/null 2>&1
+          if rs_after="$(s3_prefix_count "$S3_PREFIX")"; then
+            log "    remaining after delete: $rs_after"
+          else
+            log "    remaining after delete: NOT KNOWN - the listing after the delete failed (FATAL above); the delete ran, and what it left cannot be told from here"
+          fi
+        fi
+      else
+        log "  record store (s3 s3://$RECORD_STORE_BUCKET/$S3_PREFIX): NOT CLEANED UP - could not list the prefix (FATAL above), so nothing was deleted and nothing here says it is empty; whatever this run wrote is still there until: aws s3 rm s3://$RECORD_STORE_BUCKET/$S3_PREFIX --recursive"
+      fi
+      if hint_left="$(s3_prefix_count "$HINT_S3_PREFIX")"; then
+        log "  guided-discovery hint (s3 s3://$RECORD_STORE_BUCKET/$HINT_S3_PREFIX): $hint_left object(s) to delete"
+        if [ "$hint_left" -gt 0 ]; then
+          livecert_aws s3 rm "s3://$RECORD_STORE_BUCKET/$HINT_S3_PREFIX" --recursive >/dev/null 2>&1
+          if hint_after="$(s3_prefix_count "$HINT_S3_PREFIX")"; then
+            log "    remaining after delete: $hint_after"
+          else
+            log "    remaining after delete: NOT KNOWN - the listing after the delete failed (FATAL above); the delete ran, and what it left cannot be told from here"
+          fi
+        fi
+      else
+        log "  guided-discovery hint (s3 s3://$RECORD_STORE_BUCKET/$HINT_S3_PREFIX): NOT CLEANED UP - could not list the prefix (FATAL above), so nothing was deleted and nothing here says it is empty; whatever this run wrote is still there until: aws s3 rm s3://$RECORD_STORE_BUCKET/$HINT_S3_PREFIX --recursive"
+      fi
+      ;;
+    *)
+      log "  record store: UNKNOWN backend \"$RECORD_STORE_BACKEND\" - nothing was deleted; whatever this run wrote is still there"
+      ;;
+  esac
 
   if verify_empty; then
     log "  VERIFIED EMPTY by listing: nothing matching prefix=$PREFIX or tag tofu-cert-run=$RUN_ID remains"
@@ -397,7 +811,7 @@ EOF
   fi
 
   if [ "$TARGET" = "floci" ]; then
-    docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+    gauntlet_floci_teardown "$FLOCI_NAME"
   fi
 
   # Every number this run needs (stage verdicts, timings, throttle/retry/
@@ -414,6 +828,7 @@ EOF
 
 CURRENT_STAGE=""
 fail() {
+  heartbeat_stop
   printf 'FAIL: %s\n' "$*" >&2
   [ -n "$CURRENT_STAGE" ] && gauntlet_stage "$CURRENT_STAGE" fail "$*$HOLD_TAG"
   exit 1
@@ -422,6 +837,7 @@ fail() {
 APPLY_PID=""
 on_signal() {
   local sig="$1"
+  heartbeat_stop
   log "=== caught $sig - forwarding to in-flight child (pid ${APPLY_PID:-none}) and tearing down ==="
   if [ -n "$APPLY_PID" ] && kill -0 "$APPLY_PID" 2>/dev/null; then
     kill -TERM "$APPLY_PID" 2>/dev/null || true
@@ -556,6 +972,91 @@ generate_estate() {
   sed -i.bak -E "s/arn:aws:iam::1[0-9]{11}:root/arn:aws:iam::${CALLER_ACCOUNT_ID}:root/g" "$dir/iam.tf" && rm -f "$dir/iam.tf.bak"
 }
 
+# ── IAM role headroom (issue #1230) ─────────────────────────────────────
+#
+# The one quota this estate is known to have run into from outside a run
+# (#1150: "their combined 1,100 IAM roles"), checked before cold_deploy has
+# created anything, so exhaustion reads as a refusal of this rung rather
+# than as the product failing to deploy. See the header's item 4 for the
+# framing; this comment is about the mechanics.
+#
+# The need side is NOT a constant in this file. EXPECTED/VERIFIED above are
+# formulas that track tools/terralith-gen by hand and carry a MUST-update
+# note; a roles-per-scale constant typed here from the incident's numbers
+# would be exactly the false-verdict hazard #1230 names, in the other
+# direction. iam_roles_needed asks the generator (`-iam-roles`, backed by
+# IAMRoleInstances and TestIAMRoleInstancesMatchGeneratedHCL, which
+# expands the generated HCL's count/for_each and pins the result), so the
+# number here moves when the generator's does and nowhere else.
+#
+# The account side is `aws iam get-account-summary`, one free call, whose
+# SummaryMap carries Roles and RolesQuota. `--output text` on a two-element
+# projection prints them tab-separated on one line; a missing key prints
+# "None", which the integer checks below turn into fail-open.
+#
+# Fail OPEN, loudly, on anything that stops the check from running. A
+# refusal is recorded on the ladder as this scale's outcome (#1151), and a
+# refusal minted from a throttled or misconfigured IAM call would be a
+# false record of the same kind cold_deploy's LimitExceeded was. The check
+# exists to catch the case that happened, not to gate every run on a second
+# API being up. The line it prints when it steps aside is deliberately
+# hard to miss and says why, so a later LimitExceeded has its explanation
+# in the same log.
+#
+# Two functions rather than one so live/live-cert/selftest-iam-headroom.sh
+# can extract iam_role_headroom_check between the markers below and drive
+# it with a stubbed iam_roles_needed and a fake `aws` on PATH: no go build,
+# no account, and - per #1380 - never by executing this script. The gate
+# that calls it sits between its own markers just before cold_deploy, and
+# the selftest runs that span too, with a fake `terraform` behind it that
+# must never be reached on the refusal arm.
+# >>> iam role headroom check
+iam_roles_needed() {
+  ( cd "$ROOT" && env -u PWD go run ./tools/terralith-gen -scale "$SCALE" -iam-roles ) 2>"$WORK/iam_roles_needed.err"
+}
+
+iam_role_headroom_check() {
+  local need summary roles quota headroom why=""
+  log "=== 0c. iam role headroom: room in the account for scale=$SCALE's aws_iam_role instances? (#1230) ==="
+  need="$(iam_roles_needed)" \
+    || why="terralith-gen -iam-roles exited non-zero: $(tr '\n' ' ' < "$WORK/iam_roles_needed.err" 2>/dev/null)"
+  if [ -z "$why" ]; then
+    case "$need" in
+      ''|*[!0-9]*) why="terralith-gen -iam-roles printed '$need', not an integer" ;;
+    esac
+  fi
+  if [ -z "$why" ]; then
+    summary="$(livecert_aws iam get-account-summary --query 'SummaryMap.[Roles,RolesQuota]' --output text 2>&1)" \
+      || why="aws iam get-account-summary failed: $(printf '%s' "$summary" | tr '\n' ' ')"
+  fi
+  if [ -z "$why" ]; then
+    read -r roles quota _ <<< "$(printf '%s' "$summary" | tr '\t\n' '  ')"
+    case "${roles:-}" in
+      ''|*[!0-9]*) why="aws iam get-account-summary printed Roles='${roles:-}', not an integer (raw: $(printf '%s' "$summary" | tr '\t\n' '  '))" ;;
+    esac
+  fi
+  if [ -z "$why" ]; then
+    case "${quota:-}" in
+      ''|*[!0-9]*) why="aws iam get-account-summary printed RolesQuota='${quota:-}', not an integer (raw: $(printf '%s' "$summary" | tr '\t\n' '  '))" ;;
+    esac
+  fi
+  if [ -n "$why" ]; then
+    log "  IAM ROLE HEADROOM CHECK COULD NOT RUN - $why"
+    log "  failing OPEN: continuing into cold_deploy without it, so an AWS blip cannot become a refusal on the ladder (#1230); if cold_deploy fails on LimitExceeded for roles, this is why it was not caught here"
+    return 0
+  fi
+  headroom=$(( quota - roles ))
+  if [ "$headroom" -lt 0 ]; then headroom=0; fi
+  if [ "$need" -gt "$headroom" ]; then
+    gauntlet_refused "$SCALE" "$need" "$headroom" iam-roles \
+      "the account holds $roles of its $quota IAM roles (aws iam get-account-summary Roles/RolesQuota), leaving room for $headroom, and terralith-gen -scale $SCALE creates $need aws_iam_role instances; nothing was created and nothing is torn down (#1230)"
+    return 1
+  fi
+  log "  ok: the account holds $roles of its $quota IAM roles, room for $headroom; scale=$SCALE needs $need"
+  return 0
+}
+# <<< iam role headroom check
+
 # verify_empty lists, independently of any destroy command's exit code,
 # whether anything this run created still exists - scoped by name PREFIX
 # (every resource this estate creates, taggable or not) and cross-checked
@@ -626,6 +1127,34 @@ verify_empty() {
     printf '%s\n' "$all" | tr '\t' '\n' | grep -F "/${PREFIX}-cluster"
     return 0
   }
+  # The record store is part of "empty" (#1145). Before this, verify_empty
+  # named only the estate's own AWS resources, so "VERIFIED EMPTY by listing:
+  # nothing matching prefix=$PREFIX ... remains" was printed over a store
+  # still holding every record this run wrote - objects whose keys begin with
+  # that very prefix. Both namespaces are listed, for the same reason
+  # teardown deletes both. Each is an independent listing, not a re-read of
+  # the counts teardown already printed, so a delete that silently did
+  # nothing is caught here rather than believed.
+  case "$RECORD_STORE_BACKEND" in
+    local) ;;
+    ssm)
+      checked_list "record store parameter(s) under $SSM_PREFIX" \
+        livecert_aws ssm get-parameters-by-path --path "$SSM_PREFIX" --recursive --query 'Parameters[].Name' --output text
+      checked_list "guided-discovery hint parameter(s) under $HINT_SSM_PREFIX" \
+        livecert_aws ssm get-parameters-by-path --path "$HINT_SSM_PREFIX" --recursive --query 'Parameters[].Name' --output text
+      ;;
+    s3)
+      checked_list "record store object(s) under s3://$RECORD_STORE_BUCKET/$S3_PREFIX" \
+        livecert_aws s3api list-objects-v2 --bucket "$RECORD_STORE_BUCKET" --prefix "$S3_PREFIX" --query 'Contents[].Key || `[]`' --output text
+      checked_list "guided-discovery hint object(s) under s3://$RECORD_STORE_BUCKET/$HINT_S3_PREFIX" \
+        livecert_aws s3api list-objects-v2 --bucket "$RECORD_STORE_BUCKET" --prefix "$HINT_S3_PREFIX" --query 'Contents[].Key || `[]`' --output text
+      ;;
+    *)
+      printf '  verify_empty: UNKNOWN record store backend "%s" - the store was not checked, so this run is NOT verified empty\n' "$RECORD_STORE_BACKEND"
+      DIRTY=1
+      ;;
+  esac
+
   checked_list "ECS cluster(s)" ecs_clusters_for_prefix
   checked_list "ACTIVE ECS task definition(s) (deregistering these is not required for emptiness - they are free and AWS retains INACTIVE families - but ACTIVE ones would mean the estate config was never removed)" \
     livecert_aws ecs list-task-definitions --family-prefix "${PREFIX}-svc-" --status ACTIVE --query 'taskDefinitionArns' --output text
@@ -748,6 +1277,7 @@ sweep() {
 # for when the trusted stock destroy plus the independent verify-empty
 # listing (and the raw-CLI sweep, if anything survives) is what "tear this
 # down" actually needs.
+# >>> teardown-only dispatch part 2
 if [ -n "$TEARDOWN_ONLY_DIR" ]; then
   log "=== teardown-only: $TEARDOWN_ONLY_DIR (target=$TARGET region=$REGION prefix=$PREFIX scale=$SCALE run_id=$RUN_ID) ==="
   log "  running the bounded, trusted stock destroy plus the verify-empty listing only - not the best-effort choudoufu destroy path (see this dispatch's own comment above)"
@@ -762,6 +1292,7 @@ if [ -n "$TEARDOWN_ONLY_DIR" ]; then
   log "=== teardown-only: done ==="
   exit 0
 fi
+# <<< teardown-only dispatch part 2
 
 # ── 0. tools ────────────────────────────────────────────────────────────
 log "=== 0. tools (target=$TARGET run_id=$RUN_ID prefix=$PREFIX scale=$SCALE) ==="
@@ -790,7 +1321,7 @@ fi
 # ── 0b. the endpoint ────────────────────────────────────────────────────
 if [ "$TARGET" = "floci" ]; then
   log "=== 0b. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-  docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+  gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
     || fail "docker run for $FLOCI_NAME failed"
   healthy=0
   for _ in $(seq 1 45); do
@@ -1156,6 +1687,20 @@ instrumented_plan() {
   printf '%s %s %s %s %s\n' "$label" "$_b" "$_t" "$_r" "$_p" >> "$WORK/plan_throttle_by_label.txt"
 }
 
+# The IAM role headroom gate (#1230): before cold_deploy, and only on a run
+# that is about to do one. A resumed run (RESUMED=1) skips cold_deploy and
+# so skips this - its roles already exist and are its own. Exit 2 rather
+# than fail(): fail() would speak a `GAUNTLET stage=cold_deploy fail` line
+# for a stage that never started, and the refusal line is the whole record
+# (#1151). The EXIT trap still runs teardown(), which finds no state to
+# destroy, lists the (empty) prefix, stops the emulator on a floci run and
+# removes WORK - the cleanup a refusal wants, and nothing else.
+# >>> iam role headroom gate
+if [ "$RESUMED" = "0" ]; then
+  iam_role_headroom_check || exit 2
+fi
+# <<< iam role headroom gate
+
 # ══════════════════════════════════════════════════════════════════════
 # cold_deploy + migrate: stock applies the unmodified (AZ/provider-corrected)
 # generator output for real, then choudoufu adopts it. Wrapped in "if not
@@ -1166,6 +1711,7 @@ instrumented_plan() {
 # ══════════════════════════════════════════════════════════════════════
 if [ "$RESUMED" = "0" ]; then
 CURRENT_STAGE=cold_deploy
+heartbeat_start cold_deploy
 log "=== 1. terralith-gen -scale $SCALE -prefix $PREFIX -> $COLD_DIR ==="
 generate_estate "$COLD_DIR"
 log "  expect ${EXPECTED} resources (${VERIFIED} taggable/eligible)"
@@ -1206,6 +1752,7 @@ grep -qE "Apply complete! Resources: ${EXPECTED} added" "$WORK/cold_deploy_apply
   printf 'REGION=%s\n' "$REGION"
   printf 'RUN_ID=%s\n' "$RUN_ID"
   printf 'RECORD_STORE_BACKEND=%s\n' "$RECORD_STORE_BACKEND"
+  printf 'RECORD_STORE_BUCKET=%s\n' "${RECORD_STORE_BUCKET:-}"
   printf 'EXPECTED=%s\n' "$EXPECTED"
   printf 'TIMESTAMP=%s\n' "$(date -u +%FT%TZ)"
 } > "$WORK/.livecert-cold-state"
@@ -1268,6 +1815,7 @@ fi
 # migrate: choudoufu live-import -approve against the stock state file.
 # ══════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=migrate
+heartbeat_start migrate
 log "=== 3. migrate: generate the SAME estate into $ADOPTED_DIR (live block + record_store) ==="
 generate_estate "$ADOPTED_DIR"
 {
@@ -1379,21 +1927,62 @@ fi # RESUMED == 0 (cold_deploy + migrate)
 # selftest-teardown-timeout.sh already uses for teardown()) and drive it
 # against a stubbed `aws` with no real AWS calls.
 index_wait() {
-  log "=== 3c. index wait: polling the tag index for tofu-estate=$ESTATE every ${LIVECERT_INDEX_POLL_S}s, bound ${LIVECERT_INDEX_WAIT_S}s (#1046) ==="
-  local idx_n elapsed start
+  local idx_n elapsed start target regional global unindexed
+  IFS=' ' read -r target regional global unindexed <<< "$(index_partition "$REGION")"
+  INDEX_TARGET_N=$target
+
+  log "=== 3c. index wait: polling the tag index for tofu-estate=$ESTATE in $REGION every ${LIVECERT_INDEX_POLL_S}s, bound ${LIVECERT_INDEX_WAIT_S}s (#1046, #1143) ==="
+  # Say the whole split out loud, every run. A wait that silently narrowed
+  # its target would be #1143 again from the other side: the run would
+  # converge, look complete, and nobody would know it had stopped counting
+  # most of the estate.
+  log "  migrate stamped ${VERIFIED} objects; ${target} of them are what the tag index can hold when queried in ${REGION}, and ${target} is what this wait polls to:"
+  log "    ${regional} regional - aws_ecs_task_definition, aws_ecs_service (per scale); aws_ecs_cluster, aws_vpc, aws_subnet, aws_security_group (fixed)"
+  if [ "$REGION" = "us-east-1" ]; then
+    log "    ${global} global - aws_iam_policy, aws_iam_instance_profile (per scale); aws_route53_zone (fixed). Counted, because the tag index holds global-service objects in us-east-1 and this run's region IS us-east-1"
+  else
+    log "  NOT waiting for ${global} global object(s) - aws_iam_policy, aws_iam_instance_profile, aws_route53_zone. IAM and Route53 are global services whose objects the tag index holds in us-east-1 ONLY, and this run queries ${REGION} (#1144). They exist and they are stamped; they are not visible from here"
+  fi
+  log "  NOT waiting for ${unindexed} aws_iam_role(s) - resourcegroupstaggingapi GetResources returns nothing for iam:role in ANY region, while iam:ListRoleTags confirms every one of them carries tofu-estate (#1134, measured against real AWS and stable over 35 minutes). No bound can absorb these; waiting for them is what made this step unsatisfiable (#1143)"
+
+  if [ "$target" -le 0 ]; then
+    INDEX_LAG_S=0
+    INDEX_CONVERGED=na
+    INDEX_NOTE="tag index wait skipped: nothing this estate stamped is reachable from the index in ${REGION}"
+    log "index wait SKIPPED: nothing this estate stamped is reachable from the tag index in ${REGION}, so there is no target to converge on. Not waiting is the honest answer - a 0-of-0 'converged' would be a false pass, and the bound would be pure dead time"
+    return 0
+  fi
+
   start=$(date +%s)
   while :; do
     idx_n="$(livecert_rgta_count tofu-estate "$ESTATE")"
     elapsed=$(( $(date +%s) - start ))
-    log "  index wait: t=${elapsed}s tag index holds ${idx_n:-0} of ${VERIFIED} stamped"
-    if [ "${idx_n:-0}" -ge "$VERIFIED" ]; then
+    log "  index wait: t=${elapsed}s tag index holds ${idx_n:-0} of a reachable ${target} (of ${VERIFIED} stamped)"
+    if [ "${idx_n:-0}" -ge "$target" ]; then
       INDEX_LAG_S=$elapsed
-      log "index converged after ${INDEX_LAG_S}s: ${idx_n} of ${VERIFIED}"
+      INDEX_CONVERGED=yes
+      INDEX_NOTE="tag index converged on ${idx_n} of a reachable ${target}, itself $((VERIFIED - target)) short of the ${VERIFIED} stamped (see the wait's own breakdown)"
+      log "index converged after ${INDEX_LAG_S}s: ${idx_n} of a reachable ${target}. This is NOT ${VERIFIED} of ${VERIFIED}: $((VERIFIED - target)) stamped object(s) are outside what the tag index can hold from ${REGION} and were never part of the target - see the breakdown above before reading this as 'every object is in the index'"
       return 0
     fi
     if [ "$elapsed" -ge "$LIVECERT_INDEX_WAIT_S" ]; then
       INDEX_LAG_S=$elapsed
-      log "index still at ${idx_n:-0} of ${VERIFIED} after ${LIVECERT_INDEX_WAIT_S}s, proceeding"
+      INDEX_CONVERGED=no
+      INDEX_NOTE="tag index did NOT converge: ${idx_n:-0} of a reachable ${target} after ${LIVECERT_INDEX_WAIT_S}s"
+
+      # This is the second half of #1143. The old code printed "still at N
+      # of M ... proceeding" and returned 0, and the run went on to pass
+      # test_plan - so a bound that tripped on an IMPOSSIBLE target was
+      # indistinguishable, in the log and in the recorded row alike, from a
+      # bound that tripped on a slow index. Now the target is reachable, so
+      # tripping the bound means something: the index genuinely did not
+      # catch up. Say that, and carry index_converged=no into test_plan's
+      # own detail so the recorded row cannot be read as a converged
+      # measurement either. The run still continues, deliberately:
+      # test_plan's own refusal (DIRECT_READ_UNRESOLVED, #1046/#1049) is the
+      # product's verdict on a lagged index, and this step is a measurement,
+      # not a gate.
+      log "index NOT CONVERGED: ${idx_n:-0} of a reachable ${target} after ${LIVECERT_INDEX_WAIT_S}s. The target is what the index CAN hold from ${REGION}, so this is a genuine index lag, not #1143's unsatisfiable target. Proceeding to test_plan, whose own verdict - not this line - is the run's answer; index_converged=no rides into the recorded row"
       return 0
     fi
     sleep "$LIVECERT_INDEX_POLL_S"
@@ -1403,10 +1992,50 @@ index_wait() {
 LIVECERT_INDEX_WAIT_S="${LIVECERT_INDEX_WAIT_S:-1800}"
 LIVECERT_INDEX_POLL_S="${LIVECERT_INDEX_POLL_S:-30}"
 INDEX_LAG_S=0
+# The reachable target index_wait actually polled to, recorded beside the
+# lag so a reader can tell 104 of 104 from 104 of 1655 without the log.
+INDEX_TARGET_N=0
+# yes | no | na (no reachable target) | skipped (not an aws run). Never
+# empty: test_plan's detail carries it as a token, and an empty token would
+# read to tools/gauntlet/scalerecord.go exactly like the old run that could
+# not distinguish converged from timed-out at all.
+INDEX_CONVERGED=skipped
+# One clause of plain prose for the same thing, folded into test_plan's own
+# detail sentence beside the tokens. A token is for the parser; a reader
+# scanning a row should not have to know that index_converged=no is the
+# interesting one.
+INDEX_NOTE="tag index wait skipped (target=$TARGET)"
 if [ "$TARGET" = "aws" ]; then
   index_wait
 else
-  log "=== 3c. index wait: target=$TARGET - the tag index lag is not under test here, skipping ==="
+  # The skip stands, on a narrower reason than it used to carry. #1152
+  # (lex00/floci#205) is FIXED: the pinned emulator serves aws_iam_policy and
+  # aws_iam_instance_profile through GetResources in us-east-1 and nothing
+  # for aws_iam_role, which is what real AWS does, so index_partition's
+  # global half is no longer unserved here. That sentence has been removed
+  # rather than reworded, because a reason that has stopped being true is
+  # worse than no reason at all.
+  #
+  # Two reasons survive it, and neither is about IAM:
+  #
+  #   The emulator's index is written synchronously. A probe tagged an object
+  #   and the very next GetResources returned it, with no settling. Index lag
+  #   is what this wait exists to absorb (#1046, #1049) and it is a real-AWS
+  #   property; a floci run of it would wait zero seconds and report a
+  #   convergence that measured nothing.
+  #
+  #   The target is not derivable from evidence here anyway. index_partition
+  #   builds it from nine types across its regional and global buckets, and
+  #   seven of the nine have no tagging-sweep row at the pinned digest at
+  #   all - silence in live/floci-capabilities.json is "not yet probed", not
+  #   a clean bill of health.
+  #
+  # live/indexwait_partition_test.go holds both halves of that: it goes red
+  # if the emulator starts serving aws_iam_role (which would make the
+  # unindexed bucket wrong here while staying right on AWS), and red again
+  # once all nine target-bearing types are probed and implemented, at which
+  # point this skip is worth re-deciding.
+  log "=== 3c. index wait: target=$TARGET - skipping. The tag index's own lag is a real-AWS property and the emulator's index is written synchronously, so a wait here would measure nothing; and seven of the nine types index_partition derives its target from have no tagging-sweep row at the pinned digest, so there is no evidence-backed target to poll to (see live/indexwait_partition_test.go) ==="
 fi
 
 # ══════════════════════════════════════════════════════════════════════
@@ -1415,6 +2044,7 @@ fi
 # is choudoufu's full estate-wide sweep (#546's O(types) side).
 # ══════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=test_plan
+heartbeat_start test_plan
 log "=== 4. test_plan: choudoufu plan must be empty (instrumented) ==="
 PLAN_LOG="$WORK/test_plan.debug.log"
 PLAN_START=$(date +%s)
@@ -1482,24 +2112,42 @@ if [ "$TARGET" = "aws" ]; then
   ident_n="$(livecert_rgta_count tofu-estate "$ESTATE")"
   log "  identity (tofu-estate=$ESTATE tags in the cloud): $ident_n resource(s)"
   [ "${ident_n:-0}" -gt 0 ] || fail "identity piece unused: no resource in the account carries tofu-estate=$ESTATE"
-
-  if [ "$RECORD_STORE_BACKEND" = "ssm" ]; then
-    rec_n="$(ssm_prefix_count "$SSM_PREFIX")"
-    log "  values (record_store ssm at $SSM_PREFIX): $rec_n parameter(s) in Parameter Store"
-    [ "${rec_n:-0}" -gt 0 ] || fail "values piece unused: record_store is \"ssm\" but $SSM_PREFIX holds no parameters - the store was declared and never written"
-    # A read-side check was tried here and REMOVED as vacuous rather than
-    # kept looking rigorous: it grepped the plan log for "ssm", which matches
-    # the provider's own aws_ssm_parameter type sweep 600+ times on any run,
-    # so it could not fail for the right reason. choudoufu's staterecord SSM
-    # client logs nothing per request (the #682 logging covers the
-    # cloudcontrol/tagging client, a different seam), so there is nothing
-    # honest to grep for until that client logs too. Write-side proof stands;
-    # the read side is proved at the cache stage (5b), whose "state cache
-    # supplied N" line comes from the projection itself.
-  else
-    log "  values: record_store is \"$RECORD_STORE_BACKEND\" (local disk), so the cloud values piece is NOT under test in this run"
-  fi
 fi
+
+# The values check is NOT under the TARGET=aws gate the identity check
+# above keeps (#1145). Identity needs resourcegroupstaggingapi, whose floci
+# coverage is its own question; the record store does not - floci serves
+# both Parameter Store and S3, so a floci run that declares a cloud backend
+# can and must prove the same thing an aws run does. That is what makes the
+# s3 arm below something an emulator run exercises rather than a branch
+# nothing has ever executed.
+#
+# Three-way with a loud default. It used to be `if ssm ... else`, and the
+# else printed "(local disk)" over an s3 store: an s3 run skipped this check
+# entirely and said the reason was a backend it was not using.
+case "$RECORD_STORE_BACKEND" in
+  s3)
+    # A listing that failed is a FATAL line and a non-zero status from
+    # s3_prefix_count, never a 0 (#1421): "could not look" is not "declared
+    # and never written", and this check must not say the second when it
+    # means the first.
+    rec_n="$(s3_prefix_count "$S3_PREFIX")" \
+      || fail "values piece not checked: could not list s3://$RECORD_STORE_BUCKET/$S3_PREFIX (the FATAL line above says why) - refusing to report a state-model verdict for a store this harness could not list"
+    log "  values (record_store s3 at s3://$RECORD_STORE_BUCKET/$S3_PREFIX): $rec_n object(s) in the bucket"
+    [ "${rec_n:-0}" -gt 0 ] || fail "values piece unused: record_store is \"s3\" but s3://$RECORD_STORE_BUCKET/$S3_PREFIX holds no objects - the store was declared and never written"
+    # No read-side check: a grep of the plan log for the store's name was
+    # tried for the retired ssm arm and removed as vacuous (it matched the
+    # provider's own type sweep), and the read side is proved at the cache
+    # stage (5b), whose "state cache supplied N" line comes from the
+    # projection itself.
+    ;;
+  local)
+    log "  values: record_store is \"local\", a directory on disk beside the module, so the CLOUD values piece is NOT under test in this run"
+    ;;
+  *)
+    fail "values piece not checked: unknown record_store backend \"$RECORD_STORE_BACKEND\" - refusing to report a state-model verdict for a store this harness cannot list"
+    ;;
+esac
 
 log "=== 4b. test_plan: throttling/pagination read from the debug log ==="
 if [ "$THROTTLE_LOG" = "1" ] && [ -f "$PLAN_LOG" ]; then
@@ -1533,12 +2181,22 @@ if [ -n "$TP_FAIL" ]; then
   log "=== API CALL SUMMARY (scale=$SCALE, ${EXPECTED} resources, target=$TARGET) - PARTIAL ==="
   printf '%s\n' "$API_CALL_REPORT"
   CURRENT_STAGE=test_plan
+  heartbeat_start test_plan
   # index_lag_s (#1046, #1049) rides along on the SAME detail string a
   # refusal already carries, so a row that reads DIRECT_READ_UNRESOLVED
   # also names how long the index had been given to catch up before this
   # plan ran, without a second field the runner would need to know about -
   # gauntlet_stage's own detail is free text to end of line (see
-  # live/e2e/lib/gauntlet.sh), so this needs no change there. seconds=/
+  # live/e2e/lib/gauntlet.sh), so this needs no change there.
+  #
+  # index_converged=/index_target= (#1143) ride the same way, and they are
+  # what stop index_lag_s from lying. On its own, index_lag_s=3600 says only
+  # "the wait took an hour"; it cannot say whether the index caught up at
+  # 3600s or the bound tripped, and before #1143 the bound tripped on every
+  # real-AWS run because the target could not be reached. A recorded row now
+  # names the target that was actually polled to and whether it was met.
+  #
+  # seconds=/
   # throttle=/retry= (issue #1051) ride the same way: 4b above already
   # measured them before TP_FAIL was ever checked, so a refused plan still
   # reports whatever it cost up to the refusal. plan_calls_choudoufu=/
@@ -1551,7 +2209,7 @@ if [ -n "$TP_FAIL" ]; then
   PLAN_CALLS_TOKENS=""
   [ -n "$CHOUDOUFU_PLAN_CALLS" ] && PLAN_CALLS_TOKENS="plan_calls_choudoufu=${CHOUDOUFU_PLAN_CALLS}"
   [ -n "$STOCK_PLAN_CALLS" ] && PLAN_CALLS_TOKENS="${PLAN_CALLS_TOKENS}${PLAN_CALLS_TOKENS:+ }plan_calls_stock=${STOCK_PLAN_CALLS}"
-  fail "${TP_FAIL} index_lag_s=${INDEX_LAG_S} seconds=${PLAN_S} throttle=${THROTTLE_HITS} retry=${RETRY_LINES} ${PLAN_CALLS_TOKENS}"
+  fail "${TP_FAIL} ${INDEX_NOTE}; index_lag_s=${INDEX_LAG_S} index_converged=${INDEX_CONVERGED} index_target=${INDEX_TARGET_N} seconds=${PLAN_S} throttle=${THROTTLE_HITS} retry=${RETRY_LINES} ${PLAN_CALLS_TOKENS}"
 fi
 
 log "=== 4c. test_plan: rendered identity checked against the AWS CLI directly (spot check: the zone and one team role) ==="
@@ -1571,7 +2229,7 @@ log "  zone $ZONEID and role $ROLEARN: tofu-address confirmed via the AWS CLI di
 PLAN_CALLS_TOKENS=""
 [ -n "$CHOUDOUFU_PLAN_CALLS" ] && PLAN_CALLS_TOKENS="plan_calls_choudoufu=${CHOUDOUFU_PLAN_CALLS}"
 [ -n "$STOCK_PLAN_CALLS" ] && PLAN_CALLS_TOKENS="${PLAN_CALLS_TOKENS}${PLAN_CALLS_TOKENS:+ }plan_calls_stock=${STOCK_PLAN_CALLS}"
-gauntlet_stage test_plan pass "post-migrate plan is empty in ${PLAN_S}s; zone/role tofu-address confirmed via the AWS CLI; debug log ${PLAN_LOG_BYTES} bytes, ${THROTTLE_HITS} throttling-error line(s), ${RETRY_LINES} retry line(s); index_lag_s=${INDEX_LAG_S} seconds=${PLAN_S} throttle=${THROTTLE_HITS} retry=${RETRY_LINES} ${PLAN_CALLS_TOKENS}$HOLD_TAG"
+gauntlet_stage test_plan pass "post-migrate plan is empty in ${PLAN_S}s; zone/role tofu-address confirmed via the AWS CLI; debug log ${PLAN_LOG_BYTES} bytes, ${THROTTLE_HITS} throttling-error line(s), ${RETRY_LINES} retry line(s); ${INDEX_NOTE}; index_lag_s=${INDEX_LAG_S} index_converged=${INDEX_CONVERGED} index_target=${INDEX_TARGET_N} seconds=${PLAN_S} throttle=${THROTTLE_HITS} retry=${RETRY_LINES} ${PLAN_CALLS_TOKENS}$HOLD_TAG"
 
 # Issue #578: the same three-run, TF_LOG-unset measurement stock got at
 # 2c, on the migrated estate, so the two sides differ in the binary and
@@ -1644,6 +2302,7 @@ fi
 # test_apply: applying the empty plan is a genuine no-op.
 # ══════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=test_apply
+heartbeat_start test_apply
 log "=== 5. test_apply: the empty plan applies as a genuine no-op ==="
 BEFORE_N="$(livecert_rgta_count tofu-cert-run "$RUN_ID")"
 NOOP_OUT="$(cd "$ADOPTED_DIR" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; NOOP_RC=$?
@@ -1688,6 +2347,7 @@ else
 fi
 
 CURRENT_STAGE=""
+heartbeat_stop
 gauntlet_end
 log "=== all four stages passed against target=$TARGET scale=$SCALE; teardown runs next via the EXIT trap ==="
 log "=== THROTTLE SUMMARY (target=$TARGET scale=$SCALE) ==="

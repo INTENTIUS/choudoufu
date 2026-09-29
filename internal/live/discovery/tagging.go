@@ -405,7 +405,7 @@ func arnJoinReaches(req Request, schemas listclient.Schemas, typeName string) bo
 	if !mapped || !arnJoinCovers(cfnType) {
 		return false
 	}
-	if taggingAPIUnservedType(typeName) {
+	if taggingAPIUnservedTypeInRegion(req.Region, typeName) {
 		return !nativeSweepReaches(req, schemas, typeName)
 	}
 	return true
@@ -447,58 +447,279 @@ func nativeSweepReaches(req Request, schemas listclient.Schemas, typeName string
 			return true
 		}
 	}
-	_, ccOK := cloudControlSource(req, typeName)
-	return ccOK
+	if _, ccOK := cloudControlSource(req, typeName); ccOK {
+		return true
+	}
+	// GitHub issue #1477: the service's own list API is [scanType]'s
+	// fourth enumeration route, and like the Cloud Control one it is not
+	// !sweep-gated, so the sweep reaches it too. See servicelist.go.
+	return serviceListRoute(req, typeName)
 }
 
-// taggingAPIUnservedServices is the set of ARN service segments the
-// Resource Groups Tagging API does not index at all, keyed by resource-type
-// name prefix: GetResources never
-// returns their resources, no matter how they are tagged. Probed against
-// real AWS 2026-09-01 - an IAM role tagged at create never appeared in
-// us-east-1 or us-east-2, with a tag filter and with a bare
-// resource-type filter (recorded on issue #692).
+// taggingAPICoverage says where the Resource Groups Tagging API's search
+// index holds a resource type's objects. Two fields, because the truth has
+// two dimensions and issue #1144 is entirely about the second one: Indexed
+// answers "ever, anywhere", and Regions answers "and if so, visible from
+// which caller region".
 //
-// That probe used a ROLE, and issue #1134 re-measured a live account at
-// scale 50 to find that the role does not speak for the service. RGTA
-// returns 0 for iam:role in every region, as #692 found; it returns 500 each
-// for iam:policy and iam:instance-profile - but only in us-east-1, IAM being
-// global and indexing there. So this entry is correct for one IAM type and
-// too broad for two, and it is only harmless today because the sweep queries
-// one region and routing everything away is the conservative answer for a
-// caller outside us-east-1. Issue #1144 owns the representation change (per
-// type, with a region a type indexes in); do not narrow this map without it,
-// and note that no emulator run can prove such a narrowing while floci
-// serves nothing for IAM at all - the rows
-// tools/floci-capability-gen's tagging mode records for aws_iam_policy and
-// aws_iam_instance_profile are the emulator diverging from AWS, not matching
-// it (lex00/floci#205, tracked as #1152).
-//
-// Being parseable by [arnJoinTable] is not the same fact as
-// being SERVED by GetResources, and conflating the two routed IAM to the
-// tagging universe where its sightings simply never happened: the
-// terralith's client-named IAM majority went unvouched (6 of 38
-// instances), and the state cache - which may only serve what the sweep
-// vouches for - was structurally useless for exactly the estates it
-// helps most. A type in an unserved service sweeps through the native
-// per-type leg instead.
-//
-// #1133 is the first consumer of this set outside the sweep itself
-// (tools/survey-gen/classify.go, via [TaggingAPIUnservedType]) - it reads
-// this map to stop live/survey-full.json from asserting a tag-filtered-list
-// recovery route the sweep above does not take - and it inherits the same
-// per-type, per-region coarseness the #1134 paragraph above describes,
-// until #1144 lands.
-var taggingAPIUnservedServices = map[string]bool{
-	"aws_iam_": true,
+// The second dimension is not a refinement. A global service is the case
+// that forced it: IAM's objects are account-wide, and GetResources returns
+// them in us-east-1 ONLY, whatever region the caller's client is pointed
+// at. A shape with no room for that can say "IAM is unserved" or "IAM is
+// served" and both are wrong somewhere.
+type taggingAPICoverage struct {
+	// Indexed is false when GetResources never returns this type's
+	// resources in ANY region, however they are tagged.
+	Indexed bool
+
+	// Regions are the ONLY caller regions whose GetResources index holds
+	// the type. Empty with Indexed true means every region - the ordinary
+	// case, and the reason a type with no entry at all needs no entry.
+	// Meaningless when Indexed is false.
+	Regions []string
+
+	// Evidence is the measurement this row stands on, so a reader can tell
+	// a probed row from an inherited default without leaving this file.
+	Evidence string
 }
 
-// taggingAPIUnservedType reports whether typeName lives in a service
-// GetResources never serves, by the resource type's own name prefix - the
-// one spelling every caller has with no roster in hand. One prefix per
-// entry in [taggingAPIUnservedServices]; the two lists grow together.
-func taggingAPIUnservedType(typeName string) bool {
-	for prefix := range taggingAPIUnservedServices {
+// taggingAPIServiceCoverage is the DEFAULT coverage for every type in a
+// service, keyed by resource-type name prefix - the one spelling every
+// caller has with no roster in hand. A type with its own row in
+// [taggingAPITypeCoverage] overrides it.
+//
+// The prefix was the whole representation before issue #1144. It was probed
+// against real AWS 2026-09-01 with a ROLE - an IAM role tagged at create
+// never appeared in us-east-1 or us-east-2, with a tag filter and with a
+// bare resource-type filter (issue #692) - and generalised from that one
+// type to the service. Issue #1134 re-measured a live account at scale 50
+// and found the role does not speak for the service: RGTA returns 0 for
+// iam:role in every region, and 500 each for iam:policy and
+// iam:instance-profile in us-east-1. So the prefix survives here as the
+// conservative default for the twenty-odd aws_iam_ types nobody has
+// measured, and the three that HAVE been measured say so themselves below.
+//
+// Being parseable by [arnJoinTable] is not the same fact as being SERVED by
+// GetResources, and conflating the two routed IAM to the tagging universe
+// where its sightings simply never happened: the terralith's client-named
+// IAM majority went unvouched (6 of 38 instances), and the state cache -
+// which may only serve what the sweep vouches for - was structurally
+// useless for exactly the estates it helps most.
+var taggingAPIServiceCoverage = map[string]taggingAPICoverage{
+	"aws_iam_": {
+		Indexed: false,
+		Evidence: "issue #692, probed against real AWS 2026-09-01 with an aws_iam_role and generalised to the " +
+			"service. Kept as the default for the aws_iam_ types nobody has measured since; the three #1134 did " +
+			"measure carry their own rows in taggingAPITypeCoverage",
+	},
+}
+
+// taggingAPITypeCoverage is the per-TYPE truth, and it wins over
+// [taggingAPIServiceCoverage]'s prefix default for the type it names.
+//
+// Every row here is a measurement against a real AWS account, and two of
+// the three contradict the service default they sit under. That is issue
+// #1144: one prefix cannot say "roles no, policies yes, and policies only
+// from us-east-1".
+//
+// aws_iam_role is listed even though it AGREES with the default. Recording
+// only the rows that disagree would leave the next reader unable to tell a
+// measured agreement from an unmeasured inheritance - and this row is the
+// one the other two were wrongly generalised from, so its provenance is
+// worth carrying explicitly.
+var taggingAPITypeCoverage = map[string]taggingAPICoverage{
+	"aws_iam_role": {
+		Indexed: false,
+		Evidence: "issues #692 and #1134: GetResources returns 0 for iam:role in every region while " +
+			"iam:ListRoleTags shows the tags sitting on the objects (550 of 550 at scale 50, stable over 35 " +
+			"minutes). Faithfully emulated - the pinned floci serves no iam:role through GetResources either " +
+			"(live/floci-capabilities.json's tagging-sweep row for the type)",
+	},
+	"aws_iam_policy": {
+		Indexed: true,
+		Regions: []string{"us-east-1"},
+		Evidence: "issue #1134: 500 returned in us-east-1 at scale 50, 0 in us-east-2, reproduced on two " +
+			"estates. IAM is global and the index holds it in us-east-1 only. lex00/floci#205 (tracked as " +
+			"#1152) taught the emulator the same split, so this row is exercisable without an AWS account - " +
+			"see TestPerRegionTaggingRoutingAgainstFloci",
+	},
+	"aws_iam_instance_profile": {
+		Indexed: true,
+		Regions: []string{"us-east-1"},
+		Evidence: "issue #1134, measured in the same pass as aws_iam_policy above and with the same result: " +
+			"500 in us-east-1, 0 in us-east-2. This is the type issue #881's silently-omitted destroy is about",
+	},
+}
+
+// taggingAPICoverageFor returns typeName's recorded coverage, and whether
+// there is one at all. Most types have none, which means the ordinary case:
+// GetResources indexes them, in every region.
+//
+// The type's own row wins over the service prefix; among prefixes the
+// longest match wins, so a future "aws_iam_group_" default could sit under
+// "aws_iam_" without either of them depending on Go's map order - the
+// hazard this repository has been bitten by before.
+func taggingAPICoverageFor(typeName string) (taggingAPICoverage, bool) {
+	if cov, ok := taggingAPITypeCoverage[typeName]; ok {
+		return cov, true
+	}
+	var best string
+	var bestCov taggingAPICoverage
+	for prefix, cov := range taggingAPIServiceCoverage {
+		if strings.HasPrefix(typeName, prefix) && len(prefix) > len(best) {
+			best, bestCov = prefix, cov
+		}
+	}
+	if best == "" {
+		return taggingAPICoverage{}, false
+	}
+	return bestCov, true
+}
+
+// taggingAPIUnservedTypeInRegion reports whether an estate-wide
+// GetResources issued from region can never return typeName's resources,
+// however they are tagged.
+//
+// region is the caller's own region - [Request.Region], the one region a
+// provider pass lists in. An EMPTY region is not "every region": it is an
+// unknown one (the provider resolves its own, and this package never sees
+// the answer), and a type the index holds in us-east-1 alone is
+// unreachable from an unknown region as far as anything here can prove. So
+// empty answers the conservative way, which is also exactly what this
+// predicate answered for every IAM type before #1144 - a fixture that sets
+// no Region keeps the behaviour it had.
+func taggingAPIUnservedTypeInRegion(region, typeName string) bool {
+	cov, ok := taggingAPICoverageFor(typeName)
+	if !ok {
+		return false
+	}
+	if !cov.Indexed {
+		return true
+	}
+	if len(cov.Regions) == 0 {
+		return false
+	}
+	if region == "" {
+		return true
+	}
+	for _, r := range cov.Regions {
+		if r == region {
+			return false
+		}
+	}
+	return true
+}
+
+// taggingAPIRestrictedType reports whether typeName's index coverage is
+// anything other than the ordinary "every region" one - unserved
+// everywhere, or served from some regions only.
+//
+// This is deliberately REGION-BLIND, and the one caller that wants it is
+// [sweepTypes]: its question is "is this a type whose live objects some
+// pass might fail to see through the one estate-wide GetResources call",
+// which is about the type, not about today's pass. Answering it per region
+// would drop a declared aws_iam_policy out of the sweep universe on a
+// us-east-1 run and take its tagging-leg coverage with it, because
+// [sweepViaTagging] only files candidates for types in the universe it was
+// handed.
+func taggingAPIRestrictedType(typeName string) bool {
+	_, ok := taggingAPICoverageFor(typeName)
+	return ok
+}
+
+// tagIndexHeldNothingGap is issue #1318's third verdict, and the whole of it
+// is one question asked of the right source: can this type carry a tag?
+//
+// [sweepViaTagging]'s registry-untaggable arm reaches two situations that
+// look identical from where it stands - an empty candidate list for a type
+// live/registry.json calls untaggable - and are not the same fact at all:
+//
+//	the type has no tags argument     -> nothing was ever there to find
+//	the type has one and none came back -> something may well have been there
+//
+// live/registry.json cannot settle it, because its taggable flag is
+// CloudFormation's claim about whether ITS update-tags API writes the type's
+// tags; AWS::IAM::Policy and AWS::IAM::InstanceProfile are false there while
+// the provider gives both a tags argument and [internal/live/stamp] writes
+// this estate's marker onto every object of both. [typeTaggable] asks the
+// provider's own resource schema instead, which is the same source
+// live/survey-full.json's signals.taggable column and stamping itself use,
+// and it is the whole distinction.
+//
+// Two further terms, and both NARROW rather than widen:
+//
+//   - [taggingAPIRestrictedType]. Measured over the admitted table at
+//     provider 6.59.0, FIVE types reach this arm at all with a taggable
+//     provider schema (TestRegistryUntaggableArmPopulation recomputes them;
+//     #1318 and #1322 both said six in prose, counting aws_iam_role, which
+//     has a coverage row but is registry-taggable and so never reaches this
+//     arm). Three of the five - aws_launch_template and the two
+//     aws_vpc_security_group_*_rule types - have ordinary index coverage,
+//     the index holding them in every region. For those, an empty answer is
+//     the same evidence the entire tagging leg rests on; it is what "this
+//     estate owns none of this type" looks like for every one of the
+//     hundreds of types in the universe, and raising it to a per-run
+//     diagnostic would bury the case where the index is known NOT to behave
+//     ordinarily. They keep their suppression, unchanged by #1318 and by
+//     #1322, which corrected only what their gap SAYS - see
+//     [SweepGapTagIndexCoverageUnconfirmed].
+//
+//   - the region term. A restricted type is only reported this way from a
+//     region its coverage row says DOES serve it. From any other region the
+//     loud [SweepGapNoEnumerationRoute] arm above has already taken the run
+//     and said something stronger; asking the question here again would
+//     depend on that arm's ordering rather than on its own terms.
+//
+// What is left is exactly #1318's case: a type that carries a marker, in a
+// region whose index holds that type, where the index answered and held none
+// of this estate's. Issue #1046 measured that answer being wrong on a real
+// account - 104 of 1,655 stamped objects, about 21 minutes after migrate had
+// verified every one of them.
+func tagIndexHeldNothingGap(schemas listclient.Schemas, region, typeName, cfnType string) (SweepGap, bool) {
+	if !typeTaggable(schemas, typeName) {
+		return SweepGap{}, false
+	}
+	cov, restricted := taggingAPICoverageFor(typeName)
+	if !restricted || taggingAPIUnservedTypeInRegion(region, typeName) {
+		return SweepGap{}, false
+	}
+	where := "this caller region"
+	if len(cov.Regions) > 0 {
+		where = strings.Join(cov.Regions, ", ")
+	}
+	return SweepGap{
+		TypeName: typeName,
+		Reason:   SweepGapTagIndexHeldNothing,
+		Detail: fmt.Sprintf(
+			"live/registry.json records %s (Cloud Control type %s) as untaggable, but that flag is CloudFormation's claim about its own update-tags API rather than a fact about the live object: the provider gives %s a tags argument and choudoufu writes this estate's ownership marker onto it. So the estate-wide tag sweep did search for it, and the Resource Groups Tagging API - whose index holds this type from %s alone - answered holding none of this estate's. An empty answer there is not evidence this estate owns no undeclared %s: this index has been measured lagging its own marker writes by around twenty minutes at volume on a real account, and this is the one type family whose index is also region-scoped. This run therefore claims no coverage for %s - if a block of it was deleted, no destroy is proposed for the live resource, and none will be until the index holds it. Re-run the plan, or remove it by hand.",
+			typeName, cfnType, typeName, where, typeName, typeName),
+	}, true
+}
+
+// taggingAPIListDropsTags reports whether this repository has MEASURED the
+// provider's own list route for typeName returning objects with their tags
+// stripped, so that an untagged listing is evidence the route is blind
+// rather than evidence the objects are untagged.
+//
+// This used to be the same predicate as the index question above, and
+// [sweepMarkerReadGap]'s own doc comment said in as many words that two
+// facts riding one list is a shape that has misled this repository before,
+// that widening it needs a second measured tag-dropping list call, and that
+// "find one in a service GetResources DOES index and this gate is the wrong
+// gate for it - the predicate has to split". Issue #1144 is that case
+// arriving: GetResources does index iam:policy in us-east-1, and
+// iam:ListPolicies drops tags there all the same. So the predicate split,
+// and this half kept the prefix, because the prefix is what the tag-
+// dropping measurements actually cover: iam:ListRoles returns no tags at
+// all (issue #266, and [stripTags]), iam:ListPolicies likewise
+// (directread.go, issue #1046), and #1134 re-confirmed on a real account
+// that the tags sit on the objects while neither route shows them.
+//
+// Widening this past the prefix still needs a second measured tag-dropping
+// list call, named and quoted. It is not an inference from an absence, and
+// it is not the index table above.
+func taggingAPIListDropsTags(typeName string) bool {
+	for prefix := range taggingAPIListDropsTagsServices {
 		if strings.HasPrefix(typeName, prefix) {
 			return true
 		}
@@ -506,14 +727,45 @@ func taggingAPIUnservedType(typeName string) bool {
 	return false
 }
 
-// TaggingAPIUnservedType is [taggingAPIUnservedType] exported for callers
-// outside this package that need the same routing preference without
-// re-deriving it - today tools/survey-gen/classify.go (issue #1133), which
-// stops the survey from asserting a tag-filtered-list recovery route this
-// package's own sweep does not take. See [taggingAPIUnservedServices]'s doc
-// comment for the coarseness this inherits and issue #1144 for the fix.
-func TaggingAPIUnservedType(typeName string) bool {
-	return taggingAPIUnservedType(typeName)
+// taggingAPIListDropsTagsServices is [taggingAPIListDropsTags]'s data: the
+// services whose provider list calls this repository has measured returning
+// objects without their tags. One prefix per measured service; the doc
+// comment above carries the citations.
+var taggingAPIListDropsTagsServices = map[string]bool{
+	"aws_iam_": true,
+}
+
+// TaggingAPIUnservedTypeInRegion is [taggingAPIUnservedTypeInRegion]
+// exported for callers outside this package that need the same routing
+// preference without re-deriving it - today tools/survey-gen/classify.go
+// (issue #1133), which stops the survey from asserting a tag-filtered-list
+// recovery route this package's own sweep does not take.
+//
+// It takes the region rather than hiding it, which is the point of issue
+// #1144's change: the survey has no region and passes "", and that is a
+// fact about the survey worth being made to state. See
+// [TaggingAPIIndexRegions] for what such a caller can say instead of
+// nothing.
+func TaggingAPIUnservedTypeInRegion(region, typeName string) bool {
+	return taggingAPIUnservedTypeInRegion(region, typeName)
+}
+
+// TaggingAPIIndexRegions returns the regions GetResources indexes typeName
+// in, for a caller that has no region of its own and has to describe the
+// coverage rather than apply it.
+//
+// Three answers, and they are distinguishable: a nil slice with ok true
+// means "indexed everywhere", a nil slice with ok false means "indexed
+// nowhere, in any region", and a non-empty slice means "only from these".
+func TaggingAPIIndexRegions(typeName string) (regions []string, indexed bool) {
+	cov, ok := taggingAPICoverageFor(typeName)
+	if !ok {
+		return nil, true
+	}
+	if !cov.Indexed {
+		return nil, false
+	}
+	return cov.Regions, true
 }
 
 // arnJoinCFNType is the CFN type the tag sweep should reason about for
@@ -1064,7 +1316,7 @@ func sweepViaTagging(ctx context.Context, req Request, schemas listclient.Schema
 					typeName),
 			}))
 			continue
-		case taggingAPIUnservedType(typeName) && len(byType[typeName]) == 0 && typeTaggable(schemas, typeName):
+		case taggingAPIUnservedTypeInRegion(req.Region, typeName) && len(byType[typeName]) == 0 && typeTaggable(schemas, typeName):
 			// Issue #881, reopened. A type in a service GetResources does
 			// not index only reaches this leg as a LAST RESORT:
 			// [arnJoinReaches] sends it here precisely when
@@ -1109,8 +1361,50 @@ func sweepViaTagging(ctx context.Context, req Request, schemas listclient.Schema
 			// candidates reports the gap. See
 			// TestTaggingSweepFindsCandidatesDespiteUntaggableRegistryRow
 			// and TestSweepViaTagging_untaggableRegistryRowDoesNotDiscardJoinedCandidates.
+			//
+			// Issue #1144 made [taggingAPIUnservedTypeInRegion] region-aware
+			// above, which opened a door these two cases could not both be
+			// behind before: in us-east-1 aws_iam_instance_profile and
+			// aws_iam_policy are now SERVED, so the loud case declines and
+			// a run whose index answered with nothing for them lands here
+			// instead - registry taggable:false, provider schema
+			// taggable:true, gap suppressed. Adding [typeTaggable] to this
+			// condition to close that was tried and REVERTED, because it
+			// made the case worse rather than better: it turned the type
+			// into an ordinary covered scan with Listed:0, which claims the
+			// sweep established the estate owns none, and dropped it out of
+			// [Result.SweepGaps] where internal/live/foreign reads it to
+			// decline calling such objects foreign (#1153). A recorded,
+			// suppressed gap under-claims; "covered, nothing found"
+			// over-claims, and over-claiming is the one this project's
+			// safety rule forbids.
+			//
+			// Issue #1318 is that door, closed the other way: the case
+			// still matches and the type still stays out of
+			// [Result.SweepCovered], so nothing is over-claimed and no
+			// [Result.SweepGaps] entry is lost. What changes is WHICH gap
+			// is filed. [tagIndexHeldNothingGap] answers with a third
+			// verdict for the type this arm cannot honestly call
+			// untaggable, and only for it; every other type reaching here
+			// keeps exactly the gap it had.
+			if g, ok := tagIndexHeldNothingGap(schemas, req.Region, typeName, cfnType); ok {
+				// Issue #1321: before settling for the gap, take the
+				// enumeration this run has and did not use. The index
+				// served this type and held none of this estate's, which
+				// the identical run in any other region answers by routing
+				// the type to the native leg instead - see
+				// tagindexfallback.go for the cost bound and for why a
+				// failed fallback still leaves #1318's gap standing.
+				fbDiags, answered := sweepTagIndexFallback(ctx, req, schemas, decl, typeName, res)
+				diags = diags.Append(fbDiags)
+				if answered {
+					continue
+				}
+				diags = diags.Append(sweepGapDiag(res, g))
+				continue
+			}
 			_, known := req.Roster.TaggableKnown(cfnType)
-			diags = diags.Append(sweepGapDiag(res, noRegistryRowOrUntaggable(typeName, cfnType, known)))
+			diags = diags.Append(sweepGapDiag(res, noRegistryRowOrUntaggable(typeName, cfnType, known, typeTaggable(schemas, typeName))))
 			continue
 		}
 
@@ -1140,7 +1434,20 @@ func sweepViaTagging(ctx context.Context, req Request, schemas listclient.Schema
 // fileTaggingCandidate applies the same per-resource marker rules
 // [scanTypeCloudControl] applies to one Cloud Control ListResources result,
 // to one candidate [sweepViaTagging] already joined and grouped by type.
+// [scanTypeMarkerFallback] files through it too, for the same index.
 func fileTaggingCandidate(ctx context.Context, req Request, decl *declared, typeName string, c taggedCandidate, res *Result) tfdiags.Diagnostics {
+	return fileCandidate(ctx, req, decl, typeName, c, res, " (via the tag sweep)", true)
+}
+
+// fileCandidate is [fileTaggingCandidate] for any leg that holds an import
+// identity and the object's real tags and no listed resource object: the
+// tag sweep, #293's tag-index fallback, and GitHub issue #1477's service
+// list leg ([scanTypeServiceList]). via names the leg in a diagnostic, the
+// way [crossTypeMarkerProblem]'s callers do, and swept is what the leg was
+// doing: it marks an orphan this files ([OwnedResource.Swept]) and decides
+// whether a cross-type marker on an undeclared type is a warning or an
+// error ([undeclaredCrossTypeMarker]).
+func fileCandidate(ctx context.Context, req Request, decl *declared, typeName string, c taggedCandidate, res *Result, via string, swept bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	if c.tags[TagEstate] != req.Estate {
@@ -1158,8 +1465,8 @@ func fileTaggingCandidate(ctx context.Context, req Request, decl *declared, type
 			TypeName: typeName,
 			LiveIDs:  liveIDs(c.importID),
 			Detail: fmt.Sprintf(
-				"A live %s (via the tag sweep) claims estate %q but its tofu-address continuation tags have a gap in them - one of tofu-address-2, tofu-address-3, ... is missing while a later one is present. Per live/MARKERS.md such a resource is malformed - neither owned nor foreign - and a human has to say which address it belongs to; discovery will not guess.",
-				typeName, req.Estate),
+				"A live %s%s claims estate %q but its tofu-address continuation tags have a gap in them - one of tofu-address-2, tofu-address-3, ... is missing while a later one is present. Per live/MARKERS.md such a resource is malformed - neither owned nor foreign - and a human has to say which address it belongs to; discovery will not guess.",
+				typeName, via, req.Estate),
 		}))
 	}
 	escaped := EscapeAddress(raw)
@@ -1174,8 +1481,8 @@ func fileTaggingCandidate(ctx context.Context, req Request, decl *declared, type
 			Marker:   raw,
 			LiveIDs:  liveIDs(c.importID),
 			Detail: fmt.Sprintf(
-				"A live %s (via the tag sweep) claims estate %q but %s. Per live/MARKERS.md such a resource is malformed - neither owned nor foreign - and a human has to say which address it belongs to; discovery will not guess.",
-				typeName, req.Estate, what),
+				"A live %s%s claims estate %q but %s. Per live/MARKERS.md such a resource is malformed - neither owned nor foreign - and a human has to say which address it belongs to; discovery will not guess.",
+				typeName, via, req.Estate, what),
 		}))
 	}
 
@@ -1204,11 +1511,12 @@ func fileTaggingCandidate(ctx context.Context, req Request, decl *declared, type
 			return diags
 		}
 		if corrected == typeName {
-			// sweep is true unconditionally: this leg IS the estate-wide
-			// tag sweep, and [partitionSweepTypes] is the only thing that
-			// routes a type to it.
+			// swept is true for the tag sweep, which IS the estate-wide
+			// sweep, and for #293's fallback, which kept that value when
+			// this function was split out; the service list leg passes
+			// its own.
 			return diags.Append(problemDiag(res, crossTypeMarkerProblem(
-				decl, req.Estate, typeName, markerType, raw, liveIDs(c.importID), " (via the tag sweep)", true)))
+				decl, req.Estate, typeName, markerType, raw, liveIDs(c.importID), via, swept)))
 		}
 		bindType = corrected
 		if fixedImportID != "" {
@@ -1287,7 +1595,7 @@ func fileTaggingCandidate(ctx context.Context, req Request, decl *declared, type
 		Normalized:   escaped,
 		Slot:         c.tags[TagSlot],
 		Tags:         c.tags,
-		Swept:        true,
+		Swept:        swept,
 	})
 	return diags
 }

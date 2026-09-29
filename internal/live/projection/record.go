@@ -9,22 +9,25 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
 )
 
 // recordNamespaceRoot is the literal segment every record-backed key lives
-// under, in both the local store's directory layout and the SSM/S3 backends'
-// key hierarchy. It is a different literal from live/RECEIPTS.md's
+// under, in both the local store's directory layout and the S3 backend's key
+// hierarchy. It is a different literal from live/RECEIPTS.md's
 // "tofu-receipts" segment on purpose: namespace safety between the two is
 // disjoint by construction here, not by a runtime check that could be wrong.
 // See RecordKeyPrefix and internal/configs/live.go's
@@ -38,14 +41,32 @@ const recordNamespaceRoot = "tofu-records"
 // overrides it. Exported so internal/command's store construction and this
 // package's own namespace-safety tests can both start from the one
 // definition.
+//
+// It ends in "/", and that is load-bearing: see
+// [staterecord.NamespacePrefix] and GitHub issue #1335. Estate names prefix
+// one another freely ("prod", "prod-eu" - markers.ValidEstateName allows
+// both), and this string is handed to List and GetAll as it stands.
 func RecordKeyPrefix(estate string) string {
-	return recordNamespaceRoot + "/" + estate
+	return recordNamespaceRoot + "/" + estate + "/"
+}
+
+// keyUnder joins rest onto a key namespace, whether or not prefix already
+// carries its trailing delimiter - [RecordKeyPrefix]'s output does, an
+// operator's key_prefix override may not. An empty prefix keeps yielding the
+// absolute key it always did, which every store refuses loudly (issue #688):
+// a record with no namespace at all is not something to start accepting as a
+// side effect of #1335.
+func keyUnder(prefix, rest string) string {
+	if prefix == "" {
+		return "/" + rest
+	}
+	return staterecord.NamespacePrefix(prefix) + rest
 }
 
 // recordKeyEncoding is the alphabet RecordKey encodes an address string
 // with: unpadded, URL-safe base64. Its whole output charset
 // ("A-Za-z0-9_-") is a subset of every backend's allowed key characters
-// (SSM parameter names, S3 object keys, filesystem paths), and - unlike
+// (S3 object keys, filesystem paths), and - unlike
 // hex-of-a-hash - it is reversible, which orphan discovery
 // (builder.discoverOrphanedRecords) depends on: given only a store's List
 // of its own keys, with no configuration and no marker to read, the
@@ -53,39 +74,126 @@ func RecordKeyPrefix(estate string) string {
 // block's still-persisted record could never be found again.
 var recordKeyEncoding = base64.RawURLEncoding
 
+// recordKeyLegacySegmentMax and recordKeyChunkLen bound how long a single
+// "/"-delimited segment of a record key may be, and exist because
+// [recordKeyEncoding] EXPANDS an address by 4/3 while a filesystem bounds
+// one path component at NAME_MAX. GitHub issue #1283.
+//
+// Measured against a real [staterecord.LocalStore] on APFS: a leaf of 255
+// bytes is the longest [staterecord.LocalStore.PutIfAbsent] can create, so
+// the longest raw address a single-segment key could ever hold was 191
+// bytes - against a lint ceiling (markers.MaxAddressLen) of 1024, a 5.4x
+// window of addresses that pass lint and cannot be written. A record is
+// the only carrier a record-rung instance's ownership has, so a write that
+// fails there is a live object nothing owns and the next plan proposes
+// creating a second one.
+//
+//   - recordKeyLegacySegmentMax is 255 because that is exactly the leaf
+//     length the pre-chunking key shape could reach. Chunking starts
+//     STRICTLY ABOVE it so that every key already in a store keeps the
+//     bytes it was written under: a key this function starts spelling
+//     differently is a record the next plan can no longer find, which is
+//     the very failure being fixed.
+//   - recordKeyChunkLen is 230, not 255, because [staterecord.LocalStore]
+//     writes two sidecars named after the leaf - "<leaf>.lock" and
+//     os.CreateTemp's "<leaf>.tmp-<up to 10 digits>" - and both must
+//     themselves fit in NAME_MAX. Measured: with a 255-byte leaf
+//     PutIfAbsent succeeds but PutIfVersion fails, and the guaranteed
+//     ceiling for the update path is a 240-byte leaf. 230 leaves headroom
+//     rather than sitting on the measured edge.
+//
+// Chunking moves the local store's own ceiling from NAME_MAX to PATH_MAX
+// (1024 on macOS, measured 1016 writable here), which lands it in the same
+// band as the remote backend rather than 4x below it: an S3 object key is
+// bounded at 1024 bytes. The numbers were chosen when Parameter Store was a
+// backend too and its name limit of 1011 INCLUDING the ~45-50 character ARN
+// prefix, with a hierarchy depth limit of fifteen levels, was the tightest of
+// the three; six chunks of 230 plus this package's three fixed segments stay
+// well inside what is left. Neither store reaches markers.MaxAddressLen; see
+// GitHub issue #1283 for the residual gap, which is a ceiling ruling rather
+// than an encoding problem.
+const (
+	recordKeyLegacySegmentMax = 255
+	recordKeyChunkLen         = 230
+)
+
 // RecordKey is the store key for one record-backed resource instance,
 // rooted at prefix (ordinarily [RecordKeyPrefix]'s output, or a
 // record_store block's key_prefix override).
 //
 // The instance address is not used verbatim: a for_each key can carry
-// characters SSM parameter names and S3 object keys either forbid ("[",
-// "]", the quotes around a string key). It is base64url-encoded instead
+// characters S3 object keys forbid ("[", "]", the quotes around a string
+// key). It is base64url-encoded instead
 // (see recordKeyEncoding), reversible by [RecordAddr]. The resource type
 // name is kept as a readable path segment ahead of the encoded address
 // (type names are always "[a-z0-9_]+", already safe everywhere) purely
 // for a human skimming a store's key listing - [RecordAddr] does not
-// trust it and reads the address out of the encoded segment alone.
+// trust it and reads the address out of the encoded segment(s) alone.
+//
+// An encoding longer than [recordKeyLegacySegmentMax] is split across
+// further "/"-delimited segments (see chunkEncodedAddress), which a store
+// that mirrors key hierarchy in directories writes as nested directories.
+// [RecordAddr] rejoins them, so the key stays reversible - orphan
+// discovery has no other way back to the address.
 func RecordKey(prefix string, addr addrs.AbsResourceInstance) string {
-	return prefix + "/" + addr.Resource.Resource.Type + "/" + recordKeyEncoding.EncodeToString([]byte(addr.String()))
+	encoded := recordKeyEncoding.EncodeToString([]byte(addr.String()))
+	return keyUnder(prefix, addr.Resource.Resource.Type+"/"+chunkEncodedAddress(encoded))
+}
+
+// chunkEncodedAddress splits encoded into "/"-joined runs of at most
+// [recordKeyChunkLen] bytes, and returns it untouched when it is short
+// enough to have been a valid single-segment key before chunking existed.
+// The output never ends in "/" and never contains an empty segment, so
+// [RecordAddr]'s rejoin is exact for every input including one whose
+// length is a multiple of the chunk length.
+func chunkEncodedAddress(encoded string) string {
+	if len(encoded) <= recordKeyLegacySegmentMax {
+		return encoded
+	}
+	var b strings.Builder
+	b.Grow(len(encoded) + len(encoded)/recordKeyChunkLen + 1)
+	for len(encoded) > recordKeyChunkLen {
+		b.WriteString(encoded[:recordKeyChunkLen])
+		b.WriteByte('/')
+		encoded = encoded[recordKeyChunkLen:]
+	}
+	b.WriteString(encoded)
+	return b.String()
 }
 
 // RecordAddr reverses [RecordKey]: given a key this package produced
 // (typically from [staterecord.Store.List]) and the prefix it was built
 // under, recovers the resource instance address. The second return is
-// false for a key that does not start with prefix or whose last segment
-// does not decode to a valid address - which any key this package did not
-// itself write is free to be, since a store's namespace is not guaranteed
-// to hold only this package's keys forever.
+// false for a key that does not start with prefix or whose segments past
+// the type do not decode to a valid address - which any key this package
+// did not itself write is free to be, since a store's namespace is not
+// guaranteed to hold only this package's keys forever.
+//
+// Everything after the type segment is rejoined before decoding, because
+// [RecordKey] splits a long encoding across several segments (GitHub issue
+// #1283). For a key whose encoding fit in one segment - every key written
+// before chunking existed - that rejoin is the identity, so this reads an
+// old key and a new one by the same rule.
 func RecordAddr(prefix, key string) (addrs.AbsResourceInstance, bool) {
-	rest := strings.TrimPrefix(key, prefix+"/")
+	// The delimiter is checked here independently of how the keys were
+	// listed. Measured on #1335: with the listing over-broad, this was the
+	// one thing standing between a neighbour estate's key and a destroy
+	// proposal, and it stays a second guard now that the listing is fixed.
+	rest := strings.TrimPrefix(key, keyUnder(prefix, ""))
 	if rest == key {
 		return addrs.AbsResourceInstance{}, false
 	}
-	i := strings.LastIndex(rest, "/")
+	// The FIRST "/" ends the type segment; the rest is the encoding,
+	// chunked or not. Taking the last "/" instead would read only the
+	// final chunk of a chunked key, and a truncated base64 run decodes to
+	// bytes that are not an address - so orphan discovery would silently
+	// skip exactly the long-addressed records this chunking exists to
+	// make storable.
+	i := strings.Index(rest, "/")
 	if i < 0 {
 		return addrs.AbsResourceInstance{}, false
 	}
-	encoded := rest[i+1:]
+	encoded := strings.ReplaceAll(rest[i+1:], "/", "")
 	raw, err := recordKeyEncoding.DecodeString(encoded)
 	if err != nil {
 		return addrs.AbsResourceInstance{}, false
@@ -325,13 +433,36 @@ type objectFields struct {
 
 // residueFields is [recordEnvelope.Residue]: today's residuePayload's
 // Attributes map, unchanged - the values this estate last sent for
-// arguments the provider's Read never gives back (issue #275).
+// arguments the provider's Read never gives back (issue #275) - plus
+// GitHub issue #1211's ManifestMetadataKeys.
 type residueFields struct {
-	Attributes map[string]residueAttrValue `json:"attributes"`
+	Attributes map[string]residueAttrValue `json:"attributes,omitempty"`
+
+	// ManifestMetadataKeys is which metadata.labels and
+	// metadata.annotations keys a kubernetes_manifest instance's
+	// configuration DECLARED at the apply that wrote this record, keyed
+	// by the metadata map's own attribute name as
+	// [markers.ManifestComputedMetadataAttrs] spells it, each list
+	// sorted. GitHub issue #1211.
+	//
+	// It belongs in Residue and nowhere else, because it is the same
+	// question this member already exists to answer: "what did we send".
+	// The difference from Attributes is only that the answer is a key
+	// SET rather than a value - a label's value is on the object and
+	// needs no record, but the fact that the configuration once named
+	// the key is not recoverable from anything the cluster holds. See
+	// [ManifestDeclaredKeys] for why it cannot come from
+	// metadata.managedFields.
+	//
+	// Absent for every record written before this field existed and for
+	// every non-manifest type, which reads as "this run does not know
+	// what was last declared" and proposes removing nothing - the
+	// pre-#1211 behaviour, quiet rather than churning.
+	ManifestMetadataKeys map[string][]string `json:"manifest_metadata_keys,omitempty"`
 }
 
 func (r *residueFields) empty() bool {
-	return r == nil || len(r.Attributes) == 0
+	return r == nil || (len(r.Attributes) == 0 && len(r.ManifestMetadataKeys) == 0)
 }
 
 // provisionedFields is [recordEnvelope.Provisioned]: today's
@@ -720,6 +851,114 @@ func decodeObjectValue(of *objectFields) (cty.Value, []byte, states.ObjectStatus
 type RecordStore struct {
 	store  staterecord.Store
 	prefix string
+
+	// unwritten is GitHub issue #1287's ledger: the keys this run tried to
+	// write and could not, each against the error that stopped it. See
+	// [RecordStore.noteWriteFailure] for why it exists and
+	// [RecordStore.WriteFailedFor] for what a caller outside this package
+	// can ask it.
+	mu        sync.Mutex
+	unwritten map[string]error
+}
+
+// noteWriteFailure records that a content write to key did not land, so that
+// every later read of that key in this run refuses instead of reporting an
+// ordinary absence.
+//
+// GitHub issue #1287, split out of #1283. A record write failing is loud at
+// the moment it fails; what follows is not. Nothing in a store distinguishes
+// "no record was ever written here" from "the write that should have put one
+// here failed thirty milliseconds ago", so the very next read succeeds,
+// reports absence, and absence is the ordinary shape of a resource that does
+// not exist yet - which is how a failed write turns into a plan proposing to
+// create a live resource for a second time.
+//
+// Two kinds of failure are deliberately NOT recorded:
+//
+//   - A [staterecord.VersionConflictError]. A conditional write that lost
+//     its race changed nothing, but something else did: the key holds
+//     whatever that other writer put there, and reading it back is both
+//     possible and truthful. That is a conflict to report, not a blind spot.
+//   - A failed Delete. The record is still there and still readable; a read
+//     that returns it is answering correctly.
+//
+// A later write to the same key that DOES land clears the entry, because at
+// that point the store holds what this run intended it to hold.
+//
+// The one case this is deliberately conservative about: a write that
+// actually committed and then reported an error on the way back - a dropped
+// connection after the backend accepted it. The record is there and correct,
+// and this still refuses to read it. That is the right direction to be wrong
+// in. Refusing costs a re-run; the alternative reads an absence and proposes
+// creating a live resource for a second time, which is the failure this fork
+// exists to prevent.
+func (s *RecordStore) noteWriteFailure(key string, err error) {
+	if s == nil || err == nil {
+		return
+	}
+	var conflict *staterecord.VersionConflictError
+	if errors.As(err, &conflict) {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.unwritten == nil {
+		s.unwritten = map[string]error{}
+	}
+	s.unwritten[key] = err
+}
+
+// noteWriteLanded clears key from the ledger after a write that succeeded.
+func (s *RecordStore) noteWriteLanded(key string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.unwritten, key)
+}
+
+// writeFailureFor reports the error that stopped this run writing key, or
+// nil if nothing did.
+func (s *RecordStore) writeFailureFor(key string) error {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.unwritten[key]
+}
+
+// refuseUnwritten is what every read in this type does before asking the
+// store: it turns a key this run failed to write into the reader's own
+// error, which internal/live/projection's three record readers
+// ([builder.materializeFromRecord], [builder.recordEntry] and
+// noderesolver.go's record consult) each already surface as a hard "Cannot
+// read a persisted record" refusal.
+func (s *RecordStore) refuseUnwritten(addr addrs.AbsResourceInstance, key string) error {
+	cause := s.writeFailureFor(key)
+	if cause == nil {
+		return nil
+	}
+	return fmt.Errorf(
+		"this run tried to write the record for %s and could not (%w), so the store holds nothing for it and "+
+			"this read cannot tell that apart from a resource that was never created; refusing rather than "+
+			"reporting an absence that would have the plan propose creating a resource that may already exist "+
+			"(see GitHub issue #1287)",
+		addr, cause)
+}
+
+// WriteFailedFor reports the error that stopped this run writing addr's
+// record, or nil if nothing did. It is exported for the migration path
+// (internal/live/liveimport), which has to tell a store failure - nothing
+// was written, and the next plan will propose creating the resource - apart
+// from a refusal to overwrite a record that is already there and already
+// correct. Only the first is a reason to fail the run.
+func (s *RecordStore) WriteFailedFor(addr addrs.AbsResourceInstance) error {
+	if s == nil {
+		return nil
+	}
+	return s.writeFailureFor(RecordKey(s.prefix, addr))
 }
 
 // NewRecordEnvelopeStore wraps store as the one record envelope store for
@@ -733,7 +972,63 @@ func NewRecordEnvelopeStore(store staterecord.Store, prefix string) *RecordStore
 	if store == nil {
 		return nil
 	}
-	return &RecordStore{store: store, prefix: prefix}
+	// Normalized once, here, so [RecordStore.List] can hand s.prefix to the
+	// backend as it stands: a caller-built prefix with no trailing delimiter
+	// (an operator's key_prefix, a test's literal) lists a sibling namespace
+	// too. GitHub issue #1335.
+	return &RecordStore{store: store, prefix: staterecord.NamespacePrefix(prefix)}
+}
+
+// ProbeWritable reports whether this run can write to the store, by
+// writing: it rewrites the store's sentinel ([SentinelKey]) with the
+// payload it already holds, conditional on the version it just read. The
+// content does not change.
+//
+// GitHub issue #1637. #950's unmarked-apply refusal steps aside when the
+// apply will record the identity it cannot mark, which needs a store this
+// run can write. Opening the store does not settle that. #1370's reader
+// tolerance lets a run in that may read and not write, and the open's
+// sentinel write cannot always tell: a local store whose directory was made
+// read-only after an earlier run provisioned it answers that write with
+// "already exists" before the filesystem is asked for permission. A write
+// that has to land can tell, so this makes one, and only when the caller
+// has a refusal that depends on the answer.
+//
+// A denial ([staterecord.IsAccessDenied]) is (false, nil): an ordinary
+// read-only identity. A version conflict is (true, nil): the backend
+// evaluated the condition, so the write was authorised, and another writer
+// moved the sentinel first. Any other error is (false, err), and a caller
+// treats the store as not writable. A nil store is (false, nil).
+//
+// Like every write, this ends the run cache for the rest of the run
+// ([staterecord.RunCache]); a run that pays it is one about to write
+// records anyway.
+func (s *RecordStore) ProbeWritable(ctx context.Context) (bool, error) {
+	if s == nil {
+		return false, nil
+	}
+	key := SentinelKey(s.prefix)
+	payload, version, exists, err := s.store.Get(ctx, key)
+	if err != nil {
+		if staterecord.IsAccessDenied(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("reading the sentinel at %q: %w", key, err)
+	}
+	if !exists {
+		payload = []byte(sentinelPayload)
+		version = ""
+	}
+	_, err = s.store.PutIfVersion(ctx, key, payload, version)
+	var conflict *staterecord.VersionConflictError
+	switch {
+	case err == nil, errors.As(err, &conflict):
+		return true, nil
+	case staterecord.IsAccessDenied(err):
+		return false, nil
+	default:
+		return false, fmt.Errorf("rewriting the sentinel at %q: %w", key, err)
+	}
 }
 
 // Prefix returns the key namespace this store was built with, "" for a nil
@@ -746,8 +1041,16 @@ func (s *RecordStore) Prefix() string {
 }
 
 // List returns every key this store holds, exactly [staterecord.Store.List]
-// rooted at this store's own prefix. Used by
-// [builder.discoverOrphanedRecords] alone.
+// rooted at this store's own prefix.
+//
+// Four production call sites, not one: [builder.discoverOrphanedRecords]
+// here, discovery's recordOrphanReadSweep and estateScopedNativeSweep, and
+// live-mv's module-boundary record sweep. Three of them re-read every key
+// before acting on it, so an absent one is skipped; estateScopedNativeSweep
+// reads only the TYPE out of the key string and never re-reads at all.
+// GitHub issue #1301 was a [staterecord.RunCache] that could name a key
+// holding no record, and the earlier version of this comment - "used by
+// discoverOrphanedRecords alone" - is why it read as contained.
 func (s *RecordStore) List(ctx context.Context) ([]string, error) {
 	if s == nil {
 		return nil, nil
@@ -784,6 +1087,9 @@ func (s *RecordStore) getEnvelope(ctx context.Context, addr addrs.AbsResourceIns
 		store = staterecord.Fresh(store)
 	}
 	key := RecordKey(s.prefix, addr)
+	if err := s.refuseUnwritten(addr, key); err != nil {
+		return recordEnvelope{}, "", false, err
+	}
 	payload, version, exists, err := store.Get(ctx, key)
 	if err != nil {
 		return recordEnvelope{}, "", false, fmt.Errorf("reading the record for %s: %w", addr, err)
@@ -815,7 +1121,11 @@ func (s *RecordStore) currentVersion(ctx context.Context, addr addrs.AbsResource
 	// Deliberately beneath any read cache: this exists to observe what the
 	// store holds NOW, so the compare-and-swap it feeds still catches a
 	// writer outside this run.
-	_, version, exists, err := staterecord.Fresh(s.store).Get(ctx, RecordKey(s.prefix, addr))
+	key := RecordKey(s.prefix, addr)
+	if err := s.refuseUnwritten(addr, key); err != nil {
+		return "", err
+	}
+	_, version, exists, err := staterecord.Fresh(s.store).Get(ctx, key)
 	if err != nil {
 		return "", fmt.Errorf("reading the record for %s: %w", addr, err)
 	}
@@ -992,6 +1302,36 @@ func (s *RecordStore) GetTombstones(ctx context.Context, addr addrs.AbsResourceI
 	return out, version, true, nil
 }
 
+// GetManifestDeclaredKeys reads addr's
+// [residueFields.ManifestMetadataKeys] - GitHub issue #1211's record of
+// which metadata map keys the configuration declared at the apply that
+// wrote this record.
+//
+// found is false for a key that does not exist, for an envelope with no
+// residue at all, and for a residue written before this member existed.
+// All three mean the same thing to the caller and must: this run does not
+// know what was last declared, so it proposes removing nothing. Only a
+// store error is an error; see [builder.manifestDeclaredKeysFor], which
+// is the one caller and swallows even that, for [builder.fillResidueFor]'s
+// reason - this run's own [SummaryResidueUnreadable] already says it.
+func (s *RecordStore) GetManifestDeclaredKeys(ctx context.Context, addr addrs.AbsResourceInstance) (keys map[string][]string, found bool, err error) {
+	if s == nil {
+		return nil, false, nil
+	}
+	env, _, exists, err := s.getEnvelope(ctx, addr, false)
+	if err != nil {
+		return nil, false, err
+	}
+	if !exists || env.Residue == nil || len(env.Residue.ManifestMetadataKeys) == 0 {
+		return nil, false, nil
+	}
+	out := make(map[string][]string, len(env.Residue.ManifestMetadataKeys))
+	for field, list := range env.Residue.ManifestMetadataKeys {
+		out[field] = append([]string(nil), list...)
+	}
+	return out, true, nil
+}
+
 // getResidue reads addr's Residue member - GitHub issue #275's argument
 // values. keyExists and residueFound carry [getIdentity]'s same distinction.
 func (s *RecordStore) GetResidue(ctx context.Context, addr addrs.AbsResourceInstance) (attrs map[string]cty.Value, version string, keyExists bool, residueFound bool, err error) {
@@ -1127,7 +1467,17 @@ func (s *RecordStore) mergeEnvelope(ctx context.Context, addr addrs.AbsResourceI
 	if err != nil {
 		return "", fmt.Errorf("encoding the record for %s: %w", addr, err)
 	}
-	return s.store.PutIfVersion(ctx, key, payload, expectedVersion)
+	// #1337: the record's object carries the address marker of the instance
+	// it records, from the same functions that stamp the instance itself.
+	newVersion, putErr := s.store.PutIfVersion(staterecord.WithObjectTags(ctx, markers.AddressObjectTags(addr)), key, payload, expectedVersion)
+	if putErr != nil {
+		// Issue #1287: the write did not land, so nothing later in this run
+		// may read this key's absence as "no such resource".
+		s.noteWriteFailure(key, putErr)
+		return "", putErr
+	}
+	s.noteWriteLanded(key)
+	return newVersion, nil
 }
 
 // MoveRecord relocates the whole record stored for from to the key for to -
@@ -1193,9 +1543,15 @@ func (s *RecordStore) MoveRecord(ctx context.Context, from, to addrs.AbsResource
 	if err != nil {
 		return false, fmt.Errorf("encoding the record moved from %s to %s: %w", from, to, err)
 	}
-	if _, err := s.store.PutIfVersion(ctx, RecordKey(s.prefix, to), payload, ""); err != nil {
+	toKey := RecordKey(s.prefix, to)
+	// #1337: tagged with the address it is moving TO. The copy is a new
+	// object, and a tag naming where it came from would be wrong from its
+	// first byte.
+	if _, err := s.store.PutIfVersion(staterecord.WithObjectTags(ctx, markers.AddressObjectTags(to)), toKey, payload, ""); err != nil {
+		s.noteWriteFailure(toKey, err)
 		return false, fmt.Errorf("writing the record moved from %s to %s: %w (nothing was deleted at %s)", from, to, err, from)
 	}
+	s.noteWriteLanded(toKey)
 	if err := s.store.Delete(ctx, RecordKey(s.prefix, from), fromVersion); err != nil {
 		return true, fmt.Errorf(
 			"the record for %s was copied to %s, but the old key could not be removed: %w; nothing was lost - %s now holds the correct record - but the stale copy at %s should be cleaned up by hand or by rerunning the same rename",

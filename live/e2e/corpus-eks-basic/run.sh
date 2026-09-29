@@ -419,6 +419,18 @@ set -uo pipefail
 #                and the only one of them under which PART P runs at all -
 #                the others deliberately leave the estate somewhere PART P
 #                does not describe, and it reports no verdict there.
+#   BREAK_MIGRATE_COUNT
+#                set to 1 to run the migrate stage's object-count negative
+#                control (#1497): after live-import has stamped all 26,
+#                remove tofu-estate from one of the estate's two IAM roles
+#                and assert 25 anyway - the assertion has to fail, at 24.
+#                It is the proof that the IAM leg of that count is
+#                load-bearing. The call this stage used to make reads 21
+#                either way, marked or unmarked, and the run prints both
+#                numbers side by side so the reader can see it. Reached on
+#                the real path only, so it is independent of every BREAK
+#                above; the run reports migrate=fail and exits non-zero,
+#                and never reaches stage 3.
 #   DUMP_PLAN    path to write live-plan's full raw output to, for by-hand
 #                re-verification of stage 3's exact refusal wall shape.
 #   DUMP_IMPORT  path to write live-import's full raw output to, same
@@ -534,7 +546,7 @@ cleanup() {
     # shellcheck disable=SC2086  # names are docker container names, never globs
     docker rm -f $ns_children >/dev/null 2>&1 || true
   fi
-  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME"
   docker network rm "$NET" >/dev/null 2>&1 || true
   docker rmi -f "$TOOLBOX_IMAGE" >/dev/null 2>&1 || true
   rm -rf "$WORK"
@@ -547,6 +559,11 @@ log() { printf '%s\n' "$*"; }
 # failure belongs to; fail() reports it before exiting.
 # shellcheck source=live/e2e/lib/gauntlet.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+
+# The shared provider plugin cache, and the cross-process lock real terraform
+# needs in order to use it safely (#1300). live/e2e/lib/gauntlet.sh carries the
+# measured reasons for both; this is the only place a script chooses either.
+gauntlet_plugin_cache
 CURRENT_STAGE=""
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -569,8 +586,18 @@ awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
 # toolbox and choudoufu, terraform and git all want a writable home.
 AS_HOST_USER=(--user "$(id -u):$(id -g)" -e HOME=/work/.home)
 
+# gauntlet_plugin_cache exported the shared provider plugin cache for THIS
+# shell (#1300, #1314), but every terraform and choudoufu here runs inside a
+# container that sees only what is passed in. So each runner mounts the
+# directory at its own host path and forwards the two variables by name, so
+# the library stays the only place the directory is chosen; and every runner
+# runs as the host user (above), so a Linux runner never leaves root-owned
+# provider directories in a cache the host's own terraform shares.
+PLUGIN_CACHE_IN_CONTAINER=(-v "$TF_PLUGIN_CACHE_DIR:$TF_PLUGIN_CACHE_DIR" -e TF_PLUGIN_CACHE_DIR -e TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE)
+
 terraform_run() {
   docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
+    "${PLUGIN_CACHE_IN_CONTAINER[@]}" \
     -v "$WORK:/work" -w "/work/$PLAIN_REL" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_NAME}:4566" \
@@ -580,6 +607,7 @@ terraform_run() {
 tofu_run() {
   local rel="$1"; shift
   docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
+    "${PLUGIN_CACHE_IN_CONTAINER[@]}" \
     -v "$WORK:/work" -w "/work/$rel" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_NAME}:4566" \
@@ -593,6 +621,7 @@ tofu_run() {
 # instead of the main one.
 green_tofu_run() {
   docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
+    "${PLUGIN_CACHE_IN_CONTAINER[@]}" \
     -v "$WORK:/work" -w "/work/$GREEN_REL" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_GREEN_NAME}:4566" \
@@ -601,6 +630,7 @@ green_tofu_run() {
 
 oracle_green_terraform_run() {
   docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
+    "${PLUGIN_CACHE_IN_CONTAINER[@]}" \
     -v "$WORK:/work" -w "/work/$ORACLE_GREEN_REL" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_ORACLE_NAME}:4566" \
@@ -959,12 +989,12 @@ log "  deltas applied identically to both copies; only the live block differs ($
 # ── 2. floci, real EKS mode (needs the Docker socket for k3s) ──────────────
 log "=== 2. floci on :$FLOCI_PORT ($FLOCI_IMAGE), real EKS mode ==="
 [ -S /var/run/docker.sock ] || fail "no /var/run/docker.sock to mount - floci's EKS real mode needs it to spawn k3s"
-docker run -d --rm --network "$NET" -p "${FLOCI_PORT}:4566" \
+gauntlet_floci_start "$FLOCI_NAME" --network "$NET" -p "${FLOCI_PORT}:4566" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -e FLOCI_SERVICES_EKS_ENDPOINT_MODE=network \
   -e "FLOCI_SERVICES_EKS_DOCKER_NETWORK=$NET" \
   -e "FLOCI_DOCKER_RESOURCE_NAMESPACE=$FLOCI_NS" \
-  --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+  "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -980,7 +1010,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 # ── 3. STAGE 1: cold deploy, real terraform, zero choudoufu awareness ──────
 gauntlet_begin_stage cold_deploy
 log "=== 3. STAGE 1 - cold deploy: real terraform apply, no live block ==="
-terraform_run init -input=false -no-color > /tmp/eks-basic-init.log 2>&1 || {
+gauntlet_locked_init terraform_run init -input=false -no-color > /tmp/eks-basic-init.log 2>&1 || {
   tail -40 /tmp/eks-basic-init.log; fail "terraform init failed"; }
 APPLY_OUT="$(terraform_run apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$APPLY_OUT" | grep -E '^Error|^│' | head -60
@@ -1051,7 +1081,8 @@ ORACLE_REL="oracle/eks/examples/basic"
 rsync -a "$WORK/plain/" "$WORK/oracle/"
 ORACLE_EST="$WORK/$ORACLE_REL"
 oracle_terraform_run() {
-  docker run --rm --platform linux/amd64 --network "$NET" \
+  docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
+    "${PLUGIN_CACHE_IN_CONTAINER[@]}" \
     -v "$WORK:/work" -w "/work/$ORACLE_REL" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_NAME}:4566" \
@@ -1074,7 +1105,7 @@ moved {
   to   = aws_security_group.all_worker_mgmt_renamed
 }
 EOF
-oracle_terraform_run init -input=false -no-color > /tmp/eks-basic-oracle-init.log 2>&1 || {
+gauntlet_locked_init oracle_terraform_run init -input=false -no-color > /tmp/eks-basic-oracle-init.log 2>&1 || {
   tail -40 /tmp/eks-basic-oracle-init.log; fail "the day2_rename stock oracle's reinit failed"; }
 ORACLE_PLAN_OUT="$(oracle_terraform_run plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
@@ -1100,14 +1131,15 @@ ORACLE_REMOVE_REL="oracle-remove/eks/examples/basic"
 rsync -a "$WORK/plain/" "$WORK/oracle-remove/"
 ORACLE_REMOVE_EST="$WORK/$ORACLE_REMOVE_REL"
 oracle_remove_terraform_run() {
-  docker run --rm --platform linux/amd64 --network "$NET" \
+  docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
+    "${PLUGIN_CACHE_IN_CONTAINER[@]}" \
     -v "$WORK:/work" -w "/work/$ORACLE_REMOVE_REL" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_NAME}:4566" \
     hashicorp/terraform:1.9 "$@"
 }
 remove_worker_group_mgmt_one "$ORACLE_REMOVE_EST"
-oracle_remove_terraform_run init -input=false -no-color > /tmp/eks-basic-oracle-remove-init.log 2>&1 || {
+gauntlet_locked_init oracle_remove_terraform_run init -input=false -no-color > /tmp/eks-basic-oracle-remove-init.log 2>&1 || {
   tail -40 /tmp/eks-basic-oracle-remove-init.log; fail "the day2_remove stock oracle's reinit failed"; }
 REMOVE_ORACLE_PLAN_OUT="$(oracle_remove_terraform_run plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
 [ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -60; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
@@ -1172,7 +1204,8 @@ REPLACE_ORACLE_REL="oracle-replace/eks/examples/basic"
 rsync -a "$WORK/plain/" "$WORK/oracle-replace/"
 REPLACE_ORACLE_EST="$WORK/$REPLACE_ORACLE_REL"
 oracle_replace_terraform_run() {
-  docker run --rm --platform linux/amd64 --network "$NET" \
+  docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
+    "${PLUGIN_CACHE_IN_CONTAINER[@]}" \
     -v "$WORK:/work" -w "/work/$REPLACE_ORACLE_REL" \
     -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
     -e AWS_ENDPOINT_URL="http://${FLOCI_NAME}:4566" \
@@ -1182,7 +1215,7 @@ sed -i.bak 's/name_prefix = "worker_group_mgmt_two"/name_prefix = "worker_group_
 rm -f "$REPLACE_ORACLE_EST/main.tf.bak"
 grep -q 'worker_group_mgmt_two_v2' "$REPLACE_ORACLE_EST/main.tf" \
   || fail "changing aws_security_group.worker_group_mgmt_two's name_prefix argument in the replace-oracle copy did not match - the corpus pin has moved"
-oracle_replace_terraform_run init -input=false -no-color > /tmp/eks-basic-oracle-replace-init.log 2>&1 || {
+gauntlet_locked_init oracle_replace_terraform_run init -input=false -no-color > /tmp/eks-basic-oracle-replace-init.log 2>&1 || {
   tail -40 /tmp/eks-basic-oracle-replace-init.log; fail "the day2_replace stock oracle's reinit failed"; }
 REPLACE_ORACLE_PLAN_OUT="$(oracle_replace_terraform_run plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
 [ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -60; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
@@ -1233,16 +1266,25 @@ if [ -n "${DUMP_IMPORT:-}" ]; then printf '%s\n' "$IMPORT_OUT" > "$DUMP_IMPORT";
 # taggable); what moved is 29 skipped -> 24 skipped and 0 newly recorded ->
 # 5 newly recorded, which is five state entries that used to fall off the
 # end of the migration now carried across it.
-EXPECT_ELIGIBLE="25 of 54 resource instance(s) are eligible for stamping"
-EXPECT_STAMPED="25 resource(s) newly stamped, 0 already stamped, 5 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 24 skipped."
-EXPECT_MISSING_K8S='kubernetes_config_map.*could not be used'
+#
+# 2026-09-22, choudoufu #1543: 26, not 25. live-import had no provider-
+# configuration data-read phase, so provider.kubernetes - whose host, CA and
+# token all come from data.aws_eks_cluster/data.aws_eks_cluster_auth - could
+# not be configured during a migration at all, and
+# kubernetes_config_map.aws_auth was reported MISSING with "Dynamic value in
+# static context". It is now VERIFIED against kube-system/aws-auth and
+# carries this estate's tofu-estate LABEL. The AWS-side count below stays 25:
+# the 26th marker is a Kubernetes label, which no AWS tagging API can see.
+EXPECT_ELIGIBLE="26 of 54 resource instance(s) are eligible for stamping"
+EXPECT_STAMPED="26 resource(s) newly stamped, 0 already stamped, 5 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 23 skipped."
+EXPECT_LABELLED_K8S='kubernetes_config_map.*Wrote the tofu-estate label'
 # BREAK=1 mutates BOTH stages, which means it never reaches stage 3: `fail`
 # exits, so a BREAK=1 run proves stage 2's control and leaves stage 3's
 # unexercised. BREAK=3 mutates stage 3 only, and is what proves this script's
 # three negative controls - the ones carrying #326's, sibling_select.go's and
 # #364's fixes - are load-bearing rather than vacuously green.
 if [ "${BREAK:-}" = "1" ]; then
-  EXPECT_ELIGIBLE="26 of 54 resource instance(s) are eligible for stamping"
+  EXPECT_ELIGIBLE="27 of 54 resource instance(s) are eligible for stamping"
   log "  BREAK=1: expecting \"$EXPECT_ELIGIBLE\" (off by one from the real"
   log "           count). This step must fail."
 fi
@@ -1254,14 +1296,107 @@ grep -qF "$EXPECT_STAMPED" <<< "$IMPORT_OUT" || {
   grep -E 'resource\(s\) newly stamped' <<< "$IMPORT_OUT"
   fail "did not find \"$EXPECT_STAMPED\" in live-import's own output"
 }
-grep -qE "$EXPECT_MISSING_K8S" <<< "$IMPORT_OUT" || fail "kubernetes_config_map.aws_auth no longer reports as MISSING/could-not-be-used in live-import's output - issue #326's fix (or the kubernetes-provider-config wall it exposed) has changed shape; re-check by hand"
-log "  live-import's own accounting matches: 25 of 54 resource instances stamped (module.vpc + module.eks are now in scope, issue #59 is closed), 5 record-backed instances seeded into the implied local record store (#364), kubernetes_config_map.aws_auth correctly MISSING (admitted, but its provider config can't be statically evaluated)"
+grep -qE "$EXPECT_LABELLED_K8S" <<< "$IMPORT_OUT" || {
+  grep -E 'kubernetes_config_map' <<< "$IMPORT_OUT"
+  fail "kubernetes_config_map.aws_auth was not labelled by the migration (see its real lines above) - choudoufu #1543's provider-configuration data-read phase on the migrate path has regressed, and without that label #1108 makes the next live-plan read the object UNOWNED and propose creating one that already exists"
+}
+log "  live-import's own accounting matches: 26 of 54 resource instances stamped (module.vpc + module.eks are now in scope, issue #59 is closed), 5 record-backed instances seeded into the implied local record store (#364), kubernetes_config_map.aws_auth VERIFIED against kube-system/aws-auth and labelled (#1543)"
 
-MARKED_AFTER="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  2>/dev/null || echo 0)"
-[ "$MARKED_AFTER" = "25" ] || fail "expected 25 objects carrying tofu-estate=$ESTATE after migration, got $MARKED_AFTER"
-log "  25 of 25 stamped objects confirmed via the AWS CLI directly"
-gauntlet_stage migrate pass "25 of 54 resource instances stamped, 25 of 25 confirmed via the AWS CLI; 5 record-backed instances seeded into the implied local record store (#364)"
+# The label read from the CLUSTER, with no tofu in the loop - the same read
+# #1543 was filed on, which found `metadata` with no `labels` key at all.
+# live-import's own report saying it wrote the label is that command marking
+# its own homework; this is the object. k3s carries kubectl, and the cluster
+# is this run's own namespaced sibling container.
+K3S_CONTAINER="$(docker ps --filter "name=floci-${FLOCI_NS}-eks-" --format '{{.Names}}' | head -n1)"
+[ -n "$K3S_CONTAINER" ] || fail "no k3s sibling container for this run's namespace $FLOCI_NS - the cluster-side label check cannot run, and skipping it would leave #1543's whole verdict resting on live-import's own report"
+# `kubectl` and `k3s kubectl` are both tried: which one is on PATH is a
+# property of the k3s image, and a check that cannot run must fail rather
+# than be skipped.
+AWS_AUTH_JSON="$(docker exec "$K3S_CONTAINER" kubectl get configmap -n kube-system aws-auth -o json 2>&1)" \
+  || AWS_AUTH_JSON="$(docker exec "$K3S_CONTAINER" k3s kubectl get configmap -n kube-system aws-auth -o json 2>&1)" \
+  || fail "could not read kube-system/aws-auth from $K3S_CONTAINER with either kubectl or k3s kubectl: $AWS_AUTH_JSON"
+AWS_AUTH_ESTATE="$(printf '%s' "$AWS_AUTH_JSON" | jq -r '.metadata.labels["tofu-estate"] // "<none>"')"
+[ "$AWS_AUTH_ESTATE" = "$ESTATE" ] \
+  || fail "kube-system/aws-auth carries tofu-estate=$AWS_AUTH_ESTATE, read from the cluster, not $ESTATE - the migration did not write the label onto the object (#1543); metadata.labels: $(printf '%s' "$AWS_AUTH_JSON" | jq -c '.metadata.labels')"
+log "  kube-system/aws-auth carries tofu-estate=$AWS_AUTH_ESTATE, read with kubectl against the cluster itself: $(printf '%s' "$AWS_AUTH_JSON" | jq -c '.metadata.labels')"
+
+# gauntlet_estate_objects, not `gauntlet_tagged_count ...
+# resourcegroupstaggingapi get-resources` (issue #1497, the same defect
+# #1271 fixed in corpus-iam-policy). This line used to count all 25 stamped
+# objects through the Resource Groups Tagging API alone, and read 21: the
+# tagging API does not index this estate's four IAM objects - two
+# aws_iam_role and two aws_iam_instance_profile - in us-west-2, so the
+# oracle was asking a question the API cannot answer here and reading the
+# shortfall as a missing stamp. choudoufu stamped all 25; the emulator
+# holds all 25 markers; the count was wrong.
+#
+# MEASURED, no tofu in the loop, one fresh container at the current pin
+# ghcr.io/lex00/floci@sha256:6c3d5c2d, 2026-09-22. A role, an instance
+# profile, a customer-managed policy and a VPC, each created untagged and
+# then tagged through the stamp's own path (TagRole / TagInstanceProfile /
+# TagPolicy / CreateTags):
+#
+#   us-west-2 (THIS estate's region): all four read tofu-estate back
+#   through iam list-role-tags / list-instance-profile-tags /
+#   list-policy-tags / ec2 describe-tags. GetResources filtered on the same
+#   tag returned ONLY the VPC - no role, no instance profile, no policy,
+#   and none under --resource-type-filters iam or unfiltered either.
+#
+#   us-east-1, for contrast: GetResources returns the instance profiles and
+#   the policies, and never a role.
+#
+# That asymmetry is the emulator being RIGHT, not wrong, and it is not the
+# same answer the issue recorded. #1497 was written against
+# sha256:74ffd40e, where GetResources served no IAM at all; the pin has
+# moved twice since (lex00/floci#205, choudoufu #1152), and it now indexes
+# iam:policy and iam:instance-profile in us-east-1 only, matching real
+# AWS's regional tagging index for a global service. us-west-2 is
+# unaffected either way, so the count here reads 21 on both pins and would
+# read 21 on real AWS. Nothing to repin and nothing to file against floci.
+#
+# gauntlet_estate_objects asks IAM's own tag APIs as well and deduplicates
+# by ARN, so it answers 25 and keeps answering 25 if a later pin ever
+# starts serving these types through GetResources - GAUNTLET_ESTATE_BOTH_N
+# is how a reader tells which world the run happened in. Assert on
+# GAUNTLET_ESTATE_N, never on GAUNTLET_ESTATE_RGTA_N.
+#
+# The trailing `2>/dev/null || echo 0` is gone with it: it turned an
+# unreachable endpoint into "0 objects", and 0 is not 25, so it merely
+# swapped one wrong number for another. The helper refuses loudly instead.
+#
+# Proved red: BREAK_MIGRATE_COUNT=1 below.
+gauntlet_estate_objects "$ESTATE" awsl \
+  || fail "could not read the account's tofu-estate=$ESTATE inventory after migration"
+MARKED_AFTER="$GAUNTLET_ESTATE_N"
+if [ "${BREAK_MIGRATE_COUNT:-}" = "1" ]; then
+  # The negative control for THIS line. Untag ONE of the four IAM objects -
+  # the two roles are the types GetResources indexes in no region at all -
+  # and the assertion must catch it as 24. Against the GetResources-only
+  # call this replaced, removing that marker was invisible: the count read
+  # 21 with the role marked and 21 with it unmarked, which is the whole of
+  # #1497. This is how a reader re-runs that proof.
+  BREAK_ROLE="$(awsl iam list-roles --output json \
+    | jq -r '.Roles[].RoleName' \
+    | while IFS= read -r r; do
+        if awsl iam list-role-tags --role-name "$r" --output json 2>/dev/null \
+             | jq -e --arg e "$ESTATE" '[.Tags[]? | select(.Key == "tofu-estate" and .Value == $e)] | length > 0' >/dev/null; then
+          printf '%s\n' "$r"; break
+        fi
+      done)"
+  [ -n "$BREAK_ROLE" ] || fail "BREAK_MIGRATE_COUNT=1 found no role carrying tofu-estate=$ESTATE to unmark - the control cannot run, and the assertion below would have passed for the wrong reason"
+  awsl iam untag-role --role-name "$BREAK_ROLE" --tag-keys tofu-estate >/dev/null
+  OLD_IDIOM="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE")"
+  gauntlet_estate_objects "$ESTATE" awsl \
+    || fail "could not re-read the inventory after BREAK_MIGRATE_COUNT unmarked $BREAK_ROLE"
+  MARKED_AFTER="$GAUNTLET_ESTATE_N"
+  log "  BREAK_MIGRATE_COUNT=1: removed tofu-estate from role $BREAK_ROLE - the"
+  log "           assertion below must now fail, and reads $MARKED_AFTER. The call this"
+  log "           line replaced still reads $OLD_IDIOM, unchanged by the removal:"
+  log "           that is the defect, not the control."
+fi
+[ "$MARKED_AFTER" = "25" ] || fail "expected 25 objects carrying tofu-estate=$ESTATE after migration, got $MARKED_AFTER (GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own tag APIs $GAUNTLET_ESTATE_IAM_N, $GAUNTLET_ESTATE_BOTH_N returned by both, deduplicated by ARN)"
+log "  25 of the 26 stamped objects confirmed via the AWS CLI directly (the 26th is kube-system/aws-auth, whose marker is a Kubernetes label and is confirmed with kubectl above): GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own list-role-tags/list-instance-profile-tags $GAUNTLET_ESTATE_IAM_N (#1497 - GetResources does not index IAM in us-west-2, on this emulator or on real AWS)"
+gauntlet_stage migrate pass "26 of 54 resource instances stamped, 25 of the 26 confirmed via the AWS CLI and the 26th (kube-system/aws-auth's tofu-estate label) confirmed with kubectl against the cluster - counted through GetResources ($GAUNTLET_ESTATE_RGTA_N) AND IAM's own list-role-tags/list-instance-profile-tags ($GAUNTLET_ESTATE_IAM_N), deduplicated by ARN, because the tagging API does not index this estate's two roles and two instance profiles in us-west-2 (#1497); 5 record-backed instances seeded into the implied local record store (#364)"
 
 # ── 5. STAGE 3: test plan ───────────────────────────────────────────────────
 # UPDATE 2026-08-24 (issue #396's worker, continuing #391/the eks-splat
@@ -1403,10 +1538,6 @@ COUNTINDEX_SITES='aws_route_table_association\.(public|private)'
 # discovery fallback (internal/live/discovery/locatedfallback.go) failed;
 # only "Unlistable marker-discovered type" - the refusal's own wording - is.
 LAUNCHCONFIG_SITES='Unlistable marker-discovered type'
-# The four resource addresses this estate's CURRENT wall (a non-empty
-# plan, not a refusal) touches - checked by exact shape, not merely by
-# type name, so a plan that changes for some OTHER reason still trips this.
-LAUNCHCONFIG_DIFF_SITES='module\.eks\.aws_launch_configuration\.workers\[[01]\] must be replaced|module\.eks\.random_pet\.workers\[[01]\] must be replaced|module\.eks\.aws_autoscaling_group\.workers\[[01]\] will be updated in-place'
 # The kubernetes_* lines that are NOT a refusal: the tag sweep's own
 # "no CFN type in the ARN join table" warnings, in either of the two
 # shapes that name it - the long-form warning body ("kubernetes_config_map
@@ -1416,12 +1547,11 @@ LAUNCHCONFIG_DIFF_SITES='module\.eks\.aws_launch_configuration\.workers\[[01]\] 
 # one cleared (issue #396) and the summary table's own alphabetical walk
 # reached the kubernetes_* types for the first time - it was always there,
 # just never rendered this far before an earlier error cut discovery
-# short. Excluded by exact shape rather than by the provider prefix, so a
-# real kubernetes refusal - which would say "Rule:" or "Error:" - still
-# trips the check.
+# short.
 #
-# This is the SAME shape LAUNCHCONFIG_SITES' own check below has to
-# exclude, for the identical reason: aws_launch_configuration is one of
+# The kubernetes-specific check this was written for is gone (issue #1527
+# - see the replacement at the "stage's oracle" comment below); what still
+# needs it is LAUNCHCONFIG_SITES' own check, for the identical reason: aws_launch_configuration is one of
 # many admitted types with no CFN type in that same join table (so is,
 # say, aws_lambda_permission - see the sweep's own output, which lists
 # them alphabetically with nothing type-specific about the wording), and
@@ -1471,21 +1601,42 @@ if [ "${BREAK:-}" = "1" ] || [ "${BREAK:-}" = "3" ]; then
     || fail "BREAK=${BREAK} correctly detected: no refusal fired for$BREAK_HITS - every one of those fixes holds and every negative control above is load-bearing (this failure is the expected one)"
 else
   assert_rule_absent "unadmitted-type" 'Rule: unadmitted-type\.' "issue #326's fix for kubernetes_config_map.aws_auth"
-  # The provider.kubernetes configuration wall this exclusion used to carve
-  # out (issue #313) is FIXED as of 2026-08-24 (issue #396's worker - see
-  # this script's own UPDATE note above stage 3); the exclusion patterns
-  # below are kept only because a regression of #313 would otherwise be
-  # misread as a #326 regression by this check, not because any of them is
-  # expected to match anything in a clean run.
-  K8S_REFUSALS="$(grep -i 'kubernetes' <<< "$PLAN_OUT" | grep -vE "$K8S_NOT_A_REFUSAL" | grep -vcE 'Provider unavailable for marker discovery|cannot evaluate the configuration of provider|provider\.kubernetes|registry\.opentofu\.org/hashicorp/kubernetes' || true)"
-  [ "$K8S_REFUSALS" = "0" ] || {
-    grep -i 'kubernetes' <<< "$PLAN_OUT" | grep -vE "$K8S_NOT_A_REFUSAL"
-    fail "\"kubernetes\" appears in live-plan's output somewhere other than the tag sweep's own join-table warnings - #326's fix may have regressed, or issue #313's provider.kubernetes wall is back"
-  }
-  log "  Confirmed: the only mentions of kubernetes anywhere in live-plan's"
-  log "             output are the tag sweep's four join-table warnings -"
-  log "             issue #326's fix holds for kubernetes_config_map.aws_auth"
-  log "             and issue #313's provider.kubernetes wall stays fixed"
+  # The stage's oracle, read here (live/GAUNTLET.md): live-plan proposes
+  # nothing. Taken off the plan's own change lines and its Plan: total, and
+  # NAMED in the failure, so a reader is told which addresses were proposed
+  # and with which verb instead of being sent to an issue number.
+  #
+  # What this replaces, and why (issue #1527). It was a bare
+  # `grep -i kubernetes` over the whole output with three carve-outs, whose
+  # failure said "#326's fix may have regressed, or issue #313's
+  # provider.kubernetes wall is back". On 2026-09-22 it fired - and both
+  # halves of its own diagnosis were wrong, cleared BY NAME two lines
+  # earlier by the zero-Error-diagnostics check and by assert_rule_absent
+  # "unadmitted-type" above. What it had actually matched was the estate
+  # sweep's "Kubernetes sweep unavailable" warning and the unowned-object
+  # warning, neither of them a refusal; meanwhile the one thing that made
+  # the stage wrong, a single proposed create, went unnamed. A grep for a
+  # provider's NAME cannot tell a refusal from a warning that mentions it,
+  # and this stage has never needed it to: a refusal is an Error diagnostic
+  # (asserted above), an unadmitted type is a Rule: line (asserted above),
+  # and everything else that matters shows up as a proposed change here.
+  #
+  # The proposed-change lines are stock's own rendering - "  # <address>
+  # will be created / will be updated in-place / must be replaced / will be
+  # destroyed" - and the Plan: total is printed only when the plan is not
+  # empty, so either one appearing is the stage failing. Both are collected
+  # rather than the first, because the total alone does not say WHAT and the
+  # addresses alone do not say how many.
+  PLAN_TOTAL="$(grep -E '^Plan: ' <<< "$PLAN_OUT" || true)"
+  PROPOSED="$(grep -E '^[[:space:]]*# .*(will be|must be) ' <<< "$PLAN_OUT" || true)"
+  if [ -n "$PLAN_TOTAL" ] || [ -n "$PROPOSED" ]; then
+    printf '%s\n' "$PLAN_TOTAL"
+    printf '%s\n' "$PROPOSED"
+    PROPOSED_FLAT="$(sed -e 's/^[[:space:]]*# //' <<< "$PROPOSED" | tr '\n' '@' | sed -e 's/@$//' -e 's/@/; /g')"
+    fail "live-plan is not empty, so this estate would not replan clean after migration: ${PLAN_TOTAL:-(no Plan: total printed)} - it proposes ${PROPOSED_FLAT:-changes it did not itemize}"
+  fi
+  log "  Confirmed: live-plan proposes nothing - no \"Plan:\" total and no"
+  log "             resource-action line anywhere in its output"
 
   assert_rule_absent "count-index" "$COUNTINDEX_SITES" "internal/live/lint/sibling_select.go's element(<sibling splat>, count.index) rule"
   assert_rule_absent "logical-resource" "$LOGICAL_SITES" "choudoufu #364's implied local record store"
@@ -1581,16 +1732,23 @@ fi
 # See this script's own PASS/FAIL summary at the end of the file for the
 # full, current five-stage picture.
 gauntlet_begin_stage test_plan
-NOT_EMPTY_SITES="$LAUNCHCONFIG_DIFF_SITES"
-if grep -qE "$NOT_EMPTY_SITES" <<< "$PLAN_OUT"; then
-  grep -E "$NOT_EMPTY_SITES" <<< "$PLAN_OUT"
-  fail "the launch-configuration/random_pet/autoscaling_group cascade still appears in the plan - the fix has regressed"
-fi
+# The negative form of the same oracle, and the only part of it not already
+# settled above: stock prints this sentence when, and only when, it has
+# nothing to do. The per-address check above (issue #1527) is what names a
+# non-empty plan; this catches the case where the plan is neither empty nor
+# rendered the way this script reads it - a format change, or output that
+# stopped before the change summary - which an absence-of-"Plan:" test alone
+# would read as success.
+#
+# What it replaced: a grep for the launch-configuration/random_pet/
+# autoscaling_group cascade this estate's 2026-08-24 wall consisted of. That
+# check was a strict subset of the per-address check above and so could no
+# longer fire; the cascade's addresses, if they ever came back, are now named
+# by that check along with anything else the plan proposes.
 grep -qF 'No changes. Your infrastructure matches the configuration.' <<< "$PLAN_OUT" \
-  || { grep -E '^Plan: |^No changes' <<< "$PLAN_OUT"; fail "live-plan is not reporting \"No changes\" - the plan may not be genuinely empty"; }
+  || { grep -E '^Plan: |^No changes|^Changes to Outputs' <<< "$PLAN_OUT"; fail "live-plan did not print \"No changes. Your infrastructure matches the configuration.\" even though it proposed no resource action - live-plan's own summary is missing or has changed shape, so the plan cannot be read as empty"; }
 log "  Confirmed: live-plan is EMPTY - \"No changes. Your infrastructure"
-log "  matches the configuration.\" - the launch-configuration/random_pet/"
-log "  autoscaling_group cascade is gone"
+log "  matches the configuration.\""
 
 gauntlet_stage test_plan pass "live-plan runs to completion with ZERO Error diagnostics and reports \"No changes. Your infrastructure matches the configuration.\" - the record-backed worker launch configuration's enable_monitoring/root_block_device/user_data all now agree with the config's own desired value (lex00/floci#132 for the first two, configuredAttrsSeed's residue-record pre-read seed in internal/live/projection/build.go for the third)"
 
@@ -2250,7 +2408,8 @@ EOF
     rm -rf "$ORACLE_COUNT_DIR/.terraform/modules" "$ORACLE_COUNT_DIR/.terraform/terraform.tfstate"
     cp "$PLAIN/.terraform.lock.hcl" "$ORACLE_COUNT_DIR/.terraform.lock.hcl" 2>/dev/null || true
     oracle_count_terraform_run() {
-      docker run --rm --platform linux/amd64 --network "$NET" \
+      docker run --rm --platform linux/amd64 --network "$NET" "${AS_HOST_USER[@]}" \
+        "${PLUGIN_CACHE_IN_CONTAINER[@]}" \
         -v "$WORK:/work" -w "/work/$ORACLE_COUNT_REL" \
         -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_REGION="$REGION" \
         -e AWS_ENDPOINT_URL="http://${FLOCI_NAME}:4566" \
@@ -2296,8 +2455,8 @@ resource "aws_security_group" "count_test" {
 EOF
     }
     write_oracle_count_config 2
-    oracle_count_terraform_run init -input=false -no-color > /tmp/eks-basic-oracle-count-init.log 2>&1 || {
-      tail -40 /tmp/eks-basic-oracle-count-init.log; fail "the day2_count stock oracle's terraform init failed"; }
+    gauntlet_locked_init oracle_count_terraform_run init -input=false -no-color > /tmp/eks-basic-oracle-count-init.log 2>&1 || {
+      tail -40 /tmp/eks-basic-oracle-count-init.log; fail "the day2_count stock oracle's gauntlet_locked_init terraform init failed"; }
     ORACLE_COUNT_APPLY_OUT="$(oracle_count_terraform_run apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_COUNT_APPLY_RC=$?
     [ "$ORACLE_COUNT_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -40; fail "the day2_count stock oracle's baseline apply exited $ORACLE_COUNT_APPLY_RC"; }
     grep -qE 'Apply complete! Resources: 3 added, 0 changed, 0 destroyed' <<< "$ORACLE_COUNT_APPLY_OUT" \
@@ -2493,19 +2652,19 @@ gauntlet_end_stage
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage greenfield
 log "=== G0. two more floci containers, one per fresh namespace, real EKS mode ==="
-docker run -d --rm --network "$NET" -p "${FLOCI_GREEN_PORT}:4566" \
+gauntlet_floci_start "$FLOCI_GREEN_NAME" --network "$NET" -p "${FLOCI_GREEN_PORT}:4566" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -e FLOCI_SERVICES_EKS_ENDPOINT_MODE=network \
   -e "FLOCI_SERVICES_EKS_DOCKER_NETWORK=$NET" \
   -e "FLOCI_DOCKER_RESOURCE_NAMESPACE=$FLOCI_NS" \
-  --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+  "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
-docker run -d --rm --network "$NET" -p "${FLOCI_ORACLE_PORT}:4566" \
+gauntlet_floci_start "$FLOCI_ORACLE_NAME" --network "$NET" -p "${FLOCI_ORACLE_PORT}:4566" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -e FLOCI_SERVICES_EKS_ENDPOINT_MODE=network \
   -e "FLOCI_SERVICES_EKS_DOCKER_NETWORK=$NET" \
   -e "FLOCI_DOCKER_RESOURCE_NAMESPACE=$FLOCI_NS" \
-  --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+  "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_ORACLE_NAME failed"
 for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
   GH=""
@@ -2674,7 +2833,7 @@ grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREE
 log "  No changes."
 
 log "=== G5. stock oracle - the identical corpus example applied fresh in its own namespace ==="
-oracle_green_terraform_run init -input=false -no-color > /tmp/eks-basic-green-oracle-init.log 2>&1 || {
+gauntlet_locked_init oracle_green_terraform_run init -input=false -no-color > /tmp/eks-basic-green-oracle-init.log 2>&1 || {
   tail -60 /tmp/eks-basic-green-oracle-init.log; fail "the greenfield oracle's init failed"; }
 ORACLE_APPLY_OUT="$(oracle_green_terraform_run apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$ORACLE_APPLY_OUT" | grep -E '^Error|^│' | head -60
@@ -2730,7 +2889,7 @@ log "\"basic\" example - the module virtually everyone reaches for first -"
 log "against choudoufu/floci:"
 log ""
 log "  STAGE 1  PASS  54/54 resources, genuinely cold, genuinely unmarked."
-log "  STAGE 2  PASS  25 of 54 resource instances stamped across the root"
+log "  STAGE 2  PASS  26 of 54 resource instances stamped across the root"
 log "           module, module.vpc and module.eks (issue #59's"
 log "           root-module-only scope is closed), 5 seeded into the implied"
 log "           local record store (choudoufu #364), and of the remaining 24"

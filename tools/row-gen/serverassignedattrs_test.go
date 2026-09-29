@@ -66,6 +66,14 @@ func TestServerAssignedRowsCarryTheirSchemaIdentityAttr(t *testing.T) {
 
 	for name, attr := range rows {
 		entry := identity.DefaultTable[name]
+		if survey[name].notResourceAttr(attr) {
+			// The identity schema's name for a value the resource schema
+			// spells differently (aws_osis_pipeline: name against
+			// pipeline_name). IdentityAttrs is resource vocabulary, so the
+			// rule keeps this one out on purpose;
+			// TestMergeIdentityAttrsSkipsIdentityOnlyNames pins that side.
+			continue
+		}
 		found := false
 		for _, have := range entry.IdentityAttrs {
 			if have == attr {

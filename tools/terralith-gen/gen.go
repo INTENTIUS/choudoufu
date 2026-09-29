@@ -58,6 +58,32 @@ const (
 	podSizePerScale = 1
 )
 
+// IAMRoleInstances is how many aws_iam_role INSTANCES one generated estate
+// declares at a scale - the number an account's IAM role quota is charged
+// for, which is what live/live-cert/terralith-scale.sh compares against
+// `aws iam get-account-summary`'s Roles/RolesQuota before cold_deploy
+// (issue #1230). Counting `resource "aws_iam_role"` blocks in the output
+// undercounts it: at scale 3 there are 23 blocks and 33 instances, because
+// count_team carries `count = 6`, and modules/team_pod's pod_role carries
+// `count = 3` inside a module call for_each'd over two keys.
+//
+// One role per team-equivalent in every identity bucket, plus one
+// execution role per service:
+//
+//	named teams   teamsPerScale * scale
+//	count_team    countTeamsPerScale * scale
+//	module pods   len(modulePodKeys) * podSizePerScale * scale
+//	services      servicesPerScale * scale
+//
+// TestIAMRoleInstancesMatchGeneratedHCL pins this against the generated
+// HCL itself, expanding count and for_each the way terraform would, so a
+// generator change that moves the number fails a test rather than a paid
+// run. `terralith-gen -iam-roles -scale N` prints it for the script.
+func IAMRoleInstances(scale int) int {
+	perScale := teamsPerScale + countTeamsPerScale + len(modulePodKeys)*podSizePerScale + servicesPerScale
+	return perScale * scale
+}
+
 // modulePodKeys are the for_each keys the root module call over
 // modules/team_pod uses. Fixed at two regardless of scale, so the module
 // call always has more than one instance - the shape

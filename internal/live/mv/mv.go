@@ -19,10 +19,13 @@ import (
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/listclient"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
+	"github.com/intentius/choudoufu/internal/live/servicetags"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -92,14 +95,34 @@ type Request struct {
 	// Tagging is the Resource Groups Tagging API client a caller builds the
 	// same way internal/command/live_plan.go does (nil when Cloud Control
 	// fallback is off, or the run named no endpoint at all). sweep uses it
-	// as issue #266's fallback, through [discovery.JoinMarkerFromTagging],
-	// for a listed object whose own tags come back empty: some list
-	// operations drop tags entirely (iam:ListRoles, iam:ListPolicies), and
-	// without this a needs-discovery instance of such a type can never be
-	// found by locateByList, no matter how correctly it is tagged. A nil
-	// client degrades to the pre-#266 behavior, exactly as an ordinary
-	// discovery pass degrades when it has none.
+	// as issue #266's fallback, through [discovery.MarkerFallback], for a
+	// listed object whose own tags come back empty: some list operations
+	// drop tags entirely (iam:ListRoles, iam:ListPolicies), and without
+	// this a needs-discovery instance of such a type can never be found by
+	// locateByList, no matter how correctly it is tagged. A nil client
+	// degrades to the pre-#266 behavior, exactly as an ordinary discovery
+	// pass degrades when it has none.
 	Tagging *cloudcontrol.Client
+
+	// ServiceTags is the per-service tag reader (#1131, #1125), the second
+	// route to a marker the list call dropped, and it is here because of
+	// GitHub issue #1274: the tag index above is not a fallback for every
+	// service. #1134 measured the Resource Groups Tagging API serving
+	// iam:policy and iam:instance-profile in us-east-1 and serving no
+	// iam:role anywhere, and the pinned emulator serves no IAM at all
+	// (lex00/floci#205, #1152). On such a target Tagging's join comes back
+	// empty for an object that IS this estate's, and before this field
+	// live-mv had nothing left to ask: it refused the rename of a live
+	// aws_iam_policy carrying the very marker it was looking for, while a
+	// live-plan of the same estate read that marker fine - #1274's
+	// D1-passes/D2-fails contrast, the two commands differing only in that
+	// live-plan had this leg and live-mv did not.
+	//
+	// Built by the caller the same way internal/command/live_plan.go builds
+	// discovery.Request.ServiceTags, and supplied to the same shared leg -
+	// see [discovery.MarkerFallback]. Nil is a run that built no reader, and
+	// degrades to exactly the Tagging-only behavior above.
+	ServiceTags servicetags.Reader
 
 	// RecordStore is the estate's record envelope store (GitHub issue #364),
 	// opened the same way live-plan and live-import open theirs. It is what
@@ -141,6 +164,22 @@ type Request struct {
 	// resolves it once and passes it, exactly as [Request.Region] and
 	// [Request.Tagging] arrive.
 	ReadParallelism int
+
+	// Clusters supplies the Kubernetes cluster client for a provider
+	// configuration, the seam internal/live/liveimport's Request.Clusters
+	// names for the same reason: a manifest-declared object's markers are
+	// written by an API merge patch, never through the provider
+	// (internal/live/kubesweep/patch.go). live-mv needs it for one write,
+	// the address annotation a same-estate rename of such an object
+	// rewrites (GitHub issue #1639). Nil refuses that rename by name and
+	// leaves every other move exactly as it was.
+	Clusters Clusters
+}
+
+// Clusters is [Request.Clusters]'s interface: internal/command's
+// statelessProviders implements it for live-import already.
+type Clusters interface {
+	LabelPatcher(ctx context.Context, addr addrs.AbsProviderConfig) (kubesweep.LabelPatcher, error)
 }
 
 // Path is how the live resource was found.
@@ -202,21 +241,32 @@ type Result struct {
 	Path Path
 
 	// Surface is where the marker lives on the live object (label.go):
-	// [SurfaceTags] for the AWS tag map, [SurfaceLabel] for a Kubernetes
-	// metadata block, [SurfaceManifest] for a manifest-declared object.
-	// Read off the provider's schema for the type, never off its name.
-	Surface Surface
+	// [markers.SurfaceTags] for the AWS tag map, [markers.SurfaceLabels]
+	// for a Kubernetes metadata block, [markers.SurfaceManifest] for a
+	// manifest-declared object, and the zero Surface for a type with none
+	// (which takes the tag path). Read off the provider's schema for the
+	// type, never off its name.
+	Surface markers.Surface
 
 	// NothingToWrite is true when this rename had nothing governed to
 	// write on the live system and stopped, successfully, before reading
-	// or writing anything there: a same-estate rename on a surface whose
-	// marker carries no address (label.go). The object is bound to its
-	// block by the natural key the configuration authors, so renaming the
-	// block is the whole rename. The estate's own record store, when it
+	// or writing anything there: a same-estate rename on a label-surface
+	// schema whose metadata block has no annotations map, so no address
+	// on the object (label.go). Since GitHub issue #1639 every
+	// hashicorp/kubernetes type carries its address in an annotation and
+	// is rewritten instead; this remains for a schema that could not. The estate's own record store, when it
 	// has one, is still re-keyed from the old address to the new
 	// ([mover.propagateModuleRename]) - the local half every rename makes,
 	// and GitHub issue #412's stale-key shape otherwise.
 	NothingToWrite bool
+
+	// AlreadyMarked is true when a same-estate rename of a Kubernetes
+	// object found the object already carrying the new address in its
+	// address annotation (GitHub issue #1639) - a plan and apply of the
+	// renamed block wrote it first - so nothing was written, and the
+	// marker it carries is the one this rename would have written.
+	// Verified is true beside it.
+	AlreadyMarked bool
 
 	// Swept is true when the whole resource type was enumerated, which is
 	// what makes "nothing else claims the destination address" a complete
@@ -354,22 +404,38 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		return res, diags
 	}
 
-	m := &mover{req: req, res: res, provider: provider, schema: schema}
+	m := &mover{req: req, res: res, provider: provider, providerAddr: providerAddr, schema: schema}
 
 	// The marker surface decides what there is to write (label.go). On a
-	// surface with no address on the object, a rename within one estate
-	// has nothing governed to do and says so; a move between estates is
-	// the one label write, on the metadata-block shape, and is refused by
-	// name on the manifest shape until that rewrite exists.
+	// Kubernetes surface the ownership marker is the estate label and the
+	// block address is an annotation beside it (GitHub issue #1639): a
+	// rename within one estate rewrites the annotation, and a move between
+	// estates rewrites the label and the annotation together, on the
+	// metadata-block shape; on the manifest shape the move is refused by
+	// name until that rewrite exists (#1104), and the rename is one
+	// annotation patch (manifest.go).
 	res.Surface = surfaceOf(schema.Block)
 	switch {
-	case res.Surface == SurfaceTags:
+	case res.MarkerCarriesAddress():
+		// The tag path, which a type with no surface takes too.
+	case relabels(res.Surface):
+		if req.FromEstate == "" && !annotates(schema.Block) {
+			// A metadata block with no annotations attribute carries no
+			// address to rewrite: nothing on the cluster, and the estate's
+			// own records still follow the address.
+			res.NothingToWrite = true
+			return res, diags.Append(m.propagateModuleRename(ctx))
+		}
 	case req.FromEstate == "":
-		// Nothing on the cluster; the estate's own records still follow
-		// the address, exactly as after a tag rewrite.
-		res.NothingToWrite = true
+		diags = diags.Append(m.reannotateManifest(ctx))
+		if diags.HasErrors() || req.DryRun {
+			return res, diags
+		}
 		return res, diags.Append(m.propagateModuleRename(ctx))
-	case res.Surface == SurfaceManifest:
+	default:
+		// The one cross-estate write built here for a Kubernetes marker
+		// is the metadata block's plan; the manifest shape's label patch
+		// is not (#1104), so it is refused by name.
 		return res, diags.Append(manifestMoveRefusal(res.TypeName, anchor, req.FromEstate, req.Estate))
 	}
 
@@ -383,6 +449,13 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		return res, diags
 	}
 
+	if res.AlreadyMarked {
+		// The object already carries the new address (label.go's
+		// locateLabelled): nothing to write, and the records still follow.
+		res.Verified = true
+		return res, diags.Append(m.propagateModuleRename(ctx))
+	}
+
 	diags = diags.Append(m.rewrite(ctx, prior))
 	if diags.HasErrors() {
 		return res, diags
@@ -393,10 +466,11 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 
 // mover carries one rename's inputs through the find and write halves.
 type mover struct {
-	req      Request
-	res      *Result
-	provider providers.Interface
-	schema   providers.Schema
+	req          Request
+	res          *Result
+	provider     providers.Interface
+	providerAddr addrs.AbsProviderConfig
+	schema       providers.Schema
 }
 
 // sourceEstate is the estate the live resource is looked for under: the
@@ -850,7 +924,7 @@ func (m *mover) find(ctx context.Context) (*states.ResourceInstanceObject, tfdia
 	if idDiags.HasErrors() {
 		return nil, diags
 	}
-	if listable && m.res.Surface != SurfaceLabel {
+	if listable && !relabels(m.res.Surface) {
 		// On the label surface the address is not on the object, so no
 		// second object can "already carry" it: the natural key the
 		// configuration names is the whole identity, and one key names
@@ -913,6 +987,14 @@ func (m *mover) sweep(ctx context.Context, ts listclient.TypeSchema, estate stri
 	}
 	m.res.Swept = true
 
+	// One fallback for the whole sweep, not one per object: the tag index
+	// behind it is a single estate-filtered GetResources call, and the
+	// service leg's own gate asks that index a question about the type
+	// rather than about one object. Built per sweep call rather than per
+	// mover because the index is scoped to an estate and a cross-estate
+	// move sweeps two.
+	fallback := discovery.NewMarkerFallback(estate, m.req.Tagging, m.req.ServiceTags)
+
 	var mine []listed
 	for _, r := range results {
 		tags, taggable := tagsFromListed(r.Resource)
@@ -925,16 +1007,20 @@ func (m *mover) sweep(ctx context.Context, ts listclient.TypeSchema, estate stri
 			// iam:ListPolicies among them, per
 			// internal/live/discovery/bindtags.go's doc comment - so an
 			// object that IS this estate's own still reads as untagged
-			// here. Ask the same estate-filtered tag index an ordinary
-			// discovery pass already consults before concluding this
-			// object is not ours: one GetResources call, tags joined back
-			// on by identifier, gated exactly as discovery.JoinMarkerFromTagging
-			// documents (a type-matching marker, this estate's own
-			// tofu-estate, and no more than one match). Only worth asking
-			// when the object's own tags say nothing at all - one that
-			// already answered honestly, even to say "not mine", needs no
-			// second opinion.
-			if joined, ok := discovery.JoinMarkerFromTagging(ctx, m.req.Tagging, estate, m.res.TypeName, importIdentity(m.res.TypeName, r)); ok {
+			// here. Before concluding this object is not ours, take every
+			// route to its marker an ordinary discovery pass already takes:
+			// the estate's tag index (#266), and where that index does not
+			// serve the type on this target, the service's own tag API
+			// (#1125/#1131, wired here by #1274 - iam:ListPolicyTags is
+			// what reads an aws_iam_policy's marker back on a target whose
+			// GetResources does not index IAM at all). Both live behind
+			// [discovery.MarkerFallback], the same implementation
+			// internal/live/discovery's own sweep uses, gated identically.
+			//
+			// Only worth asking when the object's own tags say nothing at
+			// all - one that already answered honestly, even to say "not
+			// mine", needs no second opinion.
+			if joined, ok := fallback.Tags(ctx, m.res.TypeName, importIdentity(m.res.TypeName, r)); ok {
 				tags = joined
 			}
 		}
@@ -1109,7 +1195,7 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 		return nil, diags
 	}
 
-	if m.res.Surface == SurfaceLabel {
+	if relabels(m.res.Surface) {
 		return m.locateLabelled(obj, resolution)
 	}
 

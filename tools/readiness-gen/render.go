@@ -41,6 +41,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -195,13 +196,11 @@ func renderReadinessTable(a Artifact, stamp string) string {
 // (TestReadinessFiguresInDocsAreCurrent, live/readiness_docs_pin_test.go)
 // but never told a reader when it was last measured.
 func readinessStamp(root string) (string, error) {
-	cmd := exec.Command("git", "log", "-1", "--format=%H%x1f%cI", "--", OutputJSONRel)
-	cmd.Dir = root
-	out, err := cmd.Output()
+	out, err := gitOutput(root, "log", "-1", "--format=%H%x1f%cI", "--", OutputJSONRel)
 	if err != nil {
-		return "", fmt.Errorf("git log -1 -- %s: %w", OutputJSONRel, err)
+		return "", fmt.Errorf("reading when %s was last committed: %w", OutputJSONRel, err)
 	}
-	fields := strings.SplitN(strings.TrimSpace(string(out)), "\x1f", 2)
+	fields := strings.SplitN(out, "\x1f", 2)
 	if len(fields) != 2 || fields[0] == "" {
 		return "", fmt.Errorf("git log -1 -- %s produced no commit (has it ever been committed?): %q", OutputJSONRel, out)
 	}
@@ -271,6 +270,8 @@ func reasonFor(r Row) string {
 		return fmt.Sprintf("the provider documents no import example for this type yet. See [LIMITATIONS.md](%s#unadmitted-type).", limitationsMDURL)
 	case StatusPendingRatification:
 		return fmt.Sprintf("no ratification batch has reached this type's admission table row yet. See [LIMITATIONS.md](%s#unadmitted-type).", limitationsMDURL)
+	case StatusAwaitingRuling:
+		return "admitted, but this substrate's own marker (the Kubernetes label surface) postdates the tier definitions, so which tier it maps to needs a ruling. See [issue #1600](https://github.com/INTENTIUS/choudoufu/issues/1600)."
 	default:
 		// build.go's Row.Status is one of the six consts above by
 		// construction (TestPartitionGuard, tools/readiness-gen/build_test.go);
@@ -295,6 +296,19 @@ type siteData struct {
 	Total        int   `json:"total"`
 	// Types is every row of live/readiness.json with its reason.
 	Types []siteType `json:"types"`
+
+	// Kubernetes is issue #1600's addition: the non-AWS substrate's own
+	// admitted types, rendered separately from Tiers/Types above because
+	// they carry no tier yet - see [Substrate]'s own doc comment.
+	Kubernetes siteSubstrate `json:"kubernetes"`
+}
+
+// siteSubstrate is one non-AWS substrate's site-rendered summary.
+type siteSubstrate struct {
+	Provider string     `json:"provider"`
+	Total    int        `json:"total"`
+	Awaiting int        `json:"awaiting_ruling"`
+	Types    []siteType `json:"types"`
 }
 
 type siteTier struct {
@@ -336,6 +350,16 @@ func buildSiteData(a Artifact, stamp string) siteData {
 	}
 	for _, r := range a.Types {
 		d.Types = append(d.Types, siteType{Type: r.Type, Tier: r.Tier, Status: r.Status, Reason: reasonFor(r)})
+	}
+
+	d.Kubernetes = siteSubstrate{
+		Provider: a.Kubernetes.Provider,
+		Total:    a.Kubernetes.Counts.Types,
+		Awaiting: a.Kubernetes.Counts.Statuses[StatusAwaitingRuling],
+		Types:    []siteType{},
+	}
+	for _, r := range a.Kubernetes.Types {
+		d.Kubernetes.Types = append(d.Kubernetes.Types, siteType{Type: r.Type, Tier: r.Tier, Status: r.Status, Reason: reasonFor(r)})
 	}
 	return d
 }
@@ -414,4 +438,23 @@ func renderSpan(root, rel, span, body string) error {
 	}
 	fmt.Fprintf(os.Stderr, "readiness-gen: rewrote %s's %q span\n", rel, span)
 	return nil
+}
+
+// gitOutput runs git in dir ("" for the working directory) and returns its
+// trimmed stdout. On failure the error carries git's own first line of
+// stderr, not just the bare "exit status 128" that exec.Cmd.Output()'s
+// ExitError formats as (#1220, copied from tools/gauntlet/main.go, #1149).
+func gitOutput(dir string, args ...string) (string, error) {
+	cmd := exec.Command("git", args...) //nolint:gosec // a fixed subcommand list, arguments are internal
+	cmd.Dir = dir
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		if msg, _, _ := strings.Cut(strings.TrimSpace(stderr.String()), "\n"); msg != "" {
+			return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, msg)
+		}
+		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }

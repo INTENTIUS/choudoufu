@@ -651,13 +651,17 @@ func TestSeedShapesAReferenceToTheSlotsOwnType(t *testing.T) {
 // 55856b4473's rule, reached through the seed instead of through valueExpr.
 // aws_transfer_web_app_customization's web_app_id is one of its own identity
 // components, and identity resolution refuses any reference outside the
-// sibling's IdentityAttrs - which for aws_transfer_web_app are id and arn,
-// not the like-named web_app_id its page's example reads.
+// sibling's IdentityAttrs. The sibling is the real aws_transfer_web_app row,
+// whose IdentityAttrs are web_app_id and arn: when this test was written
+// they read id and arn, and the like-named web_app_id its page's example
+// reads was the refused attribute. #1316's pinned-provider check found that
+// the row named an id the resource does not have; the corrected row names
+// web_app_id, so the two halves below swap roles and the rule is unchanged.
 func TestSeedRefusesANonIdentityAttributeOnAnIdentityBoundSlot(t *testing.T) {
 	const self, sibling = "aws_transfer_web_app_customization", "aws_transfer_web_app"
 	g := seedGenWithRoster(self,
-		map[string]*configschema.Block{sibling: exportsString("web_app_id", "id", "arn")},
-		ref(sibling, "web_app_id", "web_app_id"))
+		map[string]*configschema.Block{sibling: exportsString("web_app_id", "access_endpoint", "arn")},
+		ref(sibling, "access_endpoint", "web_app_id"))
 	body := hclwrite.NewEmptyFile().Body()
 
 	if applied := g.seedFromExample(body, blockWith(map[string]*configschema.Attribute{"web_app_id": optString()}, nil), self); len(applied) != 0 {
@@ -665,10 +669,11 @@ func TestSeedRefusesANonIdentityAttributeOnAnIdentityBoundSlot(t *testing.T) {
 	}
 
 	// The same slot on the same sibling, reading an attribute that IS in
-	// IdentityAttrs, is exactly what the rule permits.
+	// IdentityAttrs, is exactly what the rule permits - and it is the
+	// reference the page's own example wires.
 	g = seedGenWithRoster(self,
-		map[string]*configschema.Block{sibling: exportsString("web_app_id", "id", "arn")},
-		ref(sibling, "id", "web_app_id"))
+		map[string]*configschema.Block{sibling: exportsString("web_app_id", "access_endpoint", "arn")},
+		ref(sibling, "web_app_id", "web_app_id"))
 	body = hclwrite.NewEmptyFile().Body()
 	if applied := g.seedFromExample(body, blockWith(map[string]*configschema.Attribute{"web_app_id": optString()}, nil), self); len(applied) != 1 {
 		t.Errorf("applied = %v, want the IdentityAttrs-backed reference written", applied)

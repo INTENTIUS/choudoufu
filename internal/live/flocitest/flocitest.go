@@ -39,6 +39,8 @@ import (
 	"time"
 
 	"github.com/intentius/choudoufu/internal/live/cohorts"
+	"github.com/intentius/choudoufu/internal/live/pins"
+	"github.com/intentius/choudoufu/internal/live/plugincache"
 )
 
 // defaultImage is the emulator every test in this tier runs against:
@@ -214,6 +216,19 @@ func ImportFixtureDir(t *testing.T) string {
 func GenerateCohorts(t *testing.T) []string {
 	t.Helper()
 
+	// estate-gen's init installs from TF_PLUGIN_CACHE_DIR with -plugin-dir
+	// when the pinned release is already there, which makes the render ask
+	// no registry anything (#1509). Without a cache every render downloaded
+	// the 812MB provider into a fresh temp directory: a registry lookup that
+	// failed the golden on a DNS blip, and a fresh executable macOS scans on
+	// first exec, which is what timed out the plugin start under load. A cold
+	// cache is filled by the first render, under the cache's cross-process
+	// lock because that render is a writer; a warm one needs no lock.
+	PluginCacheDir(t)
+	if _, warm := plugincache.FromEnv("registry.terraform.io", "hashicorp", "aws", pins.AWSProviderVersion); !warm {
+		defer lockPluginCache(t)()
+	}
+
 	out := filepath.Join(t.TempDir(), "cohorts")
 	cmd := exec.Command("go", "run", "./tools/estate-gen", "-all", "-out", out)
 	cmd.Dir = RepoRoot(t)
@@ -253,7 +268,12 @@ func fixtureDir(t *testing.T, rel string) string {
 //
 // The fixture's .terraform.lock.hcl comes along too: it is what lets an init
 // against the shared plugin cache trust the cached package instead of
-// re-downloading it over a copy some other process is executing.
+// re-downloading it over a copy some other process is executing. That trust
+// is per platform: terraform checks the cached package against the lock
+// file's h1: hashes, and a lock file generated on one machine carries only
+// that machine's, so every fixture lock file has to carry one per platform
+// the tier runs on (live/lockfile_platforms_test.go, and the three red
+// nights of #1316 that found it).
 func CopyEstate(t *testing.T) string {
 	t.Helper()
 	return CopyFixtureDir(t, EstateDir(t))
@@ -732,4 +752,43 @@ func SectionFrom(output, header string) string {
 		return rest[:j]
 	}
 	return rest
+}
+
+// PinnedProviderDir returns a scratch directory whose only configuration
+// pins hashicorp/aws to [pins.AWSProviderVersion] - the release
+// live/survey.json, live/survey-full.json and the generated identity table
+// were produced from. A test that checks those artifacts against the
+// provider's own schemas has to ask THAT release, not the estate fixture's
+// (live/e2e/estate pins an older one): every type the survey pin added
+// since reads as "the provider serves no schema for admitted type" against
+// the fixture's, which is how TestTaggableSetAgainstRealSchemas and the
+// identity-table check spent their first measured nights red (#1316).
+//
+// The provider block carries the three settings that let the plugin be
+// configured with placeholder credentials and no cloud behind it. There is
+// no lock file: init resolves the exact pin against the registry and the
+// shared plugin cache serves it once downloaded (see [PluginCacheDir]).
+func PinnedProviderDir(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	src := fmt.Sprintf(`terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= %s"
+    }
+  }
+}
+
+provider "aws" {
+  region                      = "us-east-1"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = true
+}
+`, pins.AWSProviderVersion)
+	if err := os.WriteFile(filepath.Join(dir, "versions.tf"), []byte(src), 0o600); err != nil {
+		t.Fatalf("writing the pinned provider configuration: %v", err)
+	}
+	return dir
 }

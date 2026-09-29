@@ -482,8 +482,23 @@ AWS provider is several hundred megabytes) on every `init`, which on a
 machine running more than one crossing at a time is most of the script's
 wall time.
 
-The fix is the pair of env vars below, exported together, near the top of
-the script, before the first `init`:
+The fix is one call, right after the script sources the library (#1300):
+
+```sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+gauntlet_plugin_cache
+```
+
+`gauntlet_plugin_cache` exports the pair of env vars below and creates the
+directory. It is the only place a crossing script chooses a cache, and
+`tools/gauntlet`'s `TestEveryScriptTakesItsPluginCacheFromTheLibrary` fails
+on a script that sets `TF_PLUGIN_CACHE_DIR` for itself — so the concurrency
+policy in the next subsection cannot be opted out of by copy-paste. Before
+#1300 there were two spellings across twelve scripts and neither was
+reachable from the other: eight shared the user-global directory, four
+Kubernetes scripts and `terralith-scale` used a private `$WORK/plugin-cache`
+copy that git history shows was copied from `reference-k8s` rather than
+chosen.
 
 ```sh
 export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
@@ -550,12 +565,132 @@ cache directory as a `-plugin-dir` filesystem *mirror* instead, for reasons
 specific to that script (see its own header) — a mirror is already
 authoritative, so `init` never re-verifies at all (measured there at
 0.35s/0.48s). That is a different, also-valid technique for the same
-problem; it is not what most scripts here need.
+problem; it is not what most scripts here need. It takes the directory from
+`gauntlet_plugin_cache_dir`, which returns the path without exporting
+`TF_PLUGIN_CACHE_DIR` — exporting it there would re-admit the writer that
+script is deliberately avoiding — and it still wraps its inits in
+`gauntlet_locked_init`, because a reader of a directory another process is
+unpacking into sees the same torn file a second writer would.
 
 **Still true regardless:** this removes the *redundant* download, not the
 *first* one. A directory that is the very first `init` anywhere against a
 cold cache still pays the real download cost once — there is no way around
 fetching a provider nobody's machine has yet.
+
+### Sharing it safely: `gauntlet_locked_init`
+
+HashiCorp documents the cache as "not guaranteed to be concurrency safe…
+the provider installer's behavior in environments with multiple `terraform
+init` calls is undefined". Measured here, that applies to exactly one of the
+two binaries these scripts run.
+
+`choudoufu`/`tofu` already serialize themselves. `internal/providercache`'s
+`Dir.InstallPackage` takes a per-`(provider, version, platform)` flock on
+`<version>/<platform>.lock` before it unpacks anything, so two `tofu init`s
+sharing a cache cannot interleave. It is visible from the outside: a cold
+`tofu init` leaves that `.lock` file behind in the cache, a cold `terraform
+init` leaves none.
+
+Real `terraform` (checked against v1.15.8) takes no such lock, and unpacks
+**straight into the final cache path**. Polling the cache directory during a
+cold init shows the provider binary appear under its final name while it is
+still being written — no temp directory, no atomic rename. A second `init`
+that finds that path can link a half-written binary.
+
+So every real-`terraform` init in a script that shares the cache goes
+through `gauntlet_locked_init`, and `tofu`/`choudoufu` inits are left bare
+because the installer in this tree already does the same job:
+
+```sh
+( cd "$EST" && gauntlet_locked_init terraform init -input=false -no-color )
+```
+
+The lockfile is `.choudoufu-init.lock` inside the cache directory, taken with
+`O_EXCL` — the same name and protocol `internal/live/flocitest` uses, so an
+estate script and a `go test ./internal/live/...` sharing a machine exclude
+each other too. A holder older than ten minutes is treated as crashed and
+broken; a waiter gives up after fifteen. `tools/gauntlet`'s
+`TestSharedPluginCacheInitsAreLocked` fails on an unwrapped one.
+
+Serializing costs almost nothing, because a warm init does not write at all:
+measured, a second `init` for a version already in the cache leaves every
+byte and inode unchanged, and takes 0.59s (terraform) or 1–2s (choudoufu).
+Cold, serializing is the point — the first caller pays for the download and
+everyone behind it gets a warm read.
+
+**What was not shown.** Corruption was not reproduced: 72 concurrent cold
+`terraform init` calls (12-way, six rounds) into one empty cache, with every
+resulting file diffed against a serially-built sha256 reference, came back
+identical every time. The reference oracle was proven red by truncating a
+cached binary. An earlier attempt that checked binaries with `file | grep
+Mach-O` was blind to a 1000-byte truncation and proved nothing. The lock
+rests on the mechanism above — an in-place unpack with no rename — not on a
+reproduction.
+
+## Floci containers: ownership and cleanup
+
+Every harness here starts its emulator through
+`gauntlet_floci_start <name> <docker run args...>` in `lib/gauntlet.sh`,
+never with its own `docker run -d` (`live/flocipostmortem_test.go` fails a
+script that does). The helper adds `-d`, never `--rm` (#1299: a container
+that dies mid-run must stay inspectable), and writes three labels:
+
+| label | value |
+|---|---|
+| `choudoufu.estate` | the `<estate>` in `choudoufu-<estate>-<pid>` |
+| `choudoufu.owner.pid` | `$$` of the script that started it |
+| `choudoufu.owner.started` | that pid's start time, `TZ=UTC ps -o lstart=`, whitespace collapsed |
+
+The labels exist because of #1312. A script SIGKILLed mid-run leaves its
+container running: the EXIT trap cannot fire on SIGKILL, and `--rm` never
+covered it either, since it removes a container when the *container* exits
+rather than when the script does. The name does not collide, so the
+containers accumulate, each holding its published port until an unrelated
+run of the same estate fails its health check on it. The stopped half of
+that residue was always safe to sweep by filter; the running half was not,
+because two runs of the same estate can coexist on different ports and from
+outside a leaked container and a concurrent run's are identical. The labels
+are what tells them apart: a pid is the owner only if it is alive *and* its
+start time is the one on the label. Pids are reused, and `kill -0` on a
+reused pid says "alive" about a stranger, which is why the start time is
+there.
+
+`gauntlet_sweep_leaked_floci [estate]` decides one container at a time
+(`gauntlet_floci_ownership` is the single decision, shared with
+`scripts/pickup.sh`) and prints one `FLOCI-SWEEP` line per container saying
+what it did and why. It removes a running container whose owner is dead or
+whose pid has been reused, and a stopped container nobody alive owns, after
+`gauntlet_floci_teardown` has printed that container's postmortem. It never
+removes a running container with no ownership labels (a run from before the
+labels, or something started by hand); it lists it with the `docker rm -f`
+to run once you have looked.
+
+Three things run it:
+
+- `gauntlet_floci_start` itself, scoped to its own estate, before every
+  `docker run`. A leak clears itself on the next run of the same estate, and
+  a concurrent run of that estate on another port is kept because its owner
+  is alive. Read the `FLOCI-SWEEP` lines at the top of an estate log to see
+  what a run found waiting for it.
+- `bash scripts/floci-sweep.sh [estate]`, the whole machine by default.
+- `bash scripts/pickup.sh`, read-only: its "crossing floci containers"
+  section prints the same verdicts, `LEAKED: owner pid N is gone` and so on,
+  without acting on them.
+
+`live/e2e/selftest-floci-sweep.sh` proves the sweeper against real
+throwaway containers (a dead owner, a reused pid, a live owner, no labels,
+an exited one, another estate's) and re-runs its first case against a copy
+of the library with the liveness check removed, which must fail.
+`live/flocisweep_test.go` runs it; `make test-floci` is where CI does.
+
+If the sweeper itself cannot be used (a machine without this tree, say), the
+recipe from before it is still correct for the stopped half and still unsafe
+for the running half:
+
+```
+docker ps -aq --filter name=choudoufu- --filter status=exited | xargs docker rm
+docker ps -q  --filter name=choudoufu-                        # inspect before killing these
+```
 
 ## The corpus-crossing harness
 

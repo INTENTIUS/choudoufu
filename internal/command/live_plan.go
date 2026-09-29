@@ -17,8 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/zclconf/go-cty/cty"
@@ -42,9 +40,9 @@ import (
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/live/registry"
-	"github.com/intentius/choudoufu/internal/live/servicetags"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/live/strict"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -380,6 +378,15 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 	// this file's own rule for exactly this shape of conflict (see
 	// planRejectAdoptionOnly's doc comment, "ignoring it would be worse
 	// than refusing it") rather than letting one flag silently win.
+	// GitHub issue #1197. This form has no live block by definition (see
+	// the alias above), but it IS a live-markers run, so only the
+	// -adoption-only conflict can apply.
+	if moreDiags := planRejectReportFilter(args.Filter, args.AdoptionOnly, true); moreDiags.HasErrors() {
+		diags = diags.Append(moreDiags)
+		view.Diagnostics(diags)
+		return 1
+	}
+
 	if jsonRequested && args.AdoptionOnly {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
@@ -409,7 +416,7 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 	case jsonRequested:
 		statelessView = views.NewStatelessPlanJSON(c.View)
 	default:
-		statelessView = statelessPlanView(c.View, args.AdoptionOnly)
+		statelessView = statelessPlanView(c.View, args.AdoptionOnly, args.Filter)
 		if args.AdoptionOnly {
 			view = views.NewAdoptionOnlyPlan(view, c.View)
 		}
@@ -563,7 +570,11 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// Warning-severity issues (GitHub issue #210: [lint.RuleStateBackend] is
 	// the first) are rendered but do not stop the run - only an error-
 	// severity issue does, via [lint.HasErrors] rather than a bare len check.
-	if issues := lint.CheckWith(ctx, config, lint.Context{Schemas: resourceSchemas}); len(issues) > 0 {
+	// GitHub issue #1256's half of the scope: the per-resource rules narrow
+	// to the blocks the plan graph still holds, and every whole-
+	// configuration rule ignores it. See [lint.Context].
+	lctx := lint.Context{Schemas: resourceSchemas, Scope: scope}
+	if issues := lint.CheckWith(ctx, config, lctx); len(issues) > 0 {
 		diags = diags.Append(lint.Diagnostics(issues))
 		if lint.HasErrors(issues) {
 			diags = diags.Append(provs.close(ctx))
@@ -573,7 +584,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// GitHub issue #126's ruling: setting a write-only or sensitive argument
 	// warns, never refuses, so it rides alongside the subset check rather
 	// than gating on it. See [lint.CheckResidueAttributes].
-	diags = diags.Append(lint.CheckResidueAttributes(config, resourceSchemas))
+	diags = diags.Append(lint.CheckResidueAttributes(config, lctx))
 
 	// GitHub issue #179's data-read phase, between the subset check and
 	// resolution: when an identity, a count or a for_each needs a data
@@ -612,6 +623,11 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		// resolves the instance at all and the run would plan a create
 		// over an object it could not identify. live_mode.go's own copy
 		// reads r.nodeResolve for the same reason.
+		//
+		// GitHub issue #1539: the refusals reach the resolver first, so
+		// on a marker surface that carries no address the static refusal
+		// stands at the node. See projection.NodeResolver.StaticRefusals.
+		resolver.StaticRefusals = identity.InstanceRefusals(idDiags)
 		idDiags = identity.DowngradeForNodeResolution(idDiags)
 	}
 	diags = diags.Append(idDiags)
@@ -635,19 +651,28 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 
 	// The estate's record store, when the live block names one - opened
 	// here originally only as guided discovery's hint source (issue #109),
-	// now also read from directly by statelessProviderDataReads. A store
-	// that will not open is not this command's error to fail on: the hint
-	// is a plan-cost cache, so the run proceeds hintless (guided discovery
-	// and the record-rung read both stay off) and everything below behaves
-	// exactly as it always has.
+	// now also read from directly by statelessProviderDataReads. This command
+	// previews, so a store that could not be REACHED does not stop it: it
+	// goes on hintless and recordless and says so as a warning. A store that
+	// REFUSED stops it. See [openRecordStoreAsOneMoreSource] and GitHub issue
+	// #1376, before which both kinds were a log line.
 	var hintStore staterecord.Store
-	if config.Module != nil && config.Module.Live != nil && config.Module.Live.RecordStore != nil {
-		store, storeErr := projection.NewRecordStore(ctx, config.Module.Live.RecordStore, config.Module.Live.Retry, estate, ".")
-		if storeErr != nil {
-			log.Printf("[WARN] live: could not open the record store for guided discovery's hint: %s", storeErr)
-		} else {
-			hintStore = store
+	if config.Module != nil && config.Module.Live != nil {
+		store, storeDiags := openRecordStoreAsOneMoreSource(ctx, projection.NewRecordStore, config.Module.Live.RecordStore, config.Module.Live.Retry, estate, "live-plan")
+		diags = diags.Append(storeDiags)
+		if storeDiags.HasErrors() {
+			diags = diags.Append(provs.close(ctx))
+			return 1, false, diags
 		}
+		hintStore = store
+		// GitHub issue #1371: terraform_estate_outputs reads through the
+		// same store. A store this command went on without refuses every
+		// such read, naming why, rather than answering "not recorded".
+		unavailable := ""
+		if store == nil {
+			unavailable = "this live-plan could not open the record store (see the warning about it)"
+		}
+		c.liveEstateOutputs().open(store, config.Module.Live.RecordStore, estate, unavailable)
 	}
 	// recordStoreForReads is the same wrapper [statelessDiscover] gets below
 	// as recordShrinkStore, built once here and unconditionally (unlike
@@ -673,7 +698,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// unavailable" diagnostic providerConfigValue has always raised for
 	// what this cannot resolve fires unchanged, later, when something
 	// actually tries to configure that provider.
-	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, recordStoreForReads, readPar)
+	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, recordStoreForReads, readPar, scope, nil)
 
 	// Resolved now that lint has passed and the estate name is settled, so
 	// that any verb here is already known valid for its quadrant (see
@@ -712,7 +737,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// resolution list with the discovered instances made concrete, plus the
 	// unclaimed live resources the classifier below sorts out.
 	merged := resolutions.All()
-	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estateFlag, provs, pol, hintStore, statelessView, recordShrinkStore, deposedRecords, nil, args.AdoptionOnly, scope)
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, nodeRefusedAddrs(resolver.StaticRefusals), estateFlag, provs, pol, hintStore, statelessView, recordShrinkStore, deposedRecords, nil, args.AdoptionOnly, scope)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
@@ -736,6 +761,10 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	{
 		resolver.RecordStore = recordShrinkStore
 		resolver.MarkerIndex = projection.NewMarkerIndex(merged)
+		// GitHub issue #1641: the sweep's account of objects without the
+		// address annotation, which decides whether #1617's refusal
+		// stands for an instance the static evaluator refused.
+		resolver.UnaddressedObjects = disco.UnaddressedAccount()
 		resolver.NoSourceCreate = strict.CreatesFromNoSource(identity.NoSourceCreateFor(config))
 		// GitHub issue #388's stamp half: the estate name and the
 		// markers-record selection the node writer stamps with, plus the
@@ -744,6 +773,11 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		resolver.Estate = estate
 		resolver.Selection = identity.SelectionFor(config)
 		resolver.Slots = disco.SlotTable()
+		// GitHub issue #1084: the registry flag the create path keys on (the
+		// AWS family's facts, #1708),
+		// and the client the post-create marker write goes through.
+		resolver.Facts = markerFacts()
+		resolver.MarkerWriter = provs.markerTagger
 	}
 
 	// GitHub issue #67's undeclared_untagged = "delete" scoped account
@@ -751,13 +785,13 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// PriorState for why the roster merges in the same way a swept orphan
 	// does, and why a threshold refusal stops here after the report has a
 	// chance to show what tripped it.
-	reconcile, reconcileExtra, reconcileVerified, reconcileDiags := statelessPolicyReconcile(ctx, estate, pol, provs, discoProvider)
+	reconcile, reconcileExtra, reconcileVerified, reconcileDiags := statelessPolicyReconcile(ctx, estate, pol, provs, discoProvider, scope)
 	diags = diags.Append(reconcileDiags)
 	if len(reconcileExtra) > 0 {
 		merged = append(merged, reconcileExtra...)
 	}
 	if reconcileDiags.HasErrors() {
-		statelessView.Policy(statelessPolicyReport(nil, disco, reconcile))
+		statelessView.Policy(statelessPolicyReport(nil, disco, reconcile, nil))
 		diags = diags.Append(provs.close(ctx))
 		return 1, false, diags
 	}
@@ -822,6 +856,13 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		// and the bulk of what this command spends its time on, so this is the
 		// construction site the variable exists for.
 		ReadParallelism: readPar,
+		// GitHub issue #1211's safety rail: which metadata.labels and
+		// metadata.annotations keys this estate's own field manager owns
+		// on each live kubernetes_manifest object, read through the
+		// marker sweep's cluster clients. See live_mode.go's own copy of
+		// this comment and live_plan_kubernetes_ownedkeys.go for why it
+		// is a rail and not the source of a removal.
+		ManifestOwnedKeys: statelessManifestOwnedKeys(config, provs),
 	})
 	// Issue #349. Same store again, sixth namespace, and unreachable today
 	// for the same structural reason ProvisionedStore is: hintStore is
@@ -920,6 +961,8 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		}
 		statelessView.Foreign(statelessForeignReport(classified, disco))
 		statelessView.GuidedFallback(disco.GuidedFallback)
+	} else {
+		statelessNoSweepAnswer(statelessView, args.Filter)
 	}
 
 	// GitHub issue #587's adoption ledger, built from the three values just
@@ -968,12 +1011,12 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// recordStoreForReads rather than recordShrinkStore - this check is
 	// unconditional, not gated on [nodeResolveEnabled] the way edge 3's
 	// sweep-demand shrink is.
-	diags = diags.Append(statelessUnmarkedApplyGaps(ctx, config, resolutions, resourceSchemas, recordStoreForReads, estate))
+	diags = diags.Append(statelessUnmarkedApplyGaps(ctx, config, resolutions, resourceSchemas, recordStoreForReads, estate, scope))
 	if diags.HasErrors() {
 		return 1, false, diags
 	}
 
-	statelessView.Policy(statelessPolicyReport(projResult, disco, reconcile))
+	statelessView.Policy(statelessPolicyReport(projResult, disco, reconcile, nil))
 
 	// GitHub issue #348: evaluate the configuration's root-level `output`
 	// blocks against the projection now, in place, the same way a real
@@ -1018,6 +1061,13 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	if classified != nil {
 		statelessView.Lookalikes(statelessLookalikeReport(foreign.Lookalikes(foreignReq, classified, statelessPlannedCreates(plan))))
 	}
+
+	// GitHub issue #1002: which instances declared_tagged = "untag" really
+	// released a marker key from. Only readable now - the release happens
+	// inside the walk tfCtx.Plan just ran - which is why this is a second
+	// Policy call and not part of the one above. See
+	// [statelessPolicyReport]'s own doc comment.
+	statelessView.Policy(statelessPolicyReport(nil, nil, nil, resolver.UntagReleases()))
 
 	// The server-side dry run (GitHub issue #1081, item 3): every planned
 	// create or update of a kubernetes_manifest instance, sent to the
@@ -1066,7 +1116,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	if jsonRequested {
 		foreignReport := statelessForeignReport(classified, disco)
 		adoptable, swept := livePlanAdoptable(foreignReport)
-		statelessView.Document(views.LivePlanDocument{
+		statelessView.Document(livePlanFilterDocument(views.LivePlanDocument{
 			Estate:           estate,
 			ChoudoufuVersion: tfversion.Fork,
 			UpstreamVersion:  tfversion.String(),
@@ -1076,8 +1126,9 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 			Foreign:          livePlanForeign(foreignReport),
 			Adoptable:        adoptable,
 			Swept:            swept,
+			ControllerHeld:   livePlanControllerHeld(foreignReport),
 			Diagnostics:      livePlanDiagnostics(append(append(tfdiags.Diagnostics(nil), preDiags...), diags...)),
-		})
+		}, args.Filter))
 	} else {
 		view.Operation().Plan(plan, schemas)
 	}
@@ -1234,7 +1285,7 @@ func collectDeposedRecords(ctx context.Context, store *projection.RecordStore, n
 // answer, and the third return value is what a caller uses instead for
 // materializing undeclared instances correctly, per-address, regardless of
 // which provider found them.
-func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, estateFlag string, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordShrinkStore *projection.RecordStore, deposedRecords map[string]map[string]projection.DeposedRecord, cacheVouchTypes []string, adoptionOnly bool, scope identity.Scope) (*discovery.Result, addrs.AbsProviderConfig, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
+func statelessDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, nodeRefused map[string]bool, estateFlag string, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordShrinkStore *projection.RecordStore, deposedRecords map[string]map[string]projection.DeposedRecord, cacheVouchTypes []string, adoptionOnly bool, scope identity.Scope) (*discovery.Result, addrs.AbsProviderConfig, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	var noProvider addrs.AbsProviderConfig
 
@@ -1263,7 +1314,18 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		return nil, noProvider, nil, diags
 	}
 
-	needs := resolutions.NeedsDiscovery()
+	// GitHub issue #1514: the needs-discovery set is the run's own, so a
+	// block -target or -exclude leaves out of the plan graph is not in it -
+	// the same placement #1256 gave lint and #1470 gave collectSignal. It
+	// feeds the estate-name note, the record-backed shrink and the provider
+	// set whose failure is fatal ([statelessDiscoverProviderUnavailable]'s
+	// needsSet), all three questions about what THIS run must find. What
+	// discovery is handed below is still resolutions.All(): the estate
+	// sweep's declared set stays whole, or an excluded block's live
+	// objects would read as orphans (see [identity.Scope]), and
+	// [discovery.Request.Scope] is what keeps an excluded block out of the
+	// binding demand itself. A nil scope returns the list unchanged.
+	needs := statelessInScopeResolutions(resolutions.NeedsDiscovery(), scope)
 
 	estate, estateDiags := statelessEstateName(ctx, estateFlag, config, needs)
 	diags = diags.Append(estateDiags)
@@ -1309,20 +1371,37 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 
 	passProviders := statelessDiscoveryPassProviders(sweepProviders, needsProviders)
 
+	// GitHub issue #1513: #1052's ruling is one warning for every Cloud
+	// Control listing the run was refused, and each pass below defers its
+	// own ([discovery.Request.DeferDeniedSweepWarning], set by
+	// statelessDiscoverOne). ran is every pass that returned a result,
+	// kept even when a later pass fails, and denied raises the one warning
+	// over all of them on every return from here on, so an early return
+	// loses no denial a pass already recorded.
+	var ran []*discovery.Result
+	denied := func(diags tfdiags.Diagnostics) tfdiags.Diagnostics {
+		return diags.Append(discovery.DeniedSweepWarning(ran...))
+	}
+
 	if len(passProviders) == 1 {
 		providerAddr := passProviders[0]
 		// No ScopeProvider: the single-provider path is the exact call
 		// every caller made before issue #69 existed.
-		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, addrs.AbsProviderConfig{}, provs, pol, hintStore, statelessView, recordBacked, deposedRecords, cacheVouchTypes, sweepPar, collectUnclaimed, scope)
+		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), nodeRefused, estate, providerAddr, addrs.AbsProviderConfig{}, provs, pol, hintStore, statelessView, recordBacked, deposedRecords, cacheVouchTypes, sweepPar, collectUnclaimed, scope)
 		if warn, ok := statelessDiscoverProviderUnavailable(providerAddr, needsSet, discoDiags); ok {
 			diags = diags.Append(warn)
 			return nil, noProvider, nil, diags
 		}
+		ran = append(ran, res)
 		diags = diags.Append(discoDiags)
 		if discoDiags.HasErrors() {
-			return nil, noProvider, nil, diags
+			return nil, noProvider, nil, denied(diags)
 		}
-		return res, providerAddr, nil, diags
+		// What discovery.Merge does for every pass of the multi-provider
+		// path below, done here because this path skips Merge: GitHub
+		// issue #1657.
+		res.AttributeOrphans(providerAddr)
+		return res, providerAddr, nil, denied(diags)
 	}
 
 	// More than one provider configuration among the estate's managed
@@ -1340,7 +1419,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 	// else's declared, owned resource rather than an orphan to remove.
 	passes := make([]discovery.Pass, 0, len(passProviders))
 	for _, providerAddr := range passProviders {
-		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, providerAddr, provs, pol, hintStore, statelessView, recordBacked, deposedRecords, cacheVouchTypes, sweepPar, collectUnclaimed, scope)
+		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), nodeRefused, estate, providerAddr, providerAddr, provs, pol, hintStore, statelessView, recordBacked, deposedRecords, cacheVouchTypes, sweepPar, collectUnclaimed, scope)
 		if warn, ok := statelessDiscoverProviderUnavailable(providerAddr, needsSet, discoDiags); ok {
 			// Sweep-only provider, unusable for the same reason stock never
 			// asks this question in one shot either: its own configuration
@@ -1357,9 +1436,10 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 			diags = diags.Append(warn)
 			continue
 		}
+		ran = append(ran, res)
 		diags = diags.Append(discoDiags)
 		if discoDiags.HasErrors() {
-			return nil, noProvider, nil, diags
+			return nil, noProvider, nil, denied(diags)
 		}
 		passes = append(passes, discovery.Pass{
 			Provider: providerAddr,
@@ -1378,7 +1458,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		// already-config-derived resolution set with nothing - so this
 		// case is reported exactly like "nothing waiting on discovery"
 		// (len(sweepProviders) == 0 above) rather than handed to Merge.
-		return nil, noProvider, nil, diags
+		return nil, noProvider, nil, denied(diags)
 	}
 
 	// GitHub issue #906's toggle, resolved here rather than inside the
@@ -1390,7 +1470,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		strict.RecreatesOnProviderChange(identity.ProviderChangeFor(config)))
 	diags = diags.Append(mergeDiags)
 	if mergeDiags.HasErrors() {
-		return merged, noProvider, providerOf, diags
+		return merged, noProvider, providerOf, denied(diags)
 	}
 
 	// The primary is the first needs-discovery configuration in address
@@ -1404,7 +1484,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 	if len(needsProviders) > 0 {
 		primary = needsProviders[0]
 	}
-	return merged, primary, providerOf, diags
+	return merged, primary, providerOf, denied(diags)
 }
 
 // summaryProviderConfigNotEvaluableForSweep is [statelessDiscoverOne]'s
@@ -1425,7 +1505,10 @@ const summaryProviderConfigNotEvaluableForSweep = "Provider configuration not ev
 //
 //   - no declared instance's own IDENTITY resolution depends on this
 //     provider (providerAddr is absent from needsSet, [statelessDiscover]'s
-//     own needsProviders membership test) - if it did, "could not verify"
+//     own needsProviders membership test, which since GitHub issue #1514
+//     counts only the blocks this run's -target / -exclude keeps: an
+//     excluded block is not planned, so its identity is not this run's to
+//     verify) - if it did, "could not verify"
 //     really does mean "cannot tell whether this instance already exists",
 //     which stays the fatal case ratifyOne (internal/live/liveimport/
 //     ratify.go) is the migrate-time analogue of, per instance rather than
@@ -1475,7 +1558,7 @@ func statelessDiscoverProviderUnavailable(providerAddr addrs.AbsProviderConfig, 
 			tfdiags.Warning,
 			"Provider unavailable for the estate-wide sweep",
 			fmt.Sprintf(
-				"%s No declared instance's identity depends on this provider configuration, so this is not fatal: nothing under it could have been swept before now either, since the provider itself could not be reached. Its declared instances proceed; the real apply configures this provider once its own dependency is known, the same order stock's plan graph already gives it.",
+				"%s No declared instance this run acts on depends on this provider configuration for its identity, so this is not fatal: nothing under it could have been swept before now either, since the provider itself could not be reached. Its declared instances proceed; the real apply configures this provider once its own dependency is known, the same order stock's plan graph already gives it.",
 				desc.Detail,
 			),
 		))
@@ -1503,7 +1586,7 @@ func recordKeyPrefixFor(config *configs.Config, estate string) string {
 // sweepPar is [discovery.Request.SweepParallelism] for this pass, already
 // resolved and validated by [statelessDiscover] - see
 // [sweepParallelismSetting].
-func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutions []identity.Resolution, estate string, providerAddr, scopeProvider addrs.AbsProviderConfig, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordBacked map[string]bool, deposedRecords map[string]map[string]projection.DeposedRecord, cacheVouchTypes []string, sweepPar int, collectUnclaimed bool, scope identity.Scope) (*discovery.Result, tfdiags.Diagnostics) {
+func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutions []identity.Resolution, nodeRefused map[string]bool, estate string, providerAddr, scopeProvider addrs.AbsProviderConfig, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan, recordBacked map[string]bool, deposedRecords map[string]map[string]projection.DeposedRecord, cacheVouchTypes []string, sweepPar int, collectUnclaimed bool, scope identity.Scope) (*discovery.Result, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	provider, err := provs.ConfiguredProvider(ctx, providerAddr)
@@ -1532,6 +1615,11 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 		RecordBackedAddrs: recordBacked,
 		DeposedRecords:    deposedRecords,
 		Resolutions:       resolutions,
+		// GitHub issue #1640: the instances the node took over from the
+		// static evaluator are declared though absent from Resolutions,
+		// and the Kubernetes leg binds an object whose address
+		// annotation names one.
+		NodeRefused: nodeRefused,
 		// GitHub issue #1176: the same [identity.Scope] resolution was
 		// given, carried one pass further. Nil for an untargeted run, and
 		// then nothing in discovery behaves differently. It does NOT
@@ -1561,7 +1649,11 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 		// zero value and its sightings still have to name the one
 		// configuration that produced them.
 		VouchProvider: providerAddr,
-		Sweep:         true,
+		// GitHub issue #1513: [statelessDiscover] raises #1052's one
+		// AccessDenied warning over every pass it ran, so a second
+		// provider configuration does not raise a second one.
+		DeferDeniedSweepWarning: true,
+		Sweep:                   true,
 		// GitHub issue #612. The estate-wide sweep's list calls run
 		// concurrently (issue #605), and this is the only place in the
 		// command layer that says how many at once: without this line the
@@ -1592,21 +1684,13 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 	}
 	statelessApplyGuidedDiscovery(config, hintStore, &req)
 
-	// The Kubernetes leg (GitHub issue #1065): a provider configuration of
-	// the kubernetes provider gets a cluster client built from the same
-	// arguments the provider itself connects with, and the object-metadata
-	// types as its universe. The AWS legs below are the AWS provider's.
-	if providerAddr.Provider.Type == "kubernetes" {
-		sweeper, types, manifestType, kubeDiags := provs.kubernetesSweeper(ctx, providerAddr)
-		diags = diags.Append(kubeDiags)
-		req.Kubernetes = sweeper
-		req.KubernetesTypes = types
-		req.KubernetesManifestType = manifestType
-		// The AWS sweep loops draw their universe from the admission
-		// table, which a kubernetes provider handle cannot list; the
-		// Kubernetes leg is this pass's whole sweep.
-		req.Sweep = false
-	}
+	// The sweep legs (GitHub issue #1580): chosen by the provider family's
+	// sweep property, never by its name. See [statelessSweepLegs].
+	sub, known := substrate.ForProvider(providerAddr.Provider.Type)
+	legs, sweep, legDiags := provs.statelessSweepLegs(ctx, sub, known, providerAddr)
+	diags = diags.Append(legDiags)
+	req.Sweepers = legs
+	req.Sweep = sweep
 
 	// The Cloud Control fallback (issue #47): a type with no native provider
 	// list resource can still be enumerated when its mapped CFN type is
@@ -1623,7 +1707,7 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 	// roster-mapped type the mock provider cannot list - which is how the
 	// command package's own unit suite blew its 10-minute timeout the first
 	// time this wiring landed.
-	if ep, on := cloudControlTarget(); on && providerAddr.Provider.Type == "aws" {
+	if ep, on := cloudControlTarget(); on && known && sub.Sweep() == substrate.SweepTaggingIndex {
 		if roster, err := registry.Embedded(); err != nil {
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Warning,
@@ -1720,27 +1804,21 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 			// building the client here is unconditional within this block:
 			// nothing is called until an object's marker has already gone
 			// unread by every other route.
-			req.ServiceTags = servicetags.NewIAM(iam.NewFromConfig(
-				aws.Config{
-					Region: sweepCfg.Region,
-					// Same principal as the Cloud Control and Tagging
-					// clients (#957), and the same fallback: a provider
-					// block naming no credentials defers to
-					// aws-sdk-go-v2's default chain, resolved lazily so a
-					// run whose leg never fires pays nothing for it.
-					Credentials: sweepServiceCredentials(sweepCreds, sweepCfg.Region),
-				},
-				func(o *iam.Options) {
-					// Built by hand rather than through LoadDefaultConfig,
-					// so the SDK's own AWS_ENDPOINT_URL_IAM /
-					// AWS_ENDPOINT_URL resolution does not happen for us
-					// and is done here instead. The service-specific
-					// variable wins, exactly as the SDK orders them.
-					if iamEP := serviceEndpoint("AWS_ENDPOINT_URL_IAM", ep); iamEP != "" {
-						o.BaseEndpoint = aws.String(iamEP)
-					}
-				},
-			))
+			//
+			// Through [newServiceTagsReader], which internal/command/
+			// live_mv.go also calls: #1274 was live-mv missing this exact
+			// leg, and a second construction of it there would have been
+			// the same defect waiting on the next command.
+			svc := newServiceTagsReader(sweepCfg.Region, ep, sweepCreds)
+			req.ServiceTags = svc
+			// GitHub issue #1477: the same client is the service LIST leg
+			// for a type no other route enumerates
+			// (aws_iam_service_linked_role through iam:ListRoles). Wired
+			// beside the reader because every object it lists needs the
+			// reader to establish ownership; see
+			// internal/live/discovery/servicelist.go for the leg and
+			// its cost.
+			req.ServiceList = svc
 		}
 	}
 
@@ -2112,15 +2190,78 @@ func statelessMarkerEstate(ctx context.Context, config *configs.Config, estateFl
 // PriorState, at the same point each already calls
 // [statelessMarkerEstate] - after schemas, resolutions and the estate name
 // are all settled, before the plan walk reaches the first instance.
-func statelessUnmarkedApplyGaps(ctx context.Context, config *configs.Config, resolutions *identity.Result, resourceSchemas map[string]providers.Schema, store *projection.RecordStore, estate string) tfdiags.Diagnostics {
+//
+// scope is GitHub issue #1203's addition, the same [identity.Scope] the
+// resolution, discovery and projection passes are already given and nil for
+// every untargeted run. It narrows this pass twice, at two different costs:
+//
+//   - the record reads below, which are one GetIdentity per needs-discovery
+//     instance and FATAL on a read failure. A -target run has no business
+//     failing on a record it was never going to consult, so an out-of-scope
+//     instance is dropped before the store is asked about it.
+//   - the refusal itself, inside [check.NodeStampUnmarkedApply]. See that
+//     function's own doc comment for the ruling and for why an in-scope
+//     block still refuses.
+//
+// GitHub issue #1637 (ruled 2026-09-27) narrows it once more: when the
+// refusal would fire and store is open, this asks whether the store is
+// writable ([projection.RecordStore.ProbeWritable]). If it is, the apply
+// records each such instance's identity and a later run finds the object
+// by that record, so the refusal is skipped for every type whose identity
+// the apply can record ([projection.ApplyRecordsIdentity]). With no store,
+// or a store this run may only read, it fires as before.
+func statelessUnmarkedApplyGaps(ctx context.Context, config *configs.Config, resolutions *identity.Result, resourceSchemas map[string]providers.Schema, store *projection.RecordStore, estate string, scope identity.Scope) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
-	needs := resolutions.NeedsDiscovery()
+	needs := statelessInScopeResolutions(resolutions.NeedsDiscovery(), scope)
 	recordBacked, recordDiags := statelessRecordBackedNeedsDiscoveryAddrs(ctx, store, needs)
 	diags = diags.Append(recordDiags)
 	if recordDiags.HasErrors() {
 		return diags
 	}
-	return diags.Append(check.NodeStampUnmarkedApply(config, resolutions, resourceSchemas, estate, recordBacked))
+	refusals := check.NodeStampUnmarkedApply(config, resolutions, resourceSchemas, estate, recordBacked, scope, false)
+	if !refusals.HasErrors() || store == nil {
+		return diags.Append(refusals)
+	}
+	// GitHub issue #1637, ruled 2026-09-27: a run whose record store is
+	// writable records the identity of what it cannot mark, so the refusal
+	// steps aside for it. Asked only now, with a refusal in hand, because
+	// the answer costs a write (see [projection.RecordStore.ProbeWritable]).
+	writable, err := store.ProbeWritable(ctx)
+	if err != nil {
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, "Could not tell whether the record store is writable", fmt.Sprintf(
+			"A resource below has nowhere to carry an ownership marker, and this run could create it anyway if it could record the identity in the estate's record store. Writing to the store to find out failed: %s. The run treats the store as read-only.", err,
+		)))
+	}
+	if !writable {
+		return diags.Append(refusals)
+	}
+	return diags.Append(check.NodeStampUnmarkedApply(config, resolutions, resourceSchemas, estate, recordBacked, scope, true))
+}
+
+// statelessInScopeResolutions drops the resolutions whose block a
+// -target / -exclude run leaves out of the plan graph.
+//
+// It exists because the resolution list deliberately keeps an out-of-scope
+// block - see [identity.Scope]'s own doc comment: that list is also the
+// estate sweep's declared set, and dropping a block from it would turn
+// every live object it owns into an orphan. So each pass that would ACT on
+// a resolution narrows for itself, at the point it acts, which is the same
+// placement [projection.Options.Scope] and [discovery.Request.Scope] use.
+//
+// A nil scope - every untargeted run - returns the input unchanged rather
+// than a copy, so nothing about an ordinary run's allocation or ordering
+// moves.
+func statelessInScopeResolutions(in []identity.Resolution, scope identity.Scope) []identity.Resolution {
+	if scope == nil {
+		return in
+	}
+	out := make([]identity.Resolution, 0, len(in))
+	for _, r := range in {
+		if scope(r.Addr.ConfigResource()) {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // statelessUndiscoveredNote names what a run without discovery leaves
@@ -2367,6 +2508,27 @@ func livePlanForeign(rep views.StatelessForeign) []views.LivePlanForeign {
 	return out
 }
 
+// livePlanControllerHeld projects the controller-held rows, AWS and
+// Kubernetes alike (#1606, #1607), into the document; nil for none, which the field omits.
+func livePlanControllerHeld(rep views.StatelessForeign) []views.LivePlanControllerHeld {
+	if len(rep.ControllerHeld) == 0 {
+		return nil
+	}
+	out := make([]views.LivePlanControllerHeld, 0, len(rep.ControllerHeld))
+	for _, h := range rep.ControllerHeld {
+		out = append(out, views.LivePlanControllerHeld{
+			TypeName:    h.TypeName,
+			LiveID:      h.LiveID,
+			DisplayName: h.DisplayName,
+			Kind:        h.Kind,
+			Controller:  h.Controller,
+			HeldBy:      h.HeldBy,
+			Addr:        h.Addr,
+		})
+	}
+	return out
+}
+
 func livePlanAdoptable(rep views.StatelessForeign) ([]views.LivePlanAdoptable, []string) {
 	adoptable := make([]views.LivePlanAdoptable, 0, len(rep.Candidates))
 	for _, c := range rep.Candidates {
@@ -2498,6 +2660,20 @@ func statelessForeignReport(res *foreign.Result, disco *discovery.Result) views.
 			Detail:   u.Detail,
 		})
 	}
+	for _, h := range res.ControllerHeld {
+		row := views.StatelessControllerHeld{
+			TypeName:    h.TypeName,
+			LiveID:      h.ImportID,
+			DisplayName: h.DisplayName,
+			Kind:        h.Kind,
+			Controller:  h.Controller,
+			HeldBy:      h.HeldBy,
+		}
+		if h.Marked {
+			row.Addr = h.Addr.String()
+		}
+		rep.ControllerHeld = append(rep.ControllerHeld, row)
+	}
 	for _, f := range res.ParentReads {
 		rep.ParentReads = append(rep.ParentReads, views.StatelessParentRead{
 			TypeName:    f.TypeName,
@@ -2557,6 +2733,7 @@ func statelessLookalikeReport(warnings []foreign.Lookalike) []views.StatelessLoo
 			MarkerEstate:  w.MarkerEstate,
 			MarkerAddress: w.MarkerAddress,
 			Hint:          w.Hint,
+			HeldBy:        w.HeldBy,
 		})
 	}
 	return out
@@ -3120,7 +3297,10 @@ func statelessResolve(ctx context.Context, config *configs.Config, provs project
 		return first, firstDiags
 	}
 
-	planned, planDiags := projection.PlanInstances(ctx, config, provs)
+	// Narrowed to the target set since GitHub issue #1258; see
+	// [projection.PlanInstancesIn] for why nothing an in-scope block needs
+	// is lost, and TestProviderWorkOverTargetExcludedBlocks for the count.
+	planned, planDiags := projection.PlanInstancesIn(ctx, config, provs, scope)
 	// PlanInstances never fails its caller - a resource it cannot plan is
 	// simply absent - so these are logged rather than raised. Raising them
 	// would turn a run that refuses today into a run that refuses today plus
@@ -3265,6 +3445,30 @@ func downgradedToDiscovery(first, second *identity.Result) string {
 // taken as an argument rather than read from the environment here, so that one
 // run cannot use two different bounds and a bad setting is reported once.
 //
+// scope is GitHub issue #1258's second leg, the run's own [identity.Scope],
+// and it narrows this pass in two places. [dataread.Options.Scope] drops a
+// provider-configuration data source the plan graph does not contain, which
+// is where nearly all of the saving is: a source the plan will not read is
+// one whose value would sit in front of a diff that cannot match it, the
+// same rule [analyzer.classify] already applies to the other two demand
+// classes. The demand list underneath it needs no second filter, which is
+// the one thing GitHub issue #1258 asked for that turned out not to be
+// there; the loop below says why.
+//
+// What it gives up, on the one run that can notice: a provider whose own
+// configuration needs a source this now declines to read cannot be
+// configured for the rest of that run. Nothing in the plan graph wants it -
+// the same targeting that dropped the source dropped every block using that
+// provider, or the source would be in scope - but the estate-wide sweep
+// still asks for it, since [statelessManagedResourceProviders] is read off
+// the whole configuration. GitHub issue #1514 is what makes that safe: such
+// a pass is the "Provider unavailable for the estate-wide sweep" warning,
+// fatal only for a provider a needs-discovery instance THIS RUN ACTS ON
+// uses, and such an instance is in scope by construction. The sweep set is
+// left whole on purpose - narrowing it would give up unclaimed inventory
+// and vouching for that provider's objects, which is an estate-wide
+// question a -target flag was never asked about.
+//
 // It is inert on this path today, and stated rather than left to be
 // rediscovered: [projection.ReadInstances] reads its concrete instances through
 // the same sequential materialize loop it always has - only
@@ -3273,9 +3477,28 @@ func downgradedToDiscovery(first, second *identity.Result) string {
 // is a projection read pass built from a [projection.Options], and the day
 // ReadInstances grows the same prefetch, it should inherit the bound the
 // operator set for the run rather than silently take ten.
-func statelessProviderDataReads(ctx context.Context, config *configs.Config, provs livePlanProviders, resourceSchemas map[string]providers.Schema, resolutions *identity.Result, recordStore *projection.RecordStore, readPar int) map[string]cty.Value {
+//
+// priorManaged is GitHub issue #1543's leg: managed instance values a caller
+// ALREADY HAS, in the same shape [projection.ReadInstances] returns, seeded
+// into the first analysis and into the read loop's own live map so that
+// neither asks the cloud for what is already in hand. Nil on the plan paths,
+// which have no prior state by construction and read every value they need.
+// live-import is the one caller that does have it: the stock state file it is
+// migrating IS prior state, and it holds a value for every managed instance in
+// the estate, including the record-backed ones whose record the migration has
+// not written yet. That last part is not a saving but the whole point -
+// corpus-eks-basic's data.aws_eks_cluster.cluster reaches
+// module.eks.aws_eks_cluster.this[0], whose own identity is
+// [identity.ClassParentDerived] on random_string.suffix, which is
+// [identity.ClassRecordBacked]; [projection.ReadInstances] materializes a
+// record-backed instance from recordStore, the migration is what SEEDS that
+// store, and at the point this runs it is still empty, so without a seed the
+// read returns nothing and the chain stops one hop short. Measured: the plan
+// path reads both instances and the migrate path read neither, from the same
+// demand list of the same two addresses.
+func statelessProviderDataReads(ctx context.Context, config *configs.Config, provs livePlanProviders, resourceSchemas map[string]providers.Schema, resolutions *identity.Result, recordStore *projection.RecordStore, readPar int, scope identity.Scope, priorManaged map[string]cty.Value) map[string]cty.Value {
 	managedTypes := provs.managedTypesByProvider(ctx)
-	opts := dataread.Options{Schemas: resourceSchemas, ProviderManagedTypes: managedTypes}
+	opts := dataread.Options{Schemas: resourceSchemas, ProviderManagedTypes: managedTypes, Scope: scope, LiveManagedResults: priorManaged}
 	confined := func(a *dataread.Analysis) dataread.Providers {
 		return liveProviderReads{inner: provs, live: dataread.ReadableProviders(config, a, managedTypes)}
 	}
@@ -3286,7 +3509,10 @@ func statelessProviderDataReads(ctx context.Context, config *configs.Config, pro
 		log.Printf("[TRACE] live: provider-configuration data reads: %s", d.Description().Summary)
 	}
 
-	live := map[string]cty.Value{}
+	live := make(map[string]cty.Value, len(priorManaged))
+	for addr, val := range priorManaged {
+		live[addr] = val
+	}
 	readOpts := projection.Options{RecordStore: recordStore, ReadParallelism: readPar}
 	const maxProviderDataReadPasses = 5
 	for pass := 1; pass < maxProviderDataReadPasses; pass++ {
@@ -3302,6 +3528,21 @@ func statelessProviderDataReads(ctx context.Context, config *configs.Config, pro
 				}
 			}
 		}
+		// No statelessInScopeResolutions here, deliberately: GitHub issue
+		// #1258 names it for this list and it is unreachable. Every entry
+		// comes from analysis.ManagedRefusals(), and both sites that record
+		// one ([analyzer.recordManagedRefusal] and [analyzer.classify]'s
+		// own CategoryManagedResource arm) sit PAST the out-of-scope early
+		// return the option above installs, so an out-of-scope source
+		// demands nothing at all. An in-scope source's own managed
+		// dependency is in scope by construction - it is a reference edge,
+		// and the plan graph this scope is read off keeps a kept node's
+		// dependencies and drops an excluded node's dependents. The one
+		// state that would need the filter, an in-scope block reading an
+		// out-of-scope one, is the state this file's own instrument says
+		// targeting cannot produce. Reverting the filter changes no count
+		// on the fixture; reverting the option above turns the record row
+		// red.
 		instances = expandFormulaParents(resolutions, instances)
 		if len(instances) == 0 {
 			// Nothing new demanded that a prior pass has not already read;
@@ -3744,6 +3985,40 @@ func (p *statelessProviders) ConfiguredProvider(ctx context.Context, addr addrs.
 	return provider, nil
 }
 
+// providerBlockFor is mod's own provider block for addr, or nil when mod
+// declares none: the lookup [statelessProviders.providerConfigValue] runs
+// before evaluating a block, and the one live-ls runs to read a root's
+// region (GitHub issue #1044), so the two cannot pick different blocks for
+// the same address.
+//
+// Each block's own local name is resolved to a provider FQN, rather than the
+// FQN round-tripped through LocalNameForProvider: when required_providers
+// gives one provider two local names, ProviderLocalNames holds one winner
+// chosen by Go map order, and the first version of this lookup refused a
+// configuration stock terraform accepts - at random, one parse in a few -
+// claiming a block that exists under the other name was not declared. Keys
+// are scanned in sorted order so two blocks that both resolve here pick the
+// same one every run.
+func providerBlockFor(mod *configs.Module, addr addrs.AbsProviderConfig) *configs.Provider {
+	keys := make([]string, 0, len(mod.ProviderConfigs))
+	for k := range mod.ProviderConfigs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		pc := mod.ProviderConfigs[k]
+		if pc.Alias != addr.Alias {
+			continue
+		}
+		if mod.ProviderForLocalConfig(addrs.LocalProviderConfig{LocalName: pc.Name}) != addr.Provider {
+			continue
+		}
+		return pc
+	}
+	return nil
+}
+
 // providerConfigValue evaluates the provider block for the given address, or
 // - for the default (unaliased) configuration only - produces the all-null
 // value that an absent provider block implies, which is how a provider that
@@ -3795,33 +4070,9 @@ func (p *statelessProviders) providerConfigValue(ctx context.Context, addr addrs
 	}
 	mod := cfg.Module
 
-	// Find the provider block for this address by resolving each block's
-	// own local name to a provider FQN, not by round-tripping the FQN
-	// through LocalNameForProvider: when required_providers gives one
-	// provider two local names, ProviderLocalNames holds one winner chosen
-	// by Go map order, and the first version of this lookup refused a
-	// configuration stock terraform accepts - at random, one parse in a
-	// few - claiming a block that exists under the other name was not
-	// declared. Keys are scanned in sorted order so two blocks that both
-	// resolve here pick the same one every run.
-	keys := make([]string, 0, len(mod.ProviderConfigs))
-	for k := range mod.ProviderConfigs {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	var found *configs.Provider
-	for _, k := range keys {
-		pc := mod.ProviderConfigs[k]
-		if pc.Alias != addr.Alias {
-			continue
-		}
-		if mod.ProviderForLocalConfig(addrs.LocalProviderConfig{LocalName: pc.Name}) != addr.Provider {
-			continue
-		}
-		found = pc
-		break
-	}
+	// See providerBlockFor for why the lookup resolves each block's own
+	// local name rather than round-tripping the FQN.
+	found := providerBlockFor(mod, addr)
 
 	displayName := mod.LocalNameForProvider(addr.Provider)
 	if addr.Alias != "" {
@@ -3963,6 +4214,20 @@ Options:
                           than an ordinary plan rather than less. Set
                           TOFU_LIVE_COLLECT_UNCLAIMED=1 to ask it on an
                           ordinary plan, or 0 to skip it here.
+
+  -filter=category        Print only the named report sections: unowned,
+                          adoptable or foreign, the same words as the -json
+                          document's keys. Repeat the flag to show several;
+                          the categories union. Read-only: the plan, the
+                          resource diff and the exit code are the same with
+                          or without it, and the omissions, removals and
+                          other sections still print. A category that
+                          matches nothing says so ("No unowned resources.")
+                          rather than printing nothing. Under -json the
+                          document gains a "filter" key naming the kept
+                          categories, and each one left out is null. Any
+                          other word is a usage error. Cannot be combined
+                          with -adoption-only.
 
   -estate=name            The estate whose ownership markers this run looks
                           for, matching the tofu-estate tag grammar in
@@ -4127,28 +4392,135 @@ func (c *LivePlanCommand) Synopsis() string {
 	return "Show changes required by the configuration, read from the live system (experimental)"
 }
 
-// kubernetesSweeper builds the Kubernetes estate sweep for one provider
+// sweepLegBuilder builds the leg one [substrate.Sweep] is served by, for
+// one provider configuration of a family that asks for it, and says
+// whether the pass also runs [discovery.Request.Sweep]'s admission-table
+// loops and removal legs.
+type sweepLegBuilder func(ctx context.Context, p *statelessProviders, sub substrate.Substrate, addr addrs.AbsProviderConfig) (leg discovery.Sweeper, sweep bool, diags tfdiags.Diagnostics)
+
+// sweepLegBuilders is every sweep a leg serves (GitHub issue #1580). A
+// family whose [substrate.Sweep] has no entry here gets
+// [discovery.NoSweepLeg], a named gap in the plan's sweep coverage, so
+// a third family written before its leg is visible rather than silently
+// unswept. TestEverySubstrateSweepHasALeg holds this table to
+// [substrate.All].
+var sweepLegBuilders = map[substrate.Sweep]sweepLegBuilder{
+	// The AWS legs run through the configured provider itself, so
+	// nothing is built from the block, and they are the ones Request.Sweep
+	// switches on.
+	substrate.SweepTaggingIndex: func(context.Context, *statelessProviders, substrate.Substrate, addrs.AbsProviderConfig) (discovery.Sweeper, bool, tfdiags.Diagnostics) {
+		return discovery.TaggingIndexSweep{}, true, nil
+	},
+	// The Kubernetes leg (GitHub issue #1065): a cluster client built from
+	// the same arguments the provider itself connects with, and the
+	// object-metadata types as its universe. The AWS sweep loops draw
+	// their universe from the admission table, which a kubernetes
+	// provider handle cannot list, so this leg is the pass's whole sweep.
+	substrate.SweepLabelList: func(ctx context.Context, p *statelessProviders, sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, bool, tfdiags.Diagnostics) {
+		leg, diags := p.labelListLeg(ctx, sub, addr)
+		return leg, false, diags
+	},
+}
+
+// statelessSweepLegs is one provider configuration's sweep legs and its
+// [discovery.Request.Sweep]: the leg its family's sweep is served by, or
+// [discovery.NoSweepLeg] when none is. A provider no family claims (known
+// false) is [statelessProviders.unclaimedSweepLegs]'s.
+func (p *statelessProviders) statelessSweepLegs(ctx context.Context, sub substrate.Substrate, known bool, addr addrs.AbsProviderConfig) ([]discovery.Sweeper, bool, tfdiags.Diagnostics) {
+	if !known {
+		return p.unclaimedSweepLegs(ctx, addr)
+	}
+	build, ok := sweepLegBuilders[sub.Sweep()]
+	if !ok {
+		return []discovery.Sweeper{discovery.NoSweepLeg{Family: sub.Name(), Kind: sub.Sweep()}}, false, nil
+	}
+	leg, sweep, diags := build(ctx, p, sub, addr)
+	if leg == nil {
+		// No leg could be built (the Kubernetes leg's cluster client, say):
+		// the builder's warning already says so, and the pass lists nothing
+		// through this family, exactly as a nil client always meant. The
+		// list is empty rather than nil, which discovery would read as
+		// "the AWS legs" (GitHub issue #1707).
+		return []discovery.Sweeper{}, sweep, diags
+	}
+	return []discovery.Sweeper{leg}, sweep, diags
+}
+
+// unclaimedSweepLegs is the sweep for a provider configuration no family
+// claims (GitHub issue #1707): azurerm, google, helm, or the provider
+// blocks a record-only root falls back to. It used to get the AWS
+// tagging-index legs, which list the admission table's types through a
+// provider that serves none of them and file one TYPE_NOT_LISTABLE gap
+// per AWS type (1009 on the discovery fixture), all of them false.
+//
+// No leg lists such a provider's objects, so the answer is what its
+// schema says could need listing. The node stamp writes a marker onto any
+// type [substrate.SurfaceOf] answers for, whichever provider serves it,
+// so a schema with one such type gets [discovery.NoSweepLeg] naming the
+// provider: a deleted block of that type is a named gap, not an estate
+// with nothing to remove. A schema with none gets no leg at all, since
+// nothing it holds carries a marker to be found by. A schema that cannot
+// be read is treated as one that might, and gets the gap.
+//
+// Sweep stays on in both cases. It also gates the removal legs that read
+// the estate's record store and its resolved parents
+// ([discovery.Request.Sweep]), which belong to no family: a google-only
+// estate, or a root whose only resources are record-backed and whose pass
+// is its random or null provider block, finds its deleted blocks through
+// them and nothing else.
+func (p *statelessProviders) unclaimedSweepLegs(ctx context.Context, addr addrs.AbsProviderConfig) ([]discovery.Sweeper, bool, tfdiags.Diagnostics) {
+	if !p.mayCarryMarkers(ctx, addr.Provider) {
+		return []discovery.Sweeper{}, true, nil
+	}
+	return []discovery.Sweeper{discovery.NoSweepLeg{Family: addr.Provider.ForDisplay()}}, true, nil
+}
+
+// mayCarryMarkers reports whether provider's schema has a resource type
+// [substrate.SurfaceOf] answers for, which is every type the node stamp
+// writes a marker onto whatever provider serves it. A schema that cannot
+// be read answers true: the question is whether something might be
+// missed, and an unread schema cannot say nothing would be. It is the
+// question [statelessProviders.unclaimedSweepLegs] and live-ls's
+// not-listed warning both ask of a provider no family claims (GitHub
+// issue #1707).
+func (p *statelessProviders) mayCarryMarkers(ctx context.Context, provider addrs.Provider) bool {
+	if p.mgr == nil {
+		return true
+	}
+	schema, diags := p.mgr.GetProviderSchema(ctx, provider)
+	if diags.HasErrors() {
+		return true
+	}
+	for _, rs := range schema.ResourceTypes {
+		if _, ok := substrate.SurfaceOf(rs.Block); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// labelListLeg builds the Kubernetes estate sweep for one provider
 // configuration (GitHub issue #1065): the client from the provider block's
 // own connection arguments (kubesweep.Attrs mirrors hashicorp/kubernetes'
 // precedence), and the universe from the provider's resource types that
 // identity.ObjectMetaShape admits. A block this run cannot connect with
-// yields a nil sweeper and one warning: the plan still runs, with no
-// Kubernetes removals proposed, and says so.
-func (p *statelessProviders) kubernetesSweeper(ctx context.Context, addr addrs.AbsProviderConfig) (kubesweep.Sweeper, []string, string, tfdiags.Diagnostics) {
+// yields no leg and one warning: the plan still runs, with no Kubernetes
+// removals proposed, and says so.
+func (p *statelessProviders) labelListLeg(ctx context.Context, sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
-	client, types, manifestType, schemaDiags, err := p.kubernetesClient(ctx, addr)
+	client, types, manifestType, schemaDiags, err := p.labelListClient(ctx, sub, addr)
 	if schemaDiags.HasErrors() {
-		return nil, nil, "", diags.Append(schemaDiags)
+		return nil, diags.Append(schemaDiags)
 	}
 	if err != nil {
-		return nil, types, manifestType, diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryKubernetesSweepUnavailable,
+		return nil, diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryKubernetesSweepUnavailable,
 			fmt.Sprintf("No cluster client could be built from provider configuration %s, so no Kubernetes object owned by this estate is listed this run and an object whose block was deleted is not proposed for removal: %s.", addr, err)))
 	}
 	p.rememberKubernetesSweeper(addr, client)
-	return client, types, manifestType, diags
+	return discovery.KubernetesSweep{Client: client, Types: types, ManifestType: manifestType}, diags
 }
 
-// kubernetesClient is [statelessProviders.kubernetesSweeper] before the
+// kubernetesClient is [statelessProviders.labelListLeg] before the
 // warning is phrased: the type universe read off the provider's schema
 // (schemaDiags carries a schema that would not load), and the client or
 // the error that stood in its way, for a caller - live-ls (GitHub issue
@@ -4156,90 +4528,58 @@ func (p *statelessProviders) kubernetesSweeper(ctx context.Context, addr addrs.A
 // plan's. A nil client with a nil error does not happen: err is set on
 // every path that returns no client.
 func (p *statelessProviders) kubernetesClient(ctx context.Context, addr addrs.AbsProviderConfig) (client *kubesweep.Client, types []string, manifestType string, schemaDiags tfdiags.Diagnostics, err error) {
+	sub, _ := substrate.ForProvider(addr.Provider.Type)
+	return p.labelListClient(ctx, sub, addr)
+}
+
+// labelListClient builds the cluster client through the family's own
+// [substrate.Substrate.NewSweeper] (GitHub issue #1580), which for a
+// label-listed family is a [substrate.LabelListSweeper]. sub nil, or a
+// family that builds any other client, is an error, never a nil client.
+func (p *statelessProviders) labelListClient(ctx context.Context, sub substrate.Substrate, addr addrs.AbsProviderConfig) (client *kubesweep.Client, types []string, manifestType string, schemaDiags tfdiags.Diagnostics, err error) {
 	schema, schemaDiags := p.mgr.GetProviderSchema(ctx, addr.Provider)
 	if schemaDiags.HasErrors() {
 		return nil, nil, "", schemaDiags, schemaDiags.Err()
 	}
-	for name, rs := range schema.ResourceTypes {
-		if _, ok := identity.ObjectMetaShape(rs.Block); ok {
-			types = append(types, name)
-		}
-		if identity.ManifestShape(rs.Block) {
-			// GitHub issue #1079: the type the manifest shape admits,
-			// found by shape and never by name, puts every served kind
-			// in the sweep's universe, CRDs included.
-			types = append(types, name)
-			manifestType = name
-		}
-	}
-	sort.Strings(types)
+	types, manifestType = kubernetesTypeUniverse(schema)
 
+	if sub == nil {
+		return nil, types, manifestType, nil, fmt.Errorf("provider %s belongs to no family that builds a cluster client", addr.Provider)
+	}
 	p.mu.Lock()
 	val, ok := p.configVals[providerCacheKey(addr)]
 	p.mu.Unlock()
-	attrs := kubernetesSweepAttrs(val, ok)
-	cfg, err := kubesweep.RestConfig(attrs)
+	built, err := sub.NewSweeper(val, ok)
 	if err != nil {
 		return nil, types, manifestType, nil, err
 	}
-	client, err = kubesweep.New(cfg)
-	if err != nil {
-		return nil, types, manifestType, nil, err
+	lls, isCluster := built.(substrate.LabelListSweeper)
+	if !isCluster || lls.Client == nil {
+		return nil, types, manifestType, nil, fmt.Errorf("provider family %s built no cluster client", sub.Name())
 	}
-	return client, types, manifestType, nil, nil
+	return lls.Client, types, manifestType, nil, nil
 }
 
-// kubernetesSweepAttrs reads the connection arguments this sweep understands
-// off the evaluated provider block. A marked value (a sensitive token) is
-// left unread rather than unmarked - the same rule statelessProviders.region
-// applies to a sensitive region - so a token supplied through a sensitive
-// variable falls back to the kubeconfig's own credentials.
+// kubernetesSweepAttrs is the Kubernetes substrate's reading of the
+// provider block's connection arguments, which moved to
+// internal/live/substrate with the sweep-client choice (GitHub issue
+// #1118). It stays under this name for this package's tests of it.
 func kubernetesSweepAttrs(val cty.Value, ok bool) kubesweep.Attrs {
-	var a kubesweep.Attrs
-	if !ok || val == cty.NilVal || val.IsNull() || !val.IsKnown() || !val.Type().IsObjectType() {
-		return a
+	return substrate.KubernetesSweepAttrs(val, ok)
+}
+
+// nodeRefusedAddrs is the set of instance addresses the static evaluator
+// refused and the #388 plan-node seam took over - the keys of
+// [projection.NodeResolver.StaticRefusals] - as
+// [discovery.Request.NodeRefused] wants them (GitHub issue #1640). Nil for
+// nil.
+func nodeRefusedAddrs(refusals map[string]tfdiags.Diagnostics) map[string]bool {
+	if len(refusals) == 0 {
+		return nil
 	}
-	str := func(name string) string {
-		if !val.Type().HasAttribute(name) {
-			return ""
-		}
-		v := val.GetAttr(name)
-		if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String {
-			return ""
-		}
-		return v.AsString()
+	out := make(map[string]bool, len(refusals))
+	for addr := range refusals {
+		out[addr] = true
 	}
-	boolean := func(name string) bool {
-		if !val.Type().HasAttribute(name) {
-			return false
-		}
-		v := val.GetAttr(name)
-		if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.Bool {
-			return false
-		}
-		return v.True()
-	}
-	a.InCluster = boolean("in_cluster_config")
-	a.ConfigPath = str("config_path")
-	a.ConfigContext = str("config_context")
-	a.ConfigContextAuthInfo = str("config_context_auth_info")
-	a.ConfigContextCluster = str("config_context_cluster")
-	a.Host = str("host")
-	a.Token = str("token")
-	a.Insecure = boolean("insecure")
-	a.ClusterCACertificate = str("cluster_ca_certificate")
-	a.ClientCertificate = str("client_certificate")
-	a.ClientKey = str("client_key")
-	if val.Type().HasAttribute("config_paths") {
-		v := val.GetAttr("config_paths")
-		if !v.IsMarked() && !v.IsNull() && v.IsKnown() && v.CanIterateElements() {
-			for it := v.ElementIterator(); it.Next(); {
-				_, e := it.Element()
-				if !e.IsMarked() && !e.IsNull() && e.IsKnown() && e.Type() == cty.String {
-					a.ConfigPaths = append(a.ConfigPaths, e.AsString())
-				}
-			}
-		}
-	}
-	return a
+	return out
 }

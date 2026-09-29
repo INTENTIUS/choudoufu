@@ -8,9 +8,10 @@ package command
 import (
 	"sort"
 
+	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
-	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -58,13 +59,12 @@ func planRejectAdoptionOnly(adoptionOnly, live bool) tfdiags.Diagnostics {
 //   - the content-matched adoptions come from [statelessForeignReport], the
 //     same value the "Adoptable" section renders, hint and all;
 //   - every other class comes from the projection's own omission reason;
-//   - "can this carry a marker" is [markers.Taggable] over the schema this
-//     run's provider served, which is the single implementation of
-//     taggability in this repository. live-import's UNTAGGABLE verdict is
-//     the same call: internal/live/liveimport/tags.go's taggable delegates
-//     to markers.Taggable and nothing else, and so do
-//     internal/live/stamp, internal/live/untag, internal/live/mv,
-//     internal/live/discovery and internal/live/lint.
+//   - "can this carry a marker" is [substrate.SurfaceOf] over the schema
+//     this run's provider served, the same question live-import's carrier
+//     choice and live-mv's surface switch ask. On an AWS type it is
+//     [markers.Taggable], the single implementation of taggability in this
+//     repository and live-import's UNTAGGABLE verdict; on a Kubernetes type
+//     it is the label surface or the manifest's (GitHub issue #1565).
 //
 // Nothing here decides anything about a resource that some other stage has
 // not already decided.
@@ -72,11 +72,11 @@ func planRejectAdoptionOnly(adoptionOnly, live bool) tfdiags.Diagnostics {
 // statelessPlanView picks the renderer for a stateless run: the ordinary one,
 // or GitHub issue #587's adoption-only one. Both satisfy
 // [views.StatelessPlan], so this is the only branch either mode needs.
-func statelessPlanView(view *views.View, adoptionOnly bool) views.StatelessPlan {
+func statelessPlanView(view *views.View, adoptionOnly bool, filter arguments.ReportFilter) views.StatelessPlan {
 	if adoptionOnly {
 		return views.NewStatelessAdoption(view)
 	}
-	return views.NewStatelessPlan(view)
+	return views.NewStatelessPlanFiltered(view, filter)
 }
 
 // statelessAdoptionReport builds the adoption ledger for one run.
@@ -84,7 +84,7 @@ func statelessPlanView(view *views.View, adoptionOnly bool) views.StatelessPlan 
 // projResult is the projection; foreignRep and unowned are the already-built
 // view values for the two sections that carry adoption information today;
 // schemas is the run's own managed-resource schema map, consulted only
-// through [markers.Taggable]; estate is the settled estate name, empty when
+// through [substrate.SurfaceOf]; estate is the settled estate name, empty when
 // the run has none.
 func statelessAdoptionReport(
 	projResult *projection.Result,
@@ -111,13 +111,20 @@ func statelessAdoptionReport(
 	}
 
 	// canCarryMarker answers the one question this file asks the schema, and
-	// asks it through the single implementation. A type whose schema this
-	// run never read answers false, which is the safe direction here: it
-	// costs the row a marker-half tally line it might have earned, and never
+	// asks it of the substrate, which knows every marker surface: the AWS
+	// tags map, the Kubernetes label, the manifest's label (GitHub issue
+	// #1565; asked through markers.Taggable alone, every Kubernetes row read
+	// as having nowhere to carry a marker). A type whose schema this run
+	// never read answers false, which is the safe direction here: it costs
+	// the row a marker-half tally line it might have earned, and never
 	// claims a marker can be written where it cannot.
 	canCarryMarker := func(typeName string) bool {
 		schema, ok := schemas[typeName]
-		return ok && markers.Taggable(schema.Block)
+		if !ok {
+			return false
+		}
+		_, carries := substrate.SurfaceOf(schema.Block)
+		return carries
 	}
 
 	// Materialized first: the projection read it and this estate owns it.

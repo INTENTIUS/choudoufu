@@ -200,6 +200,12 @@ th { background: var(--surface-2); font-weight: 600; }
 /* stale: the verdict came from a run other than the one this row records
    (#1069). Warned, not passed - it must never read like a pass. */
 .cell-stale { color: var(--warn-line); font-style: italic; }
+/* changed / unknown: whole-row staleness (#1264) - the estate's own files
+   moved after this row was measured, or nobody can tell whether they did.
+   It sits beside the Clear cell, so it carries the same warning colour: a
+   clear row whose script has changed is not a clear row anyone has
+   checked. */
+.cell-changed, .cell-unknown { color: var(--warn-line); font-size: 0.75rem; }
 .claims td.status { font-size: 0.85rem; }
 .claims td.status-proven, .claims td.status-restated { font-weight: 600; }
 .claims td.status-proven { color: var(--pass); }

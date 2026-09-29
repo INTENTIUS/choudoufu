@@ -1212,11 +1212,55 @@ func (n *NodeAbstractResourceInstance) plan(
 	// interface's own doc comment for why it exists as a type assertion on
 	// this value instead of a new ContextOpts field of its own.
 	var extraIgnoreChanges []cty.Path
+	// replaceCreateConfigVal is GitHub issue #1512: the configuration value
+	// a REPLACE's create half is planned with, when the adjuster
+	// distinguishes the create call and this instance was not already
+	// being created. NilVal otherwise, in which case the replace block
+	// below plans the create half with origConfigVal as before.
+	var replaceCreateConfigVal cty.Value
 	if adjuster := evalCtx.ConfigValueAdjuster(); adjuster != nil {
-		adjustedConfigVal, adjustDiags := adjuster.AdjustConfigValue(ctx, n.Addr, origConfigVal, *schema)
+		// GitHub issue #1084 (CreateConfigValueAdjuster, resource_identity.go):
+		// an instance with no prior object - or a tainted one, which the
+		// priorVal block below turns into a create-then-replace - is being
+		// created, and an adjuster that distinguishes the create call is
+		// given that entry point instead. The condition is the same one
+		// that block reads, evaluated here because the adjuster runs
+		// first.
+		creating := currentState == nil || currentState.Status == states.ObjectTainted ||
+			currentState.Value == cty.NilVal || currentState.Value.IsNull()
+		var adjustedConfigVal cty.Value
+		var adjustDiags tfdiags.Diagnostics
+		ca, distinguishesCreate := adjuster.(CreateConfigValueAdjuster)
+		if distinguishesCreate && creating {
+			adjustedConfigVal, adjustDiags = ca.AdjustCreateConfigValue(ctx, n.Addr, origConfigVal, *schema)
+		} else {
+			adjustedConfigVal, adjustDiags = adjuster.AdjustConfigValue(ctx, n.Addr, origConfigVal, *schema)
+		}
 		diags = diags.Append(adjustDiags)
 		if adjustDiags.HasErrors() {
 			return nil, nil, keyData, diags
+		}
+		if distinguishesCreate && !creating {
+			// GitHub issue #1512: an instance with a prior object may yet
+			// plan as a replace, whose create half is a create like any
+			// other and must be planned with the value the create call will
+			// be sent. At apply the prior object is gone (delete-then-
+			// create) or deposed (create-before-destroy) by the time this
+			// function re-plans the create, so it is adjusted through
+			// AdjustCreateConfigValue there; planning it here with the
+			// update's value would make the two disagree, which
+			// opentofu/opentofu#3016 forbids and core reports as an
+			// inconsistent final plan. Computed now, from the same
+			// evaluated value, because the replace decision is made only
+			// after PlanResourceChange, where no adjustment may run.
+			// Only its errors are kept: any warning it raises, the call
+			// above has already raised for the same value.
+			createVal, createDiags := ca.AdjustCreateConfigValue(ctx, n.Addr, origConfigVal, *schema)
+			if createDiags.HasErrors() {
+				diags = diags.Append(createDiags)
+				return nil, nil, keyData, diags
+			}
+			replaceCreateConfigVal = createVal
 		}
 		origConfigVal = adjustedConfigVal
 
@@ -1592,9 +1636,15 @@ func (n *NodeAbstractResourceInstance) plan(
 
 		// Since there is no prior state to compare after replacement, we need
 		// a new unmarked config from our original with no ignored values.
-		unmarkedConfigVal := origConfigVal
-		if origConfigVal.ContainsMarked() {
-			unmarkedConfigVal, _ = origConfigVal.UnmarkDeep()
+		// GitHub issue #1512: the create half's own adjusted value, where
+		// the adjuster gave one; see replaceCreateConfigVal above.
+		createConfigVal := origConfigVal
+		if replaceCreateConfigVal != cty.NilVal {
+			createConfigVal = replaceCreateConfigVal
+		}
+		unmarkedConfigVal := createConfigVal
+		if createConfigVal.ContainsMarked() {
+			unmarkedConfigVal, _ = createConfigVal.UnmarkDeep()
 		}
 
 		// create a new proposed value from the null state and the config
@@ -3196,6 +3246,26 @@ func (n *NodeAbstractResourceInstance) apply(
 		if adjuster := evalCtx.ConfigValueAdjuster(); adjuster != nil {
 			if v, ok := adjuster.(AppliedMarkerVerifier); ok {
 				diags = diags.Append(v.VerifyAppliedMarkers(ctx, n.Addr, change.Action, change.After, newVal, *schema))
+			}
+			// GitHub issue #1084 (AppliedMarkerWriter, resource_identity.go):
+			// a marker the create call could not carry is written now,
+			// onto the object the provider returned, before the PostApply
+			// hook in this function's caller reports the instance
+			// complete. Only a create that has succeeded so far: an apply
+			// already carrying an error has nothing to mark as done.
+			// A replace's create half reaches here as a Create too:
+			// reducePlan (plans.ResourceInstanceChange.Simplify) turns
+			// DeleteThenCreate, CreateThenDelete and ForgetThenCreate into
+			// Create for the apply node (GitHub issue #1512).
+			if w, ok := adjuster.(AppliedMarkerWriter); ok && change.Action == plans.Create && !diags.HasErrors() {
+				written, writeDiags := w.WriteAppliedMarkers(ctx, n.Addr, n.ResolvedProvider.ProviderConfig, change.Action, newVal, *schema)
+				diags = diags.Append(writeDiags)
+				if !writeDiags.HasErrors() && written != cty.NilVal {
+					// The object as it now stands, marker included, so the
+					// state and the cache do not contradict the object
+					// they describe (#1316).
+					newVal = written
+				}
 			}
 		}
 	}

@@ -1374,7 +1374,7 @@ func TestLivePlan_residueAttributeWarningIsWired(t *testing.T) {
 		t.Fatalf("exit code %d, want 0\nstderr:\n%s", code, output.Stderr())
 	}
 	combined := output.Stdout() + output.Stderr()
-	if !strings.Contains(combined, "Attribute value cannot round-trip a stateless replan") {
+	if !strings.Contains(combined, "Attribute value cannot round-trip a live replan") {
 		t.Errorf("the residue-attribute warning did not reach the output; lint.CheckResidueAttributes is not wired into live-plan:\n%s", combined)
 	}
 	if !strings.Contains(combined, "secret_policy_seed") {

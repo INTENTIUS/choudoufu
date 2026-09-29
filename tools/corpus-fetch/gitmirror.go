@@ -6,6 +6,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -458,12 +459,20 @@ func runGit(ctx context.Context, dir string, args ...string) error {
 	return nil
 }
 
+// gitOutput runs git in dir and returns its trimmed stdout. On failure the
+// error carries git's own first line of stderr rather than exec's bare
+// "exit status 128" (#1220; the model is tools/gauntlet/main.go's helper).
 func gitOutput(ctx context.Context, dir string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", args...) //nolint:gosec // arguments come from the checked-in manifest and lock
 	cmd.Dir = dir
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		return "", err
+		if msg, _, _ := strings.Cut(strings.TrimSpace(stderr.String()), "\n"); msg != "" {
+			return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, msg)
+		}
+		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }

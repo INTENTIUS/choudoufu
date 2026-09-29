@@ -7,11 +7,9 @@ package foreign
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 )
@@ -98,17 +96,36 @@ func TestLookalikeGuardAgainstFloci(t *testing.T) {
 		t.Fatalf("the marker tags are still on %s after delete-tags: %q", sgID, remaining)
 	}
 
-	// --- The whole pipeline, through the command -------------------------
-	start := time.Now()
-	cmd := exec.Command(tofuBin, "live-plan", "-no-color", "-input=false") //nolint:gosec // paths are this test's own temp dirs
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	elapsed := time.Since(start)
-	output := string(out)
-	t.Logf("choudoufu live-plan took %s\n%s", elapsed, output)
-	if err != nil {
-		t.Fatalf("live-plan failed: %v", err)
+	// --- A plain plan, which is the whole point --------------------------
+	//
+	// The guard was written (b32bb7d5dd) to catch a stripped marker on the
+	// next plan, whatever flags that plan ran with, and live/MARKERS.md
+	// promises exactly that. Between 09d180f921 (2026-08-30, the
+	// CollectUnclaimed ruling on #604) and #1480 it could not: an ordinary
+	// plan listed a declared type with the server-side tofu-estate filter
+	// on, and a security group whose markers were just stripped is
+	// precisely what that filter drops, so the create was proposed with no
+	// "Possible duplicates" section anywhere near it.
+	//
+	// What closed it is discovery.relistForLookalikes: aws_security_group
+	// is left with a declared instance nothing claimed, which IS the
+	// pending create, so the type is listed once more without the filter.
+	// This half now asserts the guard's contract on the plain run - no
+	// environment variable, no flag - and the opted-in run below asserts
+	// that asking the wider question still produces the same warning.
+	plain := runLivePlan(t, tofuBin, dir, nil)
+	assertLookalikeWarning(t, plain, sgID, "the plain plan")
+	if strings.Contains(plain, "aws_security_group [SCOPE_ESTATE]") {
+		t.Errorf("the plain plan still reports aws_security_group estate-scoped, which contradicts the warning it just printed about an unclaimed one:\n%s", plain)
 	}
+
+	// --- The whole pipeline, through the command, asking the question ----
+	//
+	// TOFU_LIVE_COLLECT_UNCLAIMED=1 is the documented way to ask on an
+	// ordinary plan (live/ADOPTION-ONLY.md); -adoption-only would ask the
+	// same question but its view drops the Lookalikes section this test
+	// reads (views.StatelessAdoptionHuman.Lookalikes is a no-op).
+	output := runLivePlan(t, tofuBin, dir, []string{collectUnclaimedEnv + "=1"})
 
 	// The stripped security group's declared address is now unmatched by any
 	// marker, exactly the shape of a brand new resource, so the plan
@@ -118,29 +135,7 @@ func TestLookalikeGuardAgainstFloci(t *testing.T) {
 	}
 
 	// --- The load-bearing assertion: the warning names the stripped SG ---
-	if !strings.Contains(output, "Possible duplicates:") {
-		t.Fatalf("no lookalike-guard section in the output, though the stripped security group should have produced one:\n%s", output)
-	}
-	section := flocitest.SectionFrom(output, "Possible duplicates:")
-	if !strings.Contains(section, "aws_security_group.main") {
-		t.Errorf("the lookalike section does not name aws_security_group.main:\n%s", section)
-	}
-	if !strings.Contains(section, "[POSSIBLE DUPLICATE]") {
-		t.Errorf("the lookalike section does not carry the [POSSIBLE DUPLICATE] tag:\n%s", section)
-	}
-	if !strings.Contains(section, sgID) {
-		t.Errorf("the warning does not name the stripped security group %s:\n%s", sgID, section)
-	}
-	if !strings.Contains(section, "matched on: name=stateless-e2e-main") {
-		t.Errorf("the warning does not show what it matched on:\n%s", section)
-	}
-	if !strings.Contains(section, "adopt with: aws ec2 create-tags") || !strings.Contains(section, sgID) {
-		t.Errorf("the warning's adoption command does not name %s:\n%s", sgID, section)
-	}
-	if !strings.Contains(section, "tofu-estate,Value="+estateName) ||
-		!strings.Contains(section, "tofu-address,Value=aws_security_group.main") {
-		t.Errorf("the adoption command does not stamp both markers:\n%s", section)
-	}
+	assertLookalikeWarning(t, output, sgID, "the opted-in plan")
 
 	// The guard warns; it never blocks. The create the plan already proposed
 	// for aws_security_group.main is still there, unmodified by the
@@ -160,5 +155,47 @@ func TestLookalikeGuardAgainstFloci(t *testing.T) {
 	}
 	if strings.Contains(output, "# aws_security_group.main will be destroyed") {
 		t.Error("the plan proposes destroying aws_security_group.main, which was never in the prior state to begin with")
+	}
+}
+
+// assertLookalikeWarning is the lookalike guard's whole contract over one
+// plan's output: the warning exists, it names the declared address the plan
+// is creating, it names the live resource whose markers were stripped, it
+// says what it matched on, and it carries the command that adopts that
+// resource instead of duplicating it.
+//
+// One function because #1480 made the plain run and the opted-in run assert
+// the same thing: a plan that proposes creating aws_security_group.main
+// must say a live security group may already be it, and which flags it ran
+// with is not part of that promise (live/MARKERS.md, "The residual risk,
+// and the last line of defense").
+func assertLookalikeWarning(t *testing.T, output, sgID, which string) {
+	t.Helper()
+
+	if !strings.Contains(output, "# aws_security_group.main will be created") {
+		t.Fatalf("%s does not propose creating aws_security_group.main after its markers were stripped:\n%s", which, output)
+	}
+	if !strings.Contains(output, "Possible duplicates:") {
+		t.Fatalf("no lookalike-guard section in %s's output, though the stripped security group should have produced one:\n%s", which, output)
+	}
+	section := flocitest.SectionFrom(output, "Possible duplicates:")
+	if !strings.Contains(section, "aws_security_group.main") {
+		t.Errorf("%s's lookalike section does not name aws_security_group.main:\n%s", which, section)
+	}
+	if !strings.Contains(section, "[POSSIBLE DUPLICATE]") {
+		t.Errorf("%s's lookalike section does not carry the [POSSIBLE DUPLICATE] tag:\n%s", which, section)
+	}
+	if !strings.Contains(section, sgID) {
+		t.Errorf("%s's warning does not name the stripped security group %s:\n%s", which, sgID, section)
+	}
+	if !strings.Contains(section, "matched on: name=stateless-e2e-main") {
+		t.Errorf("%s's warning does not show what it matched on:\n%s", which, section)
+	}
+	if !strings.Contains(section, "adopt with: aws ec2 create-tags") {
+		t.Errorf("%s's warning carries no adoption command:\n%s", which, section)
+	}
+	if !strings.Contains(section, "tofu-estate,Value="+estateName) ||
+		!strings.Contains(section, "tofu-address,Value=aws_security_group.main") {
+		t.Errorf("%s's adoption command does not stamp both markers:\n%s", which, section)
 	}
 }

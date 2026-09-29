@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -21,8 +20,8 @@ import (
 // things that only prose ties together: live/gauntlet.json's own `estates`
 // row for terralith-scale and its `live_cert` rows (per-run commit, date,
 // emulator digest, oracle versions, per-stage verdicts and DETAIL STRINGS,
-// duration), site/content/docs/model/plan-cost.md's hand-copied sweep/
-// read-pass split per instance count, and site/content/docs/what-you-pay.md's
+// duration), live/costs/plan-cost.md's hand-copied sweep/
+// read-pass split per instance count, and live/costs/what-you-pay.md's
 // hand-copied real-AWS API-call pairs. None of the three is machine-readable
 // as a "measurement" - a reader (chant-bench's ingest, or anyone else) has to
 // parse English to get a number out.
@@ -113,6 +112,34 @@ type ScaleArtifact struct {
 	// top-level Emulator.
 	Emulator string        `json:"emulator,omitempty"`
 	Records  []ScaleRecord `json:"records"`
+	// Refusals is the ladder's companion shelf: one refusal per (estate,
+	// target) for an estate that has no ladder to put one on (#1233).
+	//
+	// #1151 records a refusal as a ScaleRecord keyed by (estate, target,
+	// scale) and keeps it out of live_cert, because live_cert holds one
+	// certification per estate and a refusal is the absence of one. #1231
+	// then rules that a refusal which cannot be written fails the run,
+	// since the refusal is the only record its run produces. Composed for
+	// an estate with no scale - reference-ec2-vpc, a certification of one
+	// fixed shape - those two leave a real refusal with nowhere to go:
+	// passing a scale invents a rung nobody ran, and not passing one fails
+	// the run. This field is the third place, so neither ruling has to
+	// bend.
+	//
+	// What goes here: a refusal whose estate declares no scale ladder
+	// (Estate.ScaleLadder). Nothing else. Every row has Scale == 0 and
+	// Outcome == ScaleOutcomeRefused, held by SupersedeEstateRefusal, and
+	// a laddered estate's scale-less refusal still fails the run rather
+	// than landing here - see planLiveCertScaleRow.
+	//
+	// Why a separate array rather than a Scale == 0 row in Records: every
+	// reader of Records reads a ladder - render, the slicing bench's
+	// import, scale-patch-seconds, chant-bench's ingest - and a rung at
+	// scale 0 is a rung nobody ran. Keeping the two apart means an
+	// estate-level refusal cannot be read as a measurement at the smallest
+	// size, which is the same mistake at one remove as a refusal in
+	// live_cert being read as a certification.
+	Refusals []ScaleRecord `json:"refusals,omitempty"`
 }
 
 // ScaleRecord is one measured run of one estate at one scale, against one
@@ -127,7 +154,7 @@ type ScaleArtifact struct {
 // Superseding was the behaviour before it was a rule. UpsertScaleRecord has
 // always replaced a row sharing an incoming row's (Estate, Target, Scale),
 // so a scale-50 row measured on 2026-09-15 took the place of the 2026-09-11
-// one, in a file whose figures site/content/docs/what-you-pay.md quotes by
+// one, in a file whose figures live/costs/what-you-pay.md quotes by
 // path. Nothing said that was the rule, and nothing said what the replaced
 // row had been. It is now three rules, in order:
 //
@@ -220,6 +247,25 @@ type ScaleRecord struct {
 	// - terralith-scale.sh's own index_wait skips it outright) and for any
 	// real-AWS row recorded before that instrumentation existed.
 	IndexLagS *int `json:"index_lag_s,omitempty"`
+	// IndexConverged is whether that wait actually reached its target, from
+	// test_plan's own index_converged= token (issue #1143). IndexLagS alone
+	// cannot say: an hour of waiting reads identically whether the index
+	// caught up at the last poll or the bound tripped. Worse, every
+	// real-AWS run recorded before #1143 tripped the bound BY CONSTRUCTION,
+	// because index_wait polled for every object migrate stamped and a
+	// majority of those are types resourcegroupstaggingapi does not index -
+	// so an old row's index_lag_s is the bound, not a measurement of
+	// anything. Absent for those rows and for any target=floci row (the
+	// wait is skipped there); present and false is a real, reachable target
+	// that was not reached, which is the index lag #1046 is about.
+	IndexConverged *bool `json:"index_converged,omitempty"`
+	// IndexTargetN is the object count that wait actually polled to, from
+	// test_plan's own index_target= token (issue #1143) - what the tag
+	// index can hold of this estate from the run's own region, which is
+	// well below Resources.Taggable and is meant to be. Recorded beside the
+	// verdict so a reader can tell 104 of 104 from 104 of 1655 without the
+	// log.
+	IndexTargetN *int `json:"index_target,omitempty"`
 	// PlanCalls is what an ORDINARY PLAN costs, cold and warm, with the
 	// stock oracle's count beside choudoufu's cold plan when the same run
 	// measured both. This is the number issue #1051 asks for. It is NOT
@@ -239,7 +285,7 @@ type ScaleRecord struct {
 	// read pass (#622's question), with the stock oracle's count beside
 	// choudoufu's when the same run measured both. This is a REAL cost: it
 	// is what `-adoption-only`, an audit, or a rebuild-from-markers pays,
-	// every time, on purpose (see site/content/docs/model/plan-cost.md's
+	// every time, on purpose (see live/costs/plan-cost.md's
 	// "When the native leg is narrowed, and when it is not"). It is NOT
 	// what an ordinary plan of an already-adopted estate costs - that
 	// number is PlanCalls, above - and a reader who wants "the plan's
@@ -677,6 +723,12 @@ var (
 	tokenRetry     = tokenRe("retry")
 	tokenObjects   = tokenRe("objects")
 	tokenIndexLag  = tokenRe("index_lag_s")
+	// tokenIndexConverged/tokenIndexTarget (issue #1143): the two tokens
+	// that keep index_lag_s honest - whether the wait met its target, and
+	// what target that was. Both ride on test_plan's own detail, written by
+	// live/live-cert/terralith-scale.sh's index_wait.
+	tokenIndexConverged = tokenRe("index_converged")
+	tokenIndexTarget    = tokenRe("index_target")
 	// tokenPlanCallsChoudoufu/tokenPlanCallsStock (issue #1053, this file's
 	// real-AWS half of #1051/INTENTIUS/chant-bench#33): terralith-scale.sh's
 	// analyze_api_calls, real-AWS only, computes an exact provider-mediated
@@ -731,6 +783,7 @@ func mustAtof(s string) float64 {
 
 func intPtr(n int) *int           { return &n }
 func floatPtr(f float64) *float64 { return &f }
+func boolPtr(b bool) *bool        { return &b }
 
 // parseColdDeployDetail extracts resources/scale/seconds/throttle/retry from
 // a cold_deploy stage's detail text - token-first, then the real-AWS prose
@@ -868,6 +921,34 @@ func parseTestPlanDetail(detail string) (seconds *float64, throttle, retry, inde
 	return seconds, throttle, retry, indexLag
 }
 
+// parseIndexWaitDetail extracts index_wait's own verdict and target from a
+// test_plan stage's detail (issue #1143). Kept separate from
+// parseTestPlanDetail rather than folded into its return list, because
+// these two are about a step that ran BEFORE the plan and has its own
+// reasons to be absent.
+//
+// index_converged= carries one of four words, and only two of them are a
+// measurement: "yes" and "no". "na" (the wait found no reachable target at
+// all) and "skipped" (not a real-AWS run) both mean the wait never ran, so
+// they read as absent - the same way an old row with no token at all does.
+// Anything else is left absent too: a word this function does not recognize
+// is a shell-side change that has not reached here yet, and guessing at it
+// would put a verdict in the record that nothing wrote.
+func parseIndexWaitDetail(detail string) (converged *bool, target *int) {
+	if m := tokenIndexConverged.FindStringSubmatch(detail); m != nil {
+		switch m[1] {
+		case "yes":
+			converged = boolPtr(true)
+		case "no":
+			converged = boolPtr(false)
+		}
+	}
+	if m := tokenIndexTarget.FindStringSubmatch(detail); m != nil {
+		target = intPtr(mustAtoi(m[1]))
+	}
+	return converged, target
+}
+
 // parseTestApplyDetail extracts the tofu-cert-run-tagged object count from a
 // test_apply stage's detail - kept on the ScaleStage's own Detail text only
 // (there is no dedicated field for it: see ScaleResources's own doc comment
@@ -974,6 +1055,9 @@ func BuildScaleRecordFromLiveCert(r LiveCertResult, source string) ScaleRecord {
 			st.OperationSeconds, st.Throttle, st.Retry = opSeconds, throttle, retry
 			if indexLag != nil {
 				rec.IndexLagS = indexLag
+			}
+			if converged, target := parseIndexWaitDetail(detail); converged != nil || target != nil {
+				rec.IndexConverged, rec.IndexTargetN = converged, target
 			}
 			if pc := parsePlanCallsDetail(detail); pc != nil {
 				rec.PlanCalls = pc
@@ -1197,6 +1281,7 @@ func LoadScaleArtifact(root string) (*ScaleArtifact, error) {
 func SaveScaleArtifact(root string, a *ScaleArtifact) error {
 	a.Emulator = emulatorPin(root)
 	sortScaleRecords(a.Records)
+	sortScaleRecords(a.Refusals)
 	b, err := json.MarshalIndent(a, "", "  ")
 	if err != nil {
 		return err
@@ -1275,6 +1360,17 @@ func (a *ScaleArtifact) UpsertScaleRecord(rec ScaleRecord) {
 // re-measured cheaply, and because a human choosing to drop a measured row
 // can do it as its own reviewed change.
 func (a *ScaleArtifact) SupersedeScaleRecord(rec ScaleRecord) (ScaleRecord, error) {
+	// A refusal that names no rung is not a ladder row at all (#1233), and
+	// scale 0 is not the smallest rung - it is the absence of one. Held
+	// here as well as in planLiveCertScaleRow because this is the function
+	// that writes the file: a future caller that reaches the ladder with
+	// one of these gets a refusal to write, not a row at scale 0 that
+	// renders as a measurement nobody made.
+	if rec.IsRefusal() && rec.Scale == 0 {
+		return ScaleRecord{}, fmt.Errorf(
+			"scale record for estate=%q target=%q: a refusal that names no scale does not belong on the ladder - scale 0 is not the smallest rung, it is the absence of one. An estate that declares no scale ladder records its refusal on the estate-level shelf (SupersedeEstateRefusal, %s's `refusals`); an estate that declares one must name the rung it declined (#1233)",
+			rec.Estate, rec.Target, ScaleRecordsPath)
+	}
 	for i := range a.Records {
 		old := a.Records[i]
 		if old.Estate != rec.Estate || old.Target != rec.Target || old.Scale != rec.Scale {
@@ -1315,6 +1411,52 @@ func (a *ScaleArtifact) SupersedeScaleRecord(rec ScaleRecord) (ScaleRecord, erro
 		return rec, nil
 	}
 	a.Records = append(a.Records, rec)
+	return rec, nil
+}
+
+// SupersedeEstateRefusal records a refusal for an estate that has no scale
+// ladder to put one on (#1233), on ScaleArtifact.Refusals - keyed by
+// (estate, target), because there is no third component when there is no
+// ladder.
+//
+// It is SupersedeScaleRecord's sibling and keeps the two rules of #1151
+// that still apply here. Newer wins, and never silently: the replaced row's
+// commit, date and outcome go into the new row's Supersedes chain, so an
+// operator reading "this estate refused" can see how long it has been
+// refusing and what it said last time. The third rule - a refusal never
+// replaces a measurement - holds by construction rather than by a check:
+// nothing but a refusal is ever written to this shelf, so there is no
+// measurement here to destroy. The measurement for these estates lives in
+// live_cert, which a refusal is already kept out of (PlanLiveCertWrites).
+//
+// Everything this will not accept is a caller putting a record in the wrong
+// home, which is how a refusal stops reading as one.
+func (a *ScaleArtifact) SupersedeEstateRefusal(rec ScaleRecord) (ScaleRecord, error) {
+	if !rec.IsRefusal() {
+		return ScaleRecord{}, fmt.Errorf(
+			"estate-level refusal for estate=%q target=%q: outcome is %s, not %s - this shelf holds refusals and nothing else; a measurement belongs on the ladder (%s's `records`) or in %s's live_cert (#1233)",
+			rec.Estate, rec.Target, outcomeOrLegacy(rec), ScaleOutcomeRefused, ScaleRecordsPath, ArtifactPath)
+	}
+	if rec.Scale != 0 {
+		return ScaleRecord{}, fmt.Errorf(
+			"estate-level refusal for estate=%q target=%q: it names scale=%d, so it has a rung and belongs on the ladder (SupersedeScaleRecord), where it lands beside whatever that estate has already measured (#1151)",
+			rec.Estate, rec.Target, rec.Scale)
+	}
+	for i := range a.Refusals {
+		old := a.Refusals[i]
+		if old.Estate != rec.Estate || old.Target != rec.Target {
+			continue
+		}
+		rec.Supersedes = append(append([]ScaleSupersession{}, old.Supersedes...), ScaleSupersession{
+			Commit:  old.Commit,
+			Date:    old.Date,
+			Outcome: old.Outcome,
+			Source:  old.Source,
+		})
+		a.Refusals[i] = rec
+		return rec, nil
+	}
+	a.Refusals = append(a.Refusals, rec)
 	return rec, nil
 }
 
@@ -1473,12 +1615,14 @@ func cmdScaleBackfill(root string, args []string) error {
 // resolveRev returns rev's full commit sha, so a ScaleRecord's Source names
 // something a reader can `git show` themselves even when the caller passed
 // a short or symbolic rev (HEAD, an abbreviated sha).
+//
+// Through gitOutput, so the error carries git's own words (#1220): a bare
+// "resolving revision "HEAD": exit status 128" names the record builder
+// and says nothing about a toolchain that cannot run.
 func resolveRev(root, rev string) (string, error) {
-	cmd := exec.Command("git", "rev-parse", rev)
-	cmd.Dir = root
-	out, err := cmd.Output()
+	out, err := gitOutput(root, "rev-parse", rev)
 	if err != nil {
 		return "", fmt.Errorf("resolving revision %q: %w", rev, err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	return out, nil
 }

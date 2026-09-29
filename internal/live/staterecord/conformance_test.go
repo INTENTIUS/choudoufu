@@ -23,9 +23,10 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 	t.Run("AbsoluteKeysAreRefusedLoudly", func(t *testing.T) {
 		// Issue #689, from #688's terralith run: keys are
 		// store-relative, and a leading slash used to be accepted then
-		// handled differently by every store - the local and SSM
-		// stores normalized it on write but not in List's filter, so
-		// the write succeeded and the List came back empty, which a
+		// handled differently by every store - the local store and
+		// the Parameter Store one that existed then normalized it on
+		// write but not in List's filter, so the write succeeded and
+		// the List came back empty, which a
 		// caller cannot tell from an empty estate. Every operation now
 		// refuses the shape with the same named error, on every store.
 		s := newStore(t)
@@ -61,6 +62,56 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 		want := []string{"records/est-a/aws_vpc/AbCd", "records/est-a/aws_vpc/EfGh"}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("List(\"records/est-a/\") = %v, want %v (est-ab must not string-prefix-match est-a/)", got, want)
+		}
+	})
+
+	t.Run("ChunkedKeysRoundTripOnEveryBackend", func(t *testing.T) {
+		// GitHub issue #1283. projection.RecordKey base64url-encodes an
+		// address, which expands it 4/3, and a filesystem bounds ONE path
+		// component at NAME_MAX - so a long address is now spread across
+		// several segments rather than crammed into one. This is that
+		// shape, at the full 230-byte chunk length the encoder uses, run
+		// against every backend rather than only the local one: S3
+		// bounds a whole object key, so a key shape that only the
+		// filesystem was asked about is a key shape the other store was
+		// never tested with.
+		//
+		// The update path is exercised on purpose. The local store names
+		// two sidecars after the leaf ("<leaf>.lock" and os.CreateTemp's
+		// "<leaf>.tmp-<digits>"), and both have to fit in NAME_MAX too -
+		// measured, a 255-byte leaf can be CREATED and cannot be
+		// UPDATED, which is why the chunk length is 230 and not 255.
+		s := newStore(t)
+		ctx := context.Background()
+		key := "records/est-a/aws_vpc/" + strings.Repeat("A", 230) + "/" + strings.Repeat("B", 230) + "/" + strings.Repeat("C", 40)
+
+		version, err := s.PutIfAbsent(ctx, key, []byte("v1"))
+		if err != nil {
+			t.Fatalf("PutIfAbsent on a chunked key: %v", err)
+		}
+		next, err := s.PutIfVersion(ctx, key, []byte("v2"), version)
+		if err != nil {
+			t.Fatalf("PutIfVersion on a chunked key: %v", err)
+		}
+		payload, gotVersion, exists, err := s.Get(ctx, key)
+		if err != nil || !exists {
+			t.Fatalf("Get on a chunked key: exists=%v err=%v", exists, err)
+		}
+		if string(payload) != "v2" || gotVersion != next {
+			t.Errorf("Get = %q at version %q, want %q at %q", payload, gotVersion, "v2", next)
+		}
+		got, err := s.List(ctx, "records/est-a/")
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		if !reflect.DeepEqual(got, []string{key}) {
+			t.Errorf("List returned %d keys, want exactly the chunked key back", len(got))
+		}
+		if err := s.Delete(ctx, key, next); err != nil {
+			t.Fatalf("Delete on a chunked key: %v", err)
+		}
+		if _, _, exists, err := s.Get(ctx, key); err != nil || exists {
+			t.Errorf("after Delete: exists=%v err=%v, want absent and no error", exists, err)
 		}
 	})
 
@@ -297,6 +348,53 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 		}
 	})
 
+	// GitHub issue #1448, section F. Every store's Delete has this leg and no
+	// store's suite had the case, so a Delete that returned nil here was a
+	// mutation all three stores' tests passed with. It is in the SHARED suite
+	// because the gap was the contract's, not one backend's.
+	//
+	// What the contract says (store.go): expectedVersion "" is idempotent over
+	// an ABSENT key, and over a present one it is a caller holding no version
+	// deleting a record it never read. That is the delete half of a
+	// PutIfAbsent over an existing key, and it conflicts the same way, naming
+	// the version the store holds so the caller can re-read and decide.
+	t.Run("DeleteOfPresentKeyWithEmptyVersionConflicts", func(t *testing.T) {
+		s := newStore(t)
+		ctx := context.Background()
+		v1, err := s.PutIfAbsent(ctx, "k1", []byte("v1"))
+		if err != nil {
+			t.Fatalf("PutIfAbsent: %v", err)
+		}
+		err = s.Delete(ctx, "k1", "")
+		var conflict *VersionConflictError
+		if !errors.As(err, &conflict) {
+			t.Fatalf("Delete of a PRESENT key with expectedVersion \"\": got %v (%T), want *VersionConflictError", err, err)
+		}
+		if conflict.Key != "k1" {
+			t.Errorf("conflict.Key = %q, want k1", conflict.Key)
+		}
+		if conflict.ExpectedVersion != "" {
+			t.Errorf("conflict.ExpectedVersion = %q, want empty", conflict.ExpectedVersion)
+		}
+		if conflict.ActualVersion != v1 {
+			t.Errorf("conflict.ActualVersion = %q, want %q (the version the store holds)", conflict.ActualVersion, v1)
+		}
+
+		// And the record must still be there. A delete that refused and
+		// removed the record anyway would be worse than one that removed it
+		// and said so.
+		payload, _, exists, err := s.Get(ctx, "k1")
+		if err != nil {
+			t.Fatalf("Get after the refused delete: %v", err)
+		}
+		if !exists {
+			t.Fatal("exists = false after a refused Delete; the record must survive")
+		}
+		if string(payload) != "v1" {
+			t.Errorf("payload after the refused delete = %q, want %q", payload, "v1")
+		}
+	})
+
 	t.Run("ListReturnsKeysByPrefixSorted", func(t *testing.T) {
 		s := newStore(t)
 		ctx := context.Background()
@@ -330,6 +428,56 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 		}
 		if len(none) != 0 {
 			t.Errorf("List(\"nonexistent\") = %v, want empty", none)
+		}
+	})
+
+	// GitHub issue #1335. Two namespaces whose names prefix one another -
+	// estates "prod" and "prod-eu" in one store, which the bucket backend
+	// (#1332) recommends - must not share a listing or a bulk read. The
+	// delimiter is the whole mechanism, on every backend, because List is a
+	// string-prefix match on every backend: the last assertion pins that, so
+	// nobody reads this case as the store doing path-aware matching for them.
+	t.Run("NeighbourNamespacesShareNoListingOrBulkRead", func(t *testing.T) {
+		s := newStore(t)
+		ctx := context.Background()
+		const (
+			prodKey = "tofu-records/prod/aws_thing/a"
+			euKey   = "tofu-records/prod-eu/aws_thing/b"
+		)
+		for _, key := range []string{prodKey, euKey} {
+			if _, err := s.PutIfAbsent(ctx, key, []byte(key)); err != nil {
+				t.Fatalf("PutIfAbsent(%q): %v", key, err)
+			}
+		}
+
+		for estate, want := range map[string]string{"prod": prodKey, "prod-eu": euKey} {
+			ns := NamespacePrefix("tofu-records/" + estate)
+			keys, err := s.List(ctx, ns)
+			if err != nil {
+				t.Fatalf("List(%q): %v", ns, err)
+			}
+			if !equalStrings(keys, []string{want}) {
+				t.Errorf("List(%q) = %v, want only %q", ns, keys, want)
+			}
+			if bulk, ok := s.(BulkReader); ok {
+				all, err := bulk.GetAll(ctx, ns)
+				if err != nil {
+					t.Fatalf("GetAll(%q): %v", ns, err)
+				}
+				if _, has := all[want]; !has || len(all) != 1 {
+					t.Errorf("GetAll(%q) returned %d records, want only %q", ns, len(all), want)
+				}
+			}
+		}
+
+		// The hazard itself, so this case cannot pass for the wrong reason:
+		// without the delimiter the same store returns both estates' keys.
+		bare, err := s.List(ctx, "tofu-records/prod")
+		if err != nil {
+			t.Fatalf("List(bare): %v", err)
+		}
+		if !equalStrings(bare, []string{euKey, prodKey}) {
+			t.Errorf("List(%q) = %v, want both estates' keys: List is a string-prefix match, and a namespace passed without NamespacePrefix reaches its neighbour", "tofu-records/prod", bare)
 		}
 	})
 

@@ -1,0 +1,301 @@
+# The AWS claim cells that no workflow ran (issue #1590, part of #1579).
+#
+# live/smoke/claims.json states 23 proven, non-real-AWS AWS claim cells
+# that, as of origin/main f2b7f012a2, no file under .github/workflows/
+# executed: claims 1, 2, 3, 5-20, 40, 41, 42, 43. The claims table said
+# "proven" on the strength of a hand run; this is the workflow that
+# actually re-checks it, one job per scenario with its BREAK=1 control,
+# the same shape k8s-smoke.yml and bucket-smoke.yml already run their own
+# lanes with. Claims 4 and 33-38 are real_aws and stay maintainer-run
+# (CLAUDE.md); claims 21-27 and 39 are Kubernetes-only and live in
+# k8s-smoke.yml; claims 28-32 and 44 already run in bucket-smoke.yml and
+# are not duplicated here.
+#
+# Claim 45 (#1624) joined this matrix later, proven and never excluded: a
+# single small resource and no Go build, so it runs in the smoke job with
+# the rest rather than in smoke-nightly. Not yet measured against the
+# emulator in CI (written and left for the orchestrator's smoke pass); if
+# it turns out to sit over budget, move it to smoke-nightly rather than
+# re-deriving the number here.
+#
+# Budget: 10 minutes per scenario, both arms combined (2026-09-26 ruling
+# on #1590: "same rule as the kubernetes lane" - every PR that touches the
+# code runs the matrix, except scenarios over the budget, which run
+# nightly and are watched by nightly-watch). The budget was set by
+# measuring every candidate scenario locally against the pinned floci
+# emulator, one at a time, synchronously (`bash live/smoke/smoke.sh
+# <slug>` then `BREAK=1 bash live/smoke/smoke.sh <slug>`), not from
+# claims.json's own `minutes` field: that field is a CI-timeout input
+# (live/smoke/smoke.sh's scenario_bound_secs, which doubles it), not a
+# runtime estimate, and every scenario here ran in well under a third of
+# its claims.json minutes. The slowest of the 21 scenarios in the `smoke`
+# job below was carve-by-retag at 3m14s + 2m12s = 5m26s combined; every
+# other one finished faster, including claim 13 (the-tag-is-the-boundary)
+# at 1m38s + 56s = 2m34s combined. no-secret-survives-in-what-the-tool-keeps
+# measured 9m21s + 6m18s = 15m39s combined - three times the next
+# heaviest scenario - and runs nightly only, in the `smoke-nightly` job.
+#
+# One claim measured here is excluded rather than added red:
+#   - claim 17, record-only-survives-cache-loss: fails at its first apply,
+#     both arms, on issue #950's node-path unmarked-apply refusal, which
+#     fires unconditionally on a first apply of an untaggable,
+#     record-recoverable resource because no record can exist yet for it
+#     to be exempted by. Filed as #1637.
+# It is a substrate-parity / lane:proof-ci finding against #1579, not a
+# regression this unit introduced or can fix; re-add it here once resolved.
+#
+# Claim 13, the-tag-is-the-boundary, was excluded here for the same reason
+# until #1636 fixed it: its BREAK control's own `denied()` check greps the
+# whole apply transcript for "AccessDenied", which also matched two
+# unrelated, harmless sweep-gap reports (`aws_iam_policy`/`iam:ListPolicies`
+# 403, quoted verbatim in both live_plan.go's pre-diff coverage report and
+# the post-apply "Incomplete sweep" warning), reading Bob's successful
+# cross-half write as still refused. live/smoke/lib.sh's
+# strip_incomplete_sweep_warning now scopes the check past both.
+#   - claim 13, the-tag-is-the-boundary: its BREAK control's own `denied()`
+#     check greps the whole apply transcript for "AccessDenied", which
+#     also matches an unrelated, harmless sweep warning
+#     (`aws_iam_policy`/`iam:ListPolicies` 403) quoted in choudoufu's own
+#     output, so it reads Bob's successful cross-half write as still
+#     refused. Filed as #1636.
+# It is a substrate-parity / lane:proof-ci finding against #1579, not a
+# regression this unit introduced or can fix; re-add it here once
+# resolved.
+#
+# Claim 17, record-only-survives-cache-loss, was excluded the same way
+# until #1637: #950's unmarked-apply refusal stopped its first apply. The
+# refusal now steps aside when the run's record store is writable, and the
+# claim runs in the smoke job below. Measured locally against the pinned
+# emulator on 2026-09-26 before the no-smoke-runs rule: 1m40s + 1m27s =
+# 3m07s combined.
+# The provider plugin cache (PR #1646's first CI run). Three of 23 jobs
+# came back red the first time this workflow ran for real: carve-by-retag
+# and roundtrip both failed a host-side `chdf init` with no output (its
+# stderr goes to /dev/null by design; live/smoke/scenarios/*.sh), and
+# no-self-managed-locks died under set -e with no verdict line at all.
+# Locally, against the same emulator, all 23 passed - so the difference is
+# the runner, not the scenario logic, for two of the three: `chdf` resolves
+# hashicorp/aws from registry.opentofu.org on every `chdf init` (see
+# live/oracle-versions.json's own comment on the two-registry split), and
+# with 20 scenario jobs starting at once - more concurrent cold fetches
+# than bucket-smoke.yml's 5 or k8s-smoke.yml's 8 ever produce - a registry
+# fetch that would ordinarily succeed is more likely to be the one that
+# times out. Unlike gauntlet.yml's shared mirror (#1550), nothing here uses
+# a resolved provider directory as a read-only -plugin-dir, so
+# TF_PLUGIN_CACHE_DIR is safe to export directly: `chdf init` already
+# honours it (verified locally - a scenario run with it set populated
+# registry.opentofu.org/hashicorp/aws/<version> under the cache dir), so a
+# job with several scenario-internal inits (carve-by-retag has three) only
+# ever fetches once, and actions/cache carries a warm cache from one run
+# into the next so a cold fetch is the exception rather than the rule for
+# all 20 jobs at once. No provider version is pinned in the key - `chdf`
+# resolves whatever a scenario's own versions.tf allows, not
+# aws_provider_version (that field pins the STOCK oracle side of a
+# gauntlet crossing estate, a different thing) - so the cache just
+# accumulates whatever gets fetched.
+#
+# The third failure, no-self-managed-locks, was a real scenario bug, not
+# an environment difference: its race step captured a losing apply's exit
+# code as `cmd; echo $? > file`, and under this script's inherited set -e
+# a nonzero exit from `cmd` aborts the subshell before `echo` ever runs -
+# which happens exactly when the race has an actual loser, an expected,
+# routine outcome the very next lines are written to handle. Fixed in the
+# scenario itself (`|| rc=$?` neutralises set -e without discarding the
+# code), verified with three back-to-back local runs that each hit the
+# loser branch and each still passed.
+#
+# Claims 25 and 26 on AWS (#1599) joined the smoke job with cells that read
+# "restated", not "proven": each scenario proves the part of its promise the
+# emulator can produce, and the cell's note says which part. A restated cell
+# that carries its own scenario is held to a matrix the same as a proven one
+# (live/proven_cell_ci_test.go's cellRunsItsOwnScenario). Both were written
+# without a local run against the emulator (the maintainer's 2026-09-27 no-
+# smoke-runs rule), so neither has a measured duration yet; their claims.json
+# minutes (3 and 4) put them well inside the 10-minute budget if they run
+# like their neighbours, and the first run of this job is their measurement.
+#
+# Verdict lines, not exit codes (#1439). Every run goes through
+# live/smoke/ci-run.sh, which writes the run's output to a file as it goes
+# and then reads it back: the step fails unless the log carries the
+# scenario's own `PASS: smoke scenario '<name>' - ` line, and a control
+# step fails unless a `-> caught` proof line is there too. The logs are
+# uploaded whether the job passed or failed. live/smoke_verdict_test.go
+# holds every step that runs a scenario to the wrapper.
+#
+# The smoke trigger rule this file's paths and budget above are one
+# instance of (issue #1592, HANDOFF.md "CI: smoke workflow triggers"):
+# every smoke workflow triggers on cmd/**, internal/**, live/smoke/**,
+# go.mod and go.sum for both pull_request and push, runs nightly and on
+# workflow_dispatch, and is named in nightly-watch.yml's workflows list;
+# a scenario over its workflow's stated minutes budget moves to a
+# nightly-only job instead of every PR. k8s-smoke.yml and bucket-smoke.yml
+# follow the same rule. live/smoke_trigger_rule_test.go holds all three to
+# it.
+name: claims-smoke
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/claims-smoke.yml"
+      - "cmd/**"
+      - "internal/**"
+      - "live/smoke/**"
+      - "go.mod"
+      - "go.sum"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/claims-smoke.yml"
+      - "cmd/**"
+      - "internal/**"
+      - "live/smoke/**"
+      - "go.mod"
+      - "go.sum"
+  schedule:
+    # Nightly, for the one scenario over budget (see above) and so a repin
+    # of the emulator image or of a dependency is caught on the day it
+    # happens rather than on the next pull request that happens to touch
+    # one of the paths above.
+    - cron: "12 5 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: claims-smoke-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  smoke:
+    # Every PR/push run, plus a manual dispatch. Not on schedule: the
+    # nightly's job is smoke-nightly below, so a scheduled run does not
+    # also re-run these 22 (nightly-watch would then be reporting on a
+    # also re-run these 21 (nightly-watch would then be reporting on a
+    # conclusion that mixes budgeted and over-budget scenarios).
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario:
+          - no-silent-orphans
+          - no-self-managed-locks
+          - staleness-costs-reads
+          - recovery-is-a-rerun
+          - roundtrip
+          - identity-is-a-tag
+          - stock-when-you-need-it
+          - unchanged-is-free
+          - cache-serves-the-whole-estate
+          - count-is-a-fungible-set
+          - carve-by-retag
+          - plan-cost-tracks-the-estate
+          - apply-what-was-approved
+          - the-boundary-holds-across-regions
+          - a-shadow-is-not-a-claimant
+          - the-boundary-holds-across-accounts
+          - plan-cost-under-foreign-load
+          - the-estate-answers-in-the-present-tense
+          - a-killed-apply-hides-nothing
+          - two-estates-at-once
+          - an-ignored-tag-is-not-drift
+          - the-tag-is-the-boundary
+          - a-held-delete-is-not-gone
+          - the-server-gets-the-last-word
+          - record-only-survives-cache-loss
+    env:
+      # Safe here (unlike gauntlet.yml's shared mirror, #1550): nothing in
+      # these scenarios reads this directory as a read-only -plugin-dir, so
+      # `chdf init` treats it as an ordinary, writable cache. It is also the
+      # stock oracle's cache, mounted at this same path (live/smoke/lib.sh):
+      # with the oracle on its own /plugins volume, roundtrip and
+      # stock-when-you-need-it each found the other side's symlink dangling
+      # in their shared .terraform/providers (run 36339857046).
+      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.tf-plugin-cache
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: The provider plugin cache, carried across runs
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: claims-smoke-tf-plugin-cache-${{ runner.os }}
+          restore-keys: |
+            claims-smoke-tf-plugin-cache-${{ runner.os }}
+      - name: Docker and the AWS CLI, which every scenario here needs
+        run: |
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
+          docker info > /dev/null
+          aws --version
+      - name: the scenario
+        shell: bash
+        run: bash live/smoke/ci-run.sh ${{ matrix.scenario }} "$RUNNER_TEMP/smoke-logs/scenario.log"
+      - name: the BREAK=1 control
+        shell: bash
+        env:
+          BREAK: "1"
+        run: bash live/smoke/ci-run.sh ${{ matrix.scenario }} "$RUNNER_TEMP/smoke-logs/break.log"
+      # continue-on-error: the log has already streamed into the job log and
+      # this artifact is the backup. A backup that cannot be stored must not
+      # turn a passed scenario red (#1457, the 403 on run 35660111631).
+      - name: the smoke logs, whatever happened to the job
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: claims-smoke-logs-${{ matrix.scenario }}
+          path: ${{ runner.temp }}/smoke-logs
+          if-no-files-found: warn
+  smoke-nightly:
+    # Scheduled runs, plus a manual dispatch (which runs both jobs).
+    #
+    # Measured at 9m21s + 6m18s = 15m39s combined, well over the 10-minute
+    # budget above; every other proven AWS cell measured under it and runs
+    # in the smoke job on every PR instead.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario:
+          - no-secret-survives-in-what-the-tool-keeps
+    env:
+      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.tf-plugin-cache
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: The provider plugin cache, carried across runs
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: claims-smoke-tf-plugin-cache-${{ runner.os }}
+          restore-keys: |
+            claims-smoke-tf-plugin-cache-${{ runner.os }}
+      - name: Docker and the AWS CLI, which every scenario here needs
+        run: |
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
+          docker info > /dev/null
+          aws --version
+      - name: the scenario
+        shell: bash
+        run: bash live/smoke/ci-run.sh ${{ matrix.scenario }} "$RUNNER_TEMP/smoke-logs/scenario.log"
+      - name: the BREAK=1 control
+        shell: bash
+        env:
+          BREAK: "1"
+        run: bash live/smoke/ci-run.sh ${{ matrix.scenario }} "$RUNNER_TEMP/smoke-logs/break.log"
+      - name: the smoke logs, whatever happened to the job
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: claims-smoke-logs-${{ matrix.scenario }}
+          path: ${{ runner.temp }}/smoke-logs
+          if-no-files-found: warn

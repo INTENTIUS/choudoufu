@@ -6,7 +6,8 @@ terraform {
       path = ".tofu-records"
     }
 
-    record_store "ssm" {
+    record_store "s3" {
+      bucket = "my-records-bucket"
     }
   }
 }

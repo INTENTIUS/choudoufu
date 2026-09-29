@@ -9,24 +9,42 @@ import (
 	"fmt"
 	"math/big"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // Live represents a module's live configuration: a "live" block inside a
 // "terraform" block, or the [LiveSidecarFilename] sidecar file, whose whole
 // body is the same content the block would carry. Its presence is what puts a
-// run into what the code currently calls stateless mode: no backend, no
-// lock, and no AUTHORITATIVE state file. The ruling (maintainer,
-// 2026-08-30; issue #685; pinned by live/stale_state_ruling_test.go): the
-// state file loses its authority, not its existence. A disposable cache
-// writes by default to choudoufu-cache.tfstate under the data dir; it is
-// never consulted for ownership, live wins any disagreement, and losing
-// it costs a slower run and nothing else - a guard proves a fresh, a
-// stale and a missing cache plan byte-identically. No comment, refusal
-// text or test may treat the file's absence as the product.
+// run into live mode: no backend, no lock, and no AUTHORITATIVE state file.
+//
+// Throughout internal/ that mode is spelled "stateless" - statelessRunner,
+// StatelessRun, StatelessUnowned and roughly 2,500 more occurrences across
+// 247 files when this was written. The name is inaccurate, it is known to
+// be inaccurate, and it stays: the maintainer ruled on 2026-09-17 (issue
+// #1172) that stateless* is permanently-internal vocabulary with no rename
+// scheduled. The harm the name does is that it regenerates itself into new
+// prose - a reader of StatelessRun writes "stateless" into the next refusal
+// message - and that is now stopped at the boundary where it does damage
+// instead of at the source: live/no_stateless_prose_test.go reads string
+// literals only, over every non-test .go file in internal/, so the word
+// cannot reach a user however many identifiers carry it, and
+// live/no_state_absence_claims_test.go catches the false claim the name
+// invites. Read such an identifier as a synonym for "live", never as a
+// description of what a run keeps.
+//
+// The ruling (maintainer, 2026-08-30; issue #685; pinned by
+// live/stale_state_ruling_test.go): the state file loses its authority,
+// not its existence. A disposable cache writes by default to
+// choudoufu-cache.tfstate under the data dir; it is never consulted for
+// ownership, live wins any disagreement, and losing it costs a slower run
+// and nothing else - a guard proves a fresh, a stale and a missing cache
+// plan byte-identically. No comment, refusal text or test may treat the
+// file's absence as the product.
 //
 // It is deliberately a configuration block and not a command-line flag.
 // Whether a team's infrastructure treats a state file as the record of
@@ -38,9 +56,12 @@ import (
 //
 // The block is also why a live-mode module cannot have a backend today: a
 // "backend" or "cloud" block alongside it is refused here, in the
-// configuration decoder, rather than only by the lint. The refusal is
-// aimed at a second authoritative home for state; #685's direction is to
-// narrow it to exactly that, so a disposable local cache never trips it.
+// configuration decoder, rather than only by the lint. Ruled on issue
+// #1170 (maintainer, 2026-09-26): the refusal stays. A live-mode module
+// keeps its cache locally (choudoufu-cache.tfstate) and its records in
+// record_store; a backend or cloud block would be a second authoritative
+// home for state, and that - not the cache's existence - is what gets
+// refused.
 type Live struct {
 	// Estate is the name of the estate this configuration owns, as it appears
 	// in the tofu-estate marker described by live/MARKERS.md. It is
@@ -267,6 +288,26 @@ type LiveStrict struct {
 	ProviderChangeSet   bool
 	ProviderChangeRange hcl.Range
 
+	// SSM is the optional nested "ssm" block: where the secret values go
+	// under `strict { secrets = "ssm" }`, GitHub issue #1515's ruling 2.
+	// Nil when the strict block declares no such block, which for any
+	// other secrets setting is the only correct shape - a block naming a
+	// KMS key for an estate that keeps its secrets in its records
+	// configures nothing, and internal/live/lint refuses it rather than
+	// leaving an operator to believe their key is in the write path.
+	//
+	// A nested block rather than three more `strict` arguments because the
+	// three belong together and to one setting: they mean nothing under
+	// "store" or "refuse", and a flat kms_key_id beside marker_repair
+	// would read as an estate-wide key rather than as this setting's.
+	//
+	// Like every other field here this is the raw decode, with no opinion
+	// on whether the key ARN is well formed, whether the path is a legal
+	// parameter hierarchy, or whether the record store this pairs with is
+	// the S3 one. Those judgements need internal/live/strict's vocabulary
+	// and the rest of the live block, and belong to internal/live/lint.
+	SSM *LiveStrictSSM
+
 	// MarkersRecord is the optional nested `markers "record"` block: which
 	// resources hold their identity in the estate's record store instead of
 	// in an ownership marker tag, HANDOFF.md's "per-type or per-address
@@ -289,6 +330,52 @@ type LiveStrict struct {
 	MarkersRecord *LiveStrictMarkers
 
 	// DeclRange is the "strict" block's own header.
+	DeclRange hcl.Range
+}
+
+// LiveStrictSSM is the "ssm" block nested inside a strict block: the
+// customer managed KMS key and the parameter path that
+// `strict { secrets = "ssm" }` writes its SecureString parameters under.
+// See [LiveStrict.SSM] and GitHub issue #1515.
+type LiveStrictSSM struct {
+	// KMSKeyID is the customer managed KMS key the parameters are
+	// encrypted under: a key ID, an ARN or an alias, whichever spelling
+	// SSM's KeyId argument takes. Required by internal/live/lint, and
+	// required rather than defaulted because the default SSM key,
+	// alias/aws/ssm, is readable by every principal in the account that
+	// holds ssm:GetParameter - which would leave the values no better
+	// protected than the bucket they came out of, while looking like they
+	// were. #1515 settles that the default key is refused at first
+	// contact too, so the refusal is in two places on purpose.
+	KMSKeyID      string
+	KMSKeyIDSet   bool
+	KMSKeyIDRange hcl.Range
+
+	// Path is the parameter hierarchy the estate's secrets live under, as
+	// an absolute SSM path. Optional; empty means the caller's own default,
+	// derived from the estate name the way the S3 store derives its key
+	// prefix from it.
+	Path      string
+	PathSet   bool
+	PathRange hcl.Range
+
+	// Region overrides the AWS region the SSM client talks to. Optional;
+	// empty means the region the record store itself uses, and failing
+	// that the ordinary AWS SDK default-config chain - the same deferral
+	// [LiveRecordStore.Region] makes.
+	//
+	// It is a separate argument rather than always following the bucket
+	// because a bucket is global and a parameter is regional: an estate
+	// whose bucket is in one region may well want its parameters beside
+	// the resources they belong to, and the 10,000-parameter ceiling is
+	// per region, so the choice has a capacity consequence an operator may
+	// need to make deliberately.
+	Region      string
+	RegionSet   bool
+	RegionRange hcl.Range
+
+	// DeclRange is the "ssm" block's own header, which is what a
+	// diagnostic about the block as a whole points at.
 	DeclRange hcl.Range
 }
 
@@ -321,14 +408,15 @@ type LiveStrictMarkers struct {
 }
 
 // LiveRecordStore is the "record_store" block nested inside a live block. Its
-// label picks the backend ("local", "ssm", or "s3"), the same
+// label picks the backend ("local", "s3", or "kubernetes"), the same
 // labeled-block-names-the-implementation shape a stock "backend" block uses,
 // per issue #73's "phrased in familiar backend-like terms" ruling. See
 // [Live.RecordStore].
 type LiveRecordStore struct {
-	// Type is the block's label: "local", "ssm", or "s3". Validated against
-	// exactly those three spellings in decodeRecordStoreBlock; nothing else
-	// reaches this field.
+	// Type is the block's label: "local", "s3", or "kubernetes". Validated
+	// against exactly those three spellings in decodeRecordStoreBlock;
+	// nothing else reaches this field. "ssm" is refused there by name
+	// (GitHub issue #1346).
 	Type      string
 	TypeRange hcl.Range
 
@@ -342,12 +430,12 @@ type LiveRecordStore struct {
 	PathRange hcl.Range
 
 	// Bucket is the "s3" backend's bucket name. Required for that backend;
-	// unused by the other two.
+	// unused by the local one.
 	Bucket      string
 	BucketSet   bool
 	BucketRange hcl.Range
 
-	// KeyPrefix overrides the "ssm" and "s3" backends' default key
+	// KeyPrefix overrides the "s3" backend's default key
 	// namespace, which the caller derives from the estate name. Optional.
 	// When set, it must stay disjoint from the receipts namespace
 	// (live/RECEIPTS.md's "/tofu-receipts/<estate>/<effect>"): a key_prefix
@@ -358,13 +446,81 @@ type LiveRecordStore struct {
 	KeyPrefixSet   bool
 	KeyPrefixRange hcl.Range
 
-	// Region overrides the "ssm" and "s3" backends' AWS region. Optional;
+	// Region overrides the "s3" backend's AWS region. Optional;
 	// empty defers to the ordinary AWS SDK default-config chain (environment,
 	// shared config, IMDS), the same as every other AWS client this fork
 	// builds when a caller names no region.
 	Region      string
 	RegionSet   bool
 	RegionRange hcl.Range
+
+	// BucketOwner is the AWS account that must own the bucket: twelve
+	// digits, or empty for "do not check". When set, every S3 request the
+	// record store makes carries ExpectedBucketOwner, and S3 itself refuses
+	// the request if the bucket belongs to any other account.
+	//
+	// A bucket name is global and a name that is free can be taken by
+	// anyone. Without this, a bucket of the right NAME in someone else's
+	// account is a bucket this estate will happily write its records to,
+	// and the records hold secret material (GitHub issue #1381). The
+	// account is not a secret and pinning it costs nothing, so an estate
+	// whose bucket name is published anywhere should set it.
+	//
+	// It is the other half of the policy's aws:ResourceAccount condition
+	// (examples/record-store-bucket/iam/render-policy.sh --account). Either
+	// half alone leaves a gap: the policy protects a role that carries it,
+	// this protects a run whose credentials come from somewhere else.
+	BucketOwner      string
+	BucketOwnerSet   bool
+	BucketOwnerRange hcl.Range
+
+	// AllowInsecure is the waiver for the store's contract (GitHub issue
+	// #1340): the names, out of RecordStoreInsecureSettingsFor(Type), of the
+	// assertions this estate proceeds without. It is for a store an operator
+	// has reason to run differently, and for an identity that cannot read
+	// what the assertion is about to check it - the same refusal from the
+	// caller's side, so the same answer.
+	//
+	// Both remote backends take it, with their own names: "s3" waives the
+	// bucket contract's three settings (#1339), "kubernetes" waives the
+	// cluster contract's four (#1393). It is one argument and not two
+	// because it is one idea, and because a name that belongs to the other
+	// backend is refused rather than ignored.
+	//
+	// A list and not a boolean, on purpose. A single flag set once in CI and
+	// never revisited is a gate that protects nothing, which this
+	// repository learned the expensive way (#1102). A list waives only what
+	// it names, so waiving one assertion leaves the other two asserting,
+	// and the configuration itself records which risk was accepted. The
+	// other half of keeping it honest is not here: every run that proceeds
+	// under a waiver says so, every time - see internal/command.
+	AllowInsecure      []string
+	AllowInsecureSet   bool
+	AllowInsecureRange hcl.Range
+
+	// Namespace is the "kubernetes" backend's Kubernetes namespace: where
+	// this estate's record Secrets live. Optional; empty means the default
+	// [internal/live/projection.KubernetesRecordNamespace] derives from the
+	// estate name.
+	//
+	// It is the read isolation boundary and not a tidiness choice. RBAC
+	// cannot condition on a label and admission never sees a get or a list
+	// (live/kubernetes/estate-boundary.yaml says so about itself), so
+	// anything that may read Secrets in this namespace reads every record in
+	// it. The store does not create it: who may create a namespace is a
+	// cluster-admin decision, and a store that made one on the way past
+	// would decide it. An absent namespace is refused by name, with the
+	// kubectl line that creates it.
+	Namespace      string
+	NamespaceSet   bool
+	NamespaceRange hcl.Range
+
+	// Kubernetes is the "kubernetes" backend's connection block: the same
+	// arguments the stock kubernetes backend and the hashicorp/kubernetes
+	// provider take, decoded here and turned into a client by
+	// internal/live/projection through internal/live/kubesweep's own loader,
+	// which is the one copy of that precedence this fork keeps.
+	Kubernetes LiveRecordStoreKubernetes
 
 	// DeclRange is the "record_store" block's own header, or - for the
 	// implied store - the live block's own header, since that is the
@@ -397,6 +553,48 @@ type LiveRecordStore struct {
 	// implied local record store" rather than pointing at a block the author
 	// never wrote, and what a test reads to assert which of the two it got.
 	Implied bool
+}
+
+// LiveRecordStoreKubernetes is the "kubernetes" record store's connection
+// arguments. Every name here is the stock kubernetes backend's own
+// (internal/backend/remote-state/kubernetes) and the hashicorp/kubernetes
+// provider's, so an operator who has written either writes this one.
+//
+// Nothing here is interpreted by this package. internal/live/projection maps
+// it onto [internal/live/kubesweep.Attrs] and that package's RestConfig
+// applies the precedence - in_cluster_config first, then a kubeconfig named
+// by config_path, config_paths or the KUBE_* and KUBECONFIG environment
+// variables, then host, token and the TLS arguments over the top. That loader
+// already existed for the sweep, so this store adds no second copy of it.
+type LiveRecordStoreKubernetes struct {
+	Host                  string
+	Token                 string
+	Insecure              bool
+	InCluster             bool
+	ConfigPath            string
+	ConfigPaths           []string
+	ConfigContext         string
+	ConfigContextAuthInfo string
+	ConfigContextCluster  string
+	ClientCertificate     string
+	ClientKey             string
+	ClusterCACertificate  string
+
+	// Exec is the block's nested "exec" block: a credential plugin speaking
+	// the client.authentication.k8s.io ExecCredential protocol, which is how
+	// every EKS root authenticates (#1114). Nil when none is declared.
+	Exec *LiveRecordStoreExec
+}
+
+// LiveRecordStoreExec is the "exec" block nested in a record_store
+// "kubernetes" block.
+type LiveRecordStoreExec struct {
+	APIVersion string
+	Command    string
+	Args       []string
+	Env        map[string]string
+
+	DeclRange hcl.Range
 }
 
 // impliedRecordStore is the record store a live block that declares no
@@ -569,6 +767,15 @@ var liveStrictSchema = &hcl.BodySchema{
 	},
 	Blocks: []hcl.BlockHeaderSchema{
 		{Type: "markers", LabelNames: []string{"kind"}},
+		{Type: "ssm"},
+	},
+}
+
+var liveStrictSSMSchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{
+		{Name: "kms_key_id"},
+		{Name: "path"},
+		{Name: "region"},
 	},
 }
 
@@ -585,7 +792,80 @@ var recordStoreBlockSchema = &hcl.BodySchema{
 		{Name: "bucket"},
 		{Name: "key_prefix"},
 		{Name: "region"},
+		{Name: "bucket_owner"},
+		{Name: "allow_insecure"},
+
+		// The "kubernetes" backend's connection arguments, spelled the way
+		// the stock kubernetes backend and the hashicorp/kubernetes provider
+		// spell them, per issue #73's "phrased in familiar backend-like
+		// terms" ruling. See [RecordStoreKubernetesSettings].
+		{Name: "namespace"},
+		{Name: "host"},
+		{Name: "token"},
+		{Name: "insecure"},
+		{Name: "in_cluster_config"},
+		{Name: "config_path"},
+		{Name: "config_paths"},
+		{Name: "config_context"},
+		{Name: "config_context_auth_info"},
+		{Name: "config_context_cluster"},
+		{Name: "client_certificate"},
+		{Name: "client_key"},
+		{Name: "cluster_ca_certificate"},
 	},
+	Blocks: []hcl.BlockHeaderSchema{
+		{Type: "exec"},
+	},
+}
+
+var recordStoreExecBlockSchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{
+		{Name: "api_version"},
+		{Name: "command"},
+		{Name: "args"},
+		{Name: "env"},
+	},
+}
+
+// RecordStoreKubernetesSettings is every argument that belongs to the
+// "kubernetes" backend alone: the cluster's namespace and the connection
+// block the stock backend and the provider both declare. Naming one on a
+// "local" or "s3" store is a decode error, the same way "bucket" on a local
+// one is.
+var RecordStoreKubernetesSettings = []string{
+	"namespace", "host", "token", "insecure", "in_cluster_config",
+	"config_path", "config_paths", "config_context",
+	"config_context_auth_info", "config_context_cluster",
+	"client_certificate", "client_key", "cluster_ca_certificate",
+}
+
+// RecordStoreInsecureSettings is every name the "s3" backend's
+// "allow_insecure" argument accepts: the three settings the bucket contract
+// asserts (GitHub issue #1339). internal/live/projection pins this list to
+// [internal/live/staterecord.BucketSettings] by test, so a fourth assertion
+// cannot be added there without being waivable here, or the other way round.
+var RecordStoreInsecureSettings = []string{"versioning", "lifecycle", "public_access_block"}
+
+// RecordStoreClusterInsecureSettings is every name the "kubernetes" backend's
+// "allow_insecure" argument accepts: the four properties the cluster contract
+// asserts (GitHub issue #1393), and ahead of them the one it asserts about
+// this block's own "insecure" argument (#1448). Pinned to
+// [internal/live/staterecord.ClusterSettings] by the same test, for the same
+// reason.
+var RecordStoreClusterInsecureSettings = []string{"tls_verification", "namespace_access", "read_isolation", "encryption_at_rest", "estate_boundary"}
+
+// RecordStoreInsecureSettingsFor is the names "allow_insecure" accepts on a
+// store of this type, and nil for a store with no contract to waive. The
+// "local" backend is that store: a directory has no versioning, no namespace
+// and no admission policy, so there is nothing a waiver could name.
+func RecordStoreInsecureSettingsFor(storeType string) []string {
+	switch storeType {
+	case "s3":
+		return RecordStoreInsecureSettings
+	case "kubernetes":
+		return RecordStoreClusterInsecureSettings
+	}
+	return nil
 }
 
 func decodeLiveBlock(block *hcl.Block) (*Live, hcl.Diagnostics) {
@@ -738,7 +1018,7 @@ func decodeLiveBody(body hcl.Body, declRange hcl.Range) (*Live, hcl.Diagnostics)
 		// [impliedRecordStore].
 		s.RecordStore = impliedRecordStore(declRange)
 	case 1:
-		rs, rsDiags := decodeRecordStoreBlock(recordStoreBlocks[0])
+		rs, rsDiags := decodeRecordStoreBlock(recordStoreBlocks[0], s.Estate)
 		diags = append(diags, rsDiags...)
 		s.RecordStore = rs
 	default:
@@ -748,7 +1028,7 @@ func decodeLiveBody(body hcl.Body, declRange hcl.Range) (*Live, hcl.Diagnostics)
 			Detail:   "A live block may have at most one record_store block.",
 			Subject:  recordStoreBlocks[1].DefRange.Ptr(),
 		})
-		rs, rsDiags := decodeRecordStoreBlock(recordStoreBlocks[0])
+		rs, rsDiags := decodeRecordStoreBlock(recordStoreBlocks[0], s.Estate)
 		diags = append(diags, rsDiags...)
 		s.RecordStore = rs
 	}
@@ -911,6 +1191,30 @@ func decodeStrictBlock(block *hcl.Block) (*LiveStrict, hcl.Diagnostics) {
 	// two blocks rather than a duplicate. Two blocks with the SAME label are
 	// the duplicate, and get the same diagnostic the policy and record_store
 	// blocks give for theirs.
+	// The ssm block is counted rather than collected by label: it has no
+	// label, and unlike markers it names no family a second block could
+	// belong to. Two of them are the duplicate, and get the diagnostic
+	// every other duplicate nested block in this file gives.
+	var ssmBlocks []*hcl.Block
+	for _, block := range content.Blocks {
+		if block.Type == "ssm" {
+			ssmBlocks = append(ssmBlocks, block)
+		}
+	}
+	if len(ssmBlocks) > 1 {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Duplicate ssm block",
+			Detail:   "A strict block may have at most one ssm block. Put the key, the path and the region in the one block.",
+			Subject:  ssmBlocks[1].DefRange.Ptr(),
+		})
+	}
+	if len(ssmBlocks) > 0 {
+		sm, smDiags := decodeStrictSSMBlock(ssmBlocks[0])
+		diags = append(diags, smDiags...)
+		st.SSM = sm
+	}
+
 	seen := make(map[string]*hcl.Block, len(content.Blocks))
 	for _, block := range content.Blocks {
 		if block.Type != "markers" {
@@ -955,6 +1259,49 @@ func decodeStrictBlock(block *hcl.Block) (*LiveStrict, hcl.Diagnostics) {
 // division decodeRecordStoreBlock's three backend names already have.
 const strictMarkersRecord = "record"
 
+// decodeStrictSSMBlock decodes a strict block's nested "ssm" block: the
+// three literal strings that say where `strict { secrets = "ssm" }` puts a
+// secret value. See [LiveStrictSSM].
+//
+// Like [decodeStrictBlock] it records what was written and judges none of
+// it. That an omitted kms_key_id is a refusal, and that this block means
+// nothing beside any secrets setting but "ssm", are both
+// internal/live/lint's, for the same reason the strict block's own
+// spellings are checked there: this package does not depend on that one,
+// and a decode error cannot say "but your record_store is local" because
+// the record_store block may not have been decoded yet.
+func decodeStrictSSMBlock(block *hcl.Block) (*LiveStrictSSM, hcl.Diagnostics) {
+	sm := &LiveStrictSSM{DeclRange: block.DefRange}
+
+	content, diags := block.Body.Content(liveStrictSSMSchema)
+
+	for _, f := range []struct {
+		name string
+		val  *string
+		set  *bool
+		rng  *hcl.Range
+	}{
+		{"kms_key_id", &sm.KMSKeyID, &sm.KMSKeyIDSet, &sm.KMSKeyIDRange},
+		{"path", &sm.Path, &sm.PathSet, &sm.PathRange},
+		{"region", &sm.Region, &sm.RegionSet, &sm.RegionRange},
+	} {
+		attr, exists := content.Attributes[f.name]
+		if !exists {
+			continue
+		}
+		*f.rng = attr.Range
+		val, valDiags := decodeLiteralString(attr, f.name)
+		diags = append(diags, valDiags...)
+		if valDiags.HasErrors() {
+			continue
+		}
+		*f.val = val
+		*f.set = true
+	}
+
+	return sm, diags
+}
+
 // decodeStrictMarkersBlock decodes one `markers "<kind>"` block: the two
 // literal lists that say which resources it covers. See [LiveStrictMarkers].
 func decodeStrictMarkersBlock(block *hcl.Block) (*LiveStrictMarkers, hcl.Diagnostics) {
@@ -989,22 +1336,73 @@ func decodeStrictMarkersBlock(block *hcl.Block) (*LiveStrictMarkers, hcl.Diagnos
 	return m, diags
 }
 
+// SummaryRecordStoreRetired is the refusal for a record_store backend that
+// used to exist. GitHub issue #1346.
+const SummaryRecordStoreRetired = "Retired record_store backend"
+
+// recordStoreRetiredDetail says what happened to the Parameter Store record
+// store, why, and what to declare instead.
+//
+// Two things in it are deliberate. It says "as a record store", every time:
+// what was retired is Parameter Store holding RECORDS, and a reader who
+// takes away "SSM is removed" has been misinformed. And it does not offer
+// SSM for secret values as something available, because it is not built:
+// that is planned (#1515, split from #1244 section 3), and today's only alternative to secret
+// values in the record store is strict { secrets = "refuse" }.
+//
+// There is no migration, and the message says so with the reason. No estate
+// was on this backend when it was retired.
+func recordStoreRetiredDetail(label string) string {
+	return fmt.Sprintf("record_store %q is retired: AWS Systems Manager Parameter Store is no longer supported as a record store. "+
+		"Standard parameters cap at 10,000 per account and region, a quota that is your account's and is shared with everything else in it, and going past it means putting parameters on the advanced tier, where each one is billed monthly. "+
+		"It also has no general conditional write, only create-if-absent, where the record store's consistency rests on every write being conditional.\n\n"+
+		"Declare record_store \"s3\" with a bucket instead. examples/record-store-bucket stands a correct bucket up with \"just up\", \"choudoufu live-bucket\" says whether an existing one is correct, and its iam directory renders the policy an estate's role needs.\n\n"+
+		"Records already in Parameter Store are not migrated, and no migration command exists, because no estate was on this backend when it was retired. "+
+		"This is about where records are kept and says nothing against SSM for secret values: keeping those out of the bucket, in SSM, is planned (#1515) and not available yet. Until it is, strict { secrets = \"refuse\" } is the way to keep secret values out of the record store.",
+		label)
+}
+
 // decodeRecordStoreBlock decodes a live block's nested "record_store" block:
 // which backend (the block's label) and that backend's own arguments. See
 // [LiveRecordStore].
-func decodeRecordStoreBlock(block *hcl.Block) (*LiveRecordStore, hcl.Diagnostics) {
+//
+// estate is the name the surrounding live block gives this estate, or "" when
+// it names none and the name is derived from the tofu-estate tags instead.
+// Only [validateRecordStoreKeyPrefix] reads it, and only to decide whether a
+// key_prefix under "tofu-records/" is this estate's own namespace or another
+// one's (GitHub issue #1381).
+func decodeRecordStoreBlock(block *hcl.Block, estate string) (*LiveRecordStore, hcl.Diagnostics) {
 	rs := &LiveRecordStore{DeclRange: block.DefRange}
 
 	label := block.Labels[0]
 	switch label {
-	case "local", "ssm", "s3":
+	case "local", "s3", "kubernetes":
 		rs.Type = label
 		rs.TypeRange = block.LabelRanges[0]
+	case "ssm":
+		// Refused by name and not as an unknown backend, because this one
+		// was the documented team default until GitHub issue #1346 and a
+		// configuration that still names it deserves to be told what
+		// happened and where to go. The body is not decoded: a retired
+		// backend's arguments are not worth a second diagnostic.
+		//
+		// "ssm" alone. "ssm-tier" used to be listed here too and it was
+		// never a backend label at any release - "tier" was an ARGUMENT of
+		// record_store "ssm" (git grep '"ssm-tier"' v0.17.0 is empty). A
+		// label nobody could have written told a reader that it once
+		// existed, so it goes to the unknown-backend message like any other
+		// name this fork does not know. GitHub issue #1383.
+		return rs, hcl.Diagnostics{&hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  SummaryRecordStoreRetired,
+			Detail:   recordStoreRetiredDetail(label),
+			Subject:  block.LabelRanges[0].Ptr(),
+		}}
 	default:
 		return rs, hcl.Diagnostics{&hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Invalid record_store backend",
-			Detail:   fmt.Sprintf("record_store %q names a backend this fork does not know. Valid backends are \"local\" (the solo/dev default), \"ssm\" (the zero-infrastructure team default), and \"s3\" (true conditional-write CAS).", label),
+			Detail:   fmt.Sprintf("record_store %q names a backend this fork does not know. Valid backends are \"local\" (the solo/dev default), \"s3\" (a bucket, for anything more than one operator shares) and \"kubernetes\" (Secrets in a cluster namespace, for an estate that runs on Kubernetes and wants no AWS account).", label),
 			Subject:  block.LabelRanges[0].Ptr(),
 		}}
 	}
@@ -1069,7 +1467,7 @@ func decodeRecordStoreBlock(block *hcl.Block) (*LiveRecordStore, hcl.Diagnostics
 		val, valDiags := decodeLiteralString(attr, "key_prefix")
 		diags = append(diags, valDiags...)
 		if !valDiags.HasErrors() {
-			if detail := validateRecordStoreKeyPrefix(val); detail != "" {
+			if detail := validateRecordStoreKeyPrefix(val, estate); detail != "" {
 				diags = append(diags, &hcl.Diagnostic{
 					Severity: hcl.DiagError,
 					Summary:  "Invalid record_store key_prefix",
@@ -1109,16 +1507,378 @@ func decodeRecordStoreBlock(block *hcl.Block) (*LiveRecordStore, hcl.Diagnostics
 			}
 		}
 	}
-	if rs.Type == "local" && rs.RegionSet {
+	if rs.Type != "s3" && rs.RegionSet {
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
-			Summary:  "Invalid argument for the local record store",
-			Detail:   "The \"region\" argument selects an AWS region and has no meaning for record_store \"local\", which never talks to AWS. Remove it.",
+			Summary:  fmt.Sprintf("Invalid argument for the %s record store", rs.Type),
+			Detail:   fmt.Sprintf("The \"region\" argument selects an AWS region and has no meaning for record_store %q, which never talks to AWS. Remove it.", rs.Type),
 			Subject:  rs.RegionRange.Ptr(),
 		})
 	}
 
+	if attr, exists := content.Attributes["bucket_owner"]; exists {
+		rs.BucketOwnerRange = attr.Range
+		val, valDiags := decodeLiteralString(attr, "bucket_owner")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			if !validAWSAccountID(val) {
+				diags = append(diags, &hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  "Invalid record_store bucket_owner",
+					Detail:   fmt.Sprintf("The \"bucket_owner\" argument was set to %q. It must be an AWS account ID: exactly twelve digits, with no dashes and no ARN around them. It is the account that must own the bucket, and every S3 request this estate makes carries it.", val),
+					Subject:  attr.Expr.Range().Ptr(),
+				})
+			} else {
+				rs.BucketOwner = val
+				rs.BucketOwnerSet = true
+			}
+		}
+	}
+	if rs.Type != "s3" && (rs.BucketOwnerSet || !rs.BucketOwnerRange.Empty()) {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Invalid argument for the %s record store", rs.Type),
+			Detail:   fmt.Sprintf("The \"bucket_owner\" argument names the AWS account that must own the bucket and has no meaning for record_store %q, which never talks to AWS. Remove it.", rs.Type),
+			Subject:  rs.BucketOwnerRange.Ptr(),
+		})
+	}
+
+	if attr, exists := content.Attributes["allow_insecure"]; exists {
+		rs.AllowInsecureRange = attr.Range
+		valid := RecordStoreInsecureSettingsFor(rs.Type)
+		vals, valDiags := decodeLiteralStringList(attr, "allow_insecure")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() && valid != nil {
+			ok := true
+			seen := map[string]bool{}
+			for _, name := range vals {
+				switch {
+				case !slices.Contains(valid, name):
+					// Refused, never ignored: a typo that silently waived
+					// nothing would still READ as a waiver to whoever reviews
+					// the configuration, and a name this build does not know
+					// may be an assertion a newer build makes.
+					ok = false
+					diags = append(diags, &hcl.Diagnostic{
+						Severity: hcl.DiagError,
+						Summary:  "Invalid record_store allow_insecure",
+						Detail: fmt.Sprintf(
+							"The \"allow_insecure\" argument names %q, which is not something record_store %q asserts. Valid names are %s. Each one waives exactly one assertion and leaves the others in force.",
+							name, rs.Type, strings.Join(quoteEach(valid), ", "),
+						),
+						Subject: attr.Expr.Range().Ptr(),
+					})
+				case seen[name]:
+					ok = false
+					diags = append(diags, &hcl.Diagnostic{
+						Severity: hcl.DiagError,
+						Summary:  "Invalid record_store allow_insecure",
+						Detail:   fmt.Sprintf("The \"allow_insecure\" argument names %q more than once.", name),
+						Subject:  attr.Expr.Range().Ptr(),
+					})
+				}
+				seen[name] = true
+			}
+			if ok {
+				rs.AllowInsecure = vals
+				rs.AllowInsecureSet = true
+			}
+		}
+	}
+	if RecordStoreInsecureSettingsFor(rs.Type) == nil && (rs.AllowInsecureSet || !rs.AllowInsecureRange.Empty()) {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Invalid argument for the %s record store", rs.Type),
+			Detail:   fmt.Sprintf("The \"allow_insecure\" argument waives assertions a store makes about where it keeps its records, and record_store %q asserts nothing: a directory has no versioning, no namespace and no admission policy. Remove it.", rs.Type),
+			Subject:  rs.AllowInsecureRange.Ptr(),
+		})
+	}
+
+	diags = append(diags, decodeRecordStoreKubernetes(rs, content)...)
+
 	return rs, diags
+}
+
+// decodeRecordStoreKubernetes decodes the "kubernetes" backend's namespace and
+// connection arguments, and refuses each of them on a backend that has no use
+// for one - the same rule "bucket" and "region" already follow from the other
+// direction.
+func decodeRecordStoreKubernetes(rs *LiveRecordStore, content *hcl.BodyContent) hcl.Diagnostics {
+	var diags hcl.Diagnostics
+
+	if rs.Type != "kubernetes" {
+		for _, name := range RecordStoreKubernetesSettings {
+			attr, exists := content.Attributes[name]
+			if !exists {
+				continue
+			}
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Invalid argument for the %s record store", rs.Type),
+				Detail:   fmt.Sprintf("The %q argument says how to reach a Kubernetes cluster and has no meaning for record_store %q. Remove it, or declare record_store \"kubernetes\".", name, rs.Type),
+				Subject:  attr.Expr.Range().Ptr(),
+			})
+		}
+		for _, blk := range content.Blocks.OfType("exec") {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Invalid block for the %s record store", rs.Type),
+				Detail:   fmt.Sprintf("An \"exec\" block names a Kubernetes credential plugin and has no meaning for record_store %q. Remove it, or declare record_store \"kubernetes\".", rs.Type),
+				Subject:  blk.DefRange.Ptr(),
+			})
+		}
+		return diags
+	}
+
+	if attr, exists := content.Attributes["path"]; exists {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid argument for the kubernetes record store",
+			Detail:   "The \"path\" argument names a local directory and has no meaning for record_store \"kubernetes\", whose records are Secrets in a cluster. Use \"namespace\" to say which Kubernetes namespace they live in.",
+			Subject:  attr.Expr.Range().Ptr(),
+		})
+	}
+	if rs.BucketSet || content.Attributes["bucket"] != nil {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid argument for the kubernetes record store",
+			Detail:   "The \"bucket\" argument names an S3 bucket and has no meaning for record_store \"kubernetes\", whose records are Secrets in a cluster namespace. Remove it.",
+			Subject:  rs.BucketRange.Ptr(),
+		})
+	}
+
+	strs := []struct {
+		name string
+		val  *string
+		rng  *hcl.Range
+		set  *bool
+	}{
+		{"namespace", &rs.Namespace, &rs.NamespaceRange, &rs.NamespaceSet},
+		{"host", &rs.Kubernetes.Host, nil, nil},
+		{"token", &rs.Kubernetes.Token, nil, nil},
+		{"config_path", &rs.Kubernetes.ConfigPath, nil, nil},
+		{"config_context", &rs.Kubernetes.ConfigContext, nil, nil},
+		{"config_context_auth_info", &rs.Kubernetes.ConfigContextAuthInfo, nil, nil},
+		{"config_context_cluster", &rs.Kubernetes.ConfigContextCluster, nil, nil},
+		{"client_certificate", &rs.Kubernetes.ClientCertificate, nil, nil},
+		{"client_key", &rs.Kubernetes.ClientKey, nil, nil},
+		{"cluster_ca_certificate", &rs.Kubernetes.ClusterCACertificate, nil, nil},
+	}
+	for _, f := range strs {
+		attr, exists := content.Attributes[f.name]
+		if !exists {
+			continue
+		}
+		if f.rng != nil {
+			*f.rng = attr.Range
+		}
+		val, valDiags := decodeLiteralString(attr, f.name)
+		diags = append(diags, valDiags...)
+		if valDiags.HasErrors() {
+			continue
+		}
+		if val == "" {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Empty record_store %s", f.name),
+				Detail:   fmt.Sprintf("The %q argument was set to an empty string. Give it a value, or omit the argument entirely.", f.name),
+				Subject:  attr.Expr.Range().Ptr(),
+			})
+			continue
+		}
+		if f.name == "namespace" {
+			if errs := validation.IsDNS1123Label(val); len(errs) > 0 {
+				diags = append(diags, &hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  "Invalid record_store namespace",
+					Detail: fmt.Sprintf(
+						"The \"namespace\" argument was set to %q, which is not a Kubernetes namespace name: %s.",
+						val, strings.Join(errs, "; "),
+					),
+					Subject: attr.Expr.Range().Ptr(),
+				})
+				continue
+			}
+		}
+		*f.val = val
+		if f.set != nil {
+			*f.set = true
+		}
+	}
+
+	if attr, exists := content.Attributes["config_paths"]; exists {
+		vals, valDiags := decodeLiteralStringList(attr, "config_paths")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			rs.Kubernetes.ConfigPaths = vals
+		}
+	}
+
+	for _, f := range []struct {
+		name string
+		val  *bool
+	}{
+		{"insecure", &rs.Kubernetes.Insecure},
+		{"in_cluster_config", &rs.Kubernetes.InCluster},
+	} {
+		attr, exists := content.Attributes[f.name]
+		if !exists {
+			continue
+		}
+		val, valDiags := decodeLiteralBool(attr, f.name)
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			*f.val = val
+		}
+	}
+
+	execBlocks := content.Blocks.OfType("exec")
+	if len(execBlocks) > 1 {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Duplicate exec block",
+			Detail:   "A record_store \"kubernetes\" block may have at most one exec block.",
+			Subject:  execBlocks[1].DefRange.Ptr(),
+		})
+	}
+	if len(execBlocks) > 0 {
+		exec, execDiags := decodeRecordStoreExecBlock(execBlocks[0])
+		diags = append(diags, execDiags...)
+		if !execDiags.HasErrors() {
+			rs.Kubernetes.Exec = exec
+		}
+	}
+
+	return diags
+}
+
+func decodeRecordStoreExecBlock(block *hcl.Block) (*LiveRecordStoreExec, hcl.Diagnostics) {
+	exec := &LiveRecordStoreExec{DeclRange: block.DefRange}
+	content, diags := block.Body.Content(recordStoreExecBlockSchema)
+
+	for _, f := range []struct {
+		name     string
+		val      *string
+		required bool
+	}{
+		{"api_version", &exec.APIVersion, true},
+		{"command", &exec.Command, true},
+	} {
+		attr, exists := content.Attributes[f.name]
+		if !exists {
+			if f.required {
+				diags = append(diags, &hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  fmt.Sprintf("Missing exec %s", f.name),
+					Detail:   fmt.Sprintf("An \"exec\" block requires an %q argument, the same way the kubernetes provider's own exec block does.", f.name),
+					Subject:  block.DefRange.Ptr(),
+				})
+			}
+			continue
+		}
+		val, valDiags := decodeLiteralString(attr, f.name)
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			*f.val = val
+		}
+	}
+
+	if attr, exists := content.Attributes["args"]; exists {
+		vals, valDiags := decodeLiteralStringList(attr, "args")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			exec.Args = vals
+		}
+	}
+	if attr, exists := content.Attributes["env"]; exists {
+		env, valDiags := decodeLiteralStringMap(attr, "env")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			exec.Env = env
+		}
+	}
+
+	return exec, diags
+}
+
+// decodeLiteralBool is [decodeLiteralString]'s rule for a boolean argument.
+func decodeLiteralBool(attr *hcl.Attribute, label string) (bool, hcl.Diagnostics) {
+	var diags hcl.Diagnostics
+	val, valDiags := attr.Expr.Value(nil)
+	diags = append(diags, valDiags...)
+	if valDiags.HasErrors() {
+		return false, diags
+	}
+	if val.IsNull() || !val.IsWhollyKnown() || val.Type() != cty.Bool {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Invalid %s", label),
+			Detail:   fmt.Sprintf("The %q argument must be a literal true or false.", label),
+			Subject:  attr.Expr.Range().Ptr(),
+		})
+		return false, diags
+	}
+	return val.True(), diags
+}
+
+// decodeLiteralStringMap is [decodeLiteralString]'s rule for a map of strings.
+func decodeLiteralStringMap(attr *hcl.Attribute, label string) (map[string]string, hcl.Diagnostics) {
+	var diags hcl.Diagnostics
+	val, valDiags := attr.Expr.Value(nil)
+	diags = append(diags, valDiags...)
+	if valDiags.HasErrors() {
+		return nil, diags
+	}
+	ty := val.Type()
+	if val.IsNull() || !val.IsWhollyKnown() || !(ty.IsObjectType() || ty.IsMapType()) {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Invalid %s", label),
+			Detail:   fmt.Sprintf("The %q argument must be a literal map of strings.", label),
+			Subject:  attr.Expr.Range().Ptr(),
+		})
+		return nil, diags
+	}
+	out := map[string]string{}
+	for it := val.ElementIterator(); it.Next(); {
+		k, v := it.Element()
+		if v.IsNull() || !v.IsKnown() || v.Type() != cty.String {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Invalid %s", label),
+				Detail:   fmt.Sprintf("Every value of the %q argument must be a literal string.", label),
+				Subject:  attr.Expr.Range().Ptr(),
+			})
+			continue
+		}
+		out[k.AsString()] = v.AsString()
+	}
+	return out, diags
+}
+
+// validAWSAccountID reports whether s is an AWS account ID: exactly twelve
+// decimal digits. Leading zeroes are real account IDs, so this is a string
+// check and never a number one.
+func validAWSAccountID(s string) bool {
+	if len(s) != 12 {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// quoteEach renders a vocabulary for a diagnostic: every value in double
+// quotes, so a reader can tell the spelling apart from the prose around it.
+func quoteEach(vals []string) []string {
+	out := make([]string, len(vals))
+	for i, v := range vals {
+		out[i] = fmt.Sprintf("%q", v)
+	}
+	return out
 }
 
 // decodePolicyBlock decodes a live block's nested "policy" block: the four
@@ -1357,8 +2117,8 @@ func validateRecordStorePath(raw string) string {
 	return ""
 }
 
-// validateRecordStoreKeyPrefix returns the reason a record_store "ssm" or
-// "s3" key_prefix may not be used, or "" when it is fine.
+// validateRecordStoreKeyPrefix returns the reason a record_store "s3"
+// key_prefix may not be used, or "" when it is fine.
 //
 // The rule that matters: five literal segments beside the records'
 // own must stay unreachable from an override. The receipts pattern
@@ -1401,16 +2161,44 @@ func validateRecordStorePath(raw string) string {
 // caller's own key prefix is always rooted at "tofu-records/<estate>" - see
 // internal/live/projection.RecordKeyPrefix), but an operator-supplied
 // override is checked here at the segment level, the same "/"-delimited
-// hierarchy SSM parameter names and S3 key prefixes both already use: a
+// hierarchy S3 key prefixes already use: a
 // key_prefix whose first segment is exactly "tofu-receipts", "tofu-hints",
 // "tofu-located", "tofu-residue", "tofu-provisioned" or "tofu-outputs" is
 // refused, whether or not it carries a leading or trailing slash.
-func validateRecordStoreKeyPrefix(raw string) string {
+//
+// The records' own root, "tofu-records", is the seventh and is not reserved:
+// "tofu-records/<this estate>" is the default written out by hand and is no
+// mistake at all. What it may not name is ANOTHER estate's records. Estate A
+// with key_prefix = "tofu-records/b" writes its records to exactly the keys
+// estate b writes its own to, because recordStoreKeyPrefix uses the override
+// verbatim while b uses RecordKeyPrefix("b"), and the two strings are equal.
+// Each run then reads the other one's inventory as its own, and a record with
+// no configuration behind it is proposed for destruction. GitHub issue #1381
+// measured that this was accepted. estate is the name the live block gives, or
+// "" when it gives none; see [decodeRecordStoreBlock].
+//
+// A leading slash is refused in its own right as well, after all of those, so
+// that the argument is named here rather than at the first run's first write.
+func validateRecordStoreKeyPrefix(raw, estate string) string {
 	norm := strings.Trim(raw, "/")
 	if norm == "" {
 		return "The \"key_prefix\" argument was set to an empty (or all-slashes) string. Give it a real prefix, or omit the argument entirely to use the default derived from the estate name."
 	}
-	first, _, _ := strings.Cut(norm, "/")
+	first, rest, _ := strings.Cut(norm, "/")
+	if first == "tofu-records" {
+		// The whole root. Every estate's records live one segment under it,
+		// so this estate would write into, and list, all of them.
+		if rest == "" {
+			return "The \"key_prefix\" argument was set to the \"tofu-records\" root itself. Every estate's records live one segment under that root, so this estate would write into and list all of them, and a record with no configuration behind it is proposed for destruction. Name this estate's own namespace (\"tofu-records/<this estate>\"), or omit the argument entirely to get it by default."
+		}
+		owner, _, _ := strings.Cut(rest, "/")
+		switch {
+		case estate == "":
+			return fmt.Sprintf("The \"key_prefix\" argument was set to %q, which is inside the namespace the records of the estate named %q live in, and this configuration does not say which estate it owns, so nothing here can tell whether that is this estate or another one. Set the \"estate\" argument to the name this configuration owns, or give \"key_prefix\" a prefix outside \"tofu-records/\".", raw, owner)
+		case owner != estate:
+			return fmt.Sprintf("The \"key_prefix\" argument was set to %q, and the estate this configuration owns is %q. That prefix is the namespace estate %q writes its own records to, so both estates would write to one set of keys and each would read the other's records as its own inventory - and a record with no configuration behind it is proposed for destruction. Name this estate (\"tofu-records/%s\"), or give \"key_prefix\" a prefix outside \"tofu-records/\".", raw, estate, owner, estate)
+		}
+	}
 	if first == "tofu-receipts" {
 		return "The \"key_prefix\" argument must not begin with the \"tofu-receipts\" segment: that namespace belongs to the receipts pattern (live/RECEIPTS.md), and a record store's keys must stay disjoint from it so a record can never be mistaken for, or collide with, a receipt."
 	}
@@ -1424,10 +2212,24 @@ func validateRecordStoreKeyPrefix(raw string) string {
 		return "The \"key_prefix\" argument must not begin with the \"tofu-residue\" segment: that namespace holds the argument values a provider's read never gives back (GitHub issue #275), for live objects the estate owns and the records have no authority over. It must stay unenumerable for the same reason \"tofu-located\" must - a record key with no configuration behind it is proposed for destruction, and a residue key is only a note about what was last sent to an object that exists."
 	}
 	if first == "tofu-outputs" {
-		return "The \"key_prefix\" argument must not begin with the \"tofu-outputs\" segment: that namespace holds the value each root-level output block settled on at the last apply, which a stateless plan diffs against instead of calling every output new (GitHub issue #349). It must stay unenumerable for \"tofu-located\"'s reason - a record key with no configuration behind it is proposed for destruction, and an output value names no live object at all."
+		return "The \"key_prefix\" argument must not begin with the \"tofu-outputs\" segment: that namespace holds the value each root-level output block settled on at the last apply, which a live plan diffs against instead of calling every output new (GitHub issue #349). It must stay unenumerable for \"tofu-located\"'s reason - a record key with no configuration behind it is proposed for destruction, and an output value names no live object at all."
 	}
 	if first == "tofu-provisioned" {
 		return "The \"key_prefix\" argument must not begin with the \"tofu-provisioned\" segment: that namespace holds the one bit saying a create-time provisioner failed on a live object (GitHub issue #353). It must stay unenumerable for \"tofu-located\"'s reason - a record key with no configuration behind it is proposed for destruction, and a provisioner note is only a record that a command failed against an object that exists."
+	}
+	// Last, so a prefix that both carries a slash and names one of the six
+	// reserved namespaces still gets the reserved namespace's reason, which
+	// is the more dangerous of the two.
+	//
+	// internal/live/staterecord's validateKeyPrefix refuses a leading slash
+	// at the store, for issue #688's reasons. It only sees the key the store
+	// builds, though, so a key_prefix with a leading slash passed this
+	// validator, survived the whole of config loading, and then failed every
+	// run with an error naming a record key nobody wrote and never the
+	// argument that caused it. The trim above is for the segment checks and
+	// does not reach the value that is kept. GitHub issue #1383.
+	if strings.HasPrefix(raw, "/") {
+		return "The \"key_prefix\" argument must not begin with \"/\". Keys in a record store are store-relative: the store prepends its own configured prefix, and a leading slash here becomes an empty first segment in every object key the estate writes. Remove the leading slash (\"tofu-records/my-estate\", not \"/tofu-records/my-estate\")."
 	}
 	return ""
 }

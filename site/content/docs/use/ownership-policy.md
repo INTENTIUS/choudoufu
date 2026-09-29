@@ -9,12 +9,12 @@ Every resource choudoufu sees falls into one of four situations, decided by
 whether your configuration declares it and whether it carries this estate's
 marker. The `policy` block sets what happens in each.
 
-With no `policy` block you get the defaults below, which are today's behaviour.
+With no `policy` block you get the defaults below.
 
 | The situation you are in | Setting | Default | What the default does |
 |---|---|---|---|
 | You declare it, and it carries your marker. The ordinary case. | `declared_tagged` | `converge` | Plans and applies it against your configuration, like any resource. |
-| You declare it, and the live resource at that identity carries no estate marker at all. | `declared_untagged` | `refuse` | Declines to touch it until you adopt it. |
+| You declare it, and the live resource at that identity carries no estate marker at all. | `declared_untagged` | `refuse` | Declines to touch it until you adopt it; a built-in Kubernetes object it read [stops the plan](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unlabelled-live-object-holds-the-declared-name). |
 | **You removed it from your configuration, and it still carries your marker.** | `undeclared_tagged` | **`delete`** | **Destroys it on the next plan.** |
 | It carries no marker, and you never declared it. Somebody else's. | `undeclared_untagged` | `keep` | Leaves it alone. |
 
@@ -77,7 +77,10 @@ object you mean:
 ## Reconciling a whole account
 
 `undeclared_untagged = "delete"` destroys resources your configuration has
-never mentioned. It requires a `scope` block, the only setting that does.
+never mentioned. It requires a `scope` block bounding the sweep through
+`services`, `types` and `regions`, each a list. It is the only setting that
+does; other delete verbs need none, `undeclared_tagged`'s estate-scoped
+sweep included.
 
 Re-read the two orphan cases in [How to stop managing or destroy a
 resource]({{< relref "/docs/use/remove-a-resource" >}}) before enabling it.

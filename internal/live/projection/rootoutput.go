@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
+	"time"
 
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
@@ -98,8 +100,14 @@ const rootOutputNamespaceRoot = "tofu-outputs"
 // [LocatedKeyPrefix], [ResidueKeyPrefix] and [ProvisionedKeyPrefix] are:
 // internal/command's store construction and this package's own
 // namespace-safety tests both have to name one definition.
+//
+// It ends in "/" for [RecordKeyPrefix]'s reason (GitHub issue #1335). One
+// thing lists this namespace, [PruneRootOutputValues], and only to delete:
+// the delimiter is what stops its listing of "prod" from also returning
+// "prod-eu"'s keys, and what an IAM policy's s3:prefix condition on it
+// rests on.
 func RootOutputKeyPrefix(estate string) string {
-	return rootOutputNamespaceRoot + "/" + estate
+	return rootOutputNamespaceRoot + "/" + estate + "/"
 }
 
 // RootOutputKey is the store key one root output's remembered value lives at,
@@ -107,17 +115,18 @@ func RootOutputKeyPrefix(estate string) string {
 //
 // The name is encoded by [recordKeyEncoding] for the reason every other key
 // in this package encodes what it names: the alphabet a store key may use is
-// the intersection of what SSM parameter names, S3 object keys and filesystem
-// paths all accept, and encoding is how that stops being a question. An HCL
+// the intersection of what S3 object keys and filesystem paths both accept,
+// and encoding is how that stops being a question. An HCL
 // output name happens to be within it today; deriving the key the same way as
 // its four siblings means nobody has to re-check that.
 //
 // There is deliberately no reverse of this function, for [ProvisionedKey]'s
-// reason: a reverse exists so a LISTING can recover a name, and building one
-// would be building the first half of an enumeration this namespace is
-// defined by not having.
+// reason: nothing reads a value by a name recovered from a listing. The one
+// listing of this namespace, [PruneRootOutputValues], compares keys against
+// the keys of the names the configuration declares and deletes the rest; it
+// never needs to know what a key it deletes was for.
 func RootOutputKey(estate, name string) string {
-	return RootOutputKeyPrefix(estate) + "/" + recordKeyEncoding.EncodeToString([]byte(name))
+	return RootOutputKeyPrefix(estate) + recordKeyEncoding.EncodeToString([]byte(name))
 }
 
 // rootOutputFormatVersion identifies the JSON shape [rootOutputPayload]
@@ -149,7 +158,22 @@ type rootOutputPayload struct {
 
 	// Value is the value itself, ctyjson-encoded against Type.
 	Value json.RawMessage `json:"value"`
+
+	// RecordedAt is when the run that wrote this record wrote it, RFC 3339
+	// in UTC: the end of the apply (or the migration) whose final state
+	// settled the value. GitHub issue #1371: another estate reading this
+	// value through terraform_estate_outputs is told how old it is, because
+	// a copy is as of the producer's last apply and does not move until the
+	// producer applies again. Empty on a record written before the field
+	// existed, which a reader reports as "not recorded" rather than
+	// guessing. Adding it did not need a format bump: every reader of v1
+	// decodes with encoding/json, which ignores a field it does not know.
+	RecordedAt string `json:"recordedAt,omitempty"`
 }
+
+// rootOutputNow is the clock [RootOutputStore.Put] stamps RecordedAt from,
+// a seam so a test can pin it.
+var rootOutputNow = time.Now
 
 // RootOutputStore is the point-lookup view of an estate's remembered root
 // output values.
@@ -161,9 +185,12 @@ type rootOutputPayload struct {
 // CONFIGURATION declares. "What else is in here" is not a question this type
 // can be asked.
 //
-// That is also what makes a removed `output` block cost nothing: its key sits
-// inert, unread because the configuration no longer names it, and no sweep
-// exists that could mistake it for something with a live object behind it.
+// A removed `output` block's key is never read by this estate, because the
+// configuration no longer names it. It is still deleted, by
+// [PruneRootOutputValues] at the next apply, because ANOTHER estate may name
+// it (GitHub issue #1371). That deletion is the one listing of this
+// namespace, it lives outside this type, and it never proposes destroying
+// anything: a root output has no live object.
 type RootOutputStore struct {
 	store  staterecord.Store
 	estate string
@@ -205,35 +232,51 @@ func NewRootOutputStore(store staterecord.Store, estate string) *RootOutputStore
 // [ApplyRootOutputValues]'s stated reason - a pre-plan probe over a
 // deliberately partial state must never be the thing that refuses an estate.
 func (s *RootOutputStore) Get(ctx context.Context, name string) (val cty.Value, version string, exists bool, err error) {
+	val, _, version, exists, err = s.get(ctx, name)
+	return val, version, exists, err
+}
+
+// get is [RootOutputStore.Get] with the record's RecordedAt as well, which
+// only the cross-estate reader ([ReadEstateOutputs]) needs. recordedAt is the
+// zero time for a record written before the field existed.
+func (s *RootOutputStore) get(ctx context.Context, name string) (cty.Value, time.Time, string, bool, error) {
+	var none time.Time
 	if s == nil {
-		return cty.NilVal, "", false, nil
+		return cty.NilVal, none, "", false, nil
 	}
 	payload, version, exists, err := s.store.Get(ctx, RootOutputKey(s.estate, name))
 	if err != nil {
-		return cty.NilVal, "", false, fmt.Errorf("reading the remembered value of the root output %q: %w", name, err)
+		return cty.NilVal, none, "", false, fmt.Errorf("reading the remembered value of the root output %q: %w", name, err)
 	}
 	if !exists {
-		return cty.NilVal, "", false, nil
+		return cty.NilVal, none, "", false, nil
 	}
 	var stored rootOutputPayload
 	if err := json.Unmarshal(payload, &stored); err != nil {
-		return cty.NilVal, "", false, fmt.Errorf("decoding the remembered value of the root output %q: %w", name, err)
+		return cty.NilVal, none, "", false, fmt.Errorf("decoding the remembered value of the root output %q: %w", name, err)
 	}
 	if stored.FormatVersion != rootOutputFormatVersion {
-		return cty.NilVal, "", false, fmt.Errorf("the remembered value of the root output %q names format %q, which this version of choudoufu does not understand", name, stored.FormatVersion)
+		return cty.NilVal, none, "", false, fmt.Errorf("the remembered value of the root output %q names format %q, which this version of choudoufu does not understand", name, stored.FormatVersion)
 	}
 	if stored.Name != name {
-		return cty.NilVal, "", false, fmt.Errorf("the record stored for the root output %q says it is for %q; refusing to answer about one output from another output's value", name, stored.Name)
+		return cty.NilVal, none, "", false, fmt.Errorf("the record stored for the root output %q says it is for %q; refusing to answer about one output from another output's value", name, stored.Name)
 	}
 	ty, err := ctyjson.UnmarshalType(stored.Type)
 	if err != nil {
-		return cty.NilVal, "", false, fmt.Errorf("the remembered type of the root output %q could not be read: %w", name, err)
+		return cty.NilVal, none, "", false, fmt.Errorf("the remembered type of the root output %q could not be read: %w", name, err)
 	}
-	val, err = ctyjson.Unmarshal(stored.Value, ty)
+	val, err := ctyjson.Unmarshal(stored.Value, ty)
 	if err != nil {
-		return cty.NilVal, "", false, fmt.Errorf("the remembered value of the root output %q could not be read: %w", name, err)
+		return cty.NilVal, none, "", false, fmt.Errorf("the remembered value of the root output %q could not be read: %w", name, err)
 	}
-	return val, version, true, nil
+	var recordedAt time.Time
+	if stored.RecordedAt != "" {
+		// A timestamp that will not parse costs the reader its age and
+		// nothing else: the value itself decoded, and "not recorded" is
+		// what a record from before the field existed says too.
+		recordedAt, _ = time.Parse(time.RFC3339, stored.RecordedAt)
+	}
+	return val, recordedAt, version, true, nil
 }
 
 // Put records val as the value of one root output, conditional on the key's
@@ -273,6 +316,7 @@ func (s *RootOutputStore) Put(ctx context.Context, name string, val cty.Value, e
 		Name:          name,
 		Type:          ty,
 		Value:         encoded,
+		RecordedAt:    rootOutputNow().UTC().Format(time.RFC3339),
 	})
 	if err != nil {
 		return "", fmt.Errorf("encoding the record for the root output %q: %w", name, err)
@@ -283,8 +327,9 @@ func (s *RootOutputStore) Put(ctx context.Context, name string, val cty.Value, e
 // ReadRootOutputValues reads back what this estate remembers for every root
 // output the CONFIGURATION declares, for [ApplyRootOutputValues] to fall back
 // on. The configuration is what bounds the read: this namespace has no
-// listing, so a name nothing declares is never asked for and a key left
-// behind by a deleted `output` block is never seen.
+// listing, so a name nothing declares is never asked for. A key left by a
+// deleted `output` block is deleted at the next apply
+// ([PruneRootOutputValues]); until then it is never seen here.
 //
 // Cost: one point lookup per DECLARED root output, per plan or apply, and
 // none at all for a configuration that declares none - which is every estate
@@ -346,10 +391,12 @@ func ReadRootOutputValues(ctx context.Context, store *RootOutputStore, config *c
 //
 // # What is deliberately not written
 //
-// A SENSITIVE output is skipped, and the skip is scope rather than
-// squeamishness. HANDOFF.md's default is that secrets are stored the way
-// stock stores them, with refusal as the strict toggle - and that toggle
-// ("no secrets stored by the tool") has no wiring that reaches this file yet.
+// A SENSITIVE output is skipped, and a record left from before it was
+// marked sensitive is deleted (GitHub issue #1371: another estate may read
+// this namespace). The skip is scope rather than squeamishness.
+// HANDOFF.md's default is that secrets are stored the way stock stores
+// them, with refusal as the strict toggle - and that toggle ("no secrets
+// stored by the tool") has no wiring that reaches this file yet.
 // Writing sensitive output values here first and adding the toggle afterwards
 // would put material into a store that an operator who had turned the toggle
 // on believed was free of it. So the strict answer is the one taken until the
@@ -362,22 +409,15 @@ func ReadRootOutputValues(ctx context.Context, store *RootOutputStore, config *c
 // output values always are, so this is a guard on the type rather than a case
 // with a name.
 //
-// # The one corner this leaves, stated rather than left to be rediscovered
+// # What this does not delete
 //
-// Nothing here DELETES. After a destroy the final state carries no output
-// values, so every key this estate wrote stays where it is, and the plan that
-// follows a destroy diffs a recomputed "after" against a remembered "before"
-// where stock - whose state file the destroy emptied - would show the output
-// as new. The result is one output line reading "~ old -> (known after
-// apply)" instead of "+ name = (known after apply)", on a plan that is
-// already proposing to rebuild the whole estate.
-//
-// Deleting instead was considered and not taken, because the two cases are
-// not distinguishable from here: a final state missing an output because a
-// destroy removed it looks exactly like one missing it because this apply was
-// scoped and never evaluated it, and deleting on the second would throw away
-// a value that is still correct. A cosmetic line on a plan that is rebuilding
-// everything is the cheaper of the two errors.
+// Apart from a now-sensitive output's record, nothing here DELETES. A final
+// state missing an output because a destroy removed it looks exactly like
+// one missing it because this apply was scoped and never evaluated it, and
+// deleting on the second would throw away a value that is still correct.
+// The deletes that are safe are made by [PruneRootOutputValues], from facts
+// this function does not have: the plan's mode and scope, and the
+// configuration's list of outputs.
 func WriteRootOutputValues(ctx context.Context, store *RootOutputStore, state *states.State) {
 	if store == nil || state == nil {
 		return
@@ -394,7 +434,16 @@ func WriteRootOutputValues(ctx context.Context, store *RootOutputStore, state *s
 
 	for _, name := range names {
 		ov := root.OutputValues[name]
-		if ov == nil || ov.Sensitive {
+		if ov == nil {
+			continue
+		}
+		if ov.Sensitive {
+			// GitHub issue #1371: another estate can read this namespace,
+			// and only non-sensitive values may cross. A record left from
+			// before the output was marked sensitive would keep crossing,
+			// so it is removed. Best-effort like every write here; a
+			// failure is logged and the next apply tries again.
+			store.forget(ctx, name)
 			continue
 		}
 		val := ov.Value
@@ -424,8 +473,20 @@ func WriteRootOutputValues(ctx context.Context, store *RootOutputStore, state *s
 			version = store.rawVersion(ctx, name)
 		}
 		if _, err := store.Put(ctx, name, val, version); err != nil {
-			log.Printf("[WARN] live: the value of the root output %q could not be remembered, so it will render as newly created on the next stateless plan: %s", name, err)
+			log.Printf("[WARN] live: the value of the root output %q could not be remembered, so it will render as newly created on the next live plan: %s", name, err)
 		}
+	}
+}
+
+// forget deletes name's record if there is one, conditional on the version
+// just read, so a concurrent writer's newer record is not removed blind.
+func (s *RootOutputStore) forget(ctx context.Context, name string) {
+	version := s.rawVersion(ctx, name)
+	if version == "" {
+		return
+	}
+	if err := s.store.Delete(ctx, RootOutputKey(s.estate, name), version); err != nil {
+		log.Printf("[WARN] live: the old record of the root output %q, now sensitive, could not be removed, so another estate can still read its earlier value: %s", name, err)
 	}
 }
 
@@ -448,6 +509,78 @@ func (s *RootOutputStore) rawVersion(ctx context.Context, name string) string {
 	return version
 }
 
+// PruneRootOutputValues deletes the recorded root outputs another estate
+// must no longer read. GitHub issue #1371: a consumer reads these records
+// through data "terraform_estate_outputs", so a record with nothing behind
+// it any more is a value served from an estate that no longer says it.
+//
+// Two cases, each decided from a fact the final state does not carry:
+//
+//   - wholeDestroy (a destroy plan with no -target and no -exclude): every
+//     record this estate holds is deleted. The estate is gone.
+//   - otherwise, a record whose output the configuration no longer declares
+//     is deleted. A removed `output` block is removed whatever the apply's
+//     scope, so this holds under -target too. A declared output missing
+//     from the final state is left alone: that is what a scoped apply looks
+//     like, and its record is still correct.
+//
+// A nil configuration outside a whole destroy deletes nothing, since with no
+// list of declared outputs no record can be shown to be stale.
+//
+// The keys to delete are found by listing this estate's prefix, the one
+// listing this namespace has. The listing only ever feeds a delete: it
+// recovers no name and reads no value. A key the listing returns that is not
+// the shape [RootOutputKey] builds (a nested path, a name that is not the
+// encoding's alphabet) is left alone, since it is not a record this code
+// wrote. The IAM policy render-policy.sh writes grants s3:ListBucket and
+// s3:DeleteObject on the estate's own tofu-outputs/ prefix, so no new grant
+// is needed.
+//
+// Best-effort like every write in this file: a list or a delete that fails
+// is logged, and the next apply tries again.
+func PruneRootOutputValues(ctx context.Context, store *RootOutputStore, config *configs.Config, wholeDestroy bool) {
+	if store == nil {
+		return
+	}
+	keep := map[string]bool{}
+	if !wholeDestroy {
+		if config == nil || config.Module == nil {
+			return
+		}
+		for name := range config.Module.Outputs {
+			keep[RootOutputKey(store.estate, name)] = true
+		}
+	}
+	prefix := RootOutputKeyPrefix(store.estate)
+	keys, err := store.store.List(ctx, prefix)
+	if err != nil {
+		log.Printf("[WARN] live: the recorded root outputs of estate %q could not be listed, so none that should be deleted were: %s", store.estate, err)
+		return
+	}
+	for _, key := range keys {
+		if keep[key] {
+			continue
+		}
+		rest, ok := strings.CutPrefix(key, prefix)
+		if !ok || rest == "" || strings.Contains(rest, "/") {
+			continue
+		}
+		if _, err := recordKeyEncoding.DecodeString(rest); err != nil {
+			continue
+		}
+		_, version, exists, err := store.store.Get(ctx, key)
+		if err != nil || !exists {
+			if err != nil {
+				log.Printf("[WARN] live: the recorded root output at %q could not be read before deleting it, so another estate may still read it: %s", key, err)
+			}
+			continue
+		}
+		if err := store.store.Delete(ctx, key, version); err != nil {
+			log.Printf("[WARN] live: the recorded root output at %q could not be deleted, so another estate may still read it: %s", key, err)
+		}
+	}
+}
+
 // writeBackRootOutputs is [WriteBack]'s root-output half: the apply that just
 // finished settled these values, so the next stateless plan should diff
 // against them rather than call every one of them new.
@@ -458,4 +591,5 @@ func (s *RootOutputStore) rawVersion(ctx context.Context, name string) string {
 // final state says what the value is, and that is the whole of it.
 func writeBackRootOutputs(ctx context.Context, req WriteBackRequest) {
 	WriteRootOutputValues(ctx, req.RootOutputStore, req.FinalState)
+	PruneRootOutputValues(ctx, req.RootOutputStore, req.Config, req.WholeDestroy)
 }

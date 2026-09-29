@@ -1,188 +1,38 @@
 ---
 title: "Proof"
 weight: 5
-description: "Which claims are proven on a real cluster, which are restated, which do not apply, what a sweep costs, and the kind-cluster harness every Kubernetes unit runs against."
+description: "Which claims are proven on a real cluster, and how to run them."
 deeper:
-  - "[#1016](https://github.com/INTENTIUS/choudoufu/issues/1016), \"The one-call sweep, and claim 14 with it\"."
-  - "[The claims]({{< relref \"/docs/claims\" >}}): every claim's AWS scenario, and the Kubernetes note on each."
-  - "[Add an estate]({{< relref \"/docs/progress/add-an-estate\" >}}): providers are lanes in the same manifest."
+  - "[`live/kubernetes/PROOF.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/kubernetes/PROOF.md): this page in full, with every measurement and issue."
+  - "[#1016](https://github.com/INTENTIUS/choudoufu/issues/1016): the research and the marker decision."
 ---
 
 # Proof
 
-Four claims are proven on a real cluster: the marker itself, the sweep
-that finds a deleted block's object by it, the admission policy that
-fences a write by it (through which claim 13's Kubernetes cell is proven
-too), and a custom resource bound by the natural key inside its
-manifest, carrying the label and swept by it. The rest are stated per claim in the claims data rather
-than left implicit. The table
-below shows only the claims whose Kubernetes cell is not still open; hover a
-cell for its note.
+## Real estates through fixed stages
+
+Real Kubernetes configurations, pinned by commit, run through the same stages
+as the AWS estates: deploy, migrate from a stock state, plan empty, day-two
+changes, destroy.
+
+{{< gauntlet-bars lane="kubernetes" >}}
+
+## Claims you can run
+
+Eight scenarios run on a real API server, a kind cluster in Docker, each with
+a `BREAK=1` run that corrupts what the claim guards and is caught. Three are
+the Kubernetes proofs of claims 1, 7 and 13. They run in CI on every pull
+request that touches the Kubernetes code. An open cell is a missing proof.
 
 {{< claims-table provider="kubernetes" >}}
 
-## In CI
-
-The four Kubernetes claims run on a kind cluster in GitHub Actions on
-every pull request that touches the Kubernetes surface, each with its
-`BREAK=1` control, and the nightly gauntlet re-measures the kubernetes
-lane's estates on the same cadence as the AWS rows
-([#1080](https://github.com/INTENTIUS/choudoufu/issues/1080)). A
-Kubernetes verdict on this site is no longer only a laptop's word.
-
-## The harness
+## Run one now
 
 ```
 just smoke k8s-greenfield
 ```
 
-The AWS claims run against a local emulator in Docker. This runs against a
-kind cluster in Docker, which is a real API server, so the same scenario
-shape carries over without the emulator-fidelity question that stopped a
-second cloud: a verdict line per step, exit 0 only when every claim held,
-`BREAK=1` manufacturing the fault. The scenario applies a namespace and a
-ConfigMap under a `live` block with no AWS provider anywhere, reads the
-`tofu-estate` label back with kubectl, replans empty, loses its cache
-without consequence, and destroys exactly; its `BREAK=1` strips the label
-and requires the replan to refuse the object by name, because an object
-carrying no marker is nobody's
-([claim 21]({{< relref "/docs/claims/k8s-greenfield" >}})).
-[Claim 22]({{< relref "/docs/claims/k8s-no-silent-orphans" >}}) runs the
-sweep on the same harness, and [claim 23]({{< relref "/docs/claims/k8s-the-label-is-the-boundary" >}})
-runs the gate: a block declaring another estate's object refused by the
-plan itself before any cluster is consulted, two ServiceAccounts, two
-estates, a plain `kubectl label` refused by the API server across the
-boundary, and a carve by relabel the policy governs, with `BREAK=1`
-removing the policy and requiring the plan-side refusal to hold without
-it.
-[Claim 24]({{< relref "/docs/claims/k8s-custom-resource" >}}) runs a
-custom resource through the whole of it on a CRD the scenario installs:
-refused by name while the CRD is missing, bound by the key inside its
-manifest, labelled on create, dry-run against the server before the
-apply, restored when the label is stripped, and swept when its block is
-removed.
-[Claim 25]({{< relref "/docs/claims/k8s-a-held-delete-is-not-gone" >}})
-runs the fault operators meet weekly: a finalizer holds an object's
-delete, so the API accepts it and the object stays, terminating, with its
-label. The run's own summary says destroyed; the sweep on the very next
-plan says otherwise, and says the same thing on every plan after it until
-the object is really gone. Its `BREAK=1` takes the finalizer off before
-the destroying apply and requires the object to go in one apply, so the
-persistence the scenario measures is the finalizer's and not a delete
-choudoufu never made.
-[Claim 26]({{< relref "/docs/claims/k8s-the-server-gets-the-last-word" >}})
-runs the gap between a plan and the write it approved. A real
-`ValidatingWebhookConfiguration` with `failurePolicy: Fail` and nothing
-behind it refuses the apply of a saved `-out` plan, and the run reports
-the API server's own `failed calling webhook` message with the object
-untouched and the approved artifact still on disk; the same file applies
-unchanged once the webhook is gone. A mutating policy that overwrites a
-declared label produces the same perpetual drift plain stock produces,
-measured side by side in the same run. And a mutating policy that strips
-`tofu-estate` on the way in - what a label-scheme enforcer does to a key
-it does not recognise - creates the object without its marker while the
-run reports it created, so the next plan reads the estate's own object as
-somebody else's and the next apply wedges on the name. The plan is honest
-that nothing there is owned; the run that made it was not, and that is
-[#1192](https://github.com/INTENTIUS/choudoufu/issues/1192). Its `BREAK=1`
-points the identical policy at a decoy label and requires the decoy
-stripped, the marker landed and the second apply clean, so the wedge is
-provably the stripped marker's doing.
-[Claim 27]({{< relref "/docs/claims/k8s-a-label-is-a-change" >}})
-runs the ordinary day-2 edit. On `kubernetes_manifest` the provider's
-`computed_fields` default keeps the live value of `metadata.labels` and
-`metadata.annotations` unless the configuration differs from the prior
-manifest, and a run with no state file has to build that prior - build it
-from the current configuration and the comparison compares the
-configuration with itself, so no label or annotation edit ever plans or
-applies. Stock prints `No changes.` too when handed the same prior, which
-is how the finding was settled. The scenario measures stock's own answer
-for the edit on the same cluster, requires choudoufu to match it and to
-write the object, and then requires a Namespace's server-written
-`kubernetes.io/metadata.name` to churn nothing - the half of
-`computed_fields` the fix has to leave alone. Its `BREAK=1` runs the
-identical `kubectl label --overwrite` against a key the configuration does
-not declare and requires the plan to stay empty. The one difference from
-stock is printed rather than hidden: an out-of-band change to a key the
-configuration *declares* plans here and does not there, because "the
-configuration was edited" and "the live object drifted" are the same
-observation without a last-applied value to tell them apart.
+## What it costs against stock
 
-## The gauntlet lane
-
-{{< gauntlet-bars lane="kubernetes" >}}
-
-The `kubernetes` lane ([#1067](https://github.com/INTENTIUS/choudoufu/issues/1067))
-runs the same fourteen stages as the AWS lanes against a kind cluster
-created for the run, and counts toward its own bar, never toward the AWS
-ones. Two stages do not apply on Kubernetes and read `n/a` rather than
-being skipped silently: a replacement under `create_before_destroy`, and
-the crash between its create and its destroy, because a Kubernetes name
-is unique within its namespace and nothing can be created before the
-object it replaces is gone. Every other stage says in
-[`live/GAUNTLET.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/GAUNTLET.md)
-how it reads on the kind substrate. Three estates run in it. `reference-k8s`
-is a hand-written shape kept in this repository. `corpus-quickpizza` is
-Grafana Labs' own published deployment root for their QuickPizza demo
-application at a pinned tag - 26 objects over eight kinds, real images,
-no cloud provider - crossed with the same deltas every AWS estate gets
-for its emulator and one more for the Grafana Cloud token the run does
-not have. The published root found a real gap on the way in: every one of
-its namespaced objects reads the namespace's `id`, which identity
-resolution refused until the object-metadata rule learned that the
-provider's `id` is the object's own import id.
-
-`reference-k8s-stateful`
-([#1175](https://github.com/INTENTIUS/choudoufu/issues/1175)) is the third,
-also hand-written, because
-[#1107](https://github.com/INTENTIUS/choudoufu/issues/1107)'s search for a
-published stateful root fetched and ran the field and nothing cleared the
-bar. It is 14 objects over eight kinds around two StatefulSets with
-`volume_claim_template` blocks, and it is the lane's first red row. The
-PersistentVolumeClaims those templates produce are declared by nothing and
-held in no state file, and on kind they carry neither `ownerReferences` nor
-`managedFields` - the two signals the estate sweep tests to tell a
-controller's copies from what somebody declared. Removing only the
-StatefulSet's block leaves them `Bound`, labelled and unowned, and a label
-on one of them is enough for the sweep to propose destroying it. Destroying
-the whole root hides this, because the Namespace is in the root and its
-deletion cascades, which is why the estate's own teardown is a pass.
-
-## What it would cost
-
-What follows is the shape, from the API's own properties, and it is what
-every Kubernetes claim and the lane's estates run through; the call
-counts have not been tabulated the way the AWS scale page tabulates
-them.
-
-### The sweep
-
-On AWS the estate sweep is a single `GetResources` call, filtered
-server-side on the marker, covering the whole admission table at once.
-Kubernetes has no cross-kind label-filtered list. A sweep there is API
-discovery (`/api` and `/apis`, which say every kind the cluster serves)
-and then one cluster-wide, label-selected list per kind the cluster
-serves with list and delete verbs, custom kinds included - not one per
-kind per namespace, as the design first estimated: a namespaced kind
-lists across every namespace in one call.
-
-Two things survive. A label-selected list returns only the estate's objects
-and does not grow with the cluster, so "a plan costs its estate, not its
-account" holds in weakened form. And because the universe of kinds is asked
-rather than tabulated, an admitted type the generated table did not know
-about cannot be owned, orphaned and unreachable. `live-ls DIR` is the same
-listing printed as an inventory, each object joined to the block that
-declares it ([claim 21]({{< relref "/docs/claims/k8s-greenfield" >}})).
-
-What does not survive is "one call", and the claims page marks claim 14
-restated rather than pretending otherwise.
-
-### The read pass
-
-Reading each declared object is one `GET` per object, as it is for stock.
-Server-side dry run validates, defaults and runs admission without
-persisting, which no AWS plan can do; the plan sends every planned
-`kubernetes_manifest` create or update that way and prints the server's
-answer above the plan, one more request per such object
-([Adopt]({{< relref "/kubernetes/adopt" >}}), "What Kubernetes does
-better").
+Not measured yet: [plan-cost accounting]({{< relref "/docs/model/plan-cost" >}})
+has run only against AWS estates so far.

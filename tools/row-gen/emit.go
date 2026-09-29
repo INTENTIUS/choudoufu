@@ -238,6 +238,9 @@ func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []propo
 	// so each keeps its own reason. A type can be in both; setOf collapses
 	// the duplicate harmlessly.
 	rows, types := emittedRows(ratified, recordBacked, secretMaterial, uniqueName, grammar, survey, setOf(append(append([]string(nil), vetoed...), notImportable...)))
+	if err := checkIdentityAttrsAreResourceAttrs(types, rows, survey); err != nil {
+		return nil, emitPartition{}, emitPartition{}, err
+	}
 
 	// The comparison runs over the rows about to be written, not
 	// over the ones last written: a row that is ratified but not yet in the

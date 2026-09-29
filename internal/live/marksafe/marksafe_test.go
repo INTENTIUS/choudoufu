@@ -60,6 +60,7 @@ var guardedPackages = []string{
 	"docrefs",
 	"docsref",
 	"flocitest",
+	"k8stest",
 	"foreign",
 	"harness",
 	"identity",
@@ -95,6 +96,11 @@ var guardedPackages = []string{
 	"onboard",
 	"passthrough",
 	"pins",
+	// Issue #1509: the per-user provider plugin cache the golden render and
+	// estate-gen share - a directory lock and a path lookup for the pinned
+	// release. It imports no cty at all, so like "onboard" it is held to
+	// zero rather than deferred: it has nothing to defer.
+	"plugincache",
 	"pluginschema",
 	"policy",
 	// GitHub issues #1196 and #1148's retry vocabulary: two settings, their
@@ -133,6 +139,12 @@ var guardedPackages = []string{
 	// imports no cty at all, so like "onboard" and "noimporter" above it is
 	// held to zero rather than deferred: it has nothing to defer.
 	"servicetags",
+	// GitHub issue #1118's Substrate seam. Its one reader of a
+	// configuration value is the Kubernetes provider block's connection
+	// arguments, moved here from internal/command, which tests every
+	// argument for a mark before reading it and unmarks only the three
+	// that are the credential (#1527).
+	"substrate",
 	"uniquename",
 }
 

@@ -227,7 +227,7 @@ func TestConfiguredAttrsSeedBoundaries(t *testing.T) {
 		"unset_flag":    {Type: cty.String, Optional: true},
 	}}}
 
-	seed, _ := configuredAttrsSeed(context.Background(), cfg.Module.StaticEvaluator, cfg.Path, rc, schema, nil)
+	seed, _ := configuredAttrsSeed(context.Background(), cfg.Module.StaticEvaluator, cfg.Path, rc, schema, nil, strict.DefaultSecrets)
 
 	if v, ok := seed["name"]; !ok || v.AsString() != "widget-1" {
 		t.Errorf("name (Required, not Computed, statically set) must be seeded; seed=%#v", seed)
@@ -424,7 +424,7 @@ func TestResidueSeedForNeverSeedsAComputedAttribute(t *testing.T) {
 	store := NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix("residue-seed-boundary"))
 	addr := locatedTestAddr(t, "aws_lambda_function", "check-links")
 
-	recorded, err := RecordResidueForInstance(ctx, store, addr, addrs.AbsProviderConfig{}, lambdaLikeSchema(), lambdaApplied(), strict.DefaultSecrets, sdkv2LikeRead, cty.NilVal)
+	recorded, err := RecordResidueForInstance(ctx, store, addr, addrs.AbsProviderConfig{}, lambdaLikeSchema(), lambdaApplied(), strict.DefaultSecrets, sdkv2LikeRead, cty.NilVal, nil)
 	if err != nil {
 		t.Fatalf("RecordResidueForInstance: %s", err)
 	}

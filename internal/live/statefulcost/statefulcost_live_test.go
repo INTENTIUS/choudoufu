@@ -415,6 +415,14 @@ func saveOutput(t *testing.T, label string, run int, out string) string {
 		savedOutputDir = outDir(t)
 	}
 	path := filepath.Join(savedOutputDir, fmt.Sprintf("%s_%d.out", label, run))
+	// A label may name a subdirectory: the neighbour-cost arms are labelled
+	// "A-alone/choudoufu-live" and the like. Without this the one path that
+	// runs only for a non-empty plan died on "no such file or directory" and
+	// reported a file error in place of the verdict it was saving (floci
+	// tier, 2026-09-22, TestNeighbourEstateCostAgainstFloci, #1316).
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("creating %s: %v", filepath.Dir(path), err)
+	}
 	if err := os.WriteFile(path, []byte(out), 0o600); err != nil {
 		t.Fatalf("writing %s: %v", path, err)
 	}

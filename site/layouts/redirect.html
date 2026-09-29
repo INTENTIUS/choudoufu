@@ -1,0 +1,16 @@
+{{- /* A page that moved off the site into the repo (#1414). The old URL keeps
+       working: it sends the reader to .Params.target. Pages with this layout
+       are left out of the sidebar, section lists and the search index. */ -}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ .Title }} · {{ site.Title }}</title>
+  <link rel="canonical" href="{{ .Params.target }}">
+  <meta name="robots" content="noindex">
+  <meta http-equiv="refresh" content="0; url={{ .Params.target }}">
+</head>
+<body>
+  <p>This page moved to <a href="{{ .Params.target }}">{{ .Params.target }}</a>.</p>
+</body>
+</html>

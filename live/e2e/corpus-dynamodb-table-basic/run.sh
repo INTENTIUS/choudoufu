@@ -206,7 +206,7 @@ REGION="eu-west-1"
 ACCOUNT="000000000000"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME" "$FLOCI_COUNT_ORACLE_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME" "$FLOCI_COUNT_ORACLE_NAME"
   rm -rf "$WORK"
 }
 # 2026-08-21 fix: the header documents DEBUG_KEEP but the trap never
@@ -221,6 +221,11 @@ log() { printf '%s\n' "$*"; }
 # failure belongs to; fail() reports it before exiting.
 # shellcheck source=live/e2e/lib/gauntlet.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+
+# The shared provider plugin cache, and the cross-process lock real terraform
+# needs in order to use it safely (#1300). live/e2e/lib/gauntlet.sh carries the
+# measured reasons for both; this is the only place a script chooses either.
+gauntlet_plugin_cache
 CURRENT_STAGE=""
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -270,7 +275,7 @@ gauntlet_pin_aws_provider "$EX/versions.tf" || fail "gauntlet_pin_aws_provider f
 log "  DELTA  emulator flags added to the provider block; aws provider pinned via gauntlet_pin_aws_provider; no backend, no live block yet"
 
 log "=== 2. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -288,8 +293,8 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (terraform apply, the real unmodified example + delta) ==="
-( cd "$EX" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$EX" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
+( cd "$EX" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$EX" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
 COLD_OUT="$(cd "$EX" && terraform apply -input=false -auto-approve -no-color 2>&1)"; COLD_RC=$?
 [ "$COLD_RC" -eq 0 ] || { printf '%s\n' "$COLD_OUT" | tail -60; fail "the cold apply failed"; }
 grep -qE 'Apply complete! Resources: 3 added' <<< "$COLD_OUT" \
@@ -362,8 +367,8 @@ moved {
   to   = module.dynamodb_table_final
 }
 EOF
-( cd "$ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+( cd "$ORACLE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
 ORACLE_PLAN_OUT="$(cd "$ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
 grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
@@ -390,8 +395,8 @@ rm -rf "$REMOVE_ORACLE/.terraform" "$REMOVE_ORACLE/.terraform.lock.hcl"
 perl -0777pi -e 's/module "dynamodb_table" \{.*?\n\}\n\n\n//s' "$REMOVE_ORACLE/main.tf"
 grep -q 'module "dynamodb_table"' "$REMOVE_ORACLE/main.tf" && fail "removing module.dynamodb_table's block from the day2_remove oracle copy did not match - the corpus example has moved"
 : > "$REMOVE_ORACLE/outputs.tf"
-( cd "$REMOVE_ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$REMOVE_ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
+( cd "$REMOVE_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REMOVE_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
 REMOVE_ORACLE_PLAN_OUT="$(cd "$REMOVE_ORACLE" && terraform plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
 [ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
 grep -qE '^  # module\.dynamodb_table\.aws_dynamodb_table\.this\[0\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
@@ -431,8 +436,8 @@ sed -i.bak 's/name                        = "my-table-\${random_pet\.this\.id}"/
 rm -f "$REPLACE_ORACLE/main.tf.bak"
 grep -q 'my-table-${random_pet.this.id}-v2' "$REPLACE_ORACLE/main.tf" \
   || fail "changing module.dynamodb_table's name argument in the replace-oracle copy did not match - the corpus pin has moved"
-( cd "$REPLACE_ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$REPLACE_ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+( cd "$REPLACE_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REPLACE_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
 REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_ORACLE" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
 [ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
 grep -qE '^  # module\.dynamodb_table\.aws_dynamodb_table\.this\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
@@ -536,7 +541,7 @@ EOF
 }
 
 log "=== G-ORACLE: stock, create a 2-instance count block, scale it to 1 and back, in a dedicated always-idle account ==="
-docker run -d --rm -p "${FLOCI_COUNT_ORACLE_PORT}:4566" --name "$FLOCI_COUNT_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_COUNT_ORACLE_NAME" -p "${FLOCI_COUNT_ORACLE_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_COUNT_ORACLE_NAME failed"
 COUNT_ORACLE_HEALTH=""
 for _ in $(seq 1 45); do
@@ -550,8 +555,8 @@ log "  healthy: $COUNT_ORACLE_ENDPOINT"
 PLAIN_ORACLE_COUNT="$WORK/oracle-count"
 mkdir -p "$PLAIN_ORACLE_COUNT"
 { oracle_count_provider; count_test_block 2; } > "$PLAIN_ORACLE_COUNT/main.tf"
-( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's init failed"; }
+( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's init failed"; }
 ORACLE_COUNT_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" terraform apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_COUNT_APPLY_RC=$?
 [ "$ORACLE_COUNT_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's baseline apply failed"; }
 grep -qE 'Apply complete! Resources: 2 added' <<< "$ORACLE_COUNT_APPLY_OUT" \
@@ -606,7 +611,7 @@ ORACLE_CT0_ID_AFTER_UP="$(awso dynamodb describe-table --table-name dynamodb-cou
 [ "$ORACLE_CT0_ID_AFTER_UP" = "$ORACLE_CT0_ID" ] || fail "stock's count_test[0] changed TableId across the scale-up"
 log "  stock: exactly one create (count_test[1], same ARN $ORACLE_CT1_NEW_ARN - deterministic from region+account+name - but a NEW TableId $ORACLE_CT1_NEW_ID, was $ORACLE_CT1_ID), count_test[0]=$ORACLE_CT0_ARN (id=$ORACLE_CT0_ID) unchanged throughout"
 
-docker rm -f "$FLOCI_COUNT_ORACLE_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_COUNT_ORACLE_NAME"
 gauntlet_end_stage
 
 gauntlet_begin_stage migrate
@@ -1508,9 +1513,9 @@ EOF
 # a path a from-nothing apply never takes.
 gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD: 0. two more floci containers, one per fresh namespace ==="
-docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_GREEN_NAME" -p "${FLOCI_GREEN_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
-docker run -d --rm -p "${FLOCI_GREEN_ORACLE_PORT}:4566" --name "$FLOCI_GREEN_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_GREEN_ORACLE_NAME" -p "${FLOCI_GREEN_ORACLE_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_GREEN_ORACLE_NAME failed"
 for gep in "$GREEN_ENDPOINT" "$GREEN_ORACLE_ENDPOINT"; do
   GH=""
@@ -1569,7 +1574,7 @@ if [ $? -ne 0 ]; then
     # order" item 3).
     gauntlet_stage greenfield fail "the greenfield apply refuses module.dynamodb_table.aws_dynamodb_resource_policy.this[0]'s resource_arn = aws_dynamodb_table.this[0].arn with \"Not an identity attribute\": the table's OWN identity (name) is itself a formula still waiting on random_pet.this (a record-backed sibling), so it is not yet ClassConcrete/ClassNeedsDiscovery/ClassRecordBacked when the resource policy tries to read its non-identity arn attribute, and internal/live/identity/resolve.go's deferrable check does not cover a parent whose own identity is still a pending formula. Stock proceeds fine (its dependency graph creates the table, then the policy, using the table's real post-apply arn) - choudoufu refuses where stock proceeds (row 1), a real engine gap tracked for #388's plan-node seam, not fixed in this script-only pass. cold_deploy/migrate/test_plan/test_apply/drift_reconverge/day2_rename/day2_remove for this estate are unaffected (checked in the same run, see the earlier GAUNTLET stage= lines)"
     gauntlet_end_stage
-    docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME" >/dev/null 2>&1 || true
+    gauntlet_floci_teardown "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME"
     SKIP_GREENFIELD_REST=1
   else
     fail "the greenfield apply failed"
@@ -1607,8 +1612,8 @@ grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREE
 log "  No changes."
 
 log "=== PART GREENFIELD: 5. stock oracle - the identical (delta-1'd) config applied fresh in its own namespace ==="
-( cd "$GF_ORACLE" && AWS_ENDPOINT_URL="$GREEN_ORACLE_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$GF_ORACLE" && AWS_ENDPOINT_URL="$GREEN_ORACLE_ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+( cd "$GF_ORACLE" && AWS_ENDPOINT_URL="$GREEN_ORACLE_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$GF_ORACLE" && AWS_ENDPOINT_URL="$GREEN_ORACLE_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
 ORACLE_APPLY_OUT="$(cd "$GF_ORACLE" && AWS_ENDPOINT_URL="$GREEN_ORACLE_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$ORACLE_APPLY_OUT" | tail -40; fail "the greenfield oracle apply failed"; }
 grep -qE 'Apply complete! Resources: 3 added' <<< "$ORACLE_APPLY_OUT" \
@@ -1656,7 +1661,7 @@ else
 fi
 gauntlet_end_stage
 
-docker rm -f "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_GREEN_NAME" "$FLOCI_GREEN_ORACLE_NAME"
 fi
 
 

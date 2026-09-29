@@ -132,6 +132,8 @@ func statelessBegin(
 	settings *configs.Live,
 	view *views.View,
 	adoptionOnly bool,
+	filter arguments.ReportFilter,
+	estateOutputs *liveEstateOutputs,
 	rejections tfdiags.Diagnostics,
 ) tfdiags.Diagnostics {
 	diags := rejections
@@ -187,9 +189,20 @@ func statelessBegin(
 	// the cache is on by default, at a path under the data dir every
 	// OpenTofu gitignore already covers, and the env var becomes the
 	// override - see stateCachePath for the full contract.
-	if cachePath := stateCachePath(); cachePath != "" {
+	//
+	// GitHub issue #1375: under strict { secrets = "refuse" } the file is not
+	// written. It is a stock state file, unencrypted, holding every sensitive
+	// attribute and output, and an operator who set "refuse" has been told the
+	// tool keeps no secret material.
+	secretsSetting := identity.SecretsFor(&configs.Config{Module: &configs.Module{Live: settings}})
+	cachePath, cacheOffForSecrets := stateCachePathFor(secretsSetting)
+	if cachePath != "" {
 		mgr.EnableStateCache(cachePath)
 		log.Printf("[DEBUG] stateless: state cache enabled at %s", cachePath)
+	}
+	if cacheOffForSecrets {
+		log.Printf("[INFO] stateless: strict { secrets = %q } is set, so no state cache is written or read; set %s to a path to keep one on purpose", secretsSetting, EnvStateCache)
+		diags = diags.Append(stateCacheOffForSecretsDiags(secretsSetting))
 	}
 
 	// Issue #732's estate-level toggle, resolved before the runner
@@ -221,7 +234,8 @@ func statelessBegin(
 		// different renderer. Both implement the same interface and the
 		// pipeline calls the same methods either way, so nothing below
 		// this line knows which mode it is in.
-		view:         statelessPlanView(view, adoptionOnly),
+		view:         statelessPlanView(view, adoptionOnly, filter),
+		filter:       filter,
 		adoptionOnly: adoptionOnly,
 		// GitHub issue #352. The operation carries the run's -target and
 		// -exclude addresses; PriorState is where they turn into a scope,
@@ -229,6 +243,9 @@ func statelessBegin(
 		// plan graph keeps is finally in hand.
 		targets:  opReq.Targets,
 		excludes: opReq.Excludes,
+		// GitHub issue #1371: filled in by PriorState once the record store
+		// is open, and read by terraform_estate_outputs during the walk.
+		estateOutputs: estateOutputs,
 	}
 	if testStatelessRunner != nil {
 		testStatelessRunner(runner)
@@ -403,7 +420,7 @@ var testStatelessRunner func(*statelessRunner)
 // reads this value says exactly why it is the exception.
 type statelessSurface int
 
-// stateCachePath resolves where this run's state cache lives.
+// stateCachePathFor resolves where this run's state cache lives.
 //
 // The default is choudoufu-cache.tfstate under the working directory's data
 // dir (.terraform, or TF_DATA_DIR when set): a derived, disposable file in
@@ -411,19 +428,75 @@ type statelessSurface int
 // recorded on issue #685. CHOUDOUFU_STATE_CACHE overrides the path, and the
 // literal value "off" disables persistence entirely - for a run that must
 // leave no file behind, such as an audit from a read-only working copy.
-func stateCachePath() string {
+//
+// Ruled on issue #1170 (maintainer, 2026-09-26): the cache stays local, by
+// ruling rather than by default. It is disposable, it belongs to one
+// working copy, and it is never consulted for ownership (#685); a shared
+// cache would make a thing the ruling calls disposable look durable and
+// shared, which is a different feature with its own name, not something
+// this path grows into. Records - what an estate must remember beyond what
+// a marker can hold - are what record_store is for; the cache is not a
+// second, smaller record store.
+//
+// The estate's secrets setting is taken into account. offForSecrets is true
+// only when the cache is off BECAUSE of the secrets setting, so the caller
+// can say so; an operator who set CHOUDOUFU_STATE_CACHE=off already knows.
+//
+// Maintainer's ruling on GitHub issue #1375, 2026-09-19: "refuse" also turns
+// the cache off, as if CHOUDOUFU_STATE_CACHE=off. The cache is a stock state
+// file written unencrypted, so it holds every sensitive attribute and every
+// sensitive root output in clear on each machine that applies, and "refuse"
+// is an operator saying the tool keeps no secret material. Naming a path in
+// CHOUDOUFU_STATE_CACHE is still honoured under "refuse": that is a person
+// asking for the file on purpose, and it is what keeps the cache-as-the-exit
+// route (copy it to terraform.tfstate and leave) open for such an estate.
+//
+// GitHub issue #1515's ruling 4, 2026-09-22, puts "ssm" on the same side,
+// and strict.NoStateCache is the predicate that says which settings those
+// are. The reasoning is the ruling's own: moving the values out of the
+// bucket and into Parameter Store under a customer managed key, while the
+// same values carried on landing in clear in the working directory of every
+// laptop and runner that applied, would buy a key policy on the copy nobody
+// was worried about.
+func stateCachePathFor(secrets strict.Secrets) (path string, offForSecrets bool) {
 	switch v := os.Getenv(EnvStateCache); v {
 	case "":
-		dataDir := os.Getenv("TF_DATA_DIR")
-		if dataDir == "" {
-			dataDir = ".terraform"
+		if strict.NoStateCache(secrets) {
+			return "", true
 		}
-		return filepath.Join(dataDir, "choudoufu-cache.tfstate")
+		return defaultStateCachePath(), false
 	case "off":
-		return ""
+		return "", false
 	default:
-		return v
+		return v, false
 	}
+}
+
+func defaultStateCachePath() string {
+	dataDir := os.Getenv("TF_DATA_DIR")
+	if dataDir == "" {
+		dataDir = ".terraform"
+	}
+	return filepath.Join(dataDir, "choudoufu-cache.tfstate")
+}
+
+// stateCacheOffForSecretsDiags is what a run under a no-cache secrets
+// setting - "refuse" or "ssm", see [strict.NoStateCache] - owes the operator
+// about the cache: nothing, unless a cache file from before the setting is
+// still on disk. Turning the cache off stops the next write. It does nothing
+// about a file an earlier run left, which still holds what it held, and the
+// run is the only thing that knows both facts. It is not deleted: the file is
+// the operator's, and it is also the way out to stock.
+func stateCacheOffForSecretsDiags(secrets strict.Secrets) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	leftover := defaultStateCachePath()
+	if _, err := os.Stat(leftover); err != nil {
+		return diags
+	}
+	return diags.Append(tfdiags.Sourceless(tfdiags.Warning,
+		"An earlier state cache is still on disk",
+		fmt.Sprintf("The live block sets strict { secrets = %q }, so this run writes no state cache and reads none. The file %s was written by an earlier run. It is a stock state file, unencrypted, and it holds every sensitive attribute and output that run saw, in clear. Delete it, or move it somewhere built to hold it. To keep a state cache on purpose under this setting, name a path in %s.", secrets, leftover, EnvStateCache),
+	))
 }
 
 // loadStateCache reads the cache stateCachePath resolves, or returns nil.
@@ -433,8 +506,12 @@ func stateCachePath() string {
 // None of them can fail the run, because the projection reads live for
 // anything the cache does not answer, and because a cache that could fail a
 // plan would be a record rather than a cache.
-func loadStateCache() *states.State {
-	path := stateCachePath()
+//
+// Under strict { secrets = "refuse" } there is no path to read from either
+// (#1375): a run that writes no cache must not quietly go on serving reads
+// out of one an earlier run left behind.
+func loadStateCache(secrets strict.Secrets) *states.State {
+	path, _ := stateCachePathFor(secrets)
 	if path == "" {
 		return nil
 	}
@@ -630,6 +707,11 @@ func statelessRejections(surface statelessSurface, op *arguments.Operation, stat
 // statelessRunner is the stateless pipeline, wearing the interface the local
 // backend calls it through. One runner serves one operation.
 type statelessRunner struct {
+	// estateOutputs is the command's terraform_estate_outputs holder
+	// (GitHub issue #1371), opened over this run's record store in
+	// PriorState. Nil only in a test that builds a runner by hand.
+	estateOutputs *liveEstateOutputs
+
 	// settings is the live block this run was started from. The whole block
 	// is kept, not just its estate name, so that a diagnostic raised once the
 	// run is under way can still point at the configuration that asked for
@@ -643,7 +725,7 @@ type statelessRunner struct {
 	// methods reads it yet. See [statelessPolicy].
 	policy *policy.Policy
 
-	// untagTargets, untagKey, untagProvider and untagConfig are GitHub issue
+	// untagGroups, untagKey and untagConfig are GitHub issue
 	// #67's undeclared_tagged = "untag" verb's apply-time work, captured by
 	// PriorState and consumed by AfterApply. They cannot be worked out
 	// inside AfterApply itself: by the time it runs, the providers
@@ -651,11 +733,12 @@ type statelessRunner struct {
 	// provider double-launch" doc comment), and the orphans that need
 	// releasing were only known once discovery and the policy pass had run.
 	// Empty on any run with nothing for the untag verb to do, which is
-	// every run with no policy block and most runs with one.
-	untagTargets  []untag.Target
-	untagKey      string
-	untagProvider addrs.AbsProviderConfig
-	untagConfig   *configs.Config
+	// every run with no policy block and most runs with one. Grouped by the
+	// provider configuration whose sweep found each target, which is the
+	// one that can reach it (GitHub issue #1657).
+	untagGroups []untagGroup
+	untagKey    string
+	untagConfig *configs.Config
 
 	lib  plugins.Library
 	mgr  *projection.Manager
@@ -664,10 +747,18 @@ type statelessRunner struct {
 	// kubeSweepers is the Kubernetes sweep's cluster client per provider
 	// configuration, captured by PriorState once discovery has built them
 	// and consumed by AfterPlan for the server-side dry run (GitHub issue
-	// #1081, item 3) - the same reason untagTargets above is carried
+	// #1081, item 3) - the same reason untagGroups above is carried
 	// across: by the time the plan exists the providers PriorState read
 	// through are closed, and the sweep's client is not one of them.
 	kubeSweepers map[string]kubesweep.Sweeper
+
+	// kubeDeletes is GitHub issue #1184's capture: the deletes this run's
+	// plan scheduled through a provider configuration kubeSweepers holds a
+	// client for, read by AfterPlan - the plan is drained as it applies, so
+	// AfterApply could not read them - and consumed by AfterApply, which
+	// asks each cluster which of them it only accepted. Nil for a plan with
+	// no such delete, which is what makes that check free.
+	kubeDeletes map[string]*kubernetesDeleteSet
 
 	// adoptionOnly is GitHub issue #587's flag, kept as well as folded
 	// into view above. It selected only the renderer until
@@ -676,6 +767,12 @@ type statelessRunner struct {
 	// account-inventory question at all. See [collectUnclaimedSetting],
 	// which this is the default argument to.
 	adoptionOnly bool
+
+	// filter is GitHub issue #1197's -filter, kept as well as folded into
+	// view above for one reason: a run that swept nothing never calls
+	// view.Foreign, and a filter that asked for adoptable or foreign must
+	// still get an answer rather than silence. See [statelessNoSweepAnswer].
+	filter arguments.ReportFilter
 
 	// envelopeVouch is issue #692 increment 2's capture of the operation
 	// SHAPE, alongside cacheServesReads' capture of its refresh setting:
@@ -741,6 +838,13 @@ type statelessRunner struct {
 	// [projection.RecordStore]'s envelope.
 	rawStore staterecord.Store
 
+	// recordStoreCfg and recordEstate are what [statelessRunner.BeforeApply]
+	// needs to assert the bucket contract (#1339) against the same store,
+	// bucket and namespaces this run opened. Nil / "" with no record_store.
+	recordStoreCfg *configs.LiveRecordStore
+	recordEstate   string
+	waiverWarned   bool
+
 	// envelopeVersions is GitHub issue #364's merge of what used to be
 	// three separate fields (locatedVersions, residueVersions,
 	// provisionedVersions) for GitHub issues #270, #275 and #353: the
@@ -749,6 +853,15 @@ type statelessRunner struct {
 	// share one physical key per instance - see
 	// [projection.Result.EnvelopeVersions].
 	envelopeVersions []projection.RecordVersion
+
+	// recordFallbackAddrs is GitHub issue #1675's write-back signal: every
+	// instance this run's plan resolved through the record-fallback door
+	// (identity.Resolution.RecordFallback), read off
+	// [projection.Result.RecordFallbackAddrs] at the same point
+	// recordVersions and envelopeVersions are, and passed through to
+	// WriteBack unchanged for the same reason those two are - this runner's
+	// own WriteBack call has no plan of its own to re-derive it from.
+	recordFallbackAddrs []addrs.AbsResourceInstance
 
 	// liveConfig is the configuration WriteBack works from. The residue
 	// classifier re-opens providers from it - the ones PriorState read
@@ -909,15 +1022,34 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// or writes the live system: newStatelessProviders only builds the
 	// struct, and resourceSchemas reads unconfigured provider schemas, the
 	// same schema-only call live-plan makes ahead of its own lint check.
-	if issues := lint.CheckWith(ctx, config, lint.Context{Schemas: resourceSchemas}); len(issues) > 0 {
+	// GitHub issue #1256's half of the scope: the per-resource rules narrow
+	// to the blocks the plan graph still holds, and every whole-
+	// configuration rule ignores it. See [lint.Context].
+	//
+	// GitHub issue #1268, the maintainer's ruling of 2026-09-21: lint
+	// warnings are advisory. This gate reads [lint.HasErrors] the way
+	// live-plan's does, so a warning-severity issue ([lint.RuleStateBackend]
+	// is the only one today, GitHub issue #210) is rendered and the run
+	// continues, and only an error-severity issue refuses. The bare len
+	// check that stood here was never the stricter position it looked like:
+	// it returned a nil projection beside warning-only diagnostics, the
+	// caller (internal/backend/local, localRunDirect) gates on HasErrors, and
+	// so the ordinary operation carried on with an empty prior state and none
+	// of the pipeline below - no discovery, no stamping, no record store -
+	// and an apply created unmarked resources under the warning. Never return
+	// nil from this function beside diagnostics that carry no error.
+	lctx := lint.Context{Schemas: resourceSchemas, Scope: scope}
+	if issues := lint.CheckWith(ctx, config, lctx); len(issues) > 0 {
 		diags = diags.Append(lint.Diagnostics(issues))
-		diags = diags.Append(provs.close(ctx))
-		return nil, diags
+		if lint.HasErrors(issues) {
+			diags = diags.Append(provs.close(ctx))
+			return nil, diags
+		}
 	}
 	// GitHub issue #126's ruling: setting a write-only or sensitive argument
 	// warns, never refuses, so it rides alongside the subset check rather
 	// than gating on it. See [lint.CheckResidueAttributes].
-	diags = diags.Append(lint.CheckResidueAttributes(config, resourceSchemas))
+	diags = diags.Append(lint.CheckResidueAttributes(config, lctx))
 
 	// Resolved now that lint has passed and the estate name is settled, so
 	// that any verb here is already known valid for its quadrant.
@@ -929,7 +1061,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// passed - which means every RECORD_ADMITTED resource in this
 	// configuration either has one configured or was refused before this
 	// point was ever reached - and the estate name is settled, which the
-	// "ssm"/"s3" backends' default key namespace needs. A nil RecordStore
+	// "s3" backend's default key namespace needs. A nil RecordStore
 	// (a run with no record_store block) makes the hydration and
 	// write-back paths below no-ops, exactly like a run with no live block
 	// at all skips this whole file.
@@ -940,15 +1072,26 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		retryCfg = config.Module.Live.Retry
 	}
 	if recordStoreCfg != nil {
-		store, storeErr := projection.NewRecordStore(ctx, recordStoreCfg, retryCfg, estate, ".")
+		var store staterecord.Store
+		storeOpts, storeErr := recordStoreOpenOptions()
+		if storeErr == nil {
+			store, storeErr = projection.NewRecordStore(ctx, recordStoreCfg, retryCfg, estate, ".", storeOpts...)
+		}
 		if storeErr != nil {
-			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot open the record store", fmt.Sprintf(
-				"The live block's record_store %q could not be opened: %s.", recordStoreCfg.Type, storeErr,
-			)))
+			diags = diags.Append(recordStoreOpenDiag(recordStoreCfg.Type, storeErr))
 			diags = diags.Append(provs.close(ctx))
 			return nil, diags
 		}
 		r.rawStore = store
+		r.recordStoreCfg = recordStoreCfg
+		r.recordEstate = estate
+		// #1340: loud on every run. Here and not in BeforeApply, because a
+		// plan never reaches BeforeApply and a waiver that only an apply
+		// mentions is quiet on most of the runs an operator sees.
+		if !r.waiverWarned {
+			r.waiverWarned = true
+			diags = diags.Append(bucketWaiverWarnings(recordStoreCfg))
+		}
 		recordKeyPrefix := projection.RecordStoreKeyPrefix(recordStoreCfg, estate)
 		// GitHub issue #364: one store now, for the record-backed
 		// (kind=object), record-located (issue #270), residue (issue #275)
@@ -978,6 +1121,11 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// later, from the backend, and needs the values then.
 		r.rootOutputStore = projection.NewRootOutputStore(store, estate)
 		r.recordedRootOutputs = projection.ReadRootOutputValues(ctx, r.rootOutputStore, config)
+		// GitHub issue #1371: another estate's recorded outputs are read
+		// from this same store, by the terraform_estate_outputs data source
+		// during the plan walk. Unlike the read above, every failure there
+		// is a diagnostic; see [projection.ReadEstateOutputs].
+		r.estateOutputs.open(store, recordStoreCfg, estate, "")
 		r.liveConfig = config
 		// Guided discovery's hint (issue #109) rides the same store: from
 		// the apply's final persist onward, the estate's type roster and a
@@ -985,7 +1133,17 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// run's guided sweep reads them back. Enabled here rather than in
 		// statelessBegin because the store and the settled estate name both
 		// exist only now. A plan never persists, so a plan never writes one.
+		// The exception is an interrupted plan: the local backend's opWait
+		// (internal/backend/local/backend.go) answers a stop signal with a
+		// PersistState on the operation's state manager, which is this
+		// runner's mgr (StateMgr below), so the hint can be written once
+		// there. That write is warning-only at both ends - opWait reports
+		// a failed PersistState as a diagnostic and carries on, and the
+		// hint write itself never fails PersistState (HintWarning) - so an
+		// interrupted plan can at most warn about the hint.
 		r.mgr.EnableHint(store, estate, time.Now)
+	} else {
+		r.estateOutputs.open(nil, nil, estate, "this configuration's live block has no record store")
 	}
 
 	// GitHub issue #179's data-read phase, exactly as live-plan runs it:
@@ -1016,6 +1174,13 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// "an instance that could not be classified is absent from the
 		// Result"), so it reaches the node with no prior state and
 		// r.resolver gets the chance the static path never had.
+		//
+		// The refusals are handed to the resolver first (GitHub issue
+		// #1539): on a marker surface that carries no address the node
+		// has no way to find the object this block already created, so
+		// there the static refusal stands. See
+		// projection.NodeResolver.StaticRefusals.
+		r.resolver.StaticRefusals = identity.InstanceRefusals(idDiags)
 		idDiags = identity.DowngradeForNodeResolution(idDiags)
 	}
 	diags = diags.Append(idDiags)
@@ -1046,7 +1211,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// same reason live-plan's own equivalent construction is not: reading a
 	// GitHub issue #364 record-backed value that a PARENT_DERIVED formula
 	// already names as a parent is not the #388 migration's concern.
-	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, r.recordStore, readPar)
+	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, r.recordStore, readPar, scope, nil)
 
 	merged := resolutions.All()
 	// GitHub issue #388's plan-node seam, edge 3: r.recordStore is opened
@@ -1084,7 +1249,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// issue #692's vouch-listing pass needs to know, before discovery
 	// runs, which concrete-declared types it holds candidates for. Nil
 	// when no cache loads, and everything downstream degrades to reading.
-	stateCache := loadStateCache()
+	stateCache := loadStateCache(identity.SecretsFor(&configs.Config{Module: &configs.Module{Live: r.settings}}))
 	var cacheVouchTypes []string
 	if r.envelopeVouch {
 		// Gated on the envelope arm, not merely on cacheServesReads
@@ -1095,7 +1260,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// would inherit the listing's failure modes with no benefit.
 		cacheVouchTypes = cacheVouchTypesFor(stateCache, merged)
 	}
-	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords, cacheVouchTypes, r.adoptionOnly, scope)
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, nodeRefusedAddrs(r.resolver.StaticRefusals), estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords, cacheVouchTypes, r.adoptionOnly, scope)
 	diags = diags.Append(discoDiags)
 	r.kubeSweepers = provs.kubernetesSweepers()
 	if discoDiags.HasErrors() {
@@ -1123,6 +1288,10 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	{
 		r.resolver.RecordStore = r.recordStore
 		r.resolver.MarkerIndex = projection.NewMarkerIndex(merged)
+		// GitHub issue #1641: the sweep's account of objects without the
+		// address annotation, which decides whether #1617's refusal
+		// stands for an instance the static evaluator refused.
+		r.resolver.UnaddressedObjects = disco.UnaddressedAccount()
 		r.resolver.NoSourceCreate = strict.CreatesFromNoSource(identity.NoSourceCreateFor(config))
 		// GitHub issue #388's stamp half (AdjustConfigValue,
 		// internal/live/projection/nodestamp.go): Estate and Selection are
@@ -1134,6 +1303,11 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		r.resolver.Estate = estate
 		r.resolver.Selection = identity.SelectionFor(config)
 		r.resolver.Slots = disco.SlotTable()
+		// GitHub issue #1084: the registry flag the create path keys on (the
+		// AWS family's facts, #1708),
+		// and the client the post-create marker write goes through.
+		r.resolver.Facts = markerFacts()
+		r.resolver.MarkerWriter = provs.markerTagger
 	}
 
 	// GitHub issue #67's undeclared_untagged = "delete" scoped account
@@ -1143,13 +1317,13 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// orphan handling, with no synthetic configuration needed. A threshold
 	// refusal stops the run here, after the report below has a chance to
 	// show the roster that tripped it.
-	reconcile, reconcileExtra, reconcileVerified, reconcileDiags := statelessPolicyReconcile(ctx, estate, r.policy, provs, discoProvider)
+	reconcile, reconcileExtra, reconcileVerified, reconcileDiags := statelessPolicyReconcile(ctx, estate, r.policy, provs, discoProvider, scope)
 	diags = diags.Append(reconcileDiags)
 	if len(reconcileExtra) > 0 {
 		merged = append(merged, reconcileExtra...)
 	}
 	if reconcileDiags.HasErrors() {
-		r.view.Policy(statelessPolicyReport(nil, disco, reconcile))
+		r.view.Policy(statelessPolicyReport(nil, disco, reconcile, nil))
 		diags = diags.Append(provs.close(ctx))
 		return nil, diags
 	}
@@ -1215,6 +1389,20 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// on the path a live-block configuration takes under plain
 		// "choudoufu plan" and "choudoufu apply".
 		ReadParallelism: readPar,
+		// GitHub issue #1211's safety rail: which metadata.labels and
+		// metadata.annotations keys this estate's own field manager owns
+		// on each live kubernetes_manifest object, read through the
+		// marker sweep's cluster clients. What licenses a removal is the
+		// estate's record of what the configuration last declared; this
+		// stops one being proposed for a key another manager owns now.
+		//
+		// This one call site serves BOTH plan and apply: PriorState is
+		// the shared projection, so an apply re-derives the same prior
+		// and plans the same removal. That is the whole of what the
+		// apply side needs - server-side apply then removes exactly the
+		// keys our manager owns and spares everyone else's, which is
+		// measured on #1211.
+		ManifestOwnedKeys: statelessManifestOwnedKeys(config, provs),
 	})
 	// GitHub issue #349's root-output data reads, taken here because this is
 	// the last moment the provider instances that read the live system are
@@ -1236,6 +1424,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// and this is harmless to have set.
 	r.recordVersions = projResult.RecordVersions
 	r.envelopeVersions = projResult.EnvelopeVersions
+	r.recordFallbackAddrs = projResult.RecordFallbackAddrs
 	diags = diags.Append(projDiags)
 	if projDiags.HasErrors() {
 		return nil, diags
@@ -1284,6 +1473,8 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		}
 		r.view.Foreign(statelessForeignReport(classified, disco))
 		r.view.GuidedFallback(disco.GuidedFallback)
+	} else {
+		statelessNoSweepAnswer(r.view, r.filter)
 	}
 
 	// GitHub issue #587's adoption ledger, built from the three values just
@@ -1315,12 +1506,12 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// (line ~1004 above), is read unconditionally - this check is not
 	// gated on [nodeResolveEnabled] the way edge 3's sweep-demand shrink
 	// is.
-	diags = diags.Append(statelessUnmarkedApplyGaps(ctx, config, resolutions, resourceSchemas, r.recordStore, estate))
+	diags = diags.Append(statelessUnmarkedApplyGaps(ctx, config, resolutions, resourceSchemas, r.recordStore, estate, scope))
 	if diags.HasErrors() {
 		return nil, diags
 	}
 
-	r.view.Policy(statelessPolicyReport(projResult, disco, reconcile))
+	r.view.Policy(statelessPolicyReport(projResult, disco, reconcile, nil))
 
 	// GitHub issue #67's undeclared_tagged = "untag" verb: the resources
 	// applyOrphanPolicy withheld from the sweep because a non-default verb
@@ -1328,12 +1519,20 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// "untag" rather than "keep" or "report". Captured here, for
 	// AfterApply, rather than acted on now: this method also runs for a
 	// plan, and a plan must never write to the live system.
-	r.untagTargets = statelessUntagTargets(disco)
-	r.untagKey = statelessPolicyTagKey(r.policy)
-	r.untagProvider = discoProvider
-	r.untagConfig = config
+	r.captureUntag(statelessUntagTargets(disco), statelessPolicyTagKey(r.policy), config)
 
 	return projResult.State, diags
+}
+
+// captureUntag records the untag verb's apply-time work for AfterApply:
+// each target under the provider configuration whose sweep found it
+// ([statelessUntagTargets]). Not the estate's primary provider
+// configuration, which is what this used before GitHub issue #1657 and
+// which cannot reach an orphan in another region, account or cluster.
+func (r *statelessRunner) captureUntag(groups []untagGroup, key string, config *configs.Config) {
+	r.untagGroups = groups
+	r.untagKey = key
+	r.untagConfig = config
 }
 
 // WriteBack implements [backendLocal.StatelessRun]: GitHub issue #73's
@@ -1349,7 +1548,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 // anything it does see: the record-side evidence it holds ("the identity
 // changed") is exactly the evidence that cannot tell a replace from an
 // import or a live-mv, which is the defect #854 fixes.
-func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy) tfdiags.Diagnostics {
+func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy, wholeDestroy bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	// Issue #275's residue classifier is the one write-back half that needs
@@ -1368,14 +1567,15 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 	}
 
 	diags = diags.Append(projection.WriteBack(ctx, projection.WriteBackRequest{
-		Store:            r.recordStore,
-		Retry:            r.retryCfg,
-		Backend:          r.recordBackend,
-		PriorVersions:    r.recordVersions,
-		EnvelopeVersions: r.envelopeVersions,
-		Providers:        provAccess,
-		FinalState:       finalState,
-		Schemas:          schemas,
+		Store:               r.recordStore,
+		Retry:               r.retryCfg,
+		Backend:             r.recordBackend,
+		PriorVersions:       r.recordVersions,
+		EnvelopeVersions:    r.envelopeVersions,
+		RecordFallbackAddrs: r.recordFallbackAddrs,
+		Providers:           provAccess,
+		FinalState:          finalState,
+		Schemas:             schemas,
 
 		// Issue #854's replace signal, derived by the caller from the
 		// plan this apply ran (backend/local's replacedInstances). It is
@@ -1400,6 +1600,11 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 		// Issue #349's half. The apply just settled these values, and this
 		// is the moment stock writes them into its state file.
 		RootOutputStore: r.rootOutputStore,
+
+		// Issue #1371: a destroy of the whole estate deletes its recorded
+		// outputs, so another estate cannot read a destroyed estate's
+		// values. Derived by the caller from the plan, like the two above.
+		WholeDestroy: wholeDestroy,
 	}))
 
 	if provs != nil {
@@ -1410,7 +1615,7 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 
 // AfterApply implements [backendLocal.StatelessRun]: the untag verb's
 // apply-time release, run once a real apply - never a plan - has finished
-// changing the live system. See this type's untagTargets field for why the
+// changing the live system. See this type's untagGroups field for why the
 // work was captured during PriorState rather than computed here, and
 // internal/live/untag for the release itself.
 //
@@ -1421,30 +1626,64 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 // returning, since nothing after this point needs it.
 func (r *statelessRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
-	if len(r.untagTargets) == 0 {
+
+	// GitHub issue #1184: which of this run's Kubernetes deletes the
+	// cluster accepted and has not finished. One warning or nothing, never
+	// an error, and no request at all when the plan deleted nothing there.
+	// See live_apply_kubernetes_held.go.
+	if r.resolver != nil {
+		diags = diags.Append(statelessHeldKubernetesDeletes(ctx, r.kubeSweepers, r.kubeDeletes, r.resolver.Estate))
+	}
+
+	if len(r.untagGroups) == 0 {
 		return diags
 	}
 
+	// One configured provider per provider configuration that found a
+	// target, each releasing only what it found (GitHub issue #1657). A
+	// configuration that cannot be used fails its own targets and no
+	// others.
 	provs := newStatelessProviders(r.untagConfig, r.lib)
-	provider, err := provs.ConfiguredProvider(ctx, r.untagProvider)
-	if err != nil {
-		diags = diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Provider unavailable for the apply-time tag release",
-			fmt.Sprintf(
-				"GitHub issue #67's undeclared_tagged = \"untag\" verb has %d resource(s) to release %q from, but provider %s could not be used to release it: %s. Nothing was changed; the resources involved are still live and still carry the tag.",
-				len(r.untagTargets), r.untagKey, r.untagProvider, err,
-			),
-		))
-		diags = diags.Append(provs.close(ctx))
-		return diags
+	result := &untag.Result{Key: r.untagKey}
+	for _, g := range r.untagGroups {
+		if g.Provider.Provider.Type == "" {
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"No provider configuration for the apply-time tag release",
+				fmt.Sprintf(
+					"GitHub issue #67's undeclared_tagged = \"untag\" verb has %d resource(s) to release %q from (%s), but the sweep did not record which provider configuration found them, and releasing through any other one could report a release that did not happen. Nothing was changed; the resources involved are still live and still carry the tag. This is a bug (GitHub issue #1657).",
+					len(g.Targets), r.untagKey, untagTargetList(g.Targets),
+				),
+			))
+			continue
+		}
+		provider, err := provs.ConfiguredProvider(ctx, g.Provider)
+		if err != nil {
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Provider unavailable for the apply-time tag release",
+				fmt.Sprintf(
+					"GitHub issue #67's undeclared_tagged = \"untag\" verb has %d resource(s) to release %q from, but provider %s could not be used to release it: %s. Nothing was changed; the resources involved are still live and still carry the tag.",
+					len(g.Targets), r.untagKey, g.Provider, err,
+				),
+			))
+			continue
+		}
+		// The cluster client, when this configuration is a Kubernetes one,
+		// is the sweep's own for the same configuration (GitHub issue
+		// #1656): a manifest-shape orphan's markers are released by an API
+		// patch through it.
+		groupResult, releaseDiags := untag.Release(ctx, provider, statelessUntagCluster(r.kubeSweepers, g.Provider), r.untagKey, g.Targets)
+		diags = diags.Append(releaseDiags)
+		if groupResult != nil {
+			result.Outcomes = append(result.Outcomes, groupResult.Outcomes...)
+		}
 	}
-
-	result, releaseDiags := untag.Release(ctx, provider, r.untagKey, r.untagTargets)
-	diags = diags.Append(releaseDiags)
 	diags = diags.Append(provs.close(ctx))
 
-	r.view.Policy(statelessReleasedReport(result))
+	if len(result.Outcomes) > 0 {
+		r.view.Policy(statelessReleasedReport(result))
+	}
 
 	return diags
 }

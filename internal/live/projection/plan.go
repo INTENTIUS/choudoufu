@@ -16,6 +16,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/instances"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -89,6 +90,25 @@ import (
 // process that decodes the block and the process that plans it must be one
 // process.
 func PlanInstances(ctx context.Context, cfg *configs.Config, provs Providers) (map[string]cty.Value, tfdiags.Diagnostics) {
+	return PlanInstancesIn(ctx, cfg, provs, nil)
+}
+
+// PlanInstancesIn is [PlanInstances] narrowed to the blocks this run's
+// -target / -exclude filtering leaves in the plan graph. A nil scope plans
+// every block, which is what an untargeted run passes and what
+// [PlanInstances] passes.
+//
+// GitHub issue #1258. The pass exists to hand a second resolution pass the
+// values a for_each reads off a sibling, and it planned every plannable
+// block in the configuration to do so - eight of nine for a run that had
+// targeted one record. A block the plan graph dropped cannot be what an
+// in-scope for_each reads, because the reference IS the edge targeting
+// follows when it keeps a target's ancestors ([identity.Scope]'s doc), so
+// nothing an in-scope block needs is lost by declining to plan the rest.
+// And since GitHub issue #1470 an excluded block's own for_each refusal is
+// rolled back before this pass is reached, so there is no longer an
+// excluded refusal for an unscoped plan to be covering for.
+func PlanInstancesIn(ctx context.Context, cfg *configs.Config, provs Providers, scope identity.Scope) (map[string]cty.Value, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	out := map[string]cty.Value{}
 	if cfg == nil || cfg.Module == nil || provs == nil {
@@ -99,7 +119,7 @@ func PlanInstances(ctx context.Context, cfg *configs.Config, provs Providers) (m
 		return out, diags
 	}
 
-	planModule(ctx, cfg, &planProviders{source: provs, entries: map[string]*planProviderEntry{}}, out)
+	planModule(ctx, cfg, &planProviders{source: provs, entries: map[string]*planProviderEntry{}}, scope, out)
 	return out, diags
 }
 
@@ -159,7 +179,7 @@ func (p *planProviders) get(ctx context.Context, addr addrs.AbsProviderConfig) *
 // "aws_acm_certificate.cert" from a child module would be filed against a
 // root resource that does not exist, which is a wrong value rather than a
 // missing one.
-func planModule(ctx context.Context, cfg *configs.Config, provs *planProviders, out map[string]cty.Value) {
+func planModule(ctx context.Context, cfg *configs.Config, provs *planProviders, scope identity.Scope, out map[string]cty.Value) {
 	if cfg == nil || cfg.Module == nil {
 		return
 	}
@@ -168,6 +188,13 @@ func planModule(ctx context.Context, cfg *configs.Config, provs *planProviders, 
 		return
 	}
 	for _, res := range cfg.Module.ManagedResources {
+		// GitHub issue #1258: a block -target / -exclude removed from the
+		// plan graph is not planned. Asked of the static module path, the
+		// same key [identity.Scope] is asked everywhere else. See
+		// [PlanInstancesIn].
+		if scope != nil && !scope(addrs.ConfigResource{Module: cfg.Path, Resource: res.Addr()}) {
+			continue
+		}
 		if res.ForEach != nil {
 			// See PlanInstances' doc comment: one planned value cannot stand
 			// for a set of instances whose key set is the thing in question -
@@ -216,7 +243,7 @@ func planModule(ctx context.Context, cfg *configs.Config, provs *planProviders, 
 			(call.Count != nil || call.ForEach != nil) {
 			continue
 		}
-		planModule(ctx, child, provs, out)
+		planModule(ctx, child, provs, scope, out)
 	}
 }
 

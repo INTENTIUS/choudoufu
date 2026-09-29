@@ -91,10 +91,11 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 | `strict-no-source-create` | No-source-create setting is not one this fork's schema defines | error | "strict-no-source-create" | `live/e2e/limits/strict-no-source-create/` |
 | `strict-provider-change` | Provider-change setting is not one this fork's schema defines | error | "strict-provider-change" | `live/e2e/limits/strict-provider-change/` |
 | `strict-secrets` | Secrets setting is not one this fork's schema defines | error | "strict-secrets" | `live/e2e/limits/strict-secrets/` |
+| `strict-secrets-ssm` | Secrets in SSM is not configured as it has to be | error | "strict-secrets-ssm" | `live/e2e/limits/strict-secrets-ssm/` |
 | `unadmitted-type` | Resource type is outside the live-markers subset | error | "unadmitted-type" | `live/e2e/limits/unadmitted-type/` |
 | `undeclared-provider-alias` | Provider configuration is not declared | error | "undeclared-provider-alias" | `live/e2e/limits/undeclared-provider-alias/` |
 
-**29 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 26 of the 29 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
+**30 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 27 of the 30 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
 <!-- limits-gen:end lint-roster -->
 
 ### local-exec
@@ -199,7 +200,7 @@ configuration with a `record_store` was told its type could never work.
   namespace is the "no persisted micro-state" limit closing, not a
   reinterpretation of what these types are. A `record_store` block backs
   the type's whole identity with a persisted record instead of a cloud
-  observation (`internal/live/staterecord`, local/SSM/S3 backends). See
+  observation (`internal/live/staterecord`, local and S3 backends). See
   `site/content/docs/use/reference.md`'s `record_store` block for the config
   surface. Without
   a store, the refusal Detail names this class and cites #73 exactly as it
@@ -726,10 +727,17 @@ finding once the corpus showed it was the sole thing blocking every estate on
 the onboarding ladder's upper rungs, and leaving the block in place carries
 no risk to *this* run: it configures nothing this run touches.
 
-**Forwarding address.** This warning can only fire on a configuration with no
+**Forwarding address.** This warning can only fire on a module with no
 `live` block: `internal/configs/module.go`'s decoder hard-refuses to load
-any module that has both, before lint runs, so the two never coexist by the
-time this text is shown. That makes deletion optional for the run in front
+any module that has both, before lint runs, so the two never coexist in one
+module by the time this text is shown. A child module is the one place it
+fires under a `live` block, since a child may carry a backend block and may
+not carry a `live` block; stock ignores that block too ("Backend
+configuration ignored"). The warning is advisory under every entry point:
+`live-plan`, plain `plan` and plain `apply` all render it and carry on
+(`lint.HasErrors` at both lint gates, GitHub issue #1268, ruled 2026-09-21;
+pinned by `TestLintGateAgreesAcrossEntryPoints1268`). For a root module, that
+makes deletion optional for the run in front
 of the operator - live-plan, live-import and live-mv can all still name an
 estate with `-estate` instead of a block - but not in general. Every other
 command, apply included, has no `-estate` flag, so reaching it requires
@@ -1308,7 +1316,10 @@ index when the count is statically evaluable. Fixture at
 
 **Construct.** `lifecycle { ignore_changes = all }`, or an `ignore_changes`
 entry covering the whole `tags` argument or one of the ownership markers
-inside it.
+inside it. On Kubernetes (GitHub issue #1645): the same two shapes over
+`metadata[0].labels` (or, for a `kubernetes_manifest` object,
+`manifest.metadata.labels`), the map the `tofu-estate` label lives in, or
+over the `tofu-estate` key itself.
 
 **Why banned.** This is the quietest failure the live path had, and it is
 worse than a refusal. The stamp pass writes `tofu-estate` and `tofu-address`
@@ -1322,20 +1333,36 @@ duplicate of something that already exists.
 exactly the reason that makes it dangerous here: something outside Terraform
 writes tags on this resource. Under live markers, this tool is that something.
 
+On Kubernetes the failure is the same one, on the label carrier: no
+`tags` argument exists for a Kubernetes type to name, so before #1645 the
+schema check sent every one of them home unchecked, and an `ignore_changes`
+over the labels map threw away the `tofu-estate` write exactly as an
+AWS one throws away `tags`, leaving a migrated or newly created object
+unowned from the next run on.
+
 **Forwarding address.** Ignore the individual keys rather than the argument:
-`ignore_changes = [tags["Owner"]]`. A non-marker key is not refused, because
-ignoring a tag this tool does not write changes nothing about ownership.
+`ignore_changes = [tags["Owner"]]`, or on Kubernetes
+`ignore_changes = [metadata[0].labels["some-other-key"]]`. A non-marker key
+is not refused, because ignoring a tag or label this tool does not write
+changes nothing about ownership.
 
 **What is not refused.** `tags_all` is the provider's computed union of `tags`
 and the provider-level `default_tags`. Ignoring it does not stop the markers
 being written into `tags`, so the update still happens and the rule leaves it
-alone.
+alone. On Kubernetes, an entry over `metadata[0].annotations` is left alone
+too: the block address rides in an annotation beside the label (GitHub issue
+#1639), not in the label map this rule polices, and ignoring it is a separate
+concern from ignoring the ownership marker itself.
 
 **Enforcement.** `RuleIgnoreChanges`, `internal/live/lint/ignore_changes.go`
-(`checkIgnoreChanges`). Fixture at `live/e2e/limits/ignore-changes/`, whose
+(`checkIgnoreChanges` for AWS tags, `checkIgnoreChangesLabel` for the two
+Kubernetes carriers). Fixture at `live/e2e/limits/ignore-changes/`, whose
 fourth resource is the admitted single-key form, pinned by
 `TestIgnoreChangesAdmitsAForeignTagKey`, since `TestLimitsEnforced` alone
-would pass just as happily if all four were refused.
+would pass just as happily if all four were refused. The Kubernetes carriers
+are covered separately, by fixture-free table tests in
+`internal/live/lint/ignore_changes_label_test.go`
+(`TestIgnoreChangesLabelSurface*`, `TestIgnoreChangesManifestSurface*`).
 
 ### module-providers
 
@@ -1580,11 +1607,12 @@ defaults out longhand is legitimate: it records an estate's retry behaviour
 rather than inheriting it.
 
 **Where it applies.** The record store's AWS clients, which is where the
-attempt budget actually bites — an estate writes one record per resource, so a
-large one reaches Parameter Store's throughput ceiling on its own. When a
-record write does fail on throttling, the error names that ceiling and the
-account setting that raises it, rather than an attempt count a reader would
-have to translate.
+attempt budget actually bites. When a record write does fail on throttling,
+the error says how many attempts it was given, in which mode, and which of the
+two moves applies: `mode = "adaptive"`, or a larger `max_attempts`. It was
+measured against the Parameter Store record store, which is retired (#1346),
+and it used to name that service's ceiling. No ceiling has been measured for
+the bucket, so none is quoted.
 
 ### strict-marker-repair
 
@@ -1639,7 +1667,7 @@ owns the tags on some of these resources, name those resources in a
 terraform {
   live {
     estate = "prod"
-    record_store "ssm" {}
+    record_store "s3" { bucket = "my-records-bucket" }
     strict {
       marker_repair = "never"
       markers "record" {
@@ -1761,13 +1789,13 @@ selection they cannot verify.
 ### strict-secrets
 
 **Construct.** A `strict { secrets = "..." }` argument naming something
-outside this fork's vocabulary. The two settings are:
+outside this fork's vocabulary. The three settings are:
 
 ```hcl
 terraform {
   live {
     estate = "prod"
-    record_store "ssm" {}
+    record_store "s3" { bucket = "my-records-bucket" }
     strict {
       secrets = "refuse" # default "store"
     }
@@ -1780,6 +1808,18 @@ or sets the way stock OpenTofu keeps it: in the estate's record store rather
 than in a state file, with its sensitivity travelling beside it. `"refuse"`
 keeps none of it — a secret-generating logical type is refused outright, and
 a sensitive settable argument is never recorded as residue.
+
+`"ssm"` keeps what `"store"` keeps and puts the values in Parameter Store
+instead, and **this build does not implement it yet** (GitHub issue #1515).
+It is grammar the vocabulary recognizes, so a configuration that writes it
+gets a refusal naming the issue and the two settings that do work, rather
+than a typo message. It is refused rather than accepted for the reason
+`marker_repair = "report"` is, pointed at a worse outcome: accepting it
+would report an estate's secrets as held under its own KMS key while every
+one of them went on being written into its records in clear, and the only
+evidence would be the absence of parameters nobody was watching for. The
+rest of the arrangement is built and is checked first — see
+"strict-secrets-ssm".
 
 **Why bounded.** The two settings are opposites, so a spelling that is
 neither is a question this package cannot answer. `secrets = "none"` could
@@ -1929,6 +1969,82 @@ and nothing else - so `internal/live/liveimport`'s `ratifyOne` is the only
 thing standing between `"refuse"` and a stock state file's generated password
 landing in the record store, and what that path writes is the instance's
 whole prior object rather than an identity.
+
+### strict-secrets-ssm
+
+**Construct.** A live block that asks for `strict { secrets = "ssm" }`
+without the arrangement that setting stands on, or that builds the
+arrangement without asking for the setting.
+
+The setting itself is refused today, as not implemented — see
+"strict-secrets". This rule is everything around it, which is built: the
+nested block decodes, an arrangement that could not work is refused by name
+before the mechanism is ever reached, and no local state cache is written
+under the setting. A configuration written for it now needs no change when
+the write path lands. Four shapes, one rule:
+
+```hcl
+terraform {
+  live {
+    estate = "prod"
+    record_store "s3" { bucket = "my-records-bucket" }
+    strict {
+      secrets = "ssm"
+      ssm { kms_key_id = "arn:aws:kms:eu-west-1:111122223333:key/abc" }
+    }
+  }
+}
+```
+
+That is the whole of what the setting needs. Each refusal is one piece of it
+missing:
+
+- `secrets = "ssm"` with **no `ssm` block**, so nothing names the key.
+- An `ssm` block with **no `kms_key_id`**.
+- `secrets = "ssm"` with **no `record_store`**, or one that is not `"s3"`.
+- An **`ssm` block under any other secrets setting**, where it configures
+  nothing.
+
+**Why the key is required rather than defaulted.** SSM has a default key,
+`alias/aws/ssm`, and every principal in the account holding
+`ssm:GetParameter` can decrypt a parameter written under it. That is no
+narrower than the read on the bucket the values are being moved out of, so a
+default would move the secrets and protect nothing while a configuration sat
+there looking as though a key were in the write path. A customer managed key
+is the arrangement, not an option within it: the second gate and the
+revocation that does not go through IAM are the reason to pay for a second
+service at all. The `aws/ssm` key is refused again at first contact, where
+the key this configuration names is read; the refusal is in two places on
+purpose, because a configuration can name a key that turns out to be the
+default one by alias.
+
+**Why `record_store "s3"` and nothing else.** A secret value is written to a
+parameter name no other write uses, with `Overwrite: false`, and then the
+record's own conditional write commits the reference to it. That conditional
+write is the only thing deciding which of two concurrent writers wins —
+`PutParameter` cannot decide it, which is what retired the `record_store
+"ssm"` backend (`"record-store-ssm-retired"`) and what GitHub issue #1244
+warned about. A local directory and a Kubernetes Secret have no conditional
+write to commit with, so under either of them the loser of a race keeps a
+record naming a parameter the winner has already deleted, and that secret is
+gone. The refusal is at the configuration rather than at the store because a
+run that reached the store has already written parameters: same shape as the
+capacity refusal, which fires before the first write rather than leaving a
+half-written store behind.
+
+**Why a block with no setting is refused rather than ignored.** It is the
+reverse mistake and it fails silently. An operator who writes the block,
+names their customer managed key and leaves `secrets` at its default has a
+configuration that reads as though the key were protecting something.
+Nothing would be encrypted under it — every value would go into the record
+in clear, exactly as before — and the only evidence would be the absence of
+parameters nobody was watching for.
+
+**Forwarding address.** `secrets = "refuse"`, with the secret passed in by
+reference, keeps secret values out of the record store with no second
+service in the write path. It is the answer until the write path ships, and
+it needs no key, no second service and no bucket. See "strict-secrets" and
+`live/SECRETS.md`.
 
 ### strict-secrets-refusal
 
@@ -2102,6 +2218,97 @@ is the gate a configuration meets before a plan ever runs; the merge asks the
 same question again at the layer that acts, so a caller that skipped lint
 still gets the refusal rather than a silent abandonment.
 
+## The un-migration guard
+
+This one is enforced today, like every entry above it, but it earns its own
+heading rather than a `### <name>` one: those are reserved for the limits
+wing (`TestLimitationsDocCoversDirs`, `TestLimitsDirsMatchTable` in
+`internal/live/lint/limits_test.go` require one `live/e2e/limits/<name>/`
+fixture per such heading), and this guard fires on a full plan against a
+real, already-stamped prior state - not on a bare configuration load the way
+a lint fixture does. It is also not in `internal/live/check`'s `AllRefusals`
+catalog, so `tools/limits-gen` generates nothing for it either. Both are
+true of the three receipt rules this file's own introduction points at
+`live/RECEIPTS.md` for; the difference here is that this guard has no
+sibling document of its own, so it lives here instead.
+
+**Construct.** A state-backed plan - a configuration with no `live` block, or
+one whose `live` block is not yet turned on - over an estate that
+`"choudoufu live-import -approve"` has already stamped. The stamp writes
+`tofu-estate` and `tofu-address` onto every taggable managed resource
+(AWS: the `tags` map) and, on Kubernetes (GitHub issue #1649), the
+`tofu-estate` label into `metadata.labels` (or `manifest.metadata.labels` for
+a `kubernetes_manifest` object). The state file taken before the stamp has no
+record of either, so a refresh reads them as drift and proposes removing
+them - an in-place update, never a destroy or a replace.
+
+**Why banned.** GitHub issue #613. The refusal reads
+"Plan would remove this estate's ownership markers". This is the quietest
+failure the live path had, and it is worse than a refusal. Nothing warns: the plan renders as
+routine attribute drift, the apply throws the markers away, the next run's
+discovery cannot find the resource, and every run after that proposes
+creating a duplicate of something that already exists. The guard refuses
+rather than warns for the same reason `internal/live/liveimport`'s
+`notATagsOnlyPlan` refuses rather than warns: the damaging shape is
+`apply -auto-approve`, where there is no prompt for a warning to appear
+before and no operator watching the output. It does not change what the plan
+computes or shows - the diff is rendered in full, call-identical to stock,
+and only then refused, so the operator sees exactly the drift stock would
+have shown them.
+
+**What is not refused.** Only an in-place update. A `Delete` destroys the
+resource, which is not a silent un-migration and is exactly what stock would
+do; a replace drops the marker too, but because the configuration asked for a
+new object, and refusing every replacement of a stamped resource would refuse
+working configurations. An estate the stamp never reached (no `tofu-estate`
+marker on the prior object) is not this guard's business either - nothing
+here is being un-migrated.
+
+**Forwarding address.** Run the configuration the way it was migrated, with
+its `live` block present and turned on: `choudoufu plan` and `choudoufu
+apply` then read the markers instead of proposing to remove them.
+
+**`CHOUDOUFU_UNMIGRATE`, the escape hatch.** Set to the estate's name (or
+several, comma-separated) when the removal is deliberate - reverting a
+migration on purpose. It takes a name rather than an on/off value because an
+on/off value set once in a CI environment would cover every estate that
+directory ever migrates, including one migrated a year later by someone who
+never saw the setting; a name covers only the estate the operator was
+looking at. Naming an estate turns its refusal into a warning
+("Removing this estate's ownership markers"); a sibling estate the variable
+does not name in the same plan is still refused - approving one estate's
+revert is not consent for another's. After the apply, nothing on those live
+resources says which configuration owns them, and
+`choudoufu live-import -state=PATH -estate=<name> -approve` would have to
+stamp the estate again to bring it back.
+
+**Enforcement.** `statefulMarkerGuard`,
+`internal/command/live_unmigrate_guard.go`, installed only when the
+configuration has no `live` block (under one, the projection supplies
+markers on both sides of the comparison, so there is nothing to detect).
+Detection itself is `internal/live/markerstrip`'s `Scan`, which reads
+every marker surface a plan's changes carry - AWS tags or a Kubernetes
+object's labels, off the provider schema via `internal/live/substrate` - and
+reports only a `plans.Update` that drops a marker the prior object held.
+`TestPlan_statefulPlanStrippingMarkersIsRefused` and
+`TestApply_statefulApplyStrippingMarkersIsRefused` pin the AWS refusal (plan
+and apply); `TestPlan_statefulPlanStrippingALabelIsRefused` pins the
+Kubernetes one. `TestPlan_statefulMarkerStripApprovedByEnvVar` and
+`TestPlan_statefulMarkerStripEnvVarNamingAnotherEstateStillRefuses` pin
+`CHOUDOUFU_UNMIGRATE`. `TestApply_statefulDestroyOfAStampedResourceIsNotRefused`
+and `TestPlan_statefulPlanOnAnUnstampedEstateIsNotRefused` /
+`TestPlan_statefulPlanOnAnUnstampedLabelEstateIsNotRefused` pin the "what is
+not refused" paragraph above, on both substrates. All in
+`internal/command/live_unmigrate_guard_test.go` and
+`internal/command/live_unmigrate_guard_labels_test.go`.
+
+The same installed guard also carries a separate, unrelated warning (GitHub
+issue #716) for a stock-mode plan building an estate from nothing whose
+configured tags or labels already stamp ownership markers - a mid-migration
+directory whose `live` block is not on yet looks identical to a legitimate
+greenfield bootstrap from the plan alone, so that one warns rather than
+refuses. See `stockCreateWarning` in the same file.
+
 ## Documented, not yet enforced
 
 ### duplicate-identity
@@ -2223,7 +2430,7 @@ fixture, because there is nothing enforced. The tests live in
 `internal/live/lint/residue_attribute_test.go` instead.)
 
 **The behavior.** Some arguments of admitted, cloud-backed types can never
-round-trip a stateless replan. Two schema-visible classes, sized against
+round-trip a live replan. Two schema-visible classes, sized against
 hashicorp/aws 6.59.0 by `tools/wo-sweep` (originally run for GitHub issue
 #126; the artifact is `live/wo-sweep.json`, regenerated by `just wo-sweep`
 against whatever the admission table admits today, not the 846 types it
@@ -2236,8 +2443,11 @@ protocol forbids the provider ever returning their values), and
 are sensitive and settable (`aws_db_instance.password`,
 `aws_glue_connection`'s credentials, and their kin, whatever the cloud
 would echo, the no-secrets rule keeps out of every ownership marker and
-record). Either way, no memory of the configured value survives a run, so
-every stateless plan proposes sending it again, forever. That is the same
+record). Either way nothing a later plan consults carries the configured
+value back - no ownership marker holds it, no record is written for it, and
+the disposable state cache is no substitute, since a live plan comes out the
+same with a fresh cache, a stale one, or none at all (GitHub issue #685) - so
+every live plan proposes sending it again, forever. That is the same
 perpetual diff stock `terraform import` produces for these arguments
 (measured for `content` in #105's closing comment): the plan is correct,
 the apply converges, and the diff never goes away. Accepted behavior, per
@@ -2250,8 +2460,10 @@ deriving the verdict from the live provider schema's own WriteOnly and
 Sensitive flags at runtime, with no generated table, so a new provider
 release's new `_wo` twin is covered the day it ships. It is a `tfdiags`
 warning riding beside the subset check in every live entry point, not a
-lint `Issue`: lint issues are fatal by design, and a refusal was ruled out
-at both ends. It cannot see the schema-invisible members at all, and
+lint `Issue`: a lint issue is fatal unless its rule declares warning
+severity, and a refusal was ruled out at both ends. A warning-severity lint
+issue is advisory in the same way, under `live-plan`, plain `plan` and plain
+`apply` alike (GitHub issue #1268). It cannot see the schema-invisible members at all, and
 <!-- limits-gen:begin residue-soft-required-top-level -->8<!-- limits-gen:end residue-soft-required-top-level -->
 of the sensitive attributes are unconditionally required, so refusing the
 argument would refuse the type and undo its admission
@@ -2307,6 +2519,16 @@ is at least not a literal in configuration.
 Generated by `tools/limits-gen` from the registries that define what this
 fork can refuse. Do not edit the two spans below by hand. Run `just limits`
 instead.
+
+Every count these spans state - the refusal total below the table, and the
+lint-rule total and its fixture split further up - is written by the
+generator from the same list it writes the rows from, so it is never
+hand-maintained. What is not safe is a merge: the rows and the sentence are
+different lines of one span, and git will take them from different sides
+without a conflict, which is how this file once shipped saying 233 refusals
+over 234 rows (#1228). `TestLimitationsCountsAgreeWithTheirRows` in `live/`
+counts the rows and fails naming both numbers when a figure disagrees with
+them. If it fires, re-run `just limits` rather than patching the number.
 
 The sections above are hand-written and answer a design question: is this
 construct usable at all, and what replaces it. This section answers an
@@ -2391,6 +2613,7 @@ refused, and each says so in its own entry.
 | - | - | discovery | Cloud Control identifier could not be composed | error | `internal/live/discovery` | "Cloud Control identifier could not be composed" |
 | - | - | discovery | Content match found more than one live candidate | error | `internal/live/discovery` | "Content match found more than one live candidate" |
 | - | - | discovery | Cross-type marker on an undeclared type | warning | `internal/live/discovery` | "Cross-type marker on an undeclared type" |
+| - | - | discovery | Delete accepted, object not gone | warning | `internal/live/discovery` | "Delete accepted, object not gone" |
 | - | - | discovery | Direct read could not settle a tag-index-lagged instance | error | `internal/live/discovery` | "Direct read could not settle a tag-index-lagged instance" |
 | - | - | discovery | Failed to list a resource type | error | `internal/live/discovery` | "Failed to list a resource type" |
 | - | - | discovery | Incomplete sweep for undeclared resources | warning | `internal/live/discovery` | "Incomplete sweep for undeclared resources" |
@@ -2400,6 +2623,7 @@ refused, and each says so in its own entry.
 | - | - | discovery | Kubernetes dry run unavailable | warning | `internal/live/discovery` | "Kubernetes dry run unavailable" |
 | - | - | discovery | Kubernetes kind could not be verified | warning | `internal/live/discovery` | "Kubernetes kind could not be verified" |
 | - | - | discovery | Kubernetes kind not served by the cluster | error | `internal/live/discovery` | "Kubernetes kind not served by the cluster" |
+| - | - | discovery | Kubernetes sweep denied | warning | `internal/live/discovery` | "Kubernetes sweep denied" |
 | - | - | discovery | Kubernetes sweep unavailable | warning | `internal/live/discovery` | "Kubernetes sweep unavailable" |
 | - | - | discovery | Listed resource matched more than one tagged resource | error | `internal/live/discovery` | "Listed resource matched more than one tagged resource" |
 | - | - | discovery | Listed resource with no identity | error | `internal/live/discovery` | "Listed resource with no identity" |
@@ -2527,7 +2751,12 @@ refused, and each says so in its own entry.
 | - | - | lint | strict-no-source-create | error | `internal/live/lint` | "strict-no-source-create" |
 | - | - | lint | strict-provider-change | error | `internal/live/lint` | "strict-provider-change" |
 | - | - | lint | strict-secrets | error | `internal/live/lint` | "strict-secrets" |
+| - | - | lint | strict-secrets-ssm | error | `internal/live/lint` | "strict-secrets-ssm" |
 | 0 | 0 | lint | undeclared-provider-alias | error | `internal/live/lint` | "undeclared-provider-alias" |
+| - | - | projection | A removed label or annotation cannot be removed | error | `internal/live/projection` | "A removed label or annotation cannot be removed" |
+| - | - | projection | An admission policy refused this run's record write | error | `internal/live/projection` | "An admission policy refused this run's record write" |
+| - | - | projection | An estate cannot read its own outputs this way | error | `internal/live/projection` | "An estate cannot read its own outputs this way" |
+| - | - | projection | Another estate has not recorded this output | error | `internal/live/projection` | "Another estate has not recorded this output" |
 | - | - | projection | Argument values could not be recorded | error | `internal/live/projection` | "Argument values could not be recorded" |
 | - | - | projection | Cannot decode a persisted record | error | `internal/live/projection` | "Cannot decode a persisted record" |
 | - | - | projection | Cannot encode a deposed object | error | `internal/live/projection` | "Cannot encode a deposed object" |
@@ -2538,11 +2767,13 @@ refused, and each says so in its own entry.
 | - | - | projection | Cannot merge ownership markers into this manifest value | error | `internal/live/projection` | "Cannot merge ownership markers into this manifest value" |
 | - | - | projection | Cannot merge ownership markers into this metadata block | error | `internal/live/projection` | "Cannot merge ownership markers into this metadata block" |
 | - | - | projection | Cannot merge ownership markers into this tags value | error | `internal/live/projection` | "Cannot merge ownership markers into this tags value" |
+| - | - | projection | Cannot merge the address annotation into this annotations value | error | `internal/live/projection` | "Cannot merge the address annotation into this annotations value" |
 | - | - | projection | Cannot persist a record | error | `internal/live/projection` | "Cannot persist a record" |
 | - | - | projection | Cannot read a located record | error | `internal/live/projection` | "Cannot read a located record" |
 | - | - | projection | Cannot read a parent's identity from the projection | error | `internal/live/projection` | "Cannot read a parent's identity from the projection" |
 | - | - | projection | Cannot read a persisted record | error | `internal/live/projection` | "Cannot read a persisted record" |
 | - | - | projection | Cannot read a recorded deposed object | error | `internal/live/projection` | "Cannot read a recorded deposed object" |
+| - | - | projection | Cannot read another estate's outputs | error | `internal/live/projection` | "Cannot read another estate's outputs" |
 | - | - | projection | Cannot read for projection | error | `internal/live/projection` | "Cannot read for projection" |
 | - | - | projection | Cannot record a located identity | error | `internal/live/projection` | "Cannot record a located identity" |
 | - | - | projection | Cannot set ownership markers on a marked configuration value | error | `internal/live/projection` | "Cannot set ownership markers on a marked configuration value" |
@@ -2552,10 +2783,13 @@ refused, and each says so in its own entry.
 | - | - | projection | Cannot set ownership markers on an unresolved manifest value | error | `internal/live/projection` | "Cannot set ownership markers on an unresolved manifest value" |
 | - | - | projection | Cannot set ownership markers on an unresolved metadata block | error | `internal/live/projection` | "Cannot set ownership markers on an unresolved metadata block" |
 | - | - | projection | Cannot set ownership markers on an unresolved tags value | error | `internal/live/projection` | "Cannot set ownership markers on an unresolved tags value" |
+| - | - | projection | Cannot set the address annotation on an unresolved annotations value | error | `internal/live/projection` | "Cannot set the address annotation on an unresolved annotations value" |
 | - | - | projection | Could not write the discovery hint | error | `internal/live/projection` | "Could not write the discovery hint" |
 | - | - | projection | Could not write the state cache | error | `internal/live/projection` | "Could not write the state cache" |
+| - | - | projection | Created object is not marked | error | `internal/live/projection` | "Created object is not marked" |
 | - | - | projection | Cyclic parent-derived identities | error | `internal/live/projection` | "Cyclic parent-derived identities" |
 | - | - | projection | Empty import identity | error | `internal/live/projection` | "Empty import identity" |
+| - | - | projection | Identity not resolvable, and the marker carries no address | error | `internal/live/projection` | "Identity not resolvable, and the marker carries no address" |
 | - | - | projection | Ignoring an additional imported object | error | `internal/live/projection` | "Ignoring an additional imported object" |
 | - | - | projection | Import reported absence as an error | error | `internal/live/projection` | "Import reported absence as an error" |
 | - | - | projection | Live resource listed but not importable | error | `internal/live/projection` | "Live resource listed but not importable" |
@@ -2580,16 +2814,22 @@ refused, and each says so in its own entry.
 | - | - | projection | Provisioner record could not be read | error | `internal/live/projection` | "Provisioner record could not be read" |
 | - | - | projection | Record does not match the live marker | error | `internal/live/projection` | "Record does not match the live marker" |
 | - | - | projection | Record store write conflict | error | `internal/live/projection` | "Record store write conflict" |
+| - | - | projection | Record store write failed | error | `internal/live/projection` | "Record store write failed" |
 | - | - | projection | Record-backed instance with no record store | error | `internal/live/projection` | "Record-backed instance with no record store" |
 | - | - | projection | Record-located instance with no record store | error | `internal/live/projection` | "Record-located instance with no record store" |
 | - | - | projection | Residue record could not be read | error | `internal/live/projection` | "Residue record could not be read" |
 | - | - | projection | Resolved instance missing from the configuration | error | `internal/live/projection` | "Resolved instance missing from the configuration" |
 | - | - | projection | Resource type has no classic Importer | error | `internal/live/projection` | "Resource type has no classic Importer" |
+| - | - | projection | The estate boundary policy refused this run's record write | error | `internal/live/projection` | "The estate boundary policy refused this run's record write" |
+| - | - | projection | The record store contradicts itself about a record | error | `internal/live/projection` | "The record store contradicts itself about a record" |
+| - | - | projection | This estate may not read another estate's outputs | error | `internal/live/projection` | "This estate may not read another estate's outputs" |
+| - | - | projection | Unlabelled live object holds the declared name | error | `internal/live/projection` | "Unlabelled live object holds the declared name" |
 | - | - | projection | Unsupported resource type for the provider | error | `internal/live/projection` | "Unsupported resource type for the provider" |
+| - | - | projection | Values from another estate are as of its last apply | warning | `internal/live/projection` | "Values from another estate are as of its last apply" |
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**234 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**252 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -2655,7 +2895,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Unmarked apply of a marker-only resource
 
-**What.** Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the warning above - "Ownership markers not stamped" - because applying this one unmarked would create a live object no later run could recognise as this estate's. Fires at two seams that answer the identical question from the same schema predicate (markers.Taggable): as a plan-time error, before a plan is ever approved (internal/command's live_plan.go and live_mode.go - GitHub issue #950, the node-path equivalent of the HCL-rewriting stamp's own plan-time refusal, which issue #644/#944 retired with no replacement until #950 restored one), and as this same finding in the offline `choudoufu live-check` report (internal/live/check's NodeStampUnmarkedApply, issue #454's port), for a configuration nobody has planned yet. A needs-discovery instance whose estate record already holds an identity (issue #364) is exempt from the plan-time form.
+**What.** Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the warning above - "Ownership markers not stamped" - because applying this one unmarked would create a live object no later run could recognise as this estate's. Fires at two seams that answer the identical question from the same schema predicate (markers.Taggable): as a plan-time error, before a plan is ever approved (internal/command's live_plan.go and live_mode.go - GitHub issue #950, the node-path equivalent of the HCL-rewriting stamp's own plan-time refusal, which issue #644/#944 retired with no replacement until #950 restored one), and as this same finding in the offline `choudoufu live-check` report (internal/live/check's NodeStampUnmarkedApply, issue #454's port), for a configuration nobody has planned yet. A needs-discovery instance whose estate record already holds an identity (issue #364) is exempt from the plan-time form, and so is one this run's -target/-exclude leaves out of the plan graph (issue #1203), since that block will not be applied at all. Since issue #1637 (ruled 2026-09-27) the plan-time form also steps aside when this run's record store is writable and the type's identity is one the apply can record: the apply writes that record, and later runs find the object by it. Writability is proved by a write (the store's sentinel is rewritten unchanged), so a store this run may only read, or no store at all, still refuses. The offline report has no store and still reports every site.
 
 **Where.** The stamp pass, raised by `internal/live/stamp`.
 
@@ -2851,6 +3091,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Delete accepted, object not gone
+
+**What.** An apply deleted a Kubernetes object and the API server accepted the delete without finishing it (GitHub issue #1184): a finalizer turns DELETE into a request, so the server sets metadata.deletionTimestamp, answers success, and the object stays until the controller that owns the finalizer removes it. A provider delete that does not wait then prints "Destruction complete" and the run counts the object destroyed, exactly as stock does, and both lines are left as they are. After the apply, for each kind the run deleted anything of, the estate's objects of that kind are listed once by the tofu-estate label, and every object this run deleted that is still there with a deletionTimestamp is named in this one warning with its finalizers. A warning, never an error: the exit code is the apply's. A terminating object keeps its label, so the next plan proposes destroying it again until it is gone. A run that deleted no Kubernetes object asks the cluster nothing. It is raised after an apply that finished without errors, never by a plan, and only for Kubernetes: no other API reports an accepted, unfinished delete in a listing this fork already makes.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Direct read could not settle a tag-index-lagged instance
 
 **What.** A declared instance of a type whose live ARN can be composed from configuration alone (issue #1046) went unbound while the estate's tag index held no marker for its address and this run listed unreadable objects of its type. A targeted direct read at the composed identity either could not be attempted or found a live object that does not carry this estate's marker for this address, so this run refuses rather than propose a create the provider would reject.
@@ -2869,7 +3117,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Incomplete sweep for undeclared resources
 
-**What.** The estate-wide sweep could not cover every admitted type, so an owned-but-undeclared resource may exist that this run did not find. A removal plan built on it is not a complete reconciliation.
+**What.** The estate-wide sweep could not cover every admitted type, so an owned-but-undeclared resource may exist that this run did not find. A removal plan built on it is not a complete reconciliation. When the cause is the run's own credential - Cloud Control answered AccessDeniedException for a type's list handler - every such type, across every provider configuration the run sweeps through, is reported in one warning naming the count, the first five types and the IAM action pattern to grant, with every denied type, its provider configuration and its action in the log at TF_LOG=WARN (GitHub issues #1052, #1513); a listing that failed for any other reason keeps its own warning.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
@@ -2923,9 +3171,17 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Kubernetes sweep denied
+
+**What.** The Kubernetes leg of the estate sweep (GitHub issue #1065) could list the cluster, but its list call was refused by RBAC for one or more kinds - the identity running this estate lacks `list` on that kind (GitHub issue #1582), the Kubernetes counterpart of AWS's AccessDeniedException grouping under "Incomplete sweep for undeclared resources". Reported once for the whole run, naming the count of denied kinds, the first five and the verb, resource and scope (cluster-wide or one namespace) the server's own message named for each, with every denied kind logged the same way at TF_LOG=WARN. The plan still runs; a resource of a denied kind that this estate owns but no longer declares is not proposed for removal until the grant is fixed and a run can list it. A list call that fails for any other reason stays a LIST_FAILED sweep gap with no warning of its own, exactly as before this ruling.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Kubernetes sweep unavailable
 
-**What.** The Kubernetes leg of the estate sweep (GitHub issue #1065) could not list the cluster: API discovery failed, or no client could be built from the provider block's connection arguments. The plan still runs, with no Kubernetes object owned by this estate listed, so an object whose block was deleted is not proposed for removal until a run can list it. Reported as a warning; every affected type is a sweep gap in the report.
+**What.** The Kubernetes leg of the estate sweep (GitHub issue #1065) could not list the cluster: API discovery failed, or no client could be built from the provider block's connection arguments. The warning says which of four things happened (GitHub issue #1114), because on EKS they are not the same problem and used to read alike: the provider configuration supplies no credential at all and the cluster refused an anonymous request; the exec credential plugin - `aws eks get-token`, or aws-iam-authenticator - did not produce a credential, so the cluster was never asked; the cluster answered and would not authenticate the credential it was given, which is the access entry rather than the plugin; or the cluster did not answer at all. The plan still runs, with no Kubernetes object owned by this estate listed, so an object whose block was deleted is not proposed for removal until a run can list it. Reported as a warning; every affected type is a sweep gap in the report.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
@@ -3087,7 +3343,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Two live resources claiming one address
 
-**What.** Two live resources carry the same tofu-address marker, so both claim one configuration address. Binding either would be a guess.
+**What.** Two live resources carry the same tofu-address marker (on Kubernetes, the same address annotation, where neither object is at the namespace and name the configuration names), so both claim one configuration address. Binding either would be a guess, and on Kubernetes destroying both as orphans would take the object the block still needs (GitHub issue #1641).
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
@@ -3787,6 +4043,38 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### A removed label or annotation cannot be removed
+
+**What.** A label or an annotation this estate's own record says a kubernetes_manifest block declared is gone from the configuration and still on the live object, but this run will not propose removing it (GitHub issue #1211). Either the safety rail could not be consulted - no cluster client was supplied, the cluster would not answer, the block's field_manager name is not statically resolvable, or the live object carries no metadata.managedFields - or it answered that another field manager owns the key now, in which case server-side apply would decline the removal anyway. Everything the configuration does declare is still compared against the live object.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### An admission policy refused this run's record write
+
+**What.** An admission policy on the records cluster refused a record write the API server's own authorizer allows, and this fork does not know which policy it is. Every record this run writes meets the same policy, so the run stops rather than leaving half an estate recorded (GitHub issue #1448).
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### An estate cannot read its own outputs this way
+
+**What.** A data "terraform_estate_outputs" block names the estate the configuration itself is.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Another estate has not recorded this output
+
+**What.** A data "terraform_estate_outputs" block names an output the other estate has no record of: it has not applied since declaring it, it declares no such output, or the output is sensitive or not wholly known, neither of which is ever recorded.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Argument values could not be recorded
 
 **What.** An apply could not classify or store the argument values a provider's read never gives back (GitHub issue #275) - no provider access, a failing read, or a store that refused the write. Nothing in the live system changed; the arguments involved will be proposed for update again on the next plan.
@@ -3867,6 +4155,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Cannot merge the address annotation into this annotations value
+
+**What.** GitHub issue #1639's address annotation (NodeResolver.stampedAddressAnnotation) found a Kubernetes metadata.annotations value, on a typed metadata block or inside a kubernetes_manifest, it does not know how to add the choudoufu.intentius.io/tofu-address annotation into - a value that is neither a map nor an object, or one holding a non-string element - so it left the annotations exactly as evaluated. The tofu-estate label beside it is still written; only the address annotation is missing.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Cannot persist a record
 
 **What.** Writing a record for an effect back to the record store failed.
@@ -3902,6 +4198,14 @@ reserved for the limits wing's fixture directories, and
 #### Cannot read a recorded deposed object
 
 **What.** GitHub issue #361's crash-window recovery could not read, live, a deposed object discovery matched against this estate's record - the provider errored. The deposed object is left recorded but not folded into this plan; a later run tries again.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Cannot read another estate's outputs
+
+**What.** Another estate's recorded outputs could not be read for a reason other than a missing grant: the record store is not open, its KMS key refused or cannot be used, a record would not decode, or the estate name is outside the marker grammar.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
@@ -3979,6 +4283,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Cannot set the address annotation on an unresolved annotations value
+
+**What.** GitHub issue #1639's address annotation found a Kubernetes metadata.annotations value that is not yet known at plan time, so it could not add the choudoufu.intentius.io/tofu-address annotation and left the annotations exactly as evaluated. The tofu-estate label beside it is still written.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Could not write the discovery hint
 
 **What.** Guided discovery's plan-cost hint could not be written to the estate's record store, so the next run pays a full estate sweep instead of a narrowed one.
@@ -3995,6 +4307,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Created object is not marked
+
+**What.** GitHub issue #1084: the instance's type cannot carry tags in the call that creates it (live/registry.json: tagging.tag_on_create false - a Route 53 hosted zone, say), so the node writer withheld this fork's ownership markers from the create and the live path wrote them onto the created object immediately after, through the Resource Groups Tagging API's TagResources, and that write failed. The object exists, unmarked, and is named by ARN and id; the diagnostic prints the aws resourcegroupstaggingapi tag-resources command that marks it, which is the same operation this run attempted. The instance is not reported complete.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Cyclic parent-derived identities
 
 **What.** Two or more resources derive their identities from each other, directly or transitively, so none of them can be built first.
@@ -4006,6 +4326,14 @@ reserved for the limits wing's fixture directories, and
 #### Empty import identity
 
 **What.** A resource resolved to an import identity with no content, which no provider can import.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Identity not resolvable, and the marker carries no address
+
+**What.** The static evaluator could not resolve an instance's identity, the plan-node seam found no record, marker entry or evaluated identity for it either, and a live object this block may already have created cannot be bound back to it: on Kubernetes, the sweep found an object of the type carrying the estate label and no address annotation (one an older build made, or one migrated from stock state before live-import stamped it), or could not list every kind the type can declare. A create there would flap against the orphan sweep, so the refusal stands instead of planning one (GitHub issues #1539, #1641). Where the sweep listed every kind and found no such object, the create is planned, and the object it makes carries the annotation the next sweep binds.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
@@ -4203,6 +4531,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Record store write failed
+
+**What.** GitHub issue #1287: a migration could not write the record for an instance whose only ownership carrier is that record, so nothing claims the live object and the next plan would propose creating a second copy of it. The migration is incomplete and has to be run again.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Record-backed instance with no record store
 
 **What.** An effect resource that keeps its whole state in a record was projected against an estate with no record store at all - possible only with no live block, since GitHub issue #364 every live block implies one - so there is nowhere to read its prior state from.
@@ -4243,9 +4579,49 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### The estate boundary policy refused this run's record write
+
+**What.** live/kubernetes/estate-boundary.yaml refused a record write because this run's identity holds no "use" grant on its estate. The refusal carries the estate-grant.yaml line that fixes it. It is raised when the store is opened, so a plan stops as well as an apply (GitHub issue #1448).
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### The record store contradicts itself about a record
+
+**What.** Listing the record store names a key, and reading that same key for this plan came back with no record there. Prior state cannot be built from two answers that disagree, and an instance quietly missing from prior state is an instance a destroy never proposes and never reports. GitHub issue #1355.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### This estate may not read another estate's outputs
+
+**What.** A data "terraform_estate_outputs" block declares that this estate reads another estate's recorded root outputs, and the record store refused the read by policy. The refusal names the other estate and the grant to add (for an s3 store, render-policy.sh's --reads-outputs-of).
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Unlabelled live object holds the declared name
+
+**What.** GitHub issue #1546: a declared built-in Kubernetes object (a type whose schema carries metadata.labels) was read on the cluster at the namespace and name its block declares, and it carries no tofu-estate label. Under declared_untagged's default the plan would propose creating it, which the API server refuses with 409 AlreadyExists while the unlabelled object holds the name, so the run stops instead. policy { declared_untagged = "adopt" } adopts the object, and writing tofu-estate=<estate> onto it does the same by hand. An absent object never triggers this; nor does a *_default_* type such as kubernetes_default_service_account, whose create adopts the existing object; kubernetes_manifest is left to the server's own dry run, and AWS types are unaffected.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Unsupported resource type for the provider
 
 **What.** A resource's type is not one the configured provider serves.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Values from another estate are as of its last apply
+
+**What.** A warning on every successful cross-estate output read: the values are a copy as of the other estate's last apply, with the time it recorded them.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
@@ -4427,21 +4803,36 @@ takes the live value and says `No changes.` - that direction is deliberate
 what lets a saved plan's staleness check see an out-of-band `kubectl
 label`), and "config edited" and "live drifted" are not distinguishable
 without a last-applied value, so making the first visible necessarily makes
-the second visible. A key REMOVED from the configuration is the other
-direction: it is absent from the prior for the same reason it is absent from
-the configuration, the two agree, the provider keeps the live value, and the
-label stays on the object where stock would remove it (#1211; the source
-that could settle it is the live object's own `metadata.managedFields`,
-which the provider strips out of the `object` it hands back). A key the
-configuration does not declare is untouched in every case, which is the half
-of `computed_fields` that matters most: `kubernetes.io/metadata.name`,
+the second visible. A key REMOVED from the
+configuration is the other direction, and #1211 closed it: it is absent
+from the prior for the same reason it is absent from the configuration, so
+nothing on the object or in the configuration can say it was ever
+declared. The estate's own residue record says it - the label and
+annotation keys each apply declared, beside the `wait_for_*` arguments
+that member already held - and the removal set is `(recorded) \
+(currently declared)`, intersected with the live object's
+`metadata.managedFields` as a safety rail. The rail is not the source, and
+that is measured rather than chosen: `computed_fields` makes the apply
+resend every key the object already had, so server-side apply records this
+estate as the writer of keys nobody declared, and one apply later
+`managedFields` claims `kubernetes.io/metadata.name` with no co-owner to
+filter on. A removal rule sourced there proposes deleting a label the API
+server writes straight back. Degradation is toward silence rather than
+churn: no record proposes removing nothing (the pre-#1211 answer), and a
+stale record still says what was last declared, which is the wanted
+semantic. A candidate the rail cannot confirm earns a warning naming the
+key, not silence. A key the configuration does not declare is untouched in
+every case, which is the half of `computed_fields` that matters most:
+`kubernetes.io/metadata.name`,
 `kubectl.kubernetes.io/last-applied-configuration`, `cert-manager.io/*` and
 `meta.helm.sh/*` are the server's and stay the server's.
 (`internal/live/projection/nodestamp_manifest.go`,
-`mirrorManifestComputedFields`; pinned by
-`TestMirrorManifestComputedFieldsFollowsTheLiveObject` and
-`TestMirrorManifestComputedFieldsIsWhatMakesTheEditVisible`, and end to end
-by the `k8s-a-label-is-a-change` smoke scenario.)
+`mirrorManifestComputedFields`, and `manifestkeys.go`; pinned by
+`TestMirrorManifestComputedFieldsFollowsTheLiveObject`,
+`TestMirrorManifestComputedFieldsIsWhatMakesTheEditVisible`,
+`TestMirrorManifestComputedFieldsLeavesForeignKeysAlone` and
+`TestWriteBackRecordsTheDeclaredManifestKeys`, and end to end by the
+`k8s-a-label-is-a-change` smoke scenario.)
 
 **Untaggable types carry no ownership marker of their own.** <!-- survey-gen:begin untaggable-admitted -->
 `aws_accessanalyzer_archive_rule`,
@@ -4666,14 +5057,23 @@ by the `k8s-a-label-is-a-change` smoke scenario.)
 `aws_workspacesweb_user_settings_association`, `aws_xray_encryption_config`,
 `aws_xray_resource_policy`, `aws_xray_trace_segment_destination`,
 `kubernetes_cluster_role_binding`, `kubernetes_config_map`,
-`kubernetes_namespace` and `kubernetes_storage_class`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
-has nothing to search on for any of them. Their identity is built from
-their own configuration, which is a problem the moment a resource block is
-removed rather than destroyed: with no marker to search on and no
-configuration left to build the identity from, deleting the resource block
-looks indistinguishable from the resource never having existed. Issue #60
-is the two ways this fork closes that gap, and the residue left once both
-are applied.
+`kubernetes_namespace` and `kubernetes_storage_class`<!-- survey-gen:end untaggable-admitted --> carry no tags argument - the AWS-shaped test this roster runs. For the AWS
+types above that means no marker-based sweep has anything to search on:
+their identity is built from their own configuration, which is a problem
+the moment a resource block is removed rather than destroyed. With no
+marker to search on and no configuration left to build the identity from,
+deleting the resource block looks indistinguishable from the resource
+never having existed. Issue #60 is the two ways this fork closes that gap
+for them, and the residue left once both are applied.
+
+The four Kubernetes types are a different case, not a genuinely markerless
+one: `hashicorp/kubernetes` has no `tags` argument on any type, but these
+four carry a settable `metadata.labels` map, this substrate's own marker
+(`markers.LabelSurface`, issue #1016/#1061), and the ordinary Kubernetes
+estate sweep already finds them by their `tofu-estate` label. They appear
+in this roster only because "carries no `tags` argument" is the test it
+runs, not because nothing marks them - see issue #1600's ruling (tier A
+reads the substrate's own marker: tags on AWS, labels on Kubernetes).
 
 **Some are swept via a parent read instead (issue #60).** An untaggable
 type whose identity is composed from an admitted, taggable parent's own
@@ -5021,12 +5421,19 @@ Classic and WAF Classic Regional match-set entries are a third shape: they
 carry no `tags` argument in the pinned v6.59.0 provider (only the rules and
 web ACLs of those two services do), and their identity is a bare
 server-minted id with no parent argument in it, so neither path reaches
-them. For these,
+them. For these AWS entries,
 issue #60 changes nothing: destroy the resource before removing its block,
 or delete it out of band. Every plan still names this narrower list under
 "Not swept for removal". The parent-readable set above is reported there
 too when it is report-only, and left out of it entirely on the one row this
 pass also removes.
+
+The four Kubernetes types are not really residue: as the untaggable-admitted
+entry above says, they carry `hashicorp/kubernetes`'s own marker
+(`metadata.labels`) and the ordinary Kubernetes estate sweep already finds
+them by it. They land in this roster only because "neither taggable nor
+parent-readable" is the AWS-shaped test this partition runs; issue #60's
+destroy-or-delete-out-of-band prescription is not needed for them.
 
 **An import-derived prior state cannot hold config-only attributes, unless
 an estate declares a `record_store`.** A provider attribute that the cloud

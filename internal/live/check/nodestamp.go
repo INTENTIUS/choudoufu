@@ -123,7 +123,10 @@ func nodeStampDiagnostics(ctx context.Context, cfg *configs.Config, result *iden
 	// record store (see NodeStampUnmarkedApply's own doc comment on its
 	// recordBacked parameter), so every needs-discovery instance reads as
 	// not record-backed here, exactly as it always has.
-	diags = diags.Append(NodeStampUnmarkedApply(cfg, result, schemas, estate, nil))
+	// scope is nil for the same reason recordBacked is: this offline
+	// instrument analyses a configuration, never a narrowed run, so every
+	// block is in scope. See [NodeStampUnmarkedApply]'s own doc comment.
+	diags = diags.Append(NodeStampUnmarkedApply(cfg, result, schemas, estate, nil, nil, false))
 	diags = diags.Append(nodeStampMarkerConflicts(ctx, cfg, result, schemas, estate))
 	return diags
 }
@@ -172,7 +175,35 @@ func nodeStampDiagnostics(ctx context.Context, cfg *configs.Config, result *iden
 // silently admitting the one instance that has nowhere to be found again.
 // nil (the offline caller's own value, via [nodeStampDiagnostics]) exempts
 // nothing, matching this function's pre-#950 behavior exactly.
-func NodeStampUnmarkedApply(cfg *configs.Config, result *identity.Result, schemas flatSchemas, estate string, recordBacked map[string]bool) tfdiags.Diagnostics {
+//
+// scope is GitHub issue #1203's half, and it is #1176's shape applied to
+// this pass: -target / -exclude removes a block from the plan graph, so
+// this run will never create the object the refusal warns about, and the
+// operator cannot act on a diagnostic about it without abandoning the
+// narrowing they asked for. An out-of-scope block is skipped SILENTLY, for
+// the reason [discovery.refuseUnservedManifests] skips its own: an estate
+// that takes the targeted route on every run by declaration would carry a
+// permanent warning it can neither act on nor switch off.
+//
+// What it deliberately does not do is stop the check. A scope that keeps a
+// block still refuses that block: narrowing a run must not disable a check
+// protecting something the run does touch, which is the failure mode that
+// would turn this fix into a hole. Nil - every untargeted run, and every
+// offline caller - is in scope for everything and behaves exactly as this
+// function did before #1203.
+//
+// storeWritable is GitHub issue #1637's, ruled 2026-09-27: true when the
+// online caller has proved this run's record store writable
+// ([projection.RecordStore.ProbeWritable]). The apply then records the
+// identity of an instance it cannot mark, and a later run finds the object
+// by that record, so the refusal's warning ("no later run can find it")
+// does not hold and the block is exempt. The exemption applies only to a
+// type whose identity the apply can record at all
+// ([projection.ApplyRecordsIdentity]); for any other type the write-back
+// leaves no record and the refusal still fires. false - the offline
+// caller's value, and the online caller's with no store or a read-only one -
+// exempts nothing, which is this function's behavior before #1637.
+func NodeStampUnmarkedApply(cfg *configs.Config, result *identity.Result, schemas flatSchemas, estate string, recordBacked map[string]bool, scope identity.Scope, storeWritable bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	causesByBlock := stampNeedsDiscovery(result)
@@ -188,6 +219,14 @@ func NodeStampUnmarkedApply(cfg *configs.Config, result *identity.Result, schema
 			continue
 		}
 		seen[key] = true
+
+		// GitHub issue #1203. The resolution list still carries an
+		// out-of-scope block ([identity.Scope]'s own doc comment says why
+		// it must), so the narrowing happens here, at the pass that would
+		// act. See this function's own doc comment.
+		if scope != nil && !scope(blockAddr) {
+			continue
+		}
 
 		_, rng, ok := lookupResourceBlock(cfg, blockAddr)
 		if !ok {
@@ -215,6 +254,11 @@ func NodeStampUnmarkedApply(cfg *configs.Config, result *identity.Result, schema
 
 		typeName := blockAddr.Resource.Type
 		schema, hasSchema := schemas[typeName]
+		if mustStamp && hasSchema && storeWritable && projection.ApplyRecordsIdentity(typeName, schema) {
+			// GitHub issue #1637. See this function's own doc comment on
+			// storeWritable.
+			mustStamp = false
+		}
 		switch {
 		case !hasSchema:
 			if !mustStamp {
@@ -234,12 +278,18 @@ func NodeStampUnmarkedApply(cfg *configs.Config, result *identity.Result, schema
 		case !markers.Taggable(schema.Block):
 			switch {
 			case mustStamp:
+				detail := fmt.Sprintf("%s is a %s. %s", blockAddr, typeName, markers.NotAMarkerSurface(schema.Block, typeName)) +
+					" " + stamp.UnmarkedDiscoveryDetail(blockAddr, disco)
+				if projection.ApplyRecordsIdentity(typeName, schema) {
+					// GitHub issue #1637: the other way out, for a type
+					// the apply can record. Said only where it is true.
+					detail += " A record store this run can write settles it too: the apply records which object it created, and later runs find it by that record. Declare one in the live block, or run with an identity that may write the one it declares."
+				}
 				diags = diags.Append(&hcl.Diagnostic{
 					Severity: hcl.DiagError,
 					Summary:  stamp.SummaryUnmarkedApply,
-					Detail: fmt.Sprintf("%s is a %s. %s", blockAddr, typeName, markers.NotAMarkerSurface(schema.Block, typeName)) +
-						" " + stamp.UnmarkedDiscoveryDetail(blockAddr, disco),
-					Subject: rng.Ptr(),
+					Detail:   detail,
+					Subject:  rng.Ptr(),
 				})
 			default:
 				if reason, refused := markers.RefusedTagSurface(schema.Block); refused {

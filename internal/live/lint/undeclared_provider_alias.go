@@ -40,6 +40,24 @@ import (
 // is not this rule's business: an absent root provider block for the default
 // configuration is the documented way a provider takes everything from the
 // environment, and refusing it would refuse configurations that work today.
+//
+// # Why this rule takes no [Context.Scope]
+//
+// GitHub issue #1256 classified every rule that names a resource block as
+// scoped or not, and this is the one per-resource rule that is NOT, because
+// the hazard it names outlives the plan graph. The estate sweep's provider
+// set is internal/command's statelessManagedResourceProviders, read off the
+// CONFIGURATION rather than off the targeting scope, so a stray alias still
+// contributes a discovery pass on a narrowed run: a provider configured from
+// the environment alone would list and classify live objects through
+// whatever account and region that environment names, whether or not the
+// resource naming the alias is in this run's plan graph. Skipping the
+// refusal for an out-of-scope block would therefore not spare the operator
+// the consequence, only the explanation.
+//
+// That is the test every other ruling in #1256 was made with, in the one
+// place it came out the other way: "if the block is out of the plan graph,
+// can this run still produce the hazard the rule prevents?"
 func checkUndeclaredProviderAlias(mod *configs.Module, path addrs.Module, issues *[]Issue) {
 	if !path.IsRoot() {
 		return

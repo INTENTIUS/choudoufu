@@ -106,6 +106,46 @@ type Estate struct {
 	// deviation from the stage's ordinary shape, and the row a reader
 	// finds in the artifact has to say what forced it.
 	PreApplyReason string `json:"pre_apply_reason,omitempty"`
+	// ScaleLadder says this estate is run at a SIZE that the run itself
+	// chooses - terralith-scale, whose crossing script generates the
+	// estate at `-scale N` - so every record it produces belongs on a rung
+	// of live/gauntlet-scale.json's ladder, keyed by (estate, target,
+	// scale). False, and absent from the file, for every estate that is
+	// one fixed configuration: reference-ec2-vpc is a $5 real-AWS
+	// certification of one five-resource shape, not a size.
+	//
+	// Declared here rather than inferred, for the same reason PreApply is
+	// (see that field): the alternative is to read it off whatever the run
+	// happened to say, and the one place it matters is a run that said
+	// nothing. A refusal usually fires before cold_deploy, so it carries a
+	// scale only because gauntlet_refused was passed one; "this refusal
+	// named no scale" cannot distinguish "the estate has no scale" from
+	// "the script forgot to pass it", and those two want opposite
+	// treatment - the first is an estate-level refusal to record (#1233),
+	// the second is a bug that must fail the run (#1231). A declaration by
+	// the estate answers it without guessing either way.
+	ScaleLadder bool `json:"scale_ladder,omitempty"`
+}
+
+// EstateHasScaleLadder reports whether estate's records belong on the scale
+// ladder, from the estate's own manifest declaration (Estate.ScaleLadder).
+//
+// An estate the manifest does not carry is an ERROR rather than a default,
+// because both defaults are wrong in the case this is for: answering "no
+// ladder" would shelve a laddered estate's scale-less refusal as an
+// estate-level one and lose the rung it declined, and answering "ladder"
+// would fail a run that had a perfectly recordable refusal. #1231's rule
+// covers the tie: when the record's home cannot be determined, the run
+// fails and says so, rather than writing it somewhere plausible.
+func EstateHasScaleLadder(m *Manifest, estate string) (bool, error) {
+	if m == nil {
+		return false, fmt.Errorf("cannot tell whether estate %q has a scale ladder: no manifest was loaded", estate)
+	}
+	e, ok := m.ByName(estate)
+	if !ok {
+		return false, fmt.Errorf("cannot tell whether estate %q has a scale ladder: it has no entry in %s, so nothing declares it (add one, or add `\"scale_ladder\": true` to the entry if the estate is run at a size)", estate, ManifestPath)
+	}
+	return e.ScaleLadder, nil
 }
 
 // Substrate is the platform this estate's script runs against: SubstrateKind

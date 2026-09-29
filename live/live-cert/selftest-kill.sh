@@ -10,10 +10,10 @@ set -uo pipefail
 # reference-ec2-vpc.sh itself: it launches that script exactly as a human or
 # CI would (TARGET=floci, unmodified), synchronizes against its REAL apply
 # progress (polling the cold_deploy apply's own log for stock terraform's
-# "Creation complete" line - proven empirically while building this script,
-# 2026-08-29, to land reliably inside the ~29s a 5-resource apply takes
-# against floci, with the instance's own ~10s creation window giving a wide
-# margin), sends the estate script itself a real SIGTERM (simulating an
+# "Creation complete" line, in two separately bounded phases so a cold
+# runner's image pull and provider download cannot be mistaken for a stalled
+# apply - see the phase comment below), sends the estate script itself a
+# real SIGTERM (simulating an
 # operator Ctrl-C or a CI job cancellation, not an internal self-signal), and
 # then verifies emptiness ITSELF, independently, against the same floci
 # endpoint, rather than trusting the estate script's own "VERIFIED EMPTY"
@@ -23,11 +23,55 @@ set -uo pipefail
 #
 # Usage: bash live/live-cert/selftest-kill.sh
 # Needs docker, the AWS CLI, and terraform on PATH - same as the harness.
+#   SELFTEST_KILL_SETUP_BOUND_S=<seconds>  bounds harness launch -> the
+#     cold_deploy apply STARTING: the emulator image pull, the health wait,
+#     the AMI lookup and `terraform init` (default 600).
+#   SELFTEST_KILL_APPLY_BOUND_S=<seconds>  bounds the apply starting -> its
+#     first "Creation complete" (default 180).
+#   SELFTEST_KILL_WAIT_BOUND_S=<seconds> bounds the wait for the harness to
+#     finish its trap after the SIGTERM (default 240).
+#
+# The independent listing at the end runs on EVERY run, and issue #1279 is
+# why that sentence is worth writing down. It used to be unreachable on any
+# passing run: the harness removes the floci container as teardown's last
+# step, so by the time this driver went to list the endpoint it was gone,
+# and the listing was skipped with a line that read like a confirmation -
+# "nothing left to list, consistent with a full teardown", which is equally
+# true of a correct teardown and of no teardown at all. Measured then: with
+# the harness's destroy AND sweep neutered, the harness itself printed
+# "STILL NOT EMPTY after destroy and sweep" into this driver's own log and
+# this script exited 0 with its PASS verdict.
+#
+# This driver now sets LIVECERT_KEEP_FLOCI=1, which the harness honours only
+# under TARGET=floci: teardown does everything it normally does, then leaves
+# the container up instead of removing it. So the endpoint is still there
+# when the listing below runs, and this driver removes the container itself
+# afterwards - a leak here would be this script's, not the harness's.
+#
+# Two things that used to be shrugged off are now hard failures, for the
+# same reason: a missing "VERIFIED EMPTY" in the harness log, which was
+# excused on the grounds that "the check below does not stop here" when the
+# check below never ran; and an endpoint this driver cannot reach when it
+# expected to list one, which can no longer be read as evidence of an empty
+# account.
+#
+# Run automatically by ci.yml's livecert-selftest-kill job (issue #1267);
+# live/livecert_selftests_test.go's TestCIRunsTheKillSelftest is the guard
+# that keeps that job from going away.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WORK="$(mktemp -d)"
 RUN_ID="selftest-kill-$(date +%s)-$$"
 FLOCI_PORT="${FLOCI_PORT:-4817}"
+# Everything this driver waits on is bounded, because a hang in the
+# harness's own trap is one of the defects it exists to catch and an
+# unbounded wait turns that defect into a stuck job rather than a red one
+# (issue #1267, hazard 2 - the same lesson #1143's first red arm paid for).
+# This is the bound on the trap itself, which has a real destroy and an
+# independent listing to get through, so it is generous rather than tight.
+# The two synchronization bounds are set further down, beside the loops
+# they govern.
+WAIT_BOUND_S="${SELFTEST_KILL_WAIT_BOUND_S:-240}"
 ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 REGION="us-east-1"
 LOG="$WORK/harness.log"
@@ -48,10 +92,53 @@ rgta_count() {
     | tr '\t' '\n' | grep -c . || true
 }
 
+# dump_harness_artifacts prints what the harness redirected AWAY from its own
+# stdout, which is where every interesting failure lands.
+#
+# This exists because of the first CI run of this selftest (2026-09-18,
+# #1267): it failed, and the entire evidence in the job log was two banner
+# lines and "FAIL - see above" with nothing above. cold_deploy's init and
+# apply are both redirected into files in the harness's work dir, the apply
+# is additionally BACKGROUNDED, and this driver's own cleanup deletes that
+# work dir on the way out - so the one thing a reader needed had been
+# written, never printed, and then removed. A selftest whose failure message
+# points at output it did not print cannot be acted on the first time it
+# goes red, which is the only time it matters.
+dump_harness_artifacts() {
+  log ""
+  log "=== selftest-kill: the harness's own redirected output (work dir $HARNESS_WORK) ==="
+  log "    This is what \"see above\" means: the harness sends each cold_deploy step to a"
+  log "    file rather than to its stdout, so none of it reaches the harness log."
+  if [ ! -d "$HARNESS_WORK" ]; then
+    log "    (the work dir does not exist: the harness never reached the point of creating one)"
+  else
+    ls -la "$HARNESS_WORK" 2>/dev/null | sed 's/^/      /'
+    local f n
+    for f in "$HARNESS_WORK"/*.out; do
+      [ -f "$f" ] || continue
+      n="$(wc -l < "$f" | tr -d ' ')"
+      log ""
+      log "    --- $(basename "$f") (${n} line(s), last 40) ---"
+      tail -40 "$f" | sed 's/^/      | /'
+    done
+  fi
+  local cname
+  cname="$(docker ps -a --filter "name=choudoufu-livecert-reference-ec2-vpc-" --format '{{.Names}}' 2>/dev/null | head -1)"
+  if [ -n "$cname" ]; then
+    log ""
+    log "    --- docker logs $cname (last 30) ---"
+    docker logs --tail 30 "$cname" 2>&1 | sed 's/^/      | /'
+  fi
+}
+
 cleanup() {
   # This driver's own belt-and-suspenders: if the assertions below somehow
   # leave the harness process or its container alive, clean up rather than
-  # leaving a second thing depending on a trap firing correctly.
+  # leaving a second thing depending on a trap firing correctly. Since
+  # #1279 the container is deliberately left up by the harness for the
+  # independent listing, so this is also the backstop for an exit that
+  # happens between that listing and the driver's own `docker rm -f`.
+  [ -n "${WATCHDOG_PID:-}" ] && kill -TERM "$WATCHDOG_PID" 2>/dev/null
   [ -n "${HARNESS_PID:-}" ] && kill -0 "$HARNESS_PID" 2>/dev/null && kill -TERM "$HARNESS_PID" 2>/dev/null
   docker rm -f "choudoufu-livecert-reference-ec2-vpc-${HARNESS_PID:-nonexistent}" >/dev/null 2>&1 || true
   rm -rf "$WORK"
@@ -73,30 +160,103 @@ log "=== selftest-kill: launching the harness (target=floci, run_id=$RUN_ID) in 
 (
   cd "$ROOT" && \
   export TARGET=floci RUN_ID="$RUN_ID" FLOCI_PORT="$FLOCI_PORT" LIVECERT_WORK_DIR="$WORK/harness-work" && \
+  export LIVECERT_KEEP_FLOCI=1 && \
   exec bash live/live-cert/reference-ec2-vpc.sh
 ) > "$LOG" 2>&1 &
 HARNESS_PID=$!
 log "  harness pid=$HARNESS_PID, log=$LOG"
 
-log "=== selftest-kill: waiting for genuine apply progress (stock terraform's own \"Creation complete\" line) ==="
-APPLY_LOG="$WORK/harness-work/cold_deploy_apply.out"
+# Synchronization is in TWO phases, bounded separately, because they are two
+# different things and only the second is about this test.
+#
+# It was one phase - 30s from harness launch to "Creation complete" - and
+# that bound was measured on a warm laptop where the emulator image was
+# already pulled and the provider already in the plugin cache. The first
+# GitHub-runner run (2026-09-18, #1267) spent the whole 30s on setup:
+# pulling ghcr.io/lex00/floci cold, then `terraform init` downloading
+# hashicorp/aws 6.58.0. The harness did reach "2b. cold_deploy: apply" -
+# with seconds to spare - so the driver gave up on a bound that was
+# measuring the runner's download speed rather than anything about a
+# mid-apply kill.
+#
+# Splitting it is not a loosening. Each phase now bounds the interval it is
+# actually about, and a stall in either names itself rather than being
+# absorbed by the other's slack:
+#   setup: launch -> the apply's own log file exists. Image pull, health
+#          wait, AMI lookup, init. Generous by design; a cold runner
+#          legitimately spends minutes here and none of it is under test.
+#   apply: that file exists -> "Creation complete" appears in it. THIS is
+#          the property - stock terraform actually creating something
+#          against the emulator. Measured at 6s on a warm laptop (8s setup
+#          + 6s apply = the 17.8s whole run), which is worth noticing: the
+#          old single 30s bound had only ~16s of margin even at its best,
+#          and a cold runner spent all 30 on setup alone.
+SETUP_BOUND_S="${SELFTEST_KILL_SETUP_BOUND_S:-600}"
+APPLY_BOUND_S="${SELFTEST_KILL_APPLY_BOUND_S:-180}"
+HARNESS_WORK="$WORK/harness-work"
+APPLY_LOG="$HARNESS_WORK/cold_deploy_apply.out"
 synced=0
-for i in $(seq 1 300); do
-  if [ -f "$APPLY_LOG" ] && grep -q "Creation complete" "$APPLY_LOG" 2>/dev/null; then
-    synced=1
-    log "  synced after ${i}00ms: at least one resource confirmed created, apply is genuinely in flight"
+
+log "=== selftest-kill: phase 1/2, waiting for cold_deploy's apply to START (its log file to appear), bound ${SETUP_BOUND_S}s ==="
+started=0
+T0=$(date +%s)
+while [ $(( $(date +%s) - T0 )) -lt "$SETUP_BOUND_S" ]; do
+  if [ -f "$APPLY_LOG" ]; then
+    started=1
+    log "  apply started after $(( $(date +%s) - T0 ))s (image pull + health + AMI + init all happened inside this)"
     break
   fi
+  # bash reaps its own background children and keeps their status for
+  # `wait`, so once the harness exits this `kill -0` fails and the loop
+  # reports the real reason instead of running the bound out. Measured on
+  # bash 3.2.57: an exited background child is NOT left visible to its
+  # parent shell as a zombie.
   if ! kill -0 "$HARNESS_PID" 2>/dev/null; then
-    log "FAIL: the harness process exited before apply made any progress we could detect - cannot prove a mid-apply kill this way"
+    log "FAIL: the harness exited after $(( $(date +%s) - T0 ))s, before cold_deploy's apply ever started - so there was never a mid-apply moment to interrupt. The harness's own log and its redirected step output are below; the failure is in one of them, not in this driver."
     pass=0
     break
   fi
-  sleep 0.1
+  sleep 0.2
 done
-if [ "$synced" != "1" ]; then
-  log "FAIL: never observed apply progress within 30s"
+if [ "$pass" = "1" ] && [ "$started" != "1" ]; then
+  log "FAIL: cold_deploy's apply never started within ${SETUP_BOUND_S}s - $APPLY_LOG never appeared. That interval is setup (emulator image pull, health, AMI lookup, terraform init), not the apply. Read the init output below before raising SELFTEST_KILL_SETUP_BOUND_S, because an init that is failing looks the same from here as one that is merely slow."
   pass=0
+fi
+
+if [ "$started" = "1" ]; then
+  log "=== selftest-kill: phase 2/2, waiting for genuine apply progress (stock terraform's own \"Creation complete\" line), bound ${APPLY_BOUND_S}s ==="
+  T1=$(date +%s)
+  while [ $(( $(date +%s) - T1 )) -lt "$APPLY_BOUND_S" ]; do
+    if grep -q "Creation complete" "$APPLY_LOG" 2>/dev/null; then
+      synced=1
+      log "  synced after $(( $(date +%s) - T1 ))s of applying: at least one resource confirmed created, apply is genuinely in flight"
+      break
+    fi
+    if ! kill -0 "$HARNESS_PID" 2>/dev/null; then
+      log "FAIL: the harness exited $(( $(date +%s) - T1 ))s into the apply without creating anything this driver could see - the apply itself failed. Its output is below."
+      pass=0
+      break
+    fi
+    sleep 0.2
+  done
+  if [ "$pass" = "1" ] && [ "$synced" != "1" ]; then
+    log "FAIL: the apply ran for ${APPLY_BOUND_S}s without one \"Creation complete\" line. It had started, so this is not setup: either stock terraform is stuck against the emulator or it is failing without exiting. Its output is below - $(wc -l < "$APPLY_LOG" 2>/dev/null | tr -d ' ') line(s) so far."
+    pass=0
+  fi
+fi
+
+# Everything below asks whether the SIGTERM was handled correctly. If no
+# SIGTERM was ever sent, none of it can answer anything, and asking anyway is
+# how the first CI failure produced four cascading "the trap did not fire"
+# lines about a trap nothing had triggered. One verdict and the evidence.
+if [ "$synced" != "1" ]; then
+  dump_harness_artifacts
+  log ""
+  log "=== selftest-kill: full harness log (the harness's own stdout) ==="
+  cat "$LOG"
+  log ""
+  log "=== selftest-kill: FAIL - never reached a mid-apply moment, so no SIGTERM was sent and nothing about teardown was tested. The cause is in the two blocks above, not in teardown assertions this run never made. ==="
+  exit 1
 fi
 
 if [ "$pass" = "1" ]; then
@@ -106,10 +266,31 @@ if [ "$pass" = "1" ]; then
   sleep 1
   log "=== selftest-kill: sending SIGTERM to the harness itself (pid $HARNESS_PID) - simulating an operator interrupt, not an internal self-signal ==="
   kill -TERM "$HARNESS_PID"
+  # A watchdog rather than a polling loop, and the reason is narrower than
+  # an earlier version of this comment claimed. That version said a
+  # `kill -0` poll could not work, because an exited child stays a zombie
+  # and `kill -0` on a zombie succeeds from its parent. That is FALSE for a
+  # bash background job - bash reaps it and keeps the status for `wait`, so
+  # `kill -0` does fail once it is gone (measured on bash 3.2.57 while
+  # red-arming this, which is how the claim was caught). The real reasons
+  # are that a watchdog bounds the `wait` itself rather than racing it,
+  # needs no loop, and produces an unambiguous 137 - which is what
+  # distinguishes "the trap hung and we killed it" from "the trap ran and
+  # exited non-130" below.
+  ( sleep "$WAIT_BOUND_S"; kill -KILL "$HARNESS_PID" 2>/dev/null ) &
+  WATCHDOG_PID=$!
   wait "$HARNESS_PID"
   HARNESS_RC=$?
+  kill -TERM "$WATCHDOG_PID" 2>/dev/null
+  wait "$WATCHDOG_PID" 2>/dev/null
+  WATCHDOG_PID=""
   log "  harness exited $HARNESS_RC"
-  [ "$HARNESS_RC" -eq 130 ] || { log "FAIL: expected exit 130 (on_signal's own exit after handling TERM), got $HARNESS_RC"; pass=0; }
+  if [ "$HARNESS_RC" -eq 137 ]; then
+    log "FAIL: the harness was still running ${WAIT_BOUND_S}s after the SIGTERM and had to be SIGKILLed - its trap (on_signal -> teardown) hung rather than tearing down. Nothing below this line means anything: the teardown never finished."
+    pass=0
+  else
+    [ "$HARNESS_RC" -eq 130 ] || { log "FAIL: expected exit 130 (on_signal's own exit after handling TERM), got $HARNESS_RC"; pass=0; }
+  fi
 fi
 
 log "=== selftest-kill: reading the harness's own report ==="
@@ -128,44 +309,78 @@ fi
 if grep -q "VERIFIED EMPTY" "$LOG"; then
   log "  the harness's OWN self-report says VERIFIED EMPTY"
 else
-  log "  the harness's own self-report does NOT say VERIFIED EMPTY - checking independently below regardless (this is exactly why the check below does not stop here)"
+  log "FAIL: the harness's own self-report does NOT say VERIFIED EMPTY - its teardown ran and did not reach an empty estate. This line used to be informational, waved through on the grounds that the independent listing below would catch it anyway; the listing never ran on a passing run (#1279), so nothing caught it."
+  pass=0
+fi
+# The harness reaching its LAST teardown step is what the old "floci
+# container is gone" assertion proved. It no longer removes the container,
+# because this driver asked it not to, so that proof moves onto the line it
+# prints in place of the removal. A trap that stopped short never prints it.
+if grep -q "LIVECERT_KEEP_FLOCI=1: teardown reached its container-removal step" "$LOG"; then
+  log "  teardown reached its last step (container removal) and honoured LIVECERT_KEEP_FLOCI=1 - so the endpoint listed below is the one teardown finished with"
+else
+  log "FAIL: the harness log never shows teardown reaching its container-removal step with LIVECERT_KEEP_FLOCI=1 honoured - either the trap stopped short of that step, or the harness no longer honours the variable this driver needs in order to list the endpoint at all"
+  pass=0
 fi
 
 log "=== selftest-kill: independent verification - THIS driver lists the SAME floci endpoint itself, trusting nothing the harness said ==="
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AWS_ENDPOINT_URL="$ENDPOINT"
-if docker ps --filter "name=choudoufu-livecert-reference-ec2-vpc-" --format '{{.Names}}' 2>/dev/null | grep -q .; then
-  # The container may legitimately still be reachable for a moment right
-  # after the harness process exits (docker rm -f is the harness's last
-  # teardown step); give it a short settle window before treating this as
-  # a real leak, purely for the container's own lifecycle, never for the
-  # AWS-object verification below.
-  sleep 2
-fi
-if docker ps --filter "name=choudoufu-livecert-reference-ec2-vpc-" --format '{{.Names}}' 2>/dev/null | grep -q .; then
-  log "FAIL: the floci container is still running after the harness exited - teardown's own container cleanup did not happen"
+# The exact container, not the prefix: $$ inside the harness is HARNESS_PID
+# (the `exec` above is what makes that true), and a prefix match would also
+# see a concurrent run's emulator.
+#
+# Named KEPT_CONTAINER rather than FLOCI_NAME, and that is not cosmetic:
+# live/flocipostmortem_test.go's TestFlociTeardownGoesThroughTheLibrary
+# requires every `docker rm` of a `$FLOCI_*` container to go through
+# gauntlet_floci_teardown, so a container's corpse is read before it is
+# discarded (#1299). That rule is about a floci teardown, and this is not
+# one - this driver runs the harness as an external process and does not
+# source the library, the harness's own teardown already went through
+# gauntlet_floci_teardown's call site, and this container is alive and has
+# just answered a listing. The evidence half of #1299 is kept anyway, by
+# ordering: dump_harness_artifacts (which runs `docker logs` on it) happens
+# BELOW, before the removal.
+KEPT_CONTAINER="choudoufu-livecert-reference-ec2-vpc-${HARNESS_PID}"
+if ! docker ps --filter "name=^${KEPT_CONTAINER}$" --format '{{.Names}}' 2>/dev/null | grep -q .; then
+  log "FAIL: the emulator container $KEPT_CONTAINER is not running, although this driver set LIVECERT_KEEP_FLOCI=1 precisely so that it would be. There is nothing to list, and an endpoint that is gone answers identically for a perfect teardown and for no teardown at all - so this run made NO independent confirmation of anything (#1279)."
+  pass=0
+elif ! curl -fs "${ENDPOINT}/_localstack/health" >/dev/null 2>&1; then
+  log "FAIL: the emulator container $KEPT_CONTAINER is up but $ENDPOINT does not answer, so this driver could not make the one listing it exists to make. An unreachable endpoint is not evidence of an empty account (#1279)."
   pass=0
 else
-  log "  floci container is gone"
-fi
-
-# The container itself may already be gone (the harness's own teardown
-# removes it), which would make an endpoint-based listing fail outright -
-# that is EXPECTED and is itself part of the proof (teardown discarded the
-# emulator state along with the real objects the sweep would otherwise have
-# had to find). Only treat a listing failure as a hard FAIL when the
-# container is still reachable but reports something left over.
-if curl -fs "${ENDPOINT}/_localstack/health" >/dev/null 2>&1; then
   N="$(rgta_count tofu-cert-run "$RUN_ID")"
   VPCS="$(aws --endpoint-url "$ENDPOINT" --region "$REGION" ec2 describe-vpcs --filters "Name=tag:tofu-cert-run,Values=$RUN_ID" --query 'Vpcs[].VpcId' --output text 2>/dev/null || true)"
   IGWS="$(aws --endpoint-url "$ENDPOINT" --region "$REGION" ec2 describe-internet-gateways --filters "Name=tag:tofu-cert-run,Values=$RUN_ID" --query 'InternetGateways[].InternetGatewayId' --output text 2>/dev/null || true)"
   if [ "$N" = "0" ] && [ -z "$VPCS" ] && [ -z "$IGWS" ]; then
-    log "  independent listing (this driver's own aws CLI calls): 0 resources tagged tofu-cert-run=$RUN_ID, no vpc, no internet gateway"
+    log "  independent listing (this driver's own aws CLI calls against the live endpoint): 0 resources tagged tofu-cert-run=$RUN_ID, no vpc, no internet gateway"
   else
     log "FAIL: independent listing found leftovers - resourcegroupstaggingapi=$N vpcs=[$VPCS] igws=[$IGWS]"
     pass=0
   fi
+fi
+
+if [ "$pass" != "1" ]; then
+  # Only on failure: on a passing run the harness log below is the whole
+  # story and the redirected step output is noise. On a failing one it is
+  # usually the only place the reason exists at all.
+  dump_harness_artifacts
+fi
+
+# The container outlived teardown only because this driver asked for it, so
+# removing it is this driver's job - on the failing paths above too, where
+# it is if anything more important. It happens after dump_harness_artifacts
+# deliberately: that dump runs `docker logs` on this container, and on a
+# failing run those logs are often the only place the reason exists.
+# cleanup() removes the same name on the way out, but this is the ordinary
+# path, so the removal is asserted here rather than left to a trap.
+if docker ps -a --filter "name=^${KEPT_CONTAINER}$" --format '{{.Names}}' 2>/dev/null | grep -q .; then
+  docker rm -f "$KEPT_CONTAINER" >/dev/null 2>&1 || true
+fi
+if docker ps -a --filter "name=^${KEPT_CONTAINER}$" --format '{{.Names}}' 2>/dev/null | grep -q .; then
+  log "FAIL: this driver could not remove $KEPT_CONTAINER, the container it asked the harness to leave behind - it is leaking one, and the leak is this script's own"
+  pass=0
 else
-  log "  the emulator endpoint is unreachable (the container is already gone, which teardown does on its own last step) - nothing left to list, consistent with a full teardown"
+  log "  floci container removed by this driver (it outlived teardown only because this driver asked it to)"
 fi
 
 log ""
@@ -173,7 +388,7 @@ log "=== selftest-kill: full harness log (the evidence this verdict was read fro
 cat "$LOG"
 log ""
 if [ "$pass" = "1" ]; then
-  log "=== selftest-kill: PASS - a real SIGTERM delivered to the harness mid-apply (after at least one resource genuinely existed) still ran teardown and left the account (this floci endpoint) verifiably empty, confirmed independently of the harness's own report ==="
+  log "=== selftest-kill: PASS - a real SIGTERM delivered to the harness mid-apply (after at least one resource genuinely existed) still ran teardown and left the account (this floci endpoint) verifiably empty: listed by this driver against the endpoint teardown finished with, still up because this driver asked for it and removed by this driver afterwards ==="
 else
   log "=== selftest-kill: FAIL - see above ==="
 fi

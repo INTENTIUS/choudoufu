@@ -15,6 +15,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
 // receiptType and receiptNamePrefix are the naming convention
@@ -42,7 +43,7 @@ const (
 // RECEIPTS.md, "Lint enforcement" for that boundary stated in full, and
 // count_index.go's checkCountIndex for the same style of traversal walk
 // applied to a different rule.
-func checkReceiptLeafRule(mod *configs.Module, path addrs.Module, issues *[]Issue) {
+func checkReceiptLeafRule(mod *configs.Module, path addrs.Module, scope identity.Scope, issues *[]Issue) {
 	receipts := receiptResources(mod)
 	if len(receipts) == 0 {
 		return
@@ -51,6 +52,16 @@ func checkReceiptLeafRule(mod *configs.Module, path addrs.Module, issues *[]Issu
 	for _, resource := range mod.ManagedResources {
 		addr := resource.Addr().String()
 		if receipts[addr] {
+			continue
+		}
+		// GitHub issue #1256, and the narrowing goes on the REFERRING
+		// block, which is where the issue is raised. A reference is the
+		// dependency edge tofu.TargetingTransformer follows, so targeting
+		// the referrer pulls the receipt in with it and this skip cannot
+		// fire; what it does skip is a dependent of a targeted receipt,
+		// which is not an ancestor and so is genuinely outside this run's
+		// plan graph. See [scopeExcludes].
+		if scopeExcludes(scope, path, resource.Addr()) {
 			continue
 		}
 
@@ -70,6 +81,10 @@ func checkReceiptLeafRule(mod *configs.Module, path addrs.Module, issues *[]Issu
 	for name := range mod.Outputs {
 		names = append(names, name)
 	}
+	// The OUTPUT half takes no scope: an output is not an
+	// [addrs.ConfigResource], so [identity.Scope] has no answer about one -
+	// the same reading internal/live/projection's ReadRootOutputValues is
+	// classified with in GitHub issue #1203's audit.
 	for _, name := range names {
 		output := mod.Outputs[name]
 		addr := "output." + name

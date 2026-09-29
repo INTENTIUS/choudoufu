@@ -179,6 +179,19 @@ const (
 	// issue #365. See strict.go.
 	RuleStrictSecrets Rule = "strict-secrets"
 
+	// RuleStrictSecretsSSM covers the arrangement `strict { secrets = "ssm" }`
+	// needs and does not have, or has and does not need: a nested ssm block
+	// naming a customer managed KMS key, and a record_store "s3" to commit
+	// the reference with. GitHub issue #1515.
+	//
+	// It is separate from [RuleStrictSecrets] because it is a different
+	// question. That rule answers "is this spelling in the vocabulary", and
+	// its answer is about one argument read on its own; this one answers
+	// "does the rest of this live block support the setting that spelling
+	// names", and every shape it refuses is a configuration whose secrets
+	// argument is perfectly well spelled. See strict.go.
+	RuleStrictSecretsSSM Rule = "strict-secrets-ssm"
+
 	// RuleStrictNoSourceCreate covers a live block's strict block whose
 	// no_source_create argument names something outside
 	// internal/live/strict's vocabulary. Both settings the vocabulary
@@ -400,6 +413,10 @@ var ruleInfo = map[Rule]struct {
 	RuleStrictSecrets: {
 		summary: "Secrets setting is not one this fork's schema defines",
 		docsRef: `live/LIMITATIONS.md, "strict-secrets"`,
+	},
+	RuleStrictSecretsSSM: {
+		summary: "Secrets in SSM is not configured as it has to be",
+		docsRef: `live/LIMITATIONS.md, "strict-secrets-ssm"`,
 	},
 	RuleStrictNoSourceCreate: {
 		summary: "No-source-create setting is not one this fork's schema defines",

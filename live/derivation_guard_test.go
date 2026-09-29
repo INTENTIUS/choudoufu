@@ -157,6 +157,29 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"stayed 0.",
 		Data: 4, Code: 0,
 	},
+	"internal/live/discovery/tagging.go": {
+		Reason: "taggingAPITypeCoverage (issue #1144): where the Resource Groups Tagging API's search index holds a " +
+			"type's objects, per type and per caller region. Three rows, one per IAM type #1134 measured against a " +
+			"live account at scale 50 - aws_iam_role returned 0 in every region while iam:ListRoleTags showed 550 of " +
+			"550 tagged; aws_iam_policy and aws_iam_instance_profile returned 500 each in us-east-1 and 0 in " +
+			"us-east-2, IAM being global and indexing there. Each row carries its own Evidence string naming that " +
+			"measurement, which is the sanctioned form. " +
+			"Not derivable, and the two candidate derivations are both worse than the table. Deriving it from the " +
+			"service prefix is what the file did BEFORE this issue, and #1134 is the measurement showing the prefix " +
+			"is right for one of the three types and wrong for two; deriving it from live/floci-capabilities.json " +
+			"would derive AWS's behaviour from an emulator, backwards on its face and the exact substitution " +
+			"lex00/floci#205 (#1152) was filed about. No provider schema, no CloudFormation registry row and no " +
+			"scraped doc states which regions GetResources indexes a service in - it is an operational property of " +
+			"one AWS service, observable only by asking it. The remaining aws_iam_ types nobody has asked stay on " +
+			"the prefix DEFAULT in taggingAPIServiceCoverage, which is a prefix and adds no literal here; a fourth " +
+			"row appears only when a fourth type has been measured. " +
+			"Code is 0 and must stay 0: every consumer goes through taggingAPICoverageFor, which is keyed lookup, " +
+			"not a branch on a named type. " +
+			"iamRoleEntry's own aws_iam_role/aws_iam_service_linked_role pair in arnJoinTable is a separate fact " +
+			"one join stage earlier and names its types through discovery.go's package-level consts, which is why " +
+			"it is counted there and not here.",
+		Data: 3, Code: 0,
+	},
 	"internal/live/foreign/classify.go": {
 		Reason: "foreign-resource matchTable: which argument makes a live resource the one a declared block means. Each entry's " +
 			"justification is an AWS uniqueness guarantee (ELBv2 names unique per account/region, an SNS ARN built out of its " +
@@ -217,13 +240,13 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 		Data: 1, Code: 0,
 	},
 	"internal/live/servicetags/iam.go": {
-		Reason: "IAMRoutes (GitHub issues #1131 and #1125): which IAM tag-read operation answers for which resource type, " +
-			"for the types a sweep leg enumerates and can never tag-read. Five entries, and the two halves of each are " +
+		Reason: "IAMRoutes (GitHub issues #1131, #1125 and #1477): which IAM tag-read operation answers for which resource type, " +
+			"for the types an enumeration leg reaches and can never tag-read. Six entries, and the two halves of each are " +
 			"held to different standards on purpose. WHICH types belong here is NOT hand data and is not trusted here: " +
 			"internal/live/servicetags's TestIAMRoutesMatchTheDerivedSet recomputes the membership on every run from " +
 			"live/mapping.json, live/registry.json and live/survey-full.json and fails if the table and the derivation " +
 			"disagree in either direction, so a provider or artifact bump moves the table rather than leaving it stale. " +
-			"It has one arm per enumeration leg and they are disjoint. The Cloud Control arm (#1131, aws_iam_instance_profile " +
+			"It has one arm per enumeration leg and they are pairwise disjoint. The Cloud Control arm (#1131, aws_iam_instance_profile " +
 			"and aws_iam_virtual_mfa_device): mapped and list-handler-input-free, CFN tagging.taggable false, provider " +
 			"taggable true - #1129's SweepGapMarkerUnreadable condition restated from the artifacts. The native arm " +
 			"(#1125, aws_iam_policy, aws_iam_role and aws_iam_user): provider taggable true AND list_resource true, so " +
@@ -241,8 +264,24 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"though they are an attribute of the returned object\". live/registry.json records the CFN read handler's " +
 			"permissions (iam:GetInstanceProfile) and nothing about a tag-read operation; the scraped provider docs " +
 			"describe import IDs, not service operations. The op table cannot be widened by a rule, only by reading " +
-			"another service's reference the same way, which is what makes each new service a decision rather than a sweep.",
-		Data: 5, Code: 0,
+			"another service's reference the same way, which is what makes each new service a decision rather than a sweep. " +
+			"The service-list arm (#1477, aws_iam_service_linked_role): provider taggable true, list_resource false, and the " +
+			"embedded roster's EnumerationSource false, so neither leg above ever sees it and the package's own IAMListRoutes " +
+			"(list.go, below) is what enumerates it; its hand half is iam:ListRoleTags/RoleName again, with the name coming " +
+			"from the listing rather than from the ARN the type imports by.",
+		Data: 6, Code: 0,
+	},
+	"internal/live/servicetags/list.go": {
+		Reason: "IAMListRoutes (GitHub issue #1477): which IAM LIST operation enumerates which resource type, for a type no " +
+			"other enumeration leg reaches - no provider list resource, no Cloud Control list handler, and a service the " +
+			"tag index does not hold. One entry. WHICH types belong here is NOT hand data: internal/live/servicetags's " +
+			"TestIAMListRoutesMatchTheDerivedSet recomputes the membership from live/survey-full.json (taggable, no list " +
+			"resource) and the embedded roster (EnumerationSource false) on every run and fails in both directions. What is " +
+			"hand data is which IAM operation lists the type and which input narrows it: iam:ListRoles with " +
+			"PathPrefix=/aws-service-role/, the path AWS's CreateServiceLinkedRole reference says every service-linked role " +
+			"is created under and CreateRole may not use. No schema this repository holds records either fact; " +
+			"live/registry.json says only that AWS::IAM::ServiceLinkedRole has no list handler.",
+		Data: 1, Code: 0,
 	},
 	"live/residue.go": {
 		Reason: "EmulatorBlocked (#26): which floci gap blocks which type, read off live/e2e/run.sh and the harness rather than " +
@@ -324,8 +363,14 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"identity.LocatedType's bare-id fallback needs and this generator's other two static proxies " +
 			"(identity.NotImportable, identity.IDNotProvenWholeTypes) cannot see. Same shape as this file's own " +
 			"harness.SanctionedCredentialExclusions entry: a live-schema fact readiness-gen's committed inputs " +
-			"cannot derive, named rather than guessed at.",
-		Data: 3, Code: 0,
+			"cannot derive, named rather than guessed at. Plus, since issue #1600: kubernetesAwaitingRuling's four " +
+			"names (kubernetes_cluster_role_binding, kubernetes_config_map, kubernetes_namespace, " +
+			"kubernetes_storage_class) - every admitted Kubernetes-provider type today, none of which this " +
+			"generator's AWS-only inputs (live/survey-full.json) carry a row for. It is not a taggability answer " +
+			"this fork could compute and chose not to; it is a maintainer ruling still pending (the decision " +
+			"package on #1600) over which of the four tiers this substrate's own label-surface marker maps to. " +
+			"The ledger shrinks only as a ruling resolves a member into a real tier.",
+		Data: 7, Code: 0,
 	},
 
 	// ---- the cohort roster --------------------------------------------
@@ -624,7 +669,30 @@ const (
 	// document dropping tags ("this operation does not return the
 	// following attributes, even though they are an attribute of the
 	// returned object: ... Tags" - ListRoles, botocore 1.43.70).
-	typeLiteralDataTotal = 1173
+	// 1176 -> 1178 data, code unchanged at 131, on 2026-09-21 (issue
+	// #1477): internal/live/servicetags/iam.go's IAMRoutes gains
+	// aws_iam_service_linked_role (one more table literal) and the same
+	// package's new list.go registers for the first time with one table
+	// literal, IAMListRoutes' sole key. Code did not move: the new
+	// discovery leg (internal/live/discovery/servicelist.go) dispatches
+	// on Request.ServiceList's route table and names no type anywhere in
+	// its control flow, and neither does the sweep-routing change in
+	// nativeSweepReaches. Membership of both keys is derived -
+	// TestIAMRoutesMatchTheDerivedSet gains a third arm and
+	// TestIAMListRoutesMatchTheDerivedSet is that arm alone - from the
+	// survey's taggable and list_resource signals and the roster's
+	// EnumerationSource. The hand half is one operation/input pair,
+	// iam:ListRoles/PathPrefix, and the reserved path it names.
+	// 1178 -> 1182 data, code unchanged at 131, on 2026-09-26 (issue #1600):
+	// tools/readiness-gen/build.go's new kubernetesAwaitingRuling registers
+	// four table literals, the whole current roster of admitted
+	// Kubernetes-provider types. Code did not move: classifyNonAWS branches
+	// on the map, not on any type name in its own control flow. Membership
+	// is not derivable from this generator's other committed inputs
+	// (live/survey-full.json is AWS-only) and is not a taggability answer
+	// this fork could compute either way - it is a maintainer ruling still
+	// open on #1600 over which tier the Kubernetes label surface maps to.
+	typeLiteralDataTotal = 1182
 	typeLiteralCodeTotal = 131
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

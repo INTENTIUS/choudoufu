@@ -230,7 +230,11 @@ also asserted by value; an exit code is not a verdict.
    resolution, and gate again - a rebase changes HEAD's sha even when nothing
    else did, so a gate from before it is stale by the same rule. Taking the
    other side, or hand-merging `live/gauntlet.json`, silently reverts whatever
-   estates moved while you worked.
+   estates moved while you worked. `just merge-drivers` does the
+   `checkout --ours` half for you from then on (#1308); resolving those files
+   hunk by hunk instead is the one resolution that produces a board matching
+   no artifact, because the board's headline and the rows it counts are far
+   enough apart in the file to come from different sides.
 10. **Gate**: run `gofmt -l` over every Go file you touched and fix what it
    names BEFORE the gate - three merges in one day reached the full tier
    red on formatting alone because the per-worker gates run tests, not fmt.

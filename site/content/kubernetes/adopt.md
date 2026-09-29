@@ -1,115 +1,49 @@
 ---
 title: "Adopt"
 weight: 1
-description: "What binds today, what a marker would look like, and the two shapes that are refused rather than guessed."
+description: "One label is the marker, objects bind by namespace and name, and a stock state file migrates with one command."
 deeper:
-  - "[#1016](https://github.com/INTENTIUS/choudoufu/issues/1016): the marker decision, the measurements behind it, and what a port drops rather than reimplements."
-  - "[#326](https://github.com/INTENTIUS/choudoufu/issues/326): how the four types came to resolve, and why the blocker was never a marker carrier."
-  - "[Compatibility reference]({{< relref \"/docs/use/compatibility#your-provider\" >}}): the three cases for a non-AWS provider."
+  - "[`live/kubernetes/ADOPT.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/kubernetes/ADOPT.md): this page in full, with every measurement and issue."
+  - "[#1016](https://github.com/INTENTIUS/choudoufu/issues/1016): the research and the marker decision."
 ---
 
 # Adopt
 
-## Today
+On Kubernetes the marker is one label, `tofu-estate`; a plan finds the
+object again by its own kind, namespace and name, already in your
+configuration, not by address. Since #1639 it also carries the block
+address in an annotation beside the label, a join key for the sweep and
+`live-mv`.
 
-Every type whose schema carries object metadata resolves through one rule
-([#1064](https://github.com/INTENTIUS/choudoufu/issues/1064)): its
-identity is `metadata.namespace` and `metadata.name`, both written in your
-configuration, so a plan binds it with nothing stored anywhere. A missing
-namespace is refused rather than defaulted, and `generate_name` is refused
-by name. A custom resource, declared through `kubernetes_manifest`, binds
-the same way by the `apiVersion`, `kind`, `metadata.namespace` and
-`metadata.name` written inside its manifest
-([#1079](https://github.com/INTENTIUS/choudoufu/issues/1079)); a block
-whose kind the cluster does not serve is refused by name, naming the CRD
-to install, at the plan's first contact with the cluster ([claim
-24]({{< relref "/docs/claims/k8s-custom-resource" >}})).
+Every `kubernetes_*` type with a `metadata` block works this way, and so does
+every custom resource declared through `kubernetes_manifest`, which binds by
+the `apiVersion`, `kind`, namespace and name inside its manifest.
 
-Every one of them carries the marker: one label, `tofu-estate`, written on
-the create. Strip it with kubectl and the next plan proposes restoring it.
-[Claim 21]({{< relref "/docs/claims/k8s-greenfield" >}}) runs that on a
-real cluster with a namespace, a ConfigMap, a ServiceAccount and a Service.
-
-Delete one of those blocks from source and the next plan finds the live
-object by its label, one cluster-wide list per kind, and proposes its
-removal, with a controller's copies of the label excluded first ([claim
-22]({{< relref "/docs/claims/k8s-no-silent-orphans" >}})). And once a
-cluster admin has installed the one admission policy, every write to one
-of them is fenced by the label it carries ([claim
-23]({{< relref "/docs/claims/k8s-the-label-is-the-boundary" >}}); [the
-gate]({{< relref "/kubernetes/gate" >}}) says what that fence does not
-reach).
-
-## From a stock state file
+## The bulk path
 
 ```
-choudoufu live-import -approve
+choudoufu live-import -state=stock.tfstate -estate=my-estate
+choudoufu live-import -state=stock.tfstate -estate=my-estate -approve
 ```
 
-The same bulk path as on AWS ([#1073](https://github.com/INTENTIUS/choudoufu/issues/1073)):
-the stock state is read once, each object is verified by namespace and
-name, and the `tofu-estate` label is written into `metadata.labels`
-through a labels-only plan and apply. A plan that would also rename the
-object, move it between namespaces or change anything outside the labels
-map is refused, and so is an object already labelled for another estate.
-Then delete the state file and plan: the plan is empty, because every
-object is found again by its name and carries the label. The gauntlet's
-`reference-k8s` estate measures exactly this at its `migrate` and
-`test_plan` stages.
+Each object is verified by namespace and name, and the label and address
+annotation are written. A write that would change anything beyond them is
+refused, and so is an object already labelled for another estate.
 
-A custom resource in that state file comes with it
-([#1109](https://github.com/INTENTIUS/choudoufu/issues/1109)). Its label
-is written as one API merge patch under your own credential rather than
-through the provider, because `kubernetes_manifest` has no metadata block
-to write into and a labels-only write through the provider would re-apply
-the whole manifest. The patch is sent first with `dryRun=All`: the server
-validates it, runs every admission policy, and answers with the object it
-would have stored, which is compared with the object it holds now. If
-anything outside the labels map moved - a mutating webhook rewriting the
-spec, say - the write is refused by name and nothing is sent. Until this,
-every `kubernetes_manifest` entry migrated as untaggable: bound by its
-natural key, counted as migrated, and left outside the boundary, so the
-sweep did not list it, the admission policy did not fence it, and the
-report said nothing.
+## What binds on its own
 
-## The marker
+One group, not three: every object binds by the natural key already in your
+configuration. Objects a controller made, such as a Deployment's Pods, are
+never adopted or deleted. [Compatibility]({{< relref "/kubernetes/compatibility" >}})
+has the rest of what is refused by name.
 
-On AWS the marker carries the config address, because AWS hands back opaque
-ids and the tag is the only way from a live object back to a line of
-configuration. Kubernetes returns the natural key: group, kind, namespace and
-name, with the name authored in the configuration this fork already parses.
-So the address does not need to be on the object.
+## When it goes wrong
 
-The marker is one label, `tofu-estate`, and re-binding goes through the
-natural key. Measured against the identity golden set, nearly half of real config
-addresses are illegal as a label value and a 63-character cap binds at once
-on ordinary module-nested shapes; putting the address in a label would need
-three or four continuation labels per object and would break the exact-match
-condition a policy wants. An estate-only label fits by construction.
+Does not apply: the label is set on the create call itself, with no
+separate write for a crash to land between.
 
-## Refused, not guessed
+## Leaving
 
-`generateName` lets the server mint the name, which makes the natural key
-unknowable before the create. That is the one shape that would drag the
-whole address-in-label machinery back in, so it is refused, the same way a
-missing namespace is.
-
-Controller-created objects, ReplicaSets and Pods from a Deployment, PVCs
-from a volumeClaimTemplate, Jobs from a CronJob, are excluded by a non-empty
-`metadata.ownerReferences` before anything reaches a delete. The author
-chose neither the name nor the object.
-
-## What Kubernetes does better
-
-`metadata.managedFields` records which manager last wrote each field, so a
-stripped label names who stripped it. Server-side apply refuses a contested
-field with a 409 that names the competing manager. Server-side dry run
-validates, defaults and runs admission without persisting, which is stronger
-evidence than a locally computed plan and something AWS has no equivalent
-for; the plan uses it, sending every planned `kubernetes_manifest` create or
-update to the server with `dryRun=All` and printing the server's answer
-above the plan, and a rejection refuses the plan by name in the server's
-words before anything is applied ([claim
-24]({{< relref "/docs/claims/k8s-custom-resource" >}})). Built-in types are
-not submitted: the mapping from their block shape to the API object is the
-provider's own.
+If the state is in the `kubernetes` backend, `tofu state pull >
+stock.tfstate` gives you the file. The backend's Secret is the way back to
+stock, so keep it until you trust the migration and delete it last.

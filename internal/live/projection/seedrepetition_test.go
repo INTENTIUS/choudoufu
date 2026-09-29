@@ -15,6 +15,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/strict"
 )
 
 // GitHub issue #1178. The defect on a cluster: a kubernetes_manifest under
@@ -108,7 +109,7 @@ func TestExpandedManifestSeedNeedsRepetitionData(t *testing.T) {
 			// The control: the bare module-level evaluator, which is what
 			// prepareRead used before #1178. The repetition reference cannot
 			// resolve, so the WHOLE manifest argument is left out.
-			bare, _ := configuredAttrsSeed(ctx, mod.StaticEvaluator, cfg.Path, rc, schema, nil)
+			bare, _ := configuredAttrsSeed(ctx, mod.StaticEvaluator, cfg.Path, rc, schema, nil, strict.DefaultSecrets)
 			if name, ok := manifestNameInSeed(t, bare); ok {
 				t.Fatalf("the bare module evaluator seeded a manifest naming %q; this control must fail, or the test below proves nothing", name)
 			}
@@ -117,7 +118,7 @@ func TestExpandedManifestSeedNeedsRepetitionData(t *testing.T) {
 			if !ok {
 				t.Fatalf("seedRepetition declined %s%s", tc.resource, tc.key)
 			}
-			seeded, _ := configuredAttrsSeed(ctx, mod.StaticEvaluator.WithRepetitionData(rd), cfg.Path, rc, schema, nil)
+			seeded, _ := configuredAttrsSeed(ctx, mod.StaticEvaluator.WithRepetitionData(rd), cfg.Path, rc, schema, nil, strict.DefaultSecrets)
 			name, ok := manifestNameInSeed(t, seeded)
 			if !ok {
 				t.Fatalf("no manifest in the seed for %s%s; got keys %v", tc.resource, tc.key, seedKeys(seeded))

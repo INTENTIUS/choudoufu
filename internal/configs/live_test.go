@@ -7,6 +7,7 @@ package configs
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -328,6 +329,37 @@ func TestModule_liveConflicts(t *testing.T) {
 // the estate.chdf.hcl sidecar file instead. The sidecar's body is the live
 // block's content, decoded by the same decoder, so nested blocks come
 // through identically.
+// TestModule_liveBackendRefusalNamesWhatIsKept pins the ruling on issue
+// #1170 (maintainer, 2026-09-26): the backend and cloud refusals must say
+// what a live-mode module actually keeps - a local cache and its records in
+// record_store - rather than leave the reader to infer it. The older,
+// over-rotated wording #685 unwound is guarded separately and repo-wide by
+// live/no_state_absence_claims_test.go; this test is deliberately not a
+// second copy of that check, since quoting that wording here - even to
+// assert its absence - would itself trip the repo-wide scan.
+func TestModule_liveBackendRefusalNamesWhatIsKept(t *testing.T) {
+	for _, tc := range []struct {
+		dir string
+	}{
+		{"testdata/invalid-modules/live-and-backend"},
+		{"testdata/invalid-modules/live-and-cloud"},
+	} {
+		t.Run(tc.dir, func(t *testing.T) {
+			_, diags := testModuleFromDir(tc.dir)
+			if !diags.HasErrors() {
+				t.Fatal("no diagnostics")
+			}
+			got := diags.Error()
+			if !strings.Contains(got, "record_store") {
+				t.Errorf("does not say records live in record_store:\n%s", got)
+			}
+			if !strings.Contains(strings.ToLower(got), "locally") {
+				t.Errorf("does not say the cache is kept locally:\n%s", got)
+			}
+		})
+	}
+}
+
 func TestModule_liveSidecar(t *testing.T) {
 	mod, diags := testModuleFromDir("testdata/valid-modules/live-sidecar")
 	if diags.HasErrors() {
@@ -483,31 +515,8 @@ func TestModule_liveRecordStore(t *testing.T) {
 		if got, want := rs.Path, ".tofu-records"; got != want {
 			t.Errorf("Path = %q, want %q", got, want)
 		}
-		if rs.BucketSet || rs.KeyPrefixSet || rs.RegionSet {
-			t.Errorf("local record_store carries bucket/key_prefix/region: %+v", rs)
-		}
-	})
-
-	t.Run("ssm", func(t *testing.T) {
-		mod, diags := testModuleFromDir("testdata/valid-modules/live-record-store-ssm")
-		if diags.HasErrors() {
-			t.Fatalf("unexpected diagnostics: %s", diags.Error())
-		}
-		rs := mod.Live.RecordStore
-		if rs == nil {
-			t.Fatal("no record_store block was decoded")
-		}
-		if rs.Type != "ssm" {
-			t.Errorf("Type = %q, want ssm", rs.Type)
-		}
-		if got, want := rs.KeyPrefix, "custom/prefix"; got != want {
-			t.Errorf("KeyPrefix = %q, want %q", got, want)
-		}
-		if got, want := rs.Region, "us-west-2"; got != want {
-			t.Errorf("Region = %q, want %q", got, want)
-		}
-		if rs.PathSet || rs.BucketSet {
-			t.Errorf("ssm record_store carries path/bucket: %+v", rs)
+		if rs.BucketSet || rs.KeyPrefixSet || rs.RegionSet || rs.BucketOwnerSet {
+			t.Errorf("local record_store carries bucket/key_prefix/region/bucket_owner: %+v", rs)
 		}
 	})
 
@@ -526,7 +535,171 @@ func TestModule_liveRecordStore(t *testing.T) {
 		if got, want := rs.Bucket, "my-records-bucket"; got != want {
 			t.Errorf("Bucket = %q, want %q", got, want)
 		}
+		// Carried over from the Parameter Store fixture GitHub issue #1346
+		// retired, which was the only one that set these two.
+		if got, want := rs.KeyPrefix, "custom/prefix"; got != want {
+			t.Errorf("KeyPrefix = %q, want %q", got, want)
+		}
+		if got, want := rs.Region, "us-west-2"; got != want {
+			t.Errorf("Region = %q, want %q", got, want)
+		}
+		if rs.PathSet {
+			t.Errorf("s3 record_store carries a path: %+v", rs)
+		}
+		// Optional, and unset here, so a build that defaulted it to something
+		// would be caught: an ExpectedBucketOwner nobody wrote would refuse
+		// every request against a bucket in another account, including the
+		// ordinary case of one shared on purpose.
+		if rs.BucketOwnerSet || rs.BucketOwner != "" {
+			t.Errorf("bucket_owner is set on a block that does not name one: %+v", rs)
+		}
 	})
+
+	// GitHub issue #1392. The third backend: Secrets in a cluster namespace,
+	// with the connection block spelled the way the stock kubernetes backend
+	// and the hashicorp/kubernetes provider spell it.
+	t.Run("kubernetes", func(t *testing.T) {
+		mod, diags := testModuleFromDir("testdata/valid-modules/live-record-store-kubernetes")
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Error())
+		}
+		rs := mod.Live.RecordStore
+		if rs == nil {
+			t.Fatal("no record_store block was decoded")
+		}
+		if rs.Type != "kubernetes" {
+			t.Errorf("Type = %q, want kubernetes", rs.Type)
+		}
+		if got, want := rs.Namespace, "tofu-records-my-estate"; got != want {
+			t.Errorf("Namespace = %q, want %q", got, want)
+		}
+		if !rs.NamespaceSet {
+			t.Error("NamespaceSet is false for a block that names a namespace")
+		}
+		if got, want := rs.Kubernetes.ConfigPath, "/home/ci/.kube/config"; got != want {
+			t.Errorf("ConfigPath = %q, want %q", got, want)
+		}
+		if got, want := rs.Kubernetes.ConfigContext, "prod"; got != want {
+			t.Errorf("ConfigContext = %q, want %q", got, want)
+		}
+		if got, want := rs.Kubernetes.Host, "https://cluster.example:6443"; got != want {
+			t.Errorf("Host = %q, want %q", got, want)
+		}
+		if rs.Kubernetes.Insecure {
+			t.Error("Insecure = true for a block that set it to false")
+		}
+		if rs.Kubernetes.Exec == nil {
+			t.Fatal("the exec block was not decoded")
+		}
+		if got, want := rs.Kubernetes.Exec.Command, "aws"; got != want {
+			t.Errorf("Exec.Command = %q, want %q", got, want)
+		}
+		if got, want := len(rs.Kubernetes.Exec.Args), 4; got != want {
+			t.Errorf("Exec.Args has %d elements, want %d", got, want)
+		}
+		if got, want := rs.Kubernetes.Exec.Env["AWS_PROFILE"], "ci"; got != want {
+			t.Errorf("Exec.Env[AWS_PROFILE] = %q, want %q", got, want)
+		}
+		if rs.BucketSet || rs.RegionSet || rs.BucketOwnerSet || rs.PathSet {
+			t.Errorf("kubernetes record_store carries bucket/region/bucket_owner/path: %+v", rs)
+		}
+	})
+
+	// GitHub issue #1448, section C. `insecure = true` is a contract finding
+	// named tls_verification, so the waiver list has to accept that name. The
+	// misspelling beside it is in TestModule_liveRecordStoreRefused.
+	t.Run("kubernetes with insecure waived", func(t *testing.T) {
+		mod, diags := testModuleFromDir("testdata/valid-modules/live-record-store-kubernetes-insecure-waived")
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Error())
+		}
+		rs := mod.Live.RecordStore
+		if rs == nil {
+			t.Fatal("no record_store block was decoded")
+		}
+		if !rs.Kubernetes.Insecure {
+			t.Error("Insecure = false for a block that set it to true")
+		}
+		if got, want := rs.AllowInsecure, []string{"tls_verification"}; !slices.Equal(got, want) {
+			t.Errorf("AllowInsecure = %v, want %v", got, want)
+		}
+	})
+
+	// GitHub issue #1381. A bucket name is global: a name that is free can be
+	// taken by anyone, in any account, so the name alone does not say whose
+	// bucket this is.
+	t.Run("s3 with bucket_owner", func(t *testing.T) {
+		mod, diags := testModuleFromDir("testdata/valid-modules/live-record-store-s3-bucket-owner")
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Error())
+		}
+		rs := mod.Live.RecordStore
+		if rs == nil {
+			t.Fatal("no record_store block was decoded")
+		}
+		if got, want := rs.BucketOwner, "111122223333"; got != want {
+			t.Errorf("BucketOwner = %q, want %q", got, want)
+		}
+		if !rs.BucketOwnerSet {
+			t.Error("BucketOwnerSet is false for a block that names an owner")
+		}
+		if rs.BucketOwnerRange.Empty() {
+			t.Error("BucketOwnerRange is empty, so a diagnostic about it would point nowhere")
+		}
+	})
+}
+
+// TestModule_liveRecordStoreRetired is GitHub issue #1346: Parameter Store
+// is refused as a record store, by name, and the message carries the four
+// things an operator who still declares it needs - that it is retired, why,
+// what to declare instead, and that nothing migrates. It also holds the two
+// things the message must NOT say: that SSM as such is removed, and that SSM
+// is available for secrets today.
+func TestModule_liveRecordStoreRetired(t *testing.T) {
+	for _, file := range []string{
+		"testdata/invalid-files/live-record-store-ssm-retired.tf",
+		"testdata/invalid-files/live-record-store-ssm-retired-with-tier.tf",
+	} {
+		t.Run(file, func(t *testing.T) {
+			_, diags := NewParser(nil).LoadConfigFile(file)
+			if !diags.HasErrors() {
+				t.Fatal("record_store \"ssm\" loaded with no errors")
+			}
+			if len(diags) != 1 {
+				t.Errorf("want exactly one diagnostic, the refusal; a retired backend's arguments are not worth a second one. Got %d:\n%s", len(diags), diags.Error())
+			}
+			got := diags.Error()
+			if !strings.Contains(got, SummaryRecordStoreRetired) {
+				t.Errorf("the refusal is not the retirement one:\n%s", got)
+			}
+			for _, want := range []string{
+				`record_store "ssm" is retired`,
+				"as a record store",
+				"cap at 10,000 per account and region",
+				"no general conditional write",
+				`record_store "s3"`,
+				"examples/record-store-bucket",
+				"not migrated",
+				"no estate was on this backend",
+				"planned (#1515) and not available yet",
+				`strict { secrets = "refuse" }`,
+			} {
+				if !strings.Contains(got, want) {
+					t.Errorf("the refusal does not say %q:\n%s", want, got)
+				}
+			}
+			// The quota sentence used to end "past that every parameter is
+			// billed monthly on the advanced tier", which reads as every
+			// parameter in the account being billed. Only the ones put on
+			// the advanced tier are; standard parameters are free at any
+			// number up to the cap. GitHub issue #1383.
+			for _, never := range []string{"SSM is removed", "SSM is retired", "names a backend this fork does not know", "every parameter is billed"} {
+				if strings.Contains(got, never) {
+					t.Errorf("the refusal says %q:\n%s", never, got)
+				}
+			}
+		})
+	}
 }
 
 // TestModule_liveRecordStoreImplied is GitHub issue #364's config surface,
@@ -538,7 +711,7 @@ func TestModule_liveRecordStore(t *testing.T) {
 // Every field is asserted BY VALUE rather than "it is non-nil", because the
 // values are what internal/live/projection.NewRecordStore then acts on: an
 // empty Path is what resolves to ".tofu-records" beside the module, and a
-// Type of anything but "local" would send this to the SSM or S3 branch and
+// Type of anything but "local" would send this to the S3 branch and
 // try to open an AWS client for a configuration that named no cloud store
 // at all.
 //
@@ -588,7 +761,6 @@ func TestModule_liveRecordStoreImplied(t *testing.T) {
 func TestModule_liveRecordStoreDeclaredIsNeverImplied(t *testing.T) {
 	for _, dir := range []string{
 		"testdata/valid-modules/live-record-store-local",
-		"testdata/valid-modules/live-record-store-ssm",
 		"testdata/valid-modules/live-record-store-s3",
 	} {
 		mod, diags := testModuleFromDir(dir)
@@ -634,7 +806,55 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 		{"testdata/invalid-files/live-record-store-key-prefix-residue.tf", `must not begin with the "tofu-residue" segment`},
 		{"testdata/invalid-files/live-record-store-key-prefix-provisioned.tf", `must not begin with the "tofu-provisioned" segment`},
 		{"testdata/invalid-files/live-record-store-key-prefix-outputs.tf", `must not begin with the "tofu-outputs" segment`},
+		// GitHub issue #1381. These three go through the real decoder, not
+		// just validateRecordStoreKeyPrefix, because the estate name has to
+		// reach the validator from the surrounding live block for any of
+		// them to be decidable at all.
+		{"testdata/invalid-files/live-record-store-key-prefix-another-estate.tf", `is the namespace estate "other" writes its own records to`},
+		{"testdata/invalid-files/live-record-store-key-prefix-records-root.tf", `was set to the "tofu-records" root itself`},
+		{"testdata/invalid-files/live-record-store-key-prefix-no-estate.tf", `does not say which estate it owns`},
+		// GitHub issue #1383. A leading slash used to pass here and fail
+		// every run afterwards, with a message about a record key and never
+		// about key_prefix.
+		{"testdata/invalid-files/live-record-store-key-prefix-leading-slash.tf", `must not begin with "/"`},
+		// "ssm-tier" was never a backend label at any release; "tier" was an
+		// argument of record_store "ssm". It gets the unknown-backend
+		// refusal, not the retirement one, which would tell a reader it
+		// existed once (#1383).
+		{"testdata/invalid-files/live-record-store-ssm-tier-is-not-a-backend.tf", `names a backend this fork does not know`},
 		{"testdata/invalid-files/live-record-store-duplicate.tf", "Duplicate record_store block"},
+		// "tier" selected a Parameter Store tier and went with that backend
+		// (GitHub issue #1346). It is now simply not an argument.
+		{"testdata/invalid-files/live-record-store-tier-is-gone.tf", `An argument named "tier" is not expected here`},
+		// GitHub issue #1340. A typo must not silently waive nothing while
+		// reading as a waiver, and the override is a list, never a boolean.
+		{"testdata/invalid-files/live-record-store-allow-insecure-unknown.tf", `names "versionning", which is not something record_store "s3" asserts`},
+		{"testdata/invalid-files/live-record-store-allow-insecure-boolean.tf", `must be a literal list of strings`},
+		{"testdata/invalid-files/live-record-store-allow-insecure-twice.tf", `names "versioning" more than once`},
+		{"testdata/invalid-files/live-record-store-allow-insecure-on-local.tf", `record_store "local" asserts nothing`},
+		// GitHub issue #1393. Both remote backends take allow_insecure, with
+		// their own names, so a bucket setting named on a cluster store is
+		// refused rather than read as waiving something.
+		{"testdata/invalid-files/live-record-store-allow-insecure-bucket-name-on-kubernetes.tf", `Valid names are "tls_verification", "namespace_access", "read_isolation", "encryption_at_rest", "estate_boundary"`},
+		// GitHub issue #1381. An account ID that is not twelve digits would
+		// go on the wire as ExpectedBucketOwner and be refused by S3 on
+		// every request, with nothing saying the configuration is why.
+		{"testdata/invalid-files/live-record-store-bucket-owner-not-an-account.tf", `It must be an AWS account ID: exactly twelve digits`},
+		{"testdata/invalid-files/live-record-store-bucket-owner-too-short.tf", `It must be an AWS account ID: exactly twelve digits`},
+		{"testdata/invalid-files/live-record-store-bucket-owner-on-local.tf", `has no meaning for record_store "local"`},
+		// GitHub issue #1392. The "kubernetes" backend's arguments and the
+		// bucket's are refused on each other's backend, both directions, so a
+		// block that names both is told which one this store does not have
+		// rather than silently ignoring half of what was written.
+		// #1448: the name tls_verification joined the list, and a near miss is
+		// still refused by name rather than waiving nothing in silence.
+		{"testdata/invalid-files/live-record-store-allow-insecure-unknown-on-kubernetes.tf", `names "tls_verify", which is not something record_store "kubernetes" asserts`},
+		{"testdata/invalid-files/live-record-store-kubernetes-bucket.tf", `has no meaning for record_store "kubernetes"`},
+		{"testdata/invalid-files/live-record-store-kubernetes-region.tf", `has no meaning for record_store "kubernetes"`},
+		{"testdata/invalid-files/live-record-store-namespace-on-s3.tf", `has no meaning for record_store "s3"`},
+		{"testdata/invalid-files/live-record-store-exec-on-local.tf", `has no meaning for record_store "local"`},
+		{"testdata/invalid-files/live-record-store-kubernetes-bad-namespace.tf", `is not a Kubernetes namespace name`},
+		{"testdata/invalid-files/live-record-store-kubernetes-exec-no-command.tf", `An "exec" block requires an "command" argument`},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
 			parser := NewParser(nil)
@@ -656,58 +876,108 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 // namespace (issue #109), checked at the "/"-delimited segment level so a
 // merely-similar-looking prefix ("tofu-receipts-archive") is not falsely
 // refused.
+//
+// The records' own root is the seventh and is not reserved, because
+// "tofu-records/<this estate>" IS the default. What it may not name is another
+// estate's records namespace, which GitHub issue #1381 measured as accepted.
 func TestValidateRecordStoreKeyPrefix(t *testing.T) {
 	for _, tc := range []struct {
 		prefix string
+		// estate is what the live block names, "" meaning it names none and
+		// the name comes from the tofu-estate tags at run time. Every row
+		// that leaves it blank is read as "my-estate", which is what the
+		// fixtures use; the rows about the estate say so.
+		estate string
 		want   string // a fragment of the refusal, or "" for accepted
 	}{
-		{"my-estate", ""},
-		{"tofu-records/my-estate", ""},
-		{"/tofu-records/my-estate/", ""},
+		{prefix: "my-estate"},
+		{prefix: "tofu-records/my-estate"},
+		{prefix: "tofu-records/my-estate/"},
+		// A deeper namespace under this estate's own records is still this
+		// estate's: nothing else writes there.
+		{prefix: "tofu-records/my-estate/inner"},
+		// GitHub issue #1381. recordStoreKeyPrefix uses the override
+		// verbatim, so this is the exact string estate "other" writes its
+		// own records under, and each estate would read the other's
+		// inventory as its own.
+		{prefix: "tofu-records/other", want: `the estate this configuration owns is "my-estate"`},
+		{prefix: "tofu-records/other/", want: `namespace estate "other" writes its own records to`},
+		{prefix: "tofu-records/other/deeper", want: `namespace estate "other" writes its own records to`},
+		// "my-estate-eu" is a different estate, and a prefix match is not an
+		// estate match: NamespacePrefix gives both a trailing delimiter, so
+		// these are two namespaces, and this one is not ours.
+		{prefix: "tofu-records/my-estate-eu", want: `namespace estate "my-estate-eu" writes its own records to`},
+		// The root itself holds every estate's records.
+		{prefix: "tofu-records", want: "the \"tofu-records\" root itself"},
+		{prefix: "tofu-records/", want: "the \"tofu-records\" root itself"},
+		// With no estate argument the name is derived from the tags at run
+		// time, so nothing at decode time can say whether this is our own
+		// namespace or a neighbour's. Refused rather than guessed.
+		{prefix: "tofu-records/my-estate", estate: "-", want: "does not say which estate it owns"},
+		{prefix: "tofu-records/other", estate: "-", want: "does not say which estate it owns"},
+		// A prefix outside the records root needs no estate to be judged.
+		{prefix: "somewhere/else", estate: "-"},
+		// A leading slash is refused in its own right (#1383), and the six
+		// reserved namespaces below still get their own reason when they
+		// carry one, because that is the more dangerous of the two.
+		{prefix: "/tofu-records/my-estate/", want: `must not begin with "/"`},
+		{prefix: "/", want: "empty"},
 		// A prefix that merely starts with the same letters is not a
 		// segment match and must not be refused.
-		{"tofu-receipts-archive", ""},
-		{"nested/tofu-receipts", ""},
-		{"tofu-hints-archive", ""},
-		{"nested/tofu-hints", ""},
-		{"tofu-located-archive", ""},
-		{"nested/tofu-located", ""},
-		{"tofu-residue-archive", ""},
-		{"nested/tofu-residue", ""},
-		{"tofu-provisioned-archive", ""},
-		{"nested/tofu-provisioned", ""},
-		{"tofu-outputs-archive", ""},
-		{"nested/tofu-outputs", ""},
+		{prefix: "tofu-receipts-archive"},
+		{prefix: "nested/tofu-receipts"},
+		{prefix: "tofu-hints-archive"},
+		{prefix: "nested/tofu-hints"},
+		{prefix: "tofu-located-archive"},
+		{prefix: "nested/tofu-located"},
+		{prefix: "tofu-residue-archive"},
+		{prefix: "nested/tofu-residue"},
+		{prefix: "tofu-provisioned-archive"},
+		{prefix: "nested/tofu-provisioned"},
+		{prefix: "tofu-outputs-archive"},
+		{prefix: "nested/tofu-outputs"},
 
-		{"tofu-receipts", "must not begin with the \"tofu-receipts\" segment"},
-		{"tofu-receipts/my-estate", "must not begin with the \"tofu-receipts\" segment"},
-		{"/tofu-receipts/my-estate", "must not begin with the \"tofu-receipts\" segment"},
+		{prefix: "tofu-receipts", want: "must not begin with the \"tofu-receipts\" segment"},
+		{prefix: "tofu-receipts/my-estate", want: "must not begin with the \"tofu-receipts\" segment"},
+		{prefix: "/tofu-receipts/my-estate", want: "must not begin with the \"tofu-receipts\" segment"},
 
-		{"tofu-hints", "must not begin with the \"tofu-hints\" segment"},
-		{"tofu-hints/my-estate", "must not begin with the \"tofu-hints\" segment"},
-		{"/tofu-hints/my-estate", "must not begin with the \"tofu-hints\" segment"},
+		{prefix: "tofu-hints", want: "must not begin with the \"tofu-hints\" segment"},
+		{prefix: "tofu-hints/my-estate", want: "must not begin with the \"tofu-hints\" segment"},
+		{prefix: "/tofu-hints/my-estate", want: "must not begin with the \"tofu-hints\" segment"},
 
-		{"tofu-located", "must not begin with the \"tofu-located\" segment"},
-		{"tofu-located/my-estate", "must not begin with the \"tofu-located\" segment"},
-		{"/tofu-located/my-estate", "must not begin with the \"tofu-located\" segment"},
+		{prefix: "tofu-located", want: "must not begin with the \"tofu-located\" segment"},
+		{prefix: "tofu-located/my-estate", want: "must not begin with the \"tofu-located\" segment"},
+		{prefix: "/tofu-located/my-estate", want: "must not begin with the \"tofu-located\" segment"},
 
-		{"tofu-residue", "must not begin with the \"tofu-residue\" segment"},
-		{"tofu-residue/my-estate", "must not begin with the \"tofu-residue\" segment"},
-		{"/tofu-residue/my-estate", "must not begin with the \"tofu-residue\" segment"},
+		{prefix: "tofu-residue", want: "must not begin with the \"tofu-residue\" segment"},
+		{prefix: "tofu-residue/my-estate", want: "must not begin with the \"tofu-residue\" segment"},
+		{prefix: "/tofu-residue/my-estate", want: "must not begin with the \"tofu-residue\" segment"},
 
-		{"tofu-provisioned", "must not begin with the \"tofu-provisioned\" segment"},
-		{"tofu-provisioned/my-estate", "must not begin with the \"tofu-provisioned\" segment"},
-		{"/tofu-provisioned/my-estate", "must not begin with the \"tofu-provisioned\" segment"},
+		{prefix: "tofu-provisioned", want: "must not begin with the \"tofu-provisioned\" segment"},
+		{prefix: "tofu-provisioned/my-estate", want: "must not begin with the \"tofu-provisioned\" segment"},
+		{prefix: "/tofu-provisioned/my-estate", want: "must not begin with the \"tofu-provisioned\" segment"},
 
-		{"tofu-outputs", "must not begin with the \"tofu-outputs\" segment"},
-		{"tofu-outputs/my-estate", "must not begin with the \"tofu-outputs\" segment"},
-		{"/tofu-outputs/my-estate", "must not begin with the \"tofu-outputs\" segment"},
+		{prefix: "tofu-outputs", want: "must not begin with the \"tofu-outputs\" segment"},
+		{prefix: "tofu-outputs/my-estate", want: "must not begin with the \"tofu-outputs\" segment"},
+		{prefix: "/tofu-outputs/my-estate", want: "must not begin with the \"tofu-outputs\" segment"},
 
-		{"", "empty"},
-		{"///", "empty"},
+		{prefix: "", want: "empty"},
+		{prefix: "///", want: "empty"},
 	} {
-		t.Run(tc.prefix, func(t *testing.T) {
-			got := validateRecordStoreKeyPrefix(tc.prefix)
+		t.Run(tc.prefix+"/estate="+tc.estate, func(t *testing.T) {
+			// "" is the ordinary case and means the fixtures' estate name;
+			// "-" is the row that says the live block names no estate at
+			// all, which is a real configuration (the name then comes from
+			// the tofu-estate tags) and is not the same thing as "unset in
+			// this table".
+			estate := tc.estate
+			switch estate {
+			case "":
+				estate = "my-estate"
+			case "-":
+				estate = ""
+			}
+			got := validateRecordStoreKeyPrefix(tc.prefix, estate)
 			switch {
 			case tc.want == "" && got != "":
 				t.Errorf("%q was refused: %s", tc.prefix, got)
@@ -777,6 +1047,72 @@ func TestModule_liveStrictSecrets(t *testing.T) {
 	}
 }
 
+// TestModule_liveStrictSSM: the nested ssm block GitHub issue #1515's
+// ruling 2 puts the KMS key and the parameter path in. Three literal
+// strings, decoded and judged nowhere - that an omitted kms_key_id is a
+// refusal, and that this block means nothing beside any other secrets
+// setting, are internal/live/lint's, the same division the strict block's
+// own spellings already have.
+func TestModule_liveStrictSSM(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live-strict-ssm")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	st := mod.Live.Strict
+	if st == nil {
+		t.Fatal("no strict block was decoded")
+	}
+	if got, want := st.Secrets, "ssm"; got != want {
+		t.Fatalf("Secrets = %q, want %q", got, want)
+	}
+	sm := st.SSM
+	if sm == nil {
+		t.Fatal("no ssm block was decoded from a strict block that declares one")
+	}
+	for _, f := range []struct {
+		name string
+		got  string
+		set  bool
+		want string
+	}{
+		{"kms_key_id", sm.KMSKeyID, sm.KMSKeyIDSet, "arn:aws:kms:eu-west-1:111122223333:key/1234abcd"},
+		{"path", sm.Path, sm.PathSet, "/choudoufu/my-estate/secrets"},
+		{"region", sm.Region, sm.RegionSet, "eu-west-1"},
+	} {
+		if !f.set {
+			t.Errorf("%sSet is false for an argument this block writes", f.name)
+		}
+		if f.got != f.want {
+			t.Errorf("%s = %q, want %q - the three arguments share a decode loop and must not be reading each other's attribute", f.name, f.got, f.want)
+		}
+	}
+	if sm.DeclRange.Filename == "" {
+		t.Error("the ssm block's DeclRange is the zero value, so a diagnostic about the block as a whole cannot point at it")
+	}
+	// A diagnostic about the key has to point at the key, not at the
+	// block: an operator reading "this ssm block names no kms_key_id" on a
+	// block whose every line looks the same needs the caret on the line
+	// they have to change.
+	if sm.KMSKeyIDRange == sm.PathRange || sm.KMSKeyIDRange == sm.RegionRange {
+		t.Error("two of the ssm block's arguments decoded to one range")
+	}
+}
+
+// TestModule_liveStrictSSMAbsent: a strict block with no ssm block leaves
+// SSM nil. "Absent means absent" here is load-bearing rather than tidy -
+// internal/live/lint reads the nil to refuse `secrets = "ssm"` with no key,
+// so a zero-valued block standing in for an absent one would let an estate
+// run with no key named and nothing saying so.
+func TestModule_liveStrictSSMAbsent(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live-strict-secrets")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	if got := mod.Live.Strict.SSM; got != nil {
+		t.Errorf("SSM is %+v for a strict block with no ssm block, want nil", got)
+	}
+}
+
 // TestModule_liveStrictEmpty: a strict block that sets nothing decodes as a
 // non-nil block with every *Set flag false. The distinction matters because
 // "the block is there and sets nothing" and "the block is absent" must both
@@ -827,6 +1163,14 @@ func TestModule_liveStrictRefused(t *testing.T) {
 		{"testdata/invalid-files/live-strict-duplicate.tf", "Duplicate strict block"},
 		{"testdata/invalid-files/live-strict-non-literal.tf", "Variables not allowed"},
 		{"testdata/invalid-files/live-strict-secrets-non-literal.tf", "Variables not allowed"},
+		{"testdata/invalid-files/live-strict-ssm-duplicate.tf", "Duplicate ssm block"},
+		{"testdata/invalid-files/live-strict-ssm-non-literal.tf", "Variables not allowed"},
+		// An argument this block does not define. The schema is closed on
+		// purpose: "tier" reads as though it selected the advanced tier,
+		// and #1515's ruling 3 is that the tier is not an operator's
+		// choice at all - it is decided per value, by size, and announced
+		// with its cost.
+		{"testdata/invalid-files/live-strict-ssm-unknown-argument.tf", "Unsupported argument"},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
 			parser := NewParser(nil)

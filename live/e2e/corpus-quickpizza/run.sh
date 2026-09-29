@@ -65,6 +65,10 @@
 #   BREAK_REMOVE   keep the ClusterRoleBinding block; no destroy may be proposed.
 #   BREAK_COUNT    assert the wrong instance was destroyed on the scale-down.
 #   BREAK_APPROVAL apply the saved plan after the world moved and expect success.
+#   BREAK_REPLACE  set to 1 to recreate the renamed ConfigMap's old object,
+#                  carrying the estate label and the block's address
+#                  annotation, after day2_replace's apply; the next plan
+#                  must propose destroying it (day2_replace's Break line).
 #   BREAK_CRASH    after the same real interrupt, assert nothing is proposed
 #                  (day2_crash's own Break line); must fail.
 #   BREAK_CRASH_UNBOUND
@@ -76,6 +80,11 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 source "$ROOT/live/e2e/lib/gauntlet.sh"
+
+# The shared provider plugin cache, and the cross-process lock real terraform
+# needs in order to use it safely (#1300). live/e2e/lib/gauntlet.sh carries the
+# measured reasons for both; this is the only place a script chooses either.
+gauntlet_plugin_cache
 ESTATE="corpus-quickpizza"
 NS="quickpizza"
 KINDS="namespaces configmaps secrets serviceaccounts services deployments statefulsets clusterrolebindings"
@@ -84,7 +93,6 @@ WORK="$(mktemp -d)"
 STOCK="$WORK/stock"; ADOPTED="$WORK/adopted"; ORACLE="$WORK/oracle"; GREEN="$WORK/green"
 KCA="$WORK/a.kubeconfig"; KCB="$WORK/b.kubeconfig"
 CLUSTER_A="chdf-qp-a-$$"; CLUSTER_B="chdf-qp-b-$$"
-export TF_PLUGIN_CACHE_DIR="$WORK/plugin-cache"; mkdir -p "$TF_PLUGIN_CACHE_DIR"
 export TF_IN_AUTOMATION=1
 log() { printf '%s\n' "$*"; }
 
@@ -234,7 +242,7 @@ export KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA"
 log "  cluster A: $(kca version 2>/dev/null | grep -i server | head -1); cluster B: $CLUSTER_B"
 write_root "$STOCK" stock
 write_root "$ORACLE" stock
-( cd "$STOCK/terraform" && terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on A"
+( cd "$STOCK/terraform" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on A"
 COLD_OUT="$(cd "$STOCK/terraform" && terraform apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$COLD_OUT" | tail -20; fail "stock cold deploy failed on A"; }
 grep -qF "Apply complete! Resources: 26 added, 0 changed, 0 destroyed" <<< "$COLD_OUT" || { printf '%s\n' "$COLD_OUT" | tail -5; fail "stock cold deploy did not add exactly 26 objects on A"; }
 STOCK_N="$(cd "$STOCK/terraform" && terraform state list | wc -l | tr -d ' ')"
@@ -361,25 +369,31 @@ if [ "${BREAK:-}" = "1" ]; then
   perl -0777 -pi -e 's/(resource "kubernetes_service_account_v1" "alloy" \{\n  metadata \{\n    name      = )"alloy"/$1"alloy-renamed"/' "$ADOPTED/terraform/alloy.tf"
   grep -q '"alloy-renamed"' "$ADOPTED/terraform/alloy.tf" || fail "BREAK: could not rename the ServiceAccount's metadata.name"
   R_PLAN="$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$R_PLAN" | tail -20; fail "BREAK: the plan after renaming the object failed"; }
-  grep -qE "^No changes|Plan: 0 to add, 0 to change, 0 to destroy" <<< "$R_PLAN" && fail "BREAK=1: renaming the object's own name still planned zero churn"
+  grep -qE 'will be (created|destroyed)' <<< "$R_PLAN" || fail "BREAK=1: renaming the object's own name did not plan a destroy and a create - the marker-rewritten-in-place assertion is not load-bearing: $(grep -E '^Plan:' <<< "$R_PLAN" | head -1)"
   grep -q "1 to add" <<< "$R_PLAN" && grep -q "1 to destroy" <<< "$R_PLAN" || { printf '%s\n' "$R_PLAN" | tail -20; fail "BREAK=1: renaming the object's own name did not plan a destroy and a create: $(grep -E '^Plan:' <<< "$R_PLAN" | head -1)"; }
   log "  BREAK=1: caught - renaming metadata.name plans $(grep -E '^Plan:' <<< "$R_PLAN" | head -1)"
   perl -pi -e 's/"alloy-renamed"/"alloy"/' "$ADOPTED/terraform/alloy.tf"
   rename_sa "$ADOPTED"; rename_sa "$ORACLE"
   ( chdf_a "$ADOPTED" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK: the moved-block apply failed"
   ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK: stock's moved-block apply failed on B"
-  gauntlet_stage day2_rename pass "BREAK=1 control: renaming the object's own metadata.name plans a replace ($(grep -E '^Plan:' <<< "$R_PLAN" | head -1)), so the zero-churn assertion correctly fails to hold; a bare block rename is zero churn on this substrate because the block name is not part of the object's identity; the moved block then applied"
+  gauntlet_stage day2_rename pass "BREAK=1 control: renaming the object's own metadata.name plans a replace ($(grep -E '^Plan:' <<< "$R_PLAN" | head -1)), so the marker-rewritten-in-place assertion correctly fails to hold; a bare block rename plans the same one in-place annotation change as the moved block, since the block name is not part of the object's identity; the moved block then applied"
 else
   rename_sa "$ADOPTED"; rename_sa "$ORACLE"
   O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's moved-block plan failed on B"; }
   grep -qE "^No changes|Plan: 0 to add, 0 to change, 0 to destroy" <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's moved-block plan on B is not zero churn"; }
   ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's moved-block apply failed on B"
   R_PLAN="$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$R_PLAN" | tail -20; fail "the moved-block plan failed"; }
-  grep -qE "^No changes|Plan: 0 to add, 0 to change, 0 to destroy" <<< "$R_PLAN" || { printf '%s\n' "$R_PLAN" | tail -20; fail "the moved-block plan is not zero churn"; }
-  ( chdf_a "$ADOPTED" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "the moved-block apply failed"
+  grep -qE 'will be (created|destroyed)' <<< "$R_PLAN" \
+    && { printf '%s\n' "$R_PLAN" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a create or a destroy - not the marker rewritten in place"; }
+  grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$R_PLAN" \
+    || { printf '%s\n' "$R_PLAN" | tail -20; fail "the moved-block plan is not exactly one in-place change (the address annotation rewrite)"; }
+  grep -qE '~ +"choudoufu\.intentius\.io/tofu-address" = ".*" -> ".*"' <<< "$R_PLAN" \
+    || { printf '%s\n' "$R_PLAN"; fail "the moved-block plan does not show the tofu-address annotation being rewritten"; }
+  R_APPLY_OUT="$(chdf_a "$ADOPTED" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$R_APPLY_OUT" | tail -20; fail "the moved-block apply failed"; }
+  grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$R_APPLY_OUT" || { printf '%s\n' "$R_APPLY_OUT" | tail -10; fail "the moved-block apply was not exactly one in-place change"; }
   exists_a serviceaccount alloy || fail "the ServiceAccount is gone after the rename"
   [ "$(count_a)" = "26" ] || fail "$(count_a) labelled objects after the rename, want 26"
-  gauntlet_stage day2_rename pass "moved block: kubernetes_service_account_v1.alloy -> .collector, with the ClusterRoleBinding's subject and the Deployment's service_account_name references following, zero churn (no add, no change, no destroy); the live object untouched and still labelled; stock's plan for the same moved block on the oracle cluster is also zero churn. The moved-block half only: live-mv has no Kubernetes leg (#1066). BREAK=1 renames the object's own metadata.name and the zero-churn assertion correctly fails"
+  gauntlet_stage day2_rename pass "moved block: kubernetes_service_account_v1.alloy -> .collector, with the ClusterRoleBinding's subject and the Deployment's service_account_name references following, no add and no destroy, one in-place change confined to the address annotation rewrite (0 add, 1 change, 0 destroy) - the marker rewritten in place, the same shape the AWS lanes assert for a rename, not literal zero churn; the live object untouched and still labelled; stock's plan for the same moved block on the oracle cluster is zero churn, since stock never writes this annotation. The moved-block half only: live-mv also has a Kubernetes leg since #1639, not exercised by this stage. BREAK=1 renames the object's own metadata.name and the marker-rewritten-in-place assertion correctly fails"
 fi
 
 # ── 8. day2_remove ────────────────────────────────────────────────────────
@@ -470,12 +484,24 @@ else
   gauntlet_stage day2_count pass "a two-instance count ConfigMap added beside the published root (the estate's own shape has no count block): scaling 2 to 1 destroyed exactly shard-1, planned at the sweep's orphan address $C_ADDR since the label carries no index (shard-0 untouched, both read with kubectl); back to 2 created exactly kubernetes_config_map_v1.shard[1] under the same name; the next plan is empty; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
 fi
 
+# ── 9b. day2_replace: a create_before_destroy rename ───────────────────
+#
+# #1541, switched on by #1641: a Kubernetes name is unique within its
+# namespace, so the replacement create_before_destroy is used for here is
+# a rename, and since #1640 it plans as stock's replace. The stage body is
+# shared by the four kind estates: live/e2e/lib/gauntlet.sh's
+# gauntlet_kind_day2_replace, which adds its own block and removes it again.
+gauntlet_begin_stage day2_replace
+log "=== 9b. day2_replace: a content-hashed ConfigMap renamed under create_before_destroy ==="
+gauntlet_kind_day2_replace "$ADOPTED/terraform" "$ORACLE/terraform" "$NS"
+
 # ── 10. day2_crash ────────────────────────────────────────────────────────
 #
 # day2_crash on the kind substrate (#1110, part 4). The stage's own window
 # on AWS - after a create_before_destroy create, before the paired destroy -
 # cannot exist here: a name is unique in its namespace, so nothing is
-# created before the object it replaces is gone (day2_replace's n/a). The
+# created before the object it replaces is gone, except by a rename, which
+# day2_replace measures and this stage does not interrupt (#1683). The
 # Kubernetes window with the same question in it is an apply that creates
 # several objects. Kill it after one object exists and before the next
 # does, and the next plan has to propose exactly the remainder, with the
@@ -489,6 +515,14 @@ fi
 # window is closed by the graph, not by timing. The oracle is stock on B,
 # walked into the same position - crash-first alone - and asked for the
 # remainder.
+#
+# The pair's first object is a kubernetes_secret_v1, which is #1235: the
+# stage measures what the record store contributes to recovering a
+# half-applied graph, and the ConfigMap this pair used to start with is
+# the one type in the lane's surface that records nothing at all, so the
+# reading could only ever be a count that did not move (25 -> 25). A
+# Secret records residue.wait_for_service_account_token, the applied value
+# of a config-only argument the API server never returns.
 gauntlet_begin_stage day2_crash
 log "=== 10. day2_crash: SIGTERM between the create of one object and the create of the next ==="
 write_crash_pair() { # $1 root, $2 = "first" for crash-first alone
@@ -496,7 +530,9 @@ write_crash_pair() { # $1 root, $2 = "first" for crash-first alone
 # Added by live/e2e/corpus-quickpizza/run.sh for the gauntlet's day2_crash
 # stage: the published root declares no pair of objects with an edge
 # between them that an interrupted apply could be caught halfway through.
-resource "kubernetes_config_map_v1" "crash_first" {
+# The first is a Secret and not a ConfigMap because a
+# kubernetes_config_map(_v1) records nothing (#1188, #1235).
+resource "kubernetes_secret_v1" "crash_first" {
   metadata {
     name      = "crash-first"
     namespace = kubernetes_namespace_v1.quickpizza.id
@@ -512,7 +548,7 @@ resource "kubernetes_config_map_v1" "crash_second" {
     name      = "crash-second"
     namespace = kubernetes_namespace_v1.quickpizza.id
   }
-  data = { after = kubernetes_config_map_v1.crash_first.metadata[0].name }
+  data = { after = kubernetes_secret_v1.crash_first.metadata[0].name }
 }
 EOF
 }
@@ -533,26 +569,35 @@ write_crash_pair "$ADOPTED"
 X_PLAN="$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$X_PLAN" | tail -20; fail "the pre-crash plan failed"; }
 grep -qF "Plan: 2 to add, 0 to change, 0 to destroy." <<< "$X_PLAN" \
   || { printf '%s\n' "$X_PLAN" | tail -20; fail "the pre-crash plan is not exactly two adds - there is no two-object apply to interrupt"; }
-X_RECORDS_BEFORE="$(gauntlet_record_count "$ADOPTED/terraform/.tofu-records")"
+X_RECORDS_BEFORE="$(gauntlet_record_envelope_count "$ADOPTED/terraform/.tofu-records")"
 
 # The interrupt is delivered by the engine itself, so this runs in the
 # plain foreground: no background process, no output tailing, no poll loop.
 # A non-zero exit is the NORMAL outcome - the process was killed.
 X_OUT="$( cd "$ADOPTED/terraform" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" \
-  TOFU_E2E_APPLY_RESOURCE_INTERRUPT="kubernetes_config_map_v1.crash_first" \
+  TOFU_E2E_APPLY_RESOURCE_INTERRUPT="kubernetes_secret_v1.crash_first" \
   "$TOFU_CRASH" apply -input=false -auto-approve -no-color -parallelism=1 2>&1 )"; X_RC=$?
 printf '%s\n' "$X_OUT" > "$WORK/day2_crash.log"
 log "  interrupted apply exited $X_RC (a genuine crash is not expected to exit 0)"
 [ "$X_RC" -ne 0 ] || { printf '%s\n' "$X_OUT" | tail -20; fail "the interrupted apply exited 0 - the engine's self-signal never landed, so nothing was interrupted and this stage would measure a clean apply"; }
-exists_a configmap crash-first || { printf '%s\n' "$X_OUT" | tail -20; fail "crash-first does not exist after the interrupted apply - the kill landed before the create committed, so there is no crash window to recover from"; }
+exists_a secret crash-first || { printf '%s\n' "$X_OUT" | tail -20; fail "crash-first does not exist after the interrupted apply - the kill landed before the create committed, so there is no crash window to recover from"; }
 exists_a configmap crash-second && { printf '%s\n' "$X_OUT" | tail -20; fail "crash-second exists after the interrupted apply - the kill landed after both creates, so there is no remainder to propose"; }
 # The selector alone, never a selector next to a resource name: kubectl
 # refuses that combination outright, which would read as an unlabelled
 # object.
-kca get configmap -n "$NS" -l "tofu-estate=$ESTATE" -o name 2>/dev/null | grep -qx "configmap/crash-first" \
+kca get secret -n "$NS" -l "tofu-estate=$ESTATE" -o name 2>/dev/null | grep -qx "secret/crash-first" \
   || fail "crash-first was created by the interrupted apply but does not come back under tofu-estate=$ESTATE - the marker the rerun is supposed to find is not there"
-X_RECORDS_AFTER="$(gauntlet_record_count "$ADOPTED/terraform/.tofu-records")"
-log "  crash-first exists and is labelled; crash-second does not exist; record files $X_RECORDS_BEFORE -> $X_RECORDS_AFTER"
+X_RECORDS_AFTER="$(gauntlet_record_envelope_count "$ADOPTED/terraform/.tofu-records")"
+log "  crash-first exists and is labelled; crash-second does not exist; records $X_RECORDS_BEFORE -> $X_RECORDS_AFTER"
+
+# What the interrupted apply actually wrote, read off the store by the
+# envelope's own address rather than counted (#1235).
+X_REC="$(gauntlet_record_file "$ADOPTED/terraform/.tofu-records" "kubernetes_secret_v1.crash_first")"
+[ -n "$X_REC" ] || fail "the interrupted apply created crash-first but wrote no record for kubernetes_secret_v1.crash_first (records $X_RECORDS_BEFORE -> $X_RECORDS_AFTER); there is nothing for the recovery to read back and this stage cannot measure what the record contributes"
+[ "$X_RECORDS_AFTER" = "$((X_RECORDS_BEFORE + 1))" ] || fail "records went $X_RECORDS_BEFORE -> $X_RECORDS_AFTER across the interrupted apply, want exactly one more - the apply is supposed to have written the record for the one object it did create, and nothing else"
+X_RESIDUE="$(gauntlet_record_residue "$X_REC" | tr '\n' ' ' | sed 's/ $//')"
+[ "$X_RESIDUE" = "wait_for_service_account_token" ] || fail "the record the interrupted apply wrote for kubernetes_secret_v1.crash_first carries residue [${X_RESIDUE:-none}], want wait_for_service_account_token - the crash pair's first object has to be a type that records something irrecoverable, or this stage measures the record's contribution with an object that has none (#1188, #1235)"
+log "  the interrupted apply wrote one record for kubernetes_secret_v1.crash_first, carrying residue $X_RESIDUE"
 
 if [ "${BREAK_CRASH_UNBOUND:-}" = "1" ]; then
   kca label configmap crash-first -n "$NS" tofu-estate- >/dev/null 2>&1 || fail "BREAK_CRASH_UNBOUND: could not strip the label off crash-first"
@@ -587,22 +632,49 @@ elif [ "${BREAK_CRASH_UNBOUND:-}" = "1" ]; then
   fi
   log "  BREAK_CRASH_UNBOUND=1: caught - with the label stripped the recovery check fails ($R_LINE)"
   gauntlet_stage day2_crash pass "BREAK_CRASH_UNBOUND=1 control: with the tofu-estate label stripped off the object the interrupted apply created - the unrecovered run this stage exists to catch - the recovery check correctly fails to hold ($R_LINE); the real check is skipped"
-  kca delete configmap crash-first -n "$NS" >/dev/null 2>&1 || fail "BREAK_CRASH_UNBOUND: could not delete the unlabelled crash-first afterwards"
+  kca delete secret crash-first -n "$NS" >/dev/null 2>&1 || fail "BREAK_CRASH_UNBOUND: could not delete the unlabelled crash-first afterwards"
   ( chdf_a "$ADOPTED" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_CRASH_UNBOUND: the apply after the cleanup failed"
 else
   if ! recovered; then
     printf '%s\n' "$R_PLAN" | grep -E '^Plan:|^No changes|will be' | head -20
-    gauntlet_stage day2_crash fail "the plan after a real interrupt between the create of kubernetes_config_map_v1.crash_first and the create of kubernetes_config_map_v1.crash_second is not exactly the remainder: ${R_LINE:-no plan line} (exit $R_RC). crash-first exists on the cluster carrying tofu-estate=$ESTATE and crash-second does not, both read with kubectl; stock, walked into the same position on the oracle cluster, plans exactly one add (crash_second). Record files went $X_RECORDS_BEFORE -> $X_RECORDS_AFTER across the crashed apply"
+    gauntlet_stage day2_crash fail "the plan after a real interrupt between the create of kubernetes_config_map_v1.crash_first and the create of kubernetes_config_map_v1.crash_second is not exactly the remainder: ${R_LINE:-no plan line} (exit $R_RC). crash-first exists on the cluster carrying tofu-estate=$ESTATE and crash-second does not, both read with kubectl; stock, walked into the same position on the oracle cluster, plans exactly one add (crash_second). The interrupted apply wrote one record for kubernetes_secret_v1.crash_first carrying residue ${X_RESIDUE:-none} (records $X_RECORDS_BEFORE -> $X_RECORDS_AFTER)"
   else
+    # ── the record's contribution, measured rather than counted (#1235) ──
+    #
+    # Take the one record the interrupted apply wrote out of the store,
+    # replan from the identical position, and the difference between the
+    # two plans IS what the record carried. Put it back and the difference
+    # has to go away. Neither plan can pass vacuously: what is asserted is
+    # that they differ, and in which direction.
+    mv "$X_REC" "$WORK/crash_first.record" || fail "could not move the crash record aside"
+    N_PLAN="$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)"; N_RC=$?
+    N_LINE="$(grep -E '^Plan:|^No changes' <<< "$N_PLAN" | head -1 | sed 's/\.$//')"
+    [ "$N_RC" -eq 0 ] || { printf '%s\n' "$N_PLAN" | tail -20; fail "the replan with the crash record taken out of the store exited $N_RC"; }
+    grep -qF "Plan: 1 to add, 1 to change, 0 to destroy." <<< "$N_PLAN" \
+      || { printf '%s\n' "$N_PLAN" | grep -E '^Plan:|will be|^ +[+~-] ' | head -20
+           fail "with the one record the interrupted apply wrote taken out of the store, the recovery plan is $N_LINE, not the remainder plus one in-place update - so the record contributed nothing this stage can read, and its file count is not evidence of anything"; }
+    grep -qE '^[[:space:]]+\+ wait_for_service_account_token +=' <<< "$N_PLAN" \
+      || { printf '%s\n' "$N_PLAN" | grep -E 'will be|^ +[+~-] ' | head -20
+           fail "the extra in-place update the missing record produces does not propose wait_for_service_account_token back - that config-only argument's applied value is the residue the record is supposed to be carrying"; }
+    mv "$WORK/crash_first.record" "$X_REC" || fail "could not put the crash record back"
+    B_PLAN="$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)"
+    grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$B_PLAN" \
+      || { printf '%s\n' "$B_PLAN" | grep -E '^Plan:|will be' | head -10
+           fail "putting the record back does not restore the exact-remainder plan, so the difference measured above is not the record's"; }
+    log "  the record's contribution: with it, $R_LINE; without it, $N_LINE (+ wait_for_service_account_token on crash_first); with it again, the remainder"
+
     R_APPLY="$(chdf_a "$ADOPTED" apply -auto-approve -input=false -no-color 2>&1)"; R_APPLY_RC=$?
     [ "$R_APPLY_RC" -eq 0 ] || { printf '%s\n' "$R_APPLY" | tail -20; fail "the recovery apply exited $R_APPLY_RC"; }
     grep -qF "Apply complete! Resources: 1 added, 0 changed, 0 destroyed" <<< "$R_APPLY" \
       || { printf '%s\n' "$R_APPLY" | tail -5; fail "the recovery apply did not add exactly the one remaining object"; }
     exists_a configmap crash-second || fail "crash-second does not exist after the recovery apply"
-    exists_a configmap crash-first || fail "crash-first is gone after the recovery apply - the recovery replaced the object the crash created instead of binding it"
-    R_REPLAN="$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)" || fail "the replan after the recovery failed"
+    exists_a secret crash-first || fail "crash-first is gone after the recovery apply - the recovery replaced the object the crash created instead of binding it"
+    R_REPLAN="$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)"; R_REPLAN_RC=$?
+    [ "$R_REPLAN_RC" -eq 0 ] || { printf '%s\n' "$R_REPLAN" | tail -30
+      R_ERR="$(grep -E '^Error' <<< "$R_REPLAN" | head -1)"
+      fail "the replan after the recovery exited $R_REPLAN_RC: ${R_ERR:-no Error: line; the last 30 lines of the plan are above this verdict in the log}"; }
     grep -q "No changes." <<< "$R_REPLAN" || { printf '%s\n' "$R_REPLAN" | tail -20; fail "the replan after the recovery is not empty"; }
-    gauntlet_stage day2_crash pass "a pair of ConfigMaps added beside the published root (the estate's own shape has no two objects with an edge between them to be caught halfway through): the apply creating both was interrupted by a real SIGTERM (exit $X_RC), delivered by the engine itself inside the -parallelism=1 graph walker the instant kubernetes_config_map_v1.crash_first's create committed (internal/command/apply_e2etesting_crash.go); crash_second reads crash_first's name, so the walker cannot have reached it - kubectl confirms crash-first exists carrying tofu-estate=$ESTATE and crash-second does not. The next plan proposed exactly the remainder ($R_LINE, kubernetes_config_map_v1.crash_second created) and proposed nothing at all for crash-first, which it bound by its label and its namespace and name - not a second create the API server would refuse, not an orphan sweep - matching stock's own plan from the same position on the oracle cluster; the recovery apply added exactly one object, both read back with kubectl, and the plan after it is empty. Record files went $X_RECORDS_BEFORE -> $X_RECORDS_AFTER across the crashed apply. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips the label off crash-first and the same recovery check correctly fails"
+    gauntlet_stage day2_crash pass "a pair of ConfigMaps added beside the published root (the estate's own shape has no two objects with an edge between them to be caught halfway through): the apply creating both was interrupted by a real SIGTERM (exit $X_RC), delivered by the engine itself inside the -parallelism=1 graph walker the instant kubernetes_config_map_v1.crash_first's create committed (internal/command/apply_e2etesting_crash.go); crash_second reads crash_first's name, so the walker cannot have reached it - kubectl confirms crash-first exists carrying tofu-estate=$ESTATE and crash-second does not. The next plan proposed exactly the remainder ($R_LINE, kubernetes_config_map_v1.crash_second created) and proposed nothing at all for crash-first, which it bound by its label and its namespace and name - not a second create the API server would refuse, not an orphan sweep - matching stock's own plan from the same position on the oracle cluster; the recovery apply added exactly one object, both read back with kubectl, and the plan after it is empty. The record store's contribution is read, not counted: the interrupted apply wrote exactly one record (files $X_RECORDS_BEFORE -> $X_RECORDS_AFTER) for kubernetes_secret_v1.crash_first carrying residue $X_RESIDUE, and taking that one file out of the store and replanning from the identical position turns the recovery plan from $R_LINE into $N_LINE, proposing wait_for_service_account_token back on the object the crash left behind; putting it back restores the exact-remainder plan. The pair's first object is a Secret and not a ConfigMap for that reason (#1235): a kubernetes_config_map(_v1) records nothing, which is the whole of the 25 -> 25 #1188 measured here. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips the label off crash-first and the same recovery check correctly fails"
   fi
 fi
 gauntlet_end_stage
@@ -630,10 +702,37 @@ G_OUT="$(chdf_a "$GREEN" apply -auto-approve -input=false -no-color 2>&1)" || { 
 grep -qF "Apply complete! Resources: 26 added, 0 changed, 0 destroyed" <<< "$G_OUT" || fail "greenfield apply did not add exactly 26 objects"
 [ ! -f "$GREEN/terraform/terraform.tfstate" ] || fail "a terraform.tfstate appeared after a live-block apply"
 [ "$(count_a)" = "26" ] || fail "$(count_a) object(s) carry tofu-estate=$ESTATE after the greenfield apply, want 26"
-G_RECORDS="$(gauntlet_record_count "$GREEN/terraform/.tofu-records")"
+G_RECORDS="$(gauntlet_record_envelope_count "$GREEN/terraform/.tofu-records")"
 grep -q "No changes." <<< "$(chdf_a "$GREEN" plan -input=false -no-color 2>&1)" || fail "the greenfield replan is not empty"
 rm -f "$GREEN/terraform/.terraform/choudoufu-cache.tfstate"
 grep -q "No changes." <<< "$(chdf_a "$GREEN" plan -input=false -no-color 2>&1)" || fail "the greenfield replan without the cache is not empty"
+
+# ── the lost-store control (#1235) ───────────────────────────────────────
+#
+# Six AWS estates delete the local record store here and require the next
+# plan to come back empty (reference-ec2-vpc/run.sh's A4); no Kubernetes
+# estate took the reading at all. The answer is not the same on this
+# substrate: identity re-derives from the tofu-estate label plus the
+# configuration's own namespace and name, so nothing is created and
+# nothing is swept, but the residue is gone and the plan proposes it back
+# as in-place updates. A lost record store costs one converging apply
+# here, not an object (#1188). The "nothing is created" half is the same
+# predicate BREAK_CRASH_UNBOUND proves red in section 10 of this script.
+rm -rf "$GREEN/terraform/.tofu-records" "$GREEN/terraform/.terraform/choudoufu-cache.tfstate"
+L_PLAN="$(chdf_a "$GREEN" plan -input=false -no-color 2>&1)"; L_RC=$?
+L_LINE="$(grep -E '^Plan:|^No changes' <<< "$L_PLAN" | head -1 | sed 's/\.$//')"
+[ "$L_RC" -eq 0 ] || { printf '%s\n' "$L_PLAN" | tail -20; fail "the plan with no record store at all exited $L_RC"; }
+L_GONE="$(grep -cE '^[[:space:]]*# .* will be (created|destroyed|replaced)' <<< "$L_PLAN")"
+[ "$L_GONE" = "0" ] || { printf '%s\n' "$L_PLAN" | grep -E 'will be' | head -20
+  fail "with the whole record store deleted the plan proposes $L_GONE create/destroy/replace(s) ($L_LINE) - the objects are not being found by their label and their namespace and name alone, so a lost store costs objects and not just an apply"; }
+L_CHANGES="$(grep -cE '^[[:space:]]*# .* will be updated in-place' <<< "$L_PLAN")"
+L_RESIDUE="$(grep -oE '^[[:space:]]+\+ [a-z_]+ +=' <<< "$L_PLAN" | sed -E 's/^[[:space:]]*\+ //; s/ *=$//' | sort -u | tr '\n' ' ' | sed 's/ $//')"
+L_APPLY="$(chdf_a "$GREEN" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$L_APPLY" | tail -20; fail "the apply that should reconverge after a lost record store failed"; }
+grep -qF "Apply complete! Resources: 0 added, $L_CHANGES changed, 0 destroyed" <<< "$L_APPLY" \
+  || { printf '%s\n' "$L_APPLY" | tail -5; fail "the reconverging apply after a lost record store is not exactly the $L_CHANGES in-place update(s) the plan proposed"; }
+grep -q "No changes." <<< "$(chdf_a "$GREEN" plan -input=false -no-color 2>&1)" || fail "the plan after the reconverging apply is not empty - a lost record store costs more than the one apply #1188 measured"
+[ "$(count_a)" = "26" ] || fail "$(count_a) object(s) carry tofu-estate=$ESTATE after the lost-store reconvergence, want 26"
+log "  lost store: $L_LINE, every object still bound; one apply reconverged and the plan after it is empty"
 DROP=""; [ "${BREAK:-}" = "1" ] && DROP="statefulset/quickpizza-db"
 inventory "$KCA" "$DROP" > "$WORK/inventory.green.json" || fail "could not read the greenfield inventory"
 if [ "${BREAK:-}" = "1" ]; then
@@ -644,7 +743,7 @@ else
   if ! diff -u "$WORK/inventory.stock.json" "$WORK/inventory.green.json"; then
     fail "the greenfield inventory differs from stock's cold-deploy inventory (diff above)"
   fi
-  gauntlet_stage greenfield pass "the published root applied fresh with a live block and no terraform.tfstate: 26 objects, every one labelled tofu-estate=$ESTATE (kubectl, eight kinds); the record store held $G_RECORDS file(s); replanned empty with and without the cache; the cluster's inventory (ConfigMap and Secret keys, every Service's ports and selector, every Deployment's replicas, containers and service account, the StatefulSet's containers and claim, the ClusterRoleBinding's role and subjects, the namespace) matches stock's cold deploy on the same cluster object by object, labels never compared. BREAK=1 drops the StatefulSet from the expected inventory and the match correctly fails"
+  gauntlet_stage greenfield pass "the published root applied fresh with a live block and no terraform.tfstate: 26 objects, every one labelled tofu-estate=$ESTATE (kubectl, eight kinds); the record store held $G_RECORDS record envelope(s) - envelopes counted by their own address field, not files, so guided discovery's hint at tofu-hints/$ESTATE and any root output in the same store are not mistaken for records (#1291); replanned empty with and without the cache. Deleting the whole record store and the cache and replanning - the reading six AWS estates take here and no Kubernetes estate took - proposed $L_LINE: nothing created, nothing destroyed, nothing swept as an orphan, every object still bound by its label and its namespace and name, and $L_CHANGES in-place update(s) putting back the residue the store held (${L_RESIDUE:-none}); one apply reconverged and the plan after it is empty, so a lost store costs an apply here and not an object (#1188, #1235). The cluster's inventory (ConfigMap and Secret keys, every Service's ports and selector, every Deployment's replicas, containers and service account, the StatefulSet's containers and claim, the ClusterRoleBinding's role and subjects, the namespace) matches stock's cold deploy on the same cluster object by object, labels never compared. BREAK=1 drops the StatefulSet from the expected inventory and the match correctly fails"
 fi
 ( chdf_a "$GREEN" apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "greenfield teardown failed"
 

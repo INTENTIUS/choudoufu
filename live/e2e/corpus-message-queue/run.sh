@@ -118,7 +118,7 @@ REGION="eu-west-1"
 ACCOUNT="000000000000"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME"
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -226,7 +226,7 @@ log "  all four applied and verified in the copied files"
 
 # ── 3. floci ────────────────────────────────────────────────────────────────
 log "=== 3. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -295,9 +295,9 @@ log "  all 28 queues live, read back through the AWS CLI"
 # Every object here is taggable, so all 29 carry markers and the "identity
 # with no carrier" group is empty for this estate. Asserted as a number: a
 # dead tagging index would otherwise read as a passing run.
-MARKED="$(awsl resourcegroupstaggingapi get-resources \
+MARKED="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  2>/dev/null || echo 0)"
 [ "$MARKED" = "29" ] \
   || fail "expected 29 objects carrying tofu-estate=$ESTATE in the tagging index, got $MARKED"
 log "  29 of 29 objects carry markers; nothing here relies on a carrier-free identity"

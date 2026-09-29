@@ -15,8 +15,11 @@
 //	go run ./tools/gauntlet import-legacy          # one-time seed from live/corpus-crossing-manifest.json
 //	go run ./tools/gauntlet snapshot <version>     # copy the artifact to live/history/<version>.json
 //	go run ./tools/gauntlet notes <old.json> <new.json> # release-highlights markdown from a snapshot diff
-//	go run ./tools/gauntlet check                  # exit 1 if a rendered file is stale
+//	go run ./tools/gauntlet check                  # exit 1 if a rendered file is stale; always prints which rows predate their own estate script (#1264, reported, never fatal)
+//	go run ./tools/gauntlet estates [-set core|all] [-json] [name...] # the estates one CI run measures, from the manifest: the matrix the board is sharded over (#1550)
+//	go run ./tools/gauntlet combine-shards -shards <dir> [-set core|all | -estates 'a b'] [-kind-image DIGEST] # fold one shard-per-estate CI run back into one live/gauntlet.json (#1550)
 //	go run ./tools/gauntlet merge-artifact <base> <ours> <theirs> # row-granular artifact merge across sibling estate PRs (#488)
+//	go run ./tools/gauntlet merge-rendered <path> <ours-file> # git merge driver for the rendered files: keep ours whole, re-render after (#1308)
 //	go run ./tools/gauntlet scale-backfill [rev...]  # regenerate live/gauntlet-scale.json (#1051) from live/gauntlet.json at HEAD and, optionally, past revisions
 //	go run ./tools/gauntlet scale-import-slice [-estate name] <slice_out.json> # merge a slicing-bench SLICE_OUT report's plan_calls (the CLI cold/warm plan pair) and audit_calls (the CollectUnclaimed sweep) into live/gauntlet-scale.json (#1053)
 //	go run ./tools/gauntlet scale-patch-seconds -estate E -target T -scale N [-stage id=seconds]... [-note text] [-accounting-inconsistent] # patch an existing ScaleRecord's stage wall-durations from a source scale-backfill cannot read, or name a record's own arithmetic as a known inconsistency (#1051/#1053/#1069)
@@ -29,6 +32,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -54,6 +58,8 @@ func main() {
 		fatalIf(cmdBehaviors(root, os.Args[2:]))
 	case "live-cert":
 		fatalIf(cmdLiveCert(root, os.Args[2:]))
+	case "live-cert-state":
+		fatalIf(cmdLiveCertState(root, os.Args[2:], os.Stdout))
 	case "add":
 		fatalIf(cmdAdd(root, os.Args[2:]))
 	case "import-legacy":
@@ -65,6 +71,8 @@ func main() {
 		fatalIf(cmdSnapshot(root, os.Args[2]))
 	case "notes":
 		fatalIf(cmdNotes(root, os.Args[2:]))
+	case "merge-rendered":
+		fatalIf(cmdMergeRendered(os.Args[2:], os.Stdout))
 	case "merge-artifact":
 		fatalIf(cmdMergeArtifact(root, os.Args[2:]))
 	case "scale-backfill":
@@ -75,11 +83,22 @@ func main() {
 		fatalIf(cmdScalePatchSeconds(root, os.Args[2:]))
 	case "backfill-stage-provenance":
 		fatalIf(cmdBackfillStageProvenance(root, os.Args[2:], os.Stdout))
+	case "estates":
+		fatalIf(cmdEstates(root, os.Args[2:], os.Stdout))
+	case "combine-shards":
+		fatalIf(cmdCombineShards(root, os.Args[2:], os.Stdout))
 	case "next":
 		fatalIf(cmdNext(root, os.Args[2:]))
 	case "check":
-		stale, err := StaleFiles(root)
+		fatalIf(printScriptStaleness(root, os.Stdout))
+		stale, scriptOnly, err := StaleFilesReport(root)
 		fatalIf(err)
+		if len(scriptOnly) > 0 {
+			// Not a failure, by #1264's ruling: the committed board's
+			// script-staleness snapshot is refreshed by whatever renders
+			// next, and the lines printed above are the live answer.
+			fmt.Printf("\nthe committed board's script-staleness snapshot is behind this checkout (%s); `go run ./tools/gauntlet render` refreshes it\n", strings.Join(scriptOnly, ", "))
+		}
 		if len(stale) > 0 {
 			fmt.Fprintf(os.Stderr, "stale rendered files (run `go run ./tools/gauntlet render`):\n  %s\n", strings.Join(stale, "\n  "))
 			os.Exit(1)
@@ -92,7 +111,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | merge-artifact <base> <ours> <theirs> | scale-backfill [rev...] | scale-import-slice [-estate name] <slice_out.json> | scale-patch-seconds -estate E -target T -scale N [-stage id=seconds]... [-note text] [-accounting-inconsistent] | backfill-stage-provenance [-n] | check")
+	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | live-cert-state <estate> [-commit SHA] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | estates [-set core|all] [-json] [name...] | combine-shards -shards <dir> [-set core|all] [-estates 'a b'] [-commit SHA] [-emulator DIGEST] [-kind-image DIGEST] [-out path] | merge-artifact <base> <ours> <theirs> | merge-rendered <path> <ours-file> | scale-backfill [rev...] | scale-import-slice [-estate name] <slice_out.json> | scale-patch-seconds -estate E -target T -scale N [-stage id=seconds]... [-note text] [-accounting-inconsistent] | backfill-stage-provenance [-n] | check")
 }
 
 // cmdNext prints the next unit(s) of work, deterministically, from the
@@ -237,6 +256,20 @@ func emulatorPin(root string) string {
 	return strings.TrimSpace(string(b))
 }
 
+// kindNodeImagePin reads live/kind-node-image (issue #1594), the kind
+// substrate's counterpart to emulatorPin above: the digest a kind cluster
+// is actually created from, rather than whichever node image the kind
+// binary on PATH happens to default to. A missing or unreadable file reads
+// as the zero value, the same graceful-empty behaviour emulatorPin already
+// has for a missing live/floci-image.
+func kindNodeImagePin(root string) string {
+	b, err := os.ReadFile(filepath.Join(root, "live", "kind-node-image"))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
 // loadAll loads manifest and artifact and rebuilds the derived parts,
 // including the #522 behaviors-proven metric from live/behaviors.json (a
 // missing file loads as an empty index, same rule as LoadArtifact).
@@ -253,7 +286,7 @@ func loadAll(root string) (*Manifest, *Artifact, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root))
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root))
 	return m, a, nil
 }
 
@@ -270,7 +303,7 @@ func cmdRender(root string) error {
 	if err != nil {
 		return err
 	}
-	written, err := Render(root, m, a, tt, scale)
+	written, err := Render(root, m, a, tt, scale, AllScriptStaleness(root, a))
 	if err != nil {
 		return err
 	}
@@ -321,7 +354,7 @@ func cmdRun(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root))
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root))
 
 	// The regression ratchet (issue #553): a stage this run reports as
 	// anything other than pass, for an estate/stage the committed artifact
@@ -345,7 +378,7 @@ func cmdRun(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := Render(root, m, a, tt, scale); err != nil {
+	if _, err := Render(root, m, a, tt, scale, AllScriptStaleness(root, a)); err != nil {
 		return err
 	}
 	core, all := a.Sets["core"], a.Sets["all"]
@@ -416,7 +449,7 @@ func cmdBehaviors(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root))
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root))
 	tt, err := LoadTypeIndexTotals(root)
 	if err != nil {
 		return err
@@ -425,7 +458,7 @@ func cmdBehaviors(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := Render(root, m, a, tt, scale); err != nil {
+	if _, err := Render(root, m, a, tt, scale, AllScriptStaleness(root, a)); err != nil {
 		return err
 	}
 	selected := len(fs.Args())
@@ -500,7 +533,13 @@ func cmdLiveCert(root string, args []string) error {
 			fmt.Printf("live-cert %s: stage=%s verdict=%s\n", estate, id, v)
 		}
 	}
-	fmt.Printf("live-cert %s: target=%s exit=%d clear=%v\n", estate, *target, exit, r.Clear)
+	// state= comes before exit= on purpose (#1324). The exit code was the
+	// only vocabulary this line had, and 143 from a signalled run read
+	// exactly like a run that ended: "rc=143 from the wrapper is
+	// indistinguishable from success" is the issue's own summary of the
+	// defect. Anything grepping `^live-cert ` out of the run log - the
+	// workflow's own pr-body.md step does - now gets the state too.
+	fmt.Printf("live-cert %s: target=%s state=%s exit=%d clear=%v\n", estate, *target, r.State, exit, r.Clear)
 	if res != nil && res.Refusal != nil {
 		fmt.Printf("live-cert %s: REFUSED - %s\n", estate, res.Refusal.Reason)
 		if res.Refusal.Needed != nil {
@@ -508,7 +547,7 @@ func cmdLiveCert(root string, args []string) error {
 		}
 	}
 
-	writes := PlanLiveCertWrites(*target, res)
+	writes := PlanLiveCertWrites(*target, res, r.State)
 	if writes.Why != "" {
 		fmt.Printf("live-cert %s: %s\n", estate, writes.Why)
 	}
@@ -559,11 +598,25 @@ func cmdLiveCert(root string, args []string) error {
 	if res != nil {
 		scaleRec = scaleRec.WithRefusal(res.Refusal)
 	}
-	plan := planLiveCertScaleRow(estate, writes.ScaleRecord, scaleRec)
+	// Which home a scale-less refusal has depends on whether the estate is
+	// run at a size at all, and only the estate can say (#1233). Asked
+	// only when it matters: every other run records the same way it did
+	// before this existed, and a live-cert estate the manifest does not
+	// carry keeps working right up until one of its runs refuses without
+	// naming a rung, at which point it has to be declared one way or the
+	// other rather than guessed.
+	laddered := false
+	if scaleRec.IsRefusal() && scaleRec.Scale == 0 {
+		var ladderErr error
+		if laddered, ladderErr = EstateHasScaleLadder(m, estate); ladderErr != nil {
+			return fmt.Errorf("live-cert %s: this run REFUSED and its refusal names no scale, so where it is recorded depends on whether the estate has a scale ladder - and nothing says: %w", estate, ladderErr)
+		}
+	}
+	plan := planLiveCertScaleRow(estate, writes.ScaleRecord, scaleRec, laddered)
 	scaleErr, scaleNote := plan.Err, plan.Note
 	if plan.Write {
 		var written ScaleRecord
-		written, scaleErr = saveLiveCertScaleRecord(root, scaleRec)
+		written, scaleErr = saveLiveCertRecord(root, plan, scaleRec)
 		if scaleErr == nil {
 			scaleNote = describeScaleWrite(estate, written)
 		}
@@ -585,7 +638,7 @@ func cmdLiveCert(root string, args []string) error {
 	if err != nil {
 		return errors.Join(scaleErr, err)
 	}
-	if _, err := Render(root, m, a, tt, scale); err != nil {
+	if _, err := Render(root, m, a, tt, scale, AllScriptStaleness(root, a)); err != nil {
 		return errors.Join(scaleErr, err)
 	}
 	if scaleErr != nil {
@@ -611,14 +664,25 @@ func cmdLiveCert(root string, args []string) error {
 // cannot be reached through cmdLiveCert without a whole checkout.
 type scaleRowPlan struct {
 	Write bool
-	Note  string
-	Err   error
+	// EstateLevel picks which home Write means. False is the ladder,
+	// live/gauntlet-scale.json's `records`, keyed by (estate, target,
+	// scale). True is the estate-level refusal shelf, its `refusals`,
+	// keyed by (estate, target) - only ever a refusal, and only ever for
+	// an estate that declares no ladder (#1233).
+	EstateLevel bool
+	Note        string
+	Err         error
 }
 
 // planLiveCertScaleRow decides between #1149's rule (a scale row that does
 // not get written fails the run) and its one legitimate exception (a
 // certification that was never a scale measurement).
-func planLiveCertScaleRow(estate string, writesScaleRecord bool, rec ScaleRecord) scaleRowPlan {
+//
+// laddered is the estate's own declaration (Estate.ScaleLadder, read
+// through EstateHasScaleLadder), never an inference from what this run
+// happened to say - see that field's doc comment. It is what tells a
+// refusal that forgot its rung from a refusal that has no rung to name.
+func planLiveCertScaleRow(estate string, writesScaleRecord bool, rec ScaleRecord, laddered bool) scaleRowPlan {
 	switch {
 	case !writesScaleRecord:
 		// Not reachable from cmdLiveCert, which returns early when a run
@@ -626,20 +690,32 @@ func planLiveCertScaleRow(estate string, writesScaleRecord bool, rec ScaleRecord
 		// change to PlanLiveCertWrites cannot silently start writing a
 		// scale row for a run it decided records nothing.
 		return scaleRowPlan{Note: fmt.Sprintf("live-cert %s: this run records no scale row\n", estate)}
+	case rec.IsRefusal() && rec.Scale == 0 && !laddered:
+		// The estate declares no ladder, so this refusal has no rung to
+		// name and never could have - it is an estate-level refusal, and
+		// it goes on the shelf beside the ladder rather than on it
+		// (#1233). The run's only record still gets written, which is what
+		// #1231 requires; live_cert still holds only certifications, which
+		// is what #1151 requires.
+		return scaleRowPlan{Write: true, EstateLevel: true}
 	case rec.IsRefusal() && rec.Scale == 0:
-		// A refusal with no scale has nowhere to go, and it is the only
-		// evidence this run produced - PlanLiveCertWrites keeps a refusal
-		// out of live_cert by design (#1151), so there is no second half to
-		// fall back on. A row keyed by scale needs a scale; inventing one,
-		// or writing it at scale 0, would put it on a rung nobody ran.
+		// The estate DOES declare a ladder, so this refusal declined a rung
+		// and did not say which. It is the only evidence this run produced
+		// - PlanLiveCertWrites keeps a refusal out of live_cert by design
+		// (#1151), so there is no second half to fall back on. A row keyed
+		// by scale needs a scale; inventing one, or writing it at scale 0,
+		// would put it on a rung nobody ran, and the estate-level shelf
+		// above is not a home for it either: this estate's refusals are
+		// about sizes, and shelving one would hide exactly which size was
+		// declined.
 		//
-		// This is a FAILURE, and the case below it is not, and the line
-		// between them is what #1149's rule turns on: below is a
+		// This is a FAILURE, and the two cases around it are not, and the
+		// line between them is what #1149's rule turns on: below is a
 		// certification that was never a scale measurement and has nothing
 		// to add, which is an omission with nothing lost. This is a run
-		// whose entire result is about to vanish into a log. The usual
-		// cause is a gauntlet_refused call that left out its scale.
-		return scaleRowPlan{Err: fmt.Errorf("the refusal names no scale - its `GAUNTLET refused=1` line carried no scale=, so there is no rung on the ladder to record it on. Pass the scale (`gauntlet_refused <scale> ...`); an estate with no ladder at all cannot record a refusal today, which is a gap to file rather than a run to let pass quietly")}
+		// whose entire result is about to vanish into a log. The cause is a
+		// gauntlet_refused call that left out its scale.
+		return scaleRowPlan{Err: fmt.Errorf("the refusal names no scale - its `GAUNTLET refused=1` line carried no scale=, so there is no rung on the ladder to record it on, and %q declares a scale ladder (`scale_ladder` in %s) so its refusals are about a size. Pass the scale this run was going to attempt (`gauntlet_refused <scale> ...`): the rung it declined is the whole point of the record", estate, ManifestPath)}
 	case rec.Scale == 0 && rec.Resources == nil:
 		return scaleRowPlan{Note: fmt.Sprintf("live-cert %s: no scale/resources recognized in this run's own detail text - %s left unchanged, which is expected for a certification that is not a scale measurement\n", estate, ScaleRecordsPath)}
 	default:
@@ -652,20 +728,63 @@ func planLiveCertScaleRow(estate string, writesScaleRecord bool, rec ScaleRecord
 // #1151 is about - what it superseded. Superseding used to be invisible: a
 // scale-50 row measured on 2026-09-15 replaced the 2026-09-11 one with no
 // output saying a row had been replaced at all, in a file
-// site/content/docs/what-you-pay.md quotes by path.
+// live/costs/what-you-pay.md quotes by path.
 func describeScaleWrite(estate string, rec ScaleRecord) string {
 	var b strings.Builder
-	if rec.IsRefusal() {
+	switch {
+	case rec.IsRefusal() && rec.Scale == 0:
+		// Never "at scale=0": this estate has no ladder, and printing a
+		// rung number for a record that is deliberately not on a rung is
+		// the misreading the separate shelf exists to prevent (#1233).
+		fmt.Fprintf(&b, "recorded an ESTATE-LEVEL REFUSAL for %s target=%s (%s, `refusals`): %s\n", estate, rec.Target, ScaleRecordsPath, rec.Refusal.Reason)
+		fmt.Fprintf(&b, "  this estate declares no scale ladder, so the refusal is recorded beside the ladder rather than on a rung; %s keeps its last certification, because a refusal is the absence of one (#1151)\n", ArtifactPath)
+	case rec.IsRefusal():
 		fmt.Fprintf(&b, "recorded a REFUSAL for %s at scale=%d (%s): %s\n", estate, rec.Scale, ScaleRecordsPath, rec.Refusal.Reason)
-	} else {
+	default:
 		fmt.Fprintf(&b, "recorded scale measurement for %s at scale=%d (%s)\n", estate, rec.Scale, ScaleRecordsPath)
 	}
 	if n := len(rec.Supersedes); n > 0 {
 		prev := rec.Supersedes[n-1]
-		fmt.Fprintf(&b, "  it superseded the row measured at %s on %s (outcome %s); the chain is %d row(s) deep and is in the record's own supersedes field\n",
+		// "recorded at", not "measured at": the row this one replaced may
+		// itself have been a refusal, which measured nothing - always so on
+		// the estate-level shelf, where refusals are all there is.
+		fmt.Fprintf(&b, "  it superseded the row recorded at %s on %s (outcome %s); the chain is %d row(s) deep and is in the record's own supersedes field\n",
 			short(prev.Commit), prev.Date, outcomeOrLegacy(ScaleRecord{Outcome: prev.Outcome}), n)
 	}
 	return b.String()
+}
+
+// saveLiveCertRecord writes the record where the plan says it goes: the
+// ladder, or the estate-level refusal shelf beside it (#1233). One function
+// so the decision and the write cannot drift apart - a plan that says
+// "estate level" and a writer that puts the row on the ladder anyway would
+// file a refusal at scale 0, which reads as the smallest rung.
+func saveLiveCertRecord(root string, plan scaleRowPlan, rec ScaleRecord) (ScaleRecord, error) {
+	if plan.EstateLevel {
+		return saveLiveCertEstateRefusal(root, rec)
+	}
+	return saveLiveCertScaleRecord(root, rec)
+}
+
+// saveLiveCertEstateRefusal is saveLiveCertScaleRecord for the shelf: same
+// validation, same "every failure is returned" discipline (#1149/#1231),
+// SupersedeEstateRefusal instead of SupersedeScaleRecord.
+func saveLiveCertEstateRefusal(root string, rec ScaleRecord) (ScaleRecord, error) {
+	if err := ValidateScaleRecord(rec); err != nil {
+		return ScaleRecord{}, fmt.Errorf("built an invalid estate-level refusal record: %w", err)
+	}
+	sa, err := LoadScaleArtifact(root)
+	if err != nil {
+		return ScaleRecord{}, err
+	}
+	written, err := sa.SupersedeEstateRefusal(rec)
+	if err != nil {
+		return ScaleRecord{}, err
+	}
+	if err := SaveScaleArtifact(root, sa); err != nil {
+		return ScaleRecord{}, err
+	}
+	return written, nil
 }
 
 // saveLiveCertScaleRecord validates rec and writes it into
@@ -727,7 +846,7 @@ func cmdMergeArtifact(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := Render(root, m, merged, tt, scale); err != nil {
+	if _, err := Render(root, m, merged, tt, scale, AllScriptStaleness(root, merged)); err != nil {
 		return err
 	}
 	core, all := merged.Sets["core"], merged.Sets["all"]
@@ -835,7 +954,7 @@ func cmdImportLegacy(root string) error {
 	if err != nil {
 		return err
 	}
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root))
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root))
 	tt, err := LoadTypeIndexTotals(root)
 	if err != nil {
 		return err
@@ -844,7 +963,7 @@ func cmdImportLegacy(root string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := Render(root, m, a, tt, scale); err != nil {
+	if _, err := Render(root, m, a, tt, scale, AllScriptStaleness(root, a)); err != nil {
 		return err
 	}
 	fmt.Printf("imported %d legacy verdict sets\n", imported)
@@ -869,57 +988,274 @@ func cmdSnapshot(root, version string) error {
 	return nil
 }
 
-// StaleFiles renders into a temp dir and returns the rendered files whose
-// committed copy differs. The test and `check` share it.
+// StaleFiles is StaleFilesReport's blocking half: the rendered files whose
+// committed copy differs in something a measurement can be read out of.
+// The test and `check` share it.
 func StaleFiles(root string) ([]string, error) {
+	stale, _, err := StaleFilesReport(root)
+	return stale, err
+}
+
+// StaleFilesReport renders into a temp dir and compares every rendered file
+// against its committed copy, in two buckets.
+//
+// stale is the blocking one: a committed rendered file that no longer
+// matches what the generator produces, which is what
+// TestRenderedDocsAreCurrent and `gauntlet check` fail on.
+//
+// scriptOnly is the board when the ONLY thing that moved is per-row script
+// staleness (#1264). That fact is a comparison against git, so it changes
+// under a commit that nothing re-rendered, and it answers "unknown" in a
+// checkout without history - hold the committed board to it and every
+// estate-script PR becomes a re-render PR and every shallow checkout fails
+// the guard. #1264's ruling is render it, do not fail on it, so it is
+// reported and never returned as stale. The board on the site is therefore
+// a snapshot refreshed by whatever renders next; `gauntlet check` computes
+// the live answer every time and is the surface that cannot lag.
+func StaleFilesReport(root string) (stale, scriptOnly []string, err error) {
 	m, err := LoadManifest(root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	a, err := LoadArtifact(root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	bi, err := LoadBehaviorIndex(root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Same fresh emulator pin `render` itself would use - there is no
 	// stamp left to freeze for content-only comparison (#414).
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root))
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root))
 	// tt is read from the real checkout root, never from tmp below: tmp is
 	// a write-only scratch directory with no live/estate-types.json of its
 	// own, the same reason m, a and bi are all loaded from root rather than
-	// re-derived inside Render.
+	// re-derived inside Render. Script staleness (#1264) is read from root
+	// for the same reason, and for one more: tmp has no git history to read.
 	tt, err := LoadTypeIndexTotals(root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	tmp, err := os.MkdirTemp("", "gauntlet-render-")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer os.RemoveAll(tmp)
 	// Estate pages are pruned by reading the target dir; mirror the committed
 	// one so pruning logic runs the same way.
 	scale, err := loadScaleRecordsBytes(root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	written, err := Render(tmp, m, a, tt, scale)
+	// Render reads the kind node-image pin from the directory it renders
+	// into (#1700's lastRunNote). The temp dir has none, so a kind row that
+	// records its SubstrateImage would render differently here than in the
+	// committed tree and read as stale; carry the pin across.
+	if pin := kindNodeImagePin(root); pin != "" {
+		if err := os.MkdirAll(filepath.Join(tmp, "live"), 0o755); err != nil {
+			return nil, nil, err
+		}
+		if err := os.WriteFile(filepath.Join(tmp, "live", "kind-node-image"), []byte(pin+"\n"), 0o644); err != nil {
+			return nil, nil, err
+		}
+	}
+	written, err := Render(tmp, m, a, tt, scale, AllScriptStaleness(root, a))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var stale []string
 	for _, rel := range written {
 		want, err := os.ReadFile(filepath.Join(tmp, rel))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		got, err := os.ReadFile(filepath.Join(root, rel))
 		if err != nil || !bytes.Equal(want, got) {
+			if rel == SiteBoardPath && boardsDifferOnlyInScriptStaleness(want, got) && committedBoardSelfConsistent(got) == nil {
+				scriptOnly = append(scriptOnly, rel)
+				continue
+			}
 			stale = append(stale, rel)
 		}
 	}
-	return stale, nil
+	return stale, scriptOnly, nil
+}
+
+// committedBoardSelfConsistent is BoardSelfConsistent over raw bytes: the
+// gate on the advisory bucket above. A board that lags the tree is still
+// one coherent answer and stays advisory; a board whose banner and badges
+// came from different sides of a merge is not, and drops through to stale
+// so a re-render is required (#1308). Bytes that do not parse as a board
+// are a difference in their own right, which the caller already treats as
+// stale, so this says nothing about them.
+func committedBoardSelfConsistent(b []byte) error {
+	var bd Board
+	if err := json.Unmarshal(b, &bd); err != nil {
+		return nil
+	}
+	return BoardSelfConsistent(bd)
+}
+
+// boardsDifferOnlyInScriptStaleness reports whether two rendered boards are
+// the same board apart from #1264's per-row script staleness. Both sides
+// are parsed and re-canonicalized with those fields cleared, so this
+// answers about VALUES and never about formatting: a board that fails to
+// parse, or that differs anywhere else as well, is a real difference.
+func boardsDifferOnlyInScriptStaleness(want, got []byte) bool {
+	strip := func(b []byte) ([]byte, bool) {
+		var bd Board
+		if err := json.Unmarshal(b, &bd); err != nil {
+			return nil, false
+		}
+		bd.ScriptBanner = ""
+		for i := range bd.Estates {
+			bd.Estates[i].ScriptStale = ""
+			bd.Estates[i].ScriptNote = ""
+		}
+		c, err := bd.Canonical()
+		if err != nil {
+			return nil, false
+		}
+		return c, true
+	}
+	a, ok := strip(want)
+	if !ok {
+		return false
+	}
+	b, ok := strip(got)
+	if !ok {
+		return false
+	}
+	return bytes.Equal(a, b)
+}
+
+// cmdEstates prints the estates one CI run measures (#1550): the list
+// .github/workflows/gauntlet.yml builds its shard matrix from, and the
+// list the collect job expects a shard for.
+//
+// It exists because the alternative is a hand-written list in the
+// workflow, which is what the kubernetes lane had, and a hand-written list
+// is what an estate drops out of without anyone noticing the board got
+// smaller. Positional names override -set exactly the way `gauntlet run`'s
+// do, so a dispatch that names estates shards those and expects those.
+func cmdEstates(root string, args []string, out io.Writer) error {
+	fs := flag.NewFlagSet("estates", flag.ContinueOnError)
+	set := fs.String("set", "all", "which set to list when no names are given: core or all")
+	asJSON := fs.Bool("json", false, "print a JSON array of names, for a workflow matrix")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	m, err := LoadManifest(root)
+	if err != nil {
+		return err
+	}
+	names := fs.Args()
+	if len(names) > 0 {
+		// A name that is not in the manifest fails HERE, in a job that
+		// costs seconds, rather than in the shard job it would have
+		// spawned - `gauntlet run` refuses it either way (RunEstates).
+		for _, n := range names {
+			if _, ok := m.ByName(n); !ok {
+				return fmt.Errorf("estate %q is not in %s", n, ManifestPath)
+			}
+		}
+	} else {
+		names = ShardEstates(m, *set)
+	}
+	if len(names) == 0 {
+		return fmt.Errorf("no estates selected: %s has no estate in set %q", ManifestPath, *set)
+	}
+	if *asJSON {
+		b, err := json.Marshal(names)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(out, string(b))
+		return nil
+	}
+	for _, n := range names {
+		fmt.Fprintln(out, n)
+	}
+	return nil
+}
+
+// cmdCombineShards folds a shard-per-estate CI run back into one artifact
+// (#1550). See shards.go for the rules and why they are refusals.
+//
+// It deliberately does NOT render: the workflow's own `gauntlet render`
+// step follows it, so the rendered files are produced by the same command
+// a human would run, and a combine that refuses has written nothing.
+func cmdCombineShards(root string, args []string, out io.Writer) error {
+	fs := flag.NewFlagSet("combine-shards", flag.ContinueOnError)
+	dir := fs.String("shards", "", "directory holding the shard-<estate>.json files the shard jobs uploaded (searched recursively)")
+	set := fs.String("set", "", "expect a shard for every estate in this set: core or all")
+	estates := fs.String("estates", "", "space-separated estate names this run measured; overrides -set")
+	commit := fs.String("commit", "", "the commit every shard must have measured (default: HEAD)")
+	emulator := fs.String("emulator", "", "the emulator digest every floci-substrate shard must have measured against (default: live/floci-image)")
+	kindImage := fs.String("kind-image", "", "the kind node image digest every kind-substrate shard must have measured against (default: live/kind-node-image)")
+	outPath := fs.String("out", "", "where to write the combined artifact (default: "+ArtifactPath+")")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *dir == "" {
+		return fmt.Errorf("combine-shards needs -shards <dir>")
+	}
+	m, err := LoadManifest(root)
+	if err != nil {
+		return err
+	}
+	expect := strings.Fields(*estates)
+	if len(expect) == 0 {
+		if *set == "" {
+			return fmt.Errorf("combine-shards needs -set core|all or -estates \"a b\": without one it cannot tell a missing shard from an estate this run never measured")
+		}
+		expect = ShardEstates(m, *set)
+	}
+	if *commit == "" {
+		// #1149's rule: no provenance, no run. A combine that cannot
+		// name the commit it is combining for cannot check a shard
+		// against it either.
+		c, err := headCommit(root)
+		if err != nil {
+			return err
+		}
+		*commit = c
+	}
+	if *emulator == "" {
+		*emulator = emulatorPin(root)
+	}
+	if *kindImage == "" {
+		*kindImage = kindNodeImagePin(root)
+	}
+	base, err := LoadArtifact(root)
+	if err != nil {
+		return err
+	}
+	shards, err := LoadShardArtifacts(*dir)
+	if err != nil {
+		return err
+	}
+	combined, err := CombineShards(root, base, shards, expect, *commit, *emulator, *kindImage)
+	if err != nil {
+		return err
+	}
+	if *outPath == "" {
+		if err := SaveArtifact(root, combined); err != nil {
+			return err
+		}
+	} else {
+		b, err := combined.Canonical()
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(*outPath, b, 0o644); err != nil {
+			return err
+		}
+	}
+	core, all := combined.Sets["core"], combined.Sets["all"]
+	fmt.Fprintf(out, "combined %d shard(s) at %s: core %d of %d clear, all %d of %d clear\n", len(shards), *commit, core.Clear, core.Estates, all.Clear, all.Estates)
+	for lane, sum := range combined.Lanes {
+		fmt.Fprintf(out, "lane %s: %d of %d clear\n", lane, sum.Clear, sum.Estates)
+	}
+	return nil
 }

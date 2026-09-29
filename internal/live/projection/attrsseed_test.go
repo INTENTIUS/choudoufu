@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tofu"
 )
@@ -58,7 +59,7 @@ func TestConfiguredAttrsSeedSeedsStaticNonTagAttributes(t *testing.T) {
 		if rc == nil {
 			t.Fatalf("fixture does not declare stub_lc.main; it declares %v", keysOfResources(cfg))
 		}
-		seed, _ := configuredAttrsSeed(context.Background(), cfg.Module.StaticEvaluator, cfg.Path, rc, schema, nil)
+		seed, _ := configuredAttrsSeed(context.Background(), cfg.Module.StaticEvaluator, cfg.Path, rc, schema, nil, strict.DefaultSecrets)
 		if seed == nil {
 			t.Fatal("no seed at all for a resource with a statically-set user_data_base64")
 		}
@@ -93,7 +94,7 @@ func TestConfiguredAttrsSeedSeedsStaticNonTagAttributes(t *testing.T) {
 		if rc == nil {
 			t.Fatalf("fixture does not declare stub_lc.dynamic; it declares %v", keysOfResources(cfg))
 		}
-		seed, _ := configuredAttrsSeed(context.Background(), cfg.Module.StaticEvaluator, cfg.Path, rc, schema, nil)
+		seed, _ := configuredAttrsSeed(context.Background(), cfg.Module.StaticEvaluator, cfg.Path, rc, schema, nil, strict.DefaultSecrets)
 		if _, ok := seed["user_data_base64"]; ok {
 			t.Errorf("seed = %v, want no user_data_base64: it reads a sibling resource's own Computed "+
 				"attribute here, which the static evaluator cannot resolve", seedKeys(seed))

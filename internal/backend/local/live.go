@@ -145,7 +145,13 @@ type StatelessRun interface {
 	// replace - so `replaced` above is empty for it and the object it
 	// really did terminate would otherwise be recorded nowhere. See
 	// [projection.WriteBackRequest.DestroyedDeposed].
-	WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy) tfdiags.Diagnostics
+	//
+	// wholeDestroy is true when this run's plan was a destroy with no
+	// -target and no -exclude: the estate as a whole was destroyed, so its
+	// recorded root outputs go with it (GitHub issue #1371). A scoped
+	// destroy is false, because the estate and its outputs remain. See
+	// [projection.WriteBackRequest.WholeDestroy].
+	WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy, wholeDestroy bool) tfdiags.Diagnostics
 
 	// AfterPlan runs once the plan exists and before it is rendered, saved
 	// or approved, on a plan and on an apply alike: whatever evidence the
@@ -158,6 +164,18 @@ type StatelessRun interface {
 	// with nothing to ask returns no diagnostics, which is the ordinary
 	// case for every estate with no Kubernetes provider.
 	AfterPlan(ctx context.Context, config *configs.Config, plan *plans.Plan, schemas *tofu.Schemas) tfdiags.Diagnostics
+
+	// BeforeApply runs once a plan has been approved and before the first
+	// change is applied, on the plan opApply made itself and on a saved plan
+	// alike. It is where the run asserts whatever it must be able to rely on
+	// for the whole apply and could not afford to ask on every plan - today
+	// the record store's contract, the bucket's (GitHub issue #1339) or the
+	// cluster's (#1393): an apply writes records, so it must not start
+	// against a store that cannot keep them. `live-mv` and `live-import
+	// -approve` write records too and assert the same contract on their own
+	// paths (#1448); this method is the apply's. Error diagnostics abort the
+	// operation with nothing applied. A plan-only operation never calls it.
+	BeforeApply(ctx context.Context) tfdiags.Diagnostics
 
 	// AfterApply runs whatever this run still owes the live system once a
 	// real apply has finished changing it, and reports what it did as

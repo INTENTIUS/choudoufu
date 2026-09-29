@@ -269,8 +269,9 @@ var identityProvenanceSites = map[string]string{
 	// OwnedResource / UnclaimedResource - the sweep's own findings. The tag
 	// sweep's orphan literal (tagging.go) sets no Identity field at all, which
 	// is cty.NilVal, which is why there is no tagging.go row here.
-	"discovery.go|OwnedResource.Identity|r.Identity":     "a natively swept orphan, off the provider's ListResource result.",
-	"discovery.go|UnclaimedResource.Identity|r.Identity": "a foreign object, off the same result. Never bound to a declared address.",
+	"discovery.go|OwnedResource.Identity|r.Identity":           "a natively swept orphan, off the provider's ListResource result.",
+	"discovery.go|UnclaimedResource.Identity|r.Identity":       "a foreign object, off the same result. Never bound to a declared address.",
+	"lookalikerelist.go|UnclaimedResource.Identity|r.Identity": "GitHub issue #1480's lookalike widening: the same listclient.List call scanType makes, with the server-side estate filter left off, so the identity is the provider's own ListResource result exactly as the row above. An UnclaimedResource carries no declared address and never becomes a resolution, so it does not reach refuseListedButAbsent at all - and this leg only ever files objects with NO tofu-estate tag, which by construction are not this estate's.",
 
 	// identity.Resolution.Identity - the field the refusal reads.
 	"discovery.go|identity.Resolution.Identity|b.Identity":   "a declared instance's Binding.",

@@ -115,7 +115,7 @@ func (s *replaceRecordingStateless) PriorState(_ context.Context, _ *configs.Con
 func (s *replaceRecordingStateless) RootOutputData() map[string]cty.Value      { return nil }
 func (s *replaceRecordingStateless) RecordedRootOutputs() map[string]cty.Value { return nil }
 
-func (s *replaceRecordingStateless) WriteBack(_ context.Context, finalState *states.State, _ *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy) tfdiags.Diagnostics {
+func (s *replaceRecordingStateless) WriteBack(_ context.Context, finalState *states.State, _ *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy, _ bool) tfdiags.Diagnostics {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.writeBackCalled = true
@@ -126,6 +126,9 @@ func (s *replaceRecordingStateless) WriteBack(_ context.Context, finalState *sta
 }
 
 func (s *replaceRecordingStateless) AfterApply(_ context.Context) tfdiags.Diagnostics { return nil }
+func (s *replaceRecordingStateless) BeforeApply(_ context.Context) tfdiags.Diagnostics {
+	return nil
+}
 func (s *replaceRecordingStateless) AfterPlan(_ context.Context, _ *configs.Config, _ *plans.Plan, _ *tofu.Schemas) tfdiags.Diagnostics {
 	return nil
 }

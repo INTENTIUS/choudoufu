@@ -25,7 +25,7 @@ func resetRunCacheState(t *testing.T) {
 	ResetRunCacheForTest(t)
 }
 
-const testPrefix = "tofu-records/estate"
+const testPrefix = "tofu-records/estate/"
 
 // TestRunCacheConformance is the strongest guard here: a cache that changes
 // what a Store means is not a cache, it is a bug with better latency. The
@@ -79,7 +79,7 @@ func countedCache(t *testing.T, n int) (Store, *CountingStore) {
 	return NewRunCache(counting, testPrefix), counting
 }
 
-func recKey(i int) string { return fmt.Sprintf("%s/aws_thing/key%02d", testPrefix, i) }
+func recKey(i int) string { return fmt.Sprintf("%saws_thing/key%02d", testPrefix, i) }
 
 // TestRunCacheLoadsTheNamespaceInOneTrip is the reduction the whole exercise
 // is for: reading every instance's record, several times each, costs ONE call
@@ -124,7 +124,7 @@ func TestRunCacheAnswersAMissFromTheSnapshot(t *testing.T) {
 	// answers the repeat for free too, and only a snapshot that knows its
 	// namespace is complete can answer keys it has never been asked about.
 	for i := 0; i < 6; i++ {
-		missing := fmt.Sprintf("%s/aws_thing/never-written-%d", testPrefix, i)
+		missing := fmt.Sprintf("%saws_thing/never-written-%d", testPrefix, i)
 		_, version, exists, err := cached.Get(ctx, missing)
 		if err != nil {
 			t.Fatalf("Get %d: %v", i, err)
@@ -180,7 +180,7 @@ func TestRunCacheIsOffAfterTheFirstWrite(t *testing.T) {
 	}
 
 	// Any write, to any key, anywhere.
-	if _, err := cached.PutIfAbsent(ctx, testPrefix+"/aws_thing/new", []byte("x")); err != nil {
+	if _, err := cached.PutIfAbsent(ctx, testPrefix+"aws_thing/new", []byte("x")); err != nil {
 		t.Fatalf("PutIfAbsent: %v", err)
 	}
 	counting.Reset()

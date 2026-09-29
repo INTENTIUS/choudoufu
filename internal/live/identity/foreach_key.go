@@ -11,6 +11,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/markerkey"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/staticeval"
 )
 
@@ -24,6 +25,16 @@ import (
 // before a key becomes an address, an address becomes a marker, and the
 // marker becomes something no later run can read. The rule is defined once,
 // in [markerkey], so the two points cannot drift.
+//
+// It runs inside [resolver.expansionFor], which is what produces the instance
+// addresses [resolver.resolveInstance] is later called with - so a bad key is
+// refused BEFORE the instance is classified, and this check never learns
+// whether the type carries a marker, a record, or neither. Issue #1242
+// measured what that means in practice: the refusal fires for
+// aws_acmpca_certificate (ClassRecordLocated, no marker ever written) and for
+// aws_iam_group_policy_attachment (CONCRETE, identity re-derived from its own
+// arguments, no tag either). [markers.OwnershipClause] is the sentence the
+// diagnostics below ship to say so.
 //
 // Only the statically-expanded for_each branch calls this. A block whose
 // for_each iterates over another resource inherits that resource's keys,
@@ -62,19 +73,17 @@ func (r *resolver) checkedForEachKeys(rc *configs.Resource, exp *expansion) (*ex
 		if narrowed {
 			r.errorf(rc.ForEach.Range(), "for_each key cannot be recorded as a marker",
 				"%s expands to an instance keyed %q, and that key contains %s. "+
-					"The key becomes part of the resource's address, the address becomes the tofu-address marker on the live resource, "+
-					"and that marker is the only record of ownership a live-markers run has (live/MARKERS.md). "+
+					"The key becomes part of the resource's address. %s "+
 					"This for_each expression cannot be re-derived from configuration alone at stamp time (it depends on a data source, another resource, or something else only known once the cloud is read), so the escaping this character would otherwise need cannot be computed for it. "+
 					"A key may contain letters, digits, space, and the characters + - = . _ : / @ here: the AWS tag-value character set. Rename the key.",
-				rc.Addr().String(), s, markerkey.DescribeRune(bad))
+				rc.Addr().String(), s, markerkey.DescribeRune(bad), markers.OwnershipClause)
 			continue
 		}
 		r.errorf(rc.ForEach.Range(), "for_each key cannot be recorded as a marker",
 			"%s expands to an instance keyed %q, and that key contains %s. "+
-				"The key becomes part of the resource's address, the address becomes the tofu-address marker on the live resource, "+
-				"and that marker is the only record of ownership a live-markers run has (live/MARKERS.md). "+
+				"The key becomes part of the resource's address. %s "+
 				"A key may contain letters, digits, space, and the characters + - = . _ : / @: the AWS tag-value character set. Rename the key.",
-			rc.Addr().String(), s, markerkey.DescribeRune(bad))
+			rc.Addr().String(), s, markerkey.DescribeRune(bad), markers.OwnershipClause)
 	}
 	if !ok {
 		return nil, false

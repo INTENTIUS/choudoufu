@@ -395,27 +395,30 @@ func TestUnreadableMarkerNamesTheIndexedResourceWhenItHasOne(t *testing.T) {
 	}
 }
 
-// TestJoinMarkerFromTagging_BindsAnObjectFoundByLiveMv is [JoinMarkerFromTagging]'s
-// own proof, at unit scale: choudoufu live-mv's sweep (internal/live/mv)
-// lists a type directly rather than running a full [Discover] pass, so it
-// never gets #266's join for free the way an ordinary plan does - this
-// exported wrapper is what closes that gap, found empirically renaming
-// aws_iam_policy against a real emulator (iam:ListPolicies drops tags the
-// same way iam:ListRoles does). Proven load-bearing three ways: a real
-// match binds, a nil client (Cloud Control fallback off) finds nothing
-// rather than panicking, and an ambiguous match - two tagged resources of
-// this type answering to the same identifier - is reported as not found
-// rather than picked at random.
-func TestJoinMarkerFromTagging_BindsAnObjectFoundByLiveMv(t *testing.T) {
+// TestMarkerFallbackJoinsAnObjectFoundByLiveMv is [MarkerFallback]'s tag-index
+// route at unit scale: choudoufu live-mv's sweep (internal/live/mv) lists a
+// type directly rather than running a full [Discover] pass, so it never gets
+// #266's join for free the way an ordinary plan does - this exported type is
+// what closes that gap, found empirically renaming aws_iam_policy against a
+// real emulator (iam:ListPolicies drops tags the same way iam:ListRoles
+// does). Proven load-bearing three ways: a real match binds, a nil client
+// (Cloud Control fallback off) finds nothing rather than panicking, and an
+// ambiguous match - two tagged resources of this type answering to the same
+// identifier - is reported as not found rather than picked at random.
+//
+// The reader is nil throughout, which is this route on its own; the service
+// route beside it has its own tests in servicetagread_test.go and, for the
+// caller this type exists for, in internal/live/mv.
+func TestMarkerFallbackJoinsAnObjectFoundByLiveMv(t *testing.T) {
 	srv := &taggingServer{}
 	markedARN(srv, "arn:aws:iam::000000000000:policy/example_from_data_source", "module.iam_policy_from_data_source.aws_iam_policy.policy:0")
 	server := srv.start(t)
 	t.Cleanup(server.Close)
 	tagging := cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: server.URL})
 
-	tags, ok := JoinMarkerFromTagging(context.Background(), tagging, estateName, "aws_iam_policy", "arn:aws:iam::000000000000:policy/example_from_data_source")
+	tags, ok := NewMarkerFallback(estateName, tagging, nil).Tags(context.Background(), "aws_iam_policy", "arn:aws:iam::000000000000:policy/example_from_data_source")
 	if !ok {
-		t.Fatalf("JoinMarkerFromTagging() did not bind a resource the tag index carries")
+		t.Fatalf("MarkerFallback.Tags() did not bind a resource the tag index carries")
 	}
 	if got := tags[TagAddress]; got != "module.iam_policy_from_data_source.aws_iam_policy.policy:0" {
 		t.Errorf("joined tofu-address = %q, want the marker the index carries", got)
@@ -424,7 +427,7 @@ func TestJoinMarkerFromTagging_BindsAnObjectFoundByLiveMv(t *testing.T) {
 		t.Errorf("GetResources was called %d times, want exactly 1", srv.calls)
 	}
 
-	if _, ok := JoinMarkerFromTagging(context.Background(), nil, estateName, "aws_iam_policy", "arn:aws:iam::000000000000:policy/example_from_data_source"); ok {
+	if _, ok := NewMarkerFallback(estateName, nil, nil).Tags(context.Background(), "aws_iam_policy", "arn:aws:iam::000000000000:policy/example_from_data_source"); ok {
 		t.Errorf("a nil Tagging client bound a resource; it must degrade to not-found the way an ordinary discovery pass does with no client")
 	}
 
@@ -438,7 +441,7 @@ func TestJoinMarkerFromTagging_BindsAnObjectFoundByLiveMv(t *testing.T) {
 	ambServer := ambSrv.start(t)
 	t.Cleanup(ambServer.Close)
 	ambTagging := cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: ambServer.URL})
-	if _, ok := JoinMarkerFromTagging(context.Background(), ambTagging, estateName, "aws_iam_policy", "dup"); ok {
+	if _, ok := NewMarkerFallback(estateName, ambTagging, nil).Tags(context.Background(), "aws_iam_policy", "dup"); ok {
 		t.Errorf("an ambiguous match (two resources answering to the same identifier) bound one at random; it must report not-found")
 	}
 }

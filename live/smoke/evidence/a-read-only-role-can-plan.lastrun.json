@@ -1,0 +1,13 @@
+{
+  "claim": "a-read-only-role-can-plan",
+  "provider": "aws",
+  "target": "real AWS",
+  "date": "2026-09-19",
+  "commit": "130e24d22f6690884687d9e4be94094700e6ef0b",
+  "command": "SMOKE_REAL_AWS=1 AWS_REGION=us-east-2 just smoke a-read-only-role-can-plan",
+  "verdict": "PASS: smoke scenario 'a-read-only-role-can-plan' - every claim held (smoke v1.0.0)",
+  "break_commit": "130e24d22f6690884687d9e4be94094700e6ef0b",
+  "break_command": "SMOKE_REAL_AWS=1 AWS_REGION=us-east-2 BREAK=1 just smoke a-read-only-role-can-plan",
+  "break_verdict": "caught - with the denial returned instead of carried past to the List, the same role and the same policy cannot plan at all.",
+  "note": "#1370: recorded by hand from a maintainer-session run against real AWS (account ending 3429, us-east-2), torn down afterwards with no chdf-smoke bucket and no smoke- role left. The run before this one stopped at put-role-policy with MalformedPolicyDocument, because the merged reader policy used two Sids twice; that is fixed in the commit named here. No workflow runs the real-AWS claims, so this file is stale the moment the scenario, the renderer or the store changes underneath it."
+}

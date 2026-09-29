@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -434,25 +435,44 @@ func TestSweepIsByteIdenticalAtEveryParallelism(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // TestSweepPrefetchPlansExactlyTheCallsTheScanMakes holds [planSweepFetch] to
-// the head of [scanType] it mirrors.
+// the head of [scanType] it mirrors, in BOTH directions.
 //
-// The two ways a mirror can drift are both reported by the run itself:
-// sweepPrefetchWasted is a call planned that the scan never asked for - one
-// more list call than the sequential loop made, which is exactly the property
-// issue #605 accepts on - and sweepPrefetchMismatched is an answer fetched
-// with a list configuration the scan then disagreed with, which is the one
-// divergence a call count cannot see, because the count is right and the
-// LISTING is wrong.
+// The three ways a mirror can drift are all reported by the run itself:
+//
+//   - sweepPrefetchWasted - a call planned that the scan never asked for, one
+//     more list call than the sequential loop made, which is exactly the
+//     property issue #605 accepts on.
+//   - sweepPrefetchUnplanned - a call the scan made that the plan never
+//     predicted. The answer is right, because the body calls for itself, but
+//     the call is sequential and the concurrency is lost for that type.
+//   - sweepPrefetchMismatched - an answer fetched with a list configuration
+//     the scan then disagreed with, which is the one divergence a call count
+//     cannot see, because the count is right and the LISTING is wrong.
+//
+// Until issue #1328 this test asserted the first and the third, and its name
+// claimed the property both halves of the first make up. It was one-sided:
+// "the scan asks for nothing the plan did not fetch" passes trivially for a
+// mirror that plans nothing at all, and that is what #1328 was - the mirror's
+// Cloud Control gate still read live/registry.json's taggable flag alone
+// after #881 gave the body a provider-schema term beside it, so every type
+// the two disagree about lost its prefetch in silence. The unplanned
+// direction is the half that was missing.
 //
 // The scenarios cover every branch the mirror models: a plain taggable type,
 // a type whose schema carries no tags (no call), a type with no list resource
-// at all (no call), an unfiltered type (client-side scope), and
-// CollectUnclaimed, which changes the configuration the call is made with.
+// at all (no call), an unfiltered type (client-side scope), CollectUnclaimed,
+// which changes the configuration the call is made with, and - #1328's own -
+// a type with no native list route whose registry flag and provider schema
+// disagree about whether it can carry a marker.
 func TestSweepPrefetchPlansExactlyTheCallsTheScanMakes(t *testing.T) {
 	scenarios := []struct {
 		name  string
 		build func(*fakeCloud)
-		req   Request
+		// req is the request, and when reqFor is set it is built per
+		// subtest instead - a scenario needing an httptest server cannot
+		// share one Request across the three parallelism settings.
+		req    Request
+		reqFor func(*testing.T) Request
 	}{
 		{
 			name:  "plain taggable sweep",
@@ -487,6 +507,22 @@ func TestSweepPrefetchPlansExactlyTheCallsTheScanMakes(t *testing.T) {
 			build: func(c *fakeCloud) { c.listable("aws_cloudwatch_log_group") },
 			req:   Request{Sweep: true, CollectUnclaimed: true},
 		},
+		{
+			// Issue #1328's own shape, and the only scenario here that
+			// exercises the mirror's Cloud Control gate at all. The type
+			// has no native list resource, so the body reaches
+			// [scanTypeCloudControl]; live/registry.json calls its CFN
+			// type untaggable while the provider schema gives it a tags
+			// argument, which is the disagreement #881 taught the BODY to
+			// resolve in favour of the provider - and which the mirror
+			// went on resolving in favour of the registry.
+			name: "a Cloud Control type the registry and the provider schema disagree about",
+			build: func(c *fakeCloud) {
+				c.listable(ccGateType)
+				c.unlistable(ccGateType)
+			},
+			reqFor: ccGateRequest,
+		},
 	}
 
 	for _, sc := range scenarios {
@@ -496,17 +532,70 @@ func TestSweepPrefetchPlansExactlyTheCallsTheScanMakes(t *testing.T) {
 				ownWholeEstate(cloud)
 				sc.build(cloud)
 				req := sc.req
+				if sc.reqFor != nil {
+					req = sc.reqFor(t)
+				}
 				req.SweepParallelism = par
 				res, _ := discoverFixture(t, cloud, req)
 
 				if len(res.sweepPrefetchWasted) != 0 {
 					t.Errorf("parallelism %d: the sweep prefetched %v and the scan never asked for them, so the run spent list calls the sequential loop would not have", par, res.sweepPrefetchWasted)
 				}
+				if len(res.sweepPrefetchUnplanned) != 0 {
+					t.Errorf("parallelism %d: the scan listed %v itself because the mirror planned no call for them, so those listings were made sequentially and the prefetch bought nothing for them.\n"+
+						"The result is still correct - the body calls for itself - which is why nothing else in this package fails. The mirror ([planSweepFetch]) has a gate the body no longer has.", par, res.sweepPrefetchUnplanned)
+				}
 				if res.sweepPrefetchMismatched != 0 {
 					t.Errorf("parallelism %d: %d prefetched answers were fetched with a list configuration the scan disagreed with", par, res.sweepPrefetchMismatched)
 				}
 			}
 		})
+	}
+}
+
+// ccGateType is a type with no native list route whose CFN type
+// live/registry.json calls untaggable and whose provider resource schema has
+// a tags argument - the population issue #881 added the provider-schema term
+// for, and the one issue #1328's mirror stopped predicting.
+//
+// aws_iam_instance_profile is the real member of it (AWS::IAM::InstanceProfile
+// is tagging.taggable false, the provider gives it tags, and
+// internal/live/stamp writes the estate marker onto it), and it is used here
+// rather than an invented name so the fixture's premises are the shipped
+// artifacts' own.
+const (
+	ccGateType    = "aws_iam_instance_profile"
+	ccGateCFNType = "AWS::IAM::InstanceProfile"
+)
+
+// ccGateRequest is the sweep request for [ccGateType]: Cloud Control
+// configured, the type mapped to a listable CFN type, and that CFN type
+// flagged untaggable exactly as the shipped registry flags it.
+//
+// TaggingSweep is deliberately unset. With it on, [partitionSweepTypes]
+// routes this type by [arnJoinReaches] and it may never reach the per-type
+// native loop the prefetch covers at all; the question here is the mirror,
+// not the routing.
+func ccGateRequest(t *testing.T) Request {
+	t.Helper()
+
+	srv := newCCServer(t)
+	srv.listResources[ccGateCFNType] = []ccResource{{
+		identifier: "profile-1",
+		properties: tagsProps(estateName, ccGateType+".gone"),
+	}}
+	server := srv.start()
+	t.Cleanup(server.Close)
+
+	return Request{
+		Sweep:        true,
+		SweepTypes:   []string{ccGateType},
+		CloudControl: cloudcontrol.New(cloudcontrol.Config{Endpoint: server.URL}),
+		Roster: ccRoster(t,
+			map[string]string{ccGateType: ccGateCFNType},
+			map[string]bool{ccGateCFNType: true},
+			map[string]bool{ccGateCFNType: false},
+		),
 	}
 }
 

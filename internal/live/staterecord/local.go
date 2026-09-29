@@ -70,7 +70,7 @@ const (
 // filesystem primitives — which is the store's fundamental limit rather
 // than an oversight: LocalStore is for a single operator (or a single
 // machine's worth of concurrent processes), never for a team sharing state
-// across laptops. Reaching for [SSMStore] or [S3Store] is what "more than
+// across laptops. Reaching for [S3Store] is what "more than
 // one operator" means in this package.
 //
 // # What this store does not manage

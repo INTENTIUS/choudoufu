@@ -1,5 +1,5 @@
 # k8s-custom-resource
-# CLAIM 24 - A custom resource binds by its natural key, carries the estate label and is swept by it, a block whose CRD the cluster does not serve is refused by name, and the plan carries the API server's own dry-run verdict on every planned object: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name written inside its manifest, with no state file, its object created with tofu-estate in metadata.labels; before the CRD is installed the plan refuses the block naming the kind, the apiVersion and the CRD to install; the plan submits the planned object to the server with dryRun=All and prints its acceptance, and a manifest the server rejects refuses the plan by name in the server's words; a label stripped out of band takes the object out of the estate and the next plan refuses it by name, an object deleted out of band walks back in as a create, and an object whose block is removed is found by the sweep and proposed for removal; and a custom resource stock created and recorded in a terraform.tfstate is adopted by live-import, which writes that same label as one API merge patch whose dry run is diffed against the live object so a write that would change anything beyond the labels map is refused. ~5 min.
+# CLAIM 24 (kubernetes) - A custom resource binds by its natural key, carries the estate label and is swept by it, a block whose CRD the cluster does not serve is refused by name, and the plan carries the API server's own dry-run verdict on every planned object: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name written inside its manifest, with no state file, its object created with tofu-estate in metadata.labels; before the CRD is installed the plan refuses the block naming the kind, the apiVersion and the CRD to install; the plan submits the planned object to the server with dryRun=All and prints its acceptance, and a manifest the server rejects refuses the plan by name in the server's words; a label stripped out of band takes the object out of the estate and the next plan refuses it by name, an object deleted out of band walks back in as a create, and an object whose block is removed is found by the sweep and proposed for removal; and a custom resource stock created and recorded in a terraform.tfstate is adopted by live-import, which writes that same label as one API merge patch whose dry run is diffed against the live object so a write that would change anything beyond the labels map is refused and records the metadata keys the stock configuration declared, so that a label removed from the configuration once the state file is deleted is removed from the live object; and a migration of label-carrying objects under an estate name no Kubernetes label value can hold is refused once, at the read-only run, naming the count, with no per-object line and nothing written. ~5 min.
 #
 # The first unit of #1079 (ruled 2026-09-12): every custom resource is
 # declared through kubernetes_manifest, whose whole object is one dynamic
@@ -11,7 +11,7 @@
 # internal/live/projection/nodestamp_manifest.go) writes the one
 # tofu-estate label into manifest.metadata.labels on create, the same label
 # every built-in type carries in its metadata block, so the object is
-# inside the estate's boundary the way claim 23 draws it. The third unit
+# inside the estate's boundary the way claim 13 on Kubernetes draws it. The third unit
 # (internal/live/kubesweep) lists every kind the cluster serves, CRDs
 # included, under kubernetes_manifest, so an object whose block is removed
 # is found by that label and proposed for removal at
@@ -41,7 +41,40 @@
 # object (the label is the boundary both ways); then deletes the object
 # and requires the replan to propose creating it. If any of those plans
 # read the other way, the label, the natural key or the dry run was
-# scenery.
+# scenery. Its last control is step 12's: it migrates the stock CronTab
+# cleanly and then cuts manifest_metadata_keys out of the estate's record,
+# which is the record a build without #1391's migrate-time seed writes, and
+# requires the identical label deletion to plan "No changes." with the
+# label still on the object.
+#
+# Step 12 is GitHub issue #1391, and it is the one thing a migration owes
+# an estate beyond the label. A stock state file holds the last-applied
+# manifest, so stock knows which metadata keys the configuration asked for
+# and removes one that is deleted from it. The adopt page's next
+# instruction after a migration is to delete that file. So live-import
+# records the declared key set into the estate's own record
+# (internal/live/liveimport's seedManifestKeys, through the same
+# projection.ManifestDeclaredKeys the apply write-back uses), taking it
+# from the STATE's recorded object rather than from the live read, and
+# #1211's removal analysis reads it from there. Without the seed the
+# removal is proposed by nothing, which no refusal and no warning says.
+#
+# Step 14 is GitHub issue #1396 (#1432, measured here for #1434). An
+# estate name is up to 128 characters of [a-z0-9-] and a label value is
+# capped at 63, so a name every AWS tag accepts can be one no Kubernetes
+# object can carry. Ratify counts the entries whose carrier is a label or
+# a manifest while it builds them and refuses once, after the loop, when
+# that count is above zero and the name is not a legal label value -
+# returning no ratification, so no report prints and -approve cannot run.
+# The step migrates two ConfigMaps stock made under a 64-character name
+# and requires exactly one diagnostic naming "2 resource instances", the
+# name and the clause it broke, exit 1, no per-object line, and both
+# objects at the same resourceVersion with no label before and after.
+# Before #1432 the read-only run said nothing and -approve printed one
+# identical FAILED line per object. BREAK=1's seventh control runs the
+# same migration under a 60-character name and requires the report, one
+# line per ConfigMap and 2 of 2 eligible, and exit 0: the refusal is the
+# cap and not the fixture.
 
 SMOKE_WORK="$SMOKE_WORKROOT/k8s-custom-resource"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -131,8 +164,6 @@ sed '/^resource "kubernetes_manifest" "crontab"/,$d' "$SMOKE_WORK/main.tf.full" 
 
 cluster_up
 
-kc() { kubectl --kubeconfig "$KUBECONFIG" "$@"; }
-
 # migrate_fixture_up stands up the adoption fixture that step 11 and the
 # mutating-policy BREAK control both work from: a second namespace and a
 # CronTab created by PLAIN stock terraform and recorded in a real
@@ -141,6 +172,13 @@ kc() { kubectl --kubeconfig "$KUBECONFIG" "$@"; }
 # BREAK arm exits before step 11 and still has to migrate something; the
 # once-only guard makes "at most one caller" a property of this function
 # rather than of the control flow above it.
+#
+# The stock manifest declares two labels of its own, team and tier, which
+# step 12 needs (#1391): the state file is the only record that this
+# configuration ever asked for them, and the adopt page's next instruction
+# is to delete it. Two rather than one so the removal below takes one of a
+# pair rather than emptying the map, which is a different shape and is
+# claim 27's to measure.
 MIGRATE_FIXTURE_UP=0
 migrate_fixture_up() {
 [ "$MIGRATE_FIXTURE_UP" = "1" ] && return 0
@@ -175,6 +213,10 @@ resource "kubernetes_manifest" "crontab" {
     metadata = {
       name      = "adopted-crontab"
       namespace = "smoke-crd-stock"
+      labels = {
+        team = "a"
+        tier = "batch"
+      }
     }
     spec = {
       cronSpec = "* * * * */5"
@@ -204,6 +246,113 @@ cp "$SMOKE_WORK/migrated/main.tf" "$SMOKE_WORK/migrated/main.tf.full"
 sed '/^resource "kubernetes_manifest" "crontab"/,$d' "$SMOKE_WORK/migrated/main.tf.full" > "$SMOKE_WORK/migrated/main.tf.namespace-only"
 ( cd "$SMOKE_WORK/migrated" && chdf init -input=false -no-color >/dev/null 2>&1 ) \
   || fail "k8s-custom-resource" "init of the migrated root failed"
+}
+
+# The two estate names step 14 and its BREAK control run under (#1396,
+# #1434). An estate name is up to 128 characters of [a-z0-9-]; a Kubernetes
+# label value is capped at 63. So the 60-character name is legal on both
+# counts and the 64-character one - the same name with four more digits -
+# is a legal estate name that no object on the label surface can carry.
+# Both lengths are asserted rather than trusted, because a fixture whose
+# "long" name were 63 characters would make the whole step scenery.
+LABEL_OK_ESTATE="$(printf 'smoke-crd-cm-%047d' 0)"
+LABEL_LONG_ESTATE="${LABEL_OK_ESTATE}0000"
+[ "${#LABEL_OK_ESTATE}" = "60" ] || fail "k8s-custom-resource" "the legal estate name is ${#LABEL_OK_ESTATE} characters, not 60"
+[ "${#LABEL_LONG_ESTATE}" = "64" ] || fail "k8s-custom-resource" "the over-long estate name is ${#LABEL_LONG_ESTATE} characters, not 64"
+
+# label_fixture_up stands up step 14's fixture, which the BREAK control for
+# the same step also works from: two ConfigMaps in the default namespace,
+# created by PLAIN stock terraform and recorded in a real terraform.tfstate,
+# and beside it the identical source with a live block on it, initialised.
+# Its own fixture rather than step 11's, because step 12 deletes that state
+# file and the objects it names carry the label by then; two objects rather
+# than one so the refusal's count is a count (#1432's own test uses two
+# ConfigMaps for the same reason); the default namespace so the state
+# holds exactly the two label carriers and nothing else. Same once-only
+# guard as migrate_fixture_up, for the same reason.
+LABEL_FIXTURE_UP=0
+label_fixture_up() {
+[ "$LABEL_FIXTURE_UP" = "1" ] && return 0
+LABEL_FIXTURE_UP=1
+command -v terraform >/dev/null 2>&1 \
+  || fail "k8s-custom-resource" "the terraform binary is not on PATH - this step needs the stock oracle to write the state file being adopted"
+mkdir -p "$SMOKE_WORK/stock-cm" "$SMOKE_WORK/migrated-cm"
+cat > "$SMOKE_WORK/stock-cm/configmaps.tf" <<'TF'
+resource "kubernetes_config_map" "a" {
+  metadata {
+    name      = "smoke-crd-cm-a"
+    namespace = "default"
+  }
+  data = {
+    key = "a"
+  }
+}
+
+resource "kubernetes_config_map" "b" {
+  metadata {
+    name      = "smoke-crd-cm-b"
+    namespace = "default"
+  }
+  data = {
+    key = "b"
+  }
+}
+TF
+cat > "$SMOKE_WORK/stock-cm/main.tf" <<'TF'
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "= 3.2.1"
+    }
+  }
+}
+
+provider "kubernetes" {}
+TF
+cmd "terraform apply -auto-approve   # plain stock, no live block, two ConfigMaps in a real terraform.tfstate"
+( cd "$SMOKE_WORK/stock-cm" && terraform init -input=false -no-color >/dev/null 2>&1 ) \
+  || fail "k8s-custom-resource" "stock init of the ConfigMap root failed"
+CM_APPLY="$(cd "$SMOKE_WORK/stock-cm" && terraform apply -auto-approve -input=false -no-color 2>&1)" \
+  || fail "k8s-custom-resource" "stock apply of the two ConfigMaps failed: $(tail -5 <<< "$CM_APPLY")"
+grep -qF "Apply complete! Resources: 2 added" <<< "$CM_APPLY" \
+  || fail "k8s-custom-resource" "stock did not create exactly the two ConfigMaps: $(grep -E 'Apply complete' <<< "$CM_APPLY")"
+[ -f "$SMOKE_WORK/stock-cm/terraform.tfstate" ] || fail "k8s-custom-resource" "stock left no terraform.tfstate for the ConfigMaps"
+grep -E 'Apply complete!' <<< "$CM_APPLY" | evidence
+
+# The same source with a live block on it, under the name that IS a legal
+# label value. -estate is what a migration runs under; the block is what
+# the root would plan under once migrated.
+cp "$SMOKE_WORK/stock-cm/configmaps.tf" "$SMOKE_WORK/migrated-cm/configmaps.tf"
+cat > "$SMOKE_WORK/migrated-cm/main.tf" <<TF
+terraform {
+  required_version = ">= 1.5.0"
+
+  live {
+    estate = "$LABEL_OK_ESTATE"
+  }
+
+  required_providers {
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "= 3.2.1"
+    }
+  }
+}
+
+provider "kubernetes" {}
+TF
+( cd "$SMOKE_WORK/migrated-cm" && chdf init -input=false -no-color >/dev/null 2>&1 ) \
+  || fail "k8s-custom-resource" "init of the migrated ConfigMap root failed"
+}
+
+# cm_state is what "nothing on the cluster changed" is measured against:
+# each ConfigMap's name, resourceVersion and tofu-estate label, one per line.
+cm_state() {
+  kc get configmap smoke-crd-cm-a smoke-crd-cm-b -n default \
+    -o jsonpath='{range .items[*]}{.metadata.name} resourceVersion={.metadata.resourceVersion} tofu-estate={.metadata.labels.tofu-estate}{"\n"}{end}'
 }
 
 step "1. before the CRD exists, the block is refused by name"
@@ -247,7 +396,12 @@ explain \
   "is this tool's; it is the CronTab from the Kubernetes documentation."
 cmd "kubectl apply -f crd.yaml"
 kc apply -f "$SMOKE_WORK/crd.yaml" >/dev/null || fail "k8s-custom-resource" "could not install the CRD"
-kc wait --for=condition=Established crd/crontabs.stable.example.com --timeout=60s >/dev/null || fail "k8s-custom-resource" "the CRD never became Established"
+# Not a bare `kubectl wait --for=condition=Established`: the CRD the server
+# has just accepted is served with `"conditions": null` until a controller
+# fills it in, and kubectl's accessor errors on that instead of retrying
+# (#1278). k8s_wait_condition waits for the conditions to exist first, and
+# tells the two failures apart.
+k8s_wait_condition "k8s-custom-resource" crd/crontabs.stable.example.com Established
 kc get crd crontabs.stable.example.com -o jsonpath='{.metadata.name}{" "}{.spec.scope}{"\n"}' | evidence
 proof "crontabs.stable.example.com is served and namespaced. The estate below declares one CronTab through kubernetes_manifest."
 
@@ -314,6 +468,10 @@ CT="$(kc get crontab my-crontab -n smoke-crd -o jsonpath='{.spec.cronSpec}{" "}{
   || fail "k8s-custom-resource" "kubectl cannot read the CronTab: $CT"
 echo "$CT" | evidence
 grep -q 'tofu-estate=smoke-crd$' <<< "$CT" || fail "k8s-custom-resource" "the CronTab does not carry tofu-estate=smoke-crd: $CT"
+CT_ADDR="$(kc get crontab my-crontab -n smoke-crd -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}')"
+echo "choudoufu.intentius.io/tofu-address: $CT_ADDR" | evidence
+[ "$CT_ADDR" = "kubernetes_manifest.crontab" ] \
+  || fail "k8s-custom-resource" "the CronTab's address annotation reads '$CT_ADDR', want kubernetes_manifest.crontab (#1639)"
 proof "the CronTab exists with the spec the configuration declared and the one label the configuration never wrote, tofu-estate=smoke-crd; no terraform.tfstate exists."
 
 if [ "${BREAK:-0}" = "1" ]; then
@@ -467,7 +625,7 @@ YAML
   kc apply -f "$SMOKE_WORK/mutator.yaml" >/dev/null \
     || fail "k8s-custom-resource" "BREAK: could not install the mutating policy (it needs a cluster serving admissionregistration.k8s.io/v1 MutatingAdmissionPolicy)"
   sleep 5
-  MIG_BOUT="$(cd "$SMOKE_WORK/migrated" && chdf live-import -state="$SMOKE_WORK/stock/terraform.tfstate" -estate=smoke-crd-stock -approve -no-color 2>&1)" \
+  MIG_BOUT="$(cd "$SMOKE_WORK/migrated" && chdf_bounded live-import -state="$SMOKE_WORK/stock/terraform.tfstate" -estate=smoke-crd-stock -approve -no-color 2>&1)" \
     || fail "k8s-custom-resource" "BREAK: live-import -approve exited non-zero: $MIG_BOUT"
   grep -E 'kubernetes_manifest.crontab|failed, ' <<< "$MIG_BOUT" | tail -2 | evidence
   grep -q 'would also change spec.image' <<< "$MIG_BOUT" \
@@ -482,7 +640,103 @@ YAML
   kc delete -f "$SMOKE_WORK/mutator.yaml" >/dev/null 2>&1 || true
   sleep 5
   proof "with a policy rewriting spec.image in the path, live-import refused the label write by name (\"would also change spec.image\"), counted it as 1 failed, and left the object exactly as it was - no label, the original image. The main run, with no such policy, makes the identical write and it lands, so the refusal is the dry run's and not the tool's dislike of the type."
+
+  step "BREAK control - a migration that recorded no declared key set; the label removal must NOT plan"
+  explain \
+    "You asked for proof that step 12's removal is the SEEDED record and" \
+    "not something the plan could work out from the object. The policy is" \
+    "gone, so this migration lands as the main run's does. Then the one" \
+    "member live-import seeds - manifest_metadata_keys - is cut out of" \
+    "the estate's record with jq, which leaves exactly the record a build" \
+    "without #1391's fix writes: same object, same label, same stock" \
+    "state, same edit. If the plan still removes the label, the record is" \
+    "not what the removal reads and step 12 is scenery."
+  cmd "choudoufu live-import -approve   # no policy in the way this time"
+  MIG_OK="$(cd "$SMOKE_WORK/migrated" && chdf live-import -state="$SMOKE_WORK/stock/terraform.tfstate" -estate=smoke-crd-stock -approve -no-color 2>&1)" \
+    || fail "k8s-custom-resource" "BREAK: the second live-import -approve exited non-zero: $MIG_OK"
+  grep -q '0 failed, 0 skipped' <<< "$MIG_OK" \
+    || fail "k8s-custom-resource" "BREAK: the control's own migration did not land cleanly: $(grep 'newly stamped' <<< "$MIG_OK")"
+
+  cmd "jq 'del(.residue.manifest_metadata_keys)' over the estate's records"
+  RECDIR="$SMOKE_WORK/migrated/.tofu-records"
+  [ -d "$RECDIR" ] || fail "k8s-custom-resource" "BREAK: no record store at $RECDIR, so there is nothing to cut the key set out of"
+  STRIPPED=0
+  REMOVED=0
+  while IFS= read -r f; do
+    jq -e '.residue.manifest_metadata_keys' "$f" >/dev/null 2>&1 || continue
+    # The whole residue member goes when the key set was all of it, which
+    # is what a kubernetes_manifest has: nothing else about it classifies
+    # as residue. A residue member left behind holding {} is a record no
+    # build ever wrote, and the reader refuses it by name.
+    jq 'if (.residue | keys) == ["manifest_metadata_keys"] then del(.residue) else del(.residue.manifest_metadata_keys) end' "$f" > "$f.stripped" \
+      || fail "k8s-custom-resource" "BREAK: jq could not rewrite $f"
+    mv "$f.stripped" "$f"
+    STRIPPED=$((STRIPPED + 1))
+    # And the file itself goes when nothing but the envelope's bookkeeping
+    # is left. That is what a pre-#1391 build leaves behind: the store
+    # deletes a record with no payload rather than keeping an empty one,
+    # and a manifest-shaped instance has no flat identity to keep its
+    # record alive. Leaving the husk would make this control measure the
+    # reader refusing a shape no build produces.
+    if ! jq -e '[keys[] | select(. != "format_version" and . != "address" and . != "kind" and . != "provider")] | length > 0' "$f" >/dev/null 2>&1; then
+      rm -f "$f"
+      REMOVED=$((REMOVED + 1))
+    fi
+  done < <(find "$RECDIR" -type f)
+  [ "$STRIPPED" -ge 1 ] \
+    || fail "k8s-custom-resource" "BREAK: no record carried manifest_metadata_keys, so the migration never seeded one and step 12's green run proves nothing"
+  echo "  stripped manifest_metadata_keys from $STRIPPED record(s), $REMOVED of which held nothing else" | evidence
+
+  cmd "(delete team = \"a\" from the manifest) && choudoufu plan"
+  sed_i "$SMOKE_WORK/migrated/main.tf" '/team *= *"a"/d'
+  if grep -q 'team' "$SMOKE_WORK/migrated/main.tf"; then
+    fail "k8s-custom-resource" "BREAK: the label is still in the configuration; this control would measure nothing"
+  fi
+  BRM="$(cd "$SMOKE_WORK/migrated" && chdf plan -input=false -no-color 2>&1)" \
+    || fail "k8s-custom-resource" "BREAK: the plan after deleting the label failed: $BRM"
+  grep -E '^No changes|^Plan:|team' <<< "$BRM" | head -3 | evidence
+  grep -q "No changes." <<< "$BRM" \
+    || fail "k8s-custom-resource" "BREAK: the removal planned with no recorded key set, so step 12 is not measuring the seed: $(grep -E '^Plan:|will be|team' <<< "$BRM" | head -5)"
+  BLBL="$(kc get crontab adopted-crontab -n smoke-crd-stock -o jsonpath='{.metadata.labels}')"
+  grep -q '"team":"a"' <<< "$BLBL" \
+    || fail "k8s-custom-resource" "BREAK: the label is off the object already, so the empty plan above says nothing: $BLBL"
+  proof "caught: with manifest_metadata_keys cut out of the record - the record a pre-#1391 live-import writes - the identical edit plans \"No changes.\" and the label stays on the object. Step 12's in-place update is the seeded key set and nothing else."
+
+  step "BREAK control - the same migration under a 60-character name; the report must print and the run must exit 0"
+  explain \
+    "Step 14 refuses a migration of two ConfigMaps under a 64-character" \
+    "estate name. That refusal is about the name and nothing else, or it" \
+    "is scenery: here the same state, the same root and the same read-only" \
+    "run go under a name four characters shorter - 60, a legal label" \
+    "value - and the ratification report must print, one line per" \
+    "ConfigMap and 2 of 2 eligible, with no Estate name diagnostic and" \
+    "exit 0. If this run were refused too, step 14 would be measuring the" \
+    "fixture and not the cap."
+  label_fixture_up
+  cmd "choudoufu live-import -state=../stock-cm/terraform.tfstate -estate=<60 characters>   # read-only, no -approve"
+  OK_BEFORE="$(cm_state)"
+  OK_RC=0
+  OK_OUT="$(cd "$SMOKE_WORK/migrated-cm" && chdf live-import -state="$SMOKE_WORK/stock-cm/terraform.tfstate" -estate="$LABEL_OK_ESTATE" -no-color 2>"$SMOKE_WORK/ok-name.stderr")" || OK_RC=$?
+  OK_ERR="$(cat "$SMOKE_WORK/ok-name.stderr")"
+  [ "$OK_RC" = "0" ] \
+    || fail "k8s-custom-resource" "BREAK: the read-only run under a 60-character name exited $OK_RC: $(tail -5 <<< "$OK_OUT$OK_ERR")"
+  if grep -q 'Estate name cannot be written as a Kubernetes label' <<< "$OK_ERR"; then
+    fail "k8s-custom-resource" "BREAK: a 60-character name was refused as a label value, so step 14's refusal is not the 63-character cap: $OK_ERR"
+  fi
+  grep -E '^  kubernetes_config_map\.|eligible for stamping' <<< "$OK_OUT" | head -3 | evidence || true
+  OK_LINES="$(grep -cE '^  kubernetes_config_map\.(a|b) ' <<< "$OK_OUT" || true)"
+  [ "$OK_LINES" = "2" ] \
+    || fail "k8s-custom-resource" "BREAK: the report does not carry one line per ConfigMap (got $OK_LINES): $OK_OUT"
+  grep -q '2 of 2 resource instance(s) are eligible for stamping' <<< "$OK_OUT" \
+    || fail "k8s-custom-resource" "BREAK: the report under a legal name does not find both ConfigMaps eligible: $(grep 'eligible for stamping' <<< "$OK_OUT")"
+  OK_AFTER="$(cm_state)"
+  [ "$OK_BEFORE" = "$OK_AFTER" ] \
+    || fail "k8s-custom-resource" "BREAK: a read-only run changed the cluster: before: $OK_BEFORE after: $OK_AFTER"
+  proof "caught: the identical read-only run under a 60-character name prints the report - one line per ConfigMap, 2 of 2 eligible - and exits 0 with no diagnostic and nothing written. Step 14's refusal is the 63-character cap on a label value and nothing else."
+  kc delete configmap smoke-crd-cm-a smoke-crd-cm-b -n default >/dev/null 2>&1 || true
+
   ( cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
+  ( cd "$SMOKE_WORK/migrated" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
   exit 0
 fi
 
@@ -602,9 +856,74 @@ ADOPTED_IMAGE="$(kc get crontab adopted-crontab -n smoke-crd-stock -o jsonpath='
 [ "$ADOPTED_IMAGE" = "my-awesome-cron-image" ] \
   || fail "k8s-custom-resource" "the label write moved the object's spec.image to $ADOPTED_IMAGE"
 kc get crontab adopted-crontab -n smoke-crd-stock -o jsonpath='{.metadata.labels}{"\n"}' | evidence
+ADOPTED_ADDR="$(kc get crontab adopted-crontab -n smoke-crd-stock -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}')"
+echo "choudoufu.intentius.io/tofu-address: $ADOPTED_ADDR" | evidence
+[ "$ADOPTED_ADDR" = "kubernetes_manifest.crontab" ] \
+  || fail "k8s-custom-resource" "the adopted CronTab's address annotation reads '${ADOPTED_ADDR:-none}', want kubernetes_manifest.crontab: live-import writes it in the same patch as the label (#1639)"
 proof "2 newly stamped, 0 failed, 0 skipped; kubectl reads tofu-estate=smoke-crd-stock on the custom resource and its spec is untouched. Before #1109 this line read \"1 newly stamped ... 1 skipped\" and the CronTab carried no label: the manifest shape was not a live-import carrier, so a migrated custom resource was bound and counted but left outside the boundary."
 
-step "12. the migrated estate replans empty, and the sweep can now see the adopted object"
+step "12. a label the stock configuration declared, removed after the migration, is removed from the object"
+explain \
+  "The CronTab stock made carries two labels its configuration asked" \
+  "for, team and tier. Which keys a configuration DECLARED is not on the" \
+  "object - the object holds the label and no memory of who asked for" \
+  "it - and it is not in the configuration once the key is deleted from" \
+  "it either. A stock run reads it out of the last-applied manifest in" \
+  "its state file, and the adopt page's next instruction after a" \
+  "migration is to delete that file. So live-import records the declared" \
+  "key set into the estate's own record, the same set an apply records" \
+  "(#1211), and the removal set is (recorded) minus (currently" \
+  "declared). Without that seed the state file's deletion takes the" \
+  "answer with it and the label stays on the object for ever, which no" \
+  "refusal and no warning would have said (#1391)."
+cmd "choudoufu plan   # nothing removed yet"
+KEEP="$(cd "$SMOKE_WORK/migrated" && chdf plan -input=false -no-color 2>&1)" \
+  || fail "k8s-custom-resource" "the first plan after the migration failed: $KEEP"
+grep -q "No changes." <<< "$KEEP" \
+  || fail "k8s-custom-resource" "the first plan after the migration is not empty, so the seeded key set moved what a converged estate plans: $(grep -E '^Plan:|will be' <<< "$KEEP" | head -3)"
+grep -E 'No changes\.' <<< "$KEEP" | head -1 | evidence
+
+cmd "rm ../stock/terraform.tfstate   # what the adopt page says to do next"
+rm -f "$SMOKE_WORK/stock/terraform.tfstate" "$SMOKE_WORK/stock/terraform.tfstate.backup"
+[ ! -f "$SMOKE_WORK/stock/terraform.tfstate" ] \
+  || fail "k8s-custom-resource" "the stock state file is still there, so nothing below is evidence about a migrated estate that has none"
+
+cmd "(delete team = \"a\" from the manifest) && choudoufu plan"
+sed_i "$SMOKE_WORK/migrated/main.tf" '/team *= *"a"/d'
+sed_i "$SMOKE_WORK/migrated/main.tf.full" '/team *= *"a"/d'
+if grep -q 'team' "$SMOKE_WORK/migrated/main.tf"; then
+  fail "k8s-custom-resource" "the label is still in the configuration; this step would measure nothing"
+fi
+RM_PLAN="$(cd "$SMOKE_WORK/migrated" && chdf plan -input=false -no-color 2>&1)" \
+  || fail "k8s-custom-resource" "the plan after deleting the label failed: $RM_PLAN"
+grep -E 'team|^Plan:|^No changes' <<< "$RM_PLAN" | head -3 | evidence
+grep -qE '^Plan: 0 to add, 1 to change, 0 to destroy' <<< "$RM_PLAN" \
+  || fail "k8s-custom-resource" "deleting a declared label from a MIGRATED estate did not plan one in-place update - this is #1391: $(grep -E '^Plan:|No changes' <<< "$RM_PLAN" | head -2)"
+grep -qE '^ +- +"?team"? +=' <<< "$RM_PLAN" \
+  || fail "k8s-custom-resource" "the plan changes something, but it is not the deleted label: $(grep -E 'will be|team|tier' <<< "$RM_PLAN" | head -5)"
+
+cmd "choudoufu apply -auto-approve && kubectl get crontab adopted-crontab -n smoke-crd-stock -o jsonpath='{.metadata.labels}'"
+RM_APPLY="$(cd "$SMOKE_WORK/migrated" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
+  || fail "k8s-custom-resource" "the removal apply failed: $RM_APPLY"
+grep -qE 'Apply complete! Resources: 0 added, 1 changed, 0 destroyed' <<< "$RM_APPLY" \
+  || fail "k8s-custom-resource" "the removal apply did not report exactly one change: $(grep -E 'Apply complete' <<< "$RM_APPLY")"
+RM_LABELS="$(kc get crontab adopted-crontab -n smoke-crd-stock -o jsonpath='{.metadata.labels}')"
+echo "$RM_LABELS" | evidence
+if grep -q '"team"' <<< "$RM_LABELS"; then
+  fail "k8s-custom-resource" "the apply reported success and the label is still on the object: $RM_LABELS"
+fi
+grep -q '"tier":"batch"' <<< "$RM_LABELS" \
+  || fail "k8s-custom-resource" "the label that was NOT removed from the configuration is gone too: $RM_LABELS"
+grep -q '"tofu-estate":"smoke-crd-stock"' <<< "$RM_LABELS" \
+  || fail "k8s-custom-resource" "the estate's own marker was removed along with the label: $RM_LABELS"
+SETTLE="$(cd "$SMOKE_WORK/migrated" && chdf plan -input=false -no-color 2>&1)" \
+  || fail "k8s-custom-resource" "the replan after the removal failed: $SETTLE"
+grep -q "No changes." <<< "$SETTLE" \
+  || fail "k8s-custom-resource" "the estate does not settle after the removal: $(grep -E '^Plan:|will be' <<< "$SETTLE" | head -3)"
+grep -E 'No changes\.' <<< "$SETTLE" | head -1 | evidence
+proof "a label stock declared and the migration inherited is removed from the live object when it is removed from the configuration, with the state file deleted and nothing but the estate's own record remembering it was ever declared. tier, which nobody removed, is untouched; so is the marker; and the estate settles."
+
+step "13. the migrated estate replans empty, and the sweep can now see the adopted object"
 cmd "choudoufu plan   # no state file; then remove the block and plan again"
 MPLAN="$(cd "$SMOKE_WORK/migrated" && chdf plan -input=false -no-color 2>&1)" \
   || fail "k8s-custom-resource" "the plan after the migration failed: $MPLAN"
@@ -624,6 +943,51 @@ if kc get namespace smoke-crd-stock >/dev/null 2>&1; then
 fi
 proof "the migrated estate replans empty with no state file, and deleting the adopted block proposes destroying exactly that object at kubernetes_manifest.orphan_crontab_smoke-crd-stock_adopted-crontab - the sweep finds it because the migration put the label on it. That is the whole difference the label makes: without it the object plans empty too, and is invisible to the sweep, to the admission policy and to live-ls."
 
+step "14. an estate name no Kubernetes label can hold is refused once, at the read-only run, with nothing written"
+explain \
+  "An estate name may be 128 characters of [a-z0-9-]; a Kubernetes label" \
+  "value may be 63. So a name the bucket, the IAM policy and every AWS" \
+  "tag accept can be one no object on the label surface can carry." \
+  "Before #1396 the read-only run - whose whole job is to say what" \
+  "-approve will do - said nothing about it, and -approve then printed" \
+  "one identical FAILED line per object. The state here is two" \
+  "ConfigMaps stock made, the name is 64 characters, and the run must" \
+  "refuse exactly once, count the objects, print no per-object line," \
+  "exit 1 and change nothing on the cluster."
+label_fixture_up
+
+cmd "choudoufu live-import -state=../stock-cm/terraform.tfstate -estate=<64 characters>   # read-only, no -approve"
+LONG_BEFORE="$(cm_state)"
+[ "$(grep -c 'tofu-estate=$' <<< "$LONG_BEFORE")" = "2" ] \
+  || fail "k8s-custom-resource" "the ConfigMaps already carry a tofu-estate label, so this step would prove nothing: $LONG_BEFORE"
+LONG_RC=0
+LONG_OUT="$(cd "$SMOKE_WORK/migrated-cm" && chdf live-import -state="$SMOKE_WORK/stock-cm/terraform.tfstate" -estate="$LABEL_LONG_ESTATE" -no-color 2>"$SMOKE_WORK/long-name.stderr")" || LONG_RC=$?
+LONG_ERR="$(cat "$SMOKE_WORK/long-name.stderr")"
+LONG_FLAT="$(tr '\n' ' ' <<< "$LONG_ERR" | tr -s ' ')"
+LONG_COUNT="$(grep -c 'Estate name cannot be written as a Kubernetes label' <<< "$LONG_ERR" || true)"
+grep -E 'Estate name cannot be written as a Kubernetes label' <<< "$LONG_ERR" | head -1 | evidence || true
+grep -oE '[0-9]+ resource instances? in this state|it is [0-9]+ characters long and a Kubernetes label value is capped at [0-9]+|Nothing was ratified and nothing was written' <<< "$LONG_FLAT" | evidence || true
+echo "diagnostics: $LONG_COUNT, exit $LONG_RC" | evidence
+[ "$LONG_RC" = "1" ] \
+  || fail "k8s-custom-resource" "the read-only run under a 64-character name exited $LONG_RC, not 1: $(tail -5 <<< "$LONG_OUT$LONG_ERR")"
+[ "$LONG_COUNT" = "1" ] \
+  || fail "k8s-custom-resource" "expected exactly one 'Estate name cannot be written as a Kubernetes label' diagnostic, got $LONG_COUNT: $LONG_ERR"
+grep -q '2 resource instances in this state carry their ownership marker as a Kubernetes label' <<< "$LONG_FLAT" \
+  || fail "k8s-custom-resource" "the refusal does not count both ConfigMaps: $LONG_FLAT"
+grep -qF "$LABEL_LONG_ESTATE" <<< "$LONG_FLAT" \
+  || fail "k8s-custom-resource" "the refusal does not name the estate: $LONG_FLAT"
+grep -q 'it is 64 characters long and a Kubernetes label value is capped at 63' <<< "$LONG_FLAT" \
+  || fail "k8s-custom-resource" "the refusal does not name the clause the name broke: $LONG_FLAT"
+if grep -qE 'live id:|eligible for stamping|FAILED|newly stamped' <<< "$LONG_OUT$LONG_ERR"; then
+  fail "k8s-custom-resource" "the refused run still printed a per-object line or a report: $(grep -E 'live id:|eligible for stamping|FAILED|newly stamped' <<< "$LONG_OUT$LONG_ERR" | head -3)"
+fi
+LONG_AFTER="$(cm_state)"
+echo "$LONG_AFTER" | evidence
+[ "$LONG_BEFORE" = "$LONG_AFTER" ] \
+  || fail "k8s-custom-resource" "the refused run changed the cluster: before: $LONG_BEFORE after: $LONG_AFTER"
+kc delete configmap smoke-crd-cm-a smoke-crd-cm-b -n default >/dev/null 2>&1 || true
+proof "one refusal, exit 1: \"2 resource instances in this state carry their ownership marker as a Kubernetes label\", the name, and \"64 characters long ... capped at 63\"; no per-object line and no report, and both ConfigMaps read the same resourceVersion with no label before and after. Before #1396 this run printed the report and said nothing about the name, and -approve then printed the same FAILED line once per object; BREAK=1 runs the same migration under a 60-character name and requires the report and exit 0."
+
 echo "  What you watched: a custom resource refused by name while its CRD was"
 echo "  missing, accepted by the API server's own dry run before it was"
 echo "  applied, then live its whole life without a state file, found again"
@@ -633,4 +997,6 @@ echo "  never wrote, and found by that label once its block was gone. A custom"
 echo "  resource is inside the estate the way a ConfigMap is. And one that"
 echo "  stock made, with a real state file behind it, walks in through"
 echo "  live-import and is inside it too - by one label, written as one"
-echo "  patch the server was asked about first."
+echo "  patch the server was asked about first. And a migration under a name"
+echo "  that label cannot hold is refused once, before it reads as a report"
+echo "  and long before it writes."

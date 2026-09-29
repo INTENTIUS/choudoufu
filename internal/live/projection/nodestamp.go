@@ -8,12 +8,14 @@ package projection
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -104,7 +106,18 @@ import (
 // writes one for either shape.
 
 // AdjustConfigValue implements internal/tofu.ConfigValueAdjuster.
-func (n *NodeResolver) AdjustConfigValue(_ context.Context, addr addrs.AbsResourceInstance, config cty.Value, schema providers.Schema) (cty.Value, tfdiags.Diagnostics) {
+func (n *NodeResolver) AdjustConfigValue(ctx context.Context, addr addrs.AbsResourceInstance, config cty.Value, schema providers.Schema) (cty.Value, tfdiags.Diagnostics) {
+	return n.adjustConfigValue(ctx, addr, config, schema, false)
+}
+
+// adjustConfigValue is [NodeResolver.AdjustConfigValue] and
+// [NodeResolver.AdjustCreateConfigValue] behind one body. creating is the
+// only difference between the two: a create of a type whose create call
+// cannot carry tags (GitHub issue #1084, [NodeResolver.postCreateNeeded])
+// is checked for marker conflicts exactly as an update is and then left
+// unstamped, for [NodeResolver.WriteAppliedMarkers] to mark after the
+// provider has created it. See nodetagoncreate.go.
+func (n *NodeResolver) adjustConfigValue(_ context.Context, addr addrs.AbsResourceInstance, config cty.Value, schema providers.Schema, creating bool) (cty.Value, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	if n.Estate == "" {
@@ -128,10 +141,11 @@ func (n *NodeResolver) AdjustConfigValue(_ context.Context, addr addrs.AbsResour
 	if schema.Block == nil {
 		return config, diags
 	}
-	_, taggable := markers.TagSurface(schema.Block)
-	_, labelled := markers.LabelSurface(schema.Block)
-	manifested := markers.ManifestSurface(schema.Block)
-	if !taggable && !labelled && !manifested {
+	// GitHub issue #1585: the surface is the substrate's answer, the same
+	// one live-mv and live-import ask, and the write below dispatches on
+	// it by name ([NodeResolver.stampSurface]).
+	surface, ok := substrate.SurfaceOf(schema.Block)
+	if !ok {
 		return config, diags
 	}
 
@@ -167,8 +181,24 @@ func (n *NodeResolver) AdjustConfigValue(_ context.Context, addr addrs.AbsResour
 	if configElems == nil {
 		configElems = make(map[string]cty.Value, 1)
 	}
+	return n.stampSurface(surface, addr, config, configElems, creating)
+}
 
-	if labelled {
+// stampSurface writes this instance's marker into config on the one
+// surface its schema carries, which [substrate.SurfaceOf] answered. It is
+// the node stamp's per-surface dispatch (GitHub issue #1585), and it names
+// every [markers.Surface] so the completeness guard in
+// internal/live/markers/seams_test.go reads a missing arm as a hole. A
+// surface it does not know leaves config as evaluated, which is what a
+// type with no surface at all gets.
+//
+// configElems is config's own attribute map, which the caller has already
+// read off an unmarked config; the arm that writes replaces one entry in it.
+func (n *NodeResolver) stampSurface(surface markers.Surface, addr addrs.AbsResourceInstance, config cty.Value, configElems map[string]cty.Value, creating bool) (cty.Value, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+
+	switch surface {
+	case markers.SurfaceLabels:
 		// The Kubernetes shape (GitHub issue #1061): one label, no
 		// address. See nodestamp_labels.go.
 		if !config.Type().HasAttribute(markers.LabelSurfaceBlock) {
@@ -179,11 +209,19 @@ func (n *NodeResolver) AdjustConfigValue(_ context.Context, addr addrs.AbsResour
 		if labelDiags.HasErrors() {
 			return config, diags
 		}
+		if creating && n.withholdsAtCreate(addr, surface) {
+			// GitHub issue #1653: whether a create needs the post-create
+			// write is asked of every surface, not only tags - a family
+			// whose labels or manifest surface answers true here has the
+			// same conflict check above and the same withholding below
+			// that #1084 gave the tags surface alone.
+			log.Printf("[DEBUG] stateless/projection: %s: markers withheld from the create call; written after the create", addr)
+			return config, diags
+		}
 		configElems[markers.LabelSurfaceBlock] = newMeta
 		return cty.ObjectVal(configElems), diags
-	}
 
-	if manifested {
+	case markers.SurfaceManifest:
 		// The manifest shape (GitHub issue #1079): the same one label,
 		// inside the dynamic manifest argument. See nodestamp_manifest.go.
 		if !config.Type().HasAttribute(markers.ManifestSurfaceAttr) {
@@ -194,21 +232,40 @@ func (n *NodeResolver) AdjustConfigValue(_ context.Context, addr addrs.AbsResour
 		if manifestDiags.HasErrors() {
 			return config, diags
 		}
+		if creating && n.withholdsAtCreate(addr, surface) {
+			// GitHub issue #1653: see the SurfaceLabels arm above.
+			log.Printf("[DEBUG] stateless/projection: %s: markers withheld from the create call; written after the create", addr)
+			return config, diags
+		}
 		configElems[markers.ManifestSurfaceAttr] = newManifest
 		return cty.ObjectVal(configElems), diags
+
+	case markers.SurfaceTags:
+		address := markers.EscapeAddress(addr.String())
+		tagsVal := config.GetAttr(tagsArgumentName)
+
+		newTags, tagDiags := n.stampedTags(addr, tagsVal, address)
+		diags = diags.Append(tagDiags)
+		if tagDiags.HasErrors() {
+			return config, diags
+		}
+		if creating && n.withholdsAtCreate(addr, surface) {
+			// GitHub issue #1084: the create call cannot carry these tags,
+			// so they are withheld from it - the operator's own tags go
+			// through as stock sends them, this fork's markers do not - and
+			// written onto the created object by WriteAppliedMarkers
+			// (nodetagoncreate.go) before the instance is reported complete.
+			// The conflict check above still ran: a hand-written marker that
+			// disagrees with this run is refused whether or not this pass
+			// would have written its own.
+			log.Printf("[DEBUG] stateless/projection: %s: markers withheld from the create call (tag_on_create false); written after the create", addr)
+			return config, diags
+		}
+
+		configElems[tagsArgumentName] = newTags
+		return cty.ObjectVal(configElems), diags
 	}
-
-	address := markers.EscapeAddress(addr.String())
-	tagsVal := config.GetAttr(tagsArgumentName)
-
-	newTags, tagDiags := n.stampedTags(addr, tagsVal, address)
-	diags = diags.Append(tagDiags)
-	if tagDiags.HasErrors() {
-		return config, diags
-	}
-
-	configElems[tagsArgumentName] = newTags
-	return cty.ObjectVal(configElems), diags
+	return config, diags
 }
 
 // tagsArgumentName is the one attribute [markers.TagSurface] ever names.
@@ -305,14 +362,28 @@ func (n *NodeResolver) stampedTags(addr addrs.AbsResourceInstance, tagsVal cty.V
 		return tagsVal.WithMarks(tagsMarks), diags
 	}
 
+	// GitHub issue #1002: each skipped write is also recorded, so the plan
+	// can name the instances the verb reached rather than only the ones it
+	// governs. [NodeResolver.noteUntagRelease] declines a key elems already
+	// carries, which is the hand-written case above: nothing was released
+	// there. tofu-slot is recorded only where a slot was assigned, because
+	// without one there was no write to withhold.
 	if untagKey != markers.TagEstate {
 		elems[markers.TagEstate] = cty.StringVal(n.Estate)
+	} else {
+		n.noteUntagRelease(addr, markers.TagEstate, elems)
 	}
 	if untagKey != markers.TagAddress {
 		elems[markers.TagAddress] = cty.StringVal(address)
+	} else {
+		n.noteUntagRelease(addr, markers.TagAddress, elems)
 	}
-	if slot, ok := n.Slots[address]; ok && untagKey != markers.TagSlot {
-		elems[markers.TagSlot] = cty.StringVal(slot)
+	if slot, ok := n.Slots[address]; ok {
+		if untagKey != markers.TagSlot {
+			elems[markers.TagSlot] = cty.StringVal(slot)
+		} else {
+			n.noteUntagRelease(addr, markers.TagSlot, elems)
+		}
 	}
 
 	return cty.MapVal(elems).WithMarks(tagsMarks), diags
@@ -350,9 +421,18 @@ const SummaryMarkerConflict = "Ownership marker conflict"
 // proceeds to write its own value exactly as it did before this check
 // existed.
 func markerConflictDiag(addr addrs.AbsResourceInstance, elems map[string]cty.Value, key, want string) tfdiags.Diagnostics {
+	return markerConflictDiagAt(addr, elems, key, key, want)
+}
+
+// markerConflictDiagAt is [markerConflictDiag] for a marker carried under a
+// key other than its own name: the Kubernetes address annotation (GitHub
+// issue #1639) carries the tofu-address marker under
+// [markers.AddressAnnotation]. carrier is the key read from elems and named
+// in the message; key is the marker it carries, which picks the message.
+func markerConflictDiagAt(addr addrs.AbsResourceInstance, elems map[string]cty.Value, carrier, key, want string) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
-	existing, ok := elems[key]
+	existing, ok := elems[carrier]
 	if !ok || existing.IsNull() || !existing.IsKnown() || existing.IsMarked() || existing.Type() != cty.String {
 		return diags
 	}
@@ -360,16 +440,32 @@ func markerConflictDiag(addr addrs.AbsResourceInstance, elems map[string]cty.Val
 	if got == want {
 		return diags
 	}
+	// A tofu-address a configuration declares by hand is usually the
+	// UNESCAPED address - `module.wrapped["a"].aws_eip.app`, the way HCL
+	// spells it and the way live/e2e/estate-module-keyed's generated
+	// wrapped module spells it - while `want` is the escaped form the tag
+	// will actually carry (`module.wrapped:a.aws_eip.app`, live/MARKERS.md
+	// "Escaping"). The two name one instance; a plan that called that a
+	// rename refused every keyed-module estate that declared its own
+	// address tag (floci-tier, TestModuleKeyedForEachAgainstFloci, red
+	// every night the tier ran). Normalize the declared value the same way
+	// Discover normalizes an observed one - markers.EscapeAddress is
+	// idempotent, so an already-escaped declaration is unchanged by it -
+	// and only a value that still differs is a marker naming another
+	// address.
+	if key == markers.TagAddress && markers.EscapeAddress(got) == want {
+		return diags
+	}
 
 	switch key {
 	case markers.TagEstate:
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryMarkerConflict, fmt.Sprintf(
 			"%s declares %s = %q and this run is stamping the estate %q. A plan never overwrites a marker naming another estate: name %s in the live block (or with -estate, if this configuration has no live block) if that is the estate this run is for, or correct the tag.",
-			addr, markers.TagEstate, got, want, got)))
+			addr, carrier, got, want, got)))
 	case markers.TagAddress:
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryMarkerConflict, fmt.Sprintf(
 			"%s declares %s = %q, but its address in this configuration is %q. A marker naming another address is a rename: run `choudoufu live-mv %s %s`, or fix the tag. See live/MARKERS.md, \"The rename rule\".",
-			addr, markers.TagAddress, got, want, got, want)))
+			addr, carrier, got, want, got, want)))
 	}
 	return diags
 }

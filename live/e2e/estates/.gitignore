@@ -1,0 +1,15 @@
+# Local verification artifacts only - never a fixture. Mirrors the sibling
+# live/e2e/estate/.gitignore (singular), which has carried these three rules
+# since P0.2 for the same reason: a stray run here must not leave a provider
+# cache or a state file in the next person's `git status`. This directory
+# never had one, so 31 .terraform/ directories accumulated (issue #1333).
+#
+# Scoped here rather than at the repo root deliberately. 53 tracked files
+# live inside .terraform/ directories under internal/ - happypath's
+# modules.json and the internal/command/testdata/backend-* fixtures - where
+# the directory's CONTENTS are what the test asserts on. A root-level
+# .terraform/ rule would not untrack those, but it would make the next
+# fixture added there invisible to whoever adds it.
+.terraform/
+terraform.tfstate
+terraform.tfstate.backup

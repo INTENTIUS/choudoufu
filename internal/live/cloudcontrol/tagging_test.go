@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -175,5 +176,88 @@ func TestGetResourcesSendsFilters(t *testing.T) {
 	entry, _ := tf[0].(map[string]any)
 	if entry["Key"] != "tofu-estate" {
 		t.Errorf("TagFilters[0].Key = %v, want tofu-estate", entry["Key"])
+	}
+}
+
+// TestTagResourcesHitsTaggingTarget pins the wire shape GitHub issue
+// #1084's post-create marker write sends: the TagResources operation on the
+// tagging target, JSON 1.1, with the ARN list and the tag map exactly as the
+// Resource Groups Tagging API names them.
+func TestTagResourcesHitsTaggingTarget(t *testing.T) {
+	var gotTarget, gotContentType string
+	var gotBody map[string]any
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotTarget = r.Header.Get("X-Amz-Target")
+		gotContentType = r.Header.Get("Content-Type")
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		_ = json.NewEncoder(w).Encode(map[string]any{"FailedResourcesMap": map[string]any{}})
+	}))
+	defer server.Close()
+
+	c := NewTagging(Config{Endpoint: server.URL})
+	err := c.TagResources(context.Background(), []string{"arn:aws:route53:::hostedzone/Z1"}, map[string]string{"tofu-estate": "prod"})
+	if err != nil {
+		t.Fatalf("TagResources: %v", err)
+	}
+	if gotTarget != "ResourceGroupsTaggingAPI_20170126.TagResources" {
+		t.Errorf("X-Amz-Target = %q, want ResourceGroupsTaggingAPI_20170126.TagResources", gotTarget)
+	}
+	if gotContentType != "application/x-amz-json-1.1" {
+		t.Errorf("Content-Type = %q, want application/x-amz-json-1.1", gotContentType)
+	}
+	arns, _ := gotBody["ResourceARNList"].([]any)
+	if len(arns) != 1 || arns[0] != "arn:aws:route53:::hostedzone/Z1" {
+		t.Errorf("ResourceARNList = %v", gotBody["ResourceARNList"])
+	}
+	tags, _ := gotBody["Tags"].(map[string]any)
+	if tags["tofu-estate"] != "prod" {
+		t.Errorf("Tags = %v", gotBody["Tags"])
+	}
+}
+
+// TestTagResourcesFailedResourcesMapIsAnError pins the API's own failure
+// shape: HTTP 200 with a FailedResourcesMap naming the ARN that was not
+// tagged is a failure, and the error names that ARN and the API's code.
+func TestTagResourcesFailedResourcesMapIsAnError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"FailedResourcesMap": map[string]any{
+			"arn:aws:route53:::hostedzone/Z1": map[string]any{
+				"StatusCode": 400, "ErrorCode": "InvalidParameterException", "ErrorMessage": "no such zone",
+			},
+		}})
+	}))
+	defer server.Close()
+
+	c := NewTagging(Config{Endpoint: server.URL})
+	err := c.TagResources(context.Background(), []string{"arn:aws:route53:::hostedzone/Z1"}, map[string]string{"k": "v"})
+	if err == nil {
+		t.Fatalf("TagResources returned nil over a non-empty FailedResourcesMap")
+	}
+	if !HasCode(err, "InvalidParameterException") {
+		t.Errorf("error code not carried: %v", err)
+	}
+	for _, want := range []string{"arn:aws:route53:::hostedzone/Z1", "no such zone"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not name %q", err, want)
+		}
+	}
+}
+
+// TestTagResourcesHTTPErrorIsAnError pins the refusal shape the live pin
+// (internal/live/lifecycle's TestTagOnCreateHostedZone) injects: a 403 with
+// an AccessDeniedException envelope comes back as an *APIError carrying
+// that code.
+func TestTagResourcesHTTPErrorIsAnError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"__type":"AccessDeniedException","message":"refused"}`))
+	}))
+	defer server.Close()
+
+	c := NewTagging(Config{Endpoint: server.URL})
+	err := c.TagResources(context.Background(), []string{"arn:aws:route53:::hostedzone/Z1"}, map[string]string{"k": "v"})
+	if !HasCode(err, "AccessDeniedException") {
+		t.Fatalf("want an AccessDeniedException APIError, got %v", err)
 	}
 }

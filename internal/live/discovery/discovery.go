@@ -22,7 +22,6 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
@@ -74,6 +73,18 @@ type Request struct {
 	// nothing is excluded, and the demand this pass builds is unchanged.
 	RecordBackedAddrs map[string]bool
 
+	// NodeRefused is every instance the static evaluator refused and the
+	// #388 plan-node seam took over, keyed by
+	// [addrs.AbsResourceInstance.String] - the keys of
+	// identity.InstanceRefusals, which the command layer reads before it
+	// downgrades them. Such an instance is declared but absent from
+	// Resolutions ([identity.Resolve]'s contract), and the Kubernetes leg
+	// needs to know it is declared: an object whose address annotation
+	// names it is that instance's object, not an orphan (GitHub issue
+	// #1640, #1539's shape). Nil is ordinary: nothing was refused, or the
+	// run is not node-resolving.
+	NodeRefused map[string]bool
+
 	// DeposedRecords is GitHub issue #361's crash-window recovery input,
 	// keyed by [addrs.AbsResourceInstance.String] and then by the deposed
 	// object's own key (states.DeposedKey's string form): every deposed
@@ -116,7 +127,13 @@ type Request struct {
 	// block's resolution is what stops the sweep reading that block's
 	// live objects as orphans to remove. So the scope is not a filter on
 	// the input here; it is the answer to a different question, which
-	// only two places ask:
+	// only three places ask:
+	//
+	//   - [declaredInstances] must not put an out-of-scope block into the
+	//     binding demand. It is still recorded as declared, so the sweep
+	//     does not read its live objects as orphans, but it is not looked
+	//     for: a type the provider cannot list must not refuse a run that
+	//     excludes every block of it. See GitHub issue #1514.
 	//
 	//   - [refuseUnservedManifests] must not refuse a block this run
 	//     cannot plan. A resource -target excludes is pruned from the
@@ -143,20 +160,19 @@ type Request struct {
 	// *plugin.GRPCProvider or *plugin6.GRPCProvider.
 	Provider any
 
-	// Kubernetes is the estate sweep for a Kubernetes provider
-	// configuration (GitHub issue #1065): one cluster-wide, label-selected
-	// list per kind. Nil for every other provider, in which case the leg
-	// does nothing. KubernetesTypes are the provider's resource types the
-	// object-metadata rule admits (identity.ObjectMetaShape), the
-	// universe the leg joins to what the cluster serves, plus
-	// KubernetesManifestType when the provider has one: the type the
-	// manifest shape admits (identity.ManifestShape), under which every
-	// served kind no other type manages is listed (GitHub issue #1079).
-	// Empty when the provider has no such type, and then those kinds are
-	// not listed. See kubernetes.go.
-	Kubernetes             kubesweep.Sweeper
-	KubernetesTypes        []string
-	KubernetesManifestType string
+	// Sweepers are this pass's estate-sweep legs (GitHub issue #1580), run
+	// in order after the config-driven scan and the cache-vouching pass,
+	// ahead of bind, so every leg's orphans take the same classification
+	// path. The caller picks them by its substrate's [substrate.Sweep]
+	// property: [TaggingIndexSweep] for the AWS legs, [KubernetesSweep]
+	// for the label-selected cluster list (GitHub issue #1065), and
+	// [NoSweepLeg] for a family no leg serves or a provider no family
+	// claims, which files a named gap rather than sweeping nothing in
+	// silence. Nil means the one leg every caller before this field
+	// existed ran, [TaggingIndexSweep], which does nothing unless
+	// [Request.Sweep] is set; an empty, non-nil list runs no leg at all
+	// (GitHub issue #1707). See sweeper.go.
+	Sweepers []Sweeper
 
 	// Region is the region to list in, passed to any list configuration
 	// that accepts a region argument. Empty leaves it unset, which lets the
@@ -242,6 +258,19 @@ type Request struct {
 	// servicetagread.go for the gate and for what the leg costs.
 	ServiceTags servicetags.Reader
 
+	// ServiceList is GitHub issue #1477's per-service LIST leg: the
+	// enumeration route for a type with no provider list resource and no
+	// Cloud Control list handler, which the service's own API can still
+	// list. One type today, aws_iam_service_linked_role through
+	// iam:ListRoles with PathPrefix=/aws-service-role/. Nil (every caller
+	// before this field existed) disables the leg and leaves such a type
+	// on #293's tag-index fallback and its refusals exactly as they were.
+	// See servicelist.go for the leg and what it costs; the markers of the
+	// objects it lists are read through ServiceTags, so a run that sets
+	// this and not that enumerates objects whose ownership it cannot
+	// establish and says so.
+	ServiceList servicetags.Lister
+
 	// TaggingSweep replaces the estate-wide sweep's per-type listing
 	// ([sweepTypes], one list call per admitted type not already covered by
 	// the config-driven scan) with one paginated GetResources call filtered
@@ -309,6 +338,16 @@ type Request struct {
 	// caller that leaves it zero produces sightings no instance can match,
 	// which costs reads and never correctness.
 	VouchProvider addrs.AbsProviderConfig
+
+	// DeferDeniedSweepWarning leaves GitHub issue #1052's one "Incomplete
+	// sweep" warning for AccessDenied listings to the caller: the denials
+	// are still recorded on the Result, and the caller raises one warning
+	// for all of its passes with [DeniedSweepWarning]. A live-plan runs
+	// Discover once per provider configuration and sets it, so an estate
+	// with two AWS configurations gets one warning rather than one per
+	// configuration (GitHub issue #1513). False, the zero value, keeps
+	// Discover's own raise: a caller that runs one pass needs nothing else.
+	DeferDeniedSweepWarning bool
 
 	// ---------------------------------------------------------------------
 	// Guided discovery (issue #64's second leg)
@@ -526,7 +565,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	if declDiags.HasErrors() {
 		return res, diags
 	}
-	if len(decl.types) == 0 && len(decl.recordBacked) == 0 && !req.Sweep && len(req.CacheVouchTypes) == 0 && req.Kubernetes == nil {
+	if len(decl.types) == 0 && len(decl.recordBacked) == 0 && !req.Sweep && len(req.CacheVouchTypes) == 0 && len(req.Sweepers) == 0 {
 		// Nothing waits on discovery, no sweep was asked for and no cache
 		// vouching either, which is a legitimate configuration: every
 		// instance was named by static analysis, and without a sweep or a
@@ -622,119 +661,33 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		}
 	}
 
-	// The sweep runs after the config-driven scan so that a type appearing
-	// in both is scanned once, on the terms the configuration set.
-	if req.Sweep {
-		if req.TaggingSweep && req.Tagging != nil && req.Roster != nil {
-			// Issue #51: one estate-wide GetResources call replaces the
-			// per-type loop below, for every type [partitionSweepTypes]
-			// doesn't carve out. See [sweepViaTagging] and
-			// [Request.TaggingSweep]. It is one round trip rather than one
-			// per type, so it gets no progress events of its own - there is
-			// nothing to report between, only before and after.
-			taggingUniverse, nativeUniverse := partitionSweepTypes(req, schemas, decl)
-			diags = diags.Append(sweepViaTagging(ctx, req, schemas, decl, res, taggingUniverse))
-			// the stale-state ruling's (#604) CollectUnclaimed
-			// ruling. The tagging leg above is untouched by it - it is one
-			// call and it covers every ARN-placeable type across the whole
-			// account - and so is every removal leg below. What narrows is
-			// the per-type list loop, which is the term that tracks the
-			// admission table rather than the estate. See nativesweep.go
-			// for what that gives up and why it fails toward sweeping.
-			nativeUniverse, res.NativeSweepSkipped = estateScopedNativeSweep(ctx, req, decl, nativeUniverse)
-			// GitHub issue #1037/#1039: a type sweepTypes() adds back purely
-			// for being a taggingAPIUnservedType (today, every aws_iam_*
-			// type) was ALSO scanned a moment ago by the config-driven loop
-			// above whenever the configuration declares a needs-discovery
-			// instance of it - decl.types[typeName] != nil is exactly that
-			// condition (declared.typeNames(), the loop's own universe). That
-			// scan already ran with scan.Scope = ScopeAll (supportsTagFilter
-			// is false for these types regardless of sweep=true/false, so the
-			// two calls would build the identical list configuration) and
-			// already appends every one of this estate's own markers found on
-			// an undeclared address to res.Orphans - res.Orphans is filled
-			// without a `sweep` gate anywhere above line ~2420 - so listing
-			// the same type again here would refetch the whole account
-			// (paying its per-object provider Read a second time, in
-			// aws_iam_policy's case a GetPolicyVersion per policy on top of
-			// the config-driven pass's own) and then discard every result:
-			// orphanAlreadyPresent's dedup guard rejects a repeat orphan
-			// and decl.entryFor/decl.declares handle a repeat claimant the
-			// same way. Removed from nativeUniverse before the prefetch
-			// plans anything, not skipped in the consuming loop below, so
-			// [sweepPrefetch.finish] never reports a wasted plan for it.
-			nativeUniverse = dedupAlreadyConfigScanned(nativeUniverse, decl, res)
-			// GitHub issue #605: the list calls this loop is about to make
-			// go out concurrently, up to [Request.SweepParallelism] at a
-			// time, and the loop below is unchanged - it consumes each
-			// type's answer in this same order, from the same scanType
-			// body, so every diagnostic, scan row, claim and gap is produced
-			// by exactly the code that produced it sequentially. See
-			// sweepconcurrency.go.
-			req.sweepFetch = startSweepPrefetch(ctx, req, schemas, decl, nativeUniverse, func(typeName string) bool {
-				return req.CollectUnclaimed && decl.recordBacked[typeName] != nil
-			})
-			// Issue #394: a companion pair whose identities diverge
-			// ([typeNeedsResourceObjectToRecompose]) can only ever bind
-			// through a native list call's own resource object, which the
-			// tag sweep's ARN-joined candidate never carries - so these few
-			// types still go through the per-type loop even though
-			// TaggingSweep is set.
-			for _, typeName := range nativeUniverse {
-				// GitHub issue #388 edge 3's foreign-coverage fix: a type
-				// [partitionSweepTypes] routed here purely because it is
-				// entirely record-backed (see that function's own doc
-				// comment) still owes this run its unclaimed population
-				// when the caller asked for one - sweepViaTagging's single
-				// GetResources call is server-side estate-filtered and
-				// structurally could never have seen an unmarked sibling,
-				// which is exactly why partitionSweepTypes sends it here
-				// instead. Every other type in nativeUniverse is a true
-				// [typeNeedsResourceObjectToRecompose] companion the
-				// configuration may not even declare, for which
-				// "unclaimed" keeps its original, narrower meaning (see
-				// TypeScan.Sweep's own doc comment).
-				collectUnclaimed := req.CollectUnclaimed && decl.recordBacked[typeName] != nil
-				diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, true, collectUnclaimed, &typesScanned, &resourcesFound))
-			}
-			res.sweepPrefetchWasted = append(res.sweepPrefetchWasted, req.sweepFetch.finish()...)
-			res.sweepPrefetchMismatched += req.sweepFetch.mismatches()
-			req.sweepFetch = nil
-		} else {
-			// #64's guided leg: guidedSweepUniverse returns sweepTypes(req,
-			// decl) unmodified (and an empty fallback reason) whenever
-			// Request.Guided is false, so this is a no-op for every
-			// existing caller. See the Request.Guided doc comment and
-			// guided.go for what changes when it is set.
-			universe, skipped, fallback := guidedSweepUniverse(ctx, req, decl)
-			res.Guided = req.Guided && fallback == ""
-			res.GuidedFallback = fallback
-			res.GuidedSweepSkipped = skipped
-			// Issue #605's other leg, the same shape as the one above.
-			req.sweepFetch = startSweepPrefetch(ctx, req, schemas, decl, universe, func(typeName string) bool {
-				return req.CollectUnclaimed && decl.recordBacked[typeName] != nil
-			})
-			for _, typeName := range universe {
-				// Same reasoning as the TaggingSweep leg just above: a type
-				// present here only because every one of its declared
-				// instances is record-backed still needs its unclaimed
-				// population collected when the caller asked for one.
-				collectUnclaimed := req.CollectUnclaimed && decl.recordBacked[typeName] != nil
-				diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, true, collectUnclaimed, &typesScanned, &resourcesFound))
-			}
-			res.sweepPrefetchWasted = append(res.sweepPrefetchWasted, req.sweepFetch.finish()...)
-			res.sweepPrefetchMismatched += req.sweepFetch.mismatches()
-			req.sweepFetch = nil
-		}
+	// The sweep legs run after the config-driven scan so that a type
+	// appearing in both is scanned once, on the terms the configuration
+	// set, and ahead of bind and classifyOrphans so their orphans take the
+	// same classification path (GitHub issue #1580; see sweeper.go).
+	in := &SweepInput{Request: req, Result: res, schemas: schemas, decl: decl, typesScanned: &typesScanned, resourcesFound: &resourcesFound}
+	for _, leg := range sweepLegs(req) {
+		diags = diags.Append(leg.Sweep(ctx, in))
 	}
 
-	// The Kubernetes leg (kubernetes.go), ahead of bind and
-	// classifyOrphans so its orphans take the same classification path
-	// every AWS leg's do.
-	diags = diags.Append(sweepKubernetes(ctx, req, res))
-
 	diags = diags.Append(bind(ctx, req, decl, res))
+
+	// GitHub issue #1480, and it has to be here rather than in either scan
+	// loop above: what it needs to know is which declared instances nothing
+	// claimed, and bind() is what settles that. A type left with an unbound
+	// instance is a type the plan proposes creating one of, which is the
+	// only case the lookalike guard has anything to say about - so this is
+	// where the guard's one widened list call is worth making and the only
+	// place it can be decided. See [relistForLookalikes]: a steady-state
+	// plan makes no call at all here.
+	diags = diags.Append(relistForLookalikes(ctx, req, schemas, res))
+
 	diags = diags.Append(classifyOrphans(ctx, req, schemas, res))
+
+	// Controller-held resources (GitHub issue #1606) leave the removal set
+	// and the unclaimed population here, before the parent-read legs below
+	// read res.Resolutions for removed parents.
+	applyControllerHeld(res)
 
 	// The three removal legs that read res.Resolutions rather than the tag
 	// sweep, all of them after bind and classifyOrphans: each needs to know
@@ -794,6 +747,16 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// classifyOrphans and parentReadSweep would otherwise propose is
 	// settled: see [applyOrphanPolicy].
 	applyOrphanPolicy(req, res)
+
+	// GitHub issue #1052: the one warning for every Cloud Control listing
+	// this run's credential was refused, raised here so the whole sweep's
+	// denials are in hand. See sweepdenied.go.
+	// A caller running several passes (GitHub issue #1513) raises it once
+	// for all of them instead, through [DeniedSweepWarning].
+	if !req.DeferDeniedSweepWarning {
+		diags = diags.Append(deniedSweepDiag(res.sweepDenied))
+		diags = diags.Append(kubeDeniedSweepDiag(res.kubeSweepDenied))
+	}
 
 	res.sortEverything()
 	return res, diags
@@ -896,7 +859,7 @@ func sweepTypes(req Request, decl *declared) []string {
 	// declared types in unserved services, a handful, not the admission
 	// table.
 	for t := range decl.types {
-		if cloudObservable(t) && taggingAPIUnservedType(t) {
+		if cloudObservable(t) && taggingAPIRestrictedType(t) {
 			out = append(out, t)
 		}
 	}
@@ -1503,6 +1466,17 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 			continue
 		}
 
+		if !req.inScope(r.Addr) {
+			// Declared, but by a block this run's -target / -exclude leaves
+			// out of the plan graph (GitHub issue #1514). The same shape as
+			// the provider-scope skip just above: it already contributed its
+			// address to d.all, so the sweep still reads its live objects as
+			// declared rather than as orphans, and this run simply does not
+			// try to find it - a type the provider cannot list must not
+			// refuse a run that excludes every block of it.
+			continue
+		}
+
 		escaped := EscapeAddress(r.Addr.String())
 		if len([]rune(escaped)) > MaxAddressLen {
 			diags = diags.Append(&hcl.Diagnostic{
@@ -1944,6 +1918,18 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			return scanTypeCloudControl(ctx, req, schemas, decl, typeName, cfnType, res, sweep, collectUnclaimed)
 		}
 
+		// GitHub issue #1477: the service's own list API, for a type
+		// neither route above enumerates and the lister has a route for
+		// (aws_iam_service_linked_role through iam:ListRoles). An
+		// enumeration, so it is tried with the enumerations and before
+		// the two fallbacks below, which exist for a type nothing can
+		// list. A nil Request.ServiceList is "the leg does not apply
+		// here", exactly as a nil CloudControl is above. See
+		// servicelist.go.
+		if serviceListRoute(req, typeName) {
+			return scanTypeServiceList(ctx, req, schemas, decl, typeName, res, sweep, collectUnclaimed)
+		}
+
 		// Issue #293. Neither route above found a way to list typeName at
 		// all. A declared instance of a taggable type still has one more
 		// place to look before this refuses: the estate's tag index issue
@@ -2115,6 +2101,11 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 	// on one object proves nothing on its own.
 	var markerReadWorked bool
 	var joinBlind, joinAbsent int
+	// failedReads is #1162: the listed objects that reached the service tag
+	// read, whose read FAILED, and whose marker nothing else had read. It
+	// overrides [markerReadWorked]'s refutation below and supplies the
+	// third MARKER_UNREADABLE sentence's figures.
+	var failedReads failedTagReads
 	for _, r := range results {
 		if acct, ok := r.IdentityAttr("account_id"); ok {
 			sawIdentity = true
@@ -2252,7 +2243,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				// Counted rather than reported here: whether it MATTERS
 				// depends on sawReadableTags, which is not known until the
 				// listing is over.
-				if (sweep || collectUnclaimed) && taggable && taggingAPIUnservedType(typeName) {
+				if (sweep || collectUnclaimed) && taggable && taggingAPIListDropsTags(typeName) {
 					blindPending = true
 				}
 			case joinUnavailable:
@@ -2270,7 +2261,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				// [sweepMarkerReadGap]'s "Why both arms are gated on a
 				// service list" for the actual argument, which is about
 				// what this run has evidence for.
-				if (sweep || collectUnclaimed) && taggable && taggingAPIUnservedType(typeName) {
+				if (sweep || collectUnclaimed) && taggable && taggingAPIListDropsTags(typeName) {
 					absentPending = true
 				}
 			}
@@ -2287,15 +2278,22 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			//
 			// Placed after the index join rather than before it because the
 			// index is already paid for: one GetResources for the whole
-			// sweep against one ListRoleTags per role. [serviceTagRead]'s
-			// own third clause ([markerIndex.servesType]) says the same
-			// thing from the other side and keeps this off entirely on a
-			// target whose index does serve the type - which is not
-			// hypothetical for IAM, #1134 having measured real AWS serving
-			// iam:policy and iam:instance-profile in us-east-1 while the
-			// pinned emulator serves no IAM at all (#1152).
+			// sweep against one ListRoleTags per role.
+			//
+			// GitHub issue #1162: the gate is per object, and this `if` is
+			// it. The read runs exactly when this object's own listing and
+			// this object's own index join both produced no tofu-estate. An
+			// object the index answered for took joinBound above, carries
+			// its marker already and costs no call; its unindexed sibling
+			// is read. The gate used to be per type (the index holding any
+			// marked object of the type switched the leg off for all of
+			// them), which was wrong about the lagging index #1046 measured:
+			// the sibling went unread AND the bound join refuted the gap,
+			// so a marked, undeclared role was dropped with nothing said.
 			if tags[TagEstate] == "" {
-				if svcTags, ok := serviceTagRead(ctx, req, typeName, importID, &scan); ok {
+				svcTags, readOutcome, readErr := serviceTagRead(ctx, req, typeName, importID, &scan)
+				switch readOutcome {
+				case tagReadAnswered:
 					tags, taggable = svcTags, true
 					// Unconditionally, including for an empty answer, and
 					// this is the one place that differs from the list
@@ -2308,6 +2306,21 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 					// none.
 					markerReadWorked = true
 					blindPending, absentPending = false, false
+				case tagReadFailed:
+					// #1162. This object's own read was refused (access
+					// denied, throttled, gone). A sibling whose marker WAS
+					// read - off the index or off the service - proves a
+					// route exists for the type and proves nothing about
+					// this object, which is exactly as unread as it would be
+					// with no leg at all. [markerReadWorked] exists to stop
+					// "the join said nothing" filing a gap over other
+					// people's resources; it must not also absorb an object
+					// the run tried to read and could not. Counted only
+					// where the gap was pending anyway, so a type with no
+					// route, or a plain plan, is untouched.
+					if blindPending || absentPending {
+						failedReads.record(servicetags.ErrorCode(readErr), req.ServiceTags.Action(typeName))
+					}
 				}
 			}
 			if blindPending {
@@ -2713,7 +2726,9 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 	// produces opposite visible failures on the two, and why a plain plan
 	// (neither flag) is deliberately left to #322's per-address warning.
 	if sweep || collectUnclaimed {
-		diags = diags.Append(sweepMarkerReadGap(res, schemas, typeName, markerReadWorked, joinBlind, joinAbsent))
+		// #1162: a refused per-object read is not refuted by a sibling's
+		// success, and it gets its own sentence.
+		diags = diags.Append(sweepMarkerReadGap(res, schemas, typeName, markerReadWorked, joinBlind, joinAbsent, scan.Listed, failedReads))
 	}
 
 	if scan.Filtering == FilterServerSide && sawIdentity && !sawAccountID && scan.Listed > 0 {
@@ -2866,13 +2881,48 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 // answer per run, not per object - so the ordering below settles a case
 // that does not arise, in favour of the one that can be acted on.
 //
+// # The third sentence: a read that was made and refused
+//
+// GitHub issue #1162, ruled by the maintainer on 2026-09-21. The two
+// sentences above are each wrong about a run where the per-service tag read
+// (servicetagread.go) was attempted for an object and failed: both say the
+// index cannot answer for the type and that no marker was read off ANY
+// listed object, and on a partially indexed run a sibling's marker was read
+// off the index. So a refused read gets its own wording under the SAME
+// reason code - internal/live/foreign and every other reader keyed on
+// MARKER_UNREADABLE are untouched - quoting what the service said and naming
+// the action to grant, which comes from the route table
+// (servicetags.Reader.Action) and is never typed here. It fires only when
+// at least one read's outcome was [tagReadFailed]; a run with no route or
+// no index keeps the sentence it had. markerReadWorked does not refute it:
+// a sibling's success says a route exists for the type and nothing about
+// the object that was refused.
+//
 // [Result.SweepCovered] loses the type either way, for [dropCovered]'s
 // reason: the listing succeeded and the search did not happen, so leaving
 // the name in place would have the result assert coverage it does not have
 // on the same run it files the gap.
-func sweepMarkerReadGap(res *Result, schemas listclient.Schemas, typeName string, markerReadWorked bool, joinBlind, joinAbsent int) tfdiags.Diagnostics {
+func sweepMarkerReadGap(res *Result, schemas listclient.Schemas, typeName string, markerReadWorked bool, joinBlind, joinAbsent, listed int, failed failedTagReads) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
-	if markerReadWorked || joinBlind+joinAbsent == 0 || !typeTaggable(schemas, typeName) {
+	if !typeTaggable(schemas, typeName) {
+		return diags
+	}
+	if failed.n > 0 {
+		pronoun := "it"
+		if failed.n > 1 {
+			pronoun = "them"
+		}
+		_, action, _ := strings.Cut(failed.first, ": ")
+		res.SweepCovered = dropCovered(res.SweepCovered, typeName)
+		return diags.Append(sweepGapDiag(res, SweepGap{
+			TypeName: typeName,
+			Reason:   SweepGapMarkerUnreadable,
+			Detail: fmt.Sprintf(
+				"The sweep could not read an ownership marker off %d of %d %s: the list call returned no tags, the tag index did not hold %s, and the service's own tag read failed (%s). A live %s this estate owns and no longer declares WILL NOT be proposed for destruction by this run. Grant %s, or retry if it was throttled, and re-run.",
+				failed.n, listed, typeName, pronoun, failed.quoted(), typeName, action),
+		}))
+	}
+	if markerReadWorked || joinBlind+joinAbsent == 0 {
 		return diags
 	}
 
@@ -4156,10 +4206,23 @@ func collisionOrphanProblem(req Request, res *Result, idx []int) Problem {
 // the whole shape of the coverage at once. A list call that failed is the
 // opposite - a fact about this run, and one that may not repeat - so it says
 // so out loud.
+//
+// One failure is grouped rather than said per type: a Cloud Control
+// listing refused with AccessDeniedException goes through [sweepGapDenied]
+// instead, which records the same gap and defers the warning to
+// [deniedSweepDiag] so that a credential refused on hundreds of types
+// raises one warning (GitHub issue #1052). Every other failure is a
+// different fact per type and keeps its own line here.
 func sweepGapDiag(res *Result, g SweepGap) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	res.SweepGaps = append(res.SweepGaps, g)
-	if g.Reason == SweepGapNotListable || g.Reason == SweepGapNotTaggable {
+	// [SweepGapTagIndexCoverageUnconfirmed] joined this list with issue
+	// #1322 and widened it by nothing: it is a split of
+	// [SweepGapNotTaggable]'s own branch in [noRegistryRowOrUntaggable],
+	// filed for exactly the types that reason was filed for before, so the
+	// set of types this function silences is unchanged and only what the
+	// recorded gap says about them moved.
+	if g.Reason == SweepGapNotListable || g.Reason == SweepGapNotTaggable || g.Reason == SweepGapTagIndexCoverageUnconfirmed {
 		return diags
 	}
 	return diags.Append(tfdiags.Sourceless(

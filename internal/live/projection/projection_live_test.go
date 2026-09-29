@@ -95,16 +95,13 @@ func TestBuildAgainstFloci(t *testing.T) {
 	_ = os.Remove(stateFile + ".backup")
 
 	provider, providerSchema := launchAWSProvider(t, dir)
-
-	// With a real provider on the line, the identity table stops being an
-	// unfalsifiable assertion: the provider's own resource identity schemas
-	// say what identifies each of these types. Divergences are logged
-	// rather than failed - the table's inference layer is something no
-	// schema carries, so the two are allowed to describe one identity
-	// differently - but a table entry naming an argument or an attribute
-	// the real provider does not have is a bug in the table, and this is
-	// the test that can see it.
-	verifyIdentityTable(t, providerSchema)
+	// The identity-table check that used to run here against this
+	// provider - the estate fixture's release - moved to
+	// TestIdentityTableAgainstThePinnedProvider, against the release the
+	// table was generated from. Against the fixture's older release every
+	// type the survey pin added since read as a breaking "the provider does
+	// not have" finding, nineteen of them on the tier's first measured
+	// nights (#1316), none of which was a bug in the table.
 
 	cfg := loadConfig(t, dir)
 	resolutions := resolveOrFail(t, cfg)
@@ -330,7 +327,10 @@ func verifyIdentityTable(t *testing.T, schema providers.GetProviderSchemaRespons
 // set negotiates protocol 5 or 6, and internal/plugins configures it.
 // P1.4's command will get all of this from the Meta it already has; a test
 // has to spell it out.
-func launchAWSProvider(t *testing.T, dir string) (providers.Interface, providers.GetProviderSchemaResponse) {
+//
+// extra is further provider-block HCL a caller needs beyond the three
+// settings every test here shares; see decodeProviderConfig.
+func launchAWSProvider(t *testing.T, dir string, extra ...string) (providers.Interface, providers.GetProviderSchemaResponse) {
 	t.Helper()
 
 	exe := findProviderBinary(t, dir)
@@ -354,7 +354,7 @@ func launchAWSProvider(t *testing.T, dir string) (providers.Interface, providers
 		t.Fatalf("reading the AWS provider schema: %s", diags.Err())
 	}
 
-	cfgVal := decodeProviderConfig(t, schema)
+	cfgVal := decodeProviderConfig(t, schema, extra...)
 
 	provider, diags := mgr.NewConfiguredProvider(context.Background(), awsAddr, cfgVal)
 	if diags.HasErrors() {
@@ -368,14 +368,19 @@ func launchAWSProvider(t *testing.T, dir string) (providers.Interface, providers
 // region, credentials, and the floci endpoint - reaches the plugin through
 // the environment, exactly as it does when the estate is applied by
 // terraform.
-func decodeProviderConfig(t *testing.T, schema providers.GetProviderSchemaResponse) cty.Value {
+//
+// extra lines are appended verbatim: a test with no emulator behind it
+// (plan_provider_test.go) also needs skip_requesting_account_id, which the
+// emulator-backed tests must NOT set, because the account ID it would skip
+// is one floci answers and some ARNs are built from.
+func decodeProviderConfig(t *testing.T, schema providers.GetProviderSchemaResponse, extra ...string) cty.Value {
 	t.Helper()
 
-	const src = `
+	src := `
 skip_credentials_validation = true
 skip_metadata_api_check     = true
 s3_use_path_style           = true
-`
+` + strings.Join(extra, "\n") + "\n"
 	body, hclDiags := hclsyntax.ParseConfig([]byte(src), "provider.hcl", hcl.Pos{Line: 1, Column: 1})
 	if hclDiags.HasErrors() {
 		t.Fatalf("parsing the provider configuration: %s", hclDiags.Error())

@@ -155,7 +155,7 @@ func TestNoStateAbsenceClaims(t *testing.T) {
 		// existing.
 		"internal/live/projection/outputs.go",
 		"site/content/aws/compatibility.md",
-		"site/content/docs/use/compatibility.md",
+		"live/COMPATIBILITY.md",
 		"site/content/docs/tutorial.md",
 	}
 

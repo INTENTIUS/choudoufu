@@ -2,7 +2,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/intentius/choudoufu.svg)](https://pkg.go.dev/github.com/intentius/choudoufu)
 
-**OpenTofu, with your platform holding the record of what you own.** <img src="docs/images/choudoufu-inline-64.png" width="32" height="32" alt="">
+**Your cloud already knows what you own.** <img src="docs/images/choudoufu-inline-64.png" width="32" height="32" alt="">
 
 Each resource carries its own identity on the resource itself, as a marker
 the platform can select on: on AWS, two resource tags. The apply writes it
@@ -22,8 +22,8 @@ estate](https://intentius.io/choudoufu/docs/use/start/) if it does not.
 
 Three things have to survive between runs, and each lives somewhere AWS
 already has. Which real resource an address refers to is a tag on the
-resource. Values AWS has nowhere to put go in a `record_store`, backed by
-Parameter Store, S3, or a local directory. Effects that leave nothing behind
+resource. Values AWS has nowhere to put go in a `record_store`: an S3 bucket
+you own, or a local directory. Effects that leave nothing behind
 to read back get a receipt, which tracks their staleness.
 
 **Tag-based IAM scoping is a feature AWS already has.** What it needs is tags

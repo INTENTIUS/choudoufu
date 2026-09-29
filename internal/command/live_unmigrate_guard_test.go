@@ -18,8 +18,27 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/terminal"
 	"github.com/intentius/choudoufu/internal/tofu"
 )
+
+// saidInAStream reports whether want appears in the run's stdout or in its
+// stderr. It is what every content assertion in this file uses, and
+// output.All() is what none of them may use for that.
+//
+// All() is the two streams interleaved in the order the writes arrived. A
+// refusal is a diagnostic on stderr and the plan it follows is on stdout, and
+// the two are written by different goroutines, so a stdout write can land in
+// the middle of the refusal. On 2026-09-19 it did, in CI: the output read
+// "To remove the markers deliberately, set CHOUDOUF", then the whole rendered
+// plan, and the assertion for "CHOUDOUFU_UNMIGRATE=team-estate" failed on a
+// run where the refusal was complete and correct. The same interleaving makes
+// a must-NOT-contain check on All() able to pass when it should fail. Each
+// stream by itself is written in order, so each is searched by itself.
+// All() stays in the failure messages, where a reader wants both.
+func saidInAStream(output *terminal.TestOutput, want string) bool {
+	return strings.Contains(output.Stdout(), want) || strings.Contains(output.Stderr(), want)
+}
 
 // GitHub issue #613. Everything in this file asserts on RENDERED CLI output,
 // never on a predicate, because the defect it guards is precisely a marker
@@ -165,13 +184,13 @@ func TestPlan_statefulPlanStrippingMarkersIsRefused(t *testing.T) {
 		"test_instance.foo",
 		"CHOUDOUFU_UNMIGRATE=team-estate",
 	} {
-		if !strings.Contains(all, want) {
+		if !saidInAStream(output, want) {
 			t.Errorf("refusal does not contain %q\n\n%s", want, all)
 		}
 	}
 
 	// A refused plan must not invite the operator to apply it.
-	if strings.Contains(all, "choudoufu apply") && strings.Contains(all, "Saved the plan") {
+	if saidInAStream(output, "choudoufu apply") && saidInAStream(output, "Saved the plan") {
 		t.Errorf("refused plan still printed a next-step hint\n\n%s", all)
 	}
 }
@@ -195,7 +214,7 @@ func TestPlan_statefulPlanOnAnUnstampedEstateIsNotRefused(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit status %d, want 0\n\n%s", code, output.All())
 	}
-	if strings.Contains(output.All(), summaryUnmigrateRefused) {
+	if saidInAStream(output, summaryUnmigrateRefused) {
 		t.Errorf("unstamped estate was refused\n\n%s", output.All())
 	}
 }
@@ -219,10 +238,10 @@ func TestPlan_statefulMarkerStripApprovedByEnvVar(t *testing.T) {
 		t.Fatalf("exit status %d, want 0\n\n%s", code, output.All())
 	}
 	all := output.All()
-	if strings.Contains(all, summaryUnmigrateRefused) {
+	if saidInAStream(output, summaryUnmigrateRefused) {
 		t.Errorf("%s named the estate and the run was still refused\n\n%s", UnmigrateEnvVar, all)
 	}
-	if !strings.Contains(all, summaryUnmigrateApproved) {
+	if !saidInAStream(output, summaryUnmigrateApproved) {
 		t.Errorf("approved revert was silent; want %q\n\n%s", summaryUnmigrateApproved, all)
 	}
 }
@@ -247,7 +266,7 @@ func TestPlan_statefulMarkerStripEnvVarNamingAnotherEstateStillRefuses(t *testin
 	if code != 1 {
 		t.Fatalf("exit status %d, want 1\n\n%s", code, output.All())
 	}
-	if !strings.Contains(output.All(), summaryUnmigrateRefused) {
+	if !saidInAStream(output, summaryUnmigrateRefused) {
 		t.Errorf("run was not refused\n\n%s", output.All())
 	}
 }
@@ -272,7 +291,7 @@ func TestApply_statefulApplyStrippingMarkersIsRefused(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("exit status %d, want 1\n\n%s", code, output.All())
 	}
-	if !strings.Contains(output.All(), summaryUnmigrateRefused) {
+	if !saidInAStream(output, summaryUnmigrateRefused) {
 		t.Errorf("apply was not refused\n\n%s", output.All())
 	}
 	if p.ApplyResourceChangeCalled {
@@ -324,7 +343,7 @@ func TestApply_statefulSavedPlanStrippingMarkersIsRefused(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("exit status %d, want 1\n\n%s", code, output.All())
 	}
-	if !strings.Contains(output.All(), summaryUnmigrateRefused) {
+	if !saidInAStream(output, summaryUnmigrateRefused) {
 		t.Errorf("saved-plan apply was not refused\n\n%s", output.All())
 	}
 	if p.ApplyResourceChangeCalled {
@@ -352,7 +371,7 @@ func TestApply_statefulDestroyOfAStampedResourceIsNotRefused(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit status %d, want 0\n\n%s", code, output.All())
 	}
-	if strings.Contains(output.All(), summaryUnmigrateRefused) {
+	if saidInAStream(output, summaryUnmigrateRefused) {
 		t.Errorf("destroy was refused\n\n%s", output.All())
 	}
 }
@@ -388,7 +407,7 @@ func TestPlan_stockModeCreateFromNothingWarns(t *testing.T) {
 		"turn the live block on",
 		"first bootstrap, proceed",
 	} {
-		if !strings.Contains(all, want) {
+		if !saidInAStream(output, want) {
 			t.Errorf("output does not contain %q\n\n%s", want, all)
 		}
 	}
@@ -417,7 +436,7 @@ func TestPlan_stockModeCreateWithWorkingStateStaysSilent(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit status %d, want 0\n\n%s", code, output.All())
 	}
-	if strings.Contains(output.All(), "already stamped with ownership markers") {
+	if saidInAStream(output, "already stamped with ownership markers") {
 		t.Errorf("the warning fired with a working state present\n\n%s", output.All())
 	}
 }
@@ -441,7 +460,7 @@ func TestPlan_stockModeCreateWithoutMarkersStaysSilent(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit status %d, want 0\n\n%s", code, output.All())
 	}
-	if strings.Contains(output.All(), "already stamped with ownership markers") {
+	if saidInAStream(output, "already stamped with ownership markers") {
 		t.Errorf("the warning fired for creates that stamp nothing\n\n%s", output.All())
 	}
 }

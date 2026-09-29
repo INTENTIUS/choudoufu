@@ -99,6 +99,10 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 
 	findings := findingMap{}
 
+	// No Scope, for the reason [nodeStampDiagnostics] passes
+	// NodeStampUnmarkedApply none: this offline instrument analyses a
+	// configuration, never a narrowed run, so every block is in scope and
+	// the report reads exactly as it did before GitHub issue #1256.
 	for _, issue := range lint.CheckWith(ctx, cfg, lint.Context{Schemas: actx.Schemas}) {
 		site := Site{
 			Address: issue.Construct,

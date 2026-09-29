@@ -12,6 +12,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
 // checkReceiptSecretRule enforces the directly visible case of
@@ -32,7 +33,7 @@ import (
 // sensitive is not caught, because each of those requires data-flow
 // analysis or schema knowledge this package deliberately does not have.
 // Those cases remain a review rule, and RECEIPTS.md says so.
-func checkReceiptSecretRule(mod *configs.Module, path addrs.Module, issues *[]Issue) {
+func checkReceiptSecretRule(mod *configs.Module, path addrs.Module, scope identity.Scope, issues *[]Issue) {
 	receipts := receiptResources(mod)
 	if len(receipts) == 0 {
 		return
@@ -41,6 +42,13 @@ func checkReceiptSecretRule(mod *configs.Module, path addrs.Module, issues *[]Is
 	for _, resource := range mod.ManagedResources {
 		addr := resource.Addr().String()
 		if !receipts[addr] {
+			continue
+		}
+		// GitHub issue #1256. This rule judges the receipt BLOCK's own
+		// declaration, and a block -target / -exclude removed from the plan
+		// graph is not written on this run, so the value it would carry is
+		// not this run's to refuse. See [scopeExcludes].
+		if scopeExcludes(scope, path, resource.Addr()) {
 			continue
 		}
 		body, ok := resource.Config.(*hclsyntax.Body)

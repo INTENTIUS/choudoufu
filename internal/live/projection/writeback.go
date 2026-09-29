@@ -54,7 +54,7 @@ type WriteBackRequest struct {
 	// [retry.ThrottleAdvice] renders without claiming an attempt count.
 	Retry retry.Config
 
-	// Backend names the record store's backend ("ssm", "s3", "local") so a
+	// Backend names the record store's backend ("s3", "local") so a
 	// throttling failure can name that service's own ceiling rather than a
 	// generic one. Empty is legitimate and yields the general advice.
 	Backend string
@@ -63,6 +63,30 @@ type WriteBackRequest struct {
 	// time - [Result.RecordVersions] - for every kind=object (record-backed)
 	// instance. An address with no entry here had no prior record.
 	PriorVersions []RecordVersion
+
+	// RecordFallbackAddrs is [Result.RecordFallbackAddrs]: every instance
+	// this run's plan resolved through GitHub issue #1675's record-fallback
+	// door because its own identity component could not be folded from
+	// configuration and its type has nowhere to carry a marker either. For
+	// an address in this list, [writeBackRecordEnvelopes] treats a failure
+	// to derive the applied object's identity exactly as it already treats
+	// one for an `automatic` (LocatedType) or `selected`
+	// (`markers = record`) instance - a loud, run-stopping error naming the
+	// instance - because the record this pass would have written is that
+	// instance's ONLY surviving identity carrier, the same fact that makes
+	// the other two doors loud. An address of a
+	// [identity.RecordFallbackType]-eligible type that is NOT in this list
+	// resolved some other way this run (typically straight from
+	// configuration), so the record is redundant bookkeeping for it and a
+	// derivation failure stays the quiet, best-effort log line it always
+	// was.
+	//
+	// Nil for a run with no record store, or one whose configuration never
+	// took this door - the ordinary case for most estates, since
+	// [identity.RecordFallbackType]'s type-level eligibility is far wider
+	// than the population that ever actually needs the door (see the
+	// type's own doc comment).
+	RecordFallbackAddrs []addrs.AbsResourceInstance
 
 	// EnvelopeVersions is [Result.EnvelopeVersions]: the plan-time version
 	// of every kind=identity envelope that already existed, covering the
@@ -190,6 +214,17 @@ type WriteBackRequest struct {
 	// outcome here: the winner wrote a value from a state at least as new
 	// as this one.
 	RootOutputStore *RootOutputStore
+
+	// WholeDestroy is true when this apply ran a destroy plan with no
+	// -target and no -exclude. GitHub issue #1371: the estate is gone, so
+	// every root output it recorded is deleted, and another estate reading
+	// one through data "terraform_estate_outputs" is told it is not
+	// recorded instead of reading a destroyed estate's last values.
+	//
+	// It comes from the plan because the final state cannot say it: a
+	// destroy's final state carries no outputs, and neither does a scoped
+	// apply that never evaluated them. See [PruneRootOutputValues].
+	WholeDestroy bool
 }
 
 // WriteBack persists every managed instance's post-apply record to
@@ -596,9 +631,12 @@ func deposedRecordedDiffers(ctx context.Context, store *RecordStore, addr addrs.
 // writeBackLocated, writeBackResidue and writeBackProvisioned in this
 // package's git history for the shape each one is reproducing:
 //
-//   - Located identity: wanted (the type is automatically located, or the
-//     `markers "record"` selection covers this address) and derivable -> SET
-//     it, overwriting whatever was there. Wanted but not derivable (the
+//   - Located identity: wanted (the type is automatically located, the
+//     `markers "record"` selection covers this address, or GitHub issue
+//     #1675's [WriteBackRequest.RecordFallbackAddrs] names this instance as
+//     having reached the record store because nothing else could carry its
+//     identity) and derivable -> SET it, overwriting whatever was there.
+//     Wanted but not derivable (the
 //     final state could not be decoded, or the applied object carries no
 //     usable identity) -> an ERROR, and the existing identity (if any) is
 //     left exactly alone. Not wanted (the type is not located and the
@@ -658,6 +696,13 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 	// way - see [WriteBackRequest.DestroyedDeposed].
 	deposedDestroyed := destroyedDeposedIndex(req.DestroyedDeposed)
 
+	// GitHub issue #1675's plan-derived record-fallback signal, indexed the
+	// same way - see [WriteBackRequest.RecordFallbackAddrs].
+	viaRecordFallback := make(map[string]bool, len(req.RecordFallbackAddrs))
+	for _, a := range req.RecordFallbackAddrs {
+		viaRecordFallback[a.String()] = true
+	}
+
 	// noProvidersWarned makes the "no provider access to classify residue
 	// with" warning fire once per write-back rather than once per instance
 	// that has a residue candidate - the same one-warning-per-run shape the
@@ -708,6 +753,15 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				setIdentity                            *identityPayload
 				setResidue                             *residueFields
 				setProv                                *provisionedFields
+
+				// GitHub issue #1211: which metadata.labels and
+				// metadata.annotations keys this apply's manifest
+				// actually declared. Kept beside setResidue rather than
+				// inside it because the two are decided independently -
+				// an instance can have this and no residue attributes at
+				// all, and a kubernetes_manifest with no `timeouts` and
+				// no `field_manager` block is exactly that shape.
+				setManifestKeys map[string][]string
 			)
 
 			schemaPtr, _ := req.Schemas.ResourceTypeConfig(res.ProviderConfig.Provider, addrs.ManagedResourceMode, typeName)
@@ -719,12 +773,23 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 			// automatic and selected instances are unchanged from before
 			// this issue: a located route's record is such an instance's
 			// ONLY way to be found again, so a derivation failure there
-			// stays the loud error it always was. Every other (ordinary
-			// taggable) instance now ALSO gets its identity recorded, best
-			// effort: ownership is decided by its marker regardless, so a
-			// type or instance this pass cannot derive an identity for
-			// (an unrecordable schema, an object missing a component) just
-			// keeps whatever was already recorded - from an earlier apply,
+			// stays the loud error it always was. GitHub issue #1675 adds a
+			// third instance set with the same property - one this run's
+			// plan routed through the record-fallback door because its own
+			// identity component could not be folded from configuration and
+			// its type has no marker either - named in
+			// [WriteBackRequest.RecordFallbackAddrs] rather than
+			// recomputed here, because the type-level eligibility test
+			// ([identity.RecordFallbackType]) also admits instances whose
+			// identity folds straight from configuration, for which the
+			// record is redundant and a derivation failure should stay
+			// quiet. Every other (ordinary taggable, or fallback-eligible
+			// but not fallback-routed) instance now ALSO gets its identity
+			// recorded, best effort: ownership is decided by its marker (or
+			// its own configuration) regardless, so a type or instance this
+			// pass cannot derive an identity for (an unrecordable schema, an
+			// object missing a component) just keeps whatever was already
+			// recorded - from an earlier apply,
 			// or from a live-import migration - rather than failing the
 			// apply or erasing it. See writeBackRecordEnvelopes's own
 			// "residue" case just below for the same leave-alone shape.
@@ -736,10 +801,17 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				typeSchemas := map[string]providers.Schema{typeName: schema}
 				automatic := identity.LocatedType(typeName, typeSchemas)
 				selected := selection.Selects(addr.ConfigResource()) && identity.SelectedLocatedType(typeName, typeSchemas)
+				// GitHub issue #1675: this run's plan already answered
+				// "does this SPECIFIC instance have no other identity
+				// carrier" for the third door - see
+				// [WriteBackRequest.RecordFallbackAddrs] for why that
+				// answer cannot be recomputed here from typeName and
+				// selection alone the way automatic and selected are.
+				viaFallback := viaRecordFallback[addr.String()]
 
 				obj, err := ri.Current.Decode(schema.Block.ImpliedType())
 				switch {
-				case err != nil && (automatic || selected):
+				case err != nil && (automatic || selected || viaFallback):
 					touched = true
 					diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot record a located identity",
 						fmt.Sprintf("Recording which live %s %s owns failed: its final state could not be decoded: %s.", typeName, addr, err),
@@ -756,7 +828,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 					case recordable:
 						touched = true
 						setIdentity = identityPayloadFrom(rec)
-					case automatic || selected:
+					case automatic || selected || viaFallback:
 						touched = true
 						diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot record a located identity",
 							fmt.Sprintf(
@@ -833,6 +905,24 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 					clearResidue = true
 				} else {
 					touched = true
+					// GitHub issue #1211, before the classifier: what
+					// this apply's own `manifest` argument declared at
+					// metadata.labels and metadata.annotations. Read off
+					// the applied object, which for a Required,
+					// non-Computed attribute is the value that was
+					// sent - the stamped configuration, tofu-estate
+					// included.
+					//
+					// Recorded on EVERY apply of a manifest-shaped
+					// instance, including one where nothing about the
+					// metadata moved, because the record is only useful
+					// if it is what the LAST apply declared. Recording
+					// it only when something changed would leave the
+					// first apply's set standing for ever and propose
+					// removing a key a later apply had already removed.
+					if keys, ok := ManifestDeclaredKeys(obj.Value); ok {
+						setManifestKeys = keys
+					}
 					candidates := residueCandidates(schema, obj.Value, secrets)
 					pathCandidates := residueLeafPathCandidates(schema, obj.Value, secrets)
 					if len(candidates)+len(pathCandidates) > 0 && req.Providers == nil {
@@ -997,6 +1087,28 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				case clearResidue:
 					env.Residue = nil
 				}
+				// GitHub issue #1211, after the residue switch because
+				// it writes into whatever that left behind. The two
+				// members of Residue are decided independently: a
+				// classifier that found no residue attribute this pass
+				// must not erase the declared key sets, and a manifest
+				// instance with no residue attributes at all still needs
+				// its key sets written into an envelope the switch above
+				// never allocated.
+				//
+				// A manifest-shaped instance whose keys this pass could
+				// not read (a marked manifest, a manifest that is not an
+				// object) leaves whatever is recorded alone, the same
+				// leave-alone stance the identity arm above takes: the
+				// previous apply's answer is still the best one anybody
+				// has, and clearing it would trade a stale record - which
+				// cannot churn - for no record at all.
+				if len(setManifestKeys) > 0 && !clearResidue {
+					if env.Residue == nil {
+						env.Residue = &residueFields{}
+					}
+					env.Residue.ManifestMetadataKeys = setManifestKeys
+				}
 				switch {
 				case setProv != nil:
 					env.Provisioned = setProv
@@ -1064,6 +1176,24 @@ func writeBackConflictDiag(addr addrs.AbsResourceInstance, verb string, err erro
 			verb, addr, displayVersion(vErr.ExpectedVersion), displayVersion(vErr.ActualVersion),
 		)))
 	}
+	// GitHub issue #1448 section C. A write the estate boundary policy
+	// refused is the fence doing its job, and "Cannot persist a record"
+	// sends the reader to the store, where nothing is wrong. The refusal
+	// already names the policy, the estate and the grant line, so only the
+	// headline changes here; the unwritten-record ledger
+	// ([RecordStore.noteWriteFailure]) sees the same error it always did.
+	//
+	// Two calls rather than one with a variable: internal/live/refusalscan
+	// resolves a summary only as a literal or a Summary-prefixed constant,
+	// and a summary it cannot read is a refusal the registry cannot cover.
+	var admission *staterecord.AdmissionDeniedError
+	if errors.As(err, &admission) {
+		denied := fmt.Sprintf("%s the persisted record for %s failed: %s.", verb, addr, admission)
+		if admission.Policy != "" {
+			return tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(tfdiags.Error, SummaryEstateBoundaryRefusedTheWrite, denied))
+		}
+		return tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(tfdiags.Error, SummaryAdmissionRefusedTheWrite, denied))
+	}
 	detail := fmt.Sprintf("%s the persisted record for %s failed: %s.", verb, addr, err)
 	// GitHub issue #1148: a throttling failure that names only an attempt
 	// count makes a reader translate it against a quota model they may not
@@ -1072,6 +1202,27 @@ func writeBackConflictDiag(addr addrs.AbsResourceInstance, verb string, err erro
 		detail += " " + advice
 	}
 	return tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot persist a record", detail))
+}
+
+// SummaryEstateBoundaryRefusedTheWrite and SummaryAdmissionRefusedTheWrite
+// are the headlines for a record write the cluster's admission stage refused
+// (GitHub issue #1448 section C). They are constants rather than literals at
+// the call site because internal/command raises the same two when the STORE
+// could not be opened for the same reason, and one refusal an operator can
+// hit should not have two spellings. See
+// [staterecord.AdmissionDeniedError] for what tells the two apart.
+const (
+	SummaryEstateBoundaryRefusedTheWrite = "The estate boundary policy refused this run's record write"
+	SummaryAdmissionRefusedTheWrite      = "An admission policy refused this run's record write"
+)
+
+// AdmissionRefusalSummary is which of the two above fits err, for a caller
+// outside this package that has to raise the same diagnostic.
+func AdmissionRefusalSummary(err *staterecord.AdmissionDeniedError) string {
+	if err != nil && err.Policy != "" {
+		return SummaryEstateBoundaryRefusedTheWrite
+	}
+	return SummaryAdmissionRefusedTheWrite
 }
 
 // displayVersion renders staterecord's "" (no record) sentinel as an

@@ -16,6 +16,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/servicetags"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -126,29 +127,80 @@ type markerObject struct {
 	escaped    string
 }
 
-// JoinMarkerFromTagging is issue #266's fallback, exported for a caller
-// outside this package's own [Discover] pass that hits the identical gap:
-// internal/live/mv's live-mv sweep, which lists a type directly rather than
-// running a full discovery pass, and so never gets this join for free the
-// way an ordinary plan does.
+// MarkerFallback is every route to an ownership marker that a caller
+// OUTSIDE this package's own [Discover] pass can still take when a listed
+// object's own tags came back empty. Today there are two of them, and both
+// of them already exist inside [Discover]; this type is what lets a second
+// caller have them without a second implementation.
 //
-// It answers the same question [markerIndex.join] answers - "does the
-// estate's tag index carry a resource of typeName with this import ID, and
-// if so, what are its real tags" - through a throwaway index scoped to one
-// call: tagging may be nil (no Cloud Control endpoint this run), in which
-// case it reports not found, exactly as an ordinary discovery pass
-// degrades with no Tagging client. ok is true only when exactly one tagged
-// resource matched; an ambiguous match (more than one) is reported as not
-// found here, the same way the caller already treats "not found" as its
-// answer for that identifier, so no caller of this function needs its own
-// copy of the ambiguity's diagnostic wording.
-func JoinMarkerFromTagging(ctx context.Context, tagging *cloudcontrol.Client, estate, typeName, importID string) (map[string]string, bool) {
-	if tagging == nil {
+// The caller it exists for is internal/live/mv's live-mv sweep, which lists
+// a type directly rather than running a full discovery pass, and so gets
+// neither route for free the way an ordinary plan does. Issue #266 gave it
+// the first one as a bare function; issue #1274 is what happened when the
+// second one landed for [Discover] (#1125) and did not land here: an
+// aws_iam_policy that live-plan could read the marker off, through
+// iam:ListPolicyTags, was invisible to live-mv, which refused the rename of
+// a resource it was looking straight at.
+//
+// One value serves one sweep, not one object. That is the whole reason it
+// is a type rather than a function: the tag index is one GetResources call
+// for the estate ([markerIndex.fetch], behind a sync.Once), and the bare
+// function this replaces built a throwaway index per object, so a sweep of
+// N tagless objects made N identical calls.
+//
+// A zero-value or nil *MarkerFallback answers "no marker" to everything, so
+// no call site needs a nil check of its own, and so does one built with a
+// nil client and a nil reader - which is the pre-#266 behavior, exactly as
+// an ordinary discovery pass degrades when it has neither.
+type MarkerFallback struct {
+	markers *markerIndex
+	svc     servicetags.Reader
+}
+
+// NewMarkerFallback builds the fallback for one sweep of one estate.
+//
+// tagging is the Resource Groups Tagging API client (nil when the run named
+// no endpoint and did not opt in); svc is the per-service tag reader (nil
+// when the run built none). Each is independently optional: the two routes
+// answer different questions and neither is a precondition of the other.
+func NewMarkerFallback(estate string, tagging *cloudcontrol.Client, svc servicetags.Reader) *MarkerFallback {
+	f := &MarkerFallback{svc: svc}
+	if tagging != nil {
+		f.markers = &markerIndex{client: tagging, estate: estate}
+	}
+	return f
+}
+
+// Tags returns the real tags of the object of typeName whose import ID is
+// importID, and true when one of the routes answered.
+//
+// It is only ever worth calling for an object whose own tags carry no
+// tofu-estate - [markerIndex.join]'s own rule, for its own reason: an
+// object that already told the truth about itself needs no second opinion,
+// and asking for one would let a stale index overrule a fresh list.
+//
+// The two routes are tried in [Discover]'s own order, for [Discover]'s own
+// reason (discovery.go's #1125 comment): the index first because it is one
+// call already paid for, the service's tag API second because it is one
+// call per object. The service leg's gate is per object since #1162 (see
+// servicetagread.go): an object the index answered for returns above and
+// costs no tag read, and any other object of a routed type is read.
+//
+// ok is true only when exactly one tagged resource matched the index; an
+// ambiguous match (more than one) is reported as not found, the same way
+// the caller already treats "not found" as its answer for that identifier,
+// so no caller needs its own copy of the ambiguity's diagnostic wording.
+func (f *MarkerFallback) Tags(ctx context.Context, typeName, importID string) (map[string]string, bool) {
+	if f == nil {
 		return nil, false
 	}
-	idx := &markerIndex{client: tagging, estate: estate}
-	tags, outcome := idx.join(ctx, typeName, importID)
-	return tags, outcome == joinBound
+	if tags, outcome := f.markers.join(ctx, typeName, importID); outcome == joinBound {
+		return tags, true
+	}
+	// The per-object gate (#1162) is the three lines above: the index did
+	// not answer for this object, so the service is asked about it.
+	tags, outcome, _ := serviceTagReadWith(ctx, f.svc, typeName, importID, nil)
+	return tags, outcome == tagReadAnswered
 }
 
 // newMarkerIndex builds the shared index for one discovery pass, or returns
@@ -216,42 +268,6 @@ func (m *markerIndex) available(ctx context.Context) bool {
 	}
 	_, err := m.resources(ctx)
 	return err == nil
-}
-
-// servesType reports whether the estate's tag index holds at least one
-// object of typeName - which is to say, whether the Resource Groups Tagging
-// API indexes this type on THIS target, for THIS estate, rather than
-// whether some artifact says it ought to.
-//
-// GitHub issue #1131 uses it as the gate on the per-service tag-read leg,
-// and the reason it is the right gate is #1134's measurement. On a real
-// account GetResources serves iam:instance-profile in us-east-1 and never
-// serves iam:role anywhere; the pinned emulator serves neither
-// (lex00/floci#205, tracked as #1152). A leg selected by service name would
-// have to pick one of those two targets to be right about. This predicate
-// picks neither: it asks the index what it is holding and lets the answer
-// decide, so the same binary runs the leg on floci and skips it on a real
-// account with no flag and no list of endpoints.
-//
-// It is order-independent by construction, which a per-object accumulator
-// would not be: the index is one GetResources call for the whole estate
-// made once per run ([markerIndex.fetch]), so the answer is the same for
-// the first object of a type as for the last.
-//
-// False when the index could not be consulted at all. That is not an answer
-// about the type, and treating it as one would silence the leg on exactly
-// the runs that most need it; the caller pays a read it might not have
-// needed, which is the safe direction.
-func (m *markerIndex) servesType(ctx context.Context, typeName string) bool {
-	if !m.available(ctx) {
-		return false
-	}
-	for _, obj := range m.objs {
-		if obj.markerType == typeName && obj.tags[TagEstate] == m.estate {
-			return true
-		}
-	}
-	return false
 }
 
 // settled reports whether the one GetResources call has already been made

@@ -118,7 +118,7 @@ func TestNoClassicImporterRefusesAccuratelyRatherThanClaimingAProviderError(t *t
 			}
 
 			target := providers.ImportTarget{ID: "arn:aws:acm:eu-west-1:000000000000:certificate/deadbeef"}
-			_, _, status, diags := importAndRead(t.Context(), p, providers.Schema{}, "aws_acm_certificate_validation", target, target.ID, nil, nil, nil)
+			_, _, status, diags := importAndRead(t.Context(), p, providers.Schema{}, "aws_acm_certificate_validation", target, target.ID, nil, nil, nil, nil)
 
 			if status != statusFailed {
 				t.Fatalf("status = %v, want statusFailed - a type with no classic Importer must still refuse rather than propose a create for an object this run cannot verify", status)
@@ -164,7 +164,7 @@ func TestGenuineProviderErrorStillUsesTheGenericRefusal(t *testing.T) {
 	}
 
 	target := providers.ImportTarget{ID: "arn:aws:acm:eu-west-1:000000000000:certificate/deadbeef"}
-	_, _, status, diags := importAndRead(t.Context(), p, providers.Schema{}, "aws_acm_certificate_validation", target, target.ID, nil, nil, nil)
+	_, _, status, diags := importAndRead(t.Context(), p, providers.Schema{}, "aws_acm_certificate_validation", target, target.ID, nil, nil, nil, nil)
 
 	if status != statusFailed {
 		t.Fatalf("status = %v, want statusFailed", status)
@@ -232,7 +232,7 @@ func TestNoClassicImporterSynthesizesAStubFromTheResolvedIdentity(t *testing.T) 
 
 	target := providers.ImportTarget{ID: arn}
 	identityValues := map[string]string{"certificate_arn": arn}
-	obj, _, status, diags := importAndRead(t.Context(), p, certificateValidationSchema(), "aws_acm_certificate_validation", target, arn, identityValues, nil, nil)
+	obj, _, status, diags := importAndRead(t.Context(), p, certificateValidationSchema(), "aws_acm_certificate_validation", target, arn, identityValues, nil, nil, nil)
 
 	if diags.HasErrors() {
 		t.Fatalf("unexpected errors: %v", diags)
@@ -297,7 +297,7 @@ func TestNoClassicImporterStillRefusesWithNoIdentityValuesToSynthesizeFrom(t *te
 	}
 
 	target := providers.ImportTarget{ID: "arn:aws:acm:eu-west-1:000000000000:certificate/deadbeef"}
-	_, _, status, diags := importAndRead(t.Context(), p, certificateValidationSchema(), "aws_acm_certificate_validation", target, target.ID, nil, nil, nil)
+	_, _, status, diags := importAndRead(t.Context(), p, certificateValidationSchema(), "aws_acm_certificate_validation", target, target.ID, nil, nil, nil, nil)
 
 	if status != statusFailed {
 		t.Fatalf("status = %v, want statusFailed", status)

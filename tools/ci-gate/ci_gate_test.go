@@ -286,3 +286,241 @@ func TestCheckRefusesIncompleteGate(t *testing.T) {
 		t.Errorf("check's refusal did not name the reason (INCOMPLETE): %s", out)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// #1307: the wait, and the recipe it replaces.
+//
+// CLAUDE.md documented `while [ ! -f ci.rc ]; do sleep 15; done` as a correct
+// wait, on the strength of `run` deleting the gate files first. That holds
+// once `run` has started. The only reason to start such a loop is to run it
+// ALONGSIDE the gate, and in the window before `run` reaches its `rm -f` the
+// loop matches whatever gate file the worktree was already carrying - which
+// is routinely one, because every worker is told to leave ci.rc/ci.out/ci.meta
+// behind for the orchestrator to read.
+// ---------------------------------------------------------------------------
+
+// seedStaleGate writes a complete, green gate for a commit that is not HEAD -
+// the exact residue #1307 found, and the shape every worker's worktree holds
+// between units.
+func seedStaleGate(t *testing.T, dir, sha string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, "ci.rc"), []byte("0\n"), 0o644); err != nil {
+		t.Fatalf("seeding ci.rc: %v", err)
+	}
+	meta := "sha=" + sha + "\nrun=seeded\nstart=x\nend=x\n"
+	if err := os.WriteFile(filepath.Join(dir, "ci.meta"), []byte(meta), 0o644); err != nil {
+		t.Fatalf("seeding ci.meta: %v", err)
+	}
+}
+
+// oldRecipe is CLAUDE.md's wait, verbatim except for a 1s poll instead of 15
+// so the test is quick. It is here to be RUN, not described: the claim that
+// it returns a stale green is only worth making if the test watches it do so.
+func oldRecipe(t *testing.T, dir string) (string, time.Duration) {
+	t.Helper()
+	start := time.Now()
+	cmd := exec.Command("bash", "-c", `while [ ! -f ci.rc ]; do sleep 1; done; echo "ci.rc=$(cat ci.rc)"`)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("old recipe failed to run at all: %v\n%s", err, out)
+	}
+	return strings.TrimSpace(string(out)), time.Since(start)
+}
+
+// TestOldWaitRecipeReadsAStaleGateAndWaitDoesNot is #1307's red arm and its
+// green arm in one test, against one constructed state: a stale complete
+// green gate from an earlier commit sits in the worktree, and no run has
+// started yet.
+//
+// This is the "prove your check can fail" half. If a future edit made `wait`
+// return on mere existence again, the second half of this test would go green
+// while the first stayed green, and the two would agree - which is the point:
+// the assertion is on the DIFFERENCE between the two waits, so it cannot pass
+// by both of them being wrong the same way.
+func TestOldWaitRecipeReadsAStaleGateAndWaitDoesNot(t *testing.T) {
+	dir := newRepo(t)
+	commit(t, dir, "f.txt", "one", "initial")
+	seedStaleGate(t, dir, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
+
+	// RED: the documented recipe. It must return at once, reporting a pass,
+	// off a file no run in this test ever wrote.
+	got, took := oldRecipe(t, dir)
+	if got != "ci.rc=0" {
+		t.Fatalf("the documented recipe did not read the stale gate as a green (%q) - the reproduction no longer holds and this test is not measuring #1307", got)
+	}
+	if took > 3*time.Second {
+		t.Errorf("the documented recipe took %s; it was expected to match the leftover file immediately", took)
+	}
+
+	// GREEN: the replacement, same state, must refuse rather than report
+	// that leftover, and must say why.
+	out, code := ciGate(t, dir, "wait", "--timeout", "3", "--interval", "1")
+	if code == 0 {
+		t.Fatalf("wait exited 0 against a stale gate with no run started; want a refusal.\noutput: %s", out)
+	}
+	if !strings.Contains(out, "TIMED OUT") {
+		t.Errorf("wait's refusal did not name the reason (TIMED OUT): %s", out)
+	}
+	if strings.Contains(out, "GREEN") {
+		t.Errorf("wait reported GREEN off a gate it never saw written: %s", out)
+	}
+}
+
+// TestWaitReturnsTheRunItWaitedFor is the case the whole subcommand exists
+// for: the stale gate is present AND a real run is starting at the same
+// moment. The wait must step over the leftover and report the run's own
+// verdict.
+func TestWaitReturnsTheRunItWaitedFor(t *testing.T) {
+	dir := newRepo(t)
+	sha := commit(t, dir, "f.txt", "one", "initial")
+	seedStaleGate(t, dir, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
+
+	// A run that is deliberately slower than the wait's first poll, so the
+	// wait genuinely has to survive an iteration in which the only gate
+	// present is the stale one.
+	runCmd := exec.Command("bash", scriptPath(t), "run", "--", "bash", "-c", "sleep 3; true")
+	runCmd.Dir = dir
+	if err := runCmd.Start(); err != nil {
+		t.Fatalf("starting ci-gate.sh run: %v", err)
+	}
+	t.Cleanup(func() {
+		if runCmd.Process != nil {
+			_ = runCmd.Process.Kill()
+			_ = runCmd.Wait()
+		}
+	})
+
+	out, code := ciGate(t, dir, "wait", "--timeout", "60", "--interval", "1")
+	if code != 0 {
+		t.Fatalf("wait exited %d for a run that completed green at HEAD, want 0.\noutput: %s", code, out)
+	}
+	if !strings.Contains(out, "GREEN") || !strings.Contains(out, sha) {
+		t.Errorf("wait did not report the new run's own green at %s: %s", sha, out)
+	}
+	_ = runCmd.Wait()
+}
+
+// TestWaitDoesNotAcceptACompletedGateAtTheSameSha is the residual hole that
+// keying on the sha ALONE would leave, and the reason ci.meta now carries a
+// per-run id. Re-gating an unchanged HEAD - a flake, a re-measure - leaves a
+// leftover that names exactly the right commit. Only its identity says it
+// belongs to the previous run.
+//
+// The new run is red, so the two verdicts differ: if the wait returned the
+// leftover it would say GREEN, and the test can tell.
+func TestWaitDoesNotAcceptACompletedGateAtTheSameSha(t *testing.T) {
+	dir := newRepo(t)
+	commit(t, dir, "f.txt", "one", "initial")
+
+	if _, code := ciGate(t, dir, "run", "--", "true"); code != 0 {
+		t.Fatalf("the first run did not exit 0")
+	}
+	if out, code := ciGate(t, dir, "check"); code != 0 {
+		t.Fatalf("setup: check should read the first run as GREEN at HEAD, got %d: %s", code, out)
+	}
+
+	// Same HEAD, same worktree, a second run that fails.
+	runCmd := exec.Command("bash", scriptPath(t), "run", "--", "bash", "-c", "sleep 3; false")
+	runCmd.Dir = dir
+	if err := runCmd.Start(); err != nil {
+		t.Fatalf("starting the second run: %v", err)
+	}
+	t.Cleanup(func() {
+		if runCmd.Process != nil {
+			_ = runCmd.Process.Kill()
+			_ = runCmd.Wait()
+		}
+	})
+
+	out, code := ciGate(t, dir, "wait", "--timeout", "60", "--interval", "1")
+	_ = runCmd.Wait()
+	if strings.Contains(out, "GREEN") {
+		t.Fatalf("wait returned the PREVIOUS run's green for an unchanged HEAD; the second run was red.\noutput: %s", out)
+	}
+	if code == 0 {
+		t.Fatalf("wait exited 0 while the run it waited for was red.\noutput: %s", out)
+	}
+	if !strings.Contains(out, "RED") {
+		t.Errorf("wait did not report the second run's own RED verdict: %s", out)
+	}
+}
+
+// TestWaitRefusesAGateForAnOlderCommit: HEAD moves while the wait is running
+// and the gate that lands is for the commit before it. `check` calls that
+// STALE; the wait must not paper over it by returning early on a gate that
+// merely appeared.
+func TestWaitRefusesAGateForAnOlderCommit(t *testing.T) {
+	dir := newRepo(t)
+	commit(t, dir, "f.txt", "one", "initial")
+
+	// A completed gate for the first commit, then HEAD moves on.
+	if _, code := ciGate(t, dir, "run", "--", "true"); code != 0 {
+		t.Fatalf("the first run did not exit 0")
+	}
+	newSHA := commit(t, dir, "f.txt", "two", "more work, gate not re-run")
+
+	out, code := ciGate(t, dir, "wait", "--timeout", "3", "--interval", "1")
+	if code == 0 {
+		t.Fatalf("wait exited 0 with only a gate for an older commit than %s present.\noutput: %s", newSHA, out)
+	}
+	if !strings.Contains(out, "TIMED OUT") {
+		t.Errorf("wait's refusal did not name the reason (TIMED OUT): %s", out)
+	}
+}
+
+// TestWaitRejectsNonsenseArguments: a mistyped flag must stop the wait rather
+// than be silently ignored, because an ignored --timeout is an unbounded
+// foreground call and an ignored --interval is a busy loop.
+func TestWaitRejectsNonsenseArguments(t *testing.T) {
+	dir := newRepo(t)
+	commit(t, dir, "f.txt", "one", "initial")
+
+	for _, args := range [][]string{
+		{"wait", "--timeout", "soon"},
+		{"wait", "--interval", "0"},
+		{"wait", "--forever"},
+		{"wait", "--timeout"},
+	} {
+		out, code := ciGate(t, dir, args...)
+		if code == 0 {
+			t.Errorf("ci-gate.sh %s exited 0; want a refusal.\noutput: %s", strings.Join(args, " "), out)
+		}
+	}
+}
+
+// TestRunStampsAPerRunIdentity pins the field `wait`'s third condition reads.
+// Two runs at the same commit must produce different ci.meta content, and
+// `check` must still be indifferent to it.
+func TestRunStampsAPerRunIdentity(t *testing.T) {
+	dir := newRepo(t)
+	commit(t, dir, "f.txt", "one", "initial")
+
+	read := func() string {
+		b, err := os.ReadFile(filepath.Join(dir, "ci.meta"))
+		if err != nil {
+			t.Fatalf("reading ci.meta: %v", err)
+		}
+		return string(b)
+	}
+
+	if _, code := ciGate(t, dir, "run", "--", "true"); code != 0 {
+		t.Fatalf("first run did not exit 0")
+	}
+	first := read()
+	if !strings.Contains(first, "\nrun=") {
+		t.Fatalf("ci.meta carries no run= line, so two runs at one sha are indistinguishable: %q", first)
+	}
+
+	if _, code := ciGate(t, dir, "run", "--", "true"); code != 0 {
+		t.Fatalf("second run did not exit 0")
+	}
+	second := read()
+	if first == second {
+		t.Errorf("two runs at the same commit wrote byte-identical ci.meta, so wait cannot tell them apart:\n%q", first)
+	}
+
+	if out, code := ciGate(t, dir, "check"); code != 0 {
+		t.Errorf("check exited %d for a fresh green gate carrying a run= line: %s", code, out)
+	}
+}

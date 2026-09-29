@@ -52,7 +52,7 @@ import (
 // compatibilityDocPath is the page, relative to this package's directory.
 // Go runs a test with its own package directory as the working directory,
 // so this needs no repository-root discovery and no os.Getwd.
-const compatibilityDocPath = "../../../site/content/docs/use/compatibility.md"
+const compatibilityDocPath = "../../../live/COMPATIBILITY.md"
 
 func readCompatibilityDoc(t *testing.T) string {
 	t.Helper()

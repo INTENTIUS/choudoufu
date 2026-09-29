@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/strict"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -69,13 +70,35 @@ import (
 // [markers.Taggable] describes, which the stamp pass never writes into
 // either.
 //
-// Without schemas the second check cannot run, and the rule fires on any
-// non-logical managed type. That is the same asymmetry admitted() already
-// has - a caller with no schemas gets a stricter answer, not a different
-// one - and every command that actually stamps reads them first
-// (internal/command/live_plan.go), so the residue is confined to a
-// schema-less "choudoufu live-check", whose output already says which
-// verdicts depend on them.
+// Without schemas the second check cannot run, and the rule fires as if
+// every non-logical managed type carried the AWS tags surface, which is
+// the surface [substrate.SurfaceOf] falls back to below. That is the same
+// asymmetry admitted() already has - a caller with no schemas gets a
+// stricter answer, not a different one - and every command that actually
+// stamps reads them first (internal/command/live_plan.go), so the residue
+// is confined to a schema-less "choudoufu live-check", whose output
+// already says which verdicts depend on them.
+//
+// # The label and manifest carriers (GitHub issue #1645)
+//
+// Ruled 2026-09-27: refuse, same as AWS. A Kubernetes type is never
+// [markers.Taggable] - it has no tags map at all - so before this the
+// schema check above sent every one of them home with nothing checked, and
+// [markers.LabelSurfacePath] and [markers.ManifestLabelPath], the two
+// carriers [projection.AdjustIgnoreChanges] already knows, went unguarded.
+// The failure is #103's, on the label surface: the node stamp writes
+// tofu-estate into metadata[0].labels (or manifest.metadata.labels), the
+// plan renders that as an in-place update, and ignore_changes throws it
+// away, so the estate label a migrated or newly created object needs is
+// never applied and every run after that reads the object as unowned.
+//
+// With a schema in hand this dispatches on [substrate.SurfaceOf] rather
+// than [markers.Taggable] directly, so a type is skipped only when its
+// schema carries none of the family surfaces at all (the patch types -
+// kubernetes_labels, kubernetes_config_map_v1_data - and the AWS types
+// [markers.Taggable] already excluded). [checkIgnoreChangesLabel] is the
+// per-surface check for the two Kubernetes shapes; [checkIgnoreChangesTags]
+// is the AWS one above, unchanged.
 func checkIgnoreChanges(resource *configs.Resource, addr string, path addrs.Module, schemas map[string]providers.Schema, markersRecord *strict.Selection, issues *[]Issue) {
 	managed := resource.Managed
 	if managed == nil {
@@ -84,8 +107,14 @@ func checkIgnoreChanges(resource *configs.Resource, addr string, path addrs.Modu
 	if _, logical := ClassifyLogicalType(resource.Type); logical {
 		return
 	}
-	if schema, ok := schemas[resource.Type]; ok && !markers.Taggable(schema.Block) {
-		return
+
+	surface := markers.SurfaceTags
+	if schema, ok := schemas[resource.Type]; ok {
+		s, hasSurface := substrate.SurfaceOf(schema.Block)
+		if !hasSurface {
+			return
+		}
+		surface = s
 	}
 
 	// The third population this rule declines on, and the only one that is a
@@ -117,6 +146,23 @@ func checkIgnoreChanges(resource *configs.Resource, addr string, path addrs.Modu
 		identity.SelectedLocatedType(resource.Type, schemas) {
 		return
 	}
+
+	switch surface {
+	case markers.SurfaceLabels:
+		checkIgnoreChangesLabel(resource, addr, path, markers.LabelSurfacePath(markers.TagEstate), issues)
+	case markers.SurfaceManifest:
+		checkIgnoreChangesLabel(resource, addr, path, markers.ManifestLabelPath(markers.TagEstate), issues)
+	default:
+		checkIgnoreChangesTags(resource, addr, path, issues)
+	}
+}
+
+// checkIgnoreChangesTags is the AWS tags-surface check [checkIgnoreChanges]
+// ran inline before GitHub issue #1645 split it out to make room for
+// [checkIgnoreChangesLabel] beside it. Unchanged in every particular: the
+// wording, the whole-argument and per-key split, and the diagnostic ranges.
+func checkIgnoreChangesTags(resource *configs.Resource, addr string, path addrs.Module, issues *[]Issue) {
+	managed := resource.Managed
 
 	if managed.IgnoreAllChanges {
 		*issues = append(*issues, Issue{
@@ -163,6 +209,84 @@ func checkIgnoreChanges(resource *configs.Resource, addr string, path addrs.Modu
 					"adopted and a marker that drifts can never be repaired. Ownership markers are not an argument a "+
 					"configuration manages; remove this entry.",
 				addr, key,
+			)
+		}
+
+		*issues = append(*issues, Issue{
+			Rule:      RuleIgnoreChanges,
+			Construct: construct,
+			Module:    path,
+			Detail:    detail,
+			Subject:   traversalRange(traversal, resource.DeclRange),
+		})
+	}
+}
+
+// checkIgnoreChangesLabel is the Kubernetes counterpart of
+// [checkIgnoreChangesTags], GitHub issue #1645's fix: the same refusal, for
+// a resource whose marker lives in a labels map rather than a tags map.
+// markerPath is the full cty.Path of the one marker this surface carries -
+// [markers.LabelSurfacePath] for SurfaceLabels, [markers.ManifestLabelPath]
+// for SurfaceManifest - always ending in the tofu-estate index step, since
+// neither Kubernetes label map carries tofu-address
+// ([substrate.AddressInMarkers] is false for both; the address rides in an
+// annotation, GitHub issue #1641).
+//
+// An ignore_changes entry is refused when its own path is a PREFIX of
+// markerPath (including the whole path, which is the entry naming the
+// marker key itself): ignoring metadata, or metadata[0].labels, throws away
+// the update that writes metadata[0].labels["tofu-estate"] exactly as
+// surely as naming that key directly does. An entry rooted anywhere else -
+// a different label key, a different top-level argument - is left alone,
+// the same "not this rule's business" answer the tags check gives
+// tags["Owner"].
+func checkIgnoreChangesLabel(resource *configs.Resource, addr string, path addrs.Module, markerPath cty.Path, issues *[]Issue) {
+	managed := resource.Managed
+	carrier := pathString(markerPath[:len(markerPath)-1])
+
+	if managed.IgnoreAllChanges {
+		*issues = append(*issues, Issue{
+			Rule:      RuleIgnoreChanges,
+			Construct: fmt.Sprintf("lifecycle { ignore_changes = all } on %s", addr),
+			Module:    path,
+			Detail: fmt.Sprintf(
+				"%s ignores every change, which includes the %s label this mode writes at %s to record ownership. "+
+					"An existing object would keep whatever label it has, or none: the update that writes it is "+
+					"planned and then discarded, so adopting an object this configuration does not yet own can never "+
+					"succeed, and a label that drifts can never be repaired. "+
+					"Narrow ignore_changes to the arguments you actually mean, leaving %s out of it.",
+				addr, markers.TagEstate, carrier, carrier,
+			),
+			Subject: resource.DeclRange,
+		})
+		return
+	}
+
+	for _, traversal := range managed.IgnoreChanges {
+		travPath, ok := traversalToCtyPath(traversal)
+		if !ok || !pathHasPrefix(markerPath, travPath) {
+			continue
+		}
+
+		entry := pathString(travPath)
+		construct := fmt.Sprintf("lifecycle { ignore_changes = [%s] } on %s", entry, addr)
+		var detail string
+		if len(travPath) < len(markerPath) {
+			detail = fmt.Sprintf(
+				"%s ignores changes to %s, and the %s label this mode writes at %s to record ownership lives "+
+					"underneath it. An existing object would keep whatever label it has, or none: the update that "+
+					"writes it is planned and then discarded, so adopting an object this configuration does not yet "+
+					"own can never succeed, and a label that drifts can never be repaired. "+
+					"Narrow ignore_changes to the arguments you actually mean, leaving %s out of it.",
+				addr, entry, markers.TagEstate, carrier, carrier,
+			)
+		} else {
+			detail = fmt.Sprintf(
+				"%s ignores changes to the %s label, which is the ownership marker this mode writes. "+
+					"The update that writes it is planned and then discarded, so an existing object can never be "+
+					"adopted and a label that drifts can never be repaired. Ownership markers are not an argument a "+
+					"configuration manages; remove this entry.",
+				addr, markers.TagEstate,
 			)
 		}
 
@@ -242,4 +366,102 @@ func traversalRange(traversal hcl.Traversal, fallback hcl.Range) hcl.Range {
 		return rng
 	}
 	return fallback
+}
+
+// traversalToCtyPath converts one ignore_changes traversal into the cty.Path
+// [checkIgnoreChangesLabel] compares against a marker path. Every traversal
+// this pass sees is the relative shape hcl.RelTraversalForExpr builds while
+// decoding ignore_changes (internal/configs/resource.go): rooted at a
+// TraverseAttr rather than a TraverseRoot, with TraverseIndex for a `[...]`
+// step. ok is false for anything else - there is no third step kind
+// RelTraversalForExpr produces, so this is defensive rather than reachable,
+// and false is the same "leave it alone" answer [ignoredTagKey]'s own
+// default case gives an unrecognised traversal.
+func traversalToCtyPath(traversal hcl.Traversal) (cty.Path, bool) {
+	path := make(cty.Path, 0, len(traversal))
+	for _, step := range traversal {
+		switch ts := step.(type) {
+		case hcl.TraverseAttr:
+			path = append(path, cty.GetAttrStep{Name: ts.Name})
+		case hcl.TraverseIndex:
+			path = append(path, cty.IndexStep{Key: ts.Key})
+		default:
+			return nil, false
+		}
+	}
+	return path, true
+}
+
+// pathHasPrefix reports whether prefix is a prefix of path, inclusive of
+// prefix == path: an ignore_changes entry refuses the marker exactly when
+// its own path prefixes the marker's, because ignoring a shorter path also
+// throws away everything nested under it.
+func pathHasPrefix(path, prefix cty.Path) bool {
+	if len(prefix) > len(path) {
+		return false
+	}
+	for i, step := range prefix {
+		if !pathStepsEqual(step, path[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// pathStepsEqual compares two cty.PathStep values of the same two kinds
+// [traversalToCtyPath] and the markers package's *Path functions ever
+// build: an attribute name, or an index key compared with RawEquals (the
+// numeric block index and the string label key both round-trip through it
+// cleanly, since both sides are built the same way - HCL's own constant
+// folding on one side, cty.NumberIntVal/cty.StringVal on the other).
+func pathStepsEqual(a, b cty.PathStep) bool {
+	switch as := a.(type) {
+	case cty.GetAttrStep:
+		bs, ok := b.(cty.GetAttrStep)
+		return ok && as.Name == bs.Name
+	case cty.IndexStep:
+		bs, ok := b.(cty.IndexStep)
+		return ok && as.Key.RawEquals(bs.Key)
+	default:
+		return false
+	}
+}
+
+// pathString renders a cty.Path the way an operator would write it in an
+// ignore_changes entry: dotted attribute steps, bracketed index steps -
+// "metadata[0].labels", "metadata[0].labels[\"tofu-estate\"]",
+// "manifest.metadata.labels" - for the construct and detail text
+// [checkIgnoreChangesLabel] builds from a traversal or a marker path alike.
+func pathString(p cty.Path) string {
+	var b strings.Builder
+	for i, step := range p {
+		switch s := step.(type) {
+		case cty.GetAttrStep:
+			if i > 0 {
+				b.WriteByte('.')
+			}
+			b.WriteString(s.Name)
+		case cty.IndexStep:
+			// A marker path never carries a mark ([markers.LabelSurfacePath]
+			// and [markers.ManifestLabelPath] build the key with
+			// cty.StringVal/cty.NumberIntVal) and neither does a
+			// traversal's own constant index ([traversalToCtyPath] takes it
+			// straight off HCL's constant folding), but this renders the
+			// key back out for a diagnostic rather than proving either
+			// producer, so the cheap answer is to refuse the read outright
+			// like every other guarded call in this package does.
+			if s.Key.IsMarked() {
+				b.WriteString("[...]")
+				continue
+			}
+			if s.Key.Type() == cty.String {
+				fmt.Fprintf(&b, "[%q]", s.Key.AsString())
+				continue
+			}
+			f := s.Key.AsBigFloat()
+			n, _ := f.Int64()
+			fmt.Fprintf(&b, "[%d]", n)
+		}
+	}
+	return b.String()
 }

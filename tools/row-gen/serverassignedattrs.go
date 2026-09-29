@@ -6,6 +6,9 @@
 package main
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
@@ -149,6 +152,34 @@ import (
 // type whose id disagrees with its identity - not a type whose provider
 // states, in its own identity schema, which single attribute the import
 // identity is.
+//
+// # The one name the rule does not copy
+//
+// The identity schema and the resource schema are two vocabularies, and
+// [identity.TypeIdentity.IdentityAttrs] is defined in the second: attribute
+// names another resource may reference. For 476 of the 479 identity schemas
+// at 6.59.0 every required attribute is also a resource attribute and the
+// distinction is invisible. aws_osis_pipeline is the one admitted row where
+// it is not: its identity schema requires "name" and its resource schema
+// spells the same value pipeline_name (the two others, aws_securityhub_member
+// and aws_organizations_delegated_administrator, have components and never
+// reach this rule). Copying "name" into IdentityAttrs there hands out
+// aws_osis_pipeline.name as a reference target the provider does not serve,
+// which is exactly the breaking finding identity.VerifyTable raised against
+// the pinned provider (#1316's first complete floci run). So the rule skips
+// any required attribute the survey records under not_resource_attributes -
+// the fact is survey-gen's, read off the resource schema, not a list kept
+// here - and [checkIdentityAttrsAreResourceAttrs] refuses a ratified row that
+// names one by hand, so the omission is a build error rather than a silent
+// edit.
+//
+// What that costs is stated rather than hidden: internal/live/discovery's
+// importIdentity reads the live ID out of a list result's identity OBJECT
+// by these same names, so a type in this position is one whose identity
+// object carries an attribute IdentityAttrs no longer names. That is a
+// consumer reading the identity vocabulary through a field defined in the
+// resource one, and it is a separate fix in discovery, not a reason to keep
+// a wrong reference target in the table.
 func mergeIdentityAttrs(entry identity.TypeIdentity, survey surveyEntry) identity.TypeIdentity {
 	if !entry.ServerAssigned {
 		return entry
@@ -159,7 +190,7 @@ func mergeIdentityAttrs(entry identity.TypeIdentity, survey surveyEntry) identit
 	}
 	out := entry.IdentityAttrs
 	for _, attr := range survey.requiredForImport() {
-		if have[attr] {
+		if have[attr] || survey.notResourceAttr(attr) {
 			continue
 		}
 		have[attr] = true
@@ -167,4 +198,35 @@ func mergeIdentityAttrs(entry identity.TypeIdentity, survey surveyEntry) identit
 	}
 	entry.IdentityAttrs = out
 	return entry
+}
+
+// checkIdentityAttrsAreResourceAttrs refuses to emit a row whose
+// [identity.TypeIdentity.IdentityAttrs] names an attribute the survey records
+// as an identity-schema name with no resource attribute behind it. Every such
+// name reaching this point came from tools/row-gen/ratified.json by hand -
+// mergeIdentityAttrs never adds one - and the correction belongs there, with
+// the resource's own spelling of the attribute, not in a silent drop here.
+//
+// The check is bounded by what live/survey-full.json can see: a type with no
+// identity schema has no not_resource_attributes, so a ratified name that is
+// simply not an attribute at all (the "id" a plugin-framework resource never
+// had) passes this guard and is caught only by identity.VerifyTable against a
+// running provider (internal/live/projection's
+// TestIdentityTableAgainstThePinnedProvider). That is a limit of the offline
+// evidence, and it is stated here so nobody reads a green -emit as proof that
+// every IdentityAttrs name exists.
+func checkIdentityAttrsAreResourceAttrs(types []string, rows map[string]identity.TypeIdentity, survey map[string]surveyEntry) error {
+	var bad []string
+	for _, t := range types {
+		for _, attr := range rows[t].IdentityAttrs {
+			if survey[t].notResourceAttr(attr) {
+				bad = append(bad, fmt.Sprintf("%s.%s", t, attr))
+			}
+		}
+	}
+	if len(bad) == 0 {
+		return nil
+	}
+	return fmt.Errorf("row-gen -emit: %d IdentityAttrs name(s) are attributes of the provider's identity schema and not of its resource schema (live/survey-full.json not_resource_attributes), so a reference to one resolves against nothing; correct the ratified row in %s to the resource's own attribute name:\n  %s",
+		len(bad), ratifiedJSONRel, strings.Join(bad, "\n  "))
 }

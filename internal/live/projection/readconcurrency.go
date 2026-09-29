@@ -154,6 +154,28 @@ type readPrep struct {
 
 	attrsSeed      map[string]cty.Value
 	attrsSeedMarks []cty.PathValueMarks
+
+	// timeouts is the resource's own `timeouts` block, decoded to
+	// nanoseconds - GitHub issue #1185. Unlike attrsSeed it is not sent to
+	// the provider on the way IN: it is merged into the private blob the
+	// read produced, because the private blob is the carrier a destroy
+	// reads its deadline from. See [configuredTimeouts].
+	timeouts map[string]int64
+
+	// timeoutsBlock is the same block as a value the prior object can hold
+	// - GitHub issue #1240. Like timeouts it is not sent to the provider on
+	// the way in: it is seeded into the object the read RETURNED, where the
+	// read left the block null and the private carries no SDKv2 meta for
+	// [withConfiguredTimeouts] to take instead. See
+	// [withConfiguredTimeoutsBlock].
+	timeoutsBlock cty.Value
+
+	// manifestKeys is GitHub issue #1211's binding of
+	// [Options.ManifestOwnedKeys] for this instance, or nil when the type
+	// is not manifest-shaped. It is settled here rather than at the read
+	// because the read has neither the instance address nor the provider
+	// configuration in hand. See [manifestKeyLookup].
+	manifestKeys *manifestKeyLookup
 }
 
 // readTerminal is one of [builder.prepareRead]'s four refusals, carried as
@@ -406,6 +428,7 @@ func (b *builder) startRecordFirstPrefetch(ctx context.Context, resolutions []id
 			values:      recordFirstStubValues(rec),
 			undeclared:  r.Undeclared,
 			recordFirst: true,
+			declaredKey: r.ImportID != "" && r.ImportID == rec.ImportID,
 		})
 	}
 	return b.startReadPrefetch(ctx, ws)
@@ -419,6 +442,7 @@ func runReadFetch(ctx context.Context, e *readFetch) {
 	e.obj, e.importStub, e.status, e.diags = importAndRead(
 		ctx, p.entry.provider, p.schema, e.want.addr.Resource.Resource.Type,
 		p.target, e.want.importID, e.want.values, p.attrsSeed, p.attrsSeedMarks,
+		p.manifestKeys,
 	)
 }
 

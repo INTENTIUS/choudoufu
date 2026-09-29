@@ -8,12 +8,15 @@ package command
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
@@ -115,7 +118,17 @@ func statelessOwnershipWith(estate string, disco *discovery.Result, pol *policy.
 // roster exceeded the policy's threshold, in which case rec is still
 // returned (with rec.ThresholdExceeded set) so the caller can render the
 // roster in the same report that explains the refusal.
-func statelessPolicyReconcile(ctx context.Context, estate string, pol *policy.Policy, provs *statelessProviders, discoProvider addrs.AbsProviderConfig) (rec *discovery.ReconcileResult, extra []identity.Resolution, verified map[string]bool, diags tfdiags.Diagnostics) {
+//
+// scope is this run's -target / -exclude filtering, from
+// [statelessTargetScope] and nil for every untargeted run - GitHub issue
+// #1257, filed by #1203's audit. Both things this function produces are
+// narrowed by it, through the one predicate, and the coupling is the
+// point: [discovery.ReconcileResult.Proposable] is the set that becomes
+// destroy proposals AND the set the threshold guard counts, so a run can
+// neither be refused for a population it will not touch nor destroy a
+// population no threshold checked. What is NOT narrowed is the roster
+// itself, which the policy report still renders in full.
+func statelessPolicyReconcile(ctx context.Context, estate string, pol *policy.Policy, provs *statelessProviders, discoProvider addrs.AbsProviderConfig, scope identity.Scope) (rec *discovery.ReconcileResult, extra []identity.Resolution, verified map[string]bool, diags tfdiags.Diagnostics) {
 	if pol == nil || pol.UndeclaredUntagged != policy.Delete {
 		return nil, nil, nil, diags
 	}
@@ -140,25 +153,48 @@ func statelessPolicyReconcile(ctx context.Context, estate string, pol *policy.Po
 		Provider: provider,
 		Region:   provs.region(discoProvider),
 		Policy:   pol,
+		Scope:    scope,
 	})
 	diags = diags.Append(recDiags)
 	if recDiags.HasErrors() {
 		return rec, nil, nil, diags
 	}
+	// The count is Proposable's, not the roster's, for the reason
+	// [discovery.ReconcileResult.ThresholdExceeded] records: the threshold
+	// bounds how many live objects THIS RUN will destroy. On a narrowed run
+	// that is a smaller number than the account holds, and on an untargeted
+	// one the two sets are the same, so nothing about today's behavior
+	// moves.
 	if rec.ThresholdExceeded {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Scoped account reconciliation roster exceeds its threshold",
 			fmt.Sprintf(
 				"undeclared_untagged = \"delete\" found %d resource(s) to delete, over the threshold of %d. Review the roster this run printed, and raise policy.threshold deliberately once it has been reviewed - this guard exists so a first scoped delete is never wider than the operator expected.",
-				len(rec.Roster), rec.Threshold),
+				len(rec.Proposable()), rec.Threshold),
 		))
 		return rec, nil, nil, diags
 	}
 
-	extra = make([]identity.Resolution, 0, len(rec.Roster))
-	verified = make(map[string]bool, len(rec.Roster))
-	for _, c := range rec.Roster {
+	extra, verified = reconcileResolutions(rec)
+	return rec, extra, verified, diags
+}
+
+// reconcileResolutions turns the candidates one scoped reconciliation pass
+// will actually act on into the synthetic resolutions and verified
+// addresses the caller merges in before the projection is built.
+//
+// It reads [discovery.ReconcileResult.Proposable] rather than the roster,
+// which is GitHub issue #1257's other half and the half that must not be
+// separated from the threshold guard above: a candidate this run's
+// -target / -exclude withheld is shown in the report and destroyed by
+// nothing. Split out from [statelessPolicyReconcile] so it can be tested
+// without a configured provider - see TestReconcileResolutionsHonourTheTargetScope.
+func reconcileResolutions(rec *discovery.ReconcileResult) ([]identity.Resolution, map[string]bool) {
+	proposable := rec.Proposable()
+	extra := make([]identity.Resolution, 0, len(proposable))
+	verified := make(map[string]bool, len(proposable))
+	for _, c := range proposable {
 		extra = append(extra, identity.Resolution{
 			Addr:       c.Addr,
 			Class:      identity.ClassConcrete,
@@ -168,7 +204,7 @@ func statelessPolicyReconcile(ctx context.Context, estate string, pol *policy.Po
 		})
 		verified[c.Addr.String()] = true
 	}
-	return rec, extra, verified, diags
+	return extra, verified
 }
 
 // statelessPolicyTagKey reads a policy's TagKey, nil-safely: a run with no
@@ -187,23 +223,29 @@ func statelessPolicyTagKey(pol *policy.Policy) string {
 // the projection's declared-quadrant outcomes, discovery's withheld
 // undeclared_tagged orphans, and the scoped reconciliation pass's roster.
 //
-// A fourth source used to feed it: internal/live/stamp's report of which
-// tag keys a declared_tagged = "untag" verb had made it withhold, which
-// reached [views.StatelessPolicyReport.Untagged]. That suppression lived
-// only in the HCL-rewriting stamp, and it stopped happening on 2026-08-25
-// when CHOUDOUFU_NODE_RESOLVE defaulted on and the node-path writer took
-// over with no equivalent of stamp.Request.PolicyUntag; GitHub issue #644
-// deleted the unreachable implementation. GitHub issue #949 ported the
-// suppression itself to [projection.NodeResolver.PolicyUntag]
-// (nodeResolverUntagMap, populated in live_mode.go/live_plan.go) - a
-// governed instance's key is genuinely left out of what a plan writes
-// again - but did not restore this specific report section: the view's
-// Untagged list still renders empty, because nothing downstream of
-// AdjustConfigValue collects which instances it actually released a key
-// for the way stamp.Result.Untagged used to. That is a reporting gap, not
-// a behavioral one; projResult.Policy's Declared section below still shows
-// every declared_tagged = "untag" instance and its verb.
-func statelessPolicyReport(projResult *projection.Result, disco *discovery.Result, rec *discovery.ReconcileResult) views.StatelessPolicyReport {
+// The fourth source is the node writer's own record of which instances a
+// declared_tagged = "untag" verb actually released a marker key from
+// ([projection.NodeResolver.UntagReleases], GitHub issue #1002), which fills
+// [views.StatelessPolicyReport.Untagged]. It arrives separately from the
+// other three because it does not exist yet when they do: the projection,
+// the sweep and the reconciliation pass all finish before the plan walk,
+// and the release happens inside it, one
+// [projection.NodeResolver.AdjustConfigValue] call per instance. So each
+// pipeline calls this function twice - once before the walk with released
+// nil, once after it with released alone - and the view prints the untag
+// section directly above the plan it describes. A caller that passes
+// released before the walk gets an empty list for every estate, which is
+// what this section rendered from 2026-08-25 (when the node writer took over
+// from internal/live/stamp, whose Result.Untagged used to feed it) until
+// #1002: GitHub issue #644 deleted the unreachable stamp implementation and
+// GitHub issue #949 ported the suppression without the record.
+//
+// Declared and Untagged answer different questions and are expected to
+// differ. Declared names every instance the verb governs. Untagged names the
+// ones a key was really withheld from, so an instance whose configuration
+// hand-writes the key, or that a -target kept out of the walk, is in the
+// first list and not the second.
+func statelessPolicyReport(projResult *projection.Result, disco *discovery.Result, rec *discovery.ReconcileResult, released []projection.UntagRelease) views.StatelessPolicyReport {
 	var rep views.StatelessPolicyReport
 
 	if projResult != nil {
@@ -233,6 +275,14 @@ func statelessPolicyReport(projResult *projection.Result, disco *discovery.Resul
 		}
 	}
 
+	for _, u := range released {
+		rep.Untagged = append(rep.Untagged, views.StatelessUntagged{
+			Addr:         u.Addr.String(),
+			Key:          u.Key,
+			EstateMarker: u.EstateMarker(),
+		})
+	}
+
 	if rec != nil {
 		rep.Reconcile.Ran = true
 		rep.Reconcile.Threshold = rec.Threshold
@@ -242,6 +292,7 @@ func statelessPolicyReport(projResult *projection.Result, disco *discovery.Resul
 				TypeName:    c.TypeName,
 				LiveID:      c.ImportID,
 				DisplayName: c.DisplayName,
+				Withheld:    c.Withheld,
 			})
 		}
 		for _, g := range rec.Gaps {
@@ -256,23 +307,41 @@ func statelessPolicyReport(projResult *projection.Result, disco *discovery.Resul
 	return rep
 }
 
+// untagGroup is the untag verb's work for one provider configuration: the
+// targets whose sweep pass listed through it, which is the only
+// configuration that can reach them again (GitHub issue #1657).
+type untagGroup struct {
+	Provider addrs.AbsProviderConfig
+	Targets  []untag.Target
+}
+
 // statelessUntagTargets narrows discovery's withheld undeclared_tagged
 // orphans to the ones this run's policy actually named "untag" - not
 // "keep" or "report", which are also withheld from the sweep but have
 // nothing for [untag.Release] to do - and turns each into the identity
-// evidence [untag.Release] needs to import and read it fresh. See
-// [statelessRunner.AfterApply] for why this runs during PriorState and the
-// result is only acted on later, from AfterApply.
-func statelessUntagTargets(disco *discovery.Result) []untag.Target {
+// evidence [untag.Release] needs to import and read it fresh, grouped by
+// the provider configuration that found it ([discovery.OwnedResource.
+// Provider]). Groups are in provider-address order, targets in discovery's
+// own order. See [statelessRunner.AfterApply] for why this runs during
+// PriorState and the result is only acted on later, from AfterApply.
+func statelessUntagTargets(disco *discovery.Result) []untagGroup {
 	if disco == nil {
 		return nil
 	}
-	var out []untag.Target
+	byKey := make(map[string]int)
+	var out []untagGroup
 	for _, o := range disco.Orphans {
 		if o.PolicyVerb != policy.Untag {
 			continue
 		}
-		out = append(out, untag.Target{
+		key := untagGroupKey(o.Provider)
+		i, ok := byKey[key]
+		if !ok {
+			i = len(out)
+			byKey[key] = i
+			out = append(out, untagGroup{Provider: o.Provider})
+		}
+		out[i].Targets = append(out[i].Targets, untag.Target{
 			TypeName:    o.TypeName,
 			ImportID:    o.ImportID,
 			Identity:    o.Identity,
@@ -280,7 +349,51 @@ func statelessUntagTargets(disco *discovery.Result) []untag.Target {
 			DisplayName: o.DisplayName,
 		})
 	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return untagGroupKey(out[i].Provider) < untagGroupKey(out[j].Provider)
+	})
 	return out
+}
+
+// untagGroupKey is a provider configuration's address, or "" for the zero
+// value: an orphan no caller attributed to a pass.
+func untagGroupKey(p addrs.AbsProviderConfig) string {
+	if p.Provider.Type == "" {
+		return ""
+	}
+	return p.String()
+}
+
+// untagTargetList names targets on one line, for a diagnostic.
+func untagTargetList(targets []untag.Target) string {
+	names := make([]string, len(targets))
+	for i, t := range targets {
+		names[i] = t.String()
+	}
+	return strings.Join(names, ", ")
+}
+
+// statelessUntagCluster is the cluster client [untag.Release] releases a
+// manifest-shape orphan through (GitHub issue #1656): the one the marker
+// sweep built for the provider configuration that found the orphan, which
+// is the one its group releases through (GitHub issue #1657), or nil when
+// that configuration built none - not a Kubernetes configuration, or one
+// this run could not connect with - in which case
+// the release refuses such a target by name and touches nothing. It never
+// borrows another configuration's client: a label release sent to the
+// wrong cluster is a write on an object this run never read.
+func statelessUntagCluster(sweepers map[string]kubesweep.Sweeper, provider addrs.AbsProviderConfig) kubesweep.LabelReleaser {
+	sweeper := sweepers[providerCacheKey(provider)]
+	if sweeper == nil {
+		return nil
+	}
+	releaser, _ := sweeper.(kubesweep.LabelReleaser)
+	if c, isClient := releaser.(*kubesweep.Client); isClient && c == nil {
+		// A typed nil in an interface is not a nil interface; see
+		// live_import_kubernetes.go's LabelPatcher for the same guard.
+		return nil
+	}
+	return releaser
 }
 
 // statelessReleasedReport turns one [untag.Result] - the apply-time record

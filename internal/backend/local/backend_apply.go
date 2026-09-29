@@ -401,6 +401,18 @@ func (b *Local) opApply(
 		}
 	}
 
+	// GitHub issue #1339: the last point before anything in the cloud
+	// changes, reached by both branches above. A refusal here leaves the
+	// estate exactly as the plan found it.
+	if b.Stateless != nil {
+		beforeDiags := b.Stateless.BeforeApply(ctx)
+		diags = diags.Append(beforeDiags)
+		if beforeDiags.HasErrors() {
+			op.ReportResult(runningOp, diags)
+			return
+		}
+	}
+
 	// GitHub issue #908: read the plan's replace set HERE, while the plan
 	// still has its changes. lr.Core.Apply below drains an applied change
 	// out of plan.Changes as each instance finishes (writeChange with a nil
@@ -417,6 +429,10 @@ func (b *Local) opApply(
 	// Issue #938's other half, read HERE for the identical reason: a
 	// deposed destroy is drained out of plan.Changes as it applies too.
 	deposedDestroys := destroyedDeposedInstances(plan)
+	// GitHub issue #1371: whether this apply destroys the whole estate,
+	// read off the plan's mode and scope. A -target or -exclude destroy
+	// leaves the estate standing, and its recorded outputs with it.
+	wholeDestroy := plan.UIMode == plans.DestroyMode && len(plan.TargetAddrs) == 0 && len(plan.ExcludeAddrs) == 0
 
 	// Set up our hook for continuous state updates
 	stateHook.StateMgr = opState
@@ -473,7 +489,7 @@ func (b *Local) opApply(
 	// resource failed still deserves its record, so the next plan does not
 	// propose creating it again.
 	if b.Stateless != nil {
-		wbDiags := b.Stateless.WriteBack(ctx, applyState, schemas, replacedAddrs, deposedDestroys)
+		wbDiags := b.Stateless.WriteBack(ctx, applyState, schemas, replacedAddrs, deposedDestroys, wholeDestroy)
 		diags = diags.Append(wbDiags)
 		if wbDiags.HasErrors() {
 			op.ReportResult(runningOp, diags)

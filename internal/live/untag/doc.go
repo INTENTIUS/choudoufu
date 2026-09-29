@@ -20,10 +20,17 @@
 // called from and why that is the one place a real apply, and never a
 // plan, is known to have happened.
 //
-// Every write here follows internal/live/liveimport's own tags-only
-// pattern (see that package's stamp.go and tags.go): PlanResourceChange
-// then ApplyResourceChange, with a change touching anything but the one
-// key refused before ApplyResourceChange is ever called. It is duplicated
+// Every write here follows internal/live/liveimport's own marker-only
+// pattern (see that package's stamp.go, tags.go and labels.go):
+// PlanResourceChange then ApplyResourceChange, with a change touching
+// anything but the one key refused before ApplyResourceChange is ever
+// called. The key comes off whichever map internal/live/substrate says the
+// type's schema carries its marker in: the tags map on an AWS type,
+// metadata[0].labels on a Kubernetes one (GitHub issue #1644). A
+// manifest-declared Kubernetes object has no typed map for a plan to be
+// confined to, so it is released by a label-delete merge patch through the
+// caller's cluster client instead, dry-run first (GitHub issue #1656; see
+// manifest.go), and refused by name when there is no client. It is duplicated
 // rather than shared, the same choice liveimport made against
 // internal/live/mv's identical shape and for the same reason: there is no
 // exported seam to call through without exposing another package's private

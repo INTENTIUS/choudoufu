@@ -7,6 +7,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -125,7 +126,11 @@ func TestGitShow_MissingPath(t *testing.T) {
 	dir := t.TempDir()
 	initTestRepo(t, dir)
 
-	if _, err := gitShow(dir, "HEAD", "live/does-not-exist.json"); err == nil {
-		t.Error("gitShow for a path absent at HEAD: want an error, got nil")
+	_, err := gitShow(dir, "HEAD", "live/does-not-exist.json")
+	if err == nil {
+		t.Fatal("gitShow for a path absent at HEAD: want an error, got nil")
+	}
+	if !errors.Is(err, errNotAtRef) {
+		t.Errorf("gitShow for a path absent at HEAD = %v; want errNotAtRef, the real \"no\"", err)
 	}
 }

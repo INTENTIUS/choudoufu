@@ -15,11 +15,12 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/policy"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // GitHub issue #1108. [builder.checkOwnership] read one marker surface, the
-// AWS tag map, so [markerCapable] answered false for every Kubernetes type
+// AWS tag map, so the then markerCapable answered false for every Kubernetes type
 // and the switch admitted the live object before any label was read. A
 // declared block bound its object by natural key whether the object carried
 // this estate's label, another estate's, or none - so the plan proposed
@@ -30,7 +31,10 @@ import (
 // executed there at all.
 //
 // These tests are the regression. Every one of them is proved red by
-// restoring the tags-only body of [markerSurfaceOf]:
+// restoring the tags-only surface read it had then (since GitHub issue
+// #1589 the read is [substrate.SurfaceOf], and the same body restored as
+// the AWS family's SurfaceOf, with the Kubernetes family's answering
+// false, is the equivalent revert):
 //
 //	func markerSurfaceOf(block *configschema.Block) markerSurface {
 //		if block == nil {
@@ -131,7 +135,7 @@ func k8sLiveManifest(t *testing.T, stampedEstate string, liveLabels map[string]s
 		"field_manager":   cty.ListValEmpty(cty.Object(map[string]cty.Type{"name": cty.String})),
 		"wait":            cty.ListValEmpty(cty.Object(map[string]cty.Type{"rollout": cty.Bool})),
 	})
-	return mirrorManifestComputedFields(v, manifestTypeSchema().Block)
+	return mirrorManifestComputedFields(v, manifestTypeSchema().Block, nil)
 }
 
 func k8sConfigMapAddr(t *testing.T) addrs.AbsResourceInstance {
@@ -145,18 +149,19 @@ func k8sConfigMapAddr(t *testing.T) addrs.AbsResourceInstance {
 func TestK8sOwnership_surfaceIsReadFromTheSchema(t *testing.T) {
 	for name, tc := range map[string]struct {
 		block *configschema.Block
-		want  markerSurface
+		want  markers.Surface
 	}{
-		"kubernetes_config_map": {configMapTypeSchema().Block, surfaceLabels},
-		"kubernetes_manifest":   {manifestTypeSchema().Block, surfaceManifest},
-		"aws taggable":          {fakeSchemas()["aws_cloudwatch_log_group"].Block, surfaceTags},
-		"nil":                   {nil, surfaceNone},
+		"kubernetes_config_map": {configMapTypeSchema().Block, markers.SurfaceLabels},
+		"kubernetes_manifest":   {manifestTypeSchema().Block, markers.SurfaceManifest},
+		"aws taggable":          {fakeSchemas()["aws_cloudwatch_log_group"].Block, markers.SurfaceTags},
+		"nil":                   {nil, ""},
 	} {
-		if got := markerSurfaceOf(tc.block); got != tc.want {
-			t.Errorf("%s: markerSurfaceOf = %d, want %d", name, got, tc.want)
+		got, ok := substrate.SurfaceOf(tc.block)
+		if got != tc.want {
+			t.Errorf("%s: SurfaceOf = %q, want %q", name, got, tc.want)
 		}
-		if got, want := markerCapable(tc.block), tc.want != surfaceNone; got != want {
-			t.Errorf("%s: markerCapable = %v, want %v", name, got, want)
+		if want := tc.want != ""; ok != want {
+			t.Errorf("%s: SurfaceOf ok = %v, want %v", name, ok, want)
 		}
 	}
 }
@@ -223,7 +228,9 @@ func TestK8sOwnership_thisEstatesObjectIsAdmitted(t *testing.T) {
 // estate label is the declared_untagged quadrant, refused by default with
 // the sentence that says how to adopt it - and, per #1016, that sentence
 // names one label and no address, because the Kubernetes marker is the
-// estate alone.
+// estate alone. Since #1546 that refusal is an Error rather than a warning
+// (TestK8sConflict_* pin the severity); the wording pinned here is the
+// part the two share.
 func TestK8sOwnership_unlabelledObjectIsDeclaredUntagged(t *testing.T) {
 	b := k8sOwnershipBuilder(&Ownership{Estate: k8sOwnershipEstate})
 
@@ -239,7 +246,7 @@ func TestK8sOwnership_unlabelledObjectIsDeclaredUntagged(t *testing.T) {
 	detail := b.unownedList[0].Detail
 	for _, want := range []string{
 		"carries no " + markers.TagEstate + " label",
-		"Adopt it by writing the label " + markers.TagEstate + "=\"" + k8sOwnershipEstate + "\"",
+		"write the label " + markers.TagEstate + "=\"" + k8sOwnershipEstate + "\"",
 		`policy { declared_untagged = "adopt" }`,
 	} {
 		if !strings.Contains(detail, want) {

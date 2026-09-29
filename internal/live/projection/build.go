@@ -30,6 +30,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/noimporter"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
@@ -301,6 +302,30 @@ type Options struct {
 	// the account is asked for, which is ReadParallelism - and this follows
 	// it.
 	ReadBuffer int
+
+	// ManifestOwnedKeys answers, for one live kubernetes_manifest object,
+	// which metadata.labels and metadata.annotations keys this estate's
+	// own field manager wrote, read from the object's own
+	// metadata.managedFields - GitHub issue #1211's SAFETY RAIL.
+	//
+	// It is never the source of a removal: that is the estate's record
+	// ([residueFields.ManifestMetadataKeys]), for the measured reason
+	// manifestkeys.go's own doc comment gives. This hook only ever
+	// declines a candidate the record already named, so a run without it
+	// is narrower and never wider.
+	//
+	// Supplied by every command that builds a prior state to plan or
+	// apply against (internal/command's live_mode.go and live_plan.go,
+	// through the marker sweep's own cluster clients). Nil is legitimate
+	// for a caller that builds a projection for some other purpose -
+	// internal/live/mv rewrites one marker and plans nothing - and for
+	// every caller that predates this field.
+	//
+	// It is consulted only when a removal candidate exists, so a
+	// converged estate pays no round trip; a candidate that cannot be
+	// confirmed earns [SummaryManifestRemovalUndetectable] rather than
+	// being dropped in silence. See [manifestRemovalKeys].
+	ManifestOwnedKeys ManifestOwnedKeysFunc
 }
 
 // BuildWith is [BuildFrom] with options. See [Options].
@@ -371,16 +396,36 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 		return b.policyList[i].Addr.String() < b.policyList[j].Addr.String()
 	})
 
+	// GitHub issue #1675: every resolution reached through the record
+	// fallback door, read straight off the resolutions this call was
+	// handed - not recomputed - since [identity.Resolution.RecordFallback]
+	// is the resolver's own answer to "did this instance need the record
+	// because nothing else could carry its identity", and re-deriving that
+	// from the type and the configuration alone at write-back time cannot
+	// tell it apart from an ordinary instance of the same
+	// [identity.RecordFallbackType]-eligible type whose identity folds
+	// straight from configuration.
+	var recordFallbackAddrs []addrs.AbsResourceInstance
+	for _, r := range resolutions {
+		if r.Class == identity.ClassRecordLocated && r.RecordFallback {
+			recordFallbackAddrs = append(recordFallbackAddrs, r.Addr)
+		}
+	}
+	sort.Slice(recordFallbackAddrs, func(i, j int) bool {
+		return recordFallbackAddrs[i].String() < recordFallbackAddrs[j].String()
+	})
+
 	res := &Result{
-		cacheHits:        b.cacheHits,
-		boundIdentities:  b.boundIdentities,
-		State:            b.state,
-		Materialized:     b.materialized,
-		Omitted:          b.omissionList,
-		Unowned:          b.unownedList,
-		RecordVersions:   b.recordVersions,
-		EnvelopeVersions: b.envelopeVersions,
-		Policy:           b.policyList,
+		cacheHits:           b.cacheHits,
+		boundIdentities:     b.boundIdentities,
+		State:               b.state,
+		Materialized:        b.materialized,
+		Omitted:             b.omissionList,
+		Unowned:             b.unownedList,
+		RecordVersions:      b.recordVersions,
+		EnvelopeVersions:    b.envelopeVersions,
+		RecordFallbackAddrs: recordFallbackAddrs,
+		Policy:              b.policyList,
 	}
 	// Issue #685: report the cache's effect, always, including zero. A cache
 	// that is configured and never hits looks exactly like one that is working
@@ -1145,6 +1190,7 @@ func (b *builder) materializeFromRecord(ctx context.Context, r identity.Resoluti
 		values:      recordFirstStubValues(rec),
 		undeclared:  r.Undeclared,
 		recordFirst: true,
+		declaredKey: r.ImportID != "" && r.ImportID == rec.ImportID,
 	})
 }
 
@@ -1263,6 +1309,14 @@ type wanted struct {
 	// carry a marker has nothing to check the record against and is trusted
 	// exactly as [located] is.
 	recordFirst bool
+
+	// declaredKey is set only alongside recordFirst: true when the record's
+	// import id is the one the configuration itself computes for this
+	// instance ([identity.Resolution.ImportID]), so reading an object there
+	// is reading the key this block's create would send. GitHub issue
+	// #1546's refusal asks exactly that and nothing else of it - see
+	// [builder.checkOwnershipAt].
+	declaredKey bool
 }
 
 // importTarget picks the form this instance's import is asked in.
@@ -2142,12 +2196,33 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		seedEval = seedEval.WithRepetitionData(rd)
 	}
 	tagsSeed, tagsSeedOK := configuredTagsSeed(ctx, seedEval, modPath, rc, schema)
-	attrsSeed, attrsSeedMarks := configuredAttrsSeed(ctx, seedEval, modPath, rc, schema, entry.schema.DataSources)
+	// GitHub issue #1503: the estate's own secrets setting, read the one
+	// way this package reads it ([identity.SecretsFor], the same call
+	// [builder.fillResidueFor] makes for the post-read half of the same
+	// question). It governs the VALUE of a Sensitive attribute only - see
+	// [configuredAttrsSeed]'s doc comment.
+	attrsSeed, attrsSeedMarks := configuredAttrsSeed(ctx, seedEval, modPath, rc, schema, entry.schema.DataSources, identity.SecretsFor(b.cfg))
 	if tagsSeedOK {
 		if attrsSeed == nil {
 			attrsSeed = make(map[string]cty.Value, 1)
 		}
 		attrsSeed["tags"] = tagsSeed
+	}
+	// GitHub issue #1262: a manifest the strict seed above dropped whole -
+	// because one leaf of it reads another resource - is seeded with the
+	// skeleton configuration can evaluate, its unresolvable leaves left open
+	// for [fillManifestOpenPaths] to answer from the live object after the
+	// read. See manifestpartialseed.go for what the seed is in that case and
+	// for the identity rule that makes it decline instead.
+	var manifestOpen []cty.Path
+	if _, seeded := attrsSeed[markers.ManifestSurfaceAttr]; !seeded {
+		if partial, open, ok := partialManifestSeed(ctx, seedEval, modPath, rc, schema); ok {
+			if attrsSeed == nil {
+				attrsSeed = make(map[string]cty.Value, 1)
+			}
+			attrsSeed[markers.ManifestSurfaceAttr] = partial
+			manifestOpen = open
+		}
 	}
 	if b.opts.Ownership != nil && markers.ManifestSurface(schema.Block) {
 		// GitHub issue #1079: a manifest-surface seed carries the
@@ -2183,6 +2258,11 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		attrsSeed[name] = val
 	}
 
+	// GitHub issues #1185 and #1240: one decode of the resource's own
+	// `timeouts` block, read by both carriers - the SDKv2 private meta and
+	// the framework value. See [configuredTimeoutsBlock].
+	timeoutsBlock := configuredTimeoutsBlock(ctx, seedEval, modPath, rc, schema)
+
 	return readPrep{
 		rc:             rc,
 		modPath:        modPath,
@@ -2192,6 +2272,16 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		target:         importTarget(w, schema),
 		attrsSeed:      attrsSeed,
 		attrsSeedMarks: attrsSeedMarks,
+		timeouts:       timeoutsMeta(timeoutsBlock, rc, schema),
+		timeoutsBlock:  timeoutsBlockSeed(timeoutsBlock, schema),
+		// GitHub issue #1211: the record of what this instance's
+		// configuration last declared at metadata.labels and
+		// metadata.annotations, plus the safety rail's hook and the two
+		// addresses its request needs - settled here because this is
+		// where the address and the record store exist and the read has
+		// neither. Nil for every type that is not manifest-shaped, which
+		// is every read that is not a Kubernetes one.
+		manifestKeys: newManifestKeyLookup(schema, addr, providerAddr, b.opts.ManifestOwnedKeys, b.manifestDeclaredKeysFor(ctx, addr, schema)).withOpenPaths(manifestOpen),
 	}
 }
 
@@ -2343,7 +2433,7 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	// does not set Undeclared for it - and that is the same block-level
 	// coarsening internal/live/stamp's PolicyUntag already documents,
 	// rather than a new one.
-	switch b.checkOwnership(addr, typeName, importID, schema, obj.Value, rc != nil && !w.undeclared, w.located, w.recordFirst) {
+	switch b.checkOwnershipAt(addr, typeName, importID, schema, obj.Value, rc != nil && !w.undeclared, w.located, w.recordFirst, !w.recordFirst || w.declaredKey) {
 	case ownershipStale:
 		// The record's binding did not survive being checked against the
 		// live object's own marker; checkOwnership has already logged the
@@ -2353,6 +2443,30 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 		return false
 	case ownershipUnowned:
 		return true
+	}
+
+	// GitHub issue #1185: the configured `timeouts` block, put back into
+	// the private blob a destroy reads its deadline from. The read handed
+	// back the provider's own declared defaults, because that is all
+	// ImportResourceState has to seed an imported instance's meta with;
+	// a state-backed run would be carrying what the last apply wrote
+	// there. See [configuredTimeouts] for the whole mechanism and the
+	// measurement. Nothing in obj.Value moves, so this is after the
+	// ownership check only because everything that writes to obj is.
+	if updated, changed := withConfiguredTimeouts(obj.Private, f.prep.timeouts); changed {
+		log.Printf("[TRACE] projection: %s carries a timeouts block; re-derived the provider's delete/create/update meta from configuration rather than leaving the import stub's declared defaults", addr)
+		obj.Private = updated
+	}
+	// GitHub issue #1240: the same block for a provider that keeps it in
+	// the state object rather than the private - terraform-plugin-framework
+	// - where the read handed back a null and the private carries no SDKv2
+	// meta for the write above to have taken. This one DOES move obj.Value,
+	// and is measured against a replan for exactly that reason; see
+	// [withConfiguredTimeoutsBlock]. Before [builder.fillResidueFor] so that
+	// configuration, read fresh this run, wins over a stored block.
+	if seeded, ok := withConfiguredTimeoutsBlock(obj.Value, f.prep.timeoutsBlock, schema.Block, obj.Private); ok {
+		log.Printf("[TRACE] projection: %s carries a timeouts block its read returned null for and no SDKv2 meta; seeded the configured block into the prior value", addr)
+		obj.Value = seeded
 	}
 
 	// GitHub issue #275's residue, applied AFTER the ownership check and
@@ -2534,7 +2648,12 @@ func (b *builder) materializeDeposed(ctx context.Context, db DeposedBinding) {
 	}
 
 	w := wanted{addr: addr, importID: db.ImportID, values: db.Components}
-	obj, _, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), db.ImportID, db.Components, nil, nil)
+	// No manifest owned-keys lookup (GitHub issue #1211): a deposed
+	// object is on its way to being destroyed whole, so which of its
+	// labels the configuration still declares changes nothing anyone will
+	// act on, and asking the cluster would buy a round trip and a
+	// possible warning for an analysis with no consumer.
+	obj, _, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), db.ImportID, db.Components, nil, nil, nil)
 	switch status {
 	case statusAbsent:
 		log.Printf("[TRACE] projection: %s's recorded deposed object %s (%s) no longer exists live; not folded into the projection", addr, db.DeposedKey, traceImportID(typeName, db.ImportID, cty.NilVal))
@@ -2862,6 +2981,7 @@ func (b *builder) discoverOrphanedRecords(ctx context.Context, known map[string]
 			continue
 		}
 		if known[addr.String()] {
+			b.refuseListedButReadAsAbsent(addr, key)
 			continue
 		}
 		// GitHub issue #364/#270: a kind=identity key is never delete
@@ -2887,6 +3007,43 @@ func (b *builder) discoverOrphanedRecords(ctx context.Context, known map[string]
 		}
 		b.materializeRecord(ctx, addr, true)
 	}
+}
+
+// refuseListedButReadAsAbsent is the cross-check GitHub issue #1355 asks for:
+// the store's own listing names a key, and this run's read of that same key
+// said no record is there. Both answers came from one store, and they cannot
+// both be right.
+//
+// It is here because the listing is already in hand - [builder.discoverOrphanedRecords]
+// pays for it on every build - so the check costs a map lookup per key and no
+// call at all.
+//
+// The failure it catches is the quietest one this package has. A declared
+// record-backed instance whose read comes back absent is omitted as
+// [ReasonAbsent], which on an ordinary plan proposes a CREATE (loud enough:
+// the create's own conditional write fails at apply time against the record
+// that is already there) and on `apply -destroy` proposes NOTHING. A destroy
+// plan is built from prior state alone, so an instance missing from prior
+// state is not a destroy that failed; it is a destroy that was never in the
+// plan, and the run prints "Apply complete" with a count one short. #1355 is
+// one of those, on real AWS, with no log kept - which is why the check has to
+// be in the product rather than in a test.
+//
+// An error rather than a warning, for internal/live/projection/store.go's
+// reason (issue #693): a run that cannot get one consistent answer about what
+// the estate holds has nothing to plan against, and planning anyway is how a
+// live object outlives the destroy that reported success.
+func (b *builder) refuseListedButReadAsAbsent(addr addrs.AbsResourceInstance, key string) {
+	o, omitted := b.omitted[addr.String()]
+	if !omitted || o.Reason != ReasonAbsent {
+		return
+	}
+	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "The record store contradicts itself about a record",
+		fmt.Sprintf(
+			"Listing the record store returns %q, which is %s's own record key, but reading that key for this plan came back with no record there. One read of this store says the record exists and another says it does not, so there is no prior state for %s this run can trust.\n\nNothing is proposed for %s while that is true. On a destroy that would be one fewer resource destroyed than the estate holds, under a line reporting success. Re-run; if it repeats, the store is not answering consistently and the record at %q is what to look at. GitHub issue #1355.",
+			key, addr, addr, addr, key,
+		),
+	))
 }
 
 type materializeStatus int
@@ -3107,7 +3264,51 @@ func notFoundDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
 // Each entry's Path is relative to the whole resource object (attribute
 // name first), ready to merge straight into [readImported]'s own
 // schema-mark reconciliation with [combineValueMarks].
-func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, modPath addrs.Module, rc *configs.Resource, schema providers.Schema, dataSchemas map[string]providers.Schema) (seed map[string]cty.Value, configMarks []cty.PathValueMarks) {
+//
+// # secrets, and the one attribute class this whole mechanism must not reach
+//
+// GitHub issue #1503. Everything above rests on one claim: for a
+// non-Computed attribute, the configuration's current value is exactly what
+// a persisted state file's PriorState would already hold, so seeding it
+// reconstructs a fact rather than inventing one. Under `strict { secrets =
+// "refuse" }` that claim is false for a Sensitive attribute, and falsely in
+// the one direction that matters.
+//
+// An estate that refuses secrets writes no record for a sensitive argument
+// ([residueCandidates] drops it, [fillResidue] declines to fill it) and no
+// marker carries one either, deliberately. So nothing this fork keeps holds
+// what was LAST APPLIED for such an attribute - which is the very value the
+// seed above claims to be reconstructing. Seeding it from the CURRENT
+// configuration does not reconstruct the last-applied value, it overwrites
+// the question with the answer: the prior and the desired value become the
+// same by construction, and a provider that never reads the attribute back
+// (hashicorp/aws's aws_db_instance never calls d.Set("password", ...),
+// because DescribeDBInstances has no password in its response) hands it
+// straight back out of ReadResource. A rotated master password then plans
+// `No changes.` and is silently never sent.
+//
+// Under the default `secrets = "store"` the claim holds and nothing here
+// changes: the record store carries the last-applied value, [fillResidue]'s
+// #393 branch puts it back when the read only echoed the stub, and the two
+// values can genuinely differ. That is why this is gated on the setting and
+// not applied to every Sensitive attribute.
+//
+// Withholding the value restores the documented behaviour rather than
+// inventing one. site/content/docs/use/secrets.md and live/SECRETS.md both
+// say "A sensitive argument the API never returns is left out of its
+// record, so every plan shows it as a change", and lint's own
+// [residueWarning] on the same attribute promises "Every live plan will
+// therefore propose sending the value again - the same perpetual diff stock
+// `terraform import` produces for this argument. The plan is correct and
+// the apply converges." A null prior is also what stock's own import stub
+// carries for it, so this is the oracle's answer, not a fork-local one.
+//
+// Only the VALUE is withheld. The attribute's configuration MARKS are
+// collected and returned exactly as before, because dropping those is GitHub
+// issue #401 family 3 - a perpetual sensitivity-only diff - which is why the
+// skip sits beside the existing `attr.Computed` one, after
+// [configuredAttrSeed] has already run, rather than at the top of the loop.
+func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, modPath addrs.Module, rc *configs.Resource, schema providers.Schema, dataSchemas map[string]providers.Schema, secrets strict.Secrets) (seed map[string]cty.Value, configMarks []cty.PathValueMarks) {
 	if eval == nil || rc == nil || schema.Block == nil {
 		return nil, nil
 	}
@@ -3118,6 +3319,13 @@ func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, mod
 		Subject:   rc.Addr().String(),
 		DeclRange: rc.DeclRange,
 	}
+
+	// GitHub issue #1503, stated once here rather than re-derived per
+	// attribute: under `secrets = "refuse"` nothing this fork keeps holds a
+	// sensitive attribute's last-applied value, so configuration is not
+	// reconstructing a prior for it, it is answering its own question. See
+	// this function's doc comment.
+	refusesSecrets := !strict.StoresSecrets(secrets)
 
 	var out map[string]cty.Value
 	var marks []cty.PathValueMarks
@@ -3170,6 +3378,17 @@ func configuredAttrsSeed(ctx context.Context, eval *configs.StaticEvaluator, mod
 			// recording - configuredAttrSeed already ran above and the
 			// marks loop already captured whatever it found, so only the
 			// seed map is skipped here.
+			continue
+		}
+		if attr.Sensitive && refusesSecrets {
+			// GitHub issue #1503, and the same shape as the Computed
+			// exclusion directly above: the VALUE is withheld, the MARKS
+			// the loop above already collected are kept. The attribute's
+			// prior stays whatever [providers.Configured.ImportResourceState]
+			// answered for it - null, for every provider that does not read
+			// it back - which is what makes the plan propose sending the
+			// value again, the perpetual diff this setting's own
+			// documentation and lint warning both promise.
 			continue
 		}
 		if out == nil {
@@ -3628,7 +3847,7 @@ func withSeededAttrs(v cty.Value, seed map[string]cty.Value, block *configschema
 // back is then bit-for-bit the same value that went in, and comparing the
 // two is the only way to tell that apart from a value ReadResource actually
 // produced - the schema itself carries no such signal to ask instead.
-func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName string, target providers.ImportTarget, importID string, identityValues map[string]string, attrsSeed map[string]cty.Value, configMarks []cty.PathValueMarks) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
+func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName string, target providers.ImportTarget, importID string, identityValues map[string]string, attrsSeed map[string]cty.Value, configMarks []cty.PathValueMarks, manifestKeys *manifestKeyLookup) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	if !target.IsIdentityBased() && !target.IsIDBased() {
@@ -3700,7 +3919,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 			if stub, stubOK := noimporter.SynthesizeStub(schema, identityValues); stubOK {
 				log.Printf("[TRACE] projection: %s has no classic Importer; synthesizing an import stub from its own resolved identity instead of refusing", typeName)
 				obj := &states.ResourceInstanceObject{Status: states.ObjectReady, Value: stub}
-				return readImported(ctx, provider, schema, typeName, importID, obj, attrsSeed, configMarks, diags)
+				return readImported(ctx, provider, schema, typeName, importID, obj, attrsSeed, configMarks, manifestKeys, diags)
 			}
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
@@ -3750,7 +3969,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 		return nil, cty.NilVal, statusAbsent, diags
 	}
 
-	return readImported(ctx, provider, schema, typeName, importID, obj, attrsSeed, configMarks, diags)
+	return readImported(ctx, provider, schema, typeName, importID, obj, attrsSeed, configMarks, manifestKeys, diags)
 }
 
 // readImported is [importAndRead]'s shared tail: ReadResource against obj,
@@ -3760,7 +3979,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 // path can reach the exact same attribute-seeding, sensitivity-marking and
 // conformance-checking rules an ordinarily-imported instance already gets,
 // with no second copy to drift from the first.
-func readImported(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName, importID string, obj *states.ResourceInstanceObject, attrsSeed map[string]cty.Value, configMarks []cty.PathValueMarks, diags tfdiags.Diagnostics) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
+func readImported(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName, importID string, obj *states.ResourceInstanceObject, attrsSeed map[string]cty.Value, configMarks []cty.PathValueMarks, manifestKeys *manifestKeyLookup, diags tfdiags.Diagnostics) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
 	// GitHub issue #287 item 8 (tags), #395 and #376 (every other
 	// non-Computed attribute - see [configuredAttrsSeed]'s doc comment).
 	// ImportResourceState commonly leaves a non-Computed argument null or
@@ -3858,7 +4077,22 @@ func readImported(ctx context.Context, provider providers.Interface, schema prov
 	// configuration against itself, and neither a stripped marker nor an
 	// edited label ever plans. See mirrorManifestComputedFields's own doc
 	// comment.
-	newVal = mirrorManifestComputedFields(newVal, schema.Block)
+	//
+	// GitHub issue #1211 adds the other half of the mirrored key set: the
+	// keys this estate's own RECORD says it last declared and the
+	// configuration no longer does, which is what remembers a label the
+	// operator deleted. [manifestRemovalKeys] returns nil for a type that
+	// is not manifest-shaped, nil for an instance with no record, and nil
+	// with a warning whenever it found a candidate it will not act on.
+	//
+	// GitHub issue #1262 runs first: the leaves a partial seed left open
+	// take the live object's value, and the mirror then keeps the last word
+	// on the two metadata maps. No open paths - every read that did not go
+	// through [partialManifestSeed] - returns newVal untouched.
+	newVal = fillManifestOpenPaths(newVal, schema.Block, manifestKeys.openPaths())
+	removed, removedDiags := manifestRemovalKeys(ctx, newVal, manifestKeys)
+	diags = diags.Append(removedDiags)
+	newVal = mirrorManifestComputedFields(newVal, schema.Block, removed)
 
 	// Sensitivity declared by the schema has to be carried on the value,
 	// because that is where the plan renderer looks for it.

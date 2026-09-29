@@ -33,7 +33,7 @@ import (
 // fails naming the type.
 
 // adoptionDocPath is the page whose claim this test holds to the artifact.
-const adoptionDocPath = "../site/content/docs/use/reference.md"
+const adoptionDocPath = "ADOPTION-ONLY.md"
 
 // adoptionUntaggableClaim captures the backticked type names in the
 // "Identity by declaration" bullet's closing sentence. Anchored on the

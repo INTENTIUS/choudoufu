@@ -17,6 +17,8 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // This file is the third carrier live-import can write a marker through
@@ -118,6 +120,67 @@ func manifestFieldManager(obj cty.Value) string {
 	return ""
 }
 
+// seedManifestKeys is GitHub issue #1391: the metadata.labels and
+// metadata.annotations keys a migrated manifest-shaped instance's
+// configuration last declared, seeded into the estate's record so that the
+// first key REMOVED after the migration is proposed for removal.
+//
+// Until this existed the apply write-back was the only writer of
+// [projection.residueFields.ManifestMetadataKeys], so an estate that
+// migrated and then deleted its state file - which is what the adopt page
+// tells an operator to do - had no record of what it used to declare at
+// all. A label dropped from the configuration was then quietly kept on the
+// live object for ever, where stock reads its last-applied manifest and
+// removes it. The read side's degradation is deliberate and silent (a
+// missing record proposes removing nothing), so nothing said so.
+//
+// stateObj is the STATE FILE's own recorded object, never the live read.
+// For a stampable instance [Ratify] hands the residue classifier the live
+// read, and this question is not about the live object: it is "what did
+// the last apply DECLARE", which only the state's recorded `manifest`
+// answers. Whether the provider's own ReadResource carries `manifest`
+// through unchanged is not something this has to know.
+//
+// The marker key is added on top, because the write-back's own key set
+// includes it: this fork declares tofu-estate on the configuration's
+// behalf on every plan of a stamped manifest instance, and the migration
+// writes exactly that label by merge patch ([approveManifest]). Seeding it
+// makes the record a migration leaves identical to the one an apply
+// leaves. It can never turn into a proposed removal, because the key the
+// seed adds is the key the stamp puts back into every later plan's prior
+// manifest, and a removal candidate has to be absent from that.
+//
+// nil for anything that is not manifest-shaped, which is the whole of the
+// "a typed kubernetes_* entry gets nothing new" guarantee.
+func seedManifestKeys(schema providers.Schema, stateObj cty.Value) map[string][]string {
+	if schema.Block == nil || !manifestSurface(schema.Block) {
+		return nil
+	}
+	keys, ok := projection.ManifestDeclaredKeys(stateObj)
+	if !ok {
+		return nil
+	}
+	// The address annotation is added the same way, for the same reason:
+	// the stamp declares it on every plan (GitHub issue #1639).
+	for field, key := range map[string]string{
+		markers.LabelSurfaceAttr:      markers.TagEstate,
+		markers.AnnotationSurfaceAttr: markers.AddressAnnotation,
+	} {
+		have := false
+		for _, k := range keys[field] {
+			if k == key {
+				have = true
+				break
+			}
+		}
+		if !have {
+			keys[field] = append(keys[field], key)
+			sort.Strings(keys[field])
+		}
+	}
+	return keys
+}
+
 // approveManifest is [approveOne] for a manifest-shape resource: read the
 // live object through the cluster client, refuse what must be refused,
 // dry-run the one-label merge patch and check the server's answer changes
@@ -159,155 +222,78 @@ func approveManifest(ctx context.Context, estate string, addr addrs.AbsResourceI
 		return out
 	}
 
+	// GitHub issue #1639: the address annotation goes in the same patch as
+	// the label, and the adoption cases follow the metadata-block
+	// carrier's ([approveLabel]).
+	wantAddress := markers.EscapeAddress(addr.String())
+	gotAddress := live.GetAnnotations()[markers.AddressAnnotation]
+	addressOK := gotAddress != "" && markers.AddressMatches(markers.EscapeAddress(gotAddress), addr.String())
+
 	switch got := live.GetLabels()[markers.TagEstate]; {
-	case got == estate:
+	case got == estate && addressOK:
 		out.Outcome = OutcomeAlreadyStamped
-		out.Detail = "Already carries this estate's label; nothing written."
+		out.Detail = "Already carries this estate's label and this block's address annotation; nothing written."
 		return out
-	case got != "":
+	case got != "" && got != estate:
 		out.Outcome = OutcomeFailed
 		out.Detail = fmt.Sprintf("Carries the label tofu-estate = %q, owned by another estate. A migration never adopts another estate's object; nothing was written.", got)
 		return out
+	case gotAddress != "" && !addressOK:
+		out.Outcome = OutcomeFailed
+		out.Detail = fmt.Sprintf("Already carries the annotation %s = %q. Rewriting it here would be a rename, which is choudoufu live-mv's job, not a side effect of an import; nothing was written.", markers.AddressAnnotation, gotAddress)
+		return out
 	}
 
-	dry, rejected, err := e.patcher.PatchLabel(ctx, ref, markers.TagEstate, estate, e.fieldManager, true)
+	labels := map[string]string{markers.TagEstate: estate}
+	annotations := map[string]string{markers.AddressAnnotation: wantAddress}
+	dry, rejected, err := e.patcher.PatchMarkers(ctx, ref, labels, annotations, e.fieldManager, true)
 	if err != nil {
 		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("The label write on %s could not be submitted to the cluster for a dry run: %s. Nothing was written.", ref, err)
+		out.Detail = fmt.Sprintf("The marker write on %s could not be submitted to the cluster for a dry run: %s. Nothing was written.", ref, err)
 		return out
 	}
 	if rejected != "" {
 		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("The API server refused the label write on %s: %s. Nothing was written.", ref, rejected)
+		out.Detail = fmt.Sprintf("The API server refused the marker write on %s: %s. Nothing was written.", ref, rejected)
 		return out
 	}
 	if extra := changedOutsideManifestLabels(live.Object, dry.Object); len(extra) > 0 {
 		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("Labelling this %s would also change %s, which the server's own dry run of the patch reports. Approve is a labels-only write on a Kubernetes object; nothing was written. Something between this client and the stored object - a mutating admission webhook, most likely - rewrites more than was asked for, and that has to be resolved first.", e.typeName, strings.Join(extra, ", "))
+		out.Detail = fmt.Sprintf("Labelling this %s would also change %s, which the server's own dry run of the patch reports. Approve is a markers-only write on a Kubernetes object (the tofu-estate label and the %s annotation); nothing was written. Something between this client and the stored object - a mutating admission webhook, most likely - rewrites more than was asked for, and that has to be resolved first.", e.typeName, strings.Join(extra, ", "), markers.AddressAnnotation)
 		return out
 	}
 
-	written, rejected, err := e.patcher.PatchLabel(ctx, ref, markers.TagEstate, estate, e.fieldManager, false)
+	written, rejected, err := e.patcher.PatchMarkers(ctx, ref, labels, annotations, e.fieldManager, false)
 	if err != nil {
 		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("The label write on %s failed: %s. The write may have partly landed; read the object's labels with kubectl before deciding what to do next.", ref, err)
+		out.Detail = fmt.Sprintf("The marker write on %s failed: %s. The write may have partly landed; read the object's labels and annotations with kubectl before deciding what to do next.", ref, err)
 		return out
 	}
 	if rejected != "" {
 		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("The API server refused the label write on %s: %s. Nothing was written.", ref, rejected)
+		out.Detail = fmt.Sprintf("The API server refused the marker write on %s: %s. Nothing was written.", ref, rejected)
 		return out
 	}
 
 	out.Outcome = OutcomeStamped
-	out.Detail = "Wrote the tofu-estate label. The Kubernetes marker carries no address: the object is re-bound by the apiVersion, kind, namespace and name inside its manifest."
-	if written == nil || written.GetLabels()[markers.TagEstate] != estate {
+	out.Detail = fmt.Sprintf("Wrote the tofu-estate label and the %s annotation.", markers.AddressAnnotation)
+	switch {
+	case written == nil || written.GetLabels()[markers.TagEstate] != estate:
 		out.Detail = "The write reported no error, but the object read back afterwards does not carry the tofu-estate label. Verify with kubectl before relying on this."
+	case written.GetAnnotations()[markers.AddressAnnotation] != wantAddress:
+		out.Detail = fmt.Sprintf("The write reported no error, but the object read back afterwards does not carry the %s annotation. Verify with kubectl before relying on this.", markers.AddressAnnotation)
 	}
 	return out
-}
-
-// manifestBookkeeping are the metadata keys the API server maintains for
-// itself, which move on any write and are not a change to the object
-// anyone declared. Excluded from [changedOutsideManifestLabels] for the
-// reason tags_all is excluded from [driftedAttrs]: they move BECAUSE this
-// write moves, so reporting them would make every label write look like a
-// write of something else.
-//
-//   - managedFields: the patch's own field-manager entry lands here.
-//   - resourceVersion and generation: the store's own counters.
-//   - labels: the one map this write exists to change, the same
-//     exemption [changedOutsideLabels] makes for the metadata block's
-//     labels attribute.
-var manifestBookkeeping = map[string]bool{
-	"managedFields":   true,
-	"resourceVersion": true,
-	"generation":      true,
-	"labels":          true,
 }
 
 // changedOutsideManifestLabels names the paths at which the object the
 // server would store differs from the object it holds now, outside the
-// labels map and its own bookkeeping. It is [changedOutsideLabels] for
-// the manifest shape, judged on the API server's own dry-run answer
-// rather than on a provider's plan, because the manifest shape's write
-// does not go through a provider.
-//
-// A difference is reported at the shallowest path where the two disagree,
-// so a rewritten spec reads "spec.replicas" and not one line per leaf
-// beneath it.
+// labels map, the address annotation and the server's own bookkeeping:
+// [kubesweep.ChangedOutsideMarkers], which live-mv's manifest rename
+// (GitHub issue #1639) judges its own dry run by too. It is
+// [changedOutsideLabels] for the manifest shape, judged on the API
+// server's own dry-run answer rather than on a provider's plan, because
+// the manifest shape's write does not go through a provider.
 func changedOutsideManifestLabels(live, planned map[string]any) []string {
-	var out []string
-	changedOutsideManifestLabelsAt(live, planned, "", &out)
-	sort.Strings(out)
-	return out
-}
-
-func changedOutsideManifestLabelsAt(live, planned map[string]any, prefix string, out *[]string) {
-	keys := map[string]bool{}
-	for k := range live {
-		keys[k] = true
-	}
-	for k := range planned {
-		keys[k] = true
-	}
-	for k := range keys {
-		if prefix == "metadata." && manifestBookkeeping[k] {
-			continue
-		}
-		path := prefix + k
-		lv, lok := live[k]
-		pv, pok := planned[k]
-		switch {
-		case !lok || !pok:
-			*out = append(*out, path)
-		default:
-			lm, lIsMap := lv.(map[string]any)
-			pm, pIsMap := pv.(map[string]any)
-			if lIsMap && pIsMap {
-				changedOutsideManifestLabelsAt(lm, pm, path+".", out)
-				continue
-			}
-			if !sameJSONValue(lv, pv) {
-				*out = append(*out, path)
-			}
-		}
-	}
-}
-
-// sameJSONValue compares two decoded JSON values structurally. It is
-// fmt.Sprint over the two rather than reflect.DeepEqual so that a list
-// whose elements are maps compares by content in a stable order - the
-// values here come from the same decoder on both sides, so their key
-// iteration is not what varies; what varies is the numeric type a
-// resourceVersion or a replica count decodes to, and both sides decode it
-// the same way.
-func sameJSONValue(a, b any) bool {
-	am, aIsMap := a.(map[string]any)
-	bm, bIsMap := b.(map[string]any)
-	if aIsMap != bIsMap {
-		return false
-	}
-	if aIsMap {
-		var diff []string
-		changedOutsideManifestLabelsAt(am, bm, "", &diff)
-		return len(diff) == 0
-	}
-	al, aIsList := a.([]any)
-	bl, bIsList := b.([]any)
-	if aIsList != bIsList {
-		return false
-	}
-	if aIsList {
-		if len(al) != len(bl) {
-			return false
-		}
-		for i := range al {
-			if !sameJSONValue(al[i], bl[i]) {
-				return false
-			}
-		}
-		return true
-	}
-	return a == b
+	return kubesweep.ChangedOutsideMarkers(live, planned, markers.AddressAnnotation)
 }

@@ -9,14 +9,14 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=672 instances=2430
-# shape: class CONCRETE=1489
-# shape: class NEEDS_DISCOVERY=777
-# shape: class PARENT_DERIVED=137
+# shape: dirs=684 instances=2436
+# shape: class CONCRETE=1490
+# shape: class NEEDS_DISCOVERY=781
+# shape: class PARENT_DERIVED=138
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=641 fixture-instances=1726
+# shape: fixture-dirs=653 fixture-instances=1732
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=7b4028b9db50dc58fe574f5170916372dfbd8732c3fe50a671ceb547b5427ddb
+# shape: body-sha256=a5114c48bb6ea12d8e8c9d4f3ba07b238defedc2d3aea34a433de87f3f6bd757
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -129,12 +129,16 @@ internal/live/discovery/testdata/iam-policy-direct-read-foreach-dynamic	aws_subn
 internal/live/discovery/testdata/iam-policy-direct-read-foreach-dynamic	aws_subnet.this["b"]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-direct-read-module-foreach	module.team_pod["pod-a"].aws_iam_policy.pod_policy[0]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-direct-read-module-foreach-dynamic	module.team_pod["pod-a"].aws_iam_policy.pod_policy[0]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/iam-policy-direct-read-name-prefix	aws_iam_policy.prefixed	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-pagination	aws_iam_policy.before	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-pagination	aws_iam_policy.beyond	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-sweep-dedup	aws_iam_policy.owned	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-role-collect-unclaimed	aws_iam_role.this	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/iam-service-linked-role-named	aws_iam_role.named	CONCRETE	tofu-iam-ecr-cohort-iam-role	name=tofu-iam-ecr-cohort-iam-role
+internal/live/discovery/testdata/iam-service-linked-role-named	aws_iam_service_linked_role.app	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-service-linked-role-sibling	aws_iam_role.other	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-service-linked-role-sibling	aws_iam_service_linked_role.app	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/lookalike-relist	aws_security_group.main	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/module-rename-withhold	aws_subnet.this["b"]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/module-rename-withhold	module.counted[0].aws_subnet.this["b"]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/module-rename-withhold	module.net.aws_subnet.this["b"]	NEEDS_DISCOVERY		
@@ -149,6 +153,8 @@ internal/live/discovery/testdata/moved-rename	aws_subnet.pair["b"]	NEEDS_DISCOVE
 internal/live/discovery/testdata/moved-rename	aws_subnet.renamed	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/moved-rename	aws_subnet.untouched	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/moved-sweep-double-sighting	aws_iam_instance_profile.renamed	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/perregion-e2e	aws_iam_instance_profile.demo	CONCRETE	perregion-e2e-demo	name=perregion-e2e-demo
+internal/live/discovery/testdata/perregion-e2e	aws_iam_policy.demo	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/propagated-child-marker	aws_instance.main	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/region-change	aws_cloudwatch_log_group.west	CONCRETE	/app/logs	name=/app/logs
 internal/live/discovery/testdata/region-change	aws_kms_key.east	NEEDS_DISCOVERY		
@@ -2435,7 +2441,7 @@ live/e2e/tagging-sweep/removed	aws_iam_role.keeper	CONCRETE	tagging-sweep-e2e-ke
 <cohorts>/stragglers	aws_transfer_certificate.app	NEEDS_DISCOVERY		
 <cohorts>/stragglers	aws_transfer_profile.app	NEEDS_DISCOVERY		
 <cohorts>/stragglers	aws_transfer_web_app.app	NEEDS_DISCOVERY		
-<cohorts>/stragglers	aws_transfer_web_app_customization.app	CONCRETE	tofu-stragglers-cohort-transfer-web-app-customization	web_app_id=tofu-stragglers-cohort-transfer-web-app-customization
+<cohorts>/stragglers	aws_transfer_web_app_customization.app	PARENT_DERIVED	${aws_transfer_web_app.app.web_app_id}	web_app_id=${aws_transfer_web_app.app.web_app_id}
 <cohorts>/streaming	aws_appflow_connector_profile.app	CONCRETE	tofu-streaming-cohort-appflow-connector-profile	name=tofu-streaming-cohort-appflow-connector-profile
 <cohorts>/streaming	aws_appflow_flow.app	CONCRETE	tofu-streaming-cohort-appflow-flow	name=tofu-streaming-cohort-appflow-flow
 <cohorts>/streaming	aws_appsync_channel_namespace.app	PARENT_DERIVED	${aws_appsync_graphql_api.app.id},tofu-streaming-cohort-appsync-channel-namespace	api_id=${aws_appsync_graphql_api.app.id},name=tofu-streaming-cohort-appsync-channel-namespace

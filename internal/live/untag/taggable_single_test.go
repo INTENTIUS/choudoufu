@@ -6,7 +6,12 @@
 package untag
 
 import (
+	"context"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/tofu"
 
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/markers/markerstest"
@@ -15,6 +20,9 @@ import (
 // TestTaggableIsMarkersTaggable is the guard for the divergence described in
 // [markerstest]: this package's taggable used to be a four-clause copy of the
 // shape test, and stayed four-clause when markers.TagSurface grew a fifth.
+// Since GitHub issue #1644 there is no copy at all - releaseOne asks
+// internal/live/substrate which surface a schema carries - so this asserts
+// the same answer where it now matters, on what Release does.
 //
 // It asserts the ANSWER on a block the fifth clause decides, not the shape,
 // which is the whole point: a re-inlined copy passes any test that only feeds
@@ -32,10 +40,21 @@ func TestTaggableIsMarkersTaggable(t *testing.T) {
 		t.Fatalf("markerstest.FreeFormTagsBlock is no longer admitted by markers.Taggable; the fixture is broken")
 	}
 
-	if taggable(refused) {
-		t.Errorf("untag.taggable admits a tags map whose keys the provider documents as its own namespace; markers.Taggable refuses it, and this package writes")
+	reaches := func(block *configschema.Block) bool {
+		p := &tofu.MockProvider{ConfigureProviderCalled: true}
+		p.GetProviderSchemaResponse = &providers.GetProviderSchemaResponse{
+			ResourceTypes: map[string]providers.Schema{"test_thing": {Block: block}},
+		}
+		p.ImportResourceStateFn = func(providers.ImportResourceStateRequest) providers.ImportResourceStateResponse {
+			return providers.ImportResourceStateResponse{}
+		}
+		Release(context.Background(), p, nil, markers.TagEstate, []Target{{TypeName: "test_thing", ImportID: "x"}})
+		return p.ImportResourceStateCalled
 	}
-	if !taggable(free) {
-		t.Errorf("untag.taggable refuses a free-form tags map that markers.Taggable admits")
+	if reaches(refused) {
+		t.Errorf("untag.Release reads a tags map whose keys the provider documents as its own namespace; markers.Taggable refuses it, and this package writes")
+	}
+	if !reaches(free) {
+		t.Errorf("untag.Release refuses a free-form tags map that markers.Taggable admits")
 	}
 }

@@ -14,6 +14,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/staticeval"
 )
@@ -70,9 +71,18 @@ import (
 // say such a block never reached here at all, because RuleChildModule
 // refused it outright, and that stopped being true when issue #195 admitted
 // a statically-evaluable module count with no count.index leak.
-func checkOverlongAddresses(ctx context.Context, mod *configs.Module, modInst addrs.ModuleInstance, issues *[]Issue) {
+func checkOverlongAddresses(ctx context.Context, mod *configs.Module, modInst addrs.ModuleInstance, scope identity.Scope, issues *[]Issue) {
 	path := modInst.Module()
 	for _, resource := range mod.ManagedResources {
+		// GitHub issue #1256. The budget this rule measures is a marker's,
+		// and a block -target / -exclude removed from the plan graph is
+		// never stamped on this run. The scope is asked of the static
+		// module path rather than of modInst, whose keys are this rule's
+		// own worst-case reading and not addresses targeting knows: see
+		// [scopeExcludes].
+		if scopeExcludes(scope, path, resource.Addr()) {
+			continue
+		}
 		switch {
 		case resource.ForEach != nil:
 			keys, ok := staticeval.ForEachKeys(ctx, mod, resource.ForEach)
@@ -118,13 +128,11 @@ func reportOverlongAddress(inst addrs.ResourceInstance, modInst addrs.ModuleInst
 		Detail: fmt.Sprintf(
 			"the escaped tofu-address for this instance is %d characters, and this fork carries "+
 				"an address across at most %d tag values of %d characters each (live/MARKERS.md, "+
-				"\"tofu-address continuation tags\"), a ceiling of %d characters in total. The "+
-				"address becomes the tofu-address marker (and its continuation tags) on the live "+
-				"resource, and that marker is the only record of ownership a stateless run has, so "+
-				"an address that does not fit is refused here rather than truncated: silently "+
+				"\"tofu-address continuation tags\"), a ceiling of %d characters in total. %s "+
+				"An address that does not fit is therefore refused here rather than truncated: silently "+
 				"truncating an ownership key is worse than refusing to admit the resource. Shorten "+
 				"the resource label, the instance key, or the module nesting",
-			length, markers.MaxContinuations, markers.MaxTagValue, markers.MaxAddressLen,
+			length, markers.MaxContinuations, markers.MaxTagValue, markers.MaxAddressLen, markers.OwnershipClause,
 		),
 		Subject: subject,
 	})

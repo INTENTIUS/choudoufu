@@ -56,7 +56,7 @@ func TestSweepFindsUnservedTypeWhenOnlyCloudControlCanEnumerateIt(t *testing.T) 
 	cloud.unlistable(unservedType)
 
 	// The premises, stated rather than assumed.
-	if !taggingAPIUnservedType(unservedType) {
+	if !taggingAPIUnservedTypeInRegion("", unservedType) {
 		t.Fatalf("%s is no longer in a service taggingAPIUnservedServices names, so this fixture no longer exercises #692's routing", unservedType)
 	}
 

@@ -111,7 +111,7 @@ Oracle: Stock with the same `moved` block plans zero churn. The two plans, norma
 
 Break: Rename without the `moved` block; the plan must show a destroy and a create.
 
-On the kind substrate: The moved-block half only: live-mv has no Kubernetes leg, because the object carries no address to rewrite (#1066). A rename without a moved block is zero churn here too, since the block name is not part of the object's identity, so the Break control is a rename of the object's own metadata.name instead, which is a replace and must plan a destroy and a create.
+On the kind substrate: The moved-block half only: live-mv also has a Kubernetes leg since #1639, not exercised by this stage. A bare rename without a moved block plans the same one in-place change to the address annotation, since the block name is not part of the object's identity, so the Break control is a rename of the object's own metadata.name instead, which is a genuine identity change and must plan a destroy and a create.
 
 ### 7. Remove a block (`day2_remove`, active)
 
@@ -141,7 +141,7 @@ Oracle: Stock's replace of the same resource leaves the same single object.
 
 Break: Skip the destroy half; the next plan must report a collision rather than proposing nothing.
 
-On the kind substrate: not applicable, recorded as `n/a` and neutral for clear. A Kubernetes name is unique within its namespace, so nothing can be created before the object it replaces is destroyed; a forced replacement is destroy-then-create, which this stage does not measure.
+On the kind substrate: A Kubernetes name is unique within its namespace, so the replacement create_before_destroy exists for here is a rename: a content-hashed name such as `cfg-${sha}` changes, and the Deployment reading the object rolls onto the new one before the old one goes. The old object carries the block's address annotation, the sweep binds it to the block (#1640), and the plan is the replace stock plans (`must be replaced`, create first). At `-parallelism=1` the apply log shows the new object's create complete before the old object's destroy starts, kubectl confirms only the new object remains, and the next plan is empty. A replacement that keeps its name is destroy-then-create on either tool and is not what this stage measures (#1541). The Break control recreates the old object, carrying the block's annotation, after the apply: the next plan must propose destroying it rather than nothing.
 
 ### 10. Crash mid-apply (`day2_crash`, active, tier-1 gated: not_run does not gate clear)
 
@@ -215,7 +215,7 @@ closes a finding without fixing something.
 A "named refusal" is the one way "choudoufu refuses where stock proceeds"
 is not automatically that table's first row: a stage whose own Proves and
 Oracle text above commits, before any estate runs against it, to refusing on
-purpose. Today that is `plan_approval` (stage 12, planned): its Oracle
+purpose. Today that is `plan_approval` (stage 12, active): its Oracle
 states plainly that the planfile applies when the world has not moved, and
 that choudoufu is stricter than stock by design when it has, so that refusal
 is asserted rather than diffed against stock. A refusal no stage names this
@@ -254,8 +254,9 @@ GAUNTLET refused=1 scale=136 needed=10070 limit=10000 unit=ssm-parameters detail
 That is a run-level outcome, not a stage verdict: a stage cannot refuse.
 `needed`/`limit` go together or not at all, and a `detail` is required - the
 reason and the arithmetic are the whole value of recording a refusal rather
-than skipping the rung in silence. Where it lands is the `live/gauntlet-scale.json`
-section below.
+than skipping the rung in silence. `scale=` is required of an estate that
+declares a scale ladder and absent from one that does not; where each lands
+is the `live/gauntlet-scale.json` section below.
 
 ## The manifest entry
 
@@ -376,7 +377,7 @@ Check `live/estate-types.json` (`go run ./tools/estate-types`, issue #435)
 before proposing one: it lists, from real committed or fetched
 configuration and no gauntlet run, every resource type each estate in the
 manifest already exercises. As of that artifact's last run, it reports
-31 estates exercising 177 distinct types between them, of which 101 no
+31 estates exercising 178 distinct types between them, of which 102 no
 cohort fixture covers yet (`totals.estates`, `totals.distinct_types`,
 `totals.types_in_no_cohort`; these figures are rendered from the
 artifact by `gauntlet render`, so they can only be as current as the
@@ -420,7 +421,36 @@ those are: a verdict whose `stage_runs` entry is not this row's own
 `last_run` renders as `stale` rather than as the verdict it carries,
 and does not count toward `clear`. A stage with no entry is unknown
 provenance, not stale: rows recorded before the field existed keep
-the cells and the clear flag they had. `go run
+the cells and the clear flag they had.
+
+A whole row goes stale a second way (#1264): the crossing script it
+was measured against changes afterwards, so every verdict in it
+describes a script that is no longer in the tree. That is not
+recorded in the artifact - it is computed on demand by diffing the
+row's `last_run.commit` against the working tree, which needs nothing
+the row does not already carry. Two directories are compared, not
+one (#1292): the estate's own, and `live/e2e/lib`, the protocol
+library every crossing script sources. The library is the half that
+belongs to no estate, so watching only the first badged nothing at
+all when `gauntlet_record_count` changed under all 31 rows. The
+rendered sentence says which of the two moved, because they send a
+reader to different places. Deliberately NOT compared, each for a
+stated reason: `live/floci-image` and `live/oracle-versions.json`,
+whose values the row already records and `check` already compares by
+value; `live/gauntlet/estates.json`, one file holding every estate's
+manifest data, where a diff would badge all 31 rows for one estate's
+edit; and `internal/`, the product half (#1288), which almost every
+commit touches. A badge lit on every merge is read by nobody, which
+is worse than the gap it would close. Three answers: `current`,
+`changed`, and `unknown` for a row whose commit this checkout cannot
+place in HEAD's history (a shallow clone, or a run recorded on a
+branch that never landed). A change touching only markdown under
+either directory is not a change; nothing else is
+exempt. `go run ./tools/gauntlet check` prints the live answer and
+the board carries a snapshot of it, refreshed by every render. It
+never fails a build: re-running an estate can take half an hour, so
+a script change makes the drift visible rather than making the pull
+request that caused it wait on a run. `go run
 ./tools/gauntlet snapshot <version>` copies it to
 `live/history/<version>.json` at release; `go run
 ./tools/gauntlet notes <old-snapshot.json> <new-snapshot.json>` (`just
@@ -445,7 +475,7 @@ One record per (estate, target, scale) is a stated rule, in three parts
    commit, date and outcome of the row it replaced, so a citation that
    followed a figure which has since moved still leads somewhere. A
    scale-50 row measured on 2026-09-15 replaced the 2026-09-11 one this
-   way, and `site/content/docs/what-you-pay.md` quotes that file by path.
+   way, and `live/costs/what-you-pay.md` quotes that file by path.
 3. A refusal never replaces a measurement. The runner refuses the write
    and names the row it protected; nothing is written. Dropping a measured
    row is a reviewed change, not a side effect of a later run that
@@ -464,6 +494,31 @@ A refusal is deliberately **not** written to `live_cert`. That row holds one
 certification per estate, so a refusal at scale 136 landing there would
 destroy the certification at scale 50 - which is what happened on
 2026-09-13 (#1100), and what #1151 closes for the refusals that came after.
+
+### Where a refusal that names no rung goes (`refusals`)
+
+Not every estate is run at a size. `reference-ec2-vpc` is one fixed
+five-resource shape certified against a real account, and it has no rung
+anywhere - yet it can still refuse: an account whose region resolves no
+Amazon Linux AMI, a missing permission, a quota that is not about scale.
+A refusal is the only record its run produces (it is kept out of
+`live_cert` by the rule above), so under #1149's rule that record has to
+land or the run fails - and there was no rung to land it on (#1233).
+
+`live/gauntlet-scale.json` therefore has a second array, `refusals`: one refusal
+per (estate, target), scale absent, for an estate that has no ladder. It is
+kept out of `records` for the same reason a refusal is kept out of
+`live_cert` - a row at scale 0 would read as the smallest rung, which is a
+measurement nobody made. Newer supersedes older there too, with the same
+`supersedes` pointer.
+
+Which of the two an estate gets is the estate's own declaration, not an
+inference from what a run happened to print: `"scale_ladder": true` in
+`live/gauntlet/estates.json`, which `terralith-scale` carries and nothing else does.
+A refusal with no `scale=` from a **laddered** estate still fails the run,
+exactly as #1231 ruled - for that estate a missing scale is a
+`gauntlet_refused` call that forgot its rung, and shelving it would hide
+which size was declined.
 
 ## One live-cert per estate at a time
 

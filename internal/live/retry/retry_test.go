@@ -156,15 +156,17 @@ func TestIsThrottling(t *testing.T) {
 	}
 }
 
-// TestThrottleAdviceNamesTheCeilingNotTheAttemptCount is issue #1148's actual
-// complaint: a reader should not have to know Parameter Store's quota model to
-// understand why a write failed.
-func TestThrottleAdviceNamesTheCeilingNotTheAttemptCount(t *testing.T) {
-	advice := ThrottleAdvice(throttlingAPIError{"ThrottlingException"}, "ssm", Config{MaxAttempts: 3, Mode: ModeStandard})
+// TestThrottleAdviceNamesTheMovesNotJustTheAttemptCount is issue #1148's
+// actual complaint: a reader should not have to know a service's quota model
+// to understand why a write failed. It used to pin Parameter Store's numbers
+// too; that backend is retired (GitHub issue #1346) and no other backend has
+// measured numbers to pin.
+func TestThrottleAdviceNamesTheMovesNotJustTheAttemptCount(t *testing.T) {
+	advice := ThrottleAdvice(throttlingAPIError{"SlowDown"}, "s3", Config{MaxAttempts: 3, Mode: ModeStandard})
 	for _, want := range []string{
-		"40 transactions per second",
-		"high-throughput-enabled",
+		"3 attempt(s)",
 		"adaptive",
+		"max_attempts",
 	} {
 		if !strings.Contains(advice, want) {
 			t.Errorf("advice should name %q, got:\n%s", want, advice)
@@ -172,14 +174,15 @@ func TestThrottleAdviceNamesTheCeilingNotTheAttemptCount(t *testing.T) {
 	}
 
 	// Not throttling: no advice, rather than advice that misleads.
-	if got := ThrottleAdvice(throttlingAPIError{"AccessDeniedException"}, "ssm", Config{MaxAttempts: 3}); got != "" {
+	if got := ThrottleAdvice(throttlingAPIError{"AccessDeniedException"}, "s3", Config{MaxAttempts: 3}); got != "" {
 		t.Errorf("a non-throttling error must get no throttling advice, got %q", got)
 	}
 
-	// A backend with no quota story of its own gets the general form rather
-	// than SSM's numbers, which would simply be wrong.
-	if got := ThrottleAdvice(throttlingAPIError{"SlowDown"}, "s3", Config{MaxAttempts: 3, Mode: ModeStandard}); strings.Contains(got, "40 transactions") {
-		t.Errorf("an s3 store must not be told about Parameter Store's ceiling, got:\n%s", got)
+	// No backend is told about a retired one's ceiling.
+	for _, never := range []string{"Parameter Store", "40 transactions", "high-throughput"} {
+		if strings.Contains(advice, never) {
+			t.Errorf("the advice still mentions %q:\n%s", never, advice)
+		}
 	}
 }
 

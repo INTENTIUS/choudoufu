@@ -12,7 +12,7 @@ recording effects the cloud cannot report, and working with other people.
 |---|---|
 | Rename a resource | [How to rename a resource]({{< relref "/docs/use/rename-a-resource" >}}) |
 | Stop managing or destroy a resource | [How to stop managing or destroy a resource]({{< relref "/docs/use/remove-a-resource" >}}) |
-| Record an effect the cloud cannot report | [How to record an effect the cloud cannot report]({{< relref "/docs/use/record-an-effect" >}}) |
+| Record an effect the cloud cannot report | [Receipts: make an external effect show up in a plan]({{< relref "/docs/use/record-an-effect" >}}) |
 | Look up what a `policy` setting does | [The ownership policy matrix]({{< relref "/docs/use/ownership-policy" >}}) |
 | Understand what happens when two runs overlap | [Two runs at once]({{< relref "/docs/model/concurrency" >}}) |
 

@@ -463,3 +463,91 @@ func TestLoadRealArtifacts(t *testing.T) {
 		t.Error("no TF type in the real artifacts is both mapped and listable; the Cloud Control fallback would never fire")
 	}
 }
+
+// TestTagOnCreateKnownRealArtifacts is GitHub issue #1084's registry pin:
+// tagging.tag_on_create is read back out of the real artifact, and the
+// one type the reference estate uses from the tag-on-create=false list
+// reads false where an ordinary taggable type reads true. The control flow
+// that acts on it keys on this accessor and never on a type name.
+func TestTagOnCreateKnownRealArtifacts(t *testing.T) {
+	root := repoRoot(t)
+	r, err := Load(filepath.Join(root, "live", "mapping.json"), filepath.Join(root, "live", "registry.json"))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	for _, tc := range []struct {
+		cfnType         string
+		wantTagOnCreate bool
+		wantAfterCreate bool
+	}{
+		{"AWS::Route53::HostedZone", false, true},
+		{"AWS::S3::Bucket", true, false},
+	} {
+		got, known := r.TagOnCreateKnown(tc.cfnType)
+		if !known {
+			t.Errorf("TagOnCreateKnown(%s): known=false, want a registry answer", tc.cfnType)
+			continue
+		}
+		if got != tc.wantTagOnCreate {
+			t.Errorf("TagOnCreateKnown(%s) = %v, want %v", tc.cfnType, got, tc.wantTagOnCreate)
+		}
+		if after := r.TagsAfterCreate(tc.cfnType); after != tc.wantAfterCreate {
+			t.Errorf("TagsAfterCreate(%s) = %v, want %v", tc.cfnType, after, tc.wantAfterCreate)
+		}
+	}
+
+	// The Terraform-side spelling reaches the same row.
+	cfn, ok := r.CloudControlType("aws_route53_zone")
+	if !ok || cfn != "AWS::Route53::HostedZone" {
+		t.Fatalf("CloudControlType(aws_route53_zone) = %q, %v", cfn, ok)
+	}
+
+	// A type with no row, and a silent row, are not answers.
+	if _, known := r.TagOnCreateKnown("AWS::Nope::Nothing"); known {
+		t.Errorf("an absent row reads known=true")
+	}
+}
+
+// TestTagOnCreateKnownSilentAndUntaggableRows pins the three-way answer on
+// synthetic rows: a row whose schema declared no tagging block, and a row
+// that is declared untaggable, both report known=false even though their
+// tag_on_create reads false - the bare bool is the zero value there, not
+// an upstream answer, and a writer that acted on it would withhold markers
+// from 648 types the flag says nothing about.
+func TestTagOnCreateKnownSilentAndUntaggableRows(t *testing.T) {
+	mapping := []byte(`{"rows":[]}`)
+	registry := []byte(`{"types":[
+		{"type_name":"AWS::A::Silent","tagging":{"declared":false,"taggable":false,"tag_on_create":false}},
+		{"type_name":"AWS::A::Untaggable","tagging":{"declared":true,"taggable":false,"tag_on_create":false}},
+		{"type_name":"AWS::A::AfterCreate","tagging":{"declared":true,"taggable":true,"tag_on_create":false}},
+		{"type_name":"AWS::A::OnCreate","tagging":{"declared":true,"taggable":true,"tag_on_create":true}}
+	]}`)
+	r, err := Parse(mapping, registry)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	for _, tc := range []struct {
+		cfnType       string
+		wantKnown     bool
+		wantOnCreate  bool
+		wantAfterCall bool
+	}{
+		{"AWS::A::Silent", false, false, false},
+		{"AWS::A::Untaggable", false, false, false},
+		{"AWS::A::AfterCreate", true, false, true},
+		{"AWS::A::OnCreate", true, true, false},
+	} {
+		got, known := r.TagOnCreateKnown(tc.cfnType)
+		if known != tc.wantKnown || got != tc.wantOnCreate {
+			t.Errorf("TagOnCreateKnown(%s) = (%v, %v), want (%v, %v)", tc.cfnType, got, known, tc.wantOnCreate, tc.wantKnown)
+		}
+		if after := r.TagsAfterCreate(tc.cfnType); after != tc.wantAfterCall {
+			t.Errorf("TagsAfterCreate(%s) = %v, want %v", tc.cfnType, after, tc.wantAfterCall)
+		}
+	}
+	var nilRoster *Roster
+	if _, known := nilRoster.TagOnCreateKnown("AWS::A::AfterCreate"); known {
+		t.Errorf("a nil roster reads known=true")
+	}
+}

@@ -181,6 +181,22 @@ case "$wf_state" in
   *) wf_display="$wf_state" ;;
 esac
 printf 'nightly: workflow %s; artifact last measured %s\n' "$wf_display" "$when"
+# #1316: the line above said "active" through twenty consecutive red nights,
+# because enabled/disabled is not red/green. Read each nightly's last
+# SCHEDULED conclusion, and the nightly-red issues nightly-watch.yml keeps
+# open while one is failing. A workflow with no scheduled run in the API's
+# retention window prints UNKNOWN rather than a stale green.
+if have gh; then
+  for wf in gauntlet.yml floci-tier.yml bucket-smoke.yml; do
+    last=$(gh run list -R "$REPO" --workflow "$wf" --event schedule --limit 1 \
+      --json conclusion,createdAt,url -q '.[0] | "\(.conclusion // "in progress") \(.createdAt[:10]) \(.url)"' 2>/dev/null)
+    printf 'nightly %-16s last scheduled run: %s\n' "$wf" "${last:-UNKNOWN (no run in the retention window, or the query failed)}"
+  done
+  red=$(gh issue list -R "$REPO" --state open --label nightly-red --json number,title -q '.[] | "  #\(.number) \(.title)"' 2>/dev/null)
+  if [ -n "$red" ]; then
+    printf 'nightly-red issues open (nightly-watch.yml, #1316):\n%s\n' "$red"
+  fi
+fi
 if have python3 && [ -f live/gauntlet.json ]; then
   python3 - <<'EOF'
 import json
@@ -470,8 +486,33 @@ hr "processes"
 workers=$(pgrep -fl 'claude .*gauntlet-worker' 2>/dev/null | wc -l | tr -d ' ')
 printf 'headless claude workers (just contribute): %s   (Agent-tool workers run inside their parent and are NOT listed here; see each worktree line above)\n' "$workers"
 if have docker && docker info >/dev/null 2>&1; then
+  # Crossing containers are named choudoufu-<estate>-<pid> and carry the
+  # ownership labels live/e2e/lib/gauntlet.sh writes (#1312). The library's
+  # gauntlet_floci_ownership is the one decision about which of them is a
+  # leak, so this reads it rather than repeating it; read-only, the sweeper
+  # is scripts/floci-sweep.sh (and the next run of the same estate).
+  # shellcheck source=live/e2e/lib/gauntlet.sh
+  source "$ROOT/live/e2e/lib/gauntlet.sh"
+  crossing=$(gauntlet_floci_list 2>/dev/null || true)
+  if [ -n "$crossing" ]; then
+    echo 'crossing floci containers (choudoufu-<estate>-<pid>):'
+    for c in $crossing; do
+      own=$(gauntlet_floci_ownership "$c"); verdict=${own%%|*}; reason=${own#*|}
+      ports=$(docker ps -a --filter "name=^${c}\$" --format '{{.Ports}}' 2>/dev/null | sed 's/, .*//' | cut -c1-28)
+      case "$verdict" in
+        owned)          printf '  %-48s %-28s owned: %s\n' "$c" "$ports" "$reason" ;;
+        leaked|stopped) printf '  %-48s %-28s LEAKED: %s\n' "$c" "$ports" "$reason" ;;
+        held)           printf '  %-48s %-28s stopped: %s\n' "$c" "$ports" "$reason" ;;
+        unowned)        printf '  %-48s %-28s unowned: %s\n' "$c" "$ports" "$reason" ;;
+        *)              printf '  %-48s %-28s %s\n' "$c" "$ports" "$own" ;;
+      esac
+    done
+    echo '  rule: LEAKED -> bash scripts/floci-sweep.sh (the next run of that estate does the same); unowned -> look first, then docker rm -f by hand'
+  else
+    echo 'crossing floci containers: none'
+  fi
   floci=$(docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null | grep -i floci || true)
-  if [ -n "$floci" ]; then printf 'floci containers:\n%s\n' "$(echo "$floci" | sed 's/^/  /')"; else echo 'floci containers: none'; fi
+  if [ -n "$floci" ]; then printf 'other floci containers (smoke stack, emulator children):\n%s\n' "$(echo "$floci" | sed 's/^/  /')"; else echo 'other floci containers: none'; fi
 else
   echo 'docker: not running or not installed (crossing scripts cannot run here)'
 fi

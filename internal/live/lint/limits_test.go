@@ -89,6 +89,12 @@ var enforcedLimits = map[string]Rule{
 	// a spelling outside the vocabulary. See live/LIMITATIONS.md,
 	// "strict-secrets".
 	"strict-secrets": RuleStrictSecrets,
+	// GitHub issue #1515. Not the typo case above: "ssm" is a setting this
+	// schema defines, spelled correctly, and this estate still cannot run
+	// under it - it names no KMS key and declares no record_store "s3" to
+	// commit a reference with. See live/LIMITATIONS.md,
+	// "strict-secrets-ssm".
+	"strict-secrets-ssm": RuleStrictSecretsSSM,
 	// GitHub issue #365's own principle, not the typo case above: a real
 	// secret-generating type (random_password) refused because the toggle
 	// is actually set, with the Detail naming the setting by value.

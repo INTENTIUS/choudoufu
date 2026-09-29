@@ -32,7 +32,21 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 FIXTURE_SRC="$ROOT/live/e2e/record-store"
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+# The status is saved and re-raised, and a run that stops before its last
+# step is refused (#1421, the shape #1419 gave selftest-oidc-bootstrap.sh).
+# Measured on bash 3.2.57, which is what macOS ships: under `set -e` an
+# unbound-variable death hands the EXIT trap $?=0 and the script exits 0,
+# so this one, run to a death injected part way, exited 0 with no PASS
+# line (bash 5.2 exits 1). Now that reads as a FAIL line and exit 1.
+run_finished=0
+# shellcheck disable=SC2154 # run_rc is assigned on the trap's first line
+trap 'run_rc=$?
+      rm -rf "$WORK"
+      if [ "$run_finished" != 1 ]; then
+        echo "FAIL: this run stopped before its PASS line, so the lifecycle it proves did not finish. Read the output above for where." >&2
+        exit 1
+      fi
+      exit $run_rc' EXIT
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
@@ -237,4 +251,5 @@ N="$(count_records)"
 assert_hint_not_a_record
 log "  all 4 records removed from the store"
 
+run_finished=1
 log "=== PASS ==="

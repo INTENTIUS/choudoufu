@@ -1065,6 +1065,15 @@ type fakeCloud struct {
 	// any defense left when a provider gives literally no signal at all.
 	truncateSilent map[string]bool
 
+	// ignoreFilter makes a type's list call serve every object of the type
+	// however the request was filtered, while its schema still advertises
+	// the filter block. That is a provider that accepts a filter and does
+	// not apply it, which internal/command's own fake cloud does by
+	// construction - and it is the shape that makes [relistForLookalikes]
+	// (GitHub issue #1480) see the same object twice, once per call, unless
+	// it deduplicates against what the first listing already filed.
+	ignoreFilter map[string]bool
+
 	// mu guards requests only. See ListResourceStream.
 	mu       sync.Mutex
 	requests []providers.ListResourceRequest
@@ -1078,6 +1087,7 @@ func newFakeCloud() *fakeCloud {
 		identityAttrs:  make(map[string][]string),
 		truncateAt:     make(map[string]int),
 		truncateSilent: make(map[string]bool),
+		ignoreFilter:   make(map[string]bool),
 		objects:        make(map[string][]*fakeObject),
 		types: []string{
 			"aws_vpc", "aws_subnet", "aws_security_group", "aws_route_table",
@@ -1447,7 +1457,7 @@ func (c *fakeCloud) ListResourceStream(_ context.Context, req providers.ListReso
 	truncateAt, truncating := c.truncateAt[req.TypeName]
 	emitted := 0
 	for _, o := range c.objects[req.TypeName] {
-		if !c.matchesFilter(req.Config, o) {
+		if !c.ignoreFilter[req.TypeName] && !c.matchesFilter(req.Config, o) {
 			continue
 		}
 		if truncating && emitted >= truncateAt {

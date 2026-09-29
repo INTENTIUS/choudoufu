@@ -163,46 +163,85 @@ func TestCapabilityGateMechanismScoping(t *testing.T) {
 	}
 }
 
-// TestCapabilityGateSkipsForTaggingSweepIAM is
+// TestCapabilityGateSkipsForTaggingSweepIAMRole is
 // TestCapabilityGateMechanismScoping's retired positive case, now a skip:
-// issue #1045 (lex00/floci PR #202, closes lex00/floci#201) stopped floci
-// serving IAM through GetResources/GetTagKeys/GetTagValues, so
-// aws_iam_role's tagging-sweep row is unimplemented again at this pin - the
-// same shape every digest before sha256:a1c729f4's union index carried, and
-// every digest since sha256:0bbeb430 carries again.
+// issue #1045 (lex00/floci PR #202) stopped floci serving IAM through
+// GetResources/GetTagKeys/GetTagValues, so aws_iam_role's tagging-sweep row
+// is unimplemented again - the same shape every digest before
+// sha256:a1c729f4's union index carried.
 //
-// The other two types are issue #881's, added with their recipes for #1152.
-// #1045's change was made to match real AWS on the strength of a probe that
-// used a ROLE (issue #692), and issue #1134's real-account measurement says
-// that generalised badly: GetResources returns nothing for iam:role in any
-// region, and 500 each for iam:policy and iam:instance-profile in us-east-1,
-// IAM being global. So aws_iam_role's skip here is faithful emulation and
-// the other two are floci diverging from AWS - lex00/floci#205.
+// For THIS type that is faithful emulation and permanent: issue #1134
+// measured a real account and GetResources returns nothing for iam:role in
+// any region, while iam:ListRoleTags shows every one of them tagged. An
+// emulator that started serving it would be the divergence, not the fix -
+// live/indexwait_partition_test.go's own guard says the same thing from the
+// index_partition side.
+func TestCapabilityGateSkipsForTaggingSweepIAMRole(t *testing.T) {
+	const tfType = "aws_iam_role"
+
+	var sub *testing.T
+	t.Run("skip", func(st *testing.T) {
+		sub = st
+		TaggingSweepCapabilityGate(st, tfType)
+		t.Fatal("unreachable: TaggingSweepCapabilityGate should have skipped before this line")
+	})
+	if !sub.Skipped() {
+		t.Fatalf("TaggingSweepCapabilityGate did not skip for %s: live/floci-capabilities.json no longer records a "+
+			"tagging-sweep gap for it at this pin.\n"+
+			"That is the emulator diverging from real AWS rather than catching up to it (#1134: 0 returned for "+
+			"iam:role in every region). Re-read #1152 and live/indexwait_partition_test.go before treating it as "+
+			"an improvement.", tfType)
+	}
+	if sub.Failed() {
+		t.Error("the subtest failed rather than skipped cleanly")
+	}
+}
+
+// TestCapabilityGateNoLongerSkipsForTheIndexedIAMTypes is the same guard in
+// the other direction, and it is what the retired half of
+// TestCapabilityGateSkipsForTaggingSweepIAM turned into.
 //
-// That difference is why this test wants all three rather than the one type
-// that happens to break a stage. The day lex00/floci#205 lands, the
+// That test asserted all three IAM types skipped, and said in as many words
+// what to do when it stopped: "The day lex00/floci#205 lands, the
 // instance-profile and policy rows turn implemented, these subtests stop
 // skipping, and this test goes red - which is the intended wake-up, because
 // that is the first moment #881's tagging-leg repair can be proven on the
-// emulator at all. Re-point it at the measurement then; do not delete it.
-func TestCapabilityGateSkipsForTaggingSweepIAM(t *testing.T) {
-	for _, tfType := range []string{
-		"aws_iam_role",
-		"aws_iam_instance_profile",
-		"aws_iam_policy",
-	} {
+// emulator at all. Re-point it at the measurement then; do not delete it."
+//
+// #205 landed, live/floci-image moved to sha256:74ffd40e, and this is the
+// re-pointing. The measurement it now points at is #1134's: real AWS
+// returns 500 each for iam:policy and iam:instance-profile in us-east-1, so
+// an emulator that serves them there MATCHES AWS and a skip for them would
+// be recording a gap that is no longer there - which would in turn make
+// every floci-tier test of those two types quietly not run.
+//
+// What the repin unblocked is internal/live/discovery's
+// TestPerRegionTaggingRoutingAgainstFloci (#1144), which drives a correct
+// per-type/per-region narrowing and two broken ones against one container
+// and records that they produce different results.
+func TestCapabilityGateNoLongerSkipsForTheIndexedIAMTypes(t *testing.T) {
+	for _, tfType := range []string{"aws_iam_instance_profile", "aws_iam_policy"} {
 		t.Run(tfType, func(t *testing.T) {
 			var sub *testing.T
-			t.Run("skip", func(st *testing.T) {
+			ran := false
+			t.Run("no-op", func(st *testing.T) {
 				sub = st
 				TaggingSweepCapabilityGate(st, tfType)
-				t.Fatal("unreachable: TaggingSweepCapabilityGate should have skipped before this line")
+				ran = true
 			})
-			if !sub.Skipped() {
-				t.Fatalf("TaggingSweepCapabilityGate did not skip for %s: live/floci-capabilities.json no longer records a tagging-sweep gap for it at this pin. If lex00/floci#205 landed, issue #881's tagging-leg repair is now provable on the emulator - go prove it.", tfType)
+			if sub.Skipped() {
+				t.Errorf("TaggingSweepCapabilityGate skipped for %s, so every floci-tier test of this type's tagging "+
+					"sweep silently does not run.\n"+
+					"The pinned emulator is supposed to serve it through GetResources in us-east-1, the way real AWS "+
+					"does (#1134, lex00/floci#205 tracked as #1152). Either the pin moved back, or the capability "+
+					"manifest was regenerated against an endpoint that is not us-east-1 - re-probe before accepting "+
+					"the skip.", tfType)
+			}
+			if !ran {
+				t.Errorf("code after the gate never ran for %s", tfType)
 			}
 			if sub.Failed() {
-				t.Error("the subtest failed rather than skipped cleanly")
+				t.Errorf("the gate failed rather than being a no-op for %s", tfType)
 			}
 		})
 	}

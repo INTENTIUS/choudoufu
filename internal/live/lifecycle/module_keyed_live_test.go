@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/flocitest"
+	"github.com/intentius/choudoufu/internal/live/markers"
 )
 
 // keyedModuleEstate is live/e2e/estate-module-keyed/'s own naming: the
@@ -88,9 +89,12 @@ func TestModuleKeyedForEachAgainstFloci(t *testing.T) {
 		}
 		gotAddrs[tags["tofu-address"]] = true
 	}
-	for _, want := range []string{keyedAddrA, keyedAddrB} {
-		if !gotAddrs[want] {
-			t.Errorf("no live EIP carries tofu-address=%q; got %v", want, gotAddrs)
+	// Compared in the escaped form the marker actually carries
+	// (`module.wrapped:a.aws_eip.app`, live/MARKERS.md "Escaping"), not
+	// the HCL spelling the fixture declares; see the same note at step 5.
+	for _, addr := range []string{keyedAddrA, keyedAddrB} {
+		if want := markers.EscapeAddress(addr); !gotAddrs[want] {
+			t.Errorf("no live EIP carries tofu-address=%q (the escaped form of %s); got %v", want, addr, gotAddrs)
 		}
 	}
 
@@ -146,8 +150,12 @@ func TestModuleKeyedForEachAgainstFloci(t *testing.T) {
 		t.Fatalf("want exactly one EIP after removing key \"a\", got %d: %v", len(eips), eips)
 	}
 	eipID, tags := oneEIP(t, eips)
-	if got := tags["tofu-address"]; got != keyedAddrB {
-		t.Errorf("the surviving EIP %s carries tofu-address=%q live, want %q: removing key \"a\" must not disturb its sibling", eipID, got, keyedAddrB)
+	// The marker on the wire is the ESCAPED address (live/MARKERS.md,
+	// "Escaping": `module.wrapped:b.aws_eip.app`), not the HCL spelling
+	// the fixture declares; this assertion compared against the latter and
+	// went stale unmeasured while the tier was not running (#1316).
+	if got, want := tags["tofu-address"], markers.EscapeAddress(keyedAddrB); got != want {
+		t.Errorf("the surviving EIP %s carries tofu-address=%q live, want %q: removing key \"a\" must not disturb its sibling", eipID, got, want)
 	}
 	if got := tags["tofu-estate"]; got != keyedModuleEstate {
 		t.Errorf("the surviving EIP %s carries tofu-estate=%q live, want %q", eipID, got, keyedModuleEstate)

@@ -96,7 +96,7 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 	// not regress.
 	if taggable, known := req.Roster.TaggableKnown(cfnType); sweep && !taggable && !typeTaggable(schemas, typeName) {
 		res.Scans = append(res.Scans, scan)
-		return diags.Append(sweepGapDiag(res, noRegistryRowOrUntaggable(typeName, cfnType, known)))
+		return diags.Append(sweepGapDiag(res, noRegistryRowOrUntaggable(typeName, cfnType, known, typeTaggable(schemas, typeName))))
 	}
 
 	// GitHub issue #605's Cloud Control half: during a sweep this listing has
@@ -112,13 +112,19 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 	if err != nil {
 		res.Scans = append(res.Scans, scan)
 		if sweep {
-			return diags.Append(sweepGapDiag(res, SweepGap{
+			gap := SweepGap{
 				TypeName: typeName,
 				Reason:   SweepGapListFailed,
 				Detail: fmt.Sprintf(
 					"Cloud Control ListResources on %s (for %s) failed, so the sweep could not look for resources of that type which this estate owns but no longer declares: %s.",
 					cfnType, typeName, err),
-			}))
+			}
+			if cloudcontrol.HasCode(err, cloudcontrol.CodeAccessDenied) {
+				// GitHub issue #1052: the credential itself, reported once
+				// for every type it was refused on rather than per type.
+				return diags.Append(sweepGapDenied(req, res, gap, cfnType, err))
+			}
+			return diags.Append(sweepGapDiag(res, gap))
 		}
 		decl.unscanned[typeName] = true
 		return diags.Append(problemDiag(res, Problem{
@@ -205,8 +211,8 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 		// GitHub issue #1131, the repair for #881: the fourth route to the
 		// marker. Cloud Control enumerated the object and can never carry
 		// its tags (no Tags property in the CFN schema), and the estate's
-		// tag index does not hold the type on this target either - so ask
-		// the service that owns the object. iam:ListInstanceProfileTags
+		// tag index did not answer for this object either - so ask the
+		// service that owns the object. iam:ListInstanceProfileTags
 		// returns the marker Cloud Control cannot.
 		//
 		// Placed after the #266 join and before everything that decides
@@ -217,7 +223,17 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 		// landed and they stand untouched for any object this leg cannot
 		// answer for. See servicetagread.go for the gate and the cost.
 		if tags[TagEstate] == "" {
-			if svcTags, ok := serviceTagRead(ctx, req, typeName, importID, &scan); ok {
+			//
+			// GitHub issue #1162: the gate is per object. Reaching here means
+			// this object's own listing AND its own index join produced no
+			// tofu-estate, which is the whole condition; an object the index
+			// answered for took joinBound above and never gets here. A
+			// failed read needs no bookkeeping on this leg, because the
+			// object then falls into the untaggable branches below exactly
+			// as it did before the leg existed, and those file
+			// [SweepGapMarkerUnreadable] per object reached rather than per
+			// type refuted.
+			if svcTags, outcome, _ := serviceTagRead(ctx, req, typeName, importID, &scan); outcome == tagReadAnswered {
 				tags, taggable = svcTags, true
 			}
 		}

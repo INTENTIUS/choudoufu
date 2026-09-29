@@ -220,13 +220,7 @@ func fetchOne(dir string, spec check.ManifestFetch) error {
 }
 
 func headCommit(dir string) (string, error) {
-	cmd := exec.Command("git", "rev-parse", "HEAD")
-	cmd.Dir = dir
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(out)), nil
+	return gitOutput(context.Background(), dir, "rev-parse", "HEAD")
 }
 
 func short(commit string) string {

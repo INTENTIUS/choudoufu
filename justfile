@@ -26,12 +26,12 @@ ci:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "==> gofmt (fork-owned packages)"
-    out="$(gofmt -l internal/live cmd site tools live internal/backend internal/command internal/configs internal/engine/applying internal/plans internal/plugin internal/plugin6 internal/tofu)"
+    out="$(gofmt -l internal/live cmd site tools live internal/backend internal/builtin/providers/tf internal/command internal/configs internal/engine/applying internal/plans internal/plugin internal/plugin6 internal/tofu)"
     if [ -n "$out" ]; then echo "gofmt needed on:"; echo "$out"; exit 1; fi
     echo "==> build"
     go build ./cmd/choudoufu
     echo "==> fast test tier"
-    env -u PWD go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/configs/ ./internal/plans/ ./internal/plugin/ ./internal/plugin6/
+    env -u PWD go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/configs/ ./internal/plans/ ./internal/plugin/ ./internal/plugin6/ ./internal/builtin/providers/tf/
     echo "==> docs site build"
     cp live/iam-reference.json site/data/iamref.json
     # --cacheDir scopes Hugo's cache to this worktree. Left unset, it
@@ -78,6 +78,16 @@ demo:
 # CHOUDOUFU_VERSION=vX.Y.Z runs a pinned release instead of source.
 smoke scenario="":
     bash live/smoke/smoke.sh {{scenario}}
+
+# selftest-teardown is #1378 (every teardown step is attempted),
+# selftest-bounds is #1457 (a stalled kubectl or choudoufu call fails the
+# scenario by name inside a bound) and selftest-verdict is #1439 (every way
+# a run can end ends on one verdict line). Read the ok:/FAIL: lines.
+# The smoke harness's own selftests, against stubs: no cluster, no emulator, no AWS, about a minute.
+smoke-selftest:
+    bash live/smoke/selftest-teardown.sh
+    bash live/smoke/selftest-bounds.sh
+    bash live/smoke/selftest-verdict.sh
 
 # The five Ops of examples/ci-pipelines, actually run (issue #1026): the
 # pinned floci image, then live-check, live-plan, live-apply (gated, then
@@ -420,6 +430,35 @@ limits:
 harness:
     go run ./tools/harness-gen
 
+# ── botocore's paginating-operation set (#1214) ──────────────────────────
+# The AWS CLI applies --query to each page before merging, so a --query that
+# reduces a list to a scalar reads one page at a time (#1042, #1206).
+# live/aws-paginating-operations.json is botocore's own answer to "does this
+# operation page", vendored so the guard in live/awspagequery_test.go runs
+# with no Python installed.
+#
+# These two are the check the vendored file cannot do for itself. They need
+# botocore (`pip install botocore`) and are therefore a command a human runs
+# before trusting the snapshot, not a `go test` - a test would have to skip
+# where botocore is absent, and a skipping guard is permanently green.
+
+# Re-vendor the snapshot from the installed botocore.
+aws-paginators:
+    go run ./tools/aws-paginators-gen
+
+# Fail if the vendored snapshot no longer matches the installed botocore.
+aws-paginators-check:
+    go run ./tools/aws-paginators-gen -check
+
+# Re-measure the per-script call-site baseline the ratchet compares against.
+# Needs no botocore: it reads the vendored snapshot.
+aws-page-query-baseline:
+    go run ./tools/aws-paginators-gen -baseline
+
+# Print every --query call site with its verdict, grouped by operation.
+aws-page-query-audit:
+    go run ./tools/aws-paginators-gen -audit
+
 # Will this configuration work under live markers? (#114) DIR defaults to "."
 live-check dir=".":
     go run ./cmd/choudoufu live-check {{dir}}
@@ -454,6 +493,16 @@ gauntlet-run +names:
 # Regenerate the artifact, live/GAUNTLET.md and the site's progress pages.
 gauntlet-render:
     env -u PWD go run ./tools/gauntlet render
+
+# Install the merge driver .gitattributes names for the rendered files
+# (issue #1308). Per-clone configuration: every worktree of this repository
+# shares one config, but a fresh clone and CI have neither, and a merge
+# GitHub performs on its own servers never runs it. Without it git falls
+# back to the ordinary line merge, which is where the conflicts come from.
+merge-drivers:
+    git config merge.gauntlet-rendered.name "keep ours; rendered files are regenerated, never merged (#1308)"
+    git config merge.gauntlet-rendered.driver "env -u PWD go run ./tools/gauntlet merge-rendered %P %A"
+    @echo "installed. Re-render after any merge that touched them: just gauntlet-render"
 
 # Add an estate: writes the manifest entry and a script stub, then renders.
 # Example: just gauntlet-add corpus-vpc-minimal https://github.com/x/y v1.2.3 terraform-popular "x/y examples/minimal (tag v1.2.3)"

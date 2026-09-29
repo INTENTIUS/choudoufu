@@ -1076,8 +1076,11 @@ func (g *generator) refAttr(siblingType, argName, suffix string, identityBound b
 	// outside the sibling's own IdentityAttrs ("Not an identity attribute")
 	// - which the first version of this rule tripped on
 	// aws_transfer_web_app_customization.web_app_id reading the sibling's
-	// like-named but non-identity web_app_id (its IdentityAttrs are id and
-	// arn). A non-identity argument keeps the like-named attribute, which
+	// like-named web_app_id while the sibling's ratified IdentityAttrs still
+	// read id and arn (the row now names web_app_id, the attribute the
+	// documented import uses, and the reference is wired - #1316's
+	// pinned-provider check found the id it named does not exist). A
+	// non-identity argument keeps the like-named attribute, which
 	// is the right VALUE: a Connect child's routing_profile_id must not
 	// become the sibling's composite id.
 	//

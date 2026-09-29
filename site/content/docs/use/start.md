@@ -49,17 +49,18 @@ and that tag is how the next plan finds the resource again.
 
 That one file is the whole setup. No `.tf` changes, so stock `terraform
 validate`, `tflint` and editors keep passing. Reverting means deleting the
-file. Effects the cloud cannot report back - a `null_resource`, a
-`random_pet` - already work: the estate gets an implied local record store,
-a `.tofu-records` directory beside the module. Add a `record_store` here only
-to put those records on SSM or S3 where a team can share them.
+file. Record-backed resources, a `null_resource` or a `random_pet`, already work:
+the estate gets an implied local record store, a `.tofu-records` directory
+beside the module. Add a `record_store "s3"` here
+to put the records in a bucket where a team can share them, and that
+bucket is [one you create first]({{< relref "/docs/use/setup" >}}).
 
-Add `.tofu-records/` to your `.gitignore` before the first apply. Nothing
+Add `.tofu-records/` to your `.gitignore` before the first run. Nothing
 writes that line for you, and the directory holds whatever the state file
 would have held, generated secrets included, unless you set
 `strict { secrets = "refuse" }`.
-[Where things are stored]({{< relref "/docs/use/storage#what-the-store-may-contain-and-who-can-read-it" >}})
-has the per-backend version of that.
+[Secrets in the record store]({{< relref "/docs/use/secrets" >}}) has who can
+read it, for the local store and for a bucket.
 
 The same content can live as a `live` block inside `terraform`.
 
@@ -93,7 +94,7 @@ resource "aws_vpc" "main" {
 
 # The bucket name is already the identity, so this needs no discovery pass.
 resource "aws_s3_bucket" "data" {
-  bucket = "tofu-stateless-e2e-block-data"
+  bucket = "my-estate-data"
 }
 ```
 

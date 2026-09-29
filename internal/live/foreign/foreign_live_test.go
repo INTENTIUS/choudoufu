@@ -46,7 +46,32 @@ const (
 	// estate this classification runs over must be one stateless mode did
 	// not create.
 	terraformBin = "terraform"
+
+	// collectUnclaimedEnv is internal/command's TOFU_LIVE_COLLECT_UNCLAIMED,
+	// spelled out here because the tests in this file drive the built
+	// binary and cannot import the constant.
+	collectUnclaimedEnv = "TOFU_LIVE_COLLECT_UNCLAIMED"
 )
+
+// runLivePlan runs `choudoufu live-plan` in dir with extraEnv appended to
+// this process's environment, logs the elapsed time and the whole output,
+// and fails the test if the command did. Both live tests in this package
+// run it twice: once plain, once with [collectUnclaimedEnv] set, and each
+// says what it expects of which.
+func runLivePlan(t *testing.T, tofuBin, dir string, extraEnv []string) string {
+	t.Helper()
+	start := time.Now()
+	cmd := exec.Command(tofuBin, "live-plan", "-no-color", "-input=false") //nolint:gosec // paths are this test's own temp dirs
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), extraEnv...)
+	out, err := cmd.CombinedOutput()
+	output := string(out)
+	t.Logf("choudoufu live-plan (env %v) took %s\n%s", extraEnv, time.Since(start), output)
+	if err != nil {
+		t.Fatalf("live-plan (env %v) failed: %v", extraEnv, err)
+	}
+	return output
+}
 
 func TestForeignAgainstFloci(t *testing.T) {
 	flocitest.Gate(t, "foreign-classification")
@@ -102,17 +127,34 @@ func TestForeignAgainstFloci(t *testing.T) {
 	}
 	t.Logf("out-of-band security group %s (%s) in %s carries no marker", foreignSG, foreignName, vpcID)
 
-	// --- The whole pipeline, through the command -------------------------
-	start := time.Now()
-	cmd := exec.Command(tofuBin, "live-plan", "-no-color", "-input=false") //nolint:gosec // paths are this test's own temp dirs
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	elapsed := time.Since(start)
-	output := string(out)
-	t.Logf("choudoufu live-plan took %s\n%s", elapsed, output)
-	if err != nil {
-		t.Fatalf("live-plan failed: %v", err)
+	// --- The plain plan: the ruled behaviour, pinned ---------------------
+	//
+	// Since 09d180f921 (2026-08-30, the CollectUnclaimed ruling on #604) an
+	// ordinary plan does not ask the account-inventory question. A declared
+	// type such as aws_security_group is then listed with the server-side
+	// tofu-estate filter on, so an unmarked object of it never crosses the
+	// wire, and the run says so in its "Not swept" list rather than letting
+	// "not reported" read as "nothing there". Until the floci tier ran
+	// again on 2026-09-21 (#1476) this test still asserted the pre-ruling
+	// expectation, the foreign group on a plain plan; live/e2e/run.sh's
+	// foreign-protected step made the same correction. Both halves are
+	// pinned: the plain plan must NOT see the group and must say why, and
+	// the opted-in plan below carries the original contract.
+	plain := runLivePlan(t, tofuBin, dir, nil)
+	if strings.Contains(plain, foreignSG) {
+		t.Errorf("the unmarked security group %s appeared on a plan that never asked the account-inventory question; #604's narrowing is not narrowing:\n%s", foreignSG, plain)
 	}
+	if !strings.Contains(plain, "aws_security_group [SCOPE_ESTATE]") {
+		t.Errorf("the plain plan does not say aws_security_group was listed estate-scoped; a run that did not ask must say so (#604):\n%s", plain)
+	}
+
+	// --- The whole pipeline, through the command, asking the question ----
+	//
+	// TOFU_LIVE_COLLECT_UNCLAIMED=1 rather than -adoption-only, because the
+	// adoption-only view drops the Foreign section this test reads
+	// (views.StatelessAdoptionHuman.Foreign is a no-op), and it is the
+	// question, not the renderer, that the ruling put behind a switch.
+	output := runLivePlan(t, tofuBin, dir, []string{collectUnclaimedEnv + "=1"})
 
 	// --- FOREIGN ---------------------------------------------------------
 	section := foreignSection(t, output)

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/format"
 )
 
@@ -107,6 +108,41 @@ type StatelessForeign struct {
 	// carries the destroy itself for those, and this list is what says a
 	// parent read is why.
 	ParentReads []StatelessParentRead
+
+	// ControllerHeld are the live resources a controller holds rather than
+	// a block, on either substrate, with the holder named
+	// ([discovery.Result.ControllerHeld]; the 2026-09-26 ruling on #1604):
+	// on AWS what ACK or Crossplane made from an object on the cluster side
+	// (#1606), on Kubernetes what a Helm release installed (#1607). They
+	// are never foreign, never adoptable and never destroyed here, and are
+	// rendered so that markers on them read as what they are rather than
+	// as nothing.
+	ControllerHeld []StatelessControllerHeld
+}
+
+// StatelessControllerHeld is one controller-held live resource, AWS or
+// Kubernetes, in one shape.
+type StatelessControllerHeld struct {
+	TypeName    string
+	LiveID      string
+	DisplayName string
+
+	// Kind is the Kubernetes kind of a Kubernetes object, empty on AWS.
+	// The plan names the object by it when set, since that is the name a
+	// cluster's operator knows it by.
+	Kind string
+
+	// Controller is the controller that holds it (ACK, Crossplane, Helm),
+	// and HeldBy that controller and its object, as far as the resource
+	// identifies it: "Helm release web/web", "ACK s3 controller
+	// (s3-v1.0.14), custom resource in namespace team-a".
+	Controller string
+	HeldBy     string
+
+	// Addr is the address this estate's marker names, set only when the
+	// resource also carries this estate's markers at an address the
+	// configuration does not declare.
+	Addr string
 }
 
 // StatelessParentRead is one live child a parent read found.
@@ -182,8 +218,16 @@ type StatelessLookalike struct {
 	MarkerAddress string
 
 	// Hint is the one-line adoption command, empty for a type this fork has
-	// no composable tagging verb for.
+	// no composable tagging verb for. Always empty when HeldBy is set.
 	Hint string
+
+	// HeldBy is set when the live resource this create matches is
+	// controller-held (GitHub issue #1628): the controller and its object,
+	// as [StatelessControllerHeld.HeldBy] names it. MarkerEstate,
+	// MarkerAddress and Hint are all empty in this case - #1604 ruled a
+	// controller-held resource is never offered for adoption, so this
+	// warning names it and stops there.
+	HeldBy string
 }
 
 // StatelessRemoval is one live resource this estate owns and no longer
@@ -341,8 +385,11 @@ type StatelessPolicyWithheld struct {
 	Withheld    string
 }
 
-// StatelessUntagged is one resource block a declared_tagged = "untag" verb
-// released a tag key from - stamp.Untagged, in this package's own shape.
+// StatelessUntagged is one resource instance a declared_tagged = "untag"
+// verb released a tag key from - projection.UntagRelease, in this package's
+// own shape. Per instance, not per block: the node writer decides each
+// instance on its own, so a count or for_each block can have some instances
+// here and some not (GitHub issue #1002).
 type StatelessUntagged struct {
 	Addr         string
 	Key          string
@@ -380,6 +427,13 @@ type StatelessReconcileCandidate struct {
 	TypeName    string
 	LiveID      string
 	DisplayName string
+
+	// Withheld is why this candidate is on the roster and still will not
+	// be destroyed by this run - today, only this run's -target / -exclude
+	// leaving it out of the plan graph (GitHub issue #1257). Empty for a
+	// candidate this run would destroy, which is every candidate on an
+	// untargeted run.
+	Withheld string
 }
 
 // StatelessReconcileGap is one scope-selected type the reconciliation pass
@@ -452,10 +506,24 @@ const (
 	// on: [statelessBoundReport in package command] classifies by the
 	// pre-sweep identity.ClassNeedsDiscovery set, which is the only thing
 	// left once binding has rewritten the resolution. An instance the
-	// sweep did not manage to bind - a real account's tag index lags a
-	// write by minutes - can still be materialized from its record by
-	// GitHub issue #364's record-first read and reach a reader here. The
-	// [LivePlanBound.Identity] such a row carries is the record's, and
+	// sweep did not bind can still be materialized from its record by
+	// GitHub issue #364's record-first read and reach a reader here.
+	//
+	// GitHub issue #1014 measured how common that is: it is the ORDINARY
+	// case, and a lagging tag index is only the rare one. Every
+	// marker-governed instance an apply has written an identity record for
+	// is taken out of the sweep's binding demand before the sweep runs
+	// (edge 3 of GitHub issue #388's plan-node seam,
+	// discovery.Request.RecordBackedAddrs, on unless
+	// CHOUDOUFU_NODE_RESOLVE=0), so from the first plan after an apply
+	// onwards the record locates the object and the marker on the object
+	// the projection reads back is what verifies it
+	// (internal/live/projection's checkOwnership, recordFirst). "marker" on
+	// such a row is therefore true of what governs the instance and of
+	// what the binding was checked against, and approximate about what
+	// found it.
+	//
+	// The [LivePlanBound.Identity] such a row carries is the record's, and
 	// names the same live object either way; only the provenance this
 	// value states is approximate. GitHub issue #967 found it while
 	// fixing the identity and deliberately did not move it: narrowing
@@ -641,6 +709,21 @@ type LivePlanDocument struct {
 	// TOFU_LIVE_COLLECT_UNCLAIMED=1 is how to ask.
 	Swept []string `json:"swept"`
 
+	// ControllerHeld is every live resource this run found held by a
+	// controller rather than a block (the 2026-09-26 ruling on #1604): on
+	// AWS made by ACK or Crossplane from an object on the cluster side
+	// (#1606), on Kubernetes installed by a Helm release (#1607). Never in
+	// Foreign or Adoptable and never proposed for destroy. Absent when
+	// there are none; -filter does not narrow it.
+	ControllerHeld []LivePlanControllerHeld `json:"controller_held,omitempty"`
+
+	// Filter is the -filter categories this document was narrowed to
+	// (GitHub issue #1197), in unowned, adoptable, foreign order. Absent
+	// when no filter was given. When present, a category it does not name
+	// is null above: left out by the filter, not found empty. A selected
+	// category that matched nothing is [].
+	Filter []string `json:"filter,omitempty"`
+
 	// Diagnostics is every warning and error this run raised outside the
 	// three sections above - a state file present but not consulted, a
 	// provider version skew warning, and so on. It exists so that -json
@@ -692,6 +775,25 @@ type LivePlanForeign struct {
 	// Why is the sweep's own one-line reason this resource counts as
 	// unclaimed, carried verbatim rather than re-derived.
 	Why string `json:"why,omitempty"`
+}
+
+// LivePlanControllerHeld is one row of [LivePlanDocument.ControllerHeld].
+type LivePlanControllerHeld struct {
+	TypeName    string `json:"type"`
+	LiveID      string `json:"identity"`
+	DisplayName string `json:"display_name,omitempty"`
+
+	// Kind is a Kubernetes object's kind, absent on AWS.
+	Kind string `json:"kind,omitempty"`
+
+	// Controller is ACK, Crossplane or Helm; HeldBy names the controller
+	// and its object, the same words and the same key live-ls -json uses.
+	Controller string `json:"controller"`
+	HeldBy     string `json:"held_by"`
+
+	// Addr is the address this estate's marker names, when the resource
+	// also carries this estate's markers for an undeclared address.
+	Addr string `json:"addr,omitempty"`
 }
 
 type LivePlanAdoptable struct {
@@ -841,11 +943,29 @@ func NewStatelessPlan(view *View) StatelessPlan {
 	return &StatelessPlanHuman{view: view}
 }
 
+// NewStatelessPlanFiltered is [NewStatelessPlan] narrowed to the report
+// categories filter names (GitHub issue #1197's -filter). An empty filter is
+// exactly [NewStatelessPlan].
+//
+// Only the three category sections are narrowed - Unowned, Adoptable and the
+// foreign items - and a selected category with nothing in it says so in a
+// line of its own, so that a filter matching nothing never reads as silence.
+// Everything else the report prints (omissions, removals, sweep gaps, renames,
+// policy, lookalikes) and the resource diff itself are untouched: a filter
+// narrows the report, never the plan.
+func NewStatelessPlanFiltered(view *View, filter arguments.ReportFilter) StatelessPlan {
+	return &StatelessPlanHuman{view: view, filter: filter}
+}
+
 // StatelessPlanHuman writes the omissions section as a titled block above the
 // plan, in the same stream and with the same width and colouring rules as the
 // plan renderer itself.
 type StatelessPlanHuman struct {
 	view *View
+
+	// filter is -filter's category set; empty renders every category. See
+	// [NewStatelessPlanFiltered].
+	filter arguments.ReportFilter
 }
 
 var _ StatelessPlan = (*StatelessPlanHuman)(nil)
@@ -1086,7 +1206,17 @@ const statelessUnownedIntro = `Each of these is a live resource sitting at the i
 // unlike the sweep behind the foreign section, this check runs on every
 // instance the projection reads, so an empty list is not a coverage question.
 func (v *StatelessPlanHuman) Unowned(items []StatelessUnowned) {
+	if !v.filter.Shows(arguments.ReportUnowned) {
+		return
+	}
 	if len(items) == 0 {
+		// Unfiltered, an empty list stays silent for the reason above. A
+		// run that asked for this category by name gets an answer, so that
+		// "-filter unowned" matching nothing is distinguishable from a
+		// filter that never ran.
+		if v.filter.Active() {
+			v.view.streams.Print(v.view.colorize.Color("\n[reset][bold]No unowned resources.[reset]\n"))
+		}
 		return
 	}
 
@@ -1164,6 +1294,13 @@ const statelessSweepIntro = `A classification is only as wide as the sweep behin
 
 const statelessRemovalIntro = `Each of these carries this estate's ownership marker for an address the configuration no longer declares. They are in the prior state this plan ran against, at the address their marker names, so the plan below proposes destroying them the same way it would destroy any resource whose configuration was deleted. Nothing unowned is here: a resource with no marker for this estate is never in the prior state and can never be planned for destruction.`
 
+const statelessControllerHeldIntro = `A controller made these from an object of its own, not a block, so they are controller-held: on AWS, a resource carrying ACK's or Crossplane's tags; on Kubernetes, an object carrying Helm's release annotation. This run never proposes destroying one and never offers one for adoption, whatever markers it carries. To change or remove one, change or remove the object that holds it.`
+
+// statelessControllerHeldHelm is added under the intro when a Helm release
+// holds any of them: the estate's label on such an object came from the
+// chart's values, and these are the two ways out.
+const statelessControllerHeldHelm = `An object a Helm release holds got this estate's label from the chart's values. To stop listing it, take tofu-estate out of the chart's values; to own it, render the chart into kubernetes_manifest blocks. helm_release itself is refused in a live root.`
+
 const statelessSweepGapIntro = `Finding a resource whose block was deleted means listing its type and reading the markers off what comes back, and these types could not be searched. This estate may own resources of them that no plan will propose destroying. An empty removal list is a statement about the types that were swept and about nothing else.`
 
 // statelessSweepGapReasons is the one paragraph each standing gap gets,
@@ -1199,7 +1336,13 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 		}
 	}
 
+	showForeign := v.filter.Shows(arguments.ReportForeign)
+	showAdoptable := v.filter.Shows(arguments.ReportAdoptable)
+
 	switch {
+	case !showForeign:
+		// -filter left this category out (#1197). The sweep still ran and
+		// the plan is the same; only the section is not printed.
 	case len(rep.Items) > 0:
 		colored("\n[reset][bold]Foreign resources: %d live %s not owned by estate %s[reset]\n\n",
 			len(rep.Items), noun(len(rep.Items), "resource", "resources"), rep.Estate)
@@ -1215,12 +1358,16 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 	case len(rep.Swept) > 0:
 		colored("\n[reset][bold]Foreign resources: none among the %d %s swept[reset]\n\n",
 			len(rep.Swept), noun(len(rep.Swept), "type", "types"))
-		wrapped("Every live resource of "+strings.Join(rep.Swept, ", ")+" carries an ownership marker. This is a statement about those types only.", 0)
+		if len(rep.ControllerHeld) > 0 {
+			wrapped("Every live resource of "+strings.Join(rep.Swept, ", ")+" carries an ownership marker or is controller-held (listed below). This is a statement about those types only.", 0)
+		} else {
+			wrapped("Every live resource of "+strings.Join(rep.Swept, ", ")+" carries an ownership marker. This is a statement about those types only.", 0)
+		}
 	default:
 		colored("\n[reset][bold]Foreign resources: nothing was swept[reset]\n\n")
 		wrapped("No resource type was listed in full during this run, so nothing is known about live resources that carry no ownership marker. This is not a report that there are none.", 0)
 	}
-	if rep.NativeSweepSkipped > 0 {
+	if rep.NativeSweepSkipped > 0 && (showForeign || showAdoptable) {
 		out("\n")
 		wrapped(fmt.Sprintf("This run did not ask which live resources carry no ownership marker at all, so %d admitted %s this estate has no record of ever having used %s not listed. Every resource this estate owns was still swept for. Run \"choudoufu plan -adoption-only\" for the account-wide question.",
 			rep.NativeSweepSkipped,
@@ -1228,7 +1375,22 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 			noun(rep.NativeSweepSkipped, "was", "were")), 0)
 	}
 
-	if len(rep.Candidates) > 0 {
+	switch {
+	case !showAdoptable:
+		// Left out by -filter (#1197); see the foreign case above.
+	case len(rep.Candidates) == 0 && v.filter.Active():
+		// Unfiltered, no candidates means no section. Asked for by name,
+		// the answer is printed, with what it covers: an empty sweep
+		// is not a report that nothing matches.
+		if len(rep.Swept) > 0 {
+			colored("\n[reset][bold]No adoptable resources.[reset]\n\n")
+			wrapped(fmt.Sprintf("Nothing among the %d %s swept matches a declared resource by content.",
+				len(rep.Swept), noun(len(rep.Swept), "type", "types")), 0)
+		} else {
+			colored("\n[reset][bold]No adoptable resources: nothing was swept.[reset]\n\n")
+			wrapped("No resource type was listed in full during this run, so nothing was matched against the configuration. This is not a report that there are none.", 0)
+		}
+	case len(rep.Candidates) > 0:
 		colored("\n[reset][bold]Adoptable: %d live %s matches a declared resource[reset]\n\n",
 			len(rep.Candidates), noun(len(rep.Candidates), "resource", "resources"))
 		wrapped(statelessAdoptIntro, 0)
@@ -1257,6 +1419,30 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 				rm.Addr, rm.TypeName, liveIDOrNone(rm.LiveID), displaySuffix(rm.DisplayName, rm.LiveID))
 			if rm.Why != "" {
 				wrapped(rm.Why, 6)
+			}
+		}
+	}
+
+	if len(rep.ControllerHeld) > 0 {
+		colored("\n[reset][bold]Controller-held: %d live %s held by a controller, not a block[reset]\n\n",
+			len(rep.ControllerHeld), noun(len(rep.ControllerHeld), "resource", "resources"))
+		wrapped(statelessControllerHeldIntro, 0)
+		for _, h := range rep.ControllerHeld {
+			if h.Controller == "Helm" { // kubesweep.ControllerHelm, not imported into views
+				out("\n")
+				wrapped(statelessControllerHeldHelm, 0)
+				break
+			}
+		}
+		out("\n")
+		for _, h := range rep.ControllerHeld {
+			what := h.TypeName
+			if h.Kind != "" {
+				what = h.Kind
+			}
+			colored("  [bold]%s %s[reset]%s held by %s\n", what, liveIDOrNone(h.LiveID), displaySuffix(h.DisplayName, h.LiveID), h.HeldBy)
+			if h.Addr != "" {
+				wrapped(fmt.Sprintf("carries this estate's marker for %s, which the configuration does not declare; not destroyed.", h.Addr), 6)
 			}
 		}
 	}
@@ -1462,7 +1648,7 @@ func (v *StatelessPlanHuman) Policy(rep StatelessPolicyReport) {
 
 	if len(rep.Untagged) > 0 {
 		colored("\n[reset][bold]Policy untag: %d resource %s releasing a tag[reset]\n\n",
-			len(rep.Untagged), noun(len(rep.Untagged), "block", "blocks"))
+			len(rep.Untagged), noun(len(rep.Untagged), "instance", "instances"))
 		wrapped(statelessUntaggedIntro, 0)
 		out("\n")
 		for _, u := range rep.Untagged {
@@ -1504,7 +1690,21 @@ func (v *StatelessPlanHuman) Policy(rep StatelessPolicyReport) {
 	}
 
 	if rep.Reconcile.Ran {
-		n := len(rep.Reconcile.Roster)
+		// The headline counts what this run will actually destroy, not what
+		// the pass found: a candidate this run's -target / -exclude withheld
+		// is still listed below, with its reason, but "will be destroyed" is
+		// a claim about the plan and must not include it (GitHub issue
+		// #1257). Identical on every untargeted run, where nothing is
+		// withheld.
+		n := 0
+		withheld := 0
+		for _, c := range rep.Reconcile.Roster {
+			if c.Withheld == "" {
+				n++
+			} else {
+				withheld++
+			}
+		}
 		if rep.Reconcile.ThresholdExceeded {
 			colored("\n[reset][bold]Policy delete REFUSED: %d candidate %s exceeds the threshold of %d[reset]\n\n",
 				n, noun(n, "resource", "resources"), rep.Reconcile.Threshold)
@@ -1517,6 +1717,15 @@ func (v *StatelessPlanHuman) Policy(rep StatelessPolicyReport) {
 		out("\n")
 		for _, c := range rep.Reconcile.Roster {
 			colored("  [bold]%s %s[reset]%s\n", c.TypeName, liveIDOrNone(c.LiveID), displaySuffix(c.DisplayName, c.LiveID))
+			if c.Withheld != "" {
+				wrapped("not destroyed here: "+c.Withheld, 6)
+			}
+		}
+		if withheld > 0 {
+			out("\n")
+			wrapped(fmt.Sprintf("Withheld: %d of the %d %s above %s left alone by this run's -target/-exclude. The roster is still shown in full - narrowing a run does not narrow what the account holds.",
+				withheld, len(rep.Reconcile.Roster), noun(len(rep.Reconcile.Roster), "candidate", "candidates"),
+				noun(withheld, "is", "are")), 0)
 		}
 		if len(rep.Reconcile.Gaps) > 0 {
 			out("\n")
@@ -1652,6 +1861,16 @@ func (v *StatelessPlanHuman) Lookalikes(items []StatelessLookalike) {
 	for _, l := range items {
 		colored("  [bold]%s[reset] [POSSIBLE DUPLICATE] ~ %s %s%s\n",
 			l.Addr, l.TypeName, liveIDOrNone(l.LiveID), displaySuffix(l.DisplayName, l.LiveID))
+		if l.HeldBy != "" {
+			// GitHub issue #1628: a controller-held resource is never
+			// offered for adoption (#1604's ruling), so this warning names
+			// the controller and its object and stops there - no matched-on
+			// line, no adopt line.
+			wrapped(fmt.Sprintf(
+				"%s will be created beside %s (held by %s); the controller owns that one, so this create will collide with it or duplicate it",
+				l.Addr, liveIDOrNone(l.LiveID), l.HeldBy), 6)
+			continue
+		}
 		if len(l.Matched) > 0 {
 			out("      matched on: " + tagSummary(l.Matched, 0) + "\n")
 			wrapped(fmt.Sprintf(

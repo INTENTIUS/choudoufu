@@ -115,9 +115,17 @@ type Artifact struct {
 	// can drift from it silently, which is the other half of #544's root
 	// cause. So last_run.oracle is measured, by actually invoking whatever
 	// is on PATH, never asserted from this field.
-	Oracle OracleVersions        `json:"oracle"`
-	Stages []Stage               `json:"stages"`
-	Sets   map[string]SetSummary `json:"sets"`
+	Oracle OracleVersions `json:"oracle"`
+	// Providers mirrors Emulator's own meaning for the two provider pins
+	// #1253 tracks: CONFIGURATION, a plain copy of
+	// live/oracle-versions.json's aws_provider_version and
+	// kubernetes_provider_version on every Rebuild, the pin the NEXT
+	// `gauntlet run` will use - never evidence of what a past run used
+	// (see LastRun's own AWSProviderVersion/KubernetesProviderVersion,
+	// stamped at run time, for that half).
+	Providers ProviderVersions      `json:"providers"`
+	Stages    []Stage               `json:"stages"`
+	Sets      map[string]SetSummary `json:"sets"`
 	// Lanes is one summary per lane the manifest carries (#1067), the
 	// same shape as Sets. The kubernetes lane's is the Kubernetes bar: its
 	// estates run on a kind cluster and are in neither AWS set above, so
@@ -155,6 +163,25 @@ type Artifact struct {
 type OracleVersions struct {
 	Terraform string `json:"terraform,omitempty"`
 	Tofu      string `json:"tofu,omitempty"`
+}
+
+// ProviderVersions is the pin for the two providers issue #1253 tracks:
+// hashicorp/aws for a floci-substrate estate, hashicorp/kubernetes for a
+// kind-substrate one (the same split Emulator/SubstrateImage use, #1594).
+// Both are FORCED onto every crossing script before init
+// (live/e2e/lib/gauntlet.sh's gauntlet_pin_aws_provider rewrites the lock
+// file to live/oracle-versions.json's aws_provider_version;
+// gauntlet_kubernetes_required_provider, #1252, does the same for
+// kubernetes_provider_version) rather than merely requested, so - unlike
+// OracleVersions's Terraform/Tofu, which nothing forces a local PATH to
+// honour - there is no binary to probe: the pin IS what the run used, and
+// a.Providers (config, refreshed on every Rebuild) and LastRun's own
+// AWSProviderVersion/KubernetesProviderVersion (evidence, stamped by
+// RunEstates from this same file at run time) read the same value at the
+// instant a run launches, exactly like Emulator/live/floci-image do.
+type ProviderVersions struct {
+	AWS        string `json:"aws,omitempty"`
+	Kubernetes string `json:"kubernetes,omitempty"`
 }
 
 // SetSummary is one headline bar.
@@ -352,11 +379,43 @@ func (r EstateResult) CarriedStages() []string {
 // and left empty where it was not), or a legacy-protocol run that never
 // recorded provenance at all. Either way, empty is never treated as "must
 // match the current pin" - IsStale treats it as stale precisely because it
-// cannot be shown to match.
+// cannot be shown to match. A kind-substrate estate's row leaves this
+// field empty on purpose (issue #1594): it never launches floci, so
+// stamping it with the floci digest would be recording what a DIFFERENT
+// row ran against - see SubstrateImage below for what it records instead.
 type LastRun struct {
 	Commit   string `json:"commit"`
 	Date     string `json:"date"`
 	Emulator string `json:"emulator,omitempty"`
+	// SubstrateImage is the digest a kind-substrate run's cluster was
+	// actually created from (see live/kind-node-image), stamped by
+	// RunEstates the same way Emulator is stamped for a floci-substrate
+	// run - never both on the same row (issue #1594). Before this field
+	// existed, every row - kind-substrate estates included - had Emulator
+	// stamped with the floci digest even though a kind-lane estate never
+	// launches floci at all, which is the defect #1594 fixes: a
+	// kind-substrate row now leaves Emulator empty and records what it
+	// really ran against here instead. Empty means the same two things
+	// Emulator's own empty value means: a row from before this field
+	// existed, or a legacy-protocol run that recorded no provenance.
+	SubstrateImage string `json:"substrate_image,omitempty"`
+	// AWSProviderVersion and KubernetesProviderVersion are issue #1253's
+	// counterpart to Emulator/SubstrateImage above, and mutually exclusive
+	// the same way: a floci-substrate run's crossing has
+	// gauntlet_pin_aws_provider rewrite its lock file to
+	// live/oracle-versions.json's aws_provider_version before either
+	// binary runs init, and a kind-substrate run's hand-authored root
+	// reads gauntlet_kubernetes_required_provider for
+	// kubernetes_provider_version (#1252) the same way. Both are FORCED,
+	// unlike Oracle below, so there is nothing to probe: RunEstates reads
+	// the pin once per call (the same moment it reads kindImage/emulator)
+	// and stamps it onto every row this run touches, AWS for a
+	// floci-substrate row and Kubernetes for a kind-substrate one - never
+	// both on the same row. Empty means the same two things Emulator's own
+	// empty value means: a row from before this field existed, or a
+	// legacy-protocol run that recorded no provenance.
+	AWSProviderVersion        string `json:"aws_provider_version,omitempty"`
+	KubernetesProviderVersion string `json:"kubernetes_provider_version,omitempty"`
 	// Oracle is the stock terraform and tofu releases this run actually
 	// found on PATH (issue #544) - measured, not configured: probeOracle
 	// (run.go) runs `terraform version -json` and `tofu version -json`
@@ -400,6 +459,25 @@ type LastRun struct {
 // cannot show it was made against (see the backfill comment on Emulator).
 func IsStale(r EstateResult, currentEmulator string) bool {
 	return r.LastRun != nil && r.LastRun.Emulator != currentEmulator
+}
+
+// IsProviderStale mirrors IsStale for the provider-version pin issue
+// #1253 tracks: r.Substrate selects which field is the relevant one, the
+// same split LastRun's own AWSProviderVersion/KubernetesProviderVersion
+// use - a floci-substrate row (r.Substrate == "") is compared against
+// current.AWS, a kind-substrate row (r.Substrate == SubstrateKind)
+// against current.Kubernetes. A row with no last_run is not "stale" by
+// this definition either, the same carve-out IsStale documents, and an
+// empty recorded version compares unequal to a real pin for the same
+// reason IsStale's own empty Emulator does.
+func IsProviderStale(r EstateResult, current ProviderVersions) bool {
+	if r.LastRun == nil {
+		return false
+	}
+	if r.Substrate == SubstrateKind {
+		return r.LastRun.KubernetesProviderVersion != current.Kubernetes
+	}
+	return r.LastRun.AWSProviderVersion != current.AWS
 }
 
 // SetLabels name the two headline bars. "all" is every estate on the floci
@@ -465,7 +543,12 @@ func loadArtifactFile(path string) (*Artifact, error) {
 // run" role emulator already has - see live/oracle-versions.json and
 // OracleVersions's own doc comment for why that is a different fact than
 // what a past run's last_run.oracle recorded.
-func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, oracle OracleVersions) {
+//
+// providers is a.Providers's fresh value (issue #1253), the same role for
+// the hashicorp/aws and hashicorp/kubernetes pins - see ProviderVersions's
+// own doc comment for why, unlike oracle, there is no probed evidence to
+// contrast it with.
+func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, oracle OracleVersions, providers ProviderVersions) {
 	prev := map[string]EstateResult{}
 	for _, r := range a.Estates {
 		prev[r.Name] = r
@@ -473,6 +556,7 @@ func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, orac
 	a.Schema = 1
 	a.Emulator = emulator
 	a.Oracle = oracle
+	a.Providers = providers
 	a.Stages = Stages()
 	a.BehaviorsProven, a.BehaviorsTotal = BehaviorsProven(bi)
 

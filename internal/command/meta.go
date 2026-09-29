@@ -159,6 +159,11 @@ type Meta struct {
 	// Override certain behavior for tests within this package
 	testingOverrides *testingOverrides
 
+	// estateOutputs is what the builtin terraform provider's
+	// terraform_estate_outputs data source reads through (GitHub issue
+	// #1371). See [Meta.liveEstateOutputs].
+	estateOutputs *liveEstateOutputs
+
 	// ----------------------------------------------------------
 	// Private: do not set these
 	// ----------------------------------------------------------

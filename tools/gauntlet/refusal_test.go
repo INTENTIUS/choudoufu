@@ -141,11 +141,11 @@ func TestPlanLiveCertWritesKeepsARefusalOutOfTheLiveCertRow(t *testing.T) {
 	}
 	silent := &ProtocolResult{}
 
-	if w := PlanLiveCertWrites("aws", spoke); !w.LiveCertRow || !w.ScaleRecord {
+	if w := PlanLiveCertWrites("aws", spoke, RunStateFinished); !w.LiveCertRow || !w.ScaleRecord {
 		t.Errorf("an ordinary measured run must write both rows, got %+v", w)
 	}
 	for name, res := range map[string]*ProtocolResult{"a refusal before any stage": refused, "a refusal after a stage passed": refusedMidRun} {
-		w := PlanLiveCertWrites("aws", res)
+		w := PlanLiveCertWrites("aws", res, RunStateFinished)
 		if w.LiveCertRow {
 			t.Errorf("%s would have written the live_cert row - that row holds one certification per estate, so this replaces scale 50's (#1151)", name)
 		}
@@ -156,10 +156,10 @@ func TestPlanLiveCertWritesKeepsARefusalOutOfTheLiveCertRow(t *testing.T) {
 			t.Errorf("%s: the explanation names no issue: %q", name, w.Why)
 		}
 	}
-	if w := PlanLiveCertWrites("aws", silent); w.LiveCertRow || w.ScaleRecord {
+	if w := PlanLiveCertWrites("aws", silent, RunStateFinished); w.LiveCertRow || w.ScaleRecord {
 		t.Errorf("a run that spoke nothing must write nothing (#1100), got %+v", w)
 	}
-	if w := PlanLiveCertWrites("floci", spoke); w.LiveCertRow || w.ScaleRecord {
+	if w := PlanLiveCertWrites("floci", spoke, RunStateFinished); w.LiveCertRow || w.ScaleRecord {
 		t.Errorf("a floci proving run must write nothing, got %+v", w)
 	}
 	if RecordsLiveCert(refused) {
@@ -461,11 +461,19 @@ func TestARefusalSurvivesTheRoundTripToDisk(t *testing.T) {
 // the run's entire result vanishes into a log. So: failure. The usual cause
 // is a gauntlet_refused call that left out its scale, which is a bug in the
 // script and should read as one.
+//
+// #1233 narrowed WHICH estates that applies to, without loosening it for
+// this one: a refusal names no rung either because the script forgot to
+// pass one or because the estate has no rungs, and only the estate's own
+// `scale_ladder` declaration tells those apart. terralith-scale declares
+// one, so the argument above is unchanged for it and this test still pins
+// it. The estate that declares none records its refusal on a shelf of its
+// own instead of failing - noladder_test.go.
 func TestARefusalWithNoScaleFailsTheRunRatherThanPrintingAndPassing(t *testing.T) {
 	refusedNoScale := refusal136()
 	refusedNoScale.Scale = 0
 
-	plan := planLiveCertScaleRow("terralith-scale", true, refusedNoScale)
+	plan := planLiveCertScaleRow("terralith-scale", true, refusedNoScale, true)
 	if plan.Err == nil {
 		t.Fatalf("a refusal with no scale was treated as an omission (write=%v note=%q) - under #1149's rule a record that does not get written fails the run, and this record is the only one the run produced", plan.Write, plan.Note)
 	}
@@ -479,7 +487,7 @@ func TestARefusalWithNoScaleFailsTheRunRatherThanPrintingAndPassing(t *testing.T
 	// The one legitimate omission is still an omission: a certification that
 	// was never a scale measurement writes no row and does not fail.
 	notAScaleRun := ScaleRecord{Schema: ScaleRecordSchema, Estate: "reference-ec2-vpc", Target: "aws", Commit: "abc123", Source: "a test"}
-	plan = planLiveCertScaleRow("reference-ec2-vpc", true, notAScaleRun)
+	plan = planLiveCertScaleRow("reference-ec2-vpc", true, notAScaleRun, false)
 	if plan.Err != nil || plan.Write {
 		t.Errorf("a certification that is not a scale measurement must be a quiet omission, got write=%v err=%v", plan.Write, plan.Err)
 	}
@@ -488,7 +496,7 @@ func TestARefusalWithNoScaleFailsTheRunRatherThanPrintingAndPassing(t *testing.T
 	}
 
 	// And an ordinary measured run is written.
-	plan = planLiveCertScaleRow("terralith-scale", true, scale50())
+	plan = planLiveCertScaleRow("terralith-scale", true, scale50(), true)
 	if !plan.Write || plan.Err != nil {
 		t.Errorf("a measured scale row was not written: write=%v err=%v note=%q", plan.Write, plan.Err, plan.Note)
 	}
@@ -553,5 +561,42 @@ func TestDescribeScaleWriteNamesWhatItSuperseded(t *testing.T) {
 	}
 	if strings.Contains(got, "superseded") {
 		t.Errorf("a row that replaced nothing claims to have superseded something:\n%s", got)
+	}
+}
+
+// TestParseProtocolReadsTheIAMRoleHeadroomRefusal pins the line
+// live/live-cert/terralith-scale.sh's iam_role_headroom_check emits (issue
+// #1230), byte for byte as live/live-cert/selftest-iam-headroom.sh case 1
+// observes it, so the harness and the parser cannot drift apart without
+// one of the two tests saying so. limit is the account's remaining
+// headroom, not its quota: needed=33 against limit=10 is the arithmetic
+// a reader checks, and unit=iam-roles is what names it.
+func TestParseProtocolReadsTheIAMRoleHeadroomRefusal(t *testing.T) {
+	out := strings.Join([]string{
+		"GAUNTLET protocol=1",
+		"=== 0c. iam role headroom: room in the account for scale=3's aws_iam_role instances? (#1230) ===",
+		"GAUNTLET refused=1 scale=3 needed=33 limit=10 unit=iam-roles detail=the account holds 990 of its 1000 IAM roles (aws iam get-account-summary Roles/RolesQuota), leaving room for 10, and terralith-gen -scale 3 creates 33 aws_iam_role instances; nothing was created and nothing is torn down (#1230)",
+	}, "\n")
+	res, err := ParseProtocol(strings.NewReader(out))
+	if err != nil {
+		t.Fatalf("ParseProtocol: %v", err)
+	}
+	if res.Refusal == nil {
+		t.Fatal("no refusal parsed from the iam-roles line")
+	}
+	if res.Refusal.Scale != 3 {
+		t.Errorf("scale = %d, want 3", res.Refusal.Scale)
+	}
+	if res.Refusal.Needed == nil || *res.Refusal.Needed != 33 || res.Refusal.Limit == nil || *res.Refusal.Limit != 10 {
+		t.Errorf("arithmetic = %v/%v, want 33/10", res.Refusal.Needed, res.Refusal.Limit)
+	}
+	if res.Refusal.Unit != "iam-roles" {
+		t.Errorf("unit = %q, want iam-roles", res.Refusal.Unit)
+	}
+	if !strings.Contains(res.Refusal.Reason, "990 of its 1000") || !strings.Contains(res.Refusal.Reason, "#1230") {
+		t.Errorf("the reason lost the account's numbers or the issue: %q", res.Refusal.Reason)
+	}
+	if len(res.Stages) != 0 {
+		t.Errorf("a refusal before cold_deploy must speak no stage, got %d", len(res.Stages))
 	}
 }

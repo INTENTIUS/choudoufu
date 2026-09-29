@@ -20,6 +20,7 @@ package markers
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -65,6 +66,46 @@ const MaxContinuations = 4
 // the same refusal a value over a single MaxTagValue got before
 // continuation tags existed, just at a wider ceiling.
 const MaxAddressLen = MaxTagValue * MaxContinuations
+
+// OwnershipClause is the one sentence pair every shipped diagnostic uses
+// when it has to tell a user what a resource address is FOR. Four
+// diagnostics need it - RuleOverlongAddress, RuleForEachKey on a resource
+// and on a module call, and identity resolution's own for_each key refusal -
+// and until issue #1242 they said it two different ways, one of which was
+// false.
+//
+// It lives here, in the leaf package both internal/live/lint and
+// internal/live/identity already import, so that the sentence exists once.
+// A phrase guard was considered and rejected (see #1242): "the marker is the
+// only record of ownership" is TRUE of a tagged resource, so a repo-wide
+// sweep for it would eventually report a correct sentence. One constant
+// makes drift impossible instead of reporting it.
+//
+// # Why both halves are needed
+//
+// The first half is #1241's correction: "only" was false. A live run also
+// carries a disposable state cache, which is never consulted for ownership,
+// and a record store, which answers for types with nowhere to hang a tag.
+//
+// The second half is #1242's, and it is a measured fact about the checks
+// rather than a hedge. None of the four consults taggability: lint's
+// checkForEachKeys and checkOverlongAddresses walk mod.ManagedResources
+// with no type filter, and identity's checkedForEachKeys runs inside
+// expansionFor, which produces the instance addresses resolveInstance is
+// later called with - so the key is refused before the instance is
+// classified at all. Measured at ea9f8f5194: all three rules fire for
+// aws_acmpca_certificate, which resolves ClassRecordLocated (no marker is
+// ever written for it), and for aws_iam_group_policy_attachment, which
+// resolves CONCRETE from its own arguments and carries no tag either. For
+// both of those the first half's condition is not met, and a user reading
+// only the first half would be entitled to ask why their resource was
+// refused. The second half answers that.
+const OwnershipClause = "For a resource that carries tags the address becomes the tofu-address marker on the live resource, " +
+	"and that marker is where a live run reads ownership from: the disposable state cache is never consulted for it, " +
+	"and the record store answers only for types with nowhere to hang a tag (live/MARKERS.md). " +
+	"The rule applies to every resource all the same: the address is checked where it is declared, without consulting " +
+	"the resource's rung, so an address is legal, or illegal, for a tagged resource and for one whose identity lives " +
+	"in the record store alike."
 
 // ContinuationTag names the n-th continuation tag key, for n in
 // [2, MaxContinuations]. n=1 is TagAddress itself, which has no
@@ -298,6 +339,36 @@ func UnescapeKey(s string) string {
 		}
 	}
 	return markerkey.Decode(b.String())
+}
+
+// AddressObjectTags is the address half of the marker pair for the record of
+// one instance, as the tags of the store object that holds it: tofu-address
+// with its continuation tags when the escaped address is longer than one
+// value. It is the half a caller that knows an address and not an estate can
+// supply, which is what internal/live/projection's record store is; the
+// estate half is set once, in [staterecord.S3Config.BaseTags], where the
+// store is opened for an estate, and it wins on its own key so a per-write
+// tag can never move an object to another estate.
+//
+// It is built from [EscapeAddress], [SplitAddress] and [AddressTagKey] and
+// from nothing else, which are what stamp a managed resource's own markers.
+// GitHub issue #1337 asks for the values to come from the same source and
+// not a second derivation of them: a record whose tag disagreed with the
+// resource's would make the bucket lie about who owns what, and an IAM
+// condition on the tag would then admit or deny on the lie.
+//
+// S3 allows an object ten tags and the full set is at most
+// 1 + [MaxContinuations].
+//
+// A RecordObjectTags that returned both halves at once used to sit above
+// this. Nothing outside its own test ever called it, because the two halves
+// are set in two different places, so it was removed (#1383).
+func AddressObjectTags(addr addrs.AbsResourceInstance) map[string]string {
+	tags := map[string]string{}
+	for i, chunk := range SplitAddress(EscapeAddress(addr.String())) {
+		tags[AddressTagKey(i)] = chunk
+	}
+	return tags
 }
 
 // EscapeAddress applies the marker spec's escaping rule to an address:
@@ -691,6 +762,8 @@ func decodeInstanceKey(escaped string) (addrs.InstanceKey, bool) {
 // The second return distinguishes "this object has no tags attribute at
 // all" - an untaggable type, or a list result that came back without its
 // object - from "the object is tagged with nothing".
+//
+//markers:surface tags
 func TagsOf(obj cty.Value) (map[string]string, bool) {
 	if obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() {
 		return nil, false
@@ -733,6 +806,25 @@ func TagsOf(obj cty.Value) (map[string]string, bool) {
 	return tags, true
 }
 
+// TagsArgument renders tags as the aws CLI's --tags shorthand, key=value
+// pairs joined by commas, in key order, single-quoted so that an escaped
+// address's brackets and quotes survive a shell. GitHub issue #1653 moved
+// it here from internal/live/projection so internal/live/substrate's AWS
+// family can render the same manual-mark hint without importing the
+// projection package that used to build it.
+func TagsArgument(tags map[string]string) string {
+	keys := make([]string, 0, len(tags))
+	for k := range tags {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	pairs := make([]string, 0, len(keys))
+	for _, k := range keys {
+		pairs = append(pairs, k+"="+tags[k])
+	}
+	return "'" + strings.Join(pairs, ",") + "'"
+}
+
 // Taggable reports whether a resource type can carry an ownership marker: a
 // top-level "tags" attribute of a map type that configuration is allowed to
 // set, whose keys the configuration is allowed to choose.
@@ -761,6 +853,8 @@ func TagsOf(obj cty.Value) (map[string]string, bool) {
 // fifteen-line predicate is a second answer waiting to happen. This package
 // is the one both can import: it is the marker vocabulary, and "which types
 // can carry a marker" is part of it.
+//
+//markers:surface tags
 func Taggable(block *configschema.Block) bool {
 	_, ok := TagSurface(block)
 	return ok
@@ -771,6 +865,8 @@ func Taggable(block *configschema.Block) bool {
 // attribute schema when the type can carry a marker.
 //
 // [NotAMarkerSurface] turns the failing case into a sentence.
+//
+//markers:surface tags
 func TagSurface(block *configschema.Block) (*configschema.Attribute, bool) {
 	if block == nil {
 		return nil, false
@@ -811,6 +907,8 @@ func TagSurface(block *configschema.Block) (*configschema.Attribute, bool) {
 //
 // The returned string is a clause, not a sentence: a caller fits it after
 // naming the resource.
+//
+//markers:surface tags
 func NotAMarkerSurface(block *configschema.Block, resourceType string) string {
 	if reason, refused := RefusedTagSurface(block); refused {
 		return fmt.Sprintf(
@@ -835,6 +933,8 @@ func NotAMarkerSurface(block *configschema.Block, resourceType string) string {
 //
 // The reason is a clause with no terminating punctuation, so a caller can
 // set it in a sentence of its own.
+//
+//markers:surface tags
 func RefusedTagSurface(block *configschema.Block) (string, bool) {
 	if block == nil {
 		return "", false

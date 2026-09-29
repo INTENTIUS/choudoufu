@@ -344,27 +344,6 @@ ESTATE_NAME="datacite-mastino-global-dns"
 GREEN_ESTATE_NAME="datacite-mastino-global-dns-greenfield"
 REGION="eu-west-1"
 
-# This script runs TWO inits (the plain cold-deploy copy under stock
-# terraform, the estate copy under choudoufu), each of which would otherwise
-# re-download the AWS provider into its own scratch directory. Point both at
-# the conventional shared plugin cache so only the first can ever pay for a
-# download; an operator who already exports TF_PLUGIN_CACHE_DIR keeps theirs.
-# The two copies cannot share a .terraform.lock.hcl the way an
-# OpenTofu-native crossing's can - stage 1's registry is
-# registry.terraform.io and the estate's is registry.opentofu.org - so a
-# lock-file copy between them would name the wrong provider source for one
-# side.
-#
-# #339: TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE sidesteps that limit
-# entirely - real terraform and choudoufu both honor it, and each init
-# consults the shared cache under its own registry-keyed path independently,
-# so both halves of this crossing benefit, not just one. Without it, init in
-# a directory with no .terraform.lock.hcl re-downloads the whole provider
-# purely to compute checksums, even when the cache already holds that exact
-# version (see live/e2e/README.md, "The shared plugin cache" for the measured numbers).
-export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
-export TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1
-mkdir -p "$TF_PLUGIN_CACHE_DIR"
 BLOCKS=54
 INSTANCES=63
 TAGGABLE=4
@@ -404,7 +383,7 @@ BREAK_RECORD_NAME="staging4.datacite.org"
 
 cleanup() {
   [ "${DEBUG_KEEP:-}" = "1" ] && { log "DEBUG_KEEP=1: leaving $FLOCI_NAME and $WORK"; return; }
-  docker rm -f "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME" "$FLOCI_GREEN_NAME" "$FLOCI_ORACLE_NAME"
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -416,6 +395,11 @@ log() { printf '%s\n' "$*"; }
 # failure belongs to; fail() reports it before exiting.
 # shellcheck source=live/e2e/lib/gauntlet.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+
+# The shared provider plugin cache, and the cross-process lock real terraform
+# needs in order to use it safely (#1300). live/e2e/lib/gauntlet.sh carries the
+# measured reasons for both; this is the only place a script chooses either.
+gauntlet_plugin_cache
 CURRENT_STAGE=""
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -573,7 +557,7 @@ log "  DELTA 6  record_store \"local\" in the live block                      (#
 # 2. floci
 # ══════════════════════════════════════════════════════════════════════════
 log "=== 2. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_NAME failed"
 HEALTH=""
 for _ in $(seq 1 60); do
@@ -642,8 +626,8 @@ log "  DELTA 4  tfvars for the estate's 20 undefaulted variables  (onboarding)"
 log ""
 gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (stock terraform, no choudoufu anywhere) ==="
-( cd "$PLAIN" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
+( cd "$PLAIN" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
 COLD_OUT="$(cd "$PLAIN" && terraform apply -input=false -auto-approve -no-color 2>&1)"; COLD_RC=$?
 [ "$COLD_RC" -eq 0 ] || { printf '%s\n' "$COLD_OUT" | grep -E '^Error|^│' | head -40; fail "stage 1 (cold deploy) failed"; }
 grep -qE "Apply complete! Resources: $INSTANCES added, 0 changed, 0 destroyed" <<< "$COLD_OUT" \
@@ -707,9 +691,9 @@ gauntlet_stage cold_deploy pass "$INSTANCES resources from stock terraform; 4 li
 # would also converge on if it ever disagreed.
 gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD: 0. two more floci containers, one per fresh namespace ==="
-docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_GREEN_NAME" -p "${FLOCI_GREEN_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
-docker run -d --rm -p "${FLOCI_ORACLE_PORT}:4566" --name "$FLOCI_ORACLE_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_ORACLE_NAME" -p "${FLOCI_ORACLE_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_ORACLE_NAME failed"
 for gep in "$GREEN_ENDPOINT" "$ORACLE_ENDPOINT"; do
   GH=""
@@ -821,8 +805,8 @@ log "  No changes."
 log "=== PART GREENFIELD: 5. stock oracle - the identical config applied fresh in its own namespace ==="
 ORACLE_GREEN="$WORK/green-oracle"
 build_green_copy "$ORACLE_GREEN" "$ORACLE_ENDPOINT" ""
-( cd "$ORACLE_GREEN" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ORACLE_GREEN" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+( cd "$ORACLE_GREEN" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ORACLE_GREEN" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
 ORACLE_GREEN_APPLY_OUT="$(cd "$ORACLE_GREEN" && terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$ORACLE_GREEN_APPLY_OUT" | grep -E '^Error|^│' | head -40; fail "the greenfield oracle apply failed"; }
 grep -qE "Apply complete! Resources: $INSTANCES added, 0 changed, 0 destroyed" <<< "$ORACLE_GREEN_APPLY_OUT" \
@@ -874,8 +858,8 @@ moved {
   to   = aws_route53_zone.internal_renamed
 }
 EOF
-( cd "$PLAIN_ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+( cd "$PLAIN_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
 ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
 grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
@@ -921,8 +905,8 @@ sed -i.bak '/resource "aws_route53_record" "status" {/,/^}/ s/name    = "status.
 rm -f "$REPLACE_PLAIN_ORACLE/main.tf.bak"
 grep -q 'status2.datacite.org' "$REPLACE_PLAIN_ORACLE/main.tf" \
   || fail "changing aws_route53_record.status's name argument in the replace-oracle copy did not match - the corpus pin has moved"
-( cd "$REPLACE_PLAIN_ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$REPLACE_PLAIN_ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's init failed"; }
+( cd "$REPLACE_PLAIN_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$REPLACE_PLAIN_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's init failed"; }
 REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_PLAIN_ORACLE" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
 [ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
 grep -qE '^  # aws_route53_record\.status must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
@@ -965,8 +949,8 @@ rm -f "$COUNT_PLAIN_ORACLE/main.tf.bak"
 grep -q 'count           = 9' "$COUNT_PLAIN_ORACLE/main.tf" \
   || fail "the day2_count oracle's count edit did not match - the corpus pin has moved"
 log "=== G-ORACLE. stock: scale wp-prod-staging's count 10 -> 9 -> 10, on cold_deploy's own state (plan-only - see header) ==="
-( cd "$COUNT_PLAIN_ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$COUNT_PLAIN_ORACLE" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's reinit failed"; }
+( cd "$COUNT_PLAIN_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$COUNT_PLAIN_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's reinit failed"; }
 ORACLE_COUNT_DOWN_PLAN_OUT="$(cd "$COUNT_PLAIN_ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_COUNT_DOWN_PLAN_RC=$?
 [ "$ORACLE_COUNT_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_DOWN_PLAN_OUT" | tail -40; fail "the day2_count stock oracle's scale-down plan exited $ORACLE_COUNT_DOWN_PLAN_RC"; }
 grep -qE '^  # aws_route53_record\.wp-prod-staging\[9\] will be destroyed' <<< "$ORACLE_COUNT_DOWN_PLAN_OUT" \
@@ -979,8 +963,8 @@ log "  stock (plan-only): exactly one destroy proposed (wp-prod-staging[9]), eve
 
 COUNT_PLAIN_ORACLE_UP="$WORK/plain-count-oracle-up"
 cp -r "$PLAIN" "$COUNT_PLAIN_ORACLE_UP"
-( cd "$COUNT_PLAIN_ORACLE_UP" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$COUNT_PLAIN_ORACLE_UP" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock up-oracle's reinit failed"; }
+( cd "$COUNT_PLAIN_ORACLE_UP" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$COUNT_PLAIN_ORACLE_UP" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock up-oracle's reinit failed"; }
 STATE_RM_OUT="$(cd "$COUNT_PLAIN_ORACLE_UP" && terraform state rm 'aws_route53_record.wp-prod-staging[9]' 2>&1)"; STATE_RM_RC=$?
 [ "$STATE_RM_RC" -eq 0 ] || { printf '%s\n' "$STATE_RM_OUT" | tail -30; fail "the day2_count stock up-oracle's state rm failed"; }
 ORACLE_COUNT_UP_PLAN_OUT="$(cd "$COUNT_PLAIN_ORACLE_UP" && terraform plan -input=false -no-color 2>&1)"; ORACLE_COUNT_UP_PLAN_RC=$?
@@ -1854,7 +1838,17 @@ json.dump(d, open(p, 'w'))
   # post-destroy file for wp-prod-staging[9] is
   #   {"format_version":2,"address":"aws_route53_record.wp-prod-staging[9]",
   #    "kind":"identity","tombstone":{"name=staging12.datacite.org
-  #     type=A zone_id=<...>":{"identity":{"attrs":{"name":
+  #    \0type=A\0zone_id=<...>":{"identity":{"attrs":{"name":
+  # (The two \0 above are WRITTEN AS THE TWO-CHARACTER ESCAPE, not as
+  # the byte. The record key really is NUL-joined - identity/resolve.go
+  # builds it as type + "\x00" + ident + "\x00" + scope - but a raw NUL
+  # pasted into this transcript made the whole 159KB script read as
+  # BINARY to grep, which then skipped it in silence, at exit 0, in
+  # every sweep of live/e2e/*/run.sh: issues #1157, #1214, #1291, fixed
+  # in #1294. It also rendered the key as "...datacite.orgtype=A" on a
+  # terminal, hiding the very separator the comment exists to show.
+  # Quote control bytes as escapes here; live/grepblind_test.go fails
+  # any estate script that carries one.)
   #    "staging12.datacite.org","type":"A","zone_id":"<...>"}},
   #    "provider":"...","time":"2026-08-29T15:59:29Z"}}}
   # - no top-level "identity" key at all once tombstoned, only
@@ -1908,7 +1902,7 @@ json.dump(d, open(p, 'w'))
   # expected the file gone entirely and failed on a real, correctly
   # tombstoned file - the file's own content, read directly, is
   # {"format_version":2,"address":"aws_route53_record.wp-prod-staging[9]",
-  # "kind":"identity","tombstone":{"name=... type=A zone_id=...":
+  # "kind":"identity","tombstone":{"name=...\0type=A\0zone_id=...":
   # {"identity":{"attrs":{...}},"provider":"...","time":"..."}}} - no
   # top-level "identity" key at all once tombstoned).
   record_tombstoned() { jq -e 'has("tombstone") and (has("identity") | not)' "$1" >/dev/null 2>&1; }

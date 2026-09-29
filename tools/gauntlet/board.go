@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // SiteBoardPath is the site's copy of everything the progress pages show
@@ -36,9 +37,23 @@ type Board struct {
 	Banner string `json:"banner"`
 	// RuntimeBanner is runtimeBanner's sentence about recorded durations.
 	// Markdown.
-	RuntimeBanner string       `json:"runtime_banner"`
-	StageCount    int          `json:"stage_count"`
-	Stages        []BoardStage `json:"stages"`
+	RuntimeBanner string `json:"runtime_banner"`
+	// ScriptBanner is scriptStaleBanner's sentence: how many rows below
+	// were measured before their own estate directory, or the shared
+	// protocol library they source, last changed (#1264, #1292).
+	// Markdown. Empty when the board was built with no checkout to read,
+	// which says nothing rather than claiming everything is current.
+	ScriptBanner string `json:"script_banner,omitempty"`
+	// ProviderBanner is providerBanner's sentence (#1253): the same
+	// disagreement-breakdown treatment boardBanner already gives the
+	// emulator pin, applied to the hashicorp/aws and hashicorp/kubernetes
+	// pins. Markdown. Empty when every row that recorded a provider
+	// version agrees with the current pin, or when no row has recorded
+	// one yet - it says nothing rather than assert agreement no row
+	// supports.
+	ProviderBanner string       `json:"provider_banner,omitempty"`
+	StageCount     int          `json:"stage_count"`
+	Stages         []BoardStage `json:"stages"`
 	// Estates is every row, core set first, then by name - the order the
 	// index table has always used.
 	Estates      []BoardEstate   `json:"estates"`
@@ -103,12 +118,31 @@ type BoardEstate struct {
 	// **Stale** marker when the oracle pin has moved. Markdown. Empty for
 	// a row whose run never recorded an oracle.
 	OracleNote string `json:"oracle_note,omitempty"`
+	// ProviderNote is the provider-version-provenance sentence (#1253):
+	// hashicorp/aws for a floci-substrate row, hashicorp/kubernetes for a
+	// kind-substrate one, with its **Stale** marker when the relevant pin
+	// has moved. Markdown. Empty for a row whose run never recorded a
+	// provider version.
+	ProviderNote string `json:"provider_note,omitempty"`
 	// StaleNote is staleStagesNote's sentence: how many of this row's
 	// verdicts were carried forward from an earlier run rather than
 	// measured by the run recorded below (#1069). Markdown. Empty when the
 	// row carries none, which is every row whose last run reached every
 	// stage and every row written before per-stage provenance existed.
 	StaleNote string `json:"stale_note,omitempty"`
+	// ScriptStale is this row's whole-row staleness against the watched
+	// set - its own estate directory and live/e2e/lib/, the protocol
+	// library it sources (#1264, #1292): "changed", "unknown", or empty
+	// for a row where neither has moved since the run below measured it.
+	// It is the index table's badge; ScriptNote is the sentence, and the
+	// sentence says which of the two changed.
+	//
+	// A different fact from StaleNote above, which is about one RUN
+	// aborting before it reached a stage (#1069). This one is about the
+	// SCRIPT changing after the run finished.
+	ScriptStale string `json:"script_stale,omitempty"`
+	// ScriptNote is scriptStaleNote's sentence. Markdown.
+	ScriptNote string `json:"script_note,omitempty"`
 	// StageRows is the estate page's own table, one row per stage in the
 	// registry (planned and non-headline stages included, labelled).
 	StageRows []BoardStageRow `json:"stage_rows"`
@@ -143,16 +177,32 @@ type BoardLiveCert struct {
 // artifact and the manifest. Every sentence in it is computed fresh from
 // a.Estates on every call, never carried over, so it cannot go stale
 // independently of the rows it summarizes (the #414 rule).
-func buildBoard(m *Manifest, a *Artifact) Board {
+//
+// st is per-row script staleness (#1264), read from the checkout by the
+// caller for the same reason Render takes tt and scale rather than
+// re-deriving them: this function is handed data and stays pure, and a
+// caller rendering into a temp directory still reports the real checkout's
+// answer. A nil map is "no checkout was read", and every field it feeds
+// stays empty rather than claiming every row is current.
+// kindImage is the current kind-node-image pin (live/kind-node-image,
+// #1594) - the kind substrate's counterpart to a.Emulator, read by the
+// caller (Render) rather than carried on Artifact, the same "root is a
+// rendering-time fact, not derived-artifact state" reason st is passed in
+// rather than read from a. It is lastRunNote's only use (#1700): a
+// kind-substrate row's provenance sentence needs it to say whether that
+// row's recorded LastRun.SubstrateImage still matches the current pin.
+func buildBoard(m *Manifest, a *Artifact, st map[string]ScriptStaleness, kindImage string) Board {
 	b := Board{
-		Schema:        1,
-		Emulator:      a.Emulator,
-		Banner:        boardBanner(a),
-		RuntimeBanner: runtimeBanner(a),
-		StageCount:    len(a.Stages),
-		Lanes:         append([]string(nil), KnownLanes...),
-		ExampleEntry:  exampleEntryJSON(m),
-		LiveCert:      []BoardLiveCert{},
+		Schema:         1,
+		Emulator:       a.Emulator,
+		Banner:         boardBanner(a),
+		RuntimeBanner:  runtimeBanner(a),
+		ScriptBanner:   scriptStaleBanner(a, st),
+		ProviderBanner: providerBanner(a),
+		StageCount:     len(a.Stages),
+		Lanes:          append([]string(nil), KnownLanes...),
+		ExampleEntry:   exampleEntryJSON(m),
+		LiveCert:       []BoardLiveCert{},
 	}
 	for _, s := range a.Stages {
 		headline := "yes"
@@ -175,7 +225,7 @@ func buildBoard(m *Manifest, a *Artifact) Board {
 		return rows[i].Name < rows[j].Name
 	})
 	for _, r := range rows {
-		b.Estates = append(b.Estates, boardEstate(r, a))
+		b.Estates = append(b.Estates, boardEstate(r, a, st[r.Name], kindImage))
 	}
 	certs := append([]LiveCertResult(nil), a.LiveCert...)
 	sort.SliceStable(certs, func(i, j int) bool { return certs[i].Estate < certs[j].Estate })
@@ -188,8 +238,9 @@ func buildBoard(m *Manifest, a *Artifact) Board {
 	return b
 }
 
-// boardEstate is one estate's display row and page fields.
-func boardEstate(r EstateResult, a *Artifact) BoardEstate {
+// boardEstate is one estate's display row and page fields. s is this row's
+// script staleness (#1264); its zero value renders nothing.
+func boardEstate(r EstateResult, a *Artifact, s ScriptStaleness, kindImage string) BoardEstate {
 	e := BoardEstate{
 		Name: r.Name, Set: r.Set, Lane: r.Lane, Substrate: r.Substrate, Clear: r.Clear,
 		Source: r.Source, URL: r.URL, Pin: r.Pin, Reason: r.Reason,
@@ -198,6 +249,11 @@ func boardEstate(r EstateResult, a *Artifact) BoardEstate {
 		RuntimeTotal: runtimeTotalCell(r),
 		RuntimeCells: runtimeStageCells(r, a),
 		StaleNote:    staleStagesNote(r),
+		ScriptNote:   scriptStaleNote(s, EstateDir(r)),
+		ProviderNote: providerNote(r, a),
+	}
+	if s.State == ScriptChanged || s.State == ScriptUnknown {
+		e.ScriptStale = s.State
 	}
 	for _, s := range a.Stages {
 		carried := r.StageCarried(s.ID)
@@ -227,17 +283,26 @@ func boardEstate(r EstateResult, a *Artifact) BoardEstate {
 		}
 		e.StageRows = append(e.StageRows, row)
 	}
-	e.LastRunNote, e.LegacyNote = lastRunNote(r, a)
+	e.LastRunNote, e.LegacyNote = lastRunNote(r, a, kindImage)
 	e.OracleNote = oracleNote(r, a)
 	return e
 }
 
 // lastRunNote is the estate page's provenance sentence: commit, date, exit
-// code, the emulator image the run actually used, and a **Stale** marker
+// code, the substrate image the run actually used, and a **Stale** marker
 // when that image is no longer the pin. The second return is the sentence
 // for a row that predates the protocol; exactly one of the two is set for
 // any row that has recorded anything.
-func lastRunNote(r EstateResult, a *Artifact) (note, legacy string) {
+//
+// A kind-substrate row (#1067) never launches floci, so it leaves
+// LastRun.Emulator empty on purpose and records what it actually ran
+// against in LastRun.SubstrateImage instead (#1594); this function used to
+// switch only on Emulator, so every kind-lane row read as "was not
+// recorded" even when SubstrateImage was set (#1700). kindImage is the
+// current live/kind-node-image pin, providerNote's own
+// r.Substrate == SubstrateKind branch mirrored for the image rather than
+// the provider version.
+func lastRunNote(r EstateResult, a *Artifact, kindImage string) (note, legacy string) {
 	durationNote := ""
 	if r.LastRun != nil && r.LastRun.DurationS > 0 {
 		durationNote = " Total run time " + formatDuration(r.LastRun.DurationS) + "."
@@ -247,6 +312,16 @@ func lastRunNote(r EstateResult, a *Artifact) (note, legacy string) {
 	}
 	if r.LastRun == nil {
 		return "", ""
+	}
+	if r.Substrate == SubstrateKind {
+		switch {
+		case r.LastRun.SubstrateImage == "":
+			return fmt.Sprintf("Last run at commit `%s` on %s, exit code %d. This run's substrate image was not recorded.%s", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, durationNote), ""
+		case r.LastRun.SubstrateImage == kindImage:
+			return fmt.Sprintf("Last run at commit `%s` on %s, exit code %d, against substrate image `%s`.%s", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, r.LastRun.SubstrateImage, durationNote), ""
+		default:
+			return fmt.Sprintf("Last run at commit `%s` on %s, exit code %d, against substrate image `%s`. **Stale**: the current pin is `%s`.%s", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, r.LastRun.SubstrateImage, kindImage, durationNote), ""
+		}
 	}
 	switch {
 	case r.LastRun.Emulator == "":
@@ -271,6 +346,37 @@ func oracleNote(r EstateResult, a *Artifact) string {
 	return fmt.Sprintf("Oracle: stock terraform `%s`, stock tofu `%s`. **Stale**: the current pin is terraform `%s`, tofu `%s`.", r.LastRun.Oracle.Terraform, r.LastRun.Oracle.Tofu, a.Oracle.Terraform, a.Oracle.Tofu)
 }
 
+// providerNote is the provider-version-provenance sentence (#1253),
+// mirroring oracleNote's shape exactly: silent for a row whose run never
+// recorded a provider version, and otherwise reporting a match or a
+// **Stale** marker against a.Providers. A kind-substrate row (#1067)
+// reads its Kubernetes field; every other row reads AWS - the same split
+// LastRun's own AWSProviderVersion/KubernetesProviderVersion and
+// IsProviderStale use.
+func providerNote(r EstateResult, a *Artifact) string {
+	if r.LastRun == nil {
+		return ""
+	}
+	if r.Substrate == SubstrateKind {
+		got := r.LastRun.KubernetesProviderVersion
+		if got == "" {
+			return ""
+		}
+		if got == a.Providers.Kubernetes {
+			return fmt.Sprintf("Provider: hashicorp/kubernetes `%s` (matches the current pin).", got)
+		}
+		return fmt.Sprintf("Provider: hashicorp/kubernetes `%s`. **Stale**: the current pin is `%s`.", got, a.Providers.Kubernetes)
+	}
+	got := r.LastRun.AWSProviderVersion
+	if got == "" {
+		return ""
+	}
+	if got == a.Providers.AWS {
+		return fmt.Sprintf("Provider: hashicorp/aws `%s` (matches the current pin).", got)
+	}
+	return fmt.Sprintf("Provider: hashicorp/aws `%s`. **Stale**: the current pin is `%s`.", got, a.Providers.AWS)
+}
+
 // Canonical is the board's on-disk form: two-space indented, trailing
 // newline, the same shape Artifact.Canonical writes.
 func (b Board) Canonical() ([]byte, error) {
@@ -279,4 +385,121 @@ func (b Board) Canonical() ([]byte, error) {
 		return nil, err
 	}
 	return append(out, '\n'), nil
+}
+
+// BoardSelfConsistent reports whether a board's board-wide script-staleness
+// sentence agrees with the rows underneath it: the sentence is rebuilt from
+// the rows' own badges and notes and compared with the one the board
+// carries.
+//
+// Why this needs its own check, when StaleFilesReport already compares the
+// whole committed board against a fresh render: those three fields are the
+// one part of the board that comparison deliberately does NOT hold anyone
+// to. #1264's ruling is that script staleness is a comparison against git,
+// so a committed board goes behind the tree under commits nothing
+// re-rendered, and failing on that would turn every estate-script pull
+// request into an estate-run pull request. So
+// boardsDifferOnlyInScriptStaleness strips the banner and the per-row
+// badges before comparing, and anything that moves only those fields is
+// reported and never blocked.
+//
+// That excuse is right for a board that LAGS and wrong for one that is
+// INCOHERENT, and a line-based merge produces the second. The board is a
+// 15,000-line JSON file where the banner is one line near the top and the
+// badges it counts are spread over the rows below; git merges the two
+// regions independently. Replaying the merges in this repository's history
+// through `git merge-file` (issue #1308), three of the conflict hunks
+// across five merges were exactly this shape - one hunk holding the banner,
+// two more holding badges on named estates - and resolving them from
+// different sides produces a board whose headline says 25 rows while 28
+// rows below it carry the badge. That board matches no artifact and no
+// checkout, and without this check the render comparison waves it through
+// as advisory.
+//
+// The check never reads git and never looks at the artifact, so a lagging
+// board and a board rendered in a checkout with no history both pass:
+// staying silent about currency is the whole of #1264's ruling, and all
+// this adds is that whatever the board does say has to be one answer
+// rather than two.
+func BoardSelfConsistent(b Board) error {
+	t, err := boardScriptStaleTally(b)
+	if err != nil {
+		return err
+	}
+	if want := t.banner(); want != b.ScriptBanner {
+		return fmt.Errorf("the board's script_banner does not describe the rows below it (#1308: a line-based merge of two rendered boards takes the banner from one side and the badges from the other).\n  carries: %s\n  rows say: %s", b.ScriptBanner, want)
+	}
+	return nil
+}
+
+// boardScriptStaleTally recovers, from a board's rows alone, the tally its
+// script_banner was built from. It is scriptStaleBanner's inverse, and it
+// reads only fields the board itself carries.
+//
+// The one fact not stored as data is whether a stale row moved only on the
+// shared-library side, which the banner counts separately (#1292). It is
+// recovered from the row's own note, which staleSubject wrote from the same
+// two constants this reads back, so the sentence and its inverse move
+// together or not at all.
+func boardScriptStaleTally(b Board) (scriptStaleTally, error) {
+	var t scriptStaleTally
+	rowsSpeak := false
+	for _, e := range b.Estates {
+		if e.ScriptStale != "" || strings.HasPrefix(e.ScriptNote, scriptStaleNoteOpener) {
+			rowsSpeak = true
+		}
+	}
+	if b.ScriptBanner == "" {
+		// No checkout was read, so no row may claim otherwise.
+		if rowsSpeak {
+			var named []string
+			for _, e := range b.Estates {
+				if e.ScriptStale != "" {
+					named = append(named, e.Name)
+				}
+			}
+			return t, fmt.Errorf("the board makes no script-staleness claim (script_banner is empty) but %d row(s) below carry one: %s (#1308)", len(named), strings.Join(named, ", "))
+		}
+		return t, nil
+	}
+	t.total = len(b.Estates)
+	for _, e := range b.Estates {
+		switch e.ScriptStale {
+		case "":
+			if strings.HasPrefix(e.ScriptNote, scriptStaleNoteOpener) {
+				return t, fmt.Errorf("estate %q carries a **Stale** script note but no script_stale badge (#1308)", e.Name)
+			}
+		case ScriptChanged:
+			shared, err := staleNoteIsSharedOnly(e)
+			if err != nil {
+				return t, err
+			}
+			t.changed = append(t.changed, e.Name)
+			if shared {
+				t.sharedOnly++
+			}
+		case ScriptUnknown:
+			t.unknown = append(t.unknown, e.Name)
+		default:
+			return t, fmt.Errorf("estate %q carries script_stale=%q, which is neither %q nor %q (#1308)", e.Name, e.ScriptStale, ScriptChanged, ScriptUnknown)
+		}
+	}
+	return t, nil
+}
+
+// staleNoteIsSharedOnly reads back which side moved for a row badged
+// "changed": true when nothing in the estate's own directory did, which is
+// the count the banner's #1292 clause reports.
+func staleNoteIsSharedOnly(e BoardEstate) (bool, error) {
+	subject, ok := strings.CutPrefix(e.ScriptNote, scriptStaleNoteOpener)
+	if !ok {
+		return false, fmt.Errorf("estate %q is badged script_stale=%q but its script_note does not say since when: %q (#1308)", e.Name, ScriptChanged, e.ScriptNote)
+	}
+	switch {
+	case strings.HasPrefix(subject, staleSubjectShared):
+		return true, nil
+	case strings.HasPrefix(subject, staleSubjectOwn):
+		return false, nil
+	}
+	return false, fmt.Errorf("estate %q is badged script_stale=%q but its script_note names neither its own files nor %s: %q (#1308)", e.Name, ScriptChanged, SharedLibDir, e.ScriptNote)
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -50,7 +51,7 @@ resource "kubernetes_manifest" "crontab" {
 	if rc == nil {
 		t.Fatalf("fixture does not declare kubernetes_manifest.crontab; it declares %v", keysOfResources(cfg))
 	}
-	seed, _ := configuredAttrsSeed(context.Background(), cfg.Module.StaticEvaluator, cfg.Path, rc, manifestSeedSchema(), nil)
+	seed, _ := configuredAttrsSeed(context.Background(), cfg.Module.StaticEvaluator, cfg.Path, rc, manifestSeedSchema(), nil, strict.DefaultSecrets)
 	got, ok := seed["manifest"]
 	if !ok {
 		t.Fatalf("manifest missing from the seed; got keys %v", seedKeys(seed))

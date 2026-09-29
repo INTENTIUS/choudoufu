@@ -1,5 +1,5 @@
 # k8s-no-silent-orphans
-# CLAIM 22 - No silent orphans on Kubernetes: an object this estate owns whose block is deleted is proposed for removal by the next plan, found by its label with one list per kind, and a controller's copies of that label are never touched. ~3 min.
+# CLAIM 1 (kubernetes) - No silent orphans on Kubernetes: an object this estate owns whose block is deleted is proposed for removal by the next plan, found by its label with one list per kind, and a controller's copies of that label are never touched. ~3 min.
 #
 # The Kubernetes sibling of claim 1 (#1065, under #1016's ruling). The
 # estate label is the only thing that says an object is this estate's; a
@@ -10,7 +10,10 @@
 # estate label in a template on purpose, and the plan must propose the one
 # orphan and never a Pod or ReplicaSet. BREAK=1 strips the label from the
 # orphan and requires the replan to leave it alone: an unowned object is
-# not this estate's to destroy.
+# not this estate's to destroy. The ordinary run strips the orphan's
+# address annotation instead (#1639), label intact, and requires the
+# removal all the same: the annotation joins an object to a block
+# (#1640), and the label is what makes it the estate's.
 
 SMOKE_WORK="$SMOKE_WORKROOT/k8s-no-silent-orphans"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -61,8 +64,6 @@ resource "kubernetes_deployment" "web" {
 TF
 
 cluster_up
-
-kc() { kubectl --kubeconfig "$KUBECONFIG" "$@"; }
 
 step "1. a Kubernetes estate with a Deployment whose pod template carries the estate label"
 explain \
@@ -129,6 +130,19 @@ if [ "${BREAK:-0}" = "1" ]; then
   exit 0
 fi
 
+# The orphan carries its block's address annotation (#1639), which names a
+# block nothing declares now. The sweep's second join reads it (#1640), and
+# it must not be what makes the object an orphan: the label is. So the
+# annotation goes first, and the plan below has to propose the object all
+# the same (#1605's package, claim 1).
+cmd "kubectl annotate configmap doomed-config -n smoke-k8s choudoufu.intentius.io/tofu-address-"
+DOOMED_ADDR="$(kc get configmap doomed-config -n smoke-k8s -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}' 2>&1)"
+[ "$DOOMED_ADDR" = "kubernetes_config_map.doomed" ] \
+  || fail "k8s-no-silent-orphans" "the orphan-to-be does not carry its block's address annotation: '$DOOMED_ADDR'"
+kc annotate configmap doomed-config -n smoke-k8s choudoufu.intentius.io/tofu-address- >/dev/null \
+  || fail "k8s-no-silent-orphans" "could not strip the orphan's address annotation"
+echo "doomed-config: address annotation stripped, tofu-estate label intact" | evidence
+
 PLAN_OUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" \
   || fail "k8s-no-silent-orphans" "plan failed: $PLAN_OUT"
 grep -E '^Plan:|will be destroyed' <<< "$PLAN_OUT" | head -3 | evidence
@@ -139,7 +153,7 @@ grep -q 'doomed-config' <<< "$PLAN_OUT" \
 if grep -qiE 'kubernetes_pod|replica_set|replicaset' <<< "$PLAN_OUT"; then
   fail "k8s-no-silent-orphans" "the plan touches a controller-owned copy: $PLAN_OUT"
 fi
-proof "exactly one destroy, the ConfigMap nobody declares, found by its label. The ReplicaSet and the Pod carrying the same label are untouched: an ownerReference keeps a controller's copies out of every delete."
+proof "exactly one destroy, the ConfigMap nobody declares, found by its label with its address annotation stripped. The ReplicaSet and the Pod carrying the same label are untouched: an ownerReference keeps a controller's copies out of every delete."
 
 step "4. apply - the orphan goes, the copies stay"
 cmd "choudoufu apply -auto-approve"

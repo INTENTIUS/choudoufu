@@ -40,6 +40,34 @@ type Verdicts struct {
 	// This is the input to projection.BuildFrom.
 	Resolutions []identity.Resolution
 
+	// KubernetesAddressBound names every declared instance the Kubernetes
+	// leg bound through an object's address annotation rather than through
+	// the natural key its configuration names (GitHub issue #1640), keyed
+	// by [addrs.AbsResourceInstance.String]. Each one also has a
+	// [Binding] and a concrete resolution naming the object. It is what
+	// [Merge] reads to keep that resolution over the configuration's
+	// own concrete one, which another pass carries unchanged: both are
+	// bound classes, so nothing else would tell them apart.
+	KubernetesAddressBound map[string]bool
+
+	// KubernetesUnaddressed is the Kubernetes leg's account of every
+	// instance in [Request.NodeRefused] that it did not bind (GitHub issue
+	// #1641), keyed by [addrs.AbsResourceInstance.String]. An instance is
+	// present only when the leg listed every kind its type can declare,
+	// and the value names the listed objects that could be its object and
+	// carry no address annotation: this estate's label, a kind the type
+	// manages, a namespace and name no concrete resolution declares, not
+	// terminating, and no annotation (or one that does not parse). Such an
+	// object is one an older build created, or one migrated from stock
+	// state before live-import stamped it.
+	//
+	// It is what the node's #1617 refusal reads since
+	// substrate.Kubernetes.CarriesAddress flipped: present and empty, a
+	// create is safe, because an object this block made carries the
+	// annotation and would have bound; non-empty, or absent (a kind that
+	// failed to list, a pass that never ran), the refusal stands.
+	KubernetesUnaddressed map[string][]string
+
 	// Bindings lists every declared instance that a live resource claimed,
 	// in address order.
 	Bindings []Binding
@@ -181,6 +209,17 @@ type Report struct {
 	// "none exist" from "nothing looked".
 	Unclaimed []UnclaimedResource
 
+	// ControllerHeld lists the live resources this pass saw held by a
+	// controller rather than a block, on both substrates (the 2026-09-26
+	// ruling on #1604). On AWS, those carrying an in-cluster controller's
+	// tags (GitHub issue #1606): taken out of Unclaimed, and out of the
+	// removal set when they also carried this estate's markers. See
+	// [applyControllerHeld]. On Kubernetes, the objects among
+	// KubernetesOwnerSkipped whose holder the sweep can name: today the
+	// objects a Helm release holds (#1607), which carry the estate's label
+	// but are never orphans or adoptable. Sorted by type, then identity.
+	ControllerHeld []ControllerHeldResource
+
 	// SweepGaps lists the resource types the estate-wide sweep could not
 	// enumerate: types the provider cannot list, and types whose list call
 	// failed. An orphan of one of them is invisible to this run, so its
@@ -278,24 +317,61 @@ type Result struct {
 	Verdicts
 	Report
 
-	// sweepPrefetchWasted and sweepPrefetchMismatched are GitHub issue #605's
-	// own self-check, and both are always zero.
+	// sweepPrefetchWasted, sweepPrefetchUnplanned and
+	// sweepPrefetchMismatched are GitHub issue #605's own self-check, and
+	// all three are always zero.
 	//
 	// The sweep's list calls are issued concurrently, ahead of the loop that
 	// consumes them, by a planner that mirrors the sweep=true branches
 	// through [scanType]'s and [scanTypeCloudControl]'s heads. A mirror can
-	// drift, and the two ways it can drift are the two fields here: a call
-	// planned that the scan never asks for (wasted - the sweep spent a list
-	// call the sequential loop would not have spent, breaking issue #605's
-	// "call counts must be identical" acceptance), and an answer fetched with
-	// a list configuration the scan then disagreed with (mismatched - refused
-	// and re-listed rather than used, because a listing of the wrong scope is
-	// the one divergence a call count cannot see).
+	// drift, and these are the three ways it can:
+	//
+	//   - wasted: a call planned that the scan never asks for. The sweep
+	//     spent a list call the sequential loop would not have spent, which
+	//     is issue #605's "call counts must be identical" acceptance.
+	//   - unplanned: a call the scan makes that the plan did not predict.
+	//     The ANSWER is right - the body calls for itself exactly as it did
+	//     before #605 - but the call is sequential, so the concurrency this
+	//     whole mechanism exists for is silently given up for that type.
+	//     Issue #1328: the mirror's Cloud Control gate still read the
+	//     registry's taggable flag alone after #881 gave the body a
+	//     provider-schema term beside it.
+	//   - mismatched: an answer fetched with a list configuration the scan
+	//     then disagreed with, refused and re-listed rather than used,
+	//     because a listing of the wrong scope is the one divergence a call
+	//     count cannot see.
+	//
+	// The first two are opposite directions of one property and both are
+	// needed: a guard that watches only "the scan asked for nothing extra"
+	// passes on a mirror that plans nothing at all. #1328 survived exactly
+	// that way for as long as it did.
 	//
 	// Unexported: this is evidence for the package's own tests, not a fact
 	// about the estate. See TestSweepPrefetchPlansExactlyTheCallsTheScanMakes.
 	sweepPrefetchWasted     []string
+	sweepPrefetchUnplanned  []string
 	sweepPrefetchMismatched int
+
+	// sweepDenied is every Cloud Control listing this run's own credential
+	// was refused (GitHub issue #1052), collected by [sweepGapDenied] so
+	// that [deniedSweepDiag] raises one warning for all of them at the end
+	// of [Discover] rather than one per type, or, for a caller that set
+	// [Request.DeferDeniedSweepWarning], so that [DeniedSweepWarning]
+	// raises one over every pass it ran (GitHub issue #1513). The gaps
+	// themselves are in
+	// SweepGaps like any other; this is only what the one warning is built
+	// from. Unexported for the same reason the prefetch evidence above is:
+	// it is the run's own bookkeeping, not a fact about the estate.
+	sweepDenied []sweepDenial
+
+	// kubeSweepDenied is every Kubernetes list call this run's own
+	// credential was refused with Forbidden (GitHub issue #1582), the
+	// Kubernetes leg's counterpart of sweepDenied: collected by
+	// [sweepGapKubeDenied] so that [kubeDeniedSweepDiag] raises one
+	// warning for all of them, naming the verb, resource and namespace
+	// the grant lacks, the same way [deniedSweepDiag] does for AWS. The
+	// gaps themselves are in SweepGaps like any other.
+	kubeSweepDenied []kubeDenial
 }
 
 // ParentReadFinding is one live child a parent read found: an untaggable,
@@ -593,6 +669,14 @@ type OwnedResource struct {
 	// Tags are the resource's tags as listed.
 	Tags map[string]string
 
+	// AddressAnnotation is a Kubernetes object's address annotation as
+	// carried (kubesweep.AddressAnnotation, GitHub issue #1639), escaped,
+	// or empty when it carries none. Only the Kubernetes leg sets it; an
+	// AWS resource's address is its Marker. An orphan that carries one
+	// names an address the configuration does not declare, or one a
+	// sibling object already answers for (GitHub issue #1640).
+	AddressAnnotation string
+
 	// Resource is the full listed object, so that a consumer can match on
 	// content without listing again - which is what strengthens a rename
 	// pairing. cty.NilVal when the provider sent no object.
@@ -620,6 +704,18 @@ type OwnedResource struct {
 	// resource never reached policy at all (already withheld for a possible
 	// rename before policy ever saw it).
 	PolicyVerb policy.Verb
+
+	// Provider is the provider configuration whose pass found this
+	// resource, set by [Merge] (and by a single-pass caller that skips
+	// it, through [Result.AttributeOrphans]). An orphan has no resource
+	// block to name one, and the account, region or cluster it was listed
+	// in is the only place it can be read or written again: GitHub issue
+	// #1657, where every undeclared_tagged = "untag" target was released
+	// through the estate's first provider configuration instead, so a
+	// Kubernetes orphan reached the AWS provider and an orphan in a second
+	// region was imported in the first, found missing, and reported
+	// released. The zero value means no caller attributed it.
+	Provider addrs.AbsProviderConfig
 }
 
 // String renders an owned-but-undeclared resource on one line.
@@ -636,16 +732,36 @@ func (o OwnedResource) String() string {
 
 // SweepGapReason is why one resource type could not be swept for this
 // estate's undeclared resources.
-// noRegistryRowOrUntaggable builds the gap for a type the sweep skips
-// because the roster reports it untaggable, choosing between the two facts a
-// bare false collapses (issue #168).
+// noRegistryRowOrUntaggable builds the gap for a type the sweep skips on the
+// strength of live/registry.json's tagging.taggable being false, choosing
+// between the three distinct facts that one false has been made to carry.
 //
 // known=false means live/registry.json has no row for the CFN type at all,
 // so it recorded nothing and the old message - "live/registry.json records X
 // as untaggable" - would have been claiming otherwise. That case is a skew
 // between two artifacts rather than a property of the resource, and it says
-// which commands fix it.
-func noRegistryRowOrUntaggable(typeName, cfnType string, known bool) SweepGap {
+// which commands fix it (issue #168).
+//
+// schemaTaggable is issue #1322's input, and it is what decides between the
+// other two. live/registry.json's flag is CloudFormation's claim about
+// whether ITS OWN update-tags API writes this type's tags; it is NOT a
+// statement about whether a live object of the type can carry an ownership
+// marker, and for every admitted type that reaches this function through
+// [sweepViaTagging] today the two answers disagree. schemaTaggable is
+// [typeTaggable] - [markers.Taggable] over the provider's own resource
+// schema, the same answer live/survey-full.json's signals.taggable column
+// records and the same one internal/live/stamp acts on when it writes the
+// marker. It is the authority that actually writes the tag, so it is the
+// authority on whether one is there to find.
+//
+// The registry flag keeps deciding WHETHER a gap is filed - that is the
+// caller's condition and #1144's reverted attempt is why it stays - but it no
+// longer decides what the gap SAYS. A false "this type can carry no
+// ownership marker" does not become harmless by being suppressed: it travels
+// into [Result.SweepGaps], into internal/live/foreign's report and into
+// views.StatelessSweepGap, where it is the recorded reason a destroy was not
+// proposed for an object that is in fact marked.
+func noRegistryRowOrUntaggable(typeName, cfnType string, known, schemaTaggable bool) SweepGap {
 	if !known {
 		return SweepGap{
 			TypeName: typeName,
@@ -656,11 +772,22 @@ func noRegistryRowOrUntaggable(typeName, cfnType string, known bool) SweepGap {
 				typeName, cfnType),
 		}
 	}
+	if schemaTaggable {
+		return SweepGap{
+			TypeName: typeName,
+			Reason:   SweepGapTagIndexCoverageUnconfirmed,
+			Detail: fmt.Sprintf(
+				"live/registry.json records %s (Cloud Control type %s) as untaggable, but that flag is CloudFormation's claim about whether its own update-tags API writes this type's tags - not a fact about the live object. "+
+					"The provider gives %s a tags argument and choudoufu writes this estate's ownership marker onto it, so the estate-wide tag sweep did search for it and the Resource Groups Tagging API returned none of this estate's. "+
+					"Nothing in this run establishes whether that index covers %s, so the run claims no coverage for it: if a block of it was deleted, no destroy is proposed for the live resource. Re-run the plan, or remove it by hand.",
+				typeName, cfnType, typeName, typeName),
+		}
+	}
 	return SweepGap{
 		TypeName: typeName,
 		Reason:   SweepGapNotTaggable,
 		Detail: fmt.Sprintf(
-			"live/registry.json records %s (Cloud Control type %s) as untaggable, so it can carry no ownership marker and the sweep has nothing to search on.",
+			"A %s carries no tags argument in the provider's own schema, so it can carry no ownership marker and the sweep has nothing to search on (live/registry.json's row for Cloud Control type %s agrees).",
 			typeName, cfnType),
 	}
 }
@@ -682,9 +809,59 @@ const (
 
 	// SweepGapNotTaggable is an admitted type whose objects carry no tags,
 	// so it can hold no ownership marker and the sweep has nothing to search
-	// on. Its identity comes out of configuration, which means deleting its
-	// resource block deletes the only record of which resource it was.
+	// on. Its identity comes out of configuration instead - re-derived from
+	// the declaration on every run for most such types, which is why an
+	// untaggable type is overwhelmingly a derivable one rather than a
+	// record-backed one - so deleting its resource block deletes the only
+	// thing that said which live object it was.
+	//
+	// Since issue #1322 every producer of this reason reads the PROVIDER's
+	// own resource schema for it ([markerCapable], [typeTaggable], content
+	// match's own no-tags-argument finding). None reads
+	// live/registry.json's tagging.taggable, which is CloudFormation's
+	// claim about its own update-tags API and answers a different question:
+	// four of the five admitted types that reach
+	// [noRegistryRowOrUntaggable] through [sweepViaTagging] carry an
+	// explicit CloudFormation taggable:false while the provider gives them
+	// a tags argument and this fork stamps a marker onto them. Those get
+	// [SweepGapTagIndexCoverageUnconfirmed] instead, and
+	// TestNoSweepGapClaimsUntaggableAgainstTheProviderSchema is the guard.
 	SweepGapNotTaggable SweepGapReason = "TYPE_NOT_TAGGABLE"
+
+	// SweepGapTagIndexCoverageUnconfirmed is issue #1322's verdict, and it
+	// is what [SweepGapNotTaggable] used to say about a type that plainly
+	// can carry a marker.
+	//
+	// It is filed where three things hold at once: live/registry.json
+	// records the type's CFN type as untaggable, the provider's own
+	// resource schema gives the type a tags argument, and the estate-wide
+	// GetResources answer held none of the type. The first of those is
+	// CloudFormation's claim about whether ITS update-tags API writes the
+	// tags - AWS::EC2::LaunchTemplate and the two AWS::EC2::SecurityGroup*
+	// rule types say taggable:false because their CloudFormation schemas
+	// carry no Tags property, which is true of CloudFormation and says
+	// nothing about the live object, which internal/live/stamp marks
+	// perfectly well.
+	//
+	// So the honest verdict is neither "this type cannot be marked"
+	// ([SweepGapNotTaggable], false here) nor "the estate owns none of it"
+	// (a covered scan with Listed:0, which over-claims - see
+	// [noRegistryRowOrUntaggable] and #1144's reverted attempt). It is
+	// "nothing in this run establishes whether the tag index covers this
+	// type", and the gap stays recorded and uncovered on that basis.
+	//
+	// Suppressed by [sweepGapDiag], deliberately and with exactly the
+	// population [SweepGapNotTaggable] was suppressed with before it: this
+	// reason is a split of that one's branch, so no type became quiet that
+	// was not quiet already. The types where an empty index answer IS worth
+	// a per-run diagnostic are the ones whose index coverage this
+	// repository has MEASURED as region-restricted, and #1320 already
+	// routes those to the loud [SweepGapTagIndexHeldNothing] one arm
+	// earlier. For an ordinary type an empty index answer is the evidence
+	// the entire tagging leg rests on; raising it here would put a warning
+	// on every plan in every region that an operator can do nothing about,
+	// and bury the measured case.
+	SweepGapTagIndexCoverageUnconfirmed SweepGapReason = "TAG_INDEX_COVERAGE_UNCONFIRMED"
 
 	// SweepGapNoRegistryRow is an admitted type whose CFN type
 	// live/mapping.json names and live/registry.json has no row for. It is
@@ -824,6 +1001,59 @@ const (
 	// is internal/live/discovery/directread.go, which asks the provider
 	// about one declared address rather than guessing from an absence.
 	SweepGapTagIndexUnavailable SweepGapReason = "TAG_INDEX_UNAVAILABLE"
+
+	// SweepGapTagIndexHeldNothing is the third answer [sweepViaTagging]'s
+	// registry-untaggable arm needs (issue #1318), and it exists because a
+	// lagging index and an untaggable type look identical at that point:
+	// both are an empty candidate list for a type live/registry.json calls
+	// untaggable.
+	//
+	// They are not identical, and one input tells them apart. The
+	// provider's own resource schema either gives the type a tags argument
+	// or it does not ([typeTaggable]). Where it does not, nothing was ever
+	// there for the index to hold, [SweepGapNotTaggable] is true and
+	// [sweepGapDiag] is right to suppress it. Where it does - and
+	// live/registry.json says otherwise for AWS::IAM::Policy and
+	// AWS::IAM::InstanceProfile, whose CloudFormation schemas carry no Tags
+	// property while internal/live/stamp writes this estate's marker onto
+	// every object of both - the empty answer may be an index that has not
+	// caught up. Issue #1046 measured the Resource Groups Tagging API
+	// holding 104 of 1,655 stamped objects about 21 minutes after migrate
+	// had verified every one of them on a real account.
+	//
+	// Scoped to the types whose index coverage this repository has actually
+	// MEASURED as something other than the ordinary every-region one
+	// ([taggingAPIRestrictedType]), and only from a region that coverage
+	// says does serve them. For an ordinary type an empty index answer is
+	// the evidence the whole tagging leg rests on - it is what "the estate
+	// owns none of this type" looks like for every one of the hundreds of
+	// types in the universe - and raising it to a per-run diagnostic there
+	// would bury the case where the index is known not to behave
+	// ordinarily. Those types keep their suppression, unchanged. Their
+	// WORDING was wrong about them, and issue #1322 settled where that is
+	// repaired: at the reader rather than in live/registry.json's
+	// generator, whose only input is the CloudFormation bundle and whose
+	// flag is a correct answer to CloudFormation's own question. They now
+	// carry [SweepGapTagIndexCoverageUnconfirmed], still silent.
+	//
+	// Distinct from [SweepGapTagIndexUnavailable], where the index could
+	// not be ASKED - no Tagging client, or the one GetResources call
+	// failed. Here the call succeeded and the answer simply held none of
+	// this type. Distinct from [SweepGapMarkerUnreadable], where a leg
+	// enumerated the objects and could not read a marker off them; here
+	// nothing was enumerated at all. Distinct from [SweepGapNotTaggable],
+	// which is the same silence for a type that could never have carried a
+	// marker - saying that about a type whose every live object carries one
+	// is the conflation this reason exists to end.
+	//
+	// Recorded rather than covered, deliberately. Adding [typeTaggable] to
+	// the arm's condition instead - so the type falls through to an
+	// ordinary scan with Listed:0 - was tried on #1144 and reverted: that
+	// claims the sweep established the estate owns none of the type and
+	// drops it out of [Result.SweepGaps] altogether. A recorded gap
+	// under-claims, a covered scan over-claims, and over-claiming is the
+	// one this project's safety rule forbids.
+	SweepGapTagIndexHeldNothing SweepGapReason = "TAG_INDEX_HELD_NOTHING"
 
 	// SweepGapScopeUnavailable is a type whose CFN listing needs a
 	// parent-scoped ResourceModel (live/registry.json's
@@ -1353,6 +1583,15 @@ const (
 	// point lookup by its own address, so "Listed" here counts records
 	// found, not objects returned by one call.
 	SourceRecordStore EnumerationSource = "RECORD_STORE"
+
+	// SourceService is the service's own list API, through
+	// [Request.ServiceList] (GitHub issue #1477): reached only when the
+	// provider offers no native list resource for the type and Cloud
+	// Control cannot enumerate it either, for a type the lister has a
+	// route for. One paginated call per type, no server-side tag filter,
+	// and every listed object's marker read separately (see
+	// servicelist.go).
+	SourceService EnumerationSource = "SERVICE_API"
 )
 
 // TypeScan is what happened for one resource type.
@@ -1456,6 +1695,33 @@ type TypeScan struct {
 	// able to see how many of them a run made.
 	DirectRead int
 
+	// LookalikeRelist marks a row whose type was listed a SECOND time,
+	// without the server-side estate filter, after binding had already
+	// run - GitHub issue #1480, [relistForLookalikes]. It happens only on
+	// a plain plan (CollectUnclaimed unset), only for a type whose first
+	// listing was server-side estate-filtered, and only when a declared
+	// instance of that type was left unbound, which is to say only when
+	// the plan proposes creating one. Scope, Filtering and FilterReason
+	// describe that second call rather than the first, because they are
+	// what internal/live/foreign reads to decide whether an unclaimed
+	// resource of this type could have been seen at all - and after the
+	// widening it could.
+	//
+	// Declared, Listed, Bound, Joined, NameBound, DirectRead and
+	// ServiceTagReads all still describe the FIRST, estate-scoped call:
+	// the second one binds nothing and claims nothing. Only Unclaimed
+	// grows, by what the widening found.
+	LookalikeRelist bool
+
+	// RelistListed is the number of live resources the widened list
+	// described by LookalikeRelist returned - the whole regional
+	// population of the type, against Listed's estate-scoped count. Zero
+	// on every row where LookalikeRelist is false. It is reported rather
+	// than folded into Listed because it is the cost of an extra call,
+	// and live/costs/plan-cost.md's claim is about how many calls a plan
+	// makes.
+	RelistListed int
+
 	// ServiceTagReads is the number of listed objects of this type whose
 	// marker no enumeration route and no tag index could carry, and which
 	// the per-service tag-read leg therefore asked the service's own tag
@@ -1466,7 +1732,7 @@ type TypeScan struct {
 	// It is the one number in this struct that grows with the estate
 	// rather than with the type count, so it is reported rather than
 	// folded into anything: #1037 and #1039 made the sweep flat and
-	// site/content/docs/model/plan-cost.md publishes that, and a leg that
+	// live/costs/plan-cost.md publishes that, and a leg that
 	// bends the claim has to be visible in the scan row where the claim is
 	// measured.
 	ServiceTagReads int
@@ -1491,8 +1757,13 @@ func (s TypeScan) String() string {
 		source = " source=provider"
 	case SourceRecordStore:
 		source = " source=record-store"
+	case SourceService:
+		source = " source=service-api"
 	}
 	joined := ""
+	if s.LookalikeRelist {
+		joined += fmt.Sprintf(" lookalike-relist=%d", s.RelistListed)
+	}
 	if s.Joined > 0 {
 		joined = fmt.Sprintf(" joined=%d", s.Joined)
 	}
@@ -1575,6 +1846,9 @@ func (r *Result) String() string {
 	for _, u := range r.Unclaimed {
 		b.WriteString("UNCLAIMED " + u.String() + "\n")
 	}
+	for _, c := range r.ControllerHeld {
+		b.WriteString("HELD      " + c.String() + "\n")
+	}
 	for _, g := range r.SweepGaps {
 		b.WriteString("SWEEPGAP  " + g.String() + "\n")
 	}
@@ -1588,6 +1862,7 @@ func (r *Result) String() string {
 }
 
 func (r *Result) sortEverything() {
+	sortControllerHeld(r.ControllerHeld)
 	sort.Slice(r.Bindings, func(i, j int) bool {
 		return r.Bindings[i].Addr.String() < r.Bindings[j].Addr.String()
 	})
@@ -1632,4 +1907,15 @@ func (r *Result) sortEverything() {
 	sort.Slice(r.Resolutions, func(i, j int) bool {
 		return r.Resolutions[i].Addr.String() < r.Resolutions[j].Addr.String()
 	})
+}
+
+// UnaddressedAccount returns [Verdicts.KubernetesUnaddressed], nil-safely,
+// for the plan-node resolver's projection.NodeResolver.UnaddressedObjects
+// (GitHub issue #1641). A run with no discovery result has no account,
+// and the node's refusal stands wherever it applies.
+func (r *Result) UnaddressedAccount() map[string][]string {
+	if r == nil {
+		return nil
+	}
+	return r.KubernetesUnaddressed
 }

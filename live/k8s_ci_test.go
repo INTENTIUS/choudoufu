@@ -25,6 +25,14 @@ import (
 // Proving it red: add a live/smoke/scenarios/k8s-x.sh with no matrix
 // entry, or a kubernetes-lane estate the gauntlet step does not name, or
 // change one workflow's kind pin; each fails a different check below.
+//
+// The kind binary's own version (as opposed to kubectl's, or the
+// helm/kind-action release) moved from a literal `version: vX.Y.Z` copied
+// into each job to a shared step reading the single pin file
+// live/kind-version (issue #1594): kindVersion below accepts either shape,
+// so this test still catches the two workflows disagreeing, and
+// live/kind_pin_test.go's TestWorkflowsReadTheKindVersionPin is what
+// refuses a literal from reappearing.
 
 const (
 	k8sSmokeWorkflow  = "../.github/workflows/k8s-smoke.yml"
@@ -34,10 +42,12 @@ const (
 
 var (
 	kindActionLine = regexp.MustCompile(`uses: helm/kind-action@(v[0-9]+\.[0-9]+\.[0-9]+)`)
-	kindVersion    = regexp.MustCompile(`\n\s+version: (v[0-9]+\.[0-9]+\.[0-9]+)`)
+	kindVersion    = regexp.MustCompile(`\n\s+version: (v[0-9]+\.[0-9]+\.[0-9]+|\$\{\{ steps\.kind\.outputs\.version \}\})`)
 	kubectlVersion = regexp.MustCompile(`\n\s+kubectl_version: (v[0-9]+\.[0-9]+\.[0-9]+)`)
 	matrixEntry    = regexp.MustCompile(`\n\s+- (k8s-[a-z0-9-]+)`)
-	k8sLaneRun     = regexp.MustCompile(`go run \./tools/gauntlet run ([a-z0-9 -]+) \| tee gauntlet-run-k8s\.log`)
+	// The shard matrix is computed, never typed: a `gauntlet estates` step
+	// in the plan job, read back through fromJSON into `matrix:` (#1550).
+	matrixFromManifest = regexp.MustCompile(`(?s)go run \./tools/gauntlet estates.*matrix:\s*\n\s*estate: \$\{\{ fromJSON\(needs\.plan\.outputs\.estates\) \}\}`)
 )
 
 func TestKubernetesSmokesRunInCIWithTheirControls(t *testing.T) {
@@ -76,6 +86,72 @@ func TestKubernetesSmokesRunInCIWithTheirControls(t *testing.T) {
 	}
 }
 
+// TestKubernetesSmokesGetTheEmulatorToolsTheyNeed: a Kubernetes scenario
+// that starts the pinned floci emulator needs Docker and the AWS CLI on the
+// runner as well as kind, and k8s-smoke.yml has to check for them. Claim 27
+// gained such a step in #1394 - its label removal measured from a second
+// working directory, over a record store the two share - and a runner
+// without the AWS CLI would have failed it halfway through, or, worse, a
+// scenario written to skip the step there would have reported the same PASS
+// as one that ran it.
+//
+// Proving it red: delete the "aws --version" line from the workflow, or the
+// stack_up call from k8s-a-label-is-a-change.sh. Both were run on
+// 2026-09-19.
+func TestKubernetesSmokesGetTheEmulatorToolsTheyNeed(t *testing.T) {
+	wf, err := os.ReadFile(k8sSmokeWorkflow)
+	if err != nil {
+		t.Fatalf("read %s: %v", k8sSmokeWorkflow, err)
+	}
+	entries, err := os.ReadDir(filepath.Join("smoke", "scenarios"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var needEmulator []string
+	for _, e := range entries {
+		name := strings.TrimSuffix(e.Name(), ".sh")
+		if !strings.HasPrefix(name, k8sScenarioPrefix) || !strings.HasSuffix(e.Name(), ".sh") {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join("smoke", "scenarios", e.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, line := range smokeExecutableLines(string(raw)) {
+			if line != "" && smokeStackUp.MatchString(line) {
+				needEmulator = append(needEmulator, name)
+				break
+			}
+		}
+	}
+	if len(needEmulator) == 0 {
+		// Never a skip: a guard that disables itself when the thing it
+		// guards disappears is one nobody notices going green.
+		t.Fatalf("no k8s-* scenario starts the emulator any more, so this guard is checking nothing; claim 27's shared-record-store step (#1394) is where it came from")
+	}
+	for _, want := range []string{"docker info", "aws --version"} {
+		if !strings.Contains(string(wf), want) {
+			t.Errorf("%v start the floci emulator, and k8s-smoke.yml never checks for %q; the job would fail inside a scenario, or a scenario written to skip the step there would report the same PASS as one that ran it", needEmulator, want)
+		}
+	}
+}
+
+// TestKubernetesLaneRunsNightly: the nightly still measures every
+// kubernetes-lane estate, now that the board is sharded one estate per job
+// (#1550).
+//
+// It used to run the lane in a step naming its four estates by hand, and
+// this test held that list to the manifest. The list is gone: gauntlet.yml
+// builds its matrix from `gauntlet estates`, which computes the set's own
+// selection plus the whole kubernetes lane (tools/gauntlet/shards.go, and
+// TestShardEstatesCarriesTheKubernetesLaneOfThisRepository, which is where
+// the lane-membership half of this claim now lives - it can call the
+// function rather than read a workflow).
+//
+// What is checkable here is that the workflow names no estate at all. A
+// hand-written list is what an estate drops out of, so the guard is the
+// absence of every single manifest name from the file, not the presence of
+// the right ones.
 func TestKubernetesLaneRunsNightly(t *testing.T) {
 	wf, err := os.ReadFile(gauntletWorkflow)
 	if err != nil {
@@ -94,8 +170,9 @@ func TestKubernetesLaneRunsNightly(t *testing.T) {
 	if err := json.Unmarshal(raw, &m); err != nil {
 		t.Fatal(err)
 	}
-	var lane []string
+	var lane, all []string
 	for _, e := range m.Estates {
+		all = append(all, e.Name)
 		if e.Lane == "kubernetes" {
 			lane = append(lane, e.Name)
 		}
@@ -103,19 +180,42 @@ func TestKubernetesLaneRunsNightly(t *testing.T) {
 	if len(lane) == 0 {
 		t.Fatal("the manifest has no kubernetes-lane estate; this guard is checking nothing")
 	}
-	run := k8sLaneRun.FindStringSubmatch(string(wf))
-	if run == nil {
-		t.Fatalf("gauntlet.yml has no kubernetes-lane run step (go run ./tools/gauntlet run <estates> | tee gauntlet-run-k8s.log)")
-	}
-	named := strings.Fields(run[1])
-	sort.Strings(named)
 	sort.Strings(lane)
-	if strings.Join(named, ",") != strings.Join(lane, ",") {
-		t.Errorf("gauntlet.yml's kubernetes step runs %v; the manifest's kubernetes lane is %v. A lane estate the nightly never runs goes stale against every repin with nothing re-measuring it.", named, lane)
+
+	// Comments name estates freely and always have (the CGO_ENABLED note
+	// names corpus-eks-basic because that estate is why the flag is
+	// there). What must carry no name is what the runner executes.
+	executable := workflowWithoutComments(string(wf))
+
+	if !matrixFromManifest.MatchString(string(wf)) {
+		t.Errorf("gauntlet.yml's shard matrix is not computed from the manifest (expected a `go run ./tools/gauntlet estates` step feeding `matrix:` through fromJSON); a list the workflow carries itself is a list an estate drops out of")
 	}
-	if !strings.Contains(string(wf), "gauntlet-run-k8s.log") || strings.Count(string(wf), "gauntlet-run-k8s.log") < 2 {
-		t.Errorf("gauntlet.yml does not keep gauntlet-run-k8s.log as an artifact; the lane's per-estate lines would be unreadable after the run")
+	for _, name := range all {
+		if strings.Contains(executable, name) {
+			t.Errorf("gauntlet.yml names estate %q. The matrix comes from `gauntlet estates`; a name typed into the workflow is either a duplicate run or an estate list that will not follow the manifest.", name)
+		}
 	}
+	// The lane's per-estate lines still have to be readable after the run:
+	// each shard keeps its own log, and the collect job keeps the lot.
+	for _, want := range []string{"gauntlet-run-${{ matrix.estate }}.log", "shards/"} {
+		if !strings.Contains(executable, want) {
+			t.Errorf("gauntlet.yml does not keep %s; a shard's per-estate lines would be unreadable after the run", want)
+		}
+	}
+}
+
+// workflowWithoutComments drops whole-line YAML comments, which is where
+// this repository's workflows keep their reasoning - and where an estate
+// name is a citation rather than an instruction.
+func workflowWithoutComments(wf string) string {
+	var kept []string
+	for _, line := range strings.Split(wf, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\n")
 }
 
 func TestKubernetesWorkflowsPinOneKind(t *testing.T) {

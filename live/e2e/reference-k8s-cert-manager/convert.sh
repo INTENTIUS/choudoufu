@@ -33,7 +33,23 @@ URL="https://github.com/cert-manager/cert-manager/releases/download/v1.21.2/cert
 WANT_SHA="e03b668ec8675214af6b0a671699d088f2601fa3878e0dbe1b41d3feafd1879f"
 WANT_BYTES=1034400
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+# The status is saved and re-raised, and a run that stops before its last
+# step is refused (#1421, the shape #1419 gave selftest-oidc-bootstrap.sh).
+# Measured on bash 3.2.57: an unbound-variable death under `set -e` hands
+# the EXIT trap $?=0 and the script exits 0, which is how that one read as
+# a pass when it died part way. This script runs without -e and such a
+# death already exits 1; the flag is for the other way a run can stop early
+# with status 0 - an exit reached inside code run in this shell, or an -e
+# added later - and it turns that into a FAIL line and exit 1 as well.
+convert_finished=0
+# shellcheck disable=SC2154 # convert_rc is assigned on the trap's first line
+trap 'convert_rc=$?
+      rm -rf "$WORK"
+      if [ "$convert_finished" != 1 ]; then
+        echo "convert.sh: FAIL: stopped before writing root/cert-manager.tf, so the file on disk is whatever was there before. Read the output above for where." >&2
+        exit 1
+      fi
+      exit $convert_rc' EXIT
 
 command -v tfk8s >/dev/null 2>&1 || { echo "convert.sh: tfk8s is not on PATH (go install github.com/jrhouston/tfk8s@v0.1.10)" >&2; exit 1; }
 
@@ -88,6 +104,7 @@ python3 "$HERE/order.py" "$WORK/cert-manager.tf" || exit 1
 HDR
   cat "$WORK/cert-manager.tf"
 } > "$HERE/root/cert-manager.tf"
+convert_finished=1
 
 echo "wrote $HERE/root/cert-manager.tf ($(wc -c < "$HERE/root/cert-manager.tf" | tr -d ' ') bytes, $n blocks)"
 echo

@@ -119,7 +119,18 @@ gauntlet_end() {
 #
 # The scale matters for exactly that reason: a refusal usually happens before
 # cold_deploy, so there is no stage detail to read a scale off, and a refusal
-# that cannot name its scale cannot be placed on the ladder at all. Pass it.
+# that cannot name its scale cannot be placed on the ladder at all. Pass it -
+# if the estate HAS a ladder. An estate run at a size declares
+# `"scale_ladder": true` in live/gauntlet/estates.json, and for one of those
+# a refusal with no scale= fails the run: the rung it declined is the whole
+# point of the record, and shelving it would hide which size was refused.
+#
+# An estate that declares no ladder - reference-ec2-vpc, one fixed shape
+# certified against a real account - passes "-" and its refusal is recorded
+# estate-level, in live/gauntlet-scale.json's `refusals` beside the ladder
+# rather than on it (#1233). That is the "the account's AMI for this region
+# is gone" example above: nothing about it is a size, and it still has to
+# land somewhere, because a refusal is the only record its run produces.
 #
 # Emitting this does not end the run - the caller decides what to do next
 # (usually: tear down whatever exists, then exit non-zero).
@@ -212,7 +223,15 @@ gauntlet_refused() {
 # applied.
 gauntlet_aws_pin_version() {
   : "${ROOT:?gauntlet_aws_pin_version needs $ROOT set (every crossing script sets it before sourcing this file)}"
-  python3 -c "import json;print(json.load(open('$ROOT/live/oracle-versions.json'))['aws_provider_version'])" 2>/dev/null
+  gauntlet_oracle_pin aws_provider_version
+}
+
+# gauntlet_oracle_pin <field>: prints one field of live/oracle-versions.json,
+# or nothing when the field is absent or the file unreadable. The caller
+# decides what an empty answer means; every caller here treats it as fatal.
+gauntlet_oracle_pin() {
+  : "${ROOT:?gauntlet_oracle_pin needs \$ROOT set}"
+  python3 -c "import json,sys;print(json.load(open(sys.argv[1]))[sys.argv[2]])" "$ROOT/live/oracle-versions.json" "$1" 2>/dev/null
 }
 
 gauntlet_pin_aws_provider() {
@@ -233,6 +252,85 @@ gauntlet_pin_aws_provider() {
     || { printf 'gauntlet_pin_aws_provider: %s does not carry the pinned hashicorp/aws version %s after rewrite - the corpus module shape may have moved\n' "$target" "$pin" >&2; return 1; }
 }
 
+# gauntlet_aws_required_provider [indent]: prints the hashicorp/aws entry of
+# a required_providers block, pinned to the same
+# live/oracle-versions.json aws_provider_version gauntlet_pin_aws_provider
+# rewrites a copied module to (issue #1216).
+#
+#     aws = {
+#       source  = "hashicorp/aws"
+#       version = "= <the pin>"
+#     }
+#
+# gauntlet_pin_aws_provider REWRITES a file somebody else wrote - the right
+# shape for a corpus module copied out of .corpus, whose own constraint
+# arrives as a bare lower bound. A reference estate has no such file: it
+# hand-authors its own root from a heredoc, so there is nothing to rewrite
+# and the requirement is text the script itself chooses. Before this
+# function that text was the release spelled out by hand, which is how
+# reference-ec2-vpc came to measure at 6.58.0 - nineteen copies of one
+# version string, written the day the script was - for the five weeks the
+# pin moved 6.59.0 and then 6.63.0 underneath it, while every corpus-copying
+# estate on the board moved with it.
+#
+# Read it ONCE into a variable at the top of the script and interpolate that
+# variable into each heredoc, rather than calling it per heredoc:
+#
+#     AWS_REQUIRED_PROVIDER="$(gauntlet_aws_required_provider)" \
+#       || fail "could not read the hashicorp/aws pin"
+#
+# A call whose output is dropped into a heredoc directly cannot be checked -
+# an unreadable pin would emit nothing, the terraform block would carry no
+# aws requirement at all, and init would quietly resolve the provider from
+# the registry, which is the float the pin exists to stop. Assigning it once
+# puts the whole script behind one `|| fail`.
+#
+# indent is the leading whitespace of the entry's own first line (default
+# four spaces, the depth of an entry inside `terraform { required_providers
+# { ... } }`); the inner lines are indented two further.
+#
+# live/pins_drift_test.go's TestGauntletCrossingScriptsCarryNoVersionLiteral
+# (widened by #1216) checks that no registered crossing script declaring
+# hashicorp/aws spells an exact provider version out itself, which is what
+# makes this the only way a hand-authored root gets one.
+gauntlet_aws_required_provider() {
+  gauntlet_required_provider aws hashicorp/aws aws_provider_version "${1:-    }"
+}
+
+# gauntlet_kubernetes_required_provider [indent]: the same for
+# hashicorp/kubernetes, from live/oracle-versions.json's
+# kubernetes_provider_version (#1252). The kind-substrate estates hand-author
+# their roots exactly the way reference-ec2-vpc does, so the same rule
+# applies: read it once into a variable, behind one `|| fail`.
+gauntlet_kubernetes_required_provider() {
+  gauntlet_required_provider kubernetes hashicorp/kubernetes kubernetes_provider_version "${1:-    }"
+}
+
+# gauntlet_required_provider <local-name> <source> <field> [indent]: prints
+# one required_providers entry pinned exactly to live/oracle-versions.json's
+# <field>. The two functions above are the only callers; a third provider
+# pin would be a third field and a third one-line wrapper.
+gauntlet_required_provider() {
+  local name="$1" source="$2" field="$3" indent="${4:-    }" pin
+  pin="$(gauntlet_oracle_pin "$field")"
+  [ -n "$pin" ] || { printf 'gauntlet_required_provider: could not read %s from %s/live/oracle-versions.json\n' "$field" "$ROOT" >&2; return 1; }
+  printf '%s%s = {\n%s  source  = "%s"\n%s  version = "= %s"\n%s}\n' "$indent" "$name" "$indent" "$source" "$indent" "$pin" "$indent"
+}
+
+# gauntlet_kind_node_image: prints live/kind-node-image's pinned digest, or
+# nothing if the file cannot be read. Every kind-substrate cluster is
+# created FROM this image (#1594): a bare `kind create cluster` uses
+# whatever node image the kind binary on PATH happens to default to, and
+# that default moves across kind releases (kind v0.33.0 defaults to
+# Kubernetes 1.37.0; a reference-k8s-cert-manager run was once measured on
+# v1.36.1) - two runs of the same commit can then measure two different
+# Kubernetes versions purely because of which kind happened to be
+# installed.
+gauntlet_kind_node_image() {
+  : "${ROOT:?gauntlet_kind_node_image needs \$ROOT set}"
+  cat "$ROOT/live/kind-node-image" 2>/dev/null
+}
+
 # gauntlet_kind_up <name> <kubeconfig>: the kind substrate (#1067). A
 # kubernetes-lane crossing script runs against a kind cluster instead of a
 # floci emulator: a real API server, so what the script asserts is what any
@@ -245,12 +343,15 @@ gauntlet_pin_aws_provider() {
 # stock's oracle runs on. Needs kind (https://kind.sigs.k8s.io) and kubectl
 # on PATH; prints the reason and returns 1 when either is missing, so the
 # script's own fail() records the stage it was setting up. The create is
-# logged beside the kubeconfig.
+# logged beside the kubeconfig, from the pinned node image (#1594) rather
+# than whatever kind's own default happens to be.
 gauntlet_kind_up() {
-  local name="$1" cfg="$2"
+  local name="$1" cfg="$2" image
   command -v kind >/dev/null 2>&1 || { printf 'gauntlet_kind_up: kind is not installed; this estate needs a kind cluster (brew install kind)\n' >&2; return 1; }
   command -v kubectl >/dev/null 2>&1 || { printf 'gauntlet_kind_up: kubectl is not installed\n' >&2; return 1; }
-  kind create cluster --name "$name" --kubeconfig "$cfg" --wait 120s >"${cfg}.kind.log" 2>&1 \
+  image="$(gauntlet_kind_node_image)"
+  [ -n "$image" ] || { printf 'gauntlet_kind_up: could not read the pinned node image from %s/live/kind-node-image\n' "$ROOT" >&2; return 1; }
+  kind create cluster --image "$image" --name "$name" --kubeconfig "$cfg" --wait 120s >"${cfg}.kind.log" 2>&1 \
     || { printf 'gauntlet_kind_up: kind create cluster %s failed:\n' "$name" >&2; tail -5 "${cfg}.kind.log" >&2; return 1; }
 }
 
@@ -275,7 +376,227 @@ gauntlet_kind_count() {
   printf '%s\n' "$n"
 }
 
+# gauntlet_kind_day2_replace <adopted-root> <oracle-root> <namespace>:
+# day2_replace on the kind substrate (#1541, #1641). A Kubernetes name is
+# unique within its namespace, so the replacement create_before_destroy is
+# used for is a rename: the content-hashed ConfigMap, name = "cfg-<hash>",
+# which a Deployment rolls onto before the old one goes. Since #1640 the old
+# object is bound to its block by its address annotation, so the plan is
+# the replace stock plans (create first) and not a create beside an orphan
+# destroy of the old object, which is the order #1541 measured.
+#
+# Both roots get the same block in a file of its own (day2_replace.tf),
+# at cfg-a and then cfg-b; stock on cluster B is the oracle for the plan's
+# shape and for the apply's order. Each apply runs at -parallelism=1 and
+# the log's line order is the evidence: the new object's "Creation
+# complete" before the old one's "(deposed object ...): Destroying". The
+# block is removed from both roots at the end, so every later stage's
+# counts are what they were.
+#
+# The caller supplies what differs per estate: fail, stock_b (stock in the
+# oracle root on cluster B), kca (kubectl on cluster A), TOFU, KCA and
+# ESTATE. BREAK_REPLACE=1 is the stage's Break line: after the replace it
+# recreates cfg-a carrying the estate label and the block's annotation,
+# and the next plan must propose destroying it rather than nothing.
+gauntlet_kind_day2_replace() {
+  local adopted="$1" oracle="$2" ns="$3" block="kubernetes_config_map.hashed"
+  local o_plan r_plan o_apply r_apply created destroying ann b_plan r_replan r_rm o_rm
+  _day2_replace_tf() { # $1 dir, $2 the name's suffix
+    cat > "$1/day2_replace.tf" <<EOF
+resource "kubernetes_config_map" "hashed" {
+  metadata {
+    name      = "cfg-$2"
+    namespace = "$ns"
+  }
+  data = { v = "$2" }
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+EOF
+  }
+  _day2_replace_chdf() { ( cd "$adopted" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" "$TOFU" "$@" ); }
+  # _day2_replace_order <log> <where>: the line of the create's completion
+  # and of the deposed destroy's start, create first, or fail.
+  _day2_replace_order() {
+    created="$(grep -nE "${block//./\\.}: Creation complete" <<< "$1" | head -1 | cut -d: -f1)"
+    destroying="$(grep -nE "${block//./\\.} \(deposed object [^)]*\): Destroying" <<< "$1" | head -1 | cut -d: -f1)"
+    [ -n "$created" ] && [ -n "$destroying" ] || { printf '%s\n' "$1" | tail -20; fail "$2: the apply log has no create complete (${created:-none}) or no deposed destroy (${destroying:-none}) for $block"; }
+    [ "$created" -lt "$destroying" ] || { printf '%s\n' "$1" | tail -20; fail "$2: the old object's destroy started (log line $destroying) before the new object's create completed (line $created) - the window #1541 measured, open the wrong way round"; }
+  }
+  # _day2_replace_is_replace <plan> <where>: the plan's shape, stock's.
+  _day2_replace_is_replace() {
+    grep -qF "Plan: 1 to add, 0 to change, 1 to destroy." <<< "$1" || { printf '%s\n' "$1" | tail -20; fail "$2: the rename is not one add and one destroy: $(grep -E '^Plan:|^No changes' <<< "$1" | head -1)"; }
+    grep -qE "# ${block//./\\.} must be replaced" <<< "$1" || { printf '%s\n' "$1" | grep -E '# ' | head -5; fail "$2: $block is not planned as a replace"; }
+    grep -qF "+/- create replacement and then destroy" <<< "$1" || fail "$2: the replace is not create-first"
+    if grep -q "orphan_" <<< "$1"; then
+      printf '%s\n' "$1" | grep -E '# ' | head -5
+      fail "$2: the old object is planned as an orphan beside a create (#1541) rather than as the replace's deposed half"
+    fi
+  }
+
+  _day2_replace_tf "$oracle" a; _day2_replace_tf "$adopted" a
+  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's apply of cfg-a failed on B"
+  r_apply="$(_day2_replace_chdf apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$r_apply" | tail -20; fail "the apply of cfg-a failed"; }
+  grep -qF "Apply complete! Resources: 1 added, 0 changed, 0 destroyed." <<< "$r_apply" || fail "the apply of cfg-a did not add exactly one object"
+  ann="$(kca get configmap cfg-a -n "$ns" -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}' 2>&1)"
+  [ "$ann" = "$block" ] || fail "cfg-a carries the address annotation '$ann', want $block (#1639): nothing would bind it on the rename"
+
+  _day2_replace_tf "$oracle" b; _day2_replace_tf "$adopted" b
+  o_plan="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$o_plan" | tail -10; fail "stock's rename plan failed on B"; }
+  _day2_replace_is_replace "$o_plan" "stock on B (the oracle)"
+  r_plan="$(_day2_replace_chdf plan -input=false -no-color 2>&1)" || { printf '%s\n' "$r_plan" | tail -20; fail "the rename plan failed"; }
+  _day2_replace_is_replace "$r_plan" "choudoufu"
+
+  o_apply="$(stock_b apply -auto-approve -input=false -no-color -parallelism=1 2>&1)" || { printf '%s\n' "$o_apply" | tail -10; fail "stock's rename apply failed on B"; }
+  _day2_replace_order "$o_apply" "stock on B (the oracle)"
+  r_apply="$(_day2_replace_chdf apply -auto-approve -input=false -no-color -parallelism=1 2>&1)" || { printf '%s\n' "$r_apply" | tail -20; fail "the rename apply failed"; }
+  grep -qF "Apply complete! Resources: 1 added, 0 changed, 1 destroyed." <<< "$r_apply" || fail "the rename apply did not add one object and destroy one"
+  _day2_replace_order "$r_apply" "choudoufu"
+  kca get configmap cfg-b -n "$ns" >/dev/null 2>&1 || fail "cfg-b does not exist after the replace"
+  kca get configmap cfg-a -n "$ns" >/dev/null 2>&1 && fail "cfg-a still exists after the replace"
+  ann="$(kca get configmap cfg-b -n "$ns" -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}' 2>&1)"
+  [ "$ann" = "$block" ] || fail "cfg-b carries the address annotation '$ann', want $block"
+
+  if [ "${BREAK_REPLACE:-}" = "1" ]; then
+    kca create configmap cfg-a -n "$ns" --from-literal=v=a >/dev/null || fail "BREAK_REPLACE: could not recreate cfg-a"
+    kca label configmap cfg-a -n "$ns" "tofu-estate=$ESTATE" >/dev/null || fail "BREAK_REPLACE: could not label cfg-a"
+    kca annotate configmap cfg-a -n "$ns" "choudoufu.intentius.io/tofu-address=$block" >/dev/null || fail "BREAK_REPLACE: could not annotate cfg-a"
+    b_plan="$(_day2_replace_chdf plan -input=false -no-color 2>&1)" || { printf '%s\n' "$b_plan" | tail -20; fail "BREAK_REPLACE: the plan over the recreated cfg-a failed"; }
+    grep -q "No changes." <<< "$b_plan" && fail "BREAK_REPLACE=1: the old object is back, carrying the block's address, and the plan proposes nothing - the empty-plan assertion is not load-bearing"
+    grep -qE "orphan_${ns}_cfg-a will be destroyed" <<< "$b_plan" || { printf '%s\n' "$b_plan" | tail -20; fail "BREAK_REPLACE=1: the plan does not propose destroying the recreated cfg-a"; }
+    _day2_replace_chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 || fail "BREAK_REPLACE: the apply removing cfg-a again failed"
+  else
+    r_replan="$(_day2_replace_chdf plan -input=false -no-color 2>&1)" || { printf '%s\n' "$r_replan" | tail -20; fail "the replan after the replace failed"; }
+    grep -q "No changes." <<< "$r_replan" || { printf '%s\n' "$r_replan" | tail -20; fail "the replan after the replace is not empty"; }
+  fi
+
+  rm -f "$oracle/day2_replace.tf" "$adopted/day2_replace.tf"
+  o_rm="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$o_rm" | tail -10; fail "stock's removal of the replace block failed on B"; }
+  r_rm="$(_day2_replace_chdf apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$r_rm" | tail -20; fail "removing the replace block failed"; }
+  grep -qF "Apply complete! Resources: 0 added, 0 changed, 1 destroyed." <<< "$r_rm" || fail "removing the replace block did not destroy exactly cfg-b"
+  kca get configmap cfg-b -n "$ns" >/dev/null 2>&1 && fail "cfg-b still exists after its block was removed"
+
+  if [ "${BREAK_REPLACE:-}" = "1" ]; then
+    gauntlet_stage day2_replace pass "BREAK_REPLACE=1 control: after the create_before_destroy rename cfg-a -> cfg-b, cfg-a was recreated by hand carrying tofu-estate=$ESTATE and the annotation naming $block, and the next plan proposes destroying it rather than nothing, so the empty-plan assertion is load-bearing; the real replan check is skipped"
+  else
+    gauntlet_stage day2_replace pass "a create_before_destroy ConfigMap whose content-hashed name changes (cfg-a -> cfg-b) plans as stock's replace: '$block must be replaced', +/- create replacement and then destroy, 1 add and 1 destroy, with no orphan destroy beside it, because cfg-a carries the block's address annotation and the sweep binds it (#1640). At -parallelism=1 the apply log shows cfg-b's creation complete (line $created) before cfg-a's deposed destroy starts (line $destroying), the same order stock's apply shows on the oracle cluster; kubectl confirms cfg-b alone remains, carrying the annotation, and the next plan is empty (#1541). The block is removed from both roots afterwards. BREAK_REPLACE=1 recreates cfg-a carrying the block's annotation and the next plan correctly proposes destroying it"
+  fi
+}
+
+# gauntlet_k8s_wait_all <kubeconfig> <namespace> <kind> <condition>
+#                       <timeout-seconds> <where>
+#
+# Waits for every object of <kind> in <namespace> to reach <condition>, and
+# keeps the three ways that can go wrong apart (#1285).
+#
+# `kubectl wait --all` is a selector over a set, and against a set that is
+# EMPTY kubectl does not wait for members to turn up - it prints "error: no
+# matching resources found" and returns 1 in about 0.05s. A caller that
+# treats any non-zero exit as the timeout it asked for then reports "did not
+# become ready within 300s" for a question that was answered instantly, and
+# sends the next reader to look at objects that were never there. Measured
+# on kind, kubectl v1.36.1, against a namespace with no Deployments:
+#
+#   $ kubectl wait --for=condition=Available --timeout=300s deployment --all -n empty-ns
+#   error: no matching resources found
+#   rc=1 after 0s
+#
+# An empty match is almost always a setup bug - wrong namespace, the install
+# never ran, the chart renamed its Deployments - and it is a different
+# problem from an object that exists and stays unready, so it gets its own
+# message naming what was looked for and where.
+#
+# This is #1278's complaint one shape over, not its mechanism: that was a
+# status subresource served as `null`, this is a selector matching nothing.
+# It lives here and not in live/smoke/lib.sh's k8s_wait_condition, which
+# #1278 added, because the two trees do not share shell: no script in
+# live/e2e sources the smoke library and none in live/smoke sources this
+# one. They could not anyway - smoke's fail() takes (scenario, message) and
+# exits the scenario, while an e2e crossing script's fail() records the
+# CURRENT_STAGE verdict; and k8s_wait_condition reads one global $KUBECONFIG
+# where a crossing script such as reference-k8s-cert-manager holds two, one
+# per cluster. So this returns 1 and prints, and the caller's own fail()
+# decides what that means.
+#
+# All three legs are bounded: the pre-check is a single kubectl get, and the
+# wait carries kubectl's own --timeout. Nothing here can spin (#1143, #1267).
+#
+#   empty set        -> "no <kind> objects exist in namespace <ns> on <where>"
+#   still not <cond> -> the timeout message, with the elapsed seconds it
+#                       really took and the names it was waiting on
+#   anything else    -> said to have failed BEFORE the bound, never called a
+#                       timeout, with kubectl's own words quoted
+#
+# kubectl's output is captured and printed rather than dropped into
+# /dev/null: the issue's second half, and the same reason #1158 exists.
+gauntlet_k8s_wait_all() {
+  local cfg="$1" ns="$2" kind="$3" cond="$4" timeout="$5" where="$6"
+  local names out rc start elapsed n timedout
+
+  # stdout only, never 2>&1: `names` is counted, so a deprecation notice or
+  # any other stderr chatter folded into it would be counted as an object
+  # and send an empty set down the wait leg - the very confusion this
+  # function exists to remove. The error path re-runs the same get with
+  # stderr merged, purely to quote what kubectl said.
+  names="$(kubectl --kubeconfig "$cfg" get "$kind" -n "$ns" -o name 2>/dev/null)" || {
+    printf 'gauntlet_k8s_wait_all: could not list %s in namespace %s on %s, so whether they reached %s was never asked: %s\n' \
+      "$kind" "$ns" "$where" "$cond" "$(kubectl --kubeconfig "$cfg" get "$kind" -n "$ns" -o name 2>&1)" >&2
+    return 1
+  }
+  n="$(printf '%s' "$names" | grep -c . || true)"
+  if [ "$n" -eq 0 ]; then
+    # A namespace that does not exist answers this list with an empty set
+    # and exit 0 (measured: `kubectl get deployment -n no-such-ns -o name`
+    # is rc=0, no output, nothing on stderr), so it reaches here looking
+    # exactly like a namespace that exists and is empty. They are different
+    # setup bugs, so they get different sentences.
+    if ! kubectl --kubeconfig "$cfg" get namespace "$ns" >/dev/null 2>&1; then
+      printf 'gauntlet_k8s_wait_all: namespace %s does not exist on %s, so no %s could be waited for and nothing was - NOT a %ss timeout.\n' \
+        "$ns" "$where" "$kind" "$timeout" >&2
+      kubectl --kubeconfig "$cfg" get namespaces >&2 2>&1 || true
+      return 1
+    fi
+    printf 'gauntlet_k8s_wait_all: no %s objects exist in namespace %s on %s, so nothing was waited for - `kubectl wait --all` matches an empty set and gives up at once, it does not wait for objects to appear. This is a setup failure (the install never ran, or the objects are named differently), NOT a %ss timeout.\n' \
+      "$kind" "$ns" "$where" "$timeout" >&2
+    kubectl --kubeconfig "$cfg" get all -n "$ns" >&2 2>&1 || true
+    return 1
+  fi
+
+  start="$(date +%s)"
+  # `out=$(...) || rc=$?`, not `out=$(...); rc=$?`: eight crossing scripts
+  # run under `set -euo pipefail`, where a failing command substitution in a
+  # bare assignment exits the script before the next line can read $? - and
+  # the failing case is the one this whole function is about.
+  rc=0
+  out="$(kubectl --kubeconfig "$cfg" wait --for="condition=$cond" --timeout="${timeout}s" "$kind" --all -n "$ns" 2>&1)" || rc=$?
+  elapsed=$(( $(date +%s) - start ))
+  if [ "$rc" -eq 0 ]; then
+    printf '  ready after %ss: all %s %s in namespace %s on %s reached %s\n' "$elapsed" "$n" "$kind" "$ns" "$where" "$cond"
+    return 0
+  fi
+  # Was that the bound expiring, or kubectl failing for some other reason?
+  # Two independent signals, because getting this wrong is the whole defect:
+  # kubectl's own phrase for the bound expiring, and the elapsed time. The
+  # elapsed comparison carries one second of slack - both ends are whole
+  # seconds from `date +%s`, so a wait that really ran the full 300s can
+  # floor to 299 and would otherwise be announced as "not a timeout".
+  timedout=0
+  case "$out" in *"timed out waiting for the condition"*) timedout=1 ;; esac
+  if [ "$elapsed" -ge "$(( timeout > 1 ? timeout - 1 : 0 ))" ]; then timedout=1; fi
+  if [ "$timedout" -eq 1 ]; then
+    printf 'gauntlet_k8s_wait_all: TIMEOUT - the %s %s in namespace %s on %s did not all reach %s within %ss (waited %ss). Waiting on: %s\nkubectl said: %s\n' \
+      "$n" "$kind" "$ns" "$where" "$cond" "$timeout" "$elapsed" "$(printf '%s' "$names" | tr '\n' ' ')" "$out" >&2
+  else
+    printf 'gauntlet_k8s_wait_all: kubectl wait FAILED after %ss, before the %ss bound it was given, so this is not a timeout - the %s %s in namespace %s on %s were never reported unready, the command itself did not run to completion. Waiting on: %s\nkubectl said: %s\n' \
+      "$elapsed" "$timeout" "$n" "$kind" "$ns" "$where" "$(printf '%s' "$names" | tr '\n' ' ')" "$out" >&2
+  fi
+  kubectl --kubeconfig "$cfg" get pods -n "$ns" >&2 2>&1 || true
+  return 1
+}
+
 # gauntlet_record_count <dir>: counts a record store's on-disk record files
+# gauntlet_record_count <dir>: counts a record store's on-disk FILES
 # under <dir> the way every crossing script already counted them by hand -
 # "-type f", skipping the write-lock and in-progress-write files a
 # staterecord.Store leaves beside its records - PLUS one more exclusion:
@@ -289,8 +610,152 @@ gauntlet_kind_count() {
 # sentinelKeyName and update the literal here. Before this exclusion
 # existed, a store touched during a run counted one file too many
 # (issue #861).
+#
+# It counts FILES, which is only the same question as "how many records"
+# when nothing else shares the path - and in a record STORE, three other
+# things do. A store's root holds four sibling namespaces, kept disjoint
+# by construction (internal/configs' validateRecordStoreKeyPrefix refuses
+# an override rooted at any of them):
+#
+#   <root>/tofu-records/<estate>/<type>/<key>   the records
+#   <root>/tofu-hints/<estate>/guided           guided discovery (#109)
+#   <root>/tofu-outputs/<estate>/<key>          root output values (#349)
+#   <root>/tofu-receipts/<estate>/<effect>      receipts
+#
+# So this counts records only when it is handed the RECORDS NAMESPACE -
+# "<root>/tofu-records" or something under it. Handed the store root it
+# counts the hint and every root output too: measured 2026-09-18 on a
+# fixture holding two records, a sentinel, a hint, a root output, a lock
+# and a temporary, it reads 4 for 2 records. That is what issue #1288 hit,
+# as reference-k8s-cert-manager's greenfield reading 51 for 50 instances,
+# and issue #1291 is the audit of every caller.
+#
+# The store-root argument is therefore REFUSED rather than documented
+# against (#1291): a helper that is only correct on some of its inputs,
+# with the condition written in a comment forty lines from the call, is a
+# trap with a caveat. The refusal is by what is on disk rather than by the
+# spelling of the path, so a caller that builds the directory out of shell
+# variables is caught too - and it fires on the store root even before a
+# hint exists there, so it is deterministic rather than depending on
+# whether guided discovery has run yet. tools/gauntlet's
+# TestNoScriptCountsARecordStoreRoot is the same rule read statically, in
+# CI, without running an estate.
+#
+# What survives here is the cheap question - how many files are under a
+# directory of records - which 24 of the 36 call sites issue #1291
+# enumerated are asking, and which needs no python per call. For "how many
+# RECORDS", at a store root or anywhere else, use
+# gauntlet_record_envelope_count below.
 gauntlet_record_count() {
+  local ns
+  ns="$(find "$1" -mindepth 1 -maxdepth 1 -type d \
+    \( -name 'tofu-records' -o -name 'tofu-hints' -o -name 'tofu-outputs' -o -name 'tofu-receipts' \) \
+    2>/dev/null | sed 's|.*/||' | sort | tr '\n' ' ' | sed 's/ $//')"
+  if [ -n "$ns" ]; then
+    printf 'gauntlet_record_count: %s is a record STORE ROOT - it holds the namespace directories [%s], and the records are the ones under tofu-records. Counting files here counts guided discovery hint and every root output as records (issue #1291, #1288). Point this at "<store>/tofu-records" for a file count, or use gauntlet_record_envelope_count for a count of records wherever they are.\n' "$1" "$ns" >&2
+    return 1
+  fi
   find "$1" -type f ! -name '*.lock' ! -name '*.tmp-*' ! -name '.store-sentinel' 2>/dev/null | wc -l | tr -d ' '
+}
+
+# gauntlet_record_envelope_count <dir>: how many RECORDS are under <dir> -
+# files whose content is a record envelope, identified the way
+# gauntlet_record_file already identifies one, by the envelope's own
+# `address` field rather than by its position or its name. Anything else
+# sharing the store - the provisioning sentinel, guided discovery's hint,
+# a lock, a half-written temporary - is not an envelope and is not counted.
+#
+# This is the one to compare against an instance count. Issue #1288: the
+# reference-k8s-cert-manager greenfield control asserted its store held one
+# record per instance and read one too many, because the estate's own
+# guided hint was sitting in the same directory.
+gauntlet_record_envelope_count() {
+  python3 - "$1" <<'PY'
+import json, os, sys
+n = 0
+for dirpath, _, names in os.walk(sys.argv[1]):
+    for name in names:
+        if name.endswith('.lock') or '.tmp-' in name or name == '.store-sentinel':
+            continue
+        try:
+            with open(os.path.join(dirpath, name)) as fh:
+                d = json.load(fh)
+        except Exception:
+            continue
+        if isinstance(d, dict) and d.get('address'):
+            n += 1
+print(n)
+PY
+}
+
+# gauntlet_record_file <dir> <address>: the path of the one record file
+# under <dir> whose envelope is for <address>, or nothing if there is none.
+# A record's on-disk name is the base64 of its address under a per-type
+# directory, which a script has no business reconstructing; the envelope's
+# own `address` field is the thing to match, so this reads it. Nothing is
+# printed and the status is 1 when no record exists - which is itself a
+# reading, not an error: eight of ten Kubernetes instance types get a
+# record file and kubernetes_config_map_v1 gets none (#1188).
+gauntlet_record_file() {
+  python3 - "$1" "$2" <<'PY'
+import json, os, sys
+root, addr = sys.argv[1], sys.argv[2]
+for dirpath, _, names in os.walk(root):
+    for n in sorted(names):
+        if n.endswith('.lock') or '.tmp-' in n or n == '.store-sentinel':
+            continue
+        p = os.path.join(dirpath, n)
+        try:
+            with open(p) as fh:
+                d = json.load(fh)
+        except Exception:
+            continue
+        if isinstance(d, dict) and d.get('address') == addr:
+            print(p)
+            sys.exit(0)
+sys.exit(1)
+PY
+}
+
+# gauntlet_record_residue <file>: the names of the residue attributes a
+# record envelope carries, one per line, or nothing. Residue is the
+# irrecoverable member - the applied value of a config-only argument the
+# API server never returns - so "which names are in here" is what a caller
+# wants to assert by value rather than "how many files exist".
+gauntlet_record_residue() {
+  python3 - "$1" <<'PY'
+import json, sys
+with open(sys.argv[1]) as fh:
+    d = json.load(fh)
+for k in sorted((d.get('residue') or {}).get('attributes') or {}):
+    print(k)
+PY
+}
+
+# gauntlet_record_manifest_keys <file> <labels|annotations>: the metadata
+# map keys a kubernetes_manifest's record says its own applied manifest
+# DECLARED, space-separated and sorted, read off the envelope's
+# residue.manifest_metadata_keys member (issue #1211). The status is 1 and
+# nothing is printed when the envelope has no entry for that map at all -
+# a record written before #1211, or by a type that is not manifest-shaped.
+#
+# The distinction the status draws is the whole point of this helper, and
+# a caller must not collapse it: "declared no annotations" is an entry
+# holding an EMPTY list, which prints nothing with status 0, while "this
+# record does not know what was declared" is an absent entry, status 1.
+# #1211's removal set is (recorded declared keys) \ (currently declared
+# keys), so the first proposes removing whatever the object still carries
+# from a previous apply and the second proposes removing nothing.
+gauntlet_record_manifest_keys() {
+  python3 - "$1" "$2" <<'PY'
+import json, sys
+with open(sys.argv[1]) as fh:
+    d = json.load(fh)
+sets = (d.get('residue') or {}).get('manifest_metadata_keys') or {}
+if sys.argv[2] not in sets:
+    sys.exit(1)
+print(' '.join(sorted(sets[sys.argv[2]] or [])))
+PY
 }
 
 # gauntlet_tagged_count <aws-invocation...>: runs the given AWS CLI
@@ -308,6 +773,235 @@ gauntlet_record_count() {
 # took. Never add --query back to this call.
 gauntlet_tagged_count() {
   "$@" --output json | jq '.ResourceTagMappingList | length'
+}
+
+# gauntlet_first_match <jq-selector> <aws-invocation...>: runs the given AWS
+# CLI invocation with its pages MERGED and prints the first value the jq
+# selector yields - or nothing at all if it yields none.
+#
+# This is the other half of gauntlet_tagged_count's argument (issue #1214).
+# gauntlet_tagged_count exists because summing across pages is easy to get
+# wrong; picking the first match across pages is wrong in the same way and
+# harder to see, because it prints something plausible rather than an
+# obviously silly number. Issue #1206 is the case:
+#
+#   aws iam list-policies --path-prefix / \
+#     --query "Policies[?starts_with(PolicyName, 'x') == \`true\`].Arn | [0]" \
+#     --output text
+#
+# The AWS CLI applies --query to EACH page before merging, so on a listing
+# that took 16 pages that command printed SIXTEEN lines: the arn from the
+# page holding the match, and the literal "None" from the fifteen that did
+# not. The caller captured all sixteen as "the arn", the usual
+# `[ -n "$X" ] && [ "$X" != "None" ]` guard passed (a 16-line string is
+# neither), and `iam list-policy-tags --policy-arn "$X"` answered
+# NoSuchEntity with empty stdout - which read back as an EMPTY ownership
+# marker two layers away. #1206 was filed against the stamp; the stamp was
+# never wrong.
+#
+# Dropping --query is what fixes it, exactly as in gauntlet_tagged_count:
+# with --output json and no --query, the CLI's automatic pagination merges
+# every page into one document before anything filters it, so jq here sees
+# the whole listing. Never add --query back to this call.
+#
+# Usage - the direct replacement for the `[?...] | [0]` idiom:
+#
+#   # was: awsl iam list-policy-tags --policy-arn "$ARN" \
+#   #        --query "Tags[?Key=='tofu-address'].Value | [0]" --output text
+#   ADDR="$(gauntlet_first_match '.Tags[] | select(.Key == "tofu-address") | .Value' \
+#            awsl iam list-policy-tags --policy-arn "$ARN")"
+#
+# TWO DIFFERENCES from the idiom it replaces, both deliberate:
+#
+#   1. No match prints NOTHING, where `--query ... | [0] --output text`
+#      printed the literal string "None". Test the result with
+#      `[ -n "$X" ]`, not `[ "$X" != "None" ]`. "None" is a value the shell
+#      cannot distinguish from a tag whose value really is "None", and
+#      carrying it forward is half of what #1206 cost.
+#   2. The selector is jq, not JMESPath, because the pages are already
+#      merged into JSON by the time it runs.
+gauntlet_first_match() {
+  local selector="$1"; shift
+  "$@" --output json | jq -r "[ $selector ] | .[0] // empty"
+}
+
+# ── counting an estate's objects where GetResources cannot see them (#1271) ──
+#
+# gauntlet_estate_objects <estate> <aws-invocation-prefix...>
+#
+# Collects every object in the account that carries tofu-estate=<estate>,
+# reading BOTH the Resource Groups Tagging API and IAM's own per-resource
+# tag APIs, and deduplicating by ARN. <aws-invocation-prefix> is whatever
+# reaches the target - a script's own `awsl` function, or a literal
+# `aws --endpoint-url ... --region ...` - and this helper appends the
+# subcommands itself, because it makes several different calls.
+#
+# WHY THIS EXISTS (issue #1271). `resourcegroupstaggingapi get-resources`
+# does not index IAM on the pinned emulator, and real AWS does not index
+# several IAM types there either (#1134). Probed against
+# ghcr.io/lex00/floci@sha256:0bbeb430 on 2026-09-17, one container: a
+# customer-managed policy, a role and an instance profile, each created
+# with `tofu-estate=probe-estate`, all three read that tag back through
+# `iam:ListPolicyTags` / `ListRoleTags` / `ListInstanceProfileTags`, and
+# GetResources filtered to the same tag returned ONE object - an S3 bucket
+# tagged identically in the same container. The four IAM objects were
+# absent.
+#
+# So `gauntlet_tagged_count ... get-resources --tag-filters
+# Key=tofu-estate,Values=$ESTATE` reads 0 for an IAM-only estate no matter
+# what is marked, and the three assertions corpus-iam-policy hung off it
+# were a failure (`expected 2, got 0`) and two checks that could not fail
+# (`0 unmarked, good`, `0 objects before, 0 after`). A count that returns
+# the same number for every possible state of the world is not a
+# measurement. This helper is the instrument that can answer.
+#
+# CORRECT UNDER BOTH PINS, deliberately. lex00/floci#206 will make
+# GetResources serve `iam:policy` and `iam:instance-profile` in us-east-1
+# (#1152). The union is deduplicated by ARN, so an object both routes
+# return is counted ONCE: the total this helper reports does not move when
+# that image is pinned. GAUNTLET_ESTATE_BOTH_N below is how a reader tells
+# which world the run happened in - it is 0 on the current pin and rises
+# when GetResources starts answering. An assertion written against
+# GAUNTLET_ESTATE_N therefore means the same thing before and after the
+# repin; one written against GAUNTLET_ESTATE_RGTA_N does not, and should
+# not be written.
+#
+# WHAT THE NATIVE LEG COVERS, exactly: customer-managed IAM policies
+# (`--scope Local`), IAM roles, IAM instance profiles, and IAM users. NOT
+# IAM groups, OIDC/SAML providers or server certificates - an estate
+# holding any of those needs a fifth leg added here, and will otherwise be
+# undercounted the same way this issue describes. AWS-managed policies are
+# excluded on purpose: floci serves 1568 of them and none can carry an
+# ownership marker.
+#
+# The user leg is #1549's, and the sentence above is why it exists: this
+# comment said "NOT IAM users ... will otherwise be undercounted", and
+# corpus-hongbomiao-harbor's greenfield stage was undercounting exactly
+# that way - "the greenfield estate has 1 taggable objects, expected 2 (the
+# bucket and the user)" against a user that carried both markers. Recorded
+# from that estate's own greenfield container, ghcr.io/lex00/floci@
+# sha256:6c3d5c2d, us-west-2, 2026-09-22, AWS CLI only, no tofu in the
+# loop: `iam list-user-tags` returned tofu-estate and tofu-address for the
+# user, and `resourcegroupstaggingapi get-resources` returned only the
+# bucket - filtered on the tag, unfiltered, and under
+# `--resource-type-filters iam` alike.
+#
+# SETS GLOBALS, does not print. Call it as a statement, never in a command
+# substitution - `$(...)` runs it in a subshell and the split counts are
+# lost, which is the mistake gauntlet_ec2_tagged_count's own comment in
+# live/e2e/corpus-ec2-instance-complete/run.sh already records:
+#
+#   GAUNTLET_ESTATE_ARNS     one ARN per line, sorted, deduplicated
+#   GAUNTLET_ESTATE_N        how many distinct ARNs that is - the count
+#   GAUNTLET_ESTATE_RGTA_N   how many GetResources returned
+#   GAUNTLET_ESTATE_IAM_N    how many IAM's own tag APIs returned
+#   GAUNTLET_ESTATE_BOTH_N   how many BOTH routes returned (0 before #1152)
+#
+# RETURNS NON-ZERO, loudly, if any call fails, and leaves the globals
+# untouched. The idiom this replaces ended in `2>/dev/null || echo 0`,
+# which turned an unreachable endpoint into "0 objects, nothing is marked,
+# good" - a second way the same assertions could not fail. Callers write
+# `gauntlet_estate_objects "$ESTATE" awsl || fail "..."`.
+gauntlet_estate_objects() {
+  local estate="$1"; shift
+  [ -n "$estate" ] || { printf 'gauntlet_estate_objects: no estate name given\n' >&2; return 2; }
+  [ "$#" -gt 0 ] || { printf 'gauntlet_estate_objects: no AWS CLI invocation prefix given\n' >&2; return 2; }
+
+  local rgta iam both all
+  rgta="$(_gauntlet_rgta_estate_arns "$estate" "$@")" || return 1
+  iam="$(_gauntlet_iam_estate_arns "$estate" "$@")" || return 1
+
+  # Both lists are already sorted and unique, so a duplicate across the two
+  # is exactly an ARN both routes returned.
+  # awk 'NF' rather than `grep -v '^$'` to drop the blanks: grep exits 1 when
+  # it prints nothing, and under `set -o pipefail` that made an estate with
+  # ZERO objects come back as a refusal instead of a zero - found by running
+  # the empty case against a live container, not by reading the code. Zero is
+  # the answer cold_deploy's "nothing is marked yet" assertion needs most.
+  both="$(printf '%s\n%s\n' "$rgta" "$iam" | awk 'NF' | sort | uniq -d)"
+  all="$(printf '%s\n%s\n' "$rgta" "$iam" | awk 'NF' | sort -u)"
+
+  GAUNTLET_ESTATE_ARNS="$all"
+  GAUNTLET_ESTATE_RGTA_N="$(_gauntlet_count_lines "$rgta")"
+  GAUNTLET_ESTATE_IAM_N="$(_gauntlet_count_lines "$iam")"
+  GAUNTLET_ESTATE_BOTH_N="$(_gauntlet_count_lines "$both")"
+  GAUNTLET_ESTATE_N="$(_gauntlet_count_lines "$all")"
+}
+
+# _gauntlet_count_lines <text>: how many non-blank lines it holds.
+_gauntlet_count_lines() {
+  printf '%s\n' "$1" | awk 'NF' | wc -l | tr -d ' '
+}
+
+# _gauntlet_rgta_estate_arns <estate> <aws-prefix...>: the ARNs the Resource
+# Groups Tagging API returns for this estate, sorted and unique. No --query,
+# for gauntlet_tagged_count's reason (#1042): the CLI applies --query per
+# page, so filtering has to happen after the pages are merged.
+_gauntlet_rgta_estate_arns() {
+  local estate="$1"; shift
+  local out
+  out="$("$@" resourcegroupstaggingapi get-resources \
+    --tag-filters "Key=tofu-estate,Values=$estate" --output json)" \
+    || { printf 'gauntlet_estate_objects: `resourcegroupstaggingapi get-resources` failed against this target\n' >&2; return 1; }
+  jq -r '.ResourceTagMappingList[].ResourceARN' <<< "$out" | sort -u
+}
+
+# _gauntlet_iam_estate_arns <estate> <aws-prefix...>: the ARNs of the IAM
+# objects carrying tofu-estate=<estate>, read through IAM's own tag APIs -
+# the route #1125 wired into the sweep, and the only one that answers for
+# these types on the current pin.
+_gauntlet_iam_estate_arns() {
+  local estate="$1"; shift
+  local out found="" name arn
+
+  out="$("$@" iam list-policies --scope Local --output json)" \
+    || { printf 'gauntlet_estate_objects: `iam list-policies --scope Local` failed against this target\n' >&2; return 1; }
+  # A process substitution, not a pipe: a pipe would run the loop in a
+  # subshell and `found` would come back empty.
+  while IFS= read -r arn; do
+    [ -n "$arn" ] || continue
+    _gauntlet_iam_tag_hit "$estate" "$@" iam list-policy-tags --policy-arn "$arn" \
+      && found="$found$arn"$'\n'
+  done < <(jq -r '.Policies[].Arn' <<< "$out")
+
+  out="$("$@" iam list-roles --output json)" \
+    || { printf 'gauntlet_estate_objects: `iam list-roles` failed against this target\n' >&2; return 1; }
+  while IFS=$'\t' read -r name arn; do
+    [ -n "$name" ] || continue
+    _gauntlet_iam_tag_hit "$estate" "$@" iam list-role-tags --role-name "$name" \
+      && found="$found$arn"$'\n'
+  done < <(jq -r '.Roles[] | .RoleName + "\t" + .Arn' <<< "$out")
+
+  out="$("$@" iam list-instance-profiles --output json)" \
+    || { printf 'gauntlet_estate_objects: `iam list-instance-profiles` failed against this target\n' >&2; return 1; }
+  while IFS=$'\t' read -r name arn; do
+    [ -n "$name" ] || continue
+    _gauntlet_iam_tag_hit "$estate" "$@" iam list-instance-profile-tags --instance-profile-name "$name" \
+      && found="$found$arn"$'\n'
+  done < <(jq -r '.InstanceProfiles[] | .InstanceProfileName + "\t" + .Arn' <<< "$out")
+
+  out="$("$@" iam list-users --output json)" \
+    || { printf 'gauntlet_estate_objects: `iam list-users` failed against this target\n' >&2; return 1; }
+  while IFS=$'\t' read -r name arn; do
+    [ -n "$name" ] || continue
+    _gauntlet_iam_tag_hit "$estate" "$@" iam list-user-tags --user-name "$name" \
+      && found="$found$arn"$'\n'
+  done < <(jq -r '.Users[] | .UserName + "\t" + .Arn' <<< "$out")
+
+  printf '%s' "$found" | awk 'NF' | sort -u
+}
+
+# _gauntlet_iam_tag_hit <estate> <full aws tag-listing invocation...>: true
+# when that object carries tofu-estate=<estate>. An object whose tags cannot
+# be read at all is NOT a hit and is not an error either - it is an object
+# this estate does not own, and IAM answers NoSuchEntity for plenty of them.
+_gauntlet_iam_tag_hit() {
+  local estate="$1"; shift
+  local tags
+  tags="$("$@" --output json 2>/dev/null)" || return 1
+  [ -n "$tags" ] || return 1
+  [ "$(jq -r --arg e "$estate" \
+    '[.Tags[]? | select(.Key == "tofu-estate" and .Value == $e)] | length' <<< "$tags")" != "0" ]
 }
 
 # ── the cold-deploy pre-apply (#1173) ────────────────────────────────────
@@ -540,4 +1234,429 @@ gauntlet_stage_from_exit() {
 # substitution and silently dropped part of it).
 gauntlet_print_evidence() {
   printf '%s\n' "$1"
+}
+
+# gauntlet_floci_teardown <container>...
+#
+# Remove this run's floci containers, and - for any of them that is already
+# gone or already stopped when teardown reaches it - say so first, with the
+# evidence a human needs to tell "my emulator died" from "my assertion was
+# wrong". Issue #1299.
+#
+# The line this replaces was, in 61 scripts,
+#
+#   docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+#
+# and it was paired with `docker run -d --rm`. `--rm` bought nothing on the
+# normal path, because the EXIT trap above already removed the container; what
+# it bought was that a container which DIED MID-RUN was erased by dockerd the
+# instant it exited - before the script's own fail(), before the trap, before
+# any human. No exit code, no OOMKilled flag, no logs, no row in `docker ps
+# -a`. A run whose emulator died and a run that finished cleanly then look
+# identical afterwards, which is why #1141's "docker ps showed no container
+# left running" had no discriminating power: that is what you see either way.
+#
+# So the runs dropped `--rm` and teardown moved here. Three consequences worth
+# stating, because all three are the point rather than side effects:
+#
+#   The happy path stays silent. A container still running when teardown
+#   reaches it is exactly what is expected, and prints nothing - so this adds
+#   no noise to 61 logs. A container that is NOT running printed nothing
+#   before and is loud now, which is the whole signal.
+#
+#   It must run before the removal, in the same function, or there is nothing
+#   left to inspect. That is why this is one helper and not two, and
+#   live/flocipostmortem_test.go asserts the ordering.
+#
+#   Dropping `--rm` does NOT widen the container leak, which is the cost
+#   #1299 asked to be weighed. Measured 2026-09-18 on bash 3.2/macOS: the
+#   EXIT trap fires on SIGTERM, SIGINT and SIGHUP and removes the containers,
+#   and on SIGKILL it cannot fire - but `--rm` never helped there either,
+#   because it removes a container when the CONTAINER exits, not when the
+#   script does, so a SIGKILLed run leaked a RUNNING container before this
+#   change exactly as it does after. The only new residue is a STOPPED
+#   container from a run that both lost its emulator and was SIGKILLed, and
+#   that container is the evidence this change exists to keep, and the
+#   sweeper below (#1312) prints its postmortem before it removes it. To
+#   clear any that accumulate, running or stopped:
+#
+#     bash scripts/floci-sweep.sh
+#
+# Everything it prints goes to stdout with a FLOCI-POSTMORTEM prefix - never
+# the "GAUNTLET " prefix, which is the runner's own parsed grammar (a
+# malformed line there is an error, per tools/gauntlet/protocol.go) - so it
+# lands in live/gauntlet/logs/<estate>.log interleaved in the order the
+# script wrote it (#1141) and greps out in one line.
+#
+# Silent and harmless where docker is absent or the name was never used: a
+# script that failed before starting its containers still runs its trap.
+#
+# Every step is written so that it cannot itself become the failure. Most of
+# its callers run under `set -euo pipefail`, and this runs from an EXIT trap,
+# where a nonzero status is not merely noise: an EXIT trap's last command
+# supplies the process's exit status unless the trap restores it explicitly,
+# so a teardown that failed on `docker logs` for a container nobody cares
+# about could turn a passing estate red - the diagnostic causing the failure
+# it was added to explain. Hence `|| true` on the pipeline, `|| return 0` on
+# the final removal, and `if/then` rather than `&& continue`.
+gauntlet_floci_teardown() {
+  local c info status exitcode oom started finished
+  command -v docker >/dev/null 2>&1 || return 0
+  for c in "$@"; do
+    if [ -z "$c" ]; then continue; fi
+    # No such container: say nothing. Now that nothing is started with
+    # `--rm`, a container that ever existed is still listed at teardown even
+    # if it died, so "absent" means "never started" - the ordinary path for a
+    # script that failed on a missing tool or an unfetched corpus module
+    # before it got as far as `docker run`. An earlier draft printed a line
+    # here and corpus-leynos-monitoring's missing-corpus exit immediately
+    # produced three of them: noise on the commonest failure there is, for a
+    # case the guard against reintroducing `--rm` already covers.
+    info="$(docker inspect --format '{{.State.Status}} {{.State.ExitCode}} {{.State.OOMKilled}} {{.State.StartedAt}} {{.State.FinishedAt}}' "$c" 2>/dev/null)" || continue
+    status="$(printf '%s' "$info" | awk '{print $1}')"
+    if [ "$status" = "running" ]; then continue; fi
+    exitcode="$(printf '%s' "$info" | awk '{print $2}')"
+    oom="$(printf '%s' "$info" | awk '{print $3}')"
+    started="$(printf '%s' "$info" | awk '{print $4}')"
+    finished="$(printf '%s' "$info" | awk '{print $5}')"
+    printf 'FLOCI-POSTMORTEM %s: DIED BEFORE TEARDOWN - status=%s exit_code=%s oom_killed=%s started=%s finished=%s\n' \
+      "$c" "$status" "$exitcode" "$oom" "$started" "$finished"
+    printf 'FLOCI-POSTMORTEM %s: last 50 log lines follow\n' "$c"
+    { docker logs --tail 50 "$c" 2>&1 | sed "s/^/FLOCI-POSTMORTEM $c LOG /"; } || true
+    printf 'FLOCI-POSTMORTEM %s: end of logs\n' "$c"
+  done
+  docker rm -f "$@" >/dev/null 2>&1 || return 0
+  return 0
+}
+
+# ── floci ownership, and the sweeper that checks it (#1312) ─────────────────
+#
+# A crossing script SIGKILLed mid-run leaves its floci container RUNNING.
+# The EXIT trap above cannot fire on SIGKILL, `--rm` never covered it (it
+# removes a container when the CONTAINER exits, not when the script does),
+# and the name `choudoufu-<estate>-$$` does not collide, so the containers
+# accumulate, each holding its `-p ${FLOCI_PORT}:4566` publish until an
+# unrelated run of the same estate fails its health check on a taken port.
+#
+# The stopped half of that residue was always safe to sweep by filter. The
+# running half was not: from outside, a leaked container and a concurrent
+# run's container are identical - same image, same name shape, same port
+# range - and two runs of the same estate CAN coexist on different ports
+# (the runner hands each run its own FLOCI_PORT). So the container has to
+# say who owns it, in a way a sweeper can check against the machine:
+#
+#   choudoufu.estate         the <estate> in choudoufu-<estate>-<pid>
+#   choudoufu.owner.pid      $$ of the script that started it
+#   choudoufu.owner.started  that pid's start time, `ps -o lstart=`, taken
+#                            under TZ=UTC with its whitespace collapsed
+#
+# The start time is why this is a proof rather than a hint. Pids are
+# reused, and `kill -0` on a reused pid says "alive" about a stranger; a pid
+# is the owner only if it is alive AND its start time is the one on the
+# label. `ps -o lstart=` prints the same format on macOS bash 3.2 and on
+# procps Linux. The TZ pin is because lstart prints local time, and a
+# container started under one TZ must still be recognised by a sweep run
+# under another - measured: the same pid printed 20:52 and 02:52 here
+# depending on TZ.
+#
+# A running container with no ownership labels - one from a script older
+# than this change, or one somebody started by hand - is never removed. It
+# is listed with the by-hand command instead.
+
+GAUNTLET_FLOCI_LABEL_ESTATE="choudoufu.estate"
+GAUNTLET_FLOCI_LABEL_PID="choudoufu.owner.pid"
+GAUNTLET_FLOCI_LABEL_STARTED="choudoufu.owner.started"
+
+# gauntlet_pid_started <pid>
+#
+# Prints the process's start time in the label's normalised form, or nothing
+# if no such process exists. Exit 0 either way: "nothing" is the answer, not
+# an error, so callers compare the string and never the status.
+gauntlet_pid_started() {
+  [ -n "${1:-}" ] || return 0
+  { TZ=UTC ps -o lstart= -p "$1" 2>/dev/null | awk 'NF { $1=$1; print; exit }'; } || true
+  return 0
+}
+
+# gauntlet_floci_estate_of <container name>
+#
+# The <estate> in choudoufu-<estate>-<pid>: the prefix goes, and so does the
+# trailing -<digits>. A name of another shape comes back whole minus any
+# trailing pid, which is still a usable scope.
+gauntlet_floci_estate_of() {
+  printf '%s\n' "${1#choudoufu-}" | sed -E 's/-[0-9]+$//'
+}
+
+# gauntlet_floci_ownership <container>
+#
+# The one place that decides what a container is. Prints a single line,
+# "<verdict>|<reason>", exit 0 always. gauntlet_sweep_leaked_floci acts on
+# the verdict and scripts/pickup.sh reports it, so the two cannot disagree
+# about which container is a leak. The verdicts:
+#
+#   absent    no such container, or one dockerd is already removing
+#   owned     running; the labelled owner is alive with the labelled start
+#   leaked    running; the labelled owner is dead, or its pid now belongs to
+#             a process with a different start time
+#   unowned   running with no ownership labels: never removed, listed
+#   held      not running, but its owner is alive and will read it at its
+#             own teardown (#1299's evidence, left for the run it belongs to)
+#   stopped   not running and nobody alive owns it: removed, after
+#             gauntlet_floci_teardown has printed its postmortem
+gauntlet_floci_ownership() {
+  local c="$1" info status rest pid started now owner
+  info="$(docker inspect --format \
+    "{{.State.Status}}|{{index .Config.Labels \"$GAUNTLET_FLOCI_LABEL_PID\"}}|{{index .Config.Labels \"$GAUNTLET_FLOCI_LABEL_STARTED\"}}" \
+    "$c" 2>/dev/null)" || { printf 'absent|no such container\n'; return 0; }
+  status="${info%%|*}"; rest="${info#*|}"
+  pid="${rest%%|*}"; started="${rest#*|}"
+  # dockerd is already taking it down (another run's teardown, or a sweep
+  # racing this one); there is nothing to decide and a `docker rm -f` here
+  # would only race the one in flight. Seen once by pickup while another
+  # worker's eks run tore down, reported as a leak for the half-second it
+  # took.
+  if [ "$status" = "removing" ]; then
+    printf 'absent|already being removed\n'; return 0
+  fi
+  if [ -z "$pid" ] || [ -z "$started" ]; then
+    owner=none
+  else
+    now="$(gauntlet_pid_started "$pid")"
+    if [ -z "$now" ]; then owner=dead
+    elif [ "$now" != "$started" ]; then owner=reused
+    else owner=alive
+    fi
+  fi
+  if [ "$status" != "running" ]; then
+    if [ "$owner" = alive ]; then
+      printf 'held|status=%s, but owner pid %s is alive and reads it at its own teardown\n' "$status" "$pid"
+    else
+      printf 'stopped|status=%s\n' "$status"
+    fi
+    return 0
+  fi
+  case "$owner" in
+    none)   printf 'unowned|no ownership labels, so an older script or a hand started it; if nothing is using it: docker rm -f %s\n' "$c" ;;
+    dead)   printf 'leaked|owner pid %s is gone (it started %s)\n' "$pid" "$started" ;;
+    reused) printf 'leaked|owner pid %s is alive but started %s, not %s: the owner died and its pid was reused\n' "$pid" "$now" "$started" ;;
+    alive)  printf 'owned|owner pid %s is alive (started %s)\n' "$pid" "$started" ;;
+  esac
+  return 0
+}
+
+# gauntlet_floci_list [estate]
+#
+# Every container the sweeper and pickup consider: those carrying the
+# estate label (only that estate's when one is given) plus, for the
+# unlabelled ones an older script left behind, those named
+# choudoufu-<estate>-<digits>. Names, one per line, deduplicated.
+gauntlet_floci_list() {
+  local scope="${1:-}"
+  if [ -n "$scope" ]; then
+    { docker ps -a --filter "label=$GAUNTLET_FLOCI_LABEL_ESTATE=$scope" --format '{{.Names}}'
+      docker ps -a --filter "name=^choudoufu-${scope}-[0-9]+\$" --format '{{.Names}}'
+    } 2>/dev/null | sort -u
+  else
+    { docker ps -a --filter "label=$GAUNTLET_FLOCI_LABEL_ESTATE" --format '{{.Names}}'
+      docker ps -a --filter "name=^choudoufu-" --format '{{.Names}}'
+    } 2>/dev/null | sort -u
+  fi
+  return 0
+}
+
+# gauntlet_sweep_leaked_floci [estate]
+#
+# Removes every stopped container nobody alive owns and every running one
+# whose owner is dead, prints one FLOCI-SWEEP line per container saying what
+# was decided and why, and leaves an unowned container alone with the
+# by-hand command in its line. With an estate it looks only at that
+# estate's containers: that is how gauntlet_floci_start calls it, so a leak
+# clears itself on the next run of the same estate, and a concurrent run of
+# the same estate on another port is kept because its owner is alive.
+# Without one it is the whole machine, which is what scripts/floci-sweep.sh
+# runs.
+#
+# A stopped container goes through gauntlet_floci_teardown, so the
+# postmortem #1299 kept it for is printed before it is removed. The prefix
+# is FLOCI-SWEEP for the same reason the teardown's is FLOCI-POSTMORTEM:
+# never "GAUNTLET ", the runner's parsed grammar.
+#
+# Exit 0 always, like the teardown: a sweep that could not remove something
+# says so, and must not turn the run that called it red.
+gauntlet_sweep_leaked_floci() {
+  local scope="${1:-}" c line verdict reason
+  command -v docker >/dev/null 2>&1 || return 0
+  for c in $(gauntlet_floci_list "$scope"); do
+    line="$(gauntlet_floci_ownership "$c")"
+    verdict="${line%%|*}"; reason="${line#*|}"
+    case "$verdict" in
+      absent) ;;
+      stopped)
+        printf 'FLOCI-SWEEP %s: removing - %s and nobody alive owns it; a previous run left it, its postmortem follows\n' "$c" "$reason"
+        gauntlet_floci_teardown "$c" ;;
+      leaked)
+        if docker rm -f "$c" >/dev/null 2>&1; then
+          printf 'FLOCI-SWEEP %s: removed - %s\n' "$c" "$reason"
+        else
+          printf 'FLOCI-SWEEP %s: COULD NOT remove - %s\n' "$c" "$reason"
+        fi ;;
+      *)
+        printf 'FLOCI-SWEEP %s: kept - %s\n' "$c" "$reason" ;;
+    esac
+  done
+  return 0
+}
+
+# gauntlet_floci_start <name> <docker run args...>
+#
+# The one way a crossing script starts a floci container. It sweeps the
+# estate's leaked containers, then runs `docker run -d --name <name>` with
+# the ownership labels above and whatever else the caller passes: its -p,
+# and for corpus-eks-basic its network, socket mount and environment. `-d`
+# is added here, `--rm` never is (#1299), and docker's container-id line
+# goes to /dev/null as the inlined lines' did. Returns docker run's status,
+# so the caller's `|| fail` means what it did.
+#
+# live/flocipostmortem_test.go's TestFlociStartGoesThroughTheLibrary fails
+# on a script that runs `docker run -d` for a FLOCI_* name itself: that
+# container would carry no labels and be unsweepable for the rest of its
+# life.
+#
+# If the start time cannot be read (a ps without lstart), the container is
+# started with the estate label only and a line says so: a sweeper will
+# list it rather than remove it, which is the safe direction.
+gauntlet_floci_start() {
+  local name="$1" estate started
+  shift
+  estate="$(gauntlet_floci_estate_of "$name")"
+  started="$(gauntlet_pid_started $$)"
+  gauntlet_sweep_leaked_floci "$estate"
+  if [ -z "$started" ]; then
+    printf 'FLOCI-SWEEP %s: starting WITHOUT ownership labels - could not read the start time of pid %s, so a sweeper will list this container rather than remove it\n' "$name" "$$"
+    docker run -d --name "$name" --label "$GAUNTLET_FLOCI_LABEL_ESTATE=$estate" "$@" >/dev/null
+    return $?
+  fi
+  docker run -d --name "$name" \
+    --label "$GAUNTLET_FLOCI_LABEL_ESTATE=$estate" \
+    --label "$GAUNTLET_FLOCI_LABEL_PID=$$" \
+    --label "$GAUNTLET_FLOCI_LABEL_STARTED=$started" \
+    "$@" >/dev/null
+}
+
+# ── the shared provider plugin cache (#1300) ────────────────────────────────
+#
+# gauntlet_plugin_cache is the ONLY place a crossing script chooses a
+# TF_PLUGIN_CACHE_DIR. tools/gauntlet's TestEveryScriptTakesItsPluginCacheFromTheLibrary
+# fails on a script that sets the variable itself, so the policy below is the
+# policy everywhere and can be changed in one edit.
+#
+# WHY SHARED, not a per-run copy. The AWS provider is several hundred
+# megabytes and a crossing inits five to eight throwaway estate copies per
+# run. corpus-sqs-basic's first real run spent 21 minutes in `terraform init`
+# to receive 48MB before a transient DNS failure killed it. #339 measured 320s
+# per redundant init; live/e2e/README.md re-measured a full five-stage run at
+# 104.84s without the paired export below and 55.87s with it. The cache on the
+# machine this was written on holds 18GB, so "give every run its own copy" is
+# not a real option either.
+#
+# TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE is the other half (#339): the
+# cache records no checksums, so without it an init in a directory with no
+# .terraform.lock.hcl re-downloads a provider it already has, purely to hash
+# it. Both real terraform and choudoufu honor it.
+#
+# WHY A LOCK. HashiCorp documents the cache as "not guaranteed to be
+# concurrency safe... the provider installer's behavior in environments with
+# multiple `terraform init` calls is undefined". Measured here, that warning
+# applies to exactly one of the two binaries these scripts run:
+#
+#   * choudoufu/tofu already serialize themselves. internal/providercache's
+#     Dir.InstallPackage takes a per-(provider,version,platform) flock on
+#     <version>/<platform>.lock before it unpacks anything, so two tofu inits
+#     sharing a cache cannot interleave. A cold `tofu init` leaves that
+#     .lock file behind; a cold `terraform init` leaves none.
+#   * real terraform (v1.15.8, checked) takes no such lock, and unpacks
+#     STRAIGHT INTO the final cache path - polling the cache during a cold
+#     init shows the provider binary appear at its final name while it is
+#     still being written, with no temp directory and no atomic rename. A
+#     second init that finds that path can link a half-written binary.
+#
+# So gauntlet_locked_init wraps real-terraform inits only, and tofu/choudoufu
+# inits are left alone because the installer in this tree already does it.
+#
+# The lockfile is the one internal/live/flocitest uses (O_EXCL, the same name
+# in the same directory), so an estate script and a `go test ./internal/live/...`
+# sharing a machine exclude each other too.
+gauntlet_plugin_cache() {
+  local dir
+  dir="$(gauntlet_plugin_cache_dir)"
+  export TF_PLUGIN_CACHE_DIR="$dir"
+  export TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1
+  mkdir -p "$TF_PLUGIN_CACHE_DIR"
+}
+
+# gauntlet_plugin_cache_dir prints the conventional directory without
+# exporting anything, for the one script that wants the location but not the
+# behaviour: corpus-simpleinfra-dns consumes the same directory as a
+# -plugin-dir filesystem MIRROR, which is read-only to the installer, and
+# exporting TF_PLUGIN_CACHE_DIR there would re-admit the writer it is
+# deliberately avoiding. It still takes the lock around its inits, because a
+# reader of a directory another process is unpacking into is exposed to the
+# same torn file.
+gauntlet_plugin_cache_dir() {
+  printf '%s\n' "${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
+}
+
+# _GAUNTLET_CACHE_LOCK_STALE_S and _GAUNTLET_CACHE_LOCK_DEADLINE_S mirror
+# internal/live/flocitest's lockStaleAfter and its 15-minute deadline: a cold
+# init of one provider release is minutes at the worst, so ten minutes of
+# silence is a crashed holder, and a waiter that has queued for fifteen is
+# looking at a lockfile nobody owns.
+_GAUNTLET_CACHE_LOCK_STALE_S=600
+_GAUNTLET_CACHE_LOCK_DEADLINE_S=900
+
+# gauntlet_locked_init runs its argument command while holding the shared
+# plugin cache's cross-process lock. Use it for every real-`terraform` init in
+# a script that calls gauntlet_plugin_cache; see the block above for why
+# tofu/choudoufu inits do not need it.
+#
+# Serializing costs little: a warm init with the paired export measured 0.59s
+# (terraform) and 1-2s (choudoufu). Cold, serializing is the point - the first
+# caller populates the cache and everyone behind it gets a warm read, which
+# writes nothing at all (measured: a warm init leaves every byte and inode in
+# the cache unchanged).
+gauntlet_locked_init() {
+  local dir lock rc waited=0
+  # The lock lives beside the SHARED cache, not beside whatever this script
+  # exported, so a script that only reads the directory (corpus-simpleinfra-dns
+  # via -plugin-dir) excludes the writers too.
+  dir="$(gauntlet_plugin_cache_dir)"
+  mkdir -p "$dir" 2>/dev/null || { "$@"; return $?; }
+  lock="$dir/.choudoufu-init.lock"
+  while :; do
+    # noclobber makes this redirect O_CREAT|O_EXCL, which is atomic across
+    # processes on every filesystem these scripts run on. A subshell keeps
+    # the option from leaking into the caller.
+    if ( set -o noclobber; printf '%s\n' "$$" > "$lock" ) 2>/dev/null; then
+      break
+    fi
+    if [ -f "$lock" ]; then
+      local age
+      age=$(( $(date +%s) - $(stat -f %m "$lock" 2>/dev/null || stat -c %Y "$lock" 2>/dev/null || date +%s) ))
+      if [ "$age" -gt "$_GAUNTLET_CACHE_LOCK_STALE_S" ]; then
+        printf 'gauntlet_locked_init: breaking a stale plugin cache lock at %s (held %ss)\n' "$lock" "$age" >&2
+        rm -f "$lock"
+        continue
+      fi
+    fi
+    if [ "$waited" -ge "$_GAUNTLET_CACHE_LOCK_DEADLINE_S" ]; then
+      printf 'gauntlet_locked_init: the plugin cache lock at %s has been held for %ss; remove it if its owner is gone\n' "$lock" "$waited" >&2
+      return 1
+    fi
+    sleep 1
+    waited=$(( waited + 1 ))
+  done
+  "$@"
+  rc=$?
+  rm -f "$lock"
+  return $rc
 }

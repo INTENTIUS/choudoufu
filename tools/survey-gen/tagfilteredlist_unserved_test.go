@@ -20,7 +20,8 @@ import (
 // #1133's guard: it fails a committed survey artifact that puts a type on
 // [pathMarker] with the "recoverable by tag-filtered list" sentence while
 // that type's service is one internal/live/discovery routes away from the
-// tagging leg entirely ([discovery.TaggingAPIUnservedType], issue #692).
+// tagging leg entirely ([discovery.TaggingAPIUnservedTypeInRegion], issues
+// #692 and #1144).
 //
 // Before this commit it failed against the committed live/survey-full.json
 // and live/survey.json, naming eight types in the aws_iam_ service -
@@ -33,11 +34,13 @@ import (
 // schema, and every one inherited the marker path - and its "recoverable by
 // tag-filtered list" evidence sentence - purely from that, because the
 // classifier never asked whether the tagging API's sweep leg would ever
-// have reached it. Nothing serves that route for any aws_iam_ type: RGTA
-// never indexes IAM roles anywhere, and issue #1134's real-AWS measurement
-// found it indexes IAM policies and instance profiles only in us-east-1 -
-// which this guard, like the classifier it checks, cannot yet say (issue
-// #1144). It checks only that no UNQUALIFIED claim survives.
+// have reached it. RGTA never indexes IAM roles anywhere, and issue #1134's
+// real-AWS measurement found it indexes IAM policies and instance profiles
+// only in us-east-1. Since #1144 the classifier CAN say which of the two a
+// given type is, and does, in its evidence sentence; this guard still asks
+// the same question it always asked, with the empty region the survey has -
+// that no UNQUALIFIED claim of the route survives in an artifact that
+// belongs to no region.
 //
 // It reads the classifier's own vocabulary constant and evidence sentence
 // rather than restating them, so a future wording change cannot silently
@@ -68,7 +71,7 @@ func TestSurveyDoesNotClaimTagFilteredListForAnUnservedService(t *testing.T) {
 				if !strings.Contains(row.Evidence, "recoverable by tag-filtered list") {
 					continue
 				}
-				if discovery.TaggingAPIUnservedType(row.Type) {
+				if discovery.TaggingAPIUnservedTypeInRegion("", row.Type) {
 					offenders = append(offenders, row.Type+": "+row.Evidence)
 				}
 			}
@@ -77,7 +80,8 @@ func TestSurveyDoesNotClaimTagFilteredListForAnUnservedService(t *testing.T) {
 			if len(offenders) > 0 {
 				t.Fatalf("%s claims tag-filtered-list recovery for %d type(s) whose service "+
 					"internal/live/discovery routes away from the tagging leg entirely "+
-					"(discovery.TaggingAPIUnservedType, issue #692) - the sweep never takes this "+
+					"from a caller region this artifact does not have "+
+					"(discovery.TaggingAPIUnservedTypeInRegion, issues #692 and #1144) - the sweep never takes this "+
 					"route, so the survey must not promise it (issue #1133):\n%s",
 					rel, len(offenders), strings.Join(offenders, "\n"))
 			}

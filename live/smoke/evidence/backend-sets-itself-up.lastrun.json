@@ -1,0 +1,13 @@
+{
+  "claim": "backend-sets-itself-up",
+  "provider": "aws",
+  "target": "real AWS",
+  "date": "2026-09-19",
+  "commit": "7720a46df57f0ef50f8154791db727fabfd95a24",
+  "command": "SMOKE_REAL_AWS=1 AWS_REGION=us-east-2 just smoke backend-sets-itself-up",
+  "verdict": "PASS: smoke scenario 'backend-sets-itself-up' - every claim held (smoke v1.0.0)",
+  "break_commit": "7720a46df57f0ef50f8154791db727fabfd95a24",
+  "break_command": "SMOKE_REAL_AWS=1 AWS_REGION=us-east-2 BREAK=1 just smoke backend-sets-itself-up",
+  "break_verdict": "caught - a store that cannot be reached is refused by name, and nothing is proposed.",
+  "note": "#1379: recorded by hand from a maintainer-session run against real AWS (account ending 3429, us-east-2), one named claim at a time, torn down afterwards with no chdf-smoke bucket and no smoke- role left. No workflow runs the real-AWS claims, so this file is stale the moment the scenario, the renderer or the store changes underneath it, and nothing re-checks that automatically. The BREAK arm prints a 'caught' line and exits 0 without a PASS line, which is why both are quoted."
+}

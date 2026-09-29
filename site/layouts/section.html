@@ -8,7 +8,7 @@
     {{ if not .Params.hideChildren }}
     <ul class="child-list">
       {{ range .Sections.ByWeight }}<li><a href="{{ .RelPermalink }}">{{ .Title }}</a>{{ with .Description }} <span>{{ . }}</span>{{ end }}</li>{{ end }}
-      {{ range .RegularPages.ByWeight }}<li><a href="{{ .RelPermalink }}">{{ .Title }}</a>{{ with .Description }} <span>{{ . }}</span>{{ end }}</li>{{ end }}
+      {{ range where .RegularPages.ByWeight "Layout" "ne" "redirect" }}<li><a href="{{ .RelPermalink }}">{{ .Title }}</a>{{ with .Description }} <span>{{ . }}</span>{{ end }}</li>{{ end }}
     </ul>
     {{ end }}
   </article>

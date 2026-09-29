@@ -21,12 +21,25 @@ import (
 // Provider is an implementation of providers.Interface
 type Provider struct {
 	funcs map[string]providerFunc
+
+	// estateOutputs answers terraform_estate_outputs (GitHub issue #1371).
+	// Nil outside a live run, where that data source refuses by name.
+	estateOutputs EstateOutputReader
 }
 
 // NewProvider returns a new tofu provider
 func NewProvider() providers.Interface {
 	return &Provider{
 		funcs: getProviderFuncs(),
+	}
+}
+
+// NewProviderWithEstateOutputs is [NewProvider] with reader answering
+// terraform_estate_outputs. A nil reader is the same as [NewProvider].
+func NewProviderWithEstateOutputs(reader EstateOutputReader) providers.Interface {
+	return &Provider{
+		funcs:         getProviderFuncs(),
+		estateOutputs: reader,
 	}
 }
 
@@ -43,6 +56,7 @@ func (p *Provider) GetProviderSchema(_ context.Context) providers.GetProviderSch
 	return providers.GetProviderSchemaResponse{
 		DataSources: map[string]providers.Schema{
 			"terraform_remote_state": dataSourceRemoteStateGetSchema(),
+			EstateOutputsTypeName:    dataSourceEstateOutputsGetSchema(),
 		},
 		ResourceTypes: map[string]providers.Schema{
 			"terraform_data": dataStoreResourceSchema(),
@@ -64,6 +78,11 @@ func (p *Provider) ValidateProviderConfig(_ context.Context, req providers.Valid
 func (p *Provider) ValidateDataResourceConfig(_ context.Context, req providers.ValidateDataResourceConfigRequest) providers.ValidateDataResourceConfigResponse {
 
 	var res providers.ValidateDataResourceConfigResponse
+
+	if req.TypeName == EstateOutputsTypeName {
+		res.Diagnostics = dataSourceEstateOutputsValidate(req.Config)
+		return res
+	}
 
 	// This should not happen
 	if req.TypeName != "terraform_remote_state" {
@@ -98,6 +117,11 @@ func (p *Provider) ReadDataSource(_ context.Context, req providers.ReadDataSourc
 func (p *Provider) ReadDataSourceEncrypted(ctx context.Context, req providers.ReadDataSourceRequest, path addrs.AbsResourceInstance, enc encryption.Encryption) providers.ReadDataSourceResponse {
 	// call function
 	var res providers.ReadDataSourceResponse
+
+	if req.TypeName == EstateOutputsTypeName {
+		res.State, res.Diagnostics = dataSourceEstateOutputsRead(ctx, p.estateOutputs, req.Config)
+		return res
+	}
 
 	// This should not happen
 	if req.TypeName != "terraform_remote_state" {

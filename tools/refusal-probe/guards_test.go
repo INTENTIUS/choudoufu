@@ -64,7 +64,11 @@ func readManifestAt(t *testing.T, root, rel string) (sources []corpusSource, pro
 	if err != nil {
 		t.Fatal(err)
 	}
-	return corpusState(root, m)
+	sources, problems, err = corpusState(root, m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return sources, problems
 }
 
 func TestCorpusStateNamesASourceThatIsNotOnDisk(t *testing.T) {

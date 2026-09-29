@@ -47,7 +47,12 @@ const (
 // scale-num shortcode can quote a measured plan-call split without anyone
 // typing it (#1055). Read by the caller from the real checkout, never from
 // root, for the same reason tt is.
-func Render(root string, m *Manifest, a *Artifact, tt TypeIndexTotals, scale []byte) ([]string, error) {
+//
+// st is per-row script staleness (#1264), read from the real checkout by
+// the caller for that same reason - it is a git comparison, and root here
+// may be a scratch directory with no history. A nil map renders no
+// staleness at all rather than a board asserting every row is current.
+func Render(root string, m *Manifest, a *Artifact, tt TypeIndexTotals, scale []byte, st map[string]ScriptStaleness) ([]string, error) {
 	var written []string
 	write := func(rel string, body string) error {
 		p := filepath.Join(root, rel)
@@ -85,7 +90,7 @@ func Render(root string, m *Manifest, a *Artifact, tt TypeIndexTotals, scale []b
 	}
 	// The board: every display value the site's progress pages need, as
 	// data. The pages themselves live in site/ and are never written here.
-	bb, err := buildBoard(m, a).Canonical()
+	bb, err := buildBoard(m, a, st, kindNodeImagePin(root)).Canonical()
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +228,7 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("A \"named refusal\" is the one way \"choudoufu refuses where stock proceeds\"")
 	w("is not automatically that table's first row: a stage whose own Proves and")
 	w("Oracle text above commits, before any estate runs against it, to refusing on")
-	w("purpose. Today that is `plan_approval` (stage 12, planned): its Oracle")
+	w("purpose. Today that is `plan_approval` (stage 12, active): its Oracle")
 	w("states plainly that the planfile applies when the world has not moved, and")
 	w("that choudoufu is stricter than stock by design when it has, so that refusal")
 	w("is asserted rather than diffed against stock. A refusal no stage names this")
@@ -262,8 +267,9 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("That is a run-level outcome, not a stage verdict: a stage cannot refuse.")
 	w("`needed`/`limit` go together or not at all, and a `detail` is required - the")
 	w("reason and the arithmetic are the whole value of recording a refusal rather")
-	w("than skipping the rung in silence. Where it lands is the `%s`", ScaleRecordsPath)
-	w("section below.")
+	w("than skipping the rung in silence. `scale=` is required of an estate that")
+	w("declares a scale ladder and absent from one that does not; where each lands")
+	w("is the `%s` section below.", ScaleRecordsPath)
 	w("")
 	w("## The manifest entry")
 	w("")
@@ -405,7 +411,36 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("`last_run` renders as `stale` rather than as the verdict it carries,")
 	w("and does not count toward `clear`. A stage with no entry is unknown")
 	w("provenance, not stale: rows recorded before the field existed keep")
-	w("the cells and the clear flag they had. `go run")
+	w("the cells and the clear flag they had.")
+	w("")
+	w("A whole row goes stale a second way (#1264): the crossing script it")
+	w("was measured against changes afterwards, so every verdict in it")
+	w("describes a script that is no longer in the tree. That is not")
+	w("recorded in the artifact - it is computed on demand by diffing the")
+	w("row's `last_run.commit` against the working tree, which needs nothing")
+	w("the row does not already carry. Two directories are compared, not")
+	w("one (#1292): the estate's own, and `%s`, the protocol", SharedLibDir)
+	w("library every crossing script sources. The library is the half that")
+	w("belongs to no estate, so watching only the first badged nothing at")
+	w("all when `gauntlet_record_count` changed under all 31 rows. The")
+	w("rendered sentence says which of the two moved, because they send a")
+	w("reader to different places. Deliberately NOT compared, each for a")
+	w("stated reason: `live/floci-image` and `live/oracle-versions.json`,")
+	w("whose values the row already records and `check` already compares by")
+	w("value; `live/gauntlet/estates.json`, one file holding every estate's")
+	w("manifest data, where a diff would badge all 31 rows for one estate's")
+	w("edit; and `internal/`, the product half (#1288), which almost every")
+	w("commit touches. A badge lit on every merge is read by nobody, which")
+	w("is worse than the gap it would close. Three answers: `current`,")
+	w("`changed`, and `unknown` for a row whose commit this checkout cannot")
+	w("place in HEAD's history (a shallow clone, or a run recorded on a")
+	w("branch that never landed). A change touching only markdown under")
+	w("either directory is not a change; nothing else is")
+	w("exempt. `go run ./tools/gauntlet check` prints the live answer and")
+	w("the board carries a snapshot of it, refreshed by every render. It")
+	w("never fails a build: re-running an estate can take half an hour, so")
+	w("a script change makes the drift visible rather than making the pull")
+	w("request that caused it wait on a run. `go run")
 	w("./tools/gauntlet snapshot <version>` copies it to")
 	w("`live/history/<version>.json` at release; `go run")
 	w("./tools/gauntlet notes <old-snapshot.json> <new-snapshot.json>` (`just")
@@ -430,7 +465,7 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("   commit, date and outcome of the row it replaced, so a citation that")
 	w("   followed a figure which has since moved still leads somewhere. A")
 	w("   scale-50 row measured on 2026-09-15 replaced the 2026-09-11 one this")
-	w("   way, and `site/content/docs/what-you-pay.md` quotes that file by path.")
+	w("   way, and `live/costs/what-you-pay.md` quotes that file by path.")
 	w("3. A refusal never replaces a measurement. The runner refuses the write")
 	w("   and names the row it protected; nothing is written. Dropping a measured")
 	w("   row is a reviewed change, not a side effect of a later run that")
@@ -449,6 +484,31 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("certification per estate, so a refusal at scale 136 landing there would")
 	w("destroy the certification at scale 50 - which is what happened on")
 	w("2026-09-13 (#1100), and what #1151 closes for the refusals that came after.")
+	w("")
+	w("### Where a refusal that names no rung goes (`refusals`)")
+	w("")
+	w("Not every estate is run at a size. `reference-ec2-vpc` is one fixed")
+	w("five-resource shape certified against a real account, and it has no rung")
+	w("anywhere - yet it can still refuse: an account whose region resolves no")
+	w("Amazon Linux AMI, a missing permission, a quota that is not about scale.")
+	w("A refusal is the only record its run produces (it is kept out of")
+	w("`live_cert` by the rule above), so under #1149's rule that record has to")
+	w("land or the run fails - and there was no rung to land it on (#1233).")
+	w("")
+	w("`%s` therefore has a second array, `refusals`: one refusal", ScaleRecordsPath)
+	w("per (estate, target), scale absent, for an estate that has no ladder. It is")
+	w("kept out of `records` for the same reason a refusal is kept out of")
+	w("`live_cert` - a row at scale 0 would read as the smallest rung, which is a")
+	w("measurement nobody made. Newer supersedes older there too, with the same")
+	w("`supersedes` pointer.")
+	w("")
+	w("Which of the two an estate gets is the estate's own declaration, not an")
+	w("inference from what a run happened to print: `\"scale_ladder\": true` in")
+	w("`%s`, which `terralith-scale` carries and nothing else does.", ManifestPath)
+	w("A refusal with no `scale=` from a **laddered** estate still fails the run,")
+	w("exactly as #1231 ruled - for that estate a missing scale is a")
+	w("`gauntlet_refused` call that forgot its rung, and shelving it would hide")
+	w("which size was declined.")
 	w("")
 	w("## One live-cert per estate at a time")
 	w("")
@@ -690,10 +750,16 @@ type emulatorGroup struct {
 // Sorted by count descending, ties broken by digest, with the "" bucket
 // always last regardless of its count so a board-wide sentence names the
 // largest real agreement first.
+//
+// A kind-substrate row (r.Substrate != "", the kubernetes lane, #1067) is
+// excluded entirely, the same way a.Sets already excludes it (Rebuild,
+// artifact.go): such a row never launches floci, so its last_run.emulator
+// is never stamped (#1594) and would otherwise inflate the "" bucket with
+// rows this banner has nothing honest to say about.
 func emulatorGroups(a *Artifact) []emulatorGroup {
 	counts := map[string]int{}
 	for _, r := range a.Estates {
-		if r.LastRun == nil {
+		if r.LastRun == nil || r.Substrate != "" {
 			continue
 		}
 		counts[r.LastRun.Emulator]++
@@ -791,6 +857,77 @@ func boardBanner(a *Artifact) string {
 		}
 		return fmt.Sprintf("Estates below were last measured against different emulator pins: %s (%s). The current pin is `%s`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.", strings.Join(parts, ", "), dateNote, a.Emulator)
 	}
+}
+
+// providerBanner is issue #1253's counterpart to boardBanner, for the two
+// provider pins (hashicorp/aws, hashicorp/kubernetes) rather than the
+// emulator image. Held to the same "assert only what the rows agree on"
+// rule, but to ScriptBanner's silence rule rather than boardBanner's own:
+// it speaks only when at least one row's recorded version disagrees with
+// another's, one lane at a time - a lane with no rows recorded, or where
+// every recorded row agrees (whether or not that agreement matches the
+// current pin - a single stale-but-uniform lane is already covered by
+// each row's own providerNote, board.go), says nothing here rather than
+// assert an agreement the rows do not need pointed out.
+func providerBanner(a *Artifact) string {
+	var lines []string
+	if l := providerLaneBanner(a, "hashicorp/aws", a.Providers.AWS, func(r EstateResult) (string, bool) {
+		if r.Substrate == SubstrateKind || r.LastRun == nil || r.LastRun.AWSProviderVersion == "" {
+			return "", false
+		}
+		return r.LastRun.AWSProviderVersion, true
+	}); l != "" {
+		lines = append(lines, l)
+	}
+	if l := providerLaneBanner(a, "hashicorp/kubernetes", a.Providers.Kubernetes, func(r EstateResult) (string, bool) {
+		if r.Substrate != SubstrateKind || r.LastRun == nil || r.LastRun.KubernetesProviderVersion == "" {
+			return "", false
+		}
+		return r.LastRun.KubernetesProviderVersion, true
+	}); l != "" {
+		lines = append(lines, l)
+	}
+	return strings.Join(lines, " ")
+}
+
+// providerLaneBanner buckets one lane's rows by the version get extracts
+// (get returns ok=false for a row outside this lane, or one that recorded
+// nothing) and reports a breakdown only when more than one distinct
+// version is recorded - the disagreement boardBanner's own default branch
+// reports for the emulator pin.
+func providerLaneBanner(a *Artifact, name, currentPin string, get func(EstateResult) (string, bool)) string {
+	counts := map[string]int{}
+	for _, r := range a.Estates {
+		if v, ok := get(r); ok {
+			counts[v]++
+		}
+	}
+	if len(counts) < 2 {
+		return ""
+	}
+	type group struct {
+		version string
+		count   int
+	}
+	var groups []group
+	for v, n := range counts {
+		groups = append(groups, group{v, n})
+	}
+	sort.Slice(groups, func(i, j int) bool {
+		if groups[i].count != groups[j].count {
+			return groups[i].count > groups[j].count
+		}
+		return groups[i].version < groups[j].version
+	})
+	var parts []string
+	for _, g := range groups {
+		label := fmt.Sprintf("`%s`", g.version)
+		if g.version == currentPin {
+			label += " (current pin)"
+		}
+		parts = append(parts, fmt.Sprintf("%d against %s", g.count, label))
+	}
+	return fmt.Sprintf("Estates were last measured against different %s versions: %s. The current pin is `%s`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.", name, strings.Join(parts, ", "), currentPin)
 }
 
 // runtimeBanner is the one board-wide sentence about wall-clock time this

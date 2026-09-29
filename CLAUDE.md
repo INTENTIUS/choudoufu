@@ -15,11 +15,15 @@ stopped until a human notices. **Six workers died this way on 2026-08-29.**
 Long commands block in the foreground. If you must poll, poll
 **synchronously in one call**, and pick a condition that cannot match
 itself — `while pgrep -f "just ci"` matches its own command line and loops
-forever (that happened too). `scripts/ci-gate.sh run` deletes `ci.rc` at
-start and writes it only on completion, so this is a correct wait:
+forever (that happened too). Waiting for `ci.rc` to *exist* is the same
+mistake: `ci-gate.sh run` does delete it at start, but a wait launched
+alongside the run matches the previous run's file before that delete
+happens, and returns a stale green on its first iteration (#1307). Wait on
+the gate's identity instead — this blocks until `ci.meta` names the current
+HEAD from a run newer than the wait, then prints `check`'s verdict:
 
 ```
-while [ ! -f ci.rc ]; do sleep 15; done; echo "ci.rc=$(cat ci.rc)"
+scripts/ci-gate.sh wait
 ```
 
 ## Never work in the primary checkout

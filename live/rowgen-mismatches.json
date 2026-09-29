@@ -4,7 +4,7 @@
   "summary": {
     "admitted_total": 1049,
     "compared": 1023,
-    "genuine_mismatches": 147,
+    "genuine_mismatches": 146,
     "unannotated_mismatches": 0
   },
   "types": [
@@ -4175,8 +4175,8 @@
     },
     {
       "tf_type": "aws_securityhub_connector_v2",
-      "matched": false,
-      "annotated": true
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_securityhub_member",

@@ -215,6 +215,10 @@ a regression; the estate usually got better and the script did not.
    other types it reached.
 4. `go run ./tools/gauntlet render`; commit the script, the artifact and the
    site's board data (`site/data/gauntlet_board.json`) together. `just ci` must be green.
+   Run `just merge-drivers` once per clone: the rendered files conflict on
+   every merge that moved a verdict, and resolving them hunk by hunk is how
+   you get a board whose headline contradicts its own rows (#1308). The
+   driver keeps your side whole; the re-render settles it.
 5. When a planned stage is implemented for enough estates to be honest, flip
    its status to active in `tools/gauntlet/stages.go`. The bars drop; that is
    the point. **A headline flip is half a unit.** A PR that flips a stage's
@@ -275,7 +279,7 @@ Rules are tests. The ones that hold this document to the tree:
 
 | Guard | What it holds |
 |---|---|
-| `internal/live/check`: `TestIdentityGolden`, `TestIdentityGoldenShapeIsPinned` | 2430 rendered identities across 672 configuration directories, pinned by value; 641 of those directories are committed fixtures and 31 are the verification cohorts, rendered into a temp dir by `estate-gen -all` on every run. If your change moves a line, explain it, and `-update` alone cannot silence it |
+| `internal/live/check`: `TestIdentityGolden`, `TestIdentityGoldenShapeIsPinned` | 2436 rendered identities across 684 configuration directories, pinned by value; 653 of those directories are committed fixtures and 31 are the verification cohorts, rendered into a temp dir by `estate-gen -all` on every run. If your change moves a line, explain it, and `-update` alone cannot silence it |
 | `tools/gauntlet`: `TestRenderedDocsAreCurrent`, `TestManifestIsCanonical`, `TestArtifactAgreesWithManifest` | the spec, the site pages and the artifact are what the code says |
 | `tools/gauntlet`: `TestLegacyScriptsOnlyGoDown` | crossing scripts move onto the protocol and never back |
 | `live/derivation_guard_test.go`: `TestEveryTypeLiteralSurfaceIsRegistered`, `TestNoTypeNameIsAssembledFromLiterals` | every hand-wired provider type name carries a registered reason and count, and none is assembled at runtime to dodge the registry |
@@ -284,6 +288,41 @@ Rules are tests. The ones that hold this document to the tree:
 | `internal/live/harness` | every ratchet pins its denominator |
 | `live/flociimage_test.go`, `live/pins_drift_test.go` | the emulator and provider pins are current |
 | `internal/live/lifecycle/marker_tag_merge_live_test.go` | markers survive an incremental tag update through a real emulator |
+| `live/smoke_trigger_rule_test.go` | k8s-smoke.yml, bucket-smoke.yml, claims-smoke.yml and kind-tier.yml each match the smoke trigger rule below |
+
+## CI: smoke workflow triggers
+
+One rule, stated once here, that k8s-smoke.yml, bucket-smoke.yml,
+claims-smoke.yml and kind-tier.yml each carry a short pointer back to
+(issue #1592, part of #1579). Before this, k8s-smoke.yml had no nightly run
+at all, nightly-watch.yml watched bucket-smoke but not k8s-smoke, and
+bucket-smoke.yml's paths were narrow enough that a pull request touching
+only `cmd/` or the rest of `internal/` skipped it silently.
+
+A smoke workflow triggers on `pull_request` and on `push` to `main`, with
+the same path list both times: its own workflow file, `cmd/**`,
+`internal/**`, `live/smoke/**`, `go.mod` and `go.sum` - the code that can
+break any scenario it runs - plus whatever else that substrate needs
+(k8s-smoke.yml also watches `live/kubernetes/**`, `live/e2e/lib/**`,
+`live/e2e/estate-k8s/**` and `examples/record-store-cluster/**`). It also
+runs on a `schedule` cron, so a repin of an emulator or toolchain image, or
+a dependency bump, is caught the day it happens rather than on the next
+pull request that happens to touch one of those paths, and it has
+`workflow_dispatch` so it can be run by hand or by an orchestrator without
+waiting for either. Its name is in `nightly-watch.yml`'s `workflows:` list,
+so a red scheduled run opens and extends a `nightly-red` issue instead of
+dying on the Actions run page (#1316); `live/nightly_watch_test.go` derives
+that list from every workflow file carrying a cron and fails if the two
+disagree.
+
+A scenario measured over a workflow's own stated minutes budget moves to a
+nightly-only job inside that workflow instead of running on every pull
+request (claims-smoke.yml's `smoke-nightly` job, 2026-09-26 ruling on #1590:
+"same rule as the kubernetes lane"). When a whole workflow is over budget
+for pull-request-time gating - kind-tier.yml stands up a kind cluster and
+runs three separate test suites against it - it carries no
+`pull_request`/`push` trigger at all, but still runs nightly, still has
+`workflow_dispatch`, and is still named in `nightly-watch.yml`.
 
 ## Working here
 
@@ -357,11 +396,62 @@ it.
 A real run is therefore:
 
 ```
-SCALE=136 go run ./tools/gauntlet live-cert -target aws -region us-east-2 \
+go build -o /tmp/gauntlet ./tools/gauntlet
+SCALE=136 /tmp/gauntlet live-cert -target aws -region us-east-2 \
   -ceiling-usd 15 -timeout-seconds 34000 terralith-scale
 ```
 
-with nothing to unlock first. `-timeout-seconds` is still worth passing at
+with nothing to unlock first. Build it, do not `go run` it (#1324). `go run`
+execs the binary it builds as a child and does not pass a signal on to it:
+measured on go1.26.5, `kill -TERM` on a `go run` pid killed the wrapper
+alone, the compiled binary reparented to init, and the script and its
+`terraform plan` carried on with the teardown trap unrun. The wrapper's exit
+code was 143 and read as "the run ended" while 9,477 resources stayed up.
+Built, the pid `pgrep -f "gauntlet live-cert"` matches is the pid holding the
+work: it forwards the signal to the script's whole process group, waits for
+the trap, and writes what state the run reached. Read that state rather than
+an exit code:
+
+```
+/tmp/gauntlet live-cert-state terralith-scale
+```
+
+It exits non-zero for anything that is not a run that finished against this
+checkout's HEAD, and prints the reason - "signalled, teardown unconfirmed"
+is the one that means go and look at the account.
+
+Stopping a run is one signal, and then waiting. The tool forwards it to the
+script's whole process group and then waits for the teardown trap for as
+long as the trap takes, printing a "still waiting for teardown" line every
+`LIVECERT_HEARTBEAT_S` so the wait is not silent. It re-sends SIGTERM to the
+group once a second, up to five times, until the script's own output says
+its trap is running, and stops the moment it does: one kill to a group
+misses a command bash forks in the same instant, and bash then holds the
+trap pending until that command finishes. Measured at 19 losses in 200 runs
+on an idle machine, which at scale would be a `terraform plan`'s worth of
+minutes before teardown started. A `trap_resends` above zero in the run
+record means the first signal was one of those, and `trap_answered_utc`
+beside `trap_resends_utc` says in which order the answer and each re-send
+came: a re-send before the answer is that lost signal being repeated, and
+`trap_resends_after_answer` above zero is a SIGTERM that landed on a
+running teardown, which is the defect (#1464). It never kills a teardown
+on its own, and a second or third signal changes nothing: closing a terminal
+sends SIGHUP and a runner's cancellation sends SIGINT then SIGTERM, and
+neither is a request to abandon an estate. Tearing a scale-128 estate down
+is tens of minutes, so expect to wait. To abandon it anyway, `kill -KILL
+-<pgid>` using the pgid the tool prints, which leaves every resource live
+and billing with no verified-empty listing. `LIVECERT_SIGNAL_GRACE_S=<n>`
+opts into a bound that does the same thing on a timer, and records the run
+unconfirmed.
+
+Prove the harness on floci at scale 1 before any paid scale run (#1324).
+`TARGET=floci SCALE=1 RECORD_STORE_BACKEND=s3` exercises the store path, the
+teardown arm and the signal path in minutes for nothing. Every defect found
+in this area in 2026-09 was size-independent and every one was found by
+spending hours and money at scale 128: the record-store bucket policy
+denying the store's own writes, `s3_prefix_count` returning 1 for an empty
+prefix, and both halves of #1324. Scale 136 confirms a harness already known
+to work; it is not where you find out that it does not. `-timeout-seconds` is still worth passing at
 this size, but no longer because the default would kill the run: it defaults
 to 14400 (four hours) rather than 900, and `live-cert.yml`'s job ceiling is
 a `timeout_minutes` input defaulting to 350 rather than a hard 60. That was
@@ -373,9 +463,14 @@ needing more than six hours cannot be dispatched and has to be driven by
 hand.
 
 A dispatch also takes `index_wait_s` (LIVECERT_INDEX_WAIT_S, default 1800).
-Raise it at scale - that bound was measured against 1,655 stamped resources
-and a 10k run writes six times as many, which is what #1046 and #1049 were
-about.
+Raise it at scale - a 10k run writes six times the tag writes a scale-50 run
+does, which is what #1046 and #1049 were about. Note that every bound spent
+before #1143 was spent on an unreachable target: the wait asked for all
+33*SCALE+5 stamped objects, and the tag index holds nothing for `iam:role`
+in any region and holds a global service's objects only in us-east-1. It
+now polls to what the index can answer for from the run's own region, names
+what it is excluding, and records `index_converged`/`index_target` beside
+`index_lag_s` so a timed-out wait cannot be read as a converged one.
 
 `LIVECERT_HOLD`, `LIVECERT_RESUME` and `LIVECERT_TEARDOWN_ONLY` are local
 only, and deliberately not workflow inputs: each names a work dir by path,
@@ -386,7 +481,7 @@ live, billing estate no later dispatch could reach.
 
 A "heavy run" is `go run ./tools/gauntlet run -set core` or `-set all` (a
 full estate pass, minutes to hours - not a plain `run <name>` against the
-emulator) or `go run ./tools/gauntlet live-cert -target aws` (spends real
+emulator) or `gauntlet live-cert -target aws` (spends real
 account money). The section above is the rule; this one is where a heavy
 run normally happens: GitHub Actions, dispatched by hand, and gated on the
 maintainer's own approval click, a repository-level required reviewer
@@ -408,8 +503,12 @@ the "dispatched and approved" half:
 
 `gauntlet-corpus.yml` was not created as a second file: `gauntlet.yml`'s own
 `workflow_dispatch` (inputs `set` core/all, `estates`) already ran the corpus
-the way a new file would have, so the approval gate extends that job instead
-of duplicating its ~15 steps. See that workflow's own header comment.
+the way a new file would have, so the approval gate extends that workflow -
+`dispatch-approval` gates the `plan` job, and every other job needs `plan` -
+instead of duplicating its steps. Since #1550 the run is one job per estate
+(`plan`, a matrix `estate` job, `acceptance`, `collect`), so a leg that runs
+long can no longer take the verdicts pull request with it. See that
+workflow's own header comment.
 
 Dispatching one:
 

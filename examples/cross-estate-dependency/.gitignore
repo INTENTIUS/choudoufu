@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.chant/
+.prove/
+terraform/*/.terraform/
+terraform/*/chant.tfplan
+terraform/*/.tofu-records/
+terraform/*/chant.live-plan.json

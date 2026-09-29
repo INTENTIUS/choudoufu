@@ -42,9 +42,20 @@
     "(bumping it regenerates live/survey-full.json and",
     "live/corpus-refusals.json - a deliberate, separate event per that",
     "package's own doc comment); this field pins the release the gauntlet's",
-    "own corpus estates actually DEPLOY against emulated AWS."
+    "own corpus estates actually DEPLOY against emulated AWS.",
+    "",
+    "kubernetes_provider_version (#1252) is the kubernetes lane's counterpart",
+    "to aws_provider_version: the hashicorp/kubernetes release the three",
+    "reference-k8s estates' hand-authored roots require exactly, printed by",
+    "live/e2e/lib/gauntlet.sh's gauntlet_kubernetes_required_provider. It",
+    "used to be three `= 3.2.1` literals, one per script, which agreed only",
+    "by accident. There is no registry-lag argument here (kind needs no",
+    "mirror), so the reason is the weaker one that the board presents the",
+    "three rows as comparable: a bump re-measures all three by hand, since",
+    "no row records the value yet (the aws field's #1253 gap, one lane over)."
   ],
   "terraform_version": "1.16.1",
   "tofu_version": "1.12.6",
-  "aws_provider_version": "6.63.0"
+  "aws_provider_version": "6.63.0",
+  "kubernetes_provider_version": "3.2.1"
 }

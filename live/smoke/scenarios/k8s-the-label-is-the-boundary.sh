@@ -1,5 +1,5 @@
 # k8s-the-label-is-the-boundary
-# CLAIM 23 - The label is the boundary: the plan refuses a block that declares another estate's object before any cluster is consulted, and one admission policy on the estate label fences every write to an estate's objects, cluster-wide, so a principal is refused on another estate's object by the API server itself, a carve is one governed relabel (live-mv -from-estate, the same command as the AWS retag), a rename is a config edit with nothing to write, and handover is an RBAC change. ~5 min.
+# CLAIM 13 (kubernetes) - The label is the boundary: the plan refuses a block that declares another estate's object before any cluster is consulted, and one admission policy on the estate label fences every write to an estate's objects, cluster-wide, so a principal is refused on another estate's object by the API server itself, a carve is one governed relabel (live-mv -from-estate, the same command as the AWS retag), a rename is a config edit with nothing to write, and handover is an RBAC change. ~5 min.
 #
 # The Kubernetes sibling of claim 13 (#1066, under #1016's ruling). RBAC has
 # no attribute predicate, so the label is advisory until something fences on
@@ -28,12 +28,31 @@
 # property of the plan; the policy is what stops everything that never
 # went through choudoufu at all.
 #
+# Steps 8, 9 and 10 are #1449's ruling: owned objects keep their estate.
+# The policy used to skip itself entirely for any object carrying an
+# ownerReference, and ownerReferences is a field the caller writes, so
+# Alice could add an owner to her own app object and then relabel it into
+# net, or create an object already labelled net and already owned. Both
+# arms are here beside the refused twin the issue's table puts them next
+# to, and beside the write the ruling does allow: an update to an owned
+# object that leaves its tofu-estate label alone goes through with no
+# grant at all, which is what a third-party operator's writes on a
+# labelled child need. Step 10 is the cost of that, measured rather than
+# assumed: a Deployment whose pod template carries the label still gets
+# its ReplicaSet and its Pods, because those copies are written by the
+# control plane's own controllers, which the first match condition exempts
+# by name. Step 10b is #1448's ruling on that list: living in kube-system
+# exempts nothing. A ServiceAccount in kube-system that is not one of those
+# controllers, and a user named system:kube-proxy, are each refused a
+# labelled create, beside an unlabelled create that goes through, and the
+# BREAK arm requires both labelled creates to land with the policy gone.
+#
 # The carve is live-mv's Kubernetes leg (#1081's fifth item): with no
 # address on the object a rename within one estate has nothing governed to
-# write and live-mv says so, exit 0 (step 9); a move between estates is the
+# write and live-mv says so, exit 0 (step 12); a move between estates is the
 # one tofu-estate label write, which live-mv -from-estate makes through the
 # provider under the caller's own ServiceAccount, so the policy judges it
-# exactly as it judges a plain kubectl label (steps 10 and 11).
+# exactly as it judges a plain kubectl label (steps 13 and 14).
 
 W="$SMOKE_WORKROOT/k8s-boundary"; APP="$W/app"; NET="$W/net"; DATA="$W/data"; LOGS="$W/logs"
 mkdir -p "$APP" "$NET" "$DATA" "$LOGS"
@@ -107,14 +126,14 @@ versions data > "$DATA/versions.tf"
 
 cluster_up
 
-kc() { kubectl --kubeconfig "$KUBECONFIG" "$@"; }
-
 # principal makes one ServiceAccount, mints it a token, and writes it a
-# kubeconfig of its own beside the admin's, so a step can run as it.
+# kubeconfig of its own beside the admin's, so a step can run as it. $2 is
+# its namespace, $PNS unless given.
 principal() {
-  kc create serviceaccount "$1" -n "$PNS" >/dev/null || fail "boundary" "could not create ServiceAccount $1"
+  local ns="${2:-$PNS}"
+  kc create serviceaccount "$1" -n "$ns" >/dev/null || fail "boundary" "could not create ServiceAccount $1"
   local tok
-  tok="$(kc create token "$1" -n "$PNS" --duration=2h)" || fail "boundary" "could not mint a token for $1"
+  tok="$(kc create token "$1" -n "$ns" --duration=2h)" || fail "boundary" "could not mint a token for $1"
   cp "$KUBECONFIG" "$W/$1.kubeconfig"
   kubectl --kubeconfig "$W/$1.kubeconfig" config set-credentials "$1" --token="$tok" >/dev/null
   kubectl --kubeconfig "$W/$1.kubeconfig" config set-context --current --user="$1" >/dev/null
@@ -135,12 +154,14 @@ grant() {
 }
 # can_use asks the API server's own authorizer the exact question the
 # policy asks: may principal $1 "use" estate $2. Prints true or false.
-can_use() {
+can_use() { user_can_use "system:serviceaccount:$PNS:$1" "$2"; }
+# user_can_use is the same question about a full username.
+user_can_use() {
   kc create -o jsonpath='{.status.allowed}' -f - <<EOF
 apiVersion: authorization.k8s.io/v1
 kind: SubjectAccessReview
 spec:
-  user: system:serviceaccount:$PNS:$1
+  user: $1
   resourceAttributes:
     group: choudoufu.intentius.io
     resource: estates
@@ -206,6 +227,113 @@ refusal_sentence() { tr '\n' ' ' <<< "$1" | tr -s ' ' | grep -o 'A live kubernet
 denied() { grep -q "ValidatingAdmissionPolicy 'choudoufu-estate-boundary'" <<< "$1"; }
 refusal_line() { { sed 's/\x1b\[[0-9;]*m//g' <<< "$1" | grep -o "denied request: .*" || true; } | head -1; }
 
+# refused_by_policy fails the scenario unless $2 is THIS policy refusing
+# $1, in the policy's own words. Both halves are the assertion. A bad
+# kubeconfig, an expired token, a missing namespace or an RBAC gap also
+# make a kubectl call fail, and "the call failed" would be satisfied by
+# every one of them, so $3 is the sentence the policy itself writes:
+# "is not bound to it" for the estate a write would enter,
+# "is not bound to that estate" for the estate it is leaving.
+refused_by_policy() {
+  local what="$1" out="$2" phrase="$3"
+  denied "$out" \
+    || fail "boundary" "$what: nothing in the output is a refusal from ValidatingAdmissionPolicy 'choudoufu-estate-boundary': $out"
+  grep -qF "$phrase" <<< "$out" \
+    || fail "boundary" "$what: refused, but not with the policy's own words (\"$phrase\"), so what said no was not the check this step is about: $out"
+  refusal_line "$out" | evidence
+}
+
+# OWNER_UID is the boundary Namespace's uid, read once in step 8 and
+# asserted non-empty there. Every ownerReference below names that
+# Namespace, which is what #1449's reproduction used: a namespaced object
+# owned by a cluster-scoped one is legal and the garbage collector leaves
+# it alone.
+OWNER_UID=""
+owner_lines() { cat <<EOF
+  ownerReferences:
+    - apiVersion: v1
+      kind: Namespace
+      name: boundary
+      uid: $OWNER_UID
+EOF
+}
+# cm_yaml prints a ConfigMap manifest for the boundary namespace: $1 name,
+# $2 estate label, and "owned" as $3 to carry the ownerReference.
+cm_yaml() {
+  cat <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: $1
+  namespace: boundary
+  labels:
+    tofu-estate: $2
+EOF
+  if [ "${3:-}" = "owned" ]; then owner_lines; fi
+  cat <<EOF
+data:
+  greeting: $1
+EOF
+}
+# record_secret_yaml prints a Secret shaped like one the Kubernetes record
+# store writes for estate $1 - the name prefix, the managed-by and
+# record-namespace labels, the record-key annotation - carrying an
+# ownerReference. This is #1449's third measured row: a planted record.
+record_secret_yaml() { cat <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tofu-record-0e4d1c9a7f2b5a6c8d3e1f0a9b8c7d6e
+  namespace: boundary
+  labels:
+    tofu-estate: $1
+    app.kubernetes.io/managed-by: choudoufu
+    choudoufu.intentius.io/record-namespace: tofu-records
+  annotations:
+    choudoufu.intentius.io/record-key: tofu-records/$1/default.tfstate
+$(owner_lines)
+type: Opaque
+stringData:
+  tfstate: planted
+EOF
+}
+# obj_labels prints one object's whole label map: $1 kind, $2 name, $3
+# namespace.
+obj_labels() { kc get "$1" "$2" -n "$3" -o jsonpath='{.metadata.labels}{"\n"}'; }
+
+# The two identities #1448 took out of the exemption, set up in step 2 and
+# used in step 10b and in the BREAK arm. ADDON_USER is a ServiceAccount in
+# kube-system that is not one of the control plane's controllers, with a
+# token of its own. PROXY_USER is a username, reached by impersonation
+# under the admin. Both hold edit in namespace addons and no estate.
+# twin_kc runs kc as one of them: $1 is addon or kube-proxy.
+ADDON_USER="system:serviceaccount:kube-system:addon"
+PROXY_USER="system:kube-proxy"
+twin_kc() {
+  local who="$1"; shift
+  if [ "$who" = addon ]; then as_role addon kc "$@"; else kc --as="$PROXY_USER" "$@"; fi
+}
+# twin_cm_yaml prints a ConfigMap for namespace addons carrying
+# tofu-estate=app: $1 name.
+twin_cm_yaml() { cat <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: $1
+  namespace: addons
+  labels:
+    tofu-estate: app
+data:
+  greeting: $1
+EOF
+}
+# failed_creates prints what a controller was refused in namespace $1. A
+# controller's refusal never reaches the caller; it lands in an event, and
+# the policy's message in it names the username the list is missing.
+failed_creates() {
+  kc get events -n "$1" --field-selector reason=FailedCreate -o jsonpath='{range .items[*]}{.involvedObject.kind}/{.involvedObject.name}: {.message}{"\n"}{end}' 2>&1 | head -5
+}
+
 step "the claim"
 explain \
   "In stock, who owns an object is a line in a state file, and no policy" \
@@ -234,8 +362,10 @@ explain \
   "the object it would produce, and asks the authorizer whether the caller" \
   "may \"use\" estates.choudoufu.intentius.io/<that estate>. No such" \
   "resource exists; the verb lives only in RBAC, which is the point. The" \
-  "control plane is exempt, and so is any object carrying an" \
-  "ownerReference, the same rule the estate sweep excludes by."
+  "control plane is exempt by name - nodes, the API server, the scheduler" \
+  "and the controller manager's own controllers - and an object that already" \
+  "carries an ownerReference may be updated with no grant while its" \
+  "tofu-estate label stays as it was. Nothing else is exempt."
 cmd "kubectl apply -f live/kubernetes/estate-boundary.yaml   # as the cluster admin"
 kc apply -f "$ROOT/live/kubernetes/estate-boundary.yaml" >/dev/null || fail "boundary" "could not install the policy"
 for i in $(seq 1 30); do
@@ -245,7 +375,12 @@ done
 [ -n "$OBS" ] || fail "boundary" "the API server never observed the policy"
 TC="$(kc get validatingadmissionpolicy choudoufu-estate-boundary -o jsonpath='{.status.typeChecking.expressionWarnings}')"
 [ -z "$TC" ] || fail "boundary" "the policy's CEL has type-check warnings: $TC"
+GEN="$(kc get validatingadmissionpolicy choudoufu-estate-boundary -o jsonpath='{.metadata.generation}')" \
+  || fail "boundary" "could not read the policy's generation back"
+[ -n "$GEN" ] && [ "$OBS" = "$GEN" ] \
+  || fail "boundary" "the API server has observed generation '$OBS' of the policy and its current generation is '$GEN'; the record store's cluster contract reads exactly these two fields, and a policy whose status lags its spec is not yet judging anything"
 kc get validatingadmissionpolicy,validatingadmissionpolicybinding choudoufu-estate-boundary -o name | evidence
+echo "observedGeneration $OBS == generation $GEN; status.typeChecking.expressionWarnings: none" | evidence
 proof "one policy and one binding, cluster-wide, with no type-check warning. Nothing about an estate is in them; the estate comes from the label and the grant."
 
 step "2. two ServiceAccounts, two estates, one grant shape"
@@ -270,7 +405,13 @@ rules:
     resources: ["*"]
     verbs: ["get", "list", "watch"]
   - apiGroups: [""]
-    resources: ["namespaces", "configmaps"]
+    resources: ["namespaces", "configmaps", "secrets", "services"]
+    verbs: ["create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["create", "update", "patch", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
     verbs: ["create", "update", "patch", "delete"]
 EOF
 for who in alice bob; do
@@ -288,9 +429,20 @@ done
 [ "$(can_use bob app)" = "false" ] || fail "boundary" "bob holds app; the fence below would prove nothing"
 [ "$(can_use bob net)" = "true" ] || fail "boundary" "bob does not hold net"
 [ "$(can_use alice data)" = "false" ] || fail "boundary" "alice already holds data; the carve below would prove nothing"
-WHO="$(as_role alice kubectl auth whoami -o jsonpath='{.status.userInfo.username}')" || fail "boundary" "alice's token cannot identify itself"
+WHO="$(as_role alice kc auth whoami -o jsonpath='{.status.userInfo.username}')" || fail "boundary" "alice's token cannot identify itself"
 echo "$WHO" | evidence
-proof "two ServiceAccounts hold two estates, and the authorizer answers the exact question the policy will ask: alice may use app, bob may not."
+# Step 10b's two identities, made here so the BREAK arm has them too.
+kc create namespace addons >/dev/null || fail "boundary" "could not create namespace addons"
+principal addon kube-system
+kc create rolebinding addon-edit -n addons --clusterrole=edit --serviceaccount=kube-system:addon >/dev/null \
+  || fail "boundary" "could not bind edit to $ADDON_USER in addons"
+kc create rolebinding kube-proxy-edit -n addons --clusterrole=edit --user="$PROXY_USER" >/dev/null \
+  || fail "boundary" "could not bind edit to $PROXY_USER in addons"
+for who in "$ADDON_USER" "$PROXY_USER"; do
+  [ "$(user_can_use "$who" app)" = "false" ] || fail "boundary" "$who holds app; step 10b would prove nothing"
+  echo "may $who use estate app: false" | evidence
+done
+proof "two ServiceAccounts hold two estates, and the authorizer answers the exact question the policy will ask: alice may use app, bob may not. Neither does a ServiceAccount in kube-system, nor a user named system:kube-proxy."
 
 step "3. each principal stands its own estate up"
 explain \
@@ -364,7 +516,7 @@ if [ "${BREAK:-0}" = "1" ]; then
 
   step "BREAK control (cont'd) - the tool-less write goes through too, with no choudoufu in the call"
   cmd "kubectl label configmap database -n boundary owner=bob   # no choudoufu, as bob, policy gone"
-  OUT="$(as_role bob kubectl label configmap database -n boundary owner=bob 2>&1)" || fail "boundary" "BREAK: with no policy, Bob's tool-less write on Alice's estate was still refused: $OUT"
+  OUT="$(as_role bob kc label configmap database -n boundary owner=bob 2>&1)" || fail "boundary" "BREAK: with no policy, Bob's tool-less write on Alice's estate was still refused: $OUT"
   denied "$OUT" && fail "boundary" "BREAK: the tool-less write succeeded but the output still carries a refusal: $OUT"
   grep -q '"owner":"bob"' <<< "$(labels_of database boundary)" || fail "boundary" "BREAK: Bob's tool-less write did not land"
   labels_of database boundary | evidence
@@ -388,6 +540,18 @@ if [ "${BREAK:-0}" = "1" ]; then
   labels_of database boundary | evidence
   grep -q '"tofu-estate":"data"' <<< "$(labels_of database boundary)" || fail "boundary" "BREAK: Alice's live-mv did not land"
   proof "caught - with the policy gone, live-mv relabelled the object into an estate Alice was never granted. The refusal the main run shows at this step is the policy's, not the tool's."
+
+  step "BREAK control (cont'd) - step 10b's two labelled creates go through too"
+  for who in addon kube-proxy; do
+    if [ "$who" = addon ]; then NAME="$ADDON_USER"; else NAME="$PROXY_USER"; fi
+    cmd "kubectl apply -f - <<< (ConfigMap planted-$who, tofu-estate=app)   # as $NAME, policy gone"
+    OUT="$(twin_cm_yaml "planted-$who" | twin_kc "$who" apply -f - 2>&1)" || fail "boundary" "BREAK: with no policy, the labelled create by $NAME was still refused: $OUT"
+    denied "$OUT" && fail "boundary" "BREAK: the create succeeded but the output still carries a refusal: $OUT"
+    grep -q '"tofu-estate":"app"' <<< "$(labels_of "planted-$who" addons)" || fail "boundary" "BREAK: the labelled create by $NAME did not land"
+    labels_of "planted-$who" addons | evidence
+  done
+  proof "caught - with the policy gone, a ServiceAccount in kube-system and a user named system:kube-proxy each planted an object in estate app. RBAC let them write all along; the policy was what refused them."
+  kc delete configmap planted-addon planted-kube-proxy -n addons >/dev/null || true
 
   ( cd "$DATA" && as_role alice chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
   ( cd "$APP" && as_role alice chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
@@ -442,25 +606,343 @@ explain \
   "and not an object outside any estate. The policy names what it governs" \
   "and nothing wider."
 cmd "kubectl label configmap database -n boundary owner=bob   # no choudoufu, as bob"
-OUT="$(as_role bob kubectl label configmap database -n boundary owner=bob 2>&1 || true)"
+OUT="$(as_role bob kc label configmap database -n boundary owner=bob 2>&1 || true)"
 denied "$OUT" || fail "boundary" "Bob's tool-less label on Alice's object was not refused by the policy: $OUT"
 refusal_line "$OUT" | evidence
 cmd "kubectl delete configmap database -n boundary   # no choudoufu, as bob"
-OUT="$(as_role bob kubectl delete configmap database -n boundary 2>&1 || true)"
+OUT="$(as_role bob kc delete configmap database -n boundary 2>&1 || true)"
 denied "$OUT" || fail "boundary" "Bob's tool-less delete of Alice's object was not refused by the policy: $OUT"
 refusal_line "$OUT" | evidence
 cmd "kubectl label configmap database -n boundary tofu-estate-   # no choudoufu, as bob: strip the marker"
-OUT="$(as_role bob kubectl label configmap database -n boundary tofu-estate- 2>&1 || true)"
+OUT="$(as_role bob kc label configmap database -n boundary tofu-estate- 2>&1 || true)"
 denied "$OUT" || fail "boundary" "Bob's tool-less strip of the marker was not refused by the policy: $OUT"
 refusal_line "$OUT" | evidence
 L="$(labels_of database boundary)"
 grep -q '"tofu-estate":"app"' <<< "$L" || fail "boundary" "the database's label changed despite the refusals: $L"
 grep -q 'owner' <<< "$L" && fail "boundary" "Bob's label landed despite the refusal: $L"
 cmd "kubectl get configmap database -n boundary   # reads are not admission's to fence"
-as_role bob kubectl get configmap database -n boundary -o name >/dev/null || fail "boundary" "Bob's read of Alice's object was refused; admission does not fence reads, so something else did"
+as_role bob kc get configmap database -n boundary -o name >/dev/null || fail "boundary" "Bob's read of Alice's object was refused; admission does not fence reads, so something else did"
 proof "three plain kubectl writes, no choudoufu anywhere in the process, all refused by the same policy that fences choudoufu's own writes - and a plain read went through, because admission never sees one. The fence binds the credential, not the tool, and it is write-only."
 
-step "8. Bob's own estate, tool-less, and the API server lets it through - the next plan sees it"
+step "8. an owned object keeps its estate: the owner field is no way out of one"
+explain \
+  "metadata.ownerReferences is an ordinary field the caller writes, so it" \
+  "cannot be what decides whether the fence applies. Alice holds app and" \
+  "not net. She is refused when she relabels an app object into net, so" \
+  "the control is on the table first. Then she puts an ownerReference on" \
+  "one of her own objects, which is allowed because the label does not" \
+  "change, and tries the same relabel again: under the ruling on #1449" \
+  "that is refused too, with the same sentence. Adding the owner and" \
+  "changing the label in one request is refused as well, because the" \
+  "exemption is read off the object as it already is. What the ruling does" \
+  "allow is the last command here: an update to an owned object that" \
+  "leaves tofu-estate exactly as it found it goes through under a" \
+  "ServiceAccount holding no grant on that estate at all, which is what a" \
+  "third-party operator writing to a labelled child needs. Stripping the" \
+  "label off an owned object and deleting one are neither of them keeping" \
+  "its estate, so both still need the grant."
+OWNER_UID="$(kc get namespace boundary -o jsonpath='{.metadata.uid}')" || fail "boundary" "could not read the boundary Namespace's uid"
+[ -n "$OWNER_UID" ] || fail "boundary" "the boundary Namespace's uid read back empty, and an ownerReference built from an empty uid would prove nothing"
+cmd "kubectl apply -f - <<< (two ConfigMaps labelled tofu-estate=app)   # as alice"
+for n in unowned owned; do
+  cm_yaml "$n" app | as_role alice kc apply -f - >/dev/null \
+    || fail "boundary" "Alice could not create the $n ConfigMap on her own estate; every arm below would prove nothing"
+done
+grep -q '"tofu-estate":"app"' <<< "$(labels_of unowned boundary)" || fail "boundary" "the unowned ConfigMap does not carry tofu-estate=app"
+grep -q '"tofu-estate":"app"' <<< "$(labels_of owned boundary)" || fail "boundary" "the owned ConfigMap does not carry tofu-estate=app"
+echo "unowned, owned: both tofu-estate=app, neither with an ownerReference yet" | evidence
+
+cmd "kubectl label configmap unowned -n boundary tofu-estate=net --overwrite   # as alice - the control, no ownerReference"
+OUT="$(as_role alice kc label configmap unowned -n boundary tofu-estate=net --overwrite 2>&1 || true)"
+refused_by_policy "the control relabel of an object with no ownerReference" "$OUT" 'is not bound to it'
+
+cmd "kubectl patch configmap owned -n boundary --type=merge -p '{\"metadata\":{\"ownerReferences\":[{... Namespace boundary ...}]}}'   # as alice"
+as_role alice kc patch configmap owned -n boundary --type=merge \
+  -p "{\"metadata\":{\"ownerReferences\":[{\"apiVersion\":\"v1\",\"kind\":\"Namespace\",\"name\":\"boundary\",\"uid\":\"$OWNER_UID\",\"controller\":false}]}}" >/dev/null \
+  || fail "boundary" "Alice could not put an ownerReference on her own object; the bypass arm below would prove nothing"
+OWNED_BY="$(kc get configmap owned -n boundary -o jsonpath='{.metadata.ownerReferences[0].kind}/{.metadata.ownerReferences[0].name}')" \
+  || fail "boundary" "could not read the ownerReferences back off the owned ConfigMap"
+[ "$OWNED_BY" = "Namespace/boundary" ] || fail "boundary" "the ownerReference did not land on the object: '$OWNED_BY'"
+echo "owned: ownerReferences[0] = $OWNED_BY, tofu-estate still app" | evidence
+proof "the owner write itself is allowed, and it must be: the label did not change. That is the whole of what an owner buys."
+
+cmd "kubectl label configmap owned -n boundary tofu-estate=net --overwrite   # as alice - the same relabel, now with an owner"
+OUT="$(as_role alice kc label configmap owned -n boundary tofu-estate=net --overwrite 2>&1 || true)"
+refused_by_policy "the relabel of an OWNED object into an estate Alice does not hold (#1449's update arm)" "$OUT" 'is not bound to it'
+grep -q '"tofu-estate":"app"' <<< "$(labels_of owned boundary)" \
+  || fail "boundary" "the owned ConfigMap left estate app despite the refusal: $(labels_of owned boundary)"
+
+cmd "kubectl patch configmap unowned -n boundary --type=merge -p '{... tofu-estate: net AND an ownerReference ...}'   # as alice, one request"
+OUT="$(as_role alice kc patch configmap unowned -n boundary --type=merge \
+  -p "{\"metadata\":{\"labels\":{\"tofu-estate\":\"net\"},\"ownerReferences\":[{\"apiVersion\":\"v1\",\"kind\":\"Namespace\",\"name\":\"boundary\",\"uid\":\"$OWNER_UID\",\"controller\":false}]}}" 2>&1 || true)"
+refused_by_policy "adding an ownerReference and changing the label in one request" "$OUT" 'is not bound to it'
+grep -q '"tofu-estate":"app"' <<< "$(labels_of unowned boundary)" \
+  || fail "boundary" "the one-request move landed: $(labels_of unowned boundary)"
+STILL_UNOWNED="$(kc get configmap unowned -n boundary -o jsonpath='{.metadata.ownerReferences}')" \
+  || fail "boundary" "could not read the unowned ConfigMap's ownerReferences back"
+[ -z "$STILL_UNOWNED" ] || fail "boundary" "the refused request still planted an ownerReference: $STILL_UNOWNED"
+proof "the exemption is read off the object as it already is, so a request cannot hand itself one. Reading it off the object the write would produce would also let Bob patch Alice's object by adding an owner in the same request, which is step 7 undone."
+
+cmd "kubectl label configmap owned -n boundary tofu-estate-   # as bob: strip the marker off an OWNED object"
+OUT="$(as_role bob kc label configmap owned -n boundary tofu-estate- 2>&1 || true)"
+refused_by_policy "stripping the label off an owned object, by a ServiceAccount that does not hold app" "$OUT" 'is not bound to that estate'
+cmd "kubectl delete configmap owned -n boundary   # as bob: delete an OWNED object"
+OUT="$(as_role bob kc delete configmap owned -n boundary 2>&1 || true)"
+refused_by_policy "deleting an owned object, by a ServiceAccount that does not hold app" "$OUT" 'is not bound to that estate'
+grep -q '"tofu-estate":"app"' <<< "$(labels_of owned boundary)" \
+  || fail "boundary" "the owned ConfigMap lost its label or its life despite the refusals: $(labels_of owned boundary)"
+
+cmd "kubectl patch configmap owned -n boundary --type=merge -p '{\"data\":{\"greeting\":\"operator\"}}'   # as bob, who holds no grant on app"
+as_role bob kc patch configmap owned -n boundary --type=merge -p '{"data":{"greeting":"operator"}}' >/dev/null \
+  || fail "boundary" "the ruling's allowance does not work: an update to an owned object that leaves tofu-estate alone was refused for a caller with no grant on the estate"
+[ "$(greeting_of owned boundary)" = "operator" ] || fail "boundary" "Bob's permitted update of the owned object did not land"
+greeting_of owned boundary | evidence
+grep -q '"tofu-estate":"app"' <<< "$(labels_of owned boundary)" || fail "boundary" "the owned object lost its label to the permitted update"
+proof "one object, one caller with no grant on app: the relabel, the strip and the delete are all refused by name, and the plain update goes through. That is the ruling - owned objects keep their estate - and the estate is what the caller has to hold to move it."
+
+step "9. the owner field is no way INTO an estate either: the create arm"
+explain \
+  "On a create there is no old object, so the earlier rule read" \
+  "ownerReferences off the object being created, and one manifest" \
+  "carrying both a label and an owner was admitted. Alice holds app and" \
+  "not net. The control goes first again: a ConfigMap labelled net with no" \
+  "owner, refused. Then the same manifest with an ownerReference, which is" \
+  "#1449's create arm and must now be refused in the same words. Then the" \
+  "one that reaches furthest: a Secret shaped exactly like a record the" \
+  "Kubernetes record store writes for net - the tofu-record- name, the" \
+  "managed-by and record-namespace labels, the record-key annotation - and" \
+  "owned. The store's list does not skip owned Secrets, so an admitted one" \
+  "would be read back as a genuine record."
+cmd "kubectl apply -f - <<< (ConfigMap planted-unowned, tofu-estate=net)   # as alice - the control"
+OUT="$(cm_yaml planted-unowned net | as_role alice kc apply -f - 2>&1 || true)"
+refused_by_policy "creating a net-labelled ConfigMap with no ownerReference" "$OUT" 'is not bound to it'
+cmd "kubectl apply -f - <<< (ConfigMap planted, tofu-estate=net, ownerReferences: Namespace/boundary)   # as alice"
+OUT="$(cm_yaml planted net owned | as_role alice kc apply -f - 2>&1 || true)"
+refused_by_policy "creating a net-labelled ConfigMap that is already owned (#1449's create arm)" "$OUT" 'is not bound to it'
+cmd "kubectl apply -f - <<< (Secret tofu-record-..., tofu-estate=net, managed-by=choudoufu, owned)   # as alice"
+OUT="$(record_secret_yaml net | as_role alice kc apply -f - 2>&1 || true)"
+refused_by_policy "planting a record-shaped Secret for an estate Alice does not hold" "$OUT" 'is not bound to it'
+LEFT="$(kc get configmap,secret -n boundary -l tofu-estate=net -o name)" \
+  || fail "boundary" "could not list the boundary namespace for net-labelled objects"
+[ -z "$LEFT" ] || fail "boundary" "something labelled net was planted in the boundary namespace despite the refusals: $LEFT"
+echo "objects labelled tofu-estate=net in namespace boundary: none" | evidence
+proof "three creates refused by the same policy and the same sentence, the owned ones with the unowned control beside them. An ownerReference in a manifest is a field the author typed, and the fence reads the label, not the author's claim about who made the object."
+cmd "kubectl delete configmap owned unowned -n boundary   # as alice, who holds app"
+as_role alice kc delete configmap owned unowned -n boundary >/dev/null \
+  || fail "boundary" "Alice could not delete her own objects, owned and unowned alike, at the end of the step"
+GONE="$(kc get configmap -n boundary -o name)" || fail "boundary" "could not list the boundary namespace after the cleanup"
+grep -qE 'configmap/(owned|unowned)$' <<< "$GONE" && fail "boundary" "the step's scratch objects survived the cleanup: $GONE"
+proof "and the same deletes under the ServiceAccount that does hold app go through, owned object included. What the fence reads is the estate, never the owner."
+
+step "10. what the exemption costs: a labelled workload's copies are still made, and still cleaned up"
+explain \
+  "The first match condition exempts the control plane by who is asking," \
+  "and that is what keeps a controller's copies out of the fence. Alice" \
+  "applies a Deployment whose pod template carries tofu-estate=app. She" \
+  "never creates the ReplicaSet or the Pod; the deployment and replicaset" \
+  "controllers do, under their own ServiceAccounts, and both copies carry" \
+  "the label. If the owner exemption had been what let them through," \
+  "tightening it would have broken every labelled workload on the cluster." \
+  "The exemption is a list of names (#1448), so a name missing from it" \
+  "breaks a workload the same way. Alice therefore also makes a labelled" \
+  "namespace holding a Service, a Job and a StatefulSet with a labelled" \
+  "volumeClaimTemplate: the EndpointSlice, the Job's Pod and the" \
+  "PersistentVolumeClaim are each a named controller's labelled copy. Then" \
+  "she deletes the Deployment and the namespace, and the garbage collector" \
+  "and the namespace controller remove what is left, labelled or not."
+cmd "kubectl apply -f - <<< (Deployment fanout, tofu-estate=app on the object and on the pod template)   # as alice"
+cat <<EOF | as_role alice kc apply -f - >/dev/null || fail "boundary" "Alice could not create the fanout Deployment on her own estate"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fanout
+  namespace: boundary
+  labels:
+    tofu-estate: app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fanout
+  template:
+    metadata:
+      labels:
+        app: fanout
+        tofu-estate: app
+    spec:
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.10
+EOF
+# The jsonpath errors while items is empty, so the || true here can only
+# leave RS or POD empty, and empty is what the assertions below refuse.
+RS=""; POD=""
+for i in $(seq 1 60); do
+  RS="$(kc get replicaset -n boundary -l app=fanout -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+  POD="$(kc get pod -n boundary -l app=fanout -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+  if [ -n "$RS" ] && [ -n "$POD" ]; then break; fi
+  sleep 1
+done
+[ -n "$RS" ] || fail "boundary" "no ReplicaSet for the labelled Deployment after 60s: the fence is now refusing the deployment controller's own copy of a labelled pod template"
+[ -n "$POD" ] || fail "boundary" "the ReplicaSet $RS made no Pod after 60s: the fence is now refusing the replicaset controller's copy of a labelled pod template"
+echo "replicaset/$RS pod/$POD" | evidence
+grep -q '"tofu-estate":"app"' <<< "$(obj_labels replicaset "$RS" boundary)" \
+  || fail "boundary" "the ReplicaSet does not carry the pod template's label, so this step would not be measuring the fence at all: $(obj_labels replicaset "$RS" boundary)"
+grep -q '"tofu-estate":"app"' <<< "$(obj_labels pod "$POD" boundary)" \
+  || fail "boundary" "the Pod does not carry the label, so this step would not be measuring the fence at all: $(obj_labels pod "$POD" boundary)"
+obj_labels pod "$POD" boundary | evidence
+
+cmd "kubectl apply -f - <<< (Namespace fanout, and in it Service store, Job once, StatefulSet store with a volumeClaimTemplate; tofu-estate=app on every object and every template)   # as alice"
+cat <<EOF | as_role alice kc apply -f - >/dev/null || fail "boundary" "Alice could not create the labelled namespace and its workloads on her own estate"
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fanout
+  labels:
+    tofu-estate: app
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: store
+  namespace: fanout
+  labels:
+    tofu-estate: app
+spec:
+  selector:
+    app: store
+  ports:
+    - port: 80
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: once
+  namespace: fanout
+  labels:
+    tofu-estate: app
+spec:
+  template:
+    metadata:
+      labels:
+        tofu-estate: app
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: once
+          image: registry.k8s.io/pause:3.10
+          command: ["/pause", "-v"]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: store
+  namespace: fanout
+  labels:
+    tofu-estate: app
+spec:
+  serviceName: store
+  replicas: 1
+  selector:
+    matchLabels:
+      app: store
+  template:
+    metadata:
+      labels:
+        app: store
+        tofu-estate: app
+    spec:
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.10
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          tofu-estate: app
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 8Mi
+EOF
+# One bounded wait for all three. Each probe is empty until its controller
+# has written its labelled copy and the copy has come good: the PVC Bound,
+# the Job succeeded, the EndpointSlice carrying an address (which needs the
+# StatefulSet's Pod Ready, which needs the PVC). The label selector is part
+# of each probe, so an unlabelled copy never satisfies one.
+PVC=""; JOBPOD=""; SLICE=""
+DEADLINE=$(( $(date +%s) + 180 ))
+while :; do
+  PVC="$(kc get pvc -n fanout -l tofu-estate=app -o jsonpath='{range .items[?(@.status.phase=="Bound")]}{.metadata.name}{end}' 2>/dev/null || true)"
+  JOBPOD="$(kc get pod -n fanout -l tofu-estate=app,job-name=once -o jsonpath='{range .items[?(@.status.phase=="Succeeded")]}{.metadata.name}{end}' 2>/dev/null || true)"
+  SLICE="$(kc get endpointslice -n fanout -l tofu-estate=app,kubernetes.io/service-name=store -o jsonpath='{range .items[*]}{.metadata.name}={.endpoints[*].addresses[0]}{end}' 2>/dev/null || true)"
+  if [ -n "$PVC" ] && [ -n "$JOBPOD" ] && [ "${SLICE#*=}" != "" ] && [ -n "$SLICE" ]; then break; fi
+  if [ "$(date +%s)" -ge "$DEADLINE" ]; then break; fi
+  sleep 1
+done
+[ -n "$PVC" ] || fail "boundary" "no labelled PersistentVolumeClaim of StatefulSet store is Bound after 180s: $(failed_creates fanout)"
+[ -n "$JOBPOD" ] || fail "boundary" "Job once has no labelled Pod that succeeded after 180s: $(failed_creates fanout)"
+[ -n "$SLICE" ] && [ "${SLICE#*=}" != "" ] || fail "boundary" "Service store has no labelled EndpointSlice carrying an address after 180s (got '$SLICE'): $(failed_creates fanout)"
+[ "$(kc get job once -n fanout -o jsonpath='{.status.succeeded}')" = "1" ] || fail "boundary" "Job once did not record its Pod's success: $(kc get job once -n fanout -o jsonpath='{.status}')"
+echo "pvc/$PVC Bound; pod/$JOBPOD Succeeded, job/once succeeded=1; endpointslice/$SLICE" | evidence
+obj_labels pvc "$PVC" fanout | evidence
+
+cmd "kubectl delete deployment fanout -n boundary   # as alice; the collector removes the labelled copies"
+as_role alice kc delete deployment fanout -n boundary >/dev/null || fail "boundary" "Alice could not delete her own Deployment"
+COLLECTED=no
+for i in $(seq 1 60); do
+  REMAINING="$(kc get replicaset,pod -n boundary -l app=fanout -o name)" || fail "boundary" "could not list the Deployment's copies while waiting for the garbage collector"
+  if [ -z "$REMAINING" ]; then COLLECTED=yes; break; fi
+  sleep 1
+done
+[ "$COLLECTED" = "yes" ] || fail "boundary" "the garbage collector still had not removed the labelled ReplicaSet and Pod after 60s ($REMAINING); a delete of a labelled object needs the estate, and the collector holds none - it is exempt by name, and that is what this waits on"
+echo "replicasets and pods labelled app=fanout after the delete: none" | evidence
+cmd "kubectl delete namespace fanout --wait=false   # as alice; the namespace controller deletes every labelled object in it"
+as_role alice kc delete namespace fanout --wait=false >/dev/null || fail "boundary" "Alice could not delete her own labelled namespace"
+GONE=no
+START=$(date +%s); DEADLINE=$(( START + 180 ))
+while :; do
+  LEFT="$(kc get namespace fanout -o name --ignore-not-found)" || fail "boundary" "could not read namespace fanout while waiting for it to terminate"
+  if [ -z "$LEFT" ]; then GONE=yes; break; fi
+  if [ "$(date +%s)" -ge "$DEADLINE" ]; then break; fi
+  sleep 1
+done
+[ "$GONE" = "yes" ] || fail "boundary" "namespace fanout is still terminating after 180s: $(kc get namespace fanout -o jsonpath='{range .status.conditions[?(@.status=="True")]}{.type}: {.message} {end}' 2>&1)"
+echo "namespace fanout (tofu-estate=app) finished terminating in $(( $(date +%s) - START ))s" | evidence
+proof "a labelled template still fans out into labelled copies - a ReplicaSet and its Pod, a Job's Pod, a StatefulSet's claim, a Service's EndpointSlice - and the collector and the namespace controller still clean them up. Those writes are the control plane's, exempt by who is asking, which is the only exemption a caller cannot forge."
+
+step "10b. living in kube-system exempts nothing: a ServiceAccount there, and a system:kube- name, are judged like anyone"
+explain \
+  "The exemption step 10 measured is a list of names. It used to be two" \
+  "prefixes - every ServiceAccount in kube-system and every username" \
+  "beginning system:kube- - so an add-on installed there held every estate" \
+  "(#1448). Two callers that are on neither list: a ServiceAccount named" \
+  "addon in kube-system, and a user named system:kube-proxy, reached by" \
+  "impersonation. Both hold edit in namespace addons and no estate. Each" \
+  "first creates an unlabelled ConfigMap, which must go through, so RBAC" \
+  "is not what says no; then one carrying tofu-estate=app, which the" \
+  "policy must refuse in its own words, naming the caller. The fix for a" \
+  "real add-on is one binding from live/kubernetes/estate-grant.yaml."
+for who in addon kube-proxy; do
+  if [ "$who" = addon ]; then NAME="$ADDON_USER"; else NAME="$PROXY_USER"; fi
+  cmd "kubectl create configmap plain-$who -n addons --from-literal=greeting=plain   # as $NAME - the control, no label"
+  OUT="$(twin_kc "$who" create configmap "plain-$who" -n addons --from-literal=greeting=plain 2>&1)" \
+    || fail "boundary" "$NAME could not create an unlabelled ConfigMap, so the refusal below would not be the policy's: $OUT"
+  echo "$OUT" | evidence
+  cmd "kubectl apply -f - <<< (ConfigMap planted-$who, tofu-estate=app)   # as $NAME"
+  OUT="$(twin_cm_yaml "planted-$who" | twin_kc "$who" apply -f - 2>&1)" || true
+  refused_by_policy "a labelled create by $NAME, which holds no estate" "$OUT" "$NAME is not bound to it"
+done
+PLANTED="$(kc get configmap -n addons -l tofu-estate=app -o name)" || fail "boundary" "could not list namespace addons"
+[ -z "$PLANTED" ] || fail "boundary" "a refused labelled create landed all the same: $PLANTED"
+echo "objects labelled tofu-estate=app in namespace addons: none" | evidence
+proof "two callers the old prefixes exempted, each let through with no label and refused with one, by name. Nothing about kube-system or a system:kube- name is a grant; the list is the control plane's own controllers and nobody else."
+
+step "11. Bob's own estate, tool-less, and the API server lets it through - the next plan sees it"
 explain \
   "The same policy that refused step 7 permits what the grant names on" \
   "what Bob holds. A plain kubectl label on the router ConfigMap (estate" \
@@ -469,7 +951,7 @@ explain \
   "log of who wrote it, so it sees the drift and proposes reconciling it" \
   "with what the configuration declares."
 cmd "kubectl label configmap router -n net owner=bob   # no choudoufu, as bob"
-as_role bob kubectl label configmap router -n net owner=bob >/dev/null || fail "boundary" "Bob's tool-less write on his own estate was refused"
+as_role bob kc label configmap router -n net owner=bob >/dev/null || fail "boundary" "Bob's tool-less write on his own estate was refused"
 grep -q '"owner":"bob"' <<< "$(labels_of router net)" || fail "boundary" "Bob's permitted write did not land"
 labels_of router net | evidence
 cmd "choudoufu plan   # in net/, as bob"
@@ -484,27 +966,38 @@ cmd "choudoufu apply -auto-approve   # in net/, as bob - reconciling his own too
 grep -q 'owner' <<< "$(labels_of router net)" && fail "boundary" "the reconciling apply did not remove the stray label"
 proof "reconciled, still under Bob's own ServiceAccount. The estate is clean again before the carve begins."
 
-step "9. a rename is a configuration edit: live-mv has nothing governed to write"
+step "12. a rename rewrites the address annotation: live-mv writes it, the label does not move"
 explain \
   "On AWS a rename ends with live-mv rewriting tofu-address on the live" \
-  "object. Here the object carries no address: it is bound to its block by" \
-  "its own kind, namespace and name, all authored in configuration. Bob" \
-  "renames the router block, runs the same live-mv an AWS runbook would," \
-  "and it reports that there is nothing governed to write and exits 0." \
-  "The next plan binds the object at its new address with no change."
+  "object. Here the object is bound to its block by its own kind," \
+  "namespace and name, and carries its block address beside the estate" \
+  "label in an annotation, choudoufu.intentius.io/tofu-address (#1639)." \
+  "Bob renames the router block and runs the same live-mv an AWS runbook" \
+  "would: it rewrites that annotation to the new address, under his own" \
+  "credential, and leaves the tofu-estate label alone. The admission" \
+  "policy reads the label only, so the write is his to make. The next" \
+  "plan binds the object at its new address with no change."
 cmd "sed router=router_renamed net/main.tf ; choudoufu live-mv kubernetes_config_map.router kubernetes_config_map.router_renamed ; choudoufu plan   # in net/, as bob"
 sed_i "$NET/main.tf" 's/"kubernetes_config_map" "router"/"kubernetes_config_map" "router_renamed"/'
 grep -q '"router_renamed"' "$NET/main.tf" || fail "boundary" "the router block was not renamed in net"
+ROUTER_ADDR="$(kc get configmap router -n net -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}')"
+[ "$ROUTER_ADDR" = "kubernetes_config_map.router" ] \
+  || fail "boundary" "before the rename the router's address annotation reads '$ROUTER_ADDR', want kubernetes_config_map.router (#1639)"
 OUT="$(cd "$NET" && as_role bob chdf live-mv -no-color kubernetes_config_map.router kubernetes_config_map.router_renamed 2>&1)" || fail "boundary" "live-mv on a same-estate Kubernetes rename did not exit 0: $OUT"
-grep -q 'Nothing to write' <<< "$OUT" || fail "boundary" "live-mv did not say there is nothing to write: $OUT"
-grep -E 'Nothing to write' <<< "$OUT" | evidence
+grep -q 'Rewrote the address annotation on one live object' <<< "$OUT" || fail "boundary" "live-mv did not report the annotation rewrite: $OUT"
+grep -E 'Rewrote the address annotation|annotation ' <<< "$OUT" | evidence
+ROUTER_ADDR="$(kc get configmap router -n net -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}')"
+[ "$ROUTER_ADDR" = "kubernetes_config_map.router_renamed" ] \
+  || fail "boundary" "after live-mv the router's address annotation reads '$ROUTER_ADDR', want kubernetes_config_map.router_renamed"
+grep -q '"tofu-estate":"net"' <<< "$(labels_of router net)" || fail "boundary" "the rename moved the router's estate label"
+echo "choudoufu.intentius.io/tofu-address: $ROUTER_ADDR" | evidence
 OUT="$(cd "$NET" && as_role bob chdf plan -input=false -no-color 2>&1)" || fail "boundary" "net does not plan after the rename: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
 printf '%s\n' "$OUT" > "$LOGS/net-renamed.plan"
 grep -q "No changes." <<< "$OUT" || fail "boundary" "net does not plan clean after the rename (full plan in $LOGS/net-renamed.plan): $(grep -E '^Plan:|will be|orphan|UNOWNED' <<< "$OUT" | head -4)"
 echo "net under bob, block renamed: No changes." | evidence
-proof "exit 0 and one sentence: nothing to write. The block is renamed, the object is untouched, and the plan is empty - the rename was the edit."
+proof "exit 0: live-mv rewrote the address annotation, kubectl reads the new address back, the estate label did not move, and the plan is empty."
 
-step "10. the carve begins with a git move, and the relabel is refused from both sides"
+step "13. the carve begins with a git move, and the relabel is refused from both sides"
 explain \
   "The database block moves from app's configuration into a new root," \
   "data, the way any split starts. The ownership write that completes it" \
@@ -527,16 +1020,16 @@ printf '%s\n' "$OUT" > "$LOGS/alice-denied.live-mv"
 denied "$OUT" || fail "boundary" "Alice's live-mv into data, which she does not hold, was not refused by the policy (full output in $LOGS/alice-denied.live-mv): $(grep -E 'Error|Relabelled' <<< "$OUT" | head -3)"
 refusal_line "$OUT" | evidence
 cmd "kubectl label configmap database -n boundary tofu-estate=data --overwrite   # as alice, then as bob"
-OUT="$(as_role alice kubectl label configmap database -n boundary tofu-estate=data --overwrite 2>&1 || true)"
+OUT="$(as_role alice kc label configmap database -n boundary tofu-estate=data --overwrite 2>&1 || true)"
 denied "$OUT" || fail "boundary" "Alice's tool-less relabel into data, which she does not hold, was not refused by the policy: $OUT"
 refusal_line "$OUT" | evidence
-OUT="$(as_role bob kubectl label configmap database -n boundary tofu-estate=data --overwrite 2>&1 || true)"
+OUT="$(as_role bob kc label configmap database -n boundary tofu-estate=data --overwrite 2>&1 || true)"
 denied "$OUT" || fail "boundary" "Bob's relabel out of app, which he does not hold, was not refused by the policy: $OUT"
 refusal_line "$OUT" | evidence
 grep -q '"tofu-estate":"app"' <<< "$(labels_of database boundary)" || fail "boundary" "the database left the estate despite the refusals"
 proof "the carve itself was refused, per object, from both sides: the estate being left and the estate being entered - and live-mv met the same refusal a plain kubectl did, because the write it makes is the same write. A state mv has no such moment; nothing evaluates it."
 
-step "11. handover is an RBAC change: grant Alice data, and the same live-mv goes through"
+step "14. handover is an RBAC change: grant Alice data, and the same live-mv goes through"
 explain \
   "Nothing on the object and nothing in the policy changes. The cluster" \
   "admin applies the same grant template for estate data to Alice, and" \
@@ -556,7 +1049,7 @@ labels_of database boundary | evidence
 grep -q '"tofu-estate":"data"' <<< "$(labels_of database boundary)" || fail "boundary" "the database does not carry tofu-estate=data after Alice's live-mv"
 proof "tofu-estate=data, written by live-mv under the one principal a policy lets write it, and read back by kubectl. Where there was one estate there are two, and no state was split."
 
-step "12. every estate plans clean, each under its own principal"
+step "15. every estate plans clean, each under its own principal"
 explain \
   "Alice plans data and app; Bob plans net. Each sweep lists its own" \
   "estate by label and finds nothing to do. app no longer declares the" \
@@ -573,7 +1066,7 @@ for spec in "alice $DATA data" "alice $APP app" "bob $NET net"; do
 done
 proof "No changes, three times, each under the principal that holds the estate. The boundary moved with one label write, and every side agrees where it is."
 
-step "13. teardown - each estate by its own destroy, under its own principal"
+step "16. teardown - each estate by its own destroy, under its own principal"
 OUT="$(cd "$DATA" && as_role alice chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "boundary" "teardown of data failed: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
 grep -q 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$OUT" || fail "boundary" "data's destroy did not remove exactly one object: $OUT"
 OUT="$(cd "$APP" && as_role alice chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "boundary" "teardown of app failed: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
@@ -586,7 +1079,12 @@ echo "  What you watched: two ServiceAccounts hold two estates on one cluster"
 echo "  and are fenced by one admission policy reading the estate label,"
 echo "  refused by the API server when they reach across - through choudoufu"
 echo "  and through plain kubectl alike, with a plain read untouched because"
-echo "  admission never sees one. A rename is a config edit: live-mv has"
+echo "  admission never sees one. An ownerReference is no way past it: an"
+echo "  owned object keeps its estate, so the relabel, the strip, the delete"
+echo "  and the owned create are all refused beside their unowned twins,"
+echo "  while a plain update that leaves the label alone goes through with no"
+echo "  grant, and a labelled pod template still fans out into a labelled"
+echo "  ReplicaSet and Pod. A rename is a config edit: live-mv has"
 echo "  nothing governed to write and says so. Then one object is carved into"
 echo "  a new estate by live-mv -from-estate, one label write the policy"
 echo "  refused from both sides until a binding moved."

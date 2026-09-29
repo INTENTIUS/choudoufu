@@ -1,5 +1,5 @@
 # no-self-managed-locks
-# CLAIM 2 - No self-managed locks: contention settles at the platform API, never in a lock this tool holds. ~2 min.
+# CLAIM 2 (aws) - No self-managed locks: contention settles at the platform API, never in a lock this tool holds. ~2 min.
 
 SMOKE_WORK="$SMOKE_WORKROOT/no-locks"
 mkdir -p "$SMOKE_WORK/a" "$SMOKE_WORK/b"; export SMOKE_WORK
@@ -56,11 +56,31 @@ explain \
   "NOT appear: neither run ever prints 'Acquiring state lock'. The cloud" \
   "itself referees the create."
 cmd "(apply in a &) ; (apply in b &) ; wait"
-( cd "$SMOKE_WORK/a" && chdf init -input=false -no-color >/dev/null 2>&1 )
-( cd "$SMOKE_WORK/b" && chdf init -input=false -no-color >/dev/null 2>&1 )
-( cd "$SMOKE_WORK/a" && chdf apply -auto-approve -input=false -no-color > "$SMOKE_WORK/a.out" 2>&1; echo $? > "$SMOKE_WORK/a.rc" ) &
-( cd "$SMOKE_WORK/b" && chdf apply -auto-approve -input=false -no-color > "$SMOKE_WORK/b.out" 2>&1; echo $? > "$SMOKE_WORK/b.rc" ) &
-wait
+( cd "$SMOKE_WORK/a" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "locks" "choudoufu init failed in a"
+( cd "$SMOKE_WORK/b" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "locks" "choudoufu init failed in b"
+# rc=$?, never a bare `cmd; echo $? > file`: under this script's inherited
+# set -e, a losing apply's own nonzero exit would abort the subshell right
+# there and the `echo` after it would never run - exactly the failure mode
+# that surfaced under CI's timing (#1590/#1646), where a losing apply is a
+# routine, expected outcome of the race rather than a bug. `|| rc=$?`
+# neutralises the exit status the same way `cmd || true` would, but keeps
+# the real code instead of discarding it.
+(
+  cd "$SMOKE_WORK/a" || exit 1
+  rc=0
+  chdf apply -auto-approve -input=false -no-color > "$SMOKE_WORK/a.out" 2>&1 || rc=$?
+  echo "$rc" > "$SMOKE_WORK/a.rc"
+) & PID_A=$!
+(
+  cd "$SMOKE_WORK/b" || exit 1
+  rc=0
+  chdf apply -auto-approve -input=false -no-color > "$SMOKE_WORK/b.out" 2>&1 || rc=$?
+  echo "$rc" > "$SMOKE_WORK/b.rc"
+) & PID_B=$!
+# Wait on the two applies by PID, never a bare `wait`: smoke.sh's stall
+# watchdog is also a background child of this shell (#1593), so a bare
+# `wait` blocks until the watchdog fires and kills the run.
+wait "$PID_A" "$PID_B" || true
 A_RC="$(cat "$SMOKE_WORK/a.rc")"; B_RC="$(cat "$SMOKE_WORK/b.rc")"
 grep -q "Acquiring state lock" "$SMOKE_WORK/a.out" "$SMOKE_WORK/b.out" \
   && fail "locks" "an apply printed 'Acquiring state lock' - a lock was taken after all"

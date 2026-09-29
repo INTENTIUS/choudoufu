@@ -10,7 +10,7 @@ disableKinds = ["taxonomy", "term"]
   # Bump this in the same commit that tags a release.
   choudoufuVersion = "v0.5.0"
   repo = "https://github.com/INTENTIUS/choudoufu"
-  description = "OpenTofu with the record of what you own held by your platform, not a state file. Adopt live infrastructure, gate it with the policy engine you already run, and treat the state file as a cache."
+  description = "choudoufu is OpenTofu that tags each resource with its owner. Your cloud's own permissions decide who can change it."
 
 # The header's fixed entries. Platforms are not listed here: the header
 # renders a Platforms menu from site/data/providers.yaml, so a new platform

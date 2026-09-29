@@ -46,11 +46,31 @@ func TestPlanInstancesAgainstTheAWSProvider(t *testing.T) {
 	flocitest.RequireBinary(t, terraformBin)
 	flocitest.PluginCacheDir(t)
 
+	// No cloud, but the provider still resolves a credential chain before
+	// it will answer PlanResourceChange, and skip_credentials_validation
+	// only stops it CALLING STS with what it found. On a laptop the chain
+	// finds ~/.aws and the test passes; on a CI runner with no profile
+	// and IMDS disabled it finds nothing and Configure fails with "No
+	// valid credential sources found" before a single plan is asked for
+	// (floci-tier, 2026-09-19 to 2026-09-21, the one red in this package
+	// that was not the shared-cache checksum). The same placeholder pair
+	// every emulator-backed test in this package sets; nothing here is
+	// ever sent anywhere.
+	t.Setenv("AWS_ACCESS_KEY_ID", "test")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
+	t.Setenv("AWS_REGION", "us-east-1")
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+	// And with placeholder credentials the provider's next move is STS
+	// GetCallerIdentity for the account ID, which has nowhere to go; the
+	// fixture's own provider block already says skip_requesting_account_id,
+	// and the launched plugin has to be told the same.
+	const noAccountLookup = "skip_requesting_account_id = true"
+
 	ctx := context.Background()
 	dir := flocitest.CopyFixtureDir(t, filepath.Join("testdata", "plan-acm-validation"))
 	flocitest.Run(t, dir, terraformBin, "init", "-input=false", "-no-color")
 
-	provider, _ := launchAWSProvider(t, dir)
+	provider, _ := launchAWSProvider(t, dir, noAccountLookup)
 	defer func() { _ = provider }()
 
 	if _, ok := provider.(providers.Configured); !ok {

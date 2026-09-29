@@ -18,8 +18,12 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/mitchellh/cli"
+	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/convert"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
@@ -29,6 +33,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -138,17 +143,29 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 	// is what says which substrates the estate lives on (GitHub issue
 	// #1081): an aws provider among its managed resources' providers means
 	// the AWS listing below, a kubernetes provider the cluster listing
-	// liveLsGaps runs, both means both. No DIR, or one that will not load,
-	// or one naming neither, is the AWS listing this command has always
-	// been - liveLsSubstrates. The load's own diagnostics travel to
-	// liveLsGaps, which phrases the skip exactly as it did when it loaded
-	// the configuration itself.
+	// liveLsGaps runs, both means both. No DIR, one that will not load, or
+	// one naming no provider at all is the AWS listing this command has
+	// always been. A DIR naming only providers no family claims lists
+	// neither, and a family or provider nothing here lists is named "Not
+	// listed" (GitHub issue #1707) - liveLsSubstrates. The load's own
+	// diagnostics travel to liveLsGaps, which phrases the skip exactly as
+	// it did when it loaded the configuration itself.
 	var config *configs.Config
 	var cfgDiags tfdiags.Diagnostics
 	if args.ConfigDir != "" {
 		config, cfgDiags = c.loadConfig(ctx, args.ConfigDir)
 	}
 	substrates := liveLsSubstrates(config, cfgDiags)
+	diags = diags.Append(liveLsNotListed(args.Estate, substrates))
+
+	// GitHub issue #1044: the region, in the order -region, then DIR's own
+	// provider block (the region live-plan and live-check on the same DIR
+	// read), then the AWS SDK's default chain. The report says which won,
+	// so a listing taken in a different region from the plan's shows it.
+	region := liveLsRegion{Region: args.Region, Source: "flag"}
+	if args.Region == "" {
+		region = liveLsRootRegion(ctx, args.ConfigDir, config, cfgDiags)
+	}
 
 	// The same gate live-plan and live-mv build their own Tagging client
 	// behind (cloudControlTarget, live_plan.go): off during this package's
@@ -162,20 +179,32 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 	ep, on := cloudControlTarget()
 	var tagging *cloudcontrol.Client
 	var iamClient *iam.Client
-	if !substrates.aws {
-		// A Kubernetes-only configuration: no AWS client at all, and no
+	if !substrates.has(substrate.SweepTaggingIndex) {
+		// A configuration with no tagging-index substrate present (a
+		// Kubernetes-only one, today): no AWS client at all, and no
 		// warning about one, because nothing in DIR could carry an AWS
-		// tag for this listing to find.
+		// tag for this listing to find - and no region to explain, so the
+		// source is cleared and the report prints no region line.
+		region = liveLsRegion{}
 	} else if on {
-		tagging = cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: ep, Region: args.Region})
 		// No BaseEndpoint override here: aws-sdk-go-v2's own default config
 		// resolution already reads AWS_ENDPOINT_URL / AWS_ENDPOINT_URL_IAM,
 		// the same variables cloudControlTarget reads by hand for the
 		// client above, which is why floci (and any endpoint override) just
 		// works with no extra plumbing - internal/live/projection/store.go's
-		// ssm.NewFromConfig/s3.NewFromConfig calls take the same shortcut for
-		// the same reason.
-		if awsCfg, err := liveLsAWSConfig(ctx, args.Region); err != nil {
+		// s3.NewFromConfig call takes the same shortcut for the same reason.
+		//
+		// The config is loaded before the Tagging client is built because
+		// it is also how the SDK chain's own answer is learned: when neither
+		// -region nor DIR named one, awsCfg.Region is what the chain picked,
+		// and the Tagging client is handed that same value rather than left
+		// to resolve it a second time.
+		awsCfg, err := liveLsAWSConfig(ctx, region.Region)
+		if err == nil && region.Source == "sdk" {
+			region.Region = awsCfg.Region
+		}
+		tagging = cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: ep, Region: region.Region})
+		if err != nil {
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Warning,
 				"IAM listing unavailable",
@@ -185,6 +214,12 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 			iamClient = iam.NewFromConfig(awsCfg)
 		}
 	} else {
+		// The SDK chain was never consulted here, so a region it would have
+		// named is not known and must not be reported as "named none"; a
+		// flag or DIR's block still says what it said.
+		if region.Source == "sdk" {
+			region = liveLsRegion{}
+		}
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Warning,
 			"Listing disabled",
@@ -211,17 +246,19 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 	}
 
 	rep := &views.LiveLsReport{
-		Estate:     args.Estate,
-		Region:     args.Region,
-		Consistent: args.Consistent,
-		Stabilized: stabilized,
-		Attempts:   attempts,
-		ConfigDir:  args.ConfigDir,
-		Items:      items,
+		Estate:       args.Estate,
+		Region:       region.Region,
+		RegionSource: region.Source,
+		RegionNote:   region.Note,
+		Consistent:   args.Consistent,
+		Stabilized:   stabilized,
+		Attempts:     attempts,
+		ConfigDir:    args.ConfigDir,
+		Items:        items,
 	}
 
 	if args.ConfigDir != "" {
-		cmp, gapDiags := c.liveLsGaps(ctx, args.Estate, args.ConfigDir, config, cfgDiags, substrates.kubernetes, items)
+		cmp, gapDiags := c.liveLsGaps(ctx, args.Estate, args.ConfigDir, config, cfgDiags, substrates.has(substrate.SweepLabelList), substrates.unclaimed, items)
 		diags = diags.Append(gapDiags)
 		rep.Gaps = cmp.Gaps
 		rep.GapsSkipped = cmp.Skipped
@@ -246,10 +283,147 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 	return rep, diags
 }
 
+// liveLsRegion is the listing's region and where it came from - the three
+// values [views.LiveLsReport.RegionSource] documents, with Note as the
+// report's detail.
+type liveLsRegion struct {
+	Region string
+	Source string
+	Note   string
+}
+
+// liveLsRootRegion is the region DIR's own configuration names for its aws
+// provider, read the way live-plan and live-check read it (GitHub issue
+// #1044): the block [providerBlockFor] finds for each tagging-index
+// substrate's provider configuration the managed resources use (the sweep
+// named [substrate.SweepTaggingIndex] - AWS today, and any future family
+// whose estate-wide sweep is driven the same regional way), its `region`
+// argument evaluated by the root's own StaticEvaluator - the one
+// Meta.loadConfig bound to TF_VAR_* and the tfvars files, which is how
+// `region = var.aws_region` resolves here to the same value the plan would
+// configure the provider with. The filter asks [substrate.ForProvider] and
+// [substrate.Substrate.Sweep] rather than comparing addr.Provider.Type
+// against "aws" directly (GitHub issue #1583), the same dispatch
+// [liveLsSubstrates] and [LiveLsCommand.liveLsKubernetes] use: a
+// label-list substrate (Kubernetes today) names no region here, because its
+// location hint is a cluster context, not a region, and this function
+// stays the region-shaped half of that pair.
+//
+// Anything short of one known string for every such block is the SDK chain
+// (Source "sdk") with Note saying why, never a guess: no DIR, a DIR that
+// did not load (its diagnostics travel to liveLsGaps, which reports them),
+// no such block, a block with for_each, a block that sets no region, a
+// region this command cannot evaluate statically (an unset variable, a
+// reference to something no static evaluation reaches), a sensitive one,
+// or two blocks that name different regions - the same refusals
+// [identity.resolver.providerRegionAttr] makes for the same argument, for
+// the same reason: a wrong region silently listing the wrong half of the
+// account is worse than saying which region was used and why.
+func liveLsRootRegion(ctx context.Context, configDir string, config *configs.Config, cfgDiags tfdiags.Diagnostics) liveLsRegion {
+	sdk := func(note string) liveLsRegion { return liveLsRegion{Source: "sdk", Note: note} }
+	if configDir == "" {
+		return sdk("")
+	}
+	if config == nil || config.Module == nil || cfgDiags.HasErrors() {
+		return sdk(fmt.Sprintf("%s did not load, so its provider block was not read", configDir))
+	}
+
+	var regions, names []string
+	for _, addr := range statelessManagedResourceProviders(config) {
+		if sub, ok := substrate.ForProvider(addr.Provider.Type); !ok || sub.Sweep() != substrate.SweepTaggingIndex {
+			continue
+		}
+		owner := config.Descendent(addr.Module)
+		if owner == nil || owner.Module == nil {
+			continue
+		}
+		mod := owner.Module
+		name := fmt.Sprintf("provider %q", mod.LocalNameForProvider(addr.Provider))
+		if addr.Alias != "" {
+			name = fmt.Sprintf("provider %q", mod.LocalNameForProvider(addr.Provider)+"."+addr.Alias)
+		}
+		pc := providerBlockFor(mod, addr)
+		if pc == nil || pc.Config == nil {
+			return sdk(fmt.Sprintf("%s declares no %s block", configDir, name))
+		}
+		if pc.ForEach != nil {
+			return sdk(fmt.Sprintf("%s in %s uses for_each, so its region may differ per key", name, configDir))
+		}
+		content, _, hclDiags := pc.Config.PartialContent(&hcl.BodySchema{
+			Attributes: []hcl.AttributeSchema{{Name: "region"}},
+		})
+		if hclDiags.HasErrors() {
+			return sdk(fmt.Sprintf("%s in %s could not be read: %s", name, configDir, hclDiags.Error()))
+		}
+		attr, ok := content.Attributes["region"]
+		if !ok {
+			return sdk(fmt.Sprintf("%s in %s sets no region", name, configDir))
+		}
+		ident := configs.StaticIdentifier{
+			Module:    addr.Module,
+			Subject:   fmt.Sprintf("provider.%s.region", pc.Name),
+			DeclRange: attr.Range,
+		}
+		val, evalDiags := mod.StaticEvaluator.Evaluate(ctx, attr.Expr, ident)
+		unresolvable := fmt.Sprintf("%s in %s sets a region this command could not resolve", name, configDir)
+		switch {
+		case evalDiags.HasErrors():
+			return sdk(fmt.Sprintf("%s: %s", unresolvable, liveLsFirstDiag(evalDiags)))
+		case val.IsMarked():
+			return sdk(fmt.Sprintf("%s: it is sensitive", unresolvable))
+		case val.IsNull() || !val.IsWhollyKnown():
+			return sdk(fmt.Sprintf("%s: its value is not known from the configuration alone", unresolvable))
+		}
+		str, err := convert.Convert(val, cty.String)
+		if err != nil || str.AsString() == "" {
+			return sdk(fmt.Sprintf("%s: it is not a non-empty string", unresolvable))
+		}
+		regions = append(regions, str.AsString())
+		names = append(names, name)
+	}
+	if len(regions) == 0 {
+		return sdk(fmt.Sprintf("%s has no aws provider configuration among its managed resources", configDir))
+	}
+	for i := 1; i < len(regions); i++ {
+		if regions[i] != regions[0] {
+			return sdk(fmt.Sprintf("%s's aws provider blocks name different regions (%s is %s, %s is %s)", configDir, names[0], regions[0], names[i], regions[i]))
+		}
+	}
+	note := names[0]
+	if len(names) > 1 {
+		note = fmt.Sprintf("%s and %d more aws block(s) agreeing", names[0], len(names)-1)
+	}
+	return liveLsRegion{Region: regions[0], Source: "provider", Note: note}
+}
+
+// liveLsFirstDiag is one diagnostic's summary and detail as a clause, for a
+// note that has room for one reason. The one rewording: a variable with no
+// value reaches here as Meta.rootModuleCall's "Failed to request input from
+// user for variable var.X", because this command runs with input off and
+// never prompts. A reader is told what is missing and what supplies it,
+// not that a prompt failed.
+func liveLsFirstDiag(diags hcl.Diagnostics) string {
+	const noInput = "Failed to request input from user for variable "
+	for _, d := range diags {
+		if d.Severity != hcl.DiagError {
+			continue
+		}
+		if strings.HasPrefix(d.Summary, noInput) {
+			v := strings.TrimPrefix(d.Summary, noInput)
+			return fmt.Sprintf("%s has no value; set TF_%s or pass -region", v, strings.ToUpper("var_")+strings.TrimPrefix(v, "var."))
+		}
+		if d.Detail != "" {
+			return fmt.Sprintf("%s (%s)", d.Summary, strings.TrimRight(d.Detail, "."))
+		}
+		return d.Summary
+	}
+	return diags.Error()
+}
+
 // liveLsAWSConfig is the ordinary aws-sdk-go-v2 default-config chain, with
 // an explicit region when one was named - the same shape
 // internal/live/projection/store.go's loadAWSConfig takes for the record
-// store's own "ssm"/"s3" clients, restated here because that function is
+// store's own "s3" client, restated here because that function is
 // unexported in a different package.
 func liveLsAWSConfig(ctx context.Context, region string) (aws.Config, error) {
 	if region != "" {
@@ -389,6 +563,9 @@ func liveLsItemFromTags(id string, tags map[string]string, source string) views.
 	if item.Type == "" {
 		item.Type = arnTypeLabel(id)
 	}
+	if hold, ok := markers.ControllerHeld(tags); ok {
+		item.HeldBy = hold.Describe()
+	}
 	return item
 }
 
@@ -509,7 +686,7 @@ func pollConsistentEvery(ctx context.Context, read func(ctx context.Context) ([]
 // after resolution, since what it calls declared is a resolution's kind and
 // natural key. Its items come back in the comparison's Kubernetes field
 // and are counted found for the gap list below.
-func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, config *configs.Config, cfgDiags tfdiags.Diagnostics, kubernetes bool, items []views.LiveLsItem) (liveLsComparison, tfdiags.Diagnostics) {
+func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, config *configs.Config, cfgDiags tfdiags.Diagnostics, kubernetes bool, unclaimed []addrs.AbsProviderConfig, items []views.LiveLsItem) (liveLsComparison, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	// Whether provider schemas were read, tracked across the skip paths
 	// below rather than only on the path that completes: a comparison that
@@ -561,6 +738,10 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 		}
 	}
 
+	// GitHub issue #1707: a provider no family claims is named here,
+	// where its schema can first be read, and before any skip below.
+	diags = diags.Append(liveLsUnclaimedNotListed(ctx, estate, provs, unclaimed))
+
 	resourceSchemas := provs.resourceSchemas(ctx)
 	schemasRead = len(resourceSchemas) > 0
 
@@ -580,7 +761,7 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 
 	if issues := lint.CheckWith(ctx, config, lint.Context{Schemas: resourceSchemas}); len(issues) > 0 {
 		closeProviders()
-		return skip(fmt.Sprintf("%s is outside the stateless subset (%d issue(s)); run \"choudoufu live-check %s\" for the detail.", dir, len(issues), dir))
+		return skip(fmt.Sprintf("%s is outside the subset a live run can plan (%d issue(s)); run \"choudoufu live-check %s\" for the detail.", dir, len(issues), dir))
 	}
 
 	dataResults, drDiags := statelessDataReads(ctx, config, provs, resourceSchemas, nil)
@@ -590,6 +771,19 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 	}
 
 	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, nil)
+	// GitHub issue #1677: a per-instance refusal the plan's node-resolve
+	// seam takes over (#1539's shape) is exactly the case the Kubernetes
+	// address-binding join needs to know about, the same way the plan
+	// hands it in as [discovery.Request.NodeRefused] (GitHub issue #1640).
+	// Captured before the downgrade, which is what turns such an instance's
+	// error into a warning so this comparison runs instead of skipping
+	// wholesale over an instance the live listing may still be able to
+	// place - gated the same way the plan-node seam itself is.
+	var nodeRefused map[string]bool
+	if nodeResolveEnabled() {
+		nodeRefused = nodeRefusedAddrs(identity.InstanceRefusals(idDiags))
+		idDiags = identity.DowngradeForNodeResolution(idDiags)
+	}
 	if idDiags.HasErrors() {
 		closeProviders()
 		return skip(fmt.Sprintf("identity resolution could not complete: %s.", idDiags.Err()))
@@ -601,7 +795,7 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 	var kube []views.LiveLsItem
 	if kubernetes {
 		var kubeDiags tfdiags.Diagnostics
-		kube, kubeDiags = c.liveLsKubernetes(ctx, estate, config, provs, resolutions.All())
+		kube, kubeDiags = c.liveLsKubernetes(ctx, estate, config, provs, resolutions.All(), nodeRefused)
 		diags = diags.Append(kubeDiags)
 	}
 	closeProviders()
@@ -646,40 +840,127 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 }
 
 // liveLsSubstrateSet is which substrates a listing covers, read off DIR's
-// configuration by [liveLsSubstrates].
+// configuration by [liveLsSubstrates]. It is keyed by [substrate.Sweep]
+// rather than by a bool per named family (GitHub issue #1583: "two-armed
+// switches become three-armed switches") so that a third entry in
+// [substrate.All] needs no new field and no new case here - only its own
+// Sweep answer, which [has] then reports through the same call every
+// caller already makes.
 type liveLsSubstrateSet struct {
-	aws        bool
-	kubernetes bool
+	sweeps map[substrate.Sweep]bool
+
+	// families is every family DIR's managed resources' providers belong
+	// to, in [substrate.All]'s order, so a family whose sweep has no
+	// listing ([liveLsListings]) can be named (GitHub issue #1707).
+	families []substrate.Substrate
+
+	// unclaimed is every provider configuration DIR's managed resources
+	// use that no family claims. Nothing lists through one, and before
+	// GitHub issue #1707 a DIR naming only such providers fell back to
+	// the AWS listing.
+	unclaimed []addrs.AbsProviderConfig
 }
+
+// liveLsListings is every sweep this command has a listing for, and what
+// that listing is (GitHub issue #1707). A family in DIR whose sweep has no
+// entry is named in a "Not listed" warning ([liveLsNotListed]) rather
+// than listed as anything else, and TestEverySubstrateSweepHasAListing
+// holds this table to [substrate.All] the way the plan's sweep legs are
+// held to it.
+var liveLsListings = map[substrate.Sweep]string{
+	substrate.SweepTaggingIndex: "the Resource Groups Tagging API index and the IAM role pass",
+	substrate.SweepLabelList:    "one label-selected list per kind each cluster serves",
+}
+
+// liveLsNotListed is the warning for every family in set whose sweep
+// this command has no listing for, or nil when there is none.
+func liveLsNotListed(estate string, set liveLsSubstrateSet) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	for _, sub := range set.families {
+		if _, ok := liveLsListings[sub.Sweep()]; ok {
+			continue
+		}
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, "Not listed",
+			fmt.Sprintf("DIR uses provider family %s, and live-ls has no listing for it: provider family %s asks for the %q sweep, so nothing estate %q owns through it is listed below.", sub.Name(), sub.Name(), string(sub.Sweep()), estate)))
+	}
+	return diags
+}
+
+// liveLsUnclaimedNotListed is the warning for the provider configurations
+// in unclaimed whose schema has a type a marker is written onto
+// ([statelessProviders.mayCarryMarkers]): no family claims them, so
+// nothing lists what the estate marked through them. A provider whose
+// schema has no such type holds nothing a listing could find, and is not
+// named.
+func liveLsUnclaimedNotListed(ctx context.Context, estate string, provs *statelessProviders, unclaimed []addrs.AbsProviderConfig) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	var names []string
+	seen := map[string]bool{}
+	for _, addr := range unclaimed {
+		name := addr.Provider.ForDisplay()
+		if seen[name] || !provs.mayCarryMarkers(ctx, addr.Provider) {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	if len(names) == 0 {
+		return diags
+	}
+	return diags.Append(tfdiags.Sourceless(tfdiags.Warning, "Not listed",
+		fmt.Sprintf("No provider family claims %s, so nothing estate %q marked through it is listed below. Their resource types carry a marker surface, so the estate may hold objects there this listing cannot show.", strings.Join(names, ", "), estate)))
+}
+
+// has reports whether the listing covers a substrate whose
+// [substrate.Substrate.Sweep] is sw - "is the tagging-index listing on", "is
+// the label-list (cluster) listing on" - generically over however many
+// substrates [substrate.All] names, rather than a field per family.
+func (s liveLsSubstrateSet) has(sw substrate.Sweep) bool { return s.sweeps[sw] }
 
 // liveLsSubstrates reads the substrates off a configuration the way the
 // estate-wide sweep picks its provider passes: every distinct provider
 // configuration among the managed resources
 // ([statelessManagedResourceProviders], which falls back to the root's
-// declared provider blocks when nothing is declared). An aws provider
-// among them is the AWS listing, a kubernetes provider the cluster
-// listing. No configuration at all (no DIR, or one whose load failed -
-// cfgDiags carries the error the comparison will report) or one naming
-// neither provider is the AWS listing alone, which is what this command
-// was before GitHub issue #1081 and stays for every caller that passes no
-// DIR.
+// declared provider blocks when nothing is declared), each asked for its
+// own [substrate.Substrate.Sweep] rather than switched on by name. A
+// third substrate registered in [substrate.All] is in the set the moment a
+// managed resource uses its provider, with no new arm here, and is then
+// either listed ([liveLsListings] has its sweep) or named "Not listed"
+// ([liveLsNotListed]). No configuration at all (no DIR, or one whose load
+// failed - cfgDiags carries the error the comparison will report) is the
+// AWS listing alone ([substrate.SweepTaggingIndex]), which is what this
+// command was before GitHub issue #1081 and stays for every caller that
+// passes no DIR, and for a DIR that names no provider at all (a root of
+// record-backed resources whose aws blocks were all deleted, say): nothing
+// there says where the estate lives either. A DIR that names a provider
+// lists exactly the families it names, and each provider no family claims
+// is kept in unclaimed to be named, never listed as AWS (GitHub issue
+// #1707).
 func liveLsSubstrates(config *configs.Config, cfgDiags tfdiags.Diagnostics) liveLsSubstrateSet {
+	awsOnly := liveLsSubstrateSet{sweeps: map[substrate.Sweep]bool{substrate.SweepTaggingIndex: true}, families: []substrate.Substrate{substrate.AWS}}
 	if config == nil || config.Module == nil || cfgDiags.HasErrors() {
-		return liveLsSubstrateSet{aws: true}
+		return awsOnly
 	}
-	var s liveLsSubstrateSet
+	set := liveLsSubstrateSet{sweeps: map[substrate.Sweep]bool{}}
+	named := map[string]bool{}
 	for _, addr := range statelessManagedResourceProviders(config) {
-		switch addr.Provider.Type {
-		case "aws":
-			s.aws = true
-		case "kubernetes":
-			s.kubernetes = true
+		sub, ok := substrate.ForProvider(addr.Provider.Type)
+		if !ok {
+			set.unclaimed = append(set.unclaimed, addr)
+			continue
+		}
+		set.sweeps[sub.Sweep()] = true
+		named[sub.Name()] = true
+	}
+	if len(named) == 0 && len(set.unclaimed) == 0 {
+		return awsOnly
+	}
+	for _, sub := range substrate.All {
+		if named[sub.Name()] {
+			set.families = append(set.families, sub)
 		}
 	}
-	if !s.aws && !s.kubernetes {
-		s.aws = true
-	}
-	return s
+	return set
 }
 
 // liveLsKubernetes lists the estate's objects through every kubernetes
@@ -691,11 +972,11 @@ func liveLsSubstrates(config *configs.Config, cfgDiags tfdiags.Diagnostics) live
 // [discovery.SummaryKubernetesSweepUnavailable] - and the listing goes on
 // without it, the same way an unreachable tagging index leaves the AWS
 // listing a warning rather than a failure.
-func (c *LiveLsCommand) liveLsKubernetes(ctx context.Context, estate string, config *configs.Config, provs *statelessProviders, resolutions []identity.Resolution) ([]views.LiveLsItem, tfdiags.Diagnostics) {
+func (c *LiveLsCommand) liveLsKubernetes(ctx context.Context, estate string, config *configs.Config, provs *statelessProviders, resolutions []identity.Resolution, nodeRefused map[string]bool) ([]views.LiveLsItem, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	var items []views.LiveLsItem
 	for _, addr := range statelessManagedResourceProviders(config) {
-		if addr.Provider.Type != "kubernetes" {
+		if sub, ok := substrate.ForProvider(addr.Provider.Type); !ok || sub.Sweep() != substrate.SweepLabelList {
 			continue
 		}
 		if _, err := provs.ConfiguredProvider(ctx, addr); err != nil {
@@ -713,7 +994,7 @@ func (c *LiveLsCommand) liveLsKubernetes(ctx context.Context, estate string, con
 				fmt.Sprintf("No cluster client could be built from provider configuration %s, so no Kubernetes object owned by estate %q is listed through it: %s.", addr, estate, err)))
 			continue
 		}
-		found, listDiags := liveLsKubernetesList(ctx, estate, client, types, manifestType, resolutions)
+		found, listDiags := liveLsKubernetesList(ctx, estate, client, types, manifestType, resolutions, nodeRefused)
 		diags = diags.Append(listDiags)
 		items = append(items, found...)
 	}
@@ -728,12 +1009,22 @@ func (c *LiveLsCommand) liveLsKubernetes(ctx context.Context, estate string, con
 // and the natural key, [discovery.DeclaredKubernetesObjects], the sweep's
 // own - else under the type the sweep would plan its removal at.
 //
+// An object no natural key declares may still be a declared instance's:
+// its address annotation names the block that made it (GitHub issue
+// #1640). This listing reads it through the same join the sweep binds
+// by, [discovery.KubernetesAddressBindings], so the plan and the
+// inventory agree about the same object (GitHub issue #1677) instead of
+// this function keeping a second copy of the rule. nodeRefused is the
+// instances the static evaluator gave up on and the plan-node seam took
+// over ([discovery.Request.NodeRefused]); an object bound to one of those
+// is exactly #1539's shape.
+//
 // API discovery failing is the whole cluster unlisted, and says so under
 // the sweep's summary; one kind's list failing is that kind missing, and
 // says so under its own, so a reader can tell "no cluster" from "no
 // permission on one kind". Neither is an error: the listing is what
 // could be read, and the warning is what could not.
-func liveLsKubernetesList(ctx context.Context, estate string, sweeper kubesweep.Sweeper, types []string, manifestType string, resolutions []identity.Resolution) ([]views.LiveLsItem, tfdiags.Diagnostics) {
+func liveLsKubernetesList(ctx context.Context, estate string, sweeper kubesweep.Sweeper, types []string, manifestType string, resolutions []identity.Resolution, nodeRefused map[string]bool) ([]views.LiveLsItem, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	var items []views.LiveLsItem
 
@@ -744,8 +1035,16 @@ func liveLsKubernetesList(ctx context.Context, estate string, sweeper kubesweep.
 			fmt.Sprintf("The cluster's API discovery failed, so no Kubernetes object owned by estate %q could be listed: %s.", estate, err)))
 	}
 	kindTypes := kubesweep.KindTypes(types)
+
+	listed := discovery.ListedObjects{}
+	var undeclared []discovery.UndeclaredObject
+	// undeclaredItem[i] is the items index the i'th entry of undeclared
+	// was appended at, so a later binding can patch that same item in
+	// place rather than this function tracking two parallel item lists.
+	var undeclaredItem []int
+
 	for _, k := range kinds {
-		objects, _, err := sweeper.List(ctx, k, markers.TagEstate, estate)
+		objects, skipped, err := sweeper.List(ctx, k, markers.TagEstate, estate)
 		if err != nil {
 			diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, "Kubernetes listing incomplete",
 				fmt.Sprintf("Listing %s across all namespaces failed: %s. Any %s this estate owns is missing from the listing.", k.GVR.String(), err, k.Kind)))
@@ -765,6 +1064,35 @@ func liveLsKubernetesList(ctx context.Context, estate string, sweeper kubesweep.
 				Source:     "kubernetes",
 				Tags:       o.Labels,
 			}
+			listed.Add(k.Kind, key)
+			if addr, ok := declared.Declares(k.Kind, key); ok {
+				item.Address = addr.String()
+				item.Declared = true
+				item.Type = addr.Resource.Resource.Type
+			} else {
+				undeclared = append(undeclared, discovery.UndeclaredObject{Kind: k, TypeName: typeName, Object: o})
+				undeclaredItem = append(undeclaredItem, len(items))
+			}
+			items = append(items, item)
+		}
+		// What a controller holds is listed too, with its holder (GitHub
+		// issue #1607): it carries the estate's label, so leaving it out
+		// would hide the label's reach, and it is not the estate's, so it
+		// is never under a block's address unless a block names it. Held
+		// objects are not candidates for the address-binding join either -
+		// the sweep never offers one to it, since a controller-held object
+		// is never this configuration's instance to bind.
+		for _, h := range skipped.Held {
+			key := kubesweep.NaturalKey(h.Namespace, h.Name)
+			item := views.LiveLsItem{
+				ID:         key,
+				Type:       typeName,
+				Kind:       k.Kind,
+				APIVersion: k.APIVersion,
+				Source:     "kubernetes",
+				Tags:       h.Labels,
+				HeldBy:     h.HeldBy,
+			}
 			if addr, ok := declared.Declares(k.Kind, key); ok {
 				item.Address = addr.String()
 				item.Declared = true
@@ -773,6 +1101,20 @@ func liveLsKubernetesList(ctx context.Context, estate string, sweeper kubesweep.
 			items = append(items, item)
 		}
 	}
+
+	// Decided once every kind is listed, because whether the address
+	// already has its object - one of [discovery.KubernetesAddressBindings]'s
+	// conditions - is a question about the whole listing, exactly as it is
+	// for the sweep.
+	req := discovery.Request{Resolutions: resolutions, NodeRefused: nodeRefused}
+	bound := discovery.KubernetesAddressBindings(req, manifestType, declared, listed, undeclared)
+	for idx, addr := range bound {
+		i := undeclaredItem[idx]
+		items[i].Address = addr.String()
+		items[i].Declared = true
+		items[i].Type = addr.Resource.Resource.Type
+	}
+
 	return items, diags
 }
 
@@ -871,6 +1213,12 @@ Usage: choudoufu [global options] live-ls -estate=NAME [options] [DIR]
   cannot reach is a warning, "Kubernetes sweep unavailable", and the rest of
   the listing stands. -consistent polls the AWS listing only.
 
+  A provider in DIR that neither listing serves is named in a "Not listed"
+  warning rather than read as AWS: a provider family this command has no
+  listing for, and a provider no family claims whose resource types carry
+  a marker (a tags map, say). A DIR whose providers include no aws provider
+  makes no AWS call.
+
   With DIR given, the listing is cross-referenced against that directory's
   declared instances: one this listing cannot find is reported as a gap, named
   by which rung explains the absence - "record" for an instance whose identity
@@ -893,9 +1241,17 @@ Options:
 
   -estate=name            The estate to list. Required.
 
-  -region=name            The AWS region to list in. Defaults to the AWS
-                          SDK's own region resolution (AWS_REGION, the shared
-                          config file, or an endpoint override's own region).
+  -region=name            The AWS region to list in. Defaults, with DIR
+                          given, to the region DIR's own aws provider block
+                          names - region = var.aws_region included, read
+                          from TF_VAR_aws_region and the tfvars files the
+                          way live-plan reads it - so this listing and a
+                          plan in DIR read the same region. Without DIR, or
+                          when the block sets no region or one this command
+                          cannot resolve, the AWS SDK's own region
+                          resolution stands (AWS_REGION, the shared config
+                          file, or an endpoint override's own region). The
+                          report's "Region ..." line says which source won.
 
   -consistent             Re-read the listing until two consecutive reads
                           agree, rather than returning the first read as-is.

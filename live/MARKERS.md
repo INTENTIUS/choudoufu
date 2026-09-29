@@ -63,11 +63,10 @@ marker is a single label:
 |---|---|---|
 | `tofu-estate` | The estate that owns the object. | Every managed object whose type has a `metadata` block with a `labels` map (75 of hashicorp/kubernetes 3.2.1's 82 types), and every `kubernetes_manifest` object, where the same label goes into `manifest.metadata.labels` (#1079). Since #1064 the same block is what admits the type: 73 of the 82 carry the full object-metadata shape, 48 namespaced and 25 cluster-scoped, and resolve to NAMESPACE/NAME or NAME with no row each. |
 
-There is no `tofu-address`, no continuation label and no `tofu-slot`. The
-object's own group, kind, namespace and name are the join key back to the
-configuration block that declares it, because those are authored in the
-configuration this fork already parses; the address never goes on the
-object. The provider's `id` on such an object is that same join key (the
+There is no `tofu-address` label, no continuation label and no
+`tofu-slot`. The object's own group, kind, namespace and name are the join
+key back to the configuration block that declares it, because those are
+authored in the configuration this fork already parses. The provider's `id` on such an object is that same join key (the
 name for a cluster-scoped kind, `NAMESPACE/NAME` for a namespaced one), so
 a sibling reading `kubernetes_namespace_v1.x.id` reads the parent's whole
 identity and resolves; grafana/quickpizza's root, the kubernetes lane's
@@ -75,6 +74,23 @@ first published estate, writes exactly that on every namespaced object
 (#1067). #1016 measured the alternative: nearly half of real addresses are
 illegal as a label value (the instance-key `:`), and a 63-character cap
 binds at once on ordinary module-nested shapes.
+
+The block address does go on the object, since #1605's ruling of
+2026-09-26 (#1639), as an annotation beside the label:
+
+| Annotation | Meaning | Present on |
+|---|---|---|
+| `choudoufu.intentius.io/tofu-address` | The object's block address, escaped exactly as the AWS `tofu-address` tag value is ("Escaping", above). | Every object the label is on: written by the node stamp into `metadata.annotations` or `manifest.metadata.annotations` on every plan, by `live-import -approve` in the same write as the label, and rewritten by `live-mv`. |
+
+An annotation value has no grammar and no length cap, so nothing is split
+and there are no continuation keys. The prefix is the one the record
+store's `choudoufu.intentius.io/record-key` annotation already uses. It is
+a join key, not a boundary: the admission policy below reads the label
+alone, and nothing binds on the annotation yet (#1640 reads it in the
+sweep; #1641 flips the substrate's `CarriesAddress`). A configuration that
+sets it to another address is the same "Ownership marker conflict" the AWS
+tag raises. A rename therefore plans one in-place annotation change, as an
+AWS rename plans the tag rewrite, unless `live-mv` has already written it.
 
 A label value is at most 63 characters and matches
 `(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?`. An estate name over 63
@@ -85,12 +101,27 @@ writing something the API server rejects.
 
 The label is written into `metadata.labels` as part of the create, so a
 created object carries it. A label stripped out of band takes the object
-out of the estate, exactly as a stripped `tofu-estate` tag does on AWS: the
-next plan refuses the object by name and proposes creating what the block
-declares, and writing the label back is an operator's own adoption
-(#1108). `marker_repair` governs the other repair, a `tofu-address` that
-is missing while `tofu-estate` is present, which cannot arise here because
-the Kubernetes marker is the estate label alone.
+out of the estate, exactly as a stripped `tofu-estate` tag does on AWS, and
+writing the label back is an operator's own adoption (#1108). Where AWS then
+plans the create the block declares, a Kubernetes plan stops with
+"Unlabelled live object holds the declared name": the API server would
+answer that create with 409 while the unlabelled object holds the name
+(#1546). `policy { declared_untagged = "adopt" }` adopts it instead.
+
+`marker_repair` governs the other repair, a `tofu-address` that is
+missing while `tofu-estate` is present, the same way it does on AWS. That
+can now arise here too: since #1639 the address annotation beside the
+label (`choudoufu.intentius.io/tofu-address`) can be absent on an object
+stamped before that issue landed, or one hand-labelled without it, and
+the node stamp writes the annotation on every plan
+(`stampedAddressAnnotation` in `nodestamp_labels.go`) exactly as it
+writes the label, so the default `marker_repair = "repair"` fixes it the
+same emergent way a drifted `tofu-address` tag is fixed on AWS - the
+ordinary plan diff, not a write this pass makes directly. `strict {
+marker_repair = "never" }` protects an existing annotation from that
+diff instead, through `AdjustIgnoreChanges`
+(`nodestamp_ignorechanges.go`), and only alongside a `markers "record"`
+selection, same as the label and the AWS tags.
 A configuration that sets `tofu-estate` to another estate's name is the
 same "Ownership marker conflict" refusal the AWS shape raises. `strict {
 markers "record" }` withholds the label the same way it withholds the tags,
@@ -99,16 +130,19 @@ and protects an existing one through `ignore_changes` the same way.
 Migrating from a stock state file is the same bulk path as on AWS
 (#1073): `choudoufu live-import -approve` reads the state once, verifies
 each object by namespace and name, and writes the `tofu-estate` label into
-`metadata.labels` through a labels-only plan and apply, judged the way a
-tags-only write is judged - a plan that would also rename the object, move
-it between namespaces or change anything outside the labels map is
-refused, as is an object already labelled for another estate, and an
-estate name that is not a legal label value. There is no address to split
-and no `tofu-slot` to settle, so a Kubernetes count set is never
-slot-classified. Before this the label surface was not a live-import
-carrier and every `kubernetes_*` type migrated as UNTAGGABLE; the
-kubernetes lane's first estate (reference-k8s, #1067) failed its migrate
-stage on exactly that line, and passes it now.
+`metadata.labels`, with the block address into the address annotation
+beside it (#1639), through a labels-and-annotation-only plan and apply,
+judged the way a tags-only write is judged - a plan that would also
+rename the object, move it between namespaces or change anything outside
+the labels map and the address annotation is refused, as is an object
+already labelled for another estate, and an estate name that is not a
+legal label value. The address annotation has no splitting to do, since
+an annotation carries no length cap, and there is no `tofu-slot` to
+settle, so a Kubernetes count set is never slot-classified. Before this
+the label surface was not a live-import carrier and every `kubernetes_*`
+type migrated as UNTAGGABLE; the kubernetes lane's first estate
+(reference-k8s, #1067) failed its migrate stage on exactly that line, and
+passes it now.
 
 A `kubernetes_manifest` entry in that state file is migrated too (#1109,
 ruled with #1104 on 2026-09-13), and its label is written differently: not
@@ -186,8 +220,11 @@ A change of type between the two spellings of a kind
 (`kubernetes_config_map` to `kubernetes_config_map_v1`) is not a move and
 needs no `moved` block (#1081, item 2): the suffix is the API version the
 block is written against, both spellings render the same natural key, the
-sweep files both under the one kind, and the label carries no address to
-rewrite, so the replan is empty. Claim 21's step 5 measures it.
+sweep files both under the one kind, and the replan finds the same
+object. Since #1639 it plans one in-place update, the address annotation's
+rewrite to the new spelling's address, and never a create or a destroy.
+Claim 7's Kubernetes scenario measures
+it, step 6.
 
 `helm_release` is refused, by the ordinary unadmitted-type refusal, with
 or without hashicorp/helm's schema (#1081, item 4): the provider serves no
@@ -196,16 +233,27 @@ admission route reaches it. It is not a record-rung candidate: a release
 is a release secret plus whatever the chart rendered, made by a path this
 tool never sees, and the rendered objects carry the chart's labels and
 Helm's `meta.helm.sh/release-name` annotation, never `tofu-estate`. Ruled
-2026-09-13 (#1105, in #1115's shape): a release-annotated object is
-controller-held, never swept and never adopted, reported with its release
-name; that exclusion is the one unit to build, and until it lands a
-`tofu-estate` written through a chart's values makes each object an orphan
-the sweep proposes to remove. The two honest paths, both stock: a Helm
+2026-09-26 (#1604) and built in #1607: a release-annotated object is
+controller-held (`kubesweep.ControllerMade`), never swept and never
+adopted, and the plan and `live-ls` report it with its release name, so a
+`tofu-estate` written through a chart's values no longer makes each object
+an orphan. The two honest paths, both stock: a Helm
 root kept without a `live` block beside the estate (Helm's lifecycle kept,
 nothing owned), or the chart rendered into `kubernetes_manifest` blocks
 (everything owned, Helm's rollback, history and hooks given up). The
-opt-in that would bring a release inside the boundary is designed on
-#1105 and not built.
+opt-in that would bring a release inside the boundary is deferred by the
+#1604 ruling and not built.
+
+The annotation is not trusted past the release itself (#1625): the sweep
+also checks for the release's history secret
+(`sh.helm.release.v1.<name>.v*`, labelled `owner=helm,name=<name>`) in the
+release's namespace before calling an object held, because moving an
+object off Helm without re-creating it - adopting it into a
+`kubernetes_manifest` block by import, then removing the release's
+bookkeeping - leaves the annotation on the object; server-side apply
+touches only the fields its own writer claims. Once no such secret exists,
+the object is judged like any other, on owner references and managedFields
+authorship alone.
 
 The estate sweep (#1065) is one cluster-wide, label-selected list per kind
 the cluster serves with list and delete verbs, found through API
@@ -245,7 +293,7 @@ rather than missing.
 |---|---|---|
 | `object` | never | no `kubernetes_*` row is `RecordBacked`; `kind=object` is #73's types with no cloud object at all, and a Kubernetes object is a cloud object |
 | `identity` | four types only, and inert | `LocatedRecordFrom` reaches `locatedRatifiedComponentsRecord`, which needs a row in `identity.DefaultTable`; #326 wrote four (`kubernetes_cluster_role_binding`, `kubernetes_config_map`, `kubernetes_namespace`, `kubernetes_storage_class`) and the other 73 metadata-shaped types are admitted by #1064's synthesized rule, which `LookupType` does not see |
-| `residue` | yes, and load-bearing | the `wait_for_*` arguments and a `timeouts` block |
+| `residue` | yes, and load-bearing | the `wait_for_*` arguments, a `timeouts` block, and (#1211) the `metadata.labels` and `metadata.annotations` keys each apply declared, which is what lets a key DELETED from the configuration be proposed for removal |
 | `provisioned` | yes, if the block declares a create-time provisioner | a property of the configuration, not of the substrate |
 | `deposed` | never | a name is unique in its namespace, so nothing is created before the object it replaces is gone and there is no create-before-destroy window |
 | `tombstone` | writable only behind `identity`, never read | the label is a field of the object, so a deleted object leaves no lingering marker to tell from a second claimant; both readers are gated on two claimants sharing one address, which the synthetic orphan address makes impossible |
@@ -275,11 +323,33 @@ two creates **wrote the record for the object it had created** (record files
 Removing that one record from the same position turned the recovery plan
 into `Plan: 1 to add, 1 to change`, proposing `+
 wait_for_service_account_token = true` against the object the crash left
-behind. `day2_crash` does not see this because its crash pair is a
-`kubernetes_config_map(_v1)`, which is the one type in the lane's surface
-with neither a ratified row nor a config-only argument - which is why the
-stage's own evidence line reads 12 -> 12 on the two `_v1` estates and 9 ->
-10 on reference-k8s.
+behind.
+
+`day2_crash` now measures exactly that, on all three estates whose roots
+hold typed resources (#1235). Its crash pair used to start with a
+`kubernetes_config_map(_v1)` - the one type in the lane's surface with
+neither a ratified row nor a config-only argument - so the stage's own
+evidence line could only ever report a count that did not move: 12 -> 12
+on the two `_v1` estates, 25 -> 25 on corpus-quickpizza, and 9 -> 10 on
+reference-k8s, whose ratified ConfigMap records an identity member that
+the enumeration above shows is inert. The pair's first object is now a
+`kubernetes_secret(_v1)`, the interrupted apply's record is read back by
+address and its residue asserted by name, and the stage takes the file out
+of the store and replans from the identical position: `Plan: 1 to add`
+becomes `Plan: 1 to add, 1 to change`, and putting the file back restores
+the remainder. The fourth estate, `reference-k8s-cert-manager`, asserts
+the other half by value - no record exists for its
+`kubernetes_manifest.crash_first` at all and the count does not move,
+because a `kubernetes_manifest` declaring no `field_manager` records
+nothing - so recovery there is the label alone.
+
+The lost-store reading is taken per estate too, in `greenfield`, where six
+AWS estates already take it: `Plan: 0 to add, 1 to change, 0 to destroy`
+on reference-k8s (`wait_for_load_balancer`), 6 changes on
+reference-k8s-stateful, 18 on corpus-quickpizza, and `No changes.` on
+reference-k8s-cert-manager, whose root is `kubernetes_manifest` throughout
+and records nothing. Nothing is created and nothing is swept in any of
+them, and one apply reconverges.
 
 A record is not a rescue for an object whose label was stripped, on either
 substrate. With a valid identity record naming `NAMESPACE/NAME`, stripping
@@ -304,14 +374,17 @@ a virtual resource named after each estate,
 `estates.choudoufu.intentius.io/<estate>`. That verb exists nowhere but in
 RBAC, which is the point: granting an estate is an ordinary ClusterRole,
 handover is a binding moving from one principal to another, and the policy
-is never edited for either. Claim 23
+is never edited for either. Claim 13 on Kubernetes
 (`live/smoke/scenarios/k8s-the-label-is-the-boundary.sh`) runs it on a
 kind cluster with two ServiceAccounts, and `BREAK=1` removes the policy to
 show the refusals were its doing. `live-mv -from-estate` is the governed
 relabel made through the provider under the caller's own credential, so
-the policy judges it exactly as it judges a plain `kubectl label`; a
-rename within one estate has nothing to write on this surface and
-`live-mv` says so, exit 0 (#1081).
+the policy judges it exactly as it judges a plain `kubectl label`, and it
+writes the address annotation in the same write. A rename within one
+estate rewrites only the address annotation (#1639): through the provider
+for an object with a metadata block, as one annotation merge patch for a
+`kubernetes_manifest` object. The policy reads no annotation, so the
+estate's own holder can make that write.
 
 `live/kubernetes/estate-boundary.yaml`, applied once by a cluster admin:
 
@@ -334,11 +407,29 @@ rename within one estate has nothing to write on this surface and
 # the fence is write-only where an IAM condition can fence a describe. It
 # fences the object, not its subresources: a scale or a status write
 # arrives as a Scale or a status object carrying no label, and RBAC on
-# deployments/scale is the fence for those. The control plane is exempt
-# (nodes, the kube-system controllers, the scheduler and the API server
-# itself), and so is any object carrying an ownerReference: a controller
-# made it from a template, and the estate sweep excludes it by the same
-# rule, so the fence and the sweep agree on what an estate contains.
+# deployments/scale is the fence for those. The control plane is exempt,
+# by name: nodes, the API server, the scheduler, and the controllers of
+# the kube-controller-manager that write objects. That is what keeps a
+# ReplicaSet's Pods out of the fence: the copies a template makes are
+# written by those controllers. Nothing else in kube-system is exempt
+# (#1448). An add-on installed there (a CNI, coredns, kube-proxy, a
+# third-party operator) and any other system:kube- name is judged like
+# every other caller, and one that writes labelled objects needs "use" on
+# that estate, one binding from live/kubernetes/estate-grant.yaml.
+#
+# Owned objects keep their estate (the ruling on #1449). An object that
+# already carries an ownerReference may be updated with no grant at all,
+# as long as the write leaves its tofu-estate label exactly as it found
+# it, which is what a third-party operator's status-like writes on a
+# labelled child need. Changing that label, stripping it, deleting the
+# object or creating a new labelled one needs "use" on every estate
+# involved, owner or no owner. The earlier rule skipped the whole policy
+# for any object with an ownerReference, and ownerReferences is a field
+# the caller writes: an identity holding one estate could add an owner to
+# its own object and then relabel it into an estate it was never granted,
+# or create an object already labelled and already owned. An operator
+# that creates labelled children of its own therefore needs "use" on that
+# estate, one binding from live/kubernetes/estate-grant.yaml.
 #
 #   kubectl apply -f live/kubernetes/estate-boundary.yaml
 #
@@ -360,15 +451,56 @@ spec:
         - key: tofu-estate
           operator: Exists
   matchConditions:
+    # The control plane, by name: the API server, the controller manager,
+    # the scheduler, and the controller manager's controllers that write
+    # objects. One name per line. Extend it here in the repository, never
+    # in the installed copy.
     - name: not-the-control-plane
       expression: >-
         !('system:nodes' in request.userInfo.groups)
-        && !request.userInfo.username.startsWith('system:serviceaccount:kube-system:')
-        && !request.userInfo.username.startsWith('system:kube-')
-        && request.userInfo.username != 'system:apiserver'
-    - name: not-a-controllers-object
+        && !(request.userInfo.username in [
+        'system:apiserver',
+        'system:kube-controller-manager',
+        'system:kube-scheduler',
+        'system:serviceaccount:kube-system:attachdetach-controller',
+        'system:serviceaccount:kube-system:bootstrap-signer',
+        'system:serviceaccount:kube-system:certificate-controller',
+        'system:serviceaccount:kube-system:clusterrole-aggregation-controller',
+        'system:serviceaccount:kube-system:cronjob-controller',
+        'system:serviceaccount:kube-system:daemon-set-controller',
+        'system:serviceaccount:kube-system:deployment-controller',
+        'system:serviceaccount:kube-system:device-taint-eviction-controller',
+        'system:serviceaccount:kube-system:endpoint-controller',
+        'system:serviceaccount:kube-system:endpointslice-controller',
+        'system:serviceaccount:kube-system:endpointslicemirroring-controller',
+        'system:serviceaccount:kube-system:ephemeral-volume-controller',
+        'system:serviceaccount:kube-system:expand-controller',
+        'system:serviceaccount:kube-system:generic-garbage-collector',
+        'system:serviceaccount:kube-system:job-controller',
+        'system:serviceaccount:kube-system:legacy-service-account-token-cleaner',
+        'system:serviceaccount:kube-system:namespace-controller',
+        'system:serviceaccount:kube-system:node-controller',
+        'system:serviceaccount:kube-system:persistent-volume-binder',
+        'system:serviceaccount:kube-system:pod-garbage-collector',
+        'system:serviceaccount:kube-system:pv-protection-controller',
+        'system:serviceaccount:kube-system:pvc-protection-controller',
+        'system:serviceaccount:kube-system:replicaset-controller',
+        'system:serviceaccount:kube-system:replication-controller',
+        'system:serviceaccount:kube-system:resource-claim-controller',
+        'system:serviceaccount:kube-system:root-ca-cert-publisher',
+        'system:serviceaccount:kube-system:service-cidrs-controller',
+        'system:serviceaccount:kube-system:statefulset-controller',
+        'system:serviceaccount:kube-system:token-cleaner',
+        'system:serviceaccount:kube-system:ttl-after-finished-controller',
+        'system:serviceaccount:kube-system:ttl-controller',
+        'system:serviceaccount:kube-system:volumeattributesclass-protection-controller'
+        ])
+    - name: not-an-owned-object-keeping-its-estate
       expression: >-
-        (oldObject == null ? object : oldObject).?metadata.?ownerReferences.orValue([]).size() == 0
+        !(request.operation == 'UPDATE'
+        && oldObject.?metadata.?ownerReferences.orValue([]).size() > 0
+        && oldObject.?metadata.?labels[?'tofu-estate'].orValue('')
+        == object.?metadata.?labels[?'tofu-estate'].orValue(''))
   variables:
     - name: oldEstate
       expression: >-
@@ -422,6 +554,16 @@ spec:
 # for the kinds its estate declares (create, update, patch, delete) and
 # list on every kind the estate sweep asks for; the estate label is what
 # the fence reads, and RBAC alone cannot read it.
+#
+# A third-party operator that creates objects carrying an estate's label
+# (cert-manager, an ingress controller) needs this same grant for that
+# estate, one binding: an ownerReference does not exempt a create, and it
+# does not exempt a write that changes the label (#1449). An operator that
+# only updates a labelled object a controller already owns, and leaves its
+# tofu-estate label alone, needs nothing here.
+#
+# An add-on in kube-system needs this grant too; only the control plane's
+# own controllers are exempt.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -459,28 +601,38 @@ admin installs it and any cluster admin can remove it. The fence is also
 per estate, never per address, because the label carries no address; a
 team that wants two boundaries makes two estates.
 
-**What is exempt.** The control plane (`system:nodes`, the `kube-system`
-ServiceAccounts, `system:kube-*` and the API server itself), because
-kubelets write status and controllers write the copies a template makes;
-and any object carrying a non-empty `metadata.ownerReferences`, because a
-controller made it from a template. That second exemption is the same
-rule the estate sweep excludes by, so the fence and the sweep agree on
-what an estate contains. A `cluster-admin`'s wildcard rule matches the
+**What is exempt.** Only the control plane, by name: nodes, the API
+server, the scheduler and the controller manager's own controllers, which
+keeps a ReplicaSet's Pods out of the fence (claim 13 on Kubernetes). If anything else in
+kube-system is refused with "is not bound to it", grant it the estate
+with `estate-grant.yaml`; never add it to the installed policy's list.
+Owned objects keep their estate (#1449): an object
+carrying a non-empty `metadata.ownerReferences` may be updated with no
+grant while its `tofu-estate` label stays exactly as it was, so a
+third-party operator's status-like writes on a labelled child are let
+through. Changing the label, stripping it, deleting the object or
+creating a new labelled one needs `use` on every estate involved, owner
+or no owner, because `ownerReferences` is a field the caller writes. An
+operator that creates labelled children of its own needs `use` on that
+estate, one binding. A `cluster-admin`'s wildcard rule matches the
 virtual resource, so `cluster-admin` holds every estate, the way the
 account root does on AWS.
 
 **The grant is the fence only.** A principal still needs ordinary RBAC for
 the kinds its estate declares (create, update, patch, delete) and `list`
-on every kind the estate sweep asks for. Claim 23 gives its two principals
+on every kind the estate sweep asks for. Claim 13's Kubernetes scenario
+gives its two principals
 reads on everything and writes on namespaces and ConfigMaps, beside the
 estate grant.
 
-**Splitting a Kubernetes estate is a label rewrite, then a grant.** With
-no address on the object, the write is `kubectl label --overwrite
-tofu-estate=<new>`, and the policy reads both sides of it: the caller must
-hold the estate the object is leaving and the one it is entering. There is
-no `live-mv` leg for Kubernetes; the rename rule has nothing to rewrite
-there ("Operate" on the Kubernetes hub). Kyverno and Gatekeeper could
+**Splitting a Kubernetes estate is a label rewrite, then a grant.** The
+write is `live-mv -from-estate` (or the equivalent `kubectl label
+--overwrite tofu-estate=<new>`), and the policy reads both sides of it:
+the caller must hold the estate the object is leaving and the one it is
+entering. Since #1639 the object also carries its block address in an
+annotation beside the label, and `live-mv` rewrites that annotation in
+the same write, though the policy itself still reads the label alone
+("Granting a Kubernetes estate", above). Kyverno and Gatekeeper could
 express the same policy and are unverified for it.
 
 ## `tofu-estate`
@@ -1599,21 +1751,44 @@ policy nobody has written yet. Prevention cannot cover every case, which
 is why this fork does not rely on it alone.
 
 At plan time, when a declared resource of an admitted type would be
-created and the estate sweep saw one or more live resources of the same
-type that this estate does not own, the plan runs the same content-match
-machinery that offers adoption elsewhere (`internal/live/foreign`'s match
-table and its one-to-one rule) against the declared configuration. On a
-match it does not change what the plan does (the create may be
-intended), but the create's entry in the plan gains a `[POSSIBLE
-DUPLICATE]` warning, naming the matched live resource's ID and the exact
-command that adopts it instead. A type with no content-match rule (a route
-table, an EIP: nothing in their configuration distinguishes one from
-another) still gets a generic warning when exactly one same-type unowned
-resource exists, naming it the same way. Either way the warning sits
-immediately above the plan diff itself, not buried in a report an operator
-could plan past without reading. This is the guard that assumes the tags
-will get stripped sometime, by someone, despite whatever policy is in
-place, and catches it anyway.
+created and one or more live resources of the same type that this estate
+does not own exist, the plan runs the same content-match machinery that
+offers adoption elsewhere (`internal/live/foreign`'s match table and its
+one-to-one rule) against the declared configuration. On a match it does not
+change what the plan does (the create may be intended), but the create's
+entry in the plan gains a `[POSSIBLE DUPLICATE]` warning, naming the
+matched live resource's ID and the exact command that adopts it instead. A
+type with no content-match rule (a route table, an EIP: nothing in their
+configuration distinguishes one from another) still gets a generic warning
+when exactly one same-type unowned resource exists, naming it the same way.
+Either way the warning sits immediately above the plan diff itself, not
+buried in a report an operator could plan past without reading. This is the
+guard that assumes the tags will get stripped sometime, by someone, despite
+whatever policy is in place, and catches it anyway.
+
+Finding those unowned resources costs one list call, and an ordinary plan
+makes it only where it buys something. Most declared types are listed with
+a server-side `tofu-estate` filter, which by construction hides exactly the
+resource this guard is looking for; so after discovery has bound what it
+can, any type left with a declared instance nothing claimed — which is to
+say, any type the plan proposes creating one of — is listed once more with
+that filter off (`internal/live/discovery`'s `relistForLookalikes`, GitHub
+issue #1480). A steady-state `No changes` plan has nothing unbound and
+makes no extra call at all, so the per-plan cost the estate-wide sweep's
+narrowing bought (`live/costs/plan-cost.md`) is unchanged. Between
+`09d180f921` and that fix, an ordinary plan could not fire this guard for
+any filterable type at all, and `TOFU_LIVE_COLLECT_UNCLAIMED=1` was the
+only route to the warning.
+
+A controller-held resource (an in-cluster controller's tags, GitHub issue
+#1606) never reaches the match-table pass above: it leaves the unclaimed
+population entirely, for the plan's Controller-held section instead, and
+`#1604` ruled it is never offered for adoption. Issue #1628: a create whose
+identity-bearing arguments match one still gets the same
+`[POSSIBLE DUPLICATE]` warning, naming the controller and its object rather
+than an adoption command - dropping the adoption hint is the ruling, but
+dropping the warning too would turn it into silence about a collision the
+apply will actually hit.
 
 Taken together: a tag policy cannot do this job at all, an
 SCP narrows who can strip a marker and where, and the plan-time guard

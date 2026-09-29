@@ -159,11 +159,11 @@ func TestRunEstatesRecordsOracle(t *testing.T) {
 func TestRebuildSetsArtifactOracle(t *testing.T) {
 	m := &Manifest{Estates: []Estate{{Name: "a", Source: "s", Lane: "reference", Set: SetCore, Reason: "r"}}}
 	a := &Artifact{}
-	a.Rebuild(m, nil, "img", OracleVersions{Terraform: "1.16.0", Tofu: "1.12.6"})
+	a.Rebuild(m, nil, "img", OracleVersions{Terraform: "1.16.0", Tofu: "1.12.6"}, ProviderVersions{})
 	if a.Oracle != (OracleVersions{Terraform: "1.16.0", Tofu: "1.12.6"}) {
 		t.Errorf("a.Oracle = %+v after Rebuild, want the passed-in value", a.Oracle)
 	}
-	a.Rebuild(m, nil, "img", OracleVersions{Terraform: "1.16.1"})
+	a.Rebuild(m, nil, "img", OracleVersions{Terraform: "1.16.1"}, ProviderVersions{})
 	if a.Oracle != (OracleVersions{Terraform: "1.16.1"}) {
 		t.Errorf("a.Oracle = %+v after a second Rebuild, want the refreshed value (not carried forward from the first)", a.Oracle)
 	}
@@ -178,22 +178,22 @@ func TestBoardEstateOracleNote(t *testing.T) {
 	a := &Artifact{Oracle: OracleVersions{Terraform: "1.16.0", Tofu: "1.12.6"}, Stages: Stages()}
 	r := EstateResult{Name: "x", Protocol: ProtocolGauntlet, Stages: map[string]string{}}
 
-	if note := boardEstate(r, a).OracleNote; note != "" {
+	if note := boardEstate(r, a, ScriptStaleness{}, "").OracleNote; note != "" {
 		t.Errorf("no LastRun at all: note should be empty, got %q", note)
 	}
 
 	r.LastRun = &LastRun{Commit: "c", Date: "d"}
-	if note := boardEstate(r, a).OracleNote; note != "" {
+	if note := boardEstate(r, a, ScriptStaleness{}, "").OracleNote; note != "" {
 		t.Errorf("LastRun.Oracle is nil: note should be empty, got %q", note)
 	}
 
 	r.LastRun.Oracle = &OracleVersions{Terraform: "1.16.0", Tofu: "1.12.6"}
-	if note := boardEstate(r, a).OracleNote; note != "Oracle: stock terraform `1.16.0`, stock tofu `1.12.6` (matches the current pin)." {
+	if note := boardEstate(r, a, ScriptStaleness{}, "").OracleNote; note != "Oracle: stock terraform `1.16.0`, stock tofu `1.12.6` (matches the current pin)." {
 		t.Errorf("expected a matching-oracle note; got %q", note)
 	}
 
 	r.LastRun.Oracle = &OracleVersions{Terraform: "1.15.8", Tofu: "1.12.5"}
-	note := boardEstate(r, a).OracleNote
+	note := boardEstate(r, a, ScriptStaleness{}, "").OracleNote
 	if !strings.Contains(note, "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`.") {
 		t.Errorf("expected the recorded (stale) versions in the note; got %q", note)
 	}

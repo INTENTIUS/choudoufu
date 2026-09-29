@@ -323,3 +323,66 @@ func TestReadRootOutputValuesSkipsAnUnreadableRecord(t *testing.T) {
 		t.Errorf("cert_label = %#v, want %#v", v, cty.StringVal("cert-cert-999"))
 	}
 }
+
+// TestPruneRootOutputValuesStaysInsideItsOwnRecords pins what the one
+// listing of this namespace may delete (GitHub issue #1371): the estate's
+// own records for undeclared outputs, and nothing of an estate whose name
+// merely starts the same way, nor a key under the prefix that is not a
+// record this package wrote.
+func TestPruneRootOutputValuesStaysInsideItsOwnRecords(t *testing.T) {
+	store, raw := newRootOutputStore(t, "prod")
+	ctx := t.Context()
+	sibling := NewRootOutputStore(raw, "prod-eu")
+
+	for _, name := range []string{"cert_id", "removed"} {
+		if _, err := store.Put(ctx, name, cty.StringVal(name), ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := sibling.Put(ctx, "removed", cty.StringVal("theirs"), ""); err != nil {
+		t.Fatal(err)
+	}
+	foreign := RootOutputKeyPrefix("prod") + "nested/not-a-record"
+	if _, err := raw.PutIfAbsent(ctx, foreign, []byte("x")); err != nil {
+		t.Fatal(err)
+	}
+
+	// cert_id is the one output testdata/output-eval declares.
+	PruneRootOutputValues(ctx, store, loadConfig(t, "testdata/output-eval"), false)
+
+	if _, _, exists, _ := store.Get(ctx, "removed"); exists {
+		t.Error(`an undeclared output's record survived the prune`)
+	}
+	if _, _, exists, _ := store.Get(ctx, "cert_id"); !exists {
+		t.Error(`a declared output's record was deleted`)
+	}
+	if _, _, exists, _ := sibling.Get(ctx, "removed"); !exists {
+		t.Error(`pruning estate "prod" deleted a record of estate "prod-eu"`)
+	}
+	if _, _, exists, _ := raw.Get(ctx, foreign); !exists {
+		t.Error("the prune deleted a key under the prefix that is not a root output record")
+	}
+
+	PruneRootOutputValues(ctx, store, nil, true)
+	if _, _, exists, _ := store.Get(ctx, "cert_id"); exists {
+		t.Error("a whole-estate destroy left a declared output's record behind")
+	}
+	if _, _, exists, _ := sibling.Get(ctx, "removed"); !exists {
+		t.Error(`destroying estate "prod" deleted a record of estate "prod-eu"`)
+	}
+}
+
+// TestPruneRootOutputValuesWithNoConfigurationDeletesNothing: outside a
+// whole destroy, with no list of declared outputs, no record can be shown to
+// be stale.
+func TestPruneRootOutputValuesWithNoConfigurationDeletesNothing(t *testing.T) {
+	store, _ := newRootOutputStore(t, "prod")
+	ctx := t.Context()
+	if _, err := store.Put(ctx, "cert_id", cty.StringVal("x"), ""); err != nil {
+		t.Fatal(err)
+	}
+	PruneRootOutputValues(ctx, store, nil, false)
+	if _, _, exists, _ := store.Get(ctx, "cert_id"); !exists {
+		t.Error("a prune with no configuration deleted a record")
+	}
+}

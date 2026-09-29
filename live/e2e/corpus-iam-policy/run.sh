@@ -171,6 +171,27 @@ set -uo pipefail
 #                inventory; the comparison must fail"). Independent of
 #                BREAK, BREAK_RENAME and BREAK_REMOVE - greenfield runs
 #                before all three, right after STAGE 1's cold deploy.
+#   BREAK_UNMARKED
+#                set to 1 to run cold_deploy's count control (#1271): stamp
+#                one of plain terraform's own objects with
+#                tofu-estate=iam-policy-crossing BEFORE the "nothing is
+#                marked yet" assertion, which must then fail. It did NOT
+#                fail while that line read the Resource Groups Tagging API,
+#                because GetResources does not index IAM on this pin and the
+#                call returned 0 for a fully stamped estate.
+#   BREAK_UNMARK set to 1 to run the greenfield count's OWN control (#1271),
+#                which is a different question from BREAK_GREEN above.
+#                BREAK_GREEN drops the EXPECTED number and so goes red even
+#                when the actual number is structurally 0 - it proves the
+#                comparison, never the count. BREAK_UNMARK leaves the
+#                expectation at 2 and genuinely removes tofu-estate from one
+#                policy, so only a count that really reads the marker
+#                notices. The count must read 1 and PART GREENFIELD 6 must
+#                fail.
+#   BREAK_NOOP   set to 1 to run test_apply's count control (#1271): remove
+#                one policy's tofu-estate marker AFTER the no-op apply, so
+#                the before/after equality must fail. Against the
+#                GetResources-only count it could not: both sides were 0.
 #   BREAK_APPROVAL
 #                set to 1 to run plan_approval's own negative control
 #                instead of the real refusal check (PART P): after the world
@@ -203,7 +224,7 @@ REGION="eu-west-1"
 ACCOUNT="000000000000"
 
 cleanup() {
-  docker rm -f "$FLOCI_NAME" "${FLOCI_GREEN_NAME:-}" >/dev/null 2>&1 || true
+  gauntlet_floci_teardown "$FLOCI_NAME" "${FLOCI_GREEN_NAME:-}"
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -215,6 +236,11 @@ log() { printf '%s\n' "$*"; }
 # failure belongs to; fail() reports it before exiting.
 # shellcheck source=live/e2e/lib/gauntlet.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+
+# The shared provider plugin cache, and the cross-process lock real terraform
+# needs in order to use it safely (#1300). live/e2e/lib/gauntlet.sh carries the
+# measured reasons for both; this is the only place a script chooses either.
+gauntlet_plugin_cache
 CURRENT_STAGE=""
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -327,7 +353,7 @@ grep -q 's3_use_path_style' "$EST/main.tf" || fail "the emulator delta did not m
 log "  DELTA  emulator flags added to the provider block; no backend, no version pin, no live block yet"
 
 log "=== 2. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
-docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -345,8 +371,8 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (terraform apply, the real unmodified example + delta) ==="
-( cd "$EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
+( cd "$EST" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
 COLD_OUT="$(cd "$EST" && terraform apply -input=false -auto-approve -no-color 2>&1)"; COLD_RC=$?
 [ "$COLD_RC" -eq 0 ] || { printf '%s\n' "$COLD_OUT" | tail -40; fail "the cold apply failed"; }
 grep -qE 'Apply complete! Resources: 2 added' <<< "$COLD_OUT" \
@@ -359,17 +385,44 @@ policy_arn_by_prefix awsl 'example-' "the name_prefix policy"
 POLICY2_ARN="$POLICY_ARN_OUT"
 log "  both policies live: $POLICY1_ARN and $POLICY2_ARN"
 
-UNMARKED="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  2>/dev/null || echo 0)"
-[ "$UNMARKED" = "0" ] || fail "plain terraform's own objects already carry tofu-estate=$ESTATE before migration - this crossing proves nothing"
-log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE before migration"
+# gauntlet_estate_objects, not `gauntlet_tagged_count ...
+# resourcegroupstaggingapi get-resources` (issue #1271). This estate's only
+# objects are two aws_iam_policy instances, and GetResources does not index
+# IAM on this pin - so the call this line used to make returned 0 whether or
+# not anything was marked, and "confirmed unmarked: 0" was a sentence the
+# script could print with the whole estate stamped. A check that returns the
+# same answer for every possible state of the world is not a check.
+# gauntlet_estate_objects reads IAM's own tag APIs as well, so a 0 here now
+# means 0. Proved red: see PART GREENFIELD 6's BREAK_UNMARK control, and
+# TestGauntletEstateObjectsSeesWhatGetResourcesCannot in
+# live/awspagequery_test.go, which runs the assertion against a genuinely
+# marked estate and watches it fail.
+#
+# The trailing `2>/dev/null || echo 0` is gone with it: it turned an
+# unreachable endpoint into "0 objects, nothing is marked, good", which was
+# the second way this line could not fail.
+gauntlet_estate_objects "$ESTATE" awsl \
+  || fail "could not read the account's tofu-estate=$ESTATE inventory before migration"
+UNMARKED="$GAUNTLET_ESTATE_N"
+if [ "${BREAK_UNMARKED:-}" = "1" ]; then
+  # The negative control for THIS line, not for the comparison below it:
+  # stamp one of plain terraform's own objects and the assertion must catch
+  # it. Against the old GetResources-only call it did not - that is the
+  # defect #1271 is about, and this is how a reader re-runs the proof.
+  awsl iam tag-policy --policy-arn "$POLICY1_ARN" --tags "Key=tofu-estate,Value=$ESTATE" >/dev/null
+  gauntlet_estate_objects "$ESTATE" awsl \
+    || fail "could not re-read the inventory after BREAK_UNMARKED stamped a policy"
+  UNMARKED="$GAUNTLET_ESTATE_N"
+  log "  BREAK_UNMARKED=1: stamped $POLICY1_ARN with tofu-estate=$ESTATE before migration - the assertion below must now fail, and reads $UNMARKED"
+fi
+[ "$UNMARKED" = "0" ] || fail "plain terraform's own objects already carry tofu-estate=$ESTATE before migration - this crossing proves nothing. Marked: $(tr '\n' ' ' <<< "$GAUNTLET_ESTATE_ARNS")"
+log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE before migration (GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own tag APIs $GAUNTLET_ESTATE_IAM_N, deduplicated - GetResources cannot see IAM on this pin, #1271)"
 
 cp "$EST/terraform.tfstate" "$WORK/cold.tfstate"
 
 log ""
 log "STAGE 1 (cold deploy): PASS"
-gauntlet_stage cold_deploy pass "$(grep -E 'Apply complete' <<< "$COLD_OUT"); 0 objects carry tofu-estate=$ESTATE before migration"
+gauntlet_stage cold_deploy pass "$(grep -E 'Apply complete' <<< "$COLD_OUT"); 0 objects carry tofu-estate=$ESTATE before migration, counted through GetResources AND IAM's own list-policy-tags/list-role-tags/list-instance-profile-tags (#1271 - GetResources does not index IAM on this pin, so the GetResources-only count this line used to carry read 0 whether or not anything was marked)"
 log ""
 
 # day2_rename's stock oracle (live/GAUNTLET.md #6, tracked as issue #357):
@@ -412,8 +465,8 @@ moved {
   to   = module.iam_policy_renamed2
 }
 EOF
-( cd "$EST_ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$EST_ORACLE" && terraform init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_rename stock oracle's reinit (after renaming both module calls) failed"; }
+( cd "$EST_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$EST_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_rename stock oracle's reinit (after renaming both module calls) failed"; }
 ORACLE_PLAN_OUT="$(cd "$EST_ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
 grep -qE '^  # .+ will be destroyed' <<< "$ORACLE_PLAN_OUT" \
@@ -447,8 +500,8 @@ cp -R "$SRC_MODULE" "$WORK/oracle-remove-tree/iam/modules/iam-policy"
 perl -0pi -e 's/module "iam_policy_from_data_source" \{.*?\n\}\n\n//s' "$EST_ORACLE_REMOVE/main.tf"
 grep -q 'module "iam_policy_from_data_source"' "$EST_ORACLE_REMOVE/main.tf" \
   && fail "removing module.iam_policy_from_data_source's block from the oracle copy did not match - the corpus example has moved"
-( cd "$EST_ORACLE_REMOVE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$EST_ORACLE_REMOVE" && terraform init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove stock oracle's reinit (after removing the block) failed"; }
+( cd "$EST_ORACLE_REMOVE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$EST_ORACLE_REMOVE" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove stock oracle's reinit (after removing the block) failed"; }
 REMOVE_ORACLE_PLAN_OUT="$(cd "$EST_ORACLE_REMOVE" && terraform plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
 [ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
 grep -qE '^  # module\.iam_policy_from_data_source\.aws_iam_policy\.policy\[0\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
@@ -481,8 +534,8 @@ sed -i.bak 's/name_prefix = "example-"/name_prefix = "example-v2-"/' "$EST_ORACL
 rm -f "$EST_ORACLE_REPLACE/main.tf.bak"
 grep -q 'name_prefix = "example-v2-"' "$EST_ORACLE_REPLACE/main.tf" \
   || fail "changing module.iam_policy's name_prefix argument in the replace-oracle copy did not match - the corpus pin has moved"
-( cd "$EST_ORACLE_REPLACE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$EST_ORACLE_REPLACE" && terraform init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_replace stock oracle's reinit failed"; }
+( cd "$EST_ORACLE_REPLACE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$EST_ORACLE_REPLACE" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_replace stock oracle's reinit failed"; }
 REPLACE_ORACLE_PLAN_OUT="$(cd "$EST_ORACLE_REPLACE" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
 [ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
 grep -qE '^  # module\.iam_policy\.aws_iam_policy\.policy\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
@@ -514,7 +567,7 @@ FLOCI_GREEN_NAME="choudoufu-corpus-iam-policy-green-$$"
 GREEN_ENDPOINT="http://127.0.0.1:${FLOCI_GREEN_PORT}"
 GREEN_ESTATE="iam-policy-greenfield"
 
-docker run -d --rm -p "${FLOCI_GREEN_PORT}:4566" --name "$FLOCI_GREEN_NAME" "$FLOCI_IMAGE" >/dev/null \
+gauntlet_floci_start "$FLOCI_GREEN_NAME" -p "${FLOCI_GREEN_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_GREEN_NAME failed"
 for _ in $(seq 1 45); do
   GREEN_HEALTH="$(curl -fs "${GREEN_ENDPOINT}/_localstack/health" 2>/dev/null)" || true
@@ -588,11 +641,42 @@ if [ "${BREAK_GREEN:-}" = "1" ]; then
   GREEN_POLICY_COUNT_EXPECTED=1
   log "  BREAK_GREEN=1: dropped one policy from the expected inventory - the count comparison below must fail"
 fi
-GREEN_POLICY_COUNT_ACTUAL="$(gauntlet_tagged_count awslg resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$GREEN_ESTATE" \
-  2>/dev/null || echo 0)"
+# The count comes from gauntlet_estate_objects, not from
+# `gauntlet_tagged_count ... resourcegroupstaggingapi get-resources`
+# (issue #1271). GetResources does not index IAM on this emulator pin and
+# does not index several IAM types on real AWS either (#1134), so the call
+# this line used to make returned 0 for an estate of two aws_iam_policy
+# instances - both of them stamped, both of them read back by PART GREENFIELD
+# 2 eight lines above through iam:ListPolicyTags. The stage failed
+# "expected 2, got 0" against a marker that was there the whole time.
+#
+# gauntlet_estate_objects asks IAM's own tag APIs as well and deduplicates by
+# ARN, so this assertion means the same thing before and after lex00/floci#206
+# (#1152) makes GetResources serve iam:policy: today
+# GAUNTLET_ESTATE_BOTH_N is 0 and all 2 come from the native leg; then it
+# will be 2 and the total will still be 2. Never assert on
+# GAUNTLET_ESTATE_RGTA_N - that number IS pin-dependent, and is logged only
+# so a reader can tell which world the run happened in.
+gauntlet_estate_objects "$GREEN_ESTATE" awslg \
+  || fail "could not read the greenfield estate's tofu-estate=$GREEN_ESTATE inventory"
+GREEN_POLICY_COUNT_ACTUAL="$GAUNTLET_ESTATE_N"
+if [ "${BREAK_UNMARK:-}" = "1" ]; then
+  # The control that proves the COUNT, where BREAK_GREEN above proves only
+  # the COMPARISON. The difference is the whole of #1271: BREAK_GREEN drops
+  # the expected number and so went red even while the actual number was
+  # structurally 0, which is how a vacuous count passed for its negative
+  # control. This one leaves the expectation at 2 and genuinely unmarks one
+  # policy, so the count itself has to notice. It reads 1, and the assertion
+  # below fails.
+  awslg iam untag-policy --policy-arn "$GREEN_POLICY1_ARN" --tag-keys tofu-estate >/dev/null
+  gauntlet_estate_objects "$GREEN_ESTATE" awslg \
+    || fail "could not re-read the greenfield inventory after BREAK_UNMARK removed a marker"
+  GREEN_POLICY_COUNT_ACTUAL="$GAUNTLET_ESTATE_N"
+  log "  BREAK_UNMARK=1: removed tofu-estate from $GREEN_POLICY1_ARN - one policy is now genuinely unmarked and the count reads $GREEN_POLICY_COUNT_ACTUAL, not $GREEN_POLICY_COUNT_EXPECTED. The assertion below must fail."
+fi
 [ "$GREEN_POLICY_COUNT_ACTUAL" = "$GREEN_POLICY_COUNT_EXPECTED" ] \
-  || fail "the greenfield estate has $GREEN_POLICY_COUNT_ACTUAL objects, expected $GREEN_POLICY_COUNT_EXPECTED - the object-by-object comparison against stock's cold deploy must fail on a dropped resource"
+  || fail "the greenfield estate has $GREEN_POLICY_COUNT_ACTUAL objects, expected $GREEN_POLICY_COUNT_EXPECTED - the object-by-object comparison against stock's cold deploy must fail on a dropped resource. Counted: GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own tag APIs $GAUNTLET_ESTATE_IAM_N, $GAUNTLET_ESTATE_BOTH_N seen by both: $(tr '\n' ' ' <<< "$GAUNTLET_ESTATE_ARNS")"
+log "  $GREEN_POLICY_COUNT_ACTUAL objects carry tofu-estate=$GREEN_ESTATE (GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own tag APIs $GAUNTLET_ESTATE_IAM_N, $GAUNTLET_ESTATE_BOTH_N seen by both - #1271)"
 GREEN_DOC1="$(awslg iam get-policy-version --policy-arn "$GREEN_POLICY1_ARN" --version-id v1 --query 'PolicyVersion.Document' --output text)"
 COLD_DOC1="$(awsl iam get-policy-version --policy-arn "$POLICY1_ARN" --version-id v1 --query 'PolicyVersion.Document' --output text)"
 [ -n "$GREEN_DOC1" ] && [ "$GREEN_DOC1" = "$COLD_DOC1" ] || fail "the data-source policy's document differs between the greenfield estate and stock's cold deploy"
@@ -612,7 +696,7 @@ log "PART GREENFIELD (greenfield): PASS"
 gauntlet_stage greenfield pass "2 resources from nothing (both aws_iam_policy), markers verified via the AWS CLI, 2 records in the local record store (#364 A2), replan empty both with and without the local record store, both policies' documents and paths match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared"
 log ""
 gauntlet_end_stage
-docker rm -f "$FLOCI_GREEN_NAME" >/dev/null 2>&1 || true
+gauntlet_floci_teardown "$FLOCI_GREEN_NAME"
 
 gauntlet_begin_stage migrate
 
@@ -747,25 +831,53 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
-BEFORE_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  2>/dev/null || echo 0)"
+# gauntlet_estate_objects on both sides, not `gauntlet_tagged_count ...
+# resourcegroupstaggingapi get-resources` (issue #1271). This was the silent
+# half: BEFORE_N and AFTER_N were both structurally 0 - GetResources does not
+# index IAM on this pin and every object this estate owns is an
+# aws_iam_policy - so "$AFTER_N" = "$BEFORE_N" held for ANY behaviour at all,
+# including an apply that destroyed both policies. The stage recorded
+# "genuine no-op: 2 objects before, 2 after" from a run predating the
+# 2026-09-11 repin; after it the same line would have read "0 objects
+# before, 0 after" and still passed.
+#
+# The RGTA split is logged rather than dropped precisely so that claim stays
+# checkable: GetResources' own contribution prints as its own number, and on
+# this pin it is the 0 the old call returned on its own.
+gauntlet_estate_objects "$ESTATE" awsl \
+  || fail "could not read the estate's tofu-estate=$ESTATE inventory before the no-op apply"
+BEFORE_N="$GAUNTLET_ESTATE_N"
+BEFORE_RGTA_N="$GAUNTLET_ESTATE_RGTA_N"
+BEFORE_IAM_N="$GAUNTLET_ESTATE_IAM_N"
+BEFORE_ARNS="$GAUNTLET_ESTATE_ARNS"
+[ "$BEFORE_N" = "2" ] \
+  || fail "expected 2 objects carrying tofu-estate=$ESTATE before stage 4 (the two aws_iam_policy instances stage 2 stamped), got $BEFORE_N - GetResources $BEFORE_RGTA_N + IAM's own tag APIs $BEFORE_IAM_N: $(tr '\n' ' ' <<< "$BEFORE_ARNS")"
+log "  before: $BEFORE_N objects (GetResources $BEFORE_RGTA_N + IAM's own tag APIs $BEFORE_IAM_N, $GAUNTLET_ESTATE_BOTH_N seen by both)"
 
 APPLY2_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
 [ "$APPLY2_RC" -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -40; fail "the post-migration apply failed"; }
 grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
   || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the post-migration apply was not a no-op"; }
 
-AFTER_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  2>/dev/null || echo 0)"
-[ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
+if [ "${BREAK_NOOP:-}" = "1" ]; then
+  # The negative control for THIS pair. An equality between two numbers that
+  # are both always 0 cannot fail; an equality between two real inventories
+  # can, and this is the proof. Removing one object's marker is the cheapest
+  # thing a broken apply could do that the old check was blind to.
+  awsl iam untag-policy --policy-arn "$POLICY2_ARN" --tag-keys tofu-estate >/dev/null
+  log "  BREAK_NOOP=1: removed tofu-estate from $POLICY2_ARN after the apply - the count comparison below must fail"
+fi
+
+gauntlet_estate_objects "$ESTATE" awsl \
+  || fail "could not read the estate's tofu-estate=$ESTATE inventory after the no-op apply"
+AFTER_N="$GAUNTLET_ESTATE_N"
+[ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N. Before: $(tr '\n' ' ' <<< "$BEFORE_ARNS"); after: $(tr '\n' ' ' <<< "$GAUNTLET_ESTATE_ARNS")"
 [ ! -f "$EST/terraform.tfstate" ] || fail "a state file exists after the apply"
 log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
 
 log ""
 log "STAGE 4 (test apply): PASS"
-gauntlet_stage test_apply pass "genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
+gauntlet_stage test_apply pass "genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time - counted through GetResources ($BEFORE_RGTA_N of them) AND IAM's own list-policy-tags ($BEFORE_IAM_N), deduplicated by ARN, because GetResources does not index IAM on this pin and the GetResources-only count this stage used to carry read 0 on both sides (#1271)"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -850,7 +962,8 @@ fi
 # it reports no verdict at all and the runner records the stage as not_run,
 # never as a pass.
 if [ -z "${BREAK:-}" ] && [ -z "${BREAK_RENAME:-}" ] && [ -z "${BREAK_REMOVE:-}" ] \
-   && [ -z "${BREAK_COUNT:-}" ] && [ -z "${BREAK_GREEN:-}" ]; then
+   && [ -z "${BREAK_COUNT:-}" ] && [ -z "${BREAK_GREEN:-}" ] \
+   && [ -z "${BREAK_UNMARKED:-}" ] && [ -z "${BREAK_UNMARK:-}" ] && [ -z "${BREAK_NOOP:-}" ]; then
   gauntlet_begin_stage plan_approval
   log "=== PART P: plan, review, apply (the approval gate, live/GAUNTLET.md #12) ==="
 
@@ -1481,8 +1594,8 @@ resource "aws_iam_policy" "count_test" {
 }
 HCL
     gauntlet_pin_aws_provider "$ORACLE_COUNT_DIR/main.tf" || fail "gauntlet_pin_aws_provider failed for $ORACLE_COUNT_DIR/main.tf"
-    ( cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-      ( cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's terraform init failed"; }
+    ( cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+      ( cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's gauntlet_locked_init terraform init failed"; }
     ORACLE_COUNT_APPLY_OUT="$(cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_COUNT_APPLY_RC=$?
     [ "$ORACLE_COUNT_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's baseline apply failed"; }
     grep -qE 'Apply complete! Resources: 2 added' <<< "$ORACLE_COUNT_APPLY_OUT" \

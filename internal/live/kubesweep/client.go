@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,10 +49,24 @@ type Object struct {
 	Namespace string
 	Name      string
 	Labels    map[string]string
+	// Address is the object's [AddressAnnotation] as carried: the escaped
+	// address of the block that stamped it (GitHub issue #1639), or empty
+	// when the object carries none - one an older build made, or one a
+	// controller stripped. It is read off the same LIST response the
+	// labels are, so carrying it costs no request (GitHub issue #1640).
+	Address string
 	// ImportID is the provider's documented import id for the type the
 	// kind is filed under: NAMESPACE/NAME, or NAME for a cluster-scoped
 	// kind, for a built-in type; [ManifestImportID] for the manifest type.
 	ImportID string
+	// DeletionTimestamp is metadata.deletionTimestamp as RFC 3339, or
+	// empty for an object nobody has asked to go (GitHub issue #1184). Set,
+	// it means the API server accepted a delete and the object is held:
+	// by Finalizers, or for its grace period. A terminating object is still
+	// a live, labelled object, so the sweep lists it like any other.
+	DeletionTimestamp string
+	// Finalizers is metadata.finalizers, in the server's order.
+	Finalizers []string
 }
 
 // Sweeper is what discovery asks of a Kubernetes sweep, so a test can
@@ -64,8 +80,9 @@ type Sweeper interface {
 	// serve at all.
 	Kinds(ctx context.Context, typeNames []string, manifestType string) (kinds []Kind, unserved []string, err error)
 	// List returns every object of k carrying label key=value, excluding
-	// controller-owned ones, and how many of those it excluded.
-	List(ctx context.Context, k Kind, key, value string) (objects []Object, ownerSkipped int, err error)
+	// controller-held ones, and what it excluded: how many, and, for each
+	// one whose holder it can name, the object and its holder.
+	List(ctx context.Context, k Kind, key, value string) (objects []Object, ownerSkipped Skipped, err error)
 	// Serves reports whether the cluster serves kind at exactly apiVersion
 	// (GitHub issue #1079's fourth ruling): false with a nil error when the
 	// group-version is not served or serves no such kind, so that a
@@ -83,6 +100,44 @@ type Sweeper interface {
 	// gap and never grounds to refuse the plan.
 	DryRun(ctx context.Context, manifest map[string]any, update bool) (DryRunResult, error)
 }
+
+// Skipped is what [Sweeper.List] set aside: objects carrying the estate's
+// label that are never orphans, because something other than the estate
+// holds them.
+type Skipped struct {
+	// Count is every object set aside: controller-made ones
+	// ([ControllerMade]), Helm release ones among them, and the estate's
+	// own record Secrets ([RecordStoreObject]).
+	Count int
+	// Held are the ones whose holder can be named, in listing order: today
+	// the objects a Helm release holds ([HelmRelease]; GitHub issue #1607).
+	Held []HeldObject
+}
+
+// HeldObject is one live object carrying the estate's label that a
+// controller holds, with the holder named, so the sweep and live-ls can
+// report it with its parent rather than only count it (the 2026-09-26
+// ruling on GitHub issue #1604).
+type HeldObject struct {
+	Kind      string
+	Namespace string
+	Name      string
+	Labels    map[string]string
+	// Annotations are its metadata.annotations, which carry the holder's
+	// own signal (Helm's release annotation): the Kubernetes leg asks
+	// the family which controller they name (GitHub issue #1706).
+	Annotations map[string]string
+	// Controller is the controller that holds it: today always
+	// [ControllerHelm].
+	Controller string
+	// HeldBy names the holder for a reader: "Helm release NAMESPACE/NAME".
+	HeldBy string
+}
+
+// ControllerHelm is [HeldObject.Controller] for an object a Helm release
+// holds. It is the Kubernetes counterpart of markers.ControllerACK and
+// markers.ControllerCrossplane: one "controller" word across substrates.
+const ControllerHelm = "Helm"
 
 // DryRunResult is what the API server said to a [Sweeper.DryRun].
 type DryRunResult struct {
@@ -102,19 +157,41 @@ type DryRunResult struct {
 type Client struct {
 	disc discovery.DiscoveryInterface
 	dyn  dynamic.Interface
+	// creds is how this client was told to authenticate, so that a
+	// failure can be reported against what was actually sent
+	// (GitHub issue #1114). Zero - Known false - for a [NewWith] client.
+	creds Credentials
+
+	// kindsMu guards the one remembered [Client.Kinds] answer. A client
+	// lives for one run, and the run asks the same question twice when an
+	// apply deleted something: once for the sweep before the plan, and
+	// once for the post-apply look at what those deletes left behind
+	// (GitHub issue #1184). The second ask is answered from here, so that
+	// look costs its lists and no second API discovery. Only a successful
+	// answer is kept, and only for the same arguments.
+	kindsMu   sync.Mutex
+	kindsKey  string
+	kindsVal  []Kind
+	kindsGaps []string
 }
 
 // New connects. Nothing is called until [Client.Kinds] or [Client.List].
+//
+// Building the clients is where an exec block client-go cannot use at all
+// is caught: rest.Config.TransportConfig asks the exec credential
+// provider for an authenticator here, so an api_version it does not know
+// fails now rather than at the first request.
 func New(cfg *restclient.Config) (*Client, error) {
+	creds := CredentialsOf(cfg)
 	disc, err := discovery.NewDiscoveryClientForConfig(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("discovery client: %w", err)
+		return nil, fmt.Errorf("discovery client: %w", creds.explain(err))
 	}
 	dyn, err := dynamic.NewForConfig(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("dynamic client: %w", err)
+		return nil, fmt.Errorf("dynamic client: %w", creds.explain(err))
 	}
-	return &Client{disc: disc, dyn: dyn}, nil
+	return &Client{disc: disc, dyn: dyn, creds: creds}, nil
 }
 
 // NewWith is [New] over already-built clients, for tests.
@@ -132,6 +209,24 @@ func NewWith(disc discovery.DiscoveryInterface, dyn dynamic.Interface) *Client {
 // served at more than one version within a group is listed at the
 // group's preferred version only, since those are one resource.
 func (c *Client) Kinds(ctx context.Context, typeNames []string, manifestType string) ([]Kind, []string, error) {
+	memoKey := manifestType + "\x00" + strings.Join(typeNames, "\x00")
+	c.kindsMu.Lock()
+	if c.kindsKey == memoKey && c.kindsVal != nil {
+		kinds, unserved := append([]Kind(nil), c.kindsVal...), append([]string(nil), c.kindsGaps...)
+		c.kindsMu.Unlock()
+		return kinds, unserved, nil
+	}
+	c.kindsMu.Unlock()
+	kinds, unserved, err := c.kinds(ctx, typeNames, manifestType)
+	if err == nil {
+		c.kindsMu.Lock()
+		c.kindsKey, c.kindsVal, c.kindsGaps = memoKey, append([]Kind{}, kinds...), append([]string(nil), unserved...)
+		c.kindsMu.Unlock()
+	}
+	return kinds, unserved, err
+}
+
+func (c *Client) kinds(_ context.Context, typeNames []string, manifestType string) ([]Kind, []string, error) {
 	var builtIn []string
 	for _, t := range typeNames {
 		if t != manifestType {
@@ -145,7 +240,7 @@ func (c *Client) Kinds(ctx context.Context, typeNames []string, manifestType str
 		// A partial discovery failure (one aggregated API group down)
 		// still returns the groups that answered; only a total failure
 		// is fatal here.
-		return nil, nil, fmt.Errorf("API discovery: %w", err)
+		return nil, nil, fmt.Errorf("API discovery: %w", c.creds.explain(err))
 	}
 	preferred := map[string]string{} // group -> its preferred GroupVersion
 	for _, g := range groups {
@@ -225,23 +320,61 @@ func (c *Client) Kinds(ctx context.Context, typeNames []string, manifestType str
 }
 
 // List implements [Sweeper]: one cluster-wide, label-selected list.
-func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object, int, error) {
+func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object, Skipped, error) {
 	opts := metav1.ListOptions{LabelSelector: key + "=" + value}
 	res := c.dyn.Resource(k.GVR)
 	var (
 		items   []Object
-		skipped int
+		skipped Skipped
 		cont    string
 	)
+	// releaseCache remembers one List call's release-existence answers, so
+	// the several objects one release usually holds cost one secret list
+	// each rather than one per object.
+	releaseCache := map[Release]bool{}
 	for {
 		opts.Continue = cont
 		ul, err := res.Namespace(metav1.NamespaceAll).List(ctx, opts)
 		if err != nil {
-			return nil, 0, err
+			return nil, Skipped{}, c.creds.explain(err)
 		}
 		for _, item := range ul.Items {
-			if ControllerMade(&item) {
-				skipped++
+			if rel, ok := HelmRelease(&item); ok {
+				exists, err := c.helmReleaseExists(ctx, releaseCache, rel, item.GetNamespace())
+				if err != nil {
+					return nil, Skipped{}, c.creds.explain(err)
+				}
+				if exists {
+					skipped.Count++
+					skipped.Held = append(skipped.Held, HeldObject{
+						Kind:        k.Kind,
+						Namespace:   item.GetNamespace(),
+						Name:        item.GetName(),
+						Labels:      item.GetLabels(),
+						Annotations: item.GetAnnotations(),
+						Controller:  ControllerHelm,
+						HeldBy:      rel.String(),
+					})
+					continue
+				}
+				// The annotation names a release whose secret is gone
+				// (GitHub issue #1625): moving an object off Helm without
+				// re-creating it does not remove the annotation, because
+				// server-side apply leaves fields another manager owns
+				// alone. Judge the object on the signals that do not
+				// depend on Helm at all - an ordinary orphan unless a
+				// real controller (owner references, control-plane
+				// managedFields) still made it.
+				if nonHelmControllerSignals(&item) {
+					skipped.Count++
+					continue
+				}
+			} else if ControllerMade(&item) {
+				skipped.Count++
+				continue
+			}
+			if RecordStoreObject(&item) {
+				skipped.Count++
 				continue
 			}
 			o := Object{
@@ -249,6 +382,7 @@ func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object,
 				Namespace: item.GetNamespace(),
 				Name:      item.GetName(),
 				Labels:    item.GetLabels(),
+				Address:   item.GetAnnotations()[AddressAnnotation],
 				ImportID:  item.GetName(),
 			}
 			if k.Namespaced {
@@ -257,6 +391,10 @@ func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object,
 			if k.Manifest {
 				o.ImportID = ManifestImportID(k.APIVersion, k.Kind, item.GetNamespace(), item.GetName())
 			}
+			if ts := item.GetDeletionTimestamp(); ts != nil {
+				o.DeletionTimestamp = ts.UTC().Format(time.RFC3339)
+			}
+			o.Finalizers = item.GetFinalizers()
 			items = append(items, o)
 		}
 		cont = ul.GetContinue()
@@ -266,6 +404,40 @@ func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object,
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].ImportID < items[j].ImportID })
 	return items, skipped, nil
+}
+
+// AddressAnnotation is the annotation a stamped object carries its block's
+// escaped address in, markers.AddressAnnotation (GitHub issue #1639).
+// Spelled out here for the reason [RecordStoreObject] spells the record
+// store's strings out: this package does not import markers, and
+// internal/live/discovery's kubernetes_test.go pins the two equal.
+const AddressAnnotation = "choudoufu.intentius.io/tofu-address"
+
+// RecordStoreObject reports that obj is one of the estate's own record
+// Secrets, written by record_store "kubernetes" (GitHub issue #1392).
+//
+// Those objects carry the estate's tofu-estate label, deliberately: it is
+// what live/kubernetes/estate-boundary.yaml fences a write to them with, and
+// what keeps them from being the one thing in the estate whose ownership is
+// not recorded the way everything else's is. But the sweep reads that same
+// label as "this object is in the estate", and an object in the estate that
+// no configuration block declares is an orphan the plan proposes to DESTROY.
+// Measured on kind on 2026-09-19: an ordinary second plan of a Kubernetes
+// estate proposed destroying all five of its own record Secrets, which would
+// have deleted the estate's records as a side effect of planning it.
+//
+// The test is both the managed-by label and the record-key annotation. Either
+// alone is something a user could plausibly put on a Secret of their own;
+// together they are this store's objects and nothing else. The two strings
+// are staterecord's, spelled out here for the same reason staterecord spells
+// tofu-estate out: neither package imports the other, and
+// internal/live/projection's kubernetes_store_test.go pins them equal.
+func RecordStoreObject(obj *unstructured.Unstructured) bool {
+	if obj.GetLabels()["app.kubernetes.io/managed-by"] != "choudoufu" {
+		return false
+	}
+	_, hasKey := obj.GetAnnotations()["choudoufu.intentius.io/record-key"]
+	return hasKey
 }
 
 // Serves implements [Sweeper]: one GET of the group-version's resource
@@ -281,7 +453,7 @@ func (c *Client) Serves(ctx context.Context, apiVersion, kind string) (bool, err
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		}
-		return false, fmt.Errorf("API discovery for %s: %w", apiVersion, err)
+		return false, fmt.Errorf("API discovery for %s: %w", apiVersion, c.creds.explain(err))
 	}
 	if list == nil {
 		return false, nil
@@ -312,7 +484,7 @@ func (c *Client) DryRun(ctx context.Context, manifest map[string]any, update boo
 	}
 	client, err := c.resourceClient(apiVersion, kind, obj.GetNamespace())
 	if err != nil {
-		return DryRunResult{}, err
+		return DryRunResult{}, c.creds.explain(err)
 	}
 	submitted := obj.DeepCopy()
 	var answer *unstructured.Unstructured
@@ -322,7 +494,7 @@ func (c *Client) DryRun(ctx context.Context, manifest map[string]any, update boo
 			if rejected, msg := serverVerdict(getErr); rejected {
 				return DryRunResult{Message: msg}, nil
 			}
-			return DryRunResult{}, fmt.Errorf("reading %s %s before the dry run: %w", kind, NaturalKey(obj.GetNamespace(), obj.GetName()), getErr)
+			return DryRunResult{}, fmt.Errorf("reading %s %s before the dry run: %w", kind, NaturalKey(obj.GetNamespace(), obj.GetName()), c.creds.explain(getErr))
 		}
 		obj.SetResourceVersion(live.GetResourceVersion())
 		// err is the outer variable on purpose: the first live run of
@@ -336,7 +508,7 @@ func (c *Client) DryRun(ctx context.Context, manifest map[string]any, update boo
 		if rejected, msg := serverVerdict(err); rejected {
 			return DryRunResult{Message: msg}, nil
 		}
-		return DryRunResult{}, err
+		return DryRunResult{}, c.creds.explain(err)
 	}
 	out := DryRunResult{Accepted: true}
 	if answer != nil {
@@ -350,13 +522,20 @@ func (c *Client) DryRun(ctx context.Context, manifest map[string]any, update boo
 // no - invalid, forbidden, conflict, not found - and its message is the
 // verdict. A 5xx and anything that is not a status error at all is the
 // cluster not answering.
+//
+// 401 is the exception among the 4xx (GitHub issue #1114). It is the
+// server declining to authenticate the caller, which is never an opinion
+// about the manifest: reported as a verdict it would tell a reader the
+// server had refused their object, over a credential problem that
+// refuses every object equally. It falls through to the connection
+// diagnosis instead, which says which credential failed and how.
 func serverVerdict(err error) (bool, string) {
 	var status apierrors.APIStatus
 	if !errors.As(err, &status) {
 		return false, ""
 	}
 	code := status.Status().Code
-	if code < 400 || code >= 500 {
+	if code < 400 || code >= 500 || code == 401 {
 		return false, ""
 	}
 	msg := status.Status().Message
@@ -431,8 +610,24 @@ var controlPlaneManagers = map[string]bool{
 }
 
 // ControllerMade reports whether a live object was made by a controller
-// rather than declared by anyone, on three signals, any one sufficient:
+// rather than declared by anyone, on four signals, any one sufficient:
 //
+//   - Helm's release annotation, meta.helm.sh/release-name ([HelmRelease];
+//     GitHub issue #1607, ruled on #1604 and #1105). Helm writes it on
+//     every object it installs, and those objects are the release's: a
+//     chart value carrying tofu-estate puts the estate's label on them,
+//     and without this signal the sweep proposed destroying them from
+//     under the release, because helm, not a control-plane manager, wrote
+//     their content and nothing owns them. helm_release itself stays
+//     refused; this only keeps the release's objects out of the sweep.
+//     ControllerMade reads the annotation alone and cannot see whether the
+//     release still exists - [Client.List] is the one that can, and it
+//     checks before trusting this signal (GitHub issue #1625): moving an
+//     object off Helm without re-creating it leaves the annotation in
+//     place, because server-side apply only touches fields its own writer
+//     claims, so a stale annotation must not keep naming a holder that is
+//     gone. A caller with no cluster to ask - a unit test, say - gets the
+//     annotation-only answer this function has always given.
 //   - a non-empty metadata.ownerReferences. This catches the objects a
 //     garbage-collected controller makes (a ReplicaSet's from its
 //     Deployment, a Pod's from its ReplicaSet, an EndpointSlice's from its
@@ -473,6 +668,20 @@ var controlPlaneManagers = map[string]bool{
 // server has them and so does the dynamic client [Client.List] reads
 // through.
 func ControllerMade(obj *unstructured.Unstructured) bool {
+	if _, ok := HelmRelease(obj); ok {
+		return true
+	}
+	return nonHelmControllerSignals(obj)
+}
+
+// nonHelmControllerSignals is [ControllerMade]'s second through fourth
+// signals, without the Helm one: owner references and managedFields
+// authorship. [Client.List] calls this directly, instead of
+// [ControllerMade], for an object whose Helm release annotation names a
+// release it has confirmed is gone (GitHub issue #1625) - the object must
+// still be judged on whatever else made it, just not on the stale
+// annotation.
+func nonHelmControllerSignals(obj *unstructured.Unstructured) bool {
 	if len(obj.GetOwnerReferences()) > 0 {
 		return true
 	}
@@ -497,6 +706,81 @@ func ControllerMade(obj *unstructured.Unstructured) bool {
 		return authorsAreControlPlane
 	}
 	return allAreControlPlane
+}
+
+// The annotations Helm 3 writes on every object a release installs
+// (since Helm 3.2, and what `helm install` checks before adopting an
+// existing object). `helm template` does not write them, so a chart
+// rendered into kubernetes_manifest blocks carries neither.
+const (
+	HelmReleaseNameAnnotation      = "meta.helm.sh/release-name"
+	HelmReleaseNamespaceAnnotation = "meta.helm.sh/release-namespace"
+)
+
+// Release names a Helm release.
+type Release struct {
+	Namespace string
+	Name      string
+}
+
+// String is "Helm release NAMESPACE/NAME", or "Helm release NAME" when the
+// object did not say which namespace the release lives in.
+func (r Release) String() string {
+	if r.Namespace == "" {
+		return "Helm release " + r.Name
+	}
+	return "Helm release " + r.Namespace + "/" + r.Name
+}
+
+// HelmRelease reports the Helm release that holds obj, read off Helm's
+// release annotations. A non-empty meta.helm.sh/release-name is the
+// signal; the namespace annotation only completes the name.
+func HelmRelease(obj *unstructured.Unstructured) (Release, bool) {
+	return HelmReleaseOf(obj.GetAnnotations())
+}
+
+// HelmReleaseOf is [HelmRelease] read off an object's annotations alone,
+// for a caller holding the annotations rather than the object
+// (substrate.Kubernetes's ControllerHeld, GitHub issue #1706).
+func HelmReleaseOf(ann map[string]string) (Release, bool) {
+	name := strings.TrimSpace(ann[HelmReleaseNameAnnotation])
+	if name == "" {
+		return Release{}, false
+	}
+	return Release{Namespace: strings.TrimSpace(ann[HelmReleaseNamespaceAnnotation]), Name: name}, true
+}
+
+// helmReleaseSecretsGVR is where Helm 3 keeps a release's history: one
+// Secret per revision, named sh.helm.release.v1.<name>.v<revision> and
+// labelled owner=helm,name=<name>, in the release's namespace.
+var helmReleaseSecretsGVR = schema.GroupVersionResource{Version: "v1", Resource: "secrets"}
+
+// helmReleaseExists reports whether rel's release still has at least one
+// history Secret in its namespace (GitHub issue #1625). A release with no
+// namespace annotation - Helm always writes one since 3.2, so this is a
+// pre-3.2 object or a hand-crafted annotation - is looked up in the
+// object's own namespace, the ordinary case for a namespaced release.
+//
+// A cluster that cannot answer is reported as an error, same as every
+// other [Sweeper.List] failure: never as "gone", which would turn a
+// coverage gap into a proposal to destroy a release's own object.
+func (c *Client) helmReleaseExists(ctx context.Context, cache map[Release]bool, rel Release, objNamespace string) (bool, error) {
+	if v, ok := cache[rel]; ok {
+		return v, nil
+	}
+	ns := rel.Namespace
+	if ns == "" {
+		ns = objNamespace
+	}
+	list, err := c.dyn.Resource(helmReleaseSecretsGVR).Namespace(ns).List(ctx, metav1.ListOptions{
+		LabelSelector: "owner=helm,name=" + rel.Name,
+	})
+	if err != nil {
+		return false, fmt.Errorf("checking whether Helm release %s still exists: %w", rel.String(), err)
+	}
+	exists := len(list.Items) > 0
+	cache[rel] = exists
+	return exists, nil
 }
 
 // claimsContent reports whether a managedFields entry owns any of the

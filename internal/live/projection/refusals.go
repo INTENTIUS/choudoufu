@@ -37,6 +37,22 @@ type Refusal struct {
 	// Doc overrides where it is documented. Empty means the generated
 	// entry under its own Summary; see identity.Refusal.Doc.
 	Doc string
+
+	// Warning marks an entry whose diagnostic is a warning, which does not
+	// stop the run. tools/limits-gen reads it through [IsWarning] so the
+	// generated table does not rank a warning as a blocker.
+	Warning bool
+}
+
+// IsWarning reports whether the registered refusal with this summary is a
+// warning rather than an error.
+func IsWarning(summary string) bool {
+	for _, r := range refusals {
+		if r.Summary == summary {
+			return r.Warning
+		}
+	}
+	return false
 }
 
 // DocsRef is where a user is sent to read about this refusal.
@@ -49,6 +65,10 @@ func (r Refusal) DocsRef() string {
 
 // refusals is the registry. Keep it sorted by Summary.
 var refusals = []Refusal{
+	{
+		Summary: SummaryAdmissionRefusedTheWrite,
+		What:    "An admission policy on the records cluster refused a record write the API server's own authorizer allows, and this fork does not know which policy it is. Every record this run writes meets the same policy, so the run stops rather than leaving half an estate recorded (GitHub issue #1448).",
+	},
 	{
 		Summary: "Argument values could not be recorded",
 		What:    "An apply could not classify or store the argument values a provider's read never gives back (GitHub issue #275) - no provider access, a failing read, or a store that refused the write. Nothing in the live system changed; the arguments involved will be proposed for update again on the next plan.",
@@ -74,6 +94,14 @@ var refusals = []Refusal{
 		What:    "The record store could not be listed, so record-backed resources whose configuration block was removed cannot be found.",
 	},
 	{
+		Summary: "Cannot merge the address annotation into this annotations value",
+		What:    "GitHub issue #1639's address annotation (NodeResolver.stampedAddressAnnotation) found a Kubernetes metadata.annotations value, on a typed metadata block or inside a kubernetes_manifest, it does not know how to add the choudoufu.intentius.io/tofu-address annotation into - a value that is neither a map nor an object, or one holding a non-string element - so it left the annotations exactly as evaluated. The tofu-estate label beside it is still written; only the address annotation is missing.",
+	},
+	{
+		Summary: "Cannot set the address annotation on an unresolved annotations value",
+		What:    "GitHub issue #1639's address annotation found a Kubernetes metadata.annotations value that is not yet known at plan time, so it could not add the choudoufu.intentius.io/tofu-address annotation and left the annotations exactly as evaluated. The tofu-estate label beside it is still written.",
+	},
+	{
 		Summary: "Cannot merge ownership markers into this labels value",
 		What:    "GitHub issue #1061's label branch of the node-path stamp (NodeResolver.stampedMetadata) found a Kubernetes metadata.labels value it does not know how to add the tofu-estate marker into - a non-map value, or a map holding a non-string element - so it left the resource's configuration value exactly as evaluated. The Kubernetes sibling of \"Cannot merge ownership markers into this tags value\".",
 	},
@@ -92,6 +120,10 @@ var refusals = []Refusal{
 	{
 		Summary: "Cannot persist a record",
 		What:    "Writing a record for an effect back to the record store failed.",
+	},
+	{
+		Summary: SummaryRecordStoreWriteFailed,
+		What:    "GitHub issue #1287: a migration could not write the record for an instance whose only ownership carrier is that record, so nothing claims the live object and the next plan would propose creating a second copy of it. The migration is incomplete and has to be run again.",
 	},
 	{
 		Summary: "Cannot read a parent's identity from the projection",
@@ -154,6 +186,10 @@ var refusals = []Refusal{
 		What:    "A resource resolved to an import identity with no content, which no provider can import.",
 	},
 	{
+		Summary: SummaryIdentityUnresolvedNoAddress,
+		What:    "The static evaluator could not resolve an instance's identity, the plan-node seam found no record, marker entry or evaluated identity for it either, and a live object this block may already have created cannot be bound back to it: on Kubernetes, the sweep found an object of the type carrying the estate label and no address annotation (one an older build made, or one migrated from stock state before live-import stamped it), or could not list every kind the type can declare. A create there would flap against the orphan sweep, so the refusal stands instead of planning one (GitHub issues #1539, #1641). Where the sweep listed every kind and found no such object, the create is planned, and the object it makes carries the annotation the next sweep binds.",
+	},
+	{
 		Summary: "Ignoring an additional imported object",
 		What:    "An import returned more than one object where one was expected; the extra objects are dropped and this says so rather than choosing silently.",
 	},
@@ -214,6 +250,10 @@ var refusals = []Refusal{
 		What:    "GitHub issue #1192: the object the provider returned after ApplyResourceChange does not carry a marker this run sent, so something between the write and the stored object discarded it - a Kubernetes admission policy or controller enforcing a label scheme, or an AWS Organizations tag policy. A create is reported as a warning, because the object was really added and the next plan reads it as a resource outside the estate and says so. An update that lost tofu-estate is an error, because its whole content was the marker, nothing it wrote lasted, and every later run would otherwise repeat it and report a change that did not happen. Permit tofu-estate wherever labels or tags are governed, or set markers = record for the type. No live read is issued: the value judged is the one the provider already returned.",
 	},
 	{
+		Summary: SummaryMarkerNotWritten,
+		What:    "GitHub issue #1084: the instance's type cannot carry tags in the call that creates it (live/registry.json: tagging.tag_on_create false - a Route 53 hosted zone, say), so the node writer withheld this fork's ownership markers from the create and the live path wrote them onto the created object immediately after, through the Resource Groups Tagging API's TagResources, and that write failed. The object exists, unmarked, and is named by ARN and id; the diagnostic prints the aws resourcegroupstaggingapi tag-resources command that marks it, which is the same operation this run attempted. The instance is not reported complete.",
+	},
+	{
 		Summary: "Ownership marker is not a legal label value",
 		What:    "GitHub issue #1061: the estate name cannot be written as a Kubernetes label value - over 63 characters, or ending in a hyphen, both legal estate names - so the node-path stamp refuses to mark a Kubernetes resource with it rather than write a label the API server rejects. Rename the estate, or keep the resource out of a Kubernetes estate. See live/MARKERS.md, \"Kubernetes: one label\".",
 	},
@@ -262,6 +302,10 @@ var refusals = []Refusal{
 		What:    "A migration (liveimport's Approve) read the identity of an untaggable, unlistable resource but could not write it into the estate's record store: a write conflict with a different identity already there, or a store failure. The instance stays findable only by hand until this is resolved; nothing in the live system changed.",
 	},
 	{
+		Summary: SummaryManifestRemovalUndetectable,
+		What:    "A label or an annotation this estate's own record says a kubernetes_manifest block declared is gone from the configuration and still on the live object, but this run will not propose removing it (GitHub issue #1211). Either the safety rail could not be consulted - no cluster client was supplied, the cluster would not answer, the block's field_manager name is not statically resolvable, or the live object carries no metadata.managedFields - or it answered that another field manager owns the key now, in which case server-side apply would decline the removal anyway. Everything the configuration does declare is still compared against the live object.",
+	},
+	{
 		Summary: SummaryProvisionedUnreadable,
 		What:    "An estate's provisioner record - the one bit saying a create-time provisioner failed on a live object (GitHub issue #353) - exists but could not be used: the store failed, the payload did not decode, or it names a different resource address. Reading on would report a half-provisioned object as healthy and never run the provisioner again.",
 	},
@@ -278,8 +322,42 @@ var refusals = []Refusal{
 		What:    "A resource type projection needed to read back has no ImportResourceState implementation at all - a fixed property of the provider's own code (GitHub issue #331), not a transient failure. Admitted for naming and reference purposes only; refused here rather than risk proposing a create for an object this run cannot verify.",
 	},
 	{
+		Summary: SummaryEstateBoundaryRefusedTheWrite,
+		What:    "live/kubernetes/estate-boundary.yaml refused a record write because this run's identity holds no \"use\" grant on its estate. The refusal carries the estate-grant.yaml line that fixes it. It is raised when the store is opened, so a plan stops as well as an apply (GitHub issue #1448).",
+	},
+	{
+		Summary: "The record store contradicts itself about a record",
+		What:    "Listing the record store names a key, and reading that same key for this plan came back with no record there. Prior state cannot be built from two answers that disagree, and an instance quietly missing from prior state is an instance a destroy never proposes and never reports. GitHub issue #1355.",
+	},
+	{
+		Summary: SummaryNameHeld,
+		What:    "GitHub issue #1546: a declared built-in Kubernetes object (a type whose schema carries metadata.labels) was read on the cluster at the namespace and name its block declares, and it carries no tofu-estate label. Under declared_untagged's default the plan would propose creating it, which the API server refuses with 409 AlreadyExists while the unlabelled object holds the name, so the run stops instead. policy { declared_untagged = \"adopt\" } adopts the object, and writing tofu-estate=<estate> onto it does the same by hand. An absent object never triggers this; nor does a *_default_* type such as kubernetes_default_service_account, whose create adopts the existing object; kubernetes_manifest is left to the server's own dry run, and AWS types are unaffected.",
+	},
+	{
 		Summary: "Unsupported resource type for the provider",
 		What:    "A resource's type is not one the configured provider serves.",
+	},
+	// GitHub issue #1371: the cross-estate output read (estateoutputs.go).
+	{
+		Summary: SummaryEstateOutputsDenied,
+		What:    "A data \"terraform_estate_outputs\" block declares that this estate reads another estate's recorded root outputs, and the record store refused the read by policy. The refusal names the other estate and the grant to add (for an s3 store, render-policy.sh's --reads-outputs-of).",
+	},
+	{
+		Summary: SummaryEstateOutputsUnreadable,
+		What:    "Another estate's recorded outputs could not be read for a reason other than a missing grant: the record store is not open, its KMS key refused or cannot be used, a record would not decode, or the estate name is outside the marker grammar.",
+	},
+	{
+		Summary: SummaryEstateOutputNotRecorded,
+		What:    "A data \"terraform_estate_outputs\" block names an output the other estate has no record of: it has not applied since declaring it, it declares no such output, or the output is sensitive or not wholly known, neither of which is ever recorded.",
+	},
+	{
+		Summary: SummaryEstateOutputsSelf,
+		What:    "A data \"terraform_estate_outputs\" block names the estate the configuration itself is.",
+	},
+	{
+		Summary: SummaryEstateOutputsAsOf,
+		What:    "A warning on every successful cross-estate output read: the values are a copy as of the other estate's last apply, with the time it recorded them.",
+		Warning: true,
 	},
 }
 

@@ -82,6 +82,10 @@ var refusals = []Refusal{
 		What:    "The estate-wide sweep found a live resource of a type this configuration declares no instance of, carrying this estate's ownership marker for an address of another type - ordinarily a tag AWS copied from a marked resource onto a dependent object it created for it. A warning: nothing in the run binds it, destroys it or retags it.",
 	},
 	{
+		Summary: "Delete accepted, object not gone",
+		What:    "An apply deleted a Kubernetes object and the API server accepted the delete without finishing it (GitHub issue #1184): a finalizer turns DELETE into a request, so the server sets metadata.deletionTimestamp, answers success, and the object stays until the controller that owns the finalizer removes it. A provider delete that does not wait then prints \"Destruction complete\" and the run counts the object destroyed, exactly as stock does, and both lines are left as they are. After the apply, for each kind the run deleted anything of, the estate's objects of that kind are listed once by the tofu-estate label, and every object this run deleted that is still there with a deletionTimestamp is named in this one warning with its finalizers. A warning, never an error: the exit code is the apply's. A terminating object keeps its label, so the next plan proposes destroying it again until it is gone. A run that deleted no Kubernetes object asks the cluster nothing. It is raised after an apply that finished without errors, never by a plan, and only for Kubernetes: no other API reports an accepted, unfinished delete in a listing this fork already makes.",
+	},
+	{
 		Summary: "Direct read could not settle a tag-index-lagged instance",
 		What:    "A declared instance of a type whose live ARN can be composed from configuration alone (issue #1046) went unbound while the estate's tag index held no marker for its address and this run listed unreadable objects of its type. A targeted direct read at the composed identity either could not be attempted or found a live object that does not carry this estate's marker for this address, so this run refuses rather than propose a create the provider would reject.",
 	},
@@ -91,7 +95,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: "Incomplete sweep for undeclared resources",
-		What:    "The estate-wide sweep could not cover every admitted type, so an owned-but-undeclared resource may exist that this run did not find. A removal plan built on it is not a complete reconciliation.",
+		What:    "The estate-wide sweep could not cover every admitted type, so an owned-but-undeclared resource may exist that this run did not find. A removal plan built on it is not a complete reconciliation. When the cause is the run's own credential - Cloud Control answered AccessDeniedException for a type's list handler - every such type, across every provider configuration the run sweeps through, is reported in one warning naming the count, the first five types and the IAM action pattern to grant, with every denied type, its provider configuration and its action in the log at TF_LOG=WARN (GitHub issues #1052, #1513); a listing that failed for any other reason keeps its own warning.",
 	},
 	{
 		Summary: "Indistinguishable instances without per-instance markers",
@@ -118,8 +122,12 @@ var refusals = []Refusal{
 		What:    "A kubernetes_manifest block names an apiVersion and kind the cluster does not serve - the CustomResourceDefinition is not installed, or is served at another version (GitHub issue #1079's fourth ruling). Refused by name at the plan's first cluster contact, naming the block, the kind, the apiVersion and the CRD that would have to be installed, ahead of the provider's own error when it asks the cluster for a schema it has not got. live-check, which is offline, cannot ask the cluster and does not raise it.",
 	},
 	{
+		Summary: "Kubernetes sweep denied",
+		What:    "The Kubernetes leg of the estate sweep (GitHub issue #1065) could list the cluster, but its list call was refused by RBAC for one or more kinds - the identity running this estate lacks `list` on that kind (GitHub issue #1582), the Kubernetes counterpart of AWS's AccessDeniedException grouping under \"Incomplete sweep for undeclared resources\". Reported once for the whole run, naming the count of denied kinds, the first five and the verb, resource and scope (cluster-wide or one namespace) the server's own message named for each, with every denied kind logged the same way at TF_LOG=WARN. The plan still runs; a resource of a denied kind that this estate owns but no longer declares is not proposed for removal until the grant is fixed and a run can list it. A list call that fails for any other reason stays a LIST_FAILED sweep gap with no warning of its own, exactly as before this ruling.",
+	},
+	{
 		Summary: "Kubernetes sweep unavailable",
-		What:    "The Kubernetes leg of the estate sweep (GitHub issue #1065) could not list the cluster: API discovery failed, or no client could be built from the provider block's connection arguments. The plan still runs, with no Kubernetes object owned by this estate listed, so an object whose block was deleted is not proposed for removal until a run can list it. Reported as a warning; every affected type is a sweep gap in the report.",
+		What:    "The Kubernetes leg of the estate sweep (GitHub issue #1065) could not list the cluster: API discovery failed, or no client could be built from the provider block's connection arguments. The warning says which of four things happened (GitHub issue #1114), because on EKS they are not the same problem and used to read alike: the provider configuration supplies no credential at all and the cluster refused an anonymous request; the exec credential plugin - `aws eks get-token`, or aws-iam-authenticator - did not produce a credential, so the cluster was never asked; the cluster answered and would not authenticate the credential it was given, which is the access entry rather than the plugin; or the cluster did not answer at all. The plan still runs, with no Kubernetes object owned by this estate listed, so an object whose block was deleted is not proposed for removal until a run can list it. Reported as a warning; every affected type is a sweep gap in the report.",
 	},
 	{
 		Summary: "Listed resource matched more than one tagged resource",
@@ -221,7 +229,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: "Two live resources claiming one address",
-		What:    "Two live resources carry the same tofu-address marker, so both claim one configuration address. Binding either would be a guess.",
+		What:    "Two live resources carry the same tofu-address marker (on Kubernetes, the same address annotation, where neither object is at the namespace and name the configuration names), so both claim one configuration address. Binding either would be a guess, and on Kubernetes destroying both as orphans would take the object the block still needs (GitHub issue #1641).",
 	},
 	{
 		Summary: "Two live resources claiming one slot",
@@ -272,9 +280,12 @@ func SeverityForRefusal(summary string) Severity {
 	if kind, ok := problemKindForSummary(summary); ok {
 		return kind.Severity()
 	}
-	if summary == SummaryIncompleteSweep || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable {
+	if summary == SummaryIncompleteSweep || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesSweepDenied || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable || summary == SummaryKubernetesDeleteHeld {
 		// A gap in coverage, never a wrong plan: the run in front of the
-		// operator is correct and simply did not see everything.
+		// operator is correct and simply did not see everything. The held
+		// delete (GitHub issue #1184) is the same severity for a different
+		// reason: the apply did what it was asked, and what is reported is
+		// the cluster not having finished.
 		return SeverityWarning
 	}
 	return SeverityError

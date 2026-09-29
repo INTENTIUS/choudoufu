@@ -56,10 +56,31 @@ type Store interface {
 	// keyPrefix, as an ordinary Go string prefix (not a path-hierarchy
 	// match), sorted lexically. keyPrefix == "" lists every key. See each
 	// implementation's own doc comment for how closely its underlying
-	// primitive matches this — [SSMStore], notably, does not have a native
-	// string-prefix list and approximates one; the returned set is exactly
-	// this contract regardless.
+	// primitive matches this; the returned set is exactly this contract
+	// regardless.
 	List(ctx context.Context, keyPrefix string) ([]string, error)
+}
+
+// NamespacePrefix returns prefix with exactly one trailing "/", and "" for "".
+//
+// [Store.List] and [BulkReader.GetAll] match an ordinary string prefix, and so
+// does S3's ListObjectsV2. A namespace handed to either without its trailing
+// delimiter therefore matches every sibling whose name merely starts the same
+// way: "tofu-records/prod" lists "tofu-records/prod-eu/..." too. GitHub issue
+// #1335 measured that for two estates sharing one store, which the bucket
+// backend (#1332) makes the recommended arrangement. Under that backend's IAM
+// model the listing is defended by the s3:prefix condition ALONE - an object
+// tag cannot condition a LIST, which touches no object - so the delimiter is
+// what the isolation rests on, not tidiness.
+//
+// Every layer that turns a namespace into a List or GetAll prefix goes through
+// this one function, so the delimiter cannot be present in the key builder and
+// missing from the listing, or the other way round.
+func NamespacePrefix(prefix string) string {
+	if prefix == "" {
+		return ""
+	}
+	return strings.TrimRight(prefix, "/") + "/"
 }
 
 // VersionConflictError reports that a conditional operation's expected
@@ -89,11 +110,11 @@ func (e *VersionConflictError) Error() string {
 }
 
 // validateKey rejects the ways an opaque key can stop being safe to turn
-// into a filesystem path, a parameter name or an object key: empty, a NUL
-// byte (illegal in all three), or a ".." path segment (a local-store
+// into a filesystem path or an object key: empty, a NUL
+// byte (illegal in both), or a ".." path segment (a local-store
 // traversal risk this package refuses categorically rather than trusting
 // every caller to have sanitized it). It does not enforce a charset beyond
-// that — [SSMStore] and [S3Store] each carry their own backend's naming
+// that — [S3Store] carries its own backend's naming
 // rules, and those simply surface as an ordinary error from the underlying
 // API when violated.
 func validateKey(key string) error {
@@ -112,15 +133,19 @@ func validateKeyPrefix(keyPrefix string) error {
 	if strings.HasPrefix(keyPrefix, "/") {
 		// Keys are store-relative: every backend prepends its own
 		// configured prefix. A leading slash used to be accepted and
-		// handled differently by every store - the local and SSM stores
+		// handled differently by every store - the local store and the
+		// Parameter Store one that existed then (retired, #1346)
 		// normalized it away on write but not in List's filter, so a
 		// Put succeeded and the List that should return it came back
 		// empty, and the S3 store kept the slash and diverged from
 		// both. An empty List reads as an empty estate, so the failure
 		// surfaced as a plan proposing to re-create live resources
 		// (issue #688's terralith run). Refusing loudly here is the
-		// fix's contract half; issue #689 pins it across all three
-		// stores.
+		// fix's contract half; issue #689 pins it across every store
+		// this package ships, local and S3 then and the Kubernetes one
+		// since. internal/configs refuses the same slash on a record_store
+		// key_prefix, so the argument is named at load time rather than
+		// at the first write (#1383).
 		return fmt.Errorf("staterecord: key %q starts with %q: keys are store-relative, and the store prepends its own configured prefix (issue #688)", keyPrefix, "/")
 	}
 	for _, seg := range strings.Split(keyPrefix, "/") {

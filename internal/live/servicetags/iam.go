@@ -18,26 +18,32 @@ import (
 // that a test can stand in for it without an HTTP server. *iam.Client
 // satisfies it.
 //
-// It holds exactly the operations [IAMRoutes] names. Widening it means
-// widening that table, and iam_routes_test.go is what says whether the
-// table is still the right one.
+// It holds exactly the operations [IAMRoutes] and [IAMListRoutes] name.
+// Widening it means widening one of those tables, and iam_routes_test.go
+// is what says whether the table is still the right one.
 type IAMAPI interface {
 	ListInstanceProfileTags(ctx context.Context, params *iam.ListInstanceProfileTagsInput, optFns ...func(*iam.Options)) (*iam.ListInstanceProfileTagsOutput, error)
 	ListMFADeviceTags(ctx context.Context, params *iam.ListMFADeviceTagsInput, optFns ...func(*iam.Options)) (*iam.ListMFADeviceTagsOutput, error)
 	ListPolicyTags(ctx context.Context, params *iam.ListPolicyTagsInput, optFns ...func(*iam.Options)) (*iam.ListPolicyTagsOutput, error)
 	ListRoleTags(ctx context.Context, params *iam.ListRoleTagsInput, optFns ...func(*iam.Options)) (*iam.ListRoleTagsOutput, error)
 	ListUserTags(ctx context.Context, params *iam.ListUserTagsInput, optFns ...func(*iam.Options)) (*iam.ListUserTagsOutput, error)
+	// ListRoles is [IAMListRoutes]'s one operation (GitHub issue #1477),
+	// the enumeration the tag reads above run after.
+	ListRoles(ctx context.Context, params *iam.ListRolesInput, optFns ...func(*iam.Options)) (*iam.ListRolesOutput, error)
 }
 
 // IAMRoutes is which resource types this reader can answer for, and it is
 // not a list of the types IAM CAN tag-read: it is the intersection of that
-// with the types a sweep leg can reach and cannot otherwise read, which is
-// five.
+// with the types an enumeration leg can reach and cannot otherwise read,
+// which is six.
 //
 // The derivation, recomputed from the committed artifacts by
-// TestIAMRoutesMatchTheDerivedSet. There are two arms, one per enumeration
-// leg, and they are disjoint because a type either has a native list
-// resource or it does not.
+// TestIAMRoutesMatchTheDerivedSet. There are three arms, one per
+// enumeration leg, and they are pairwise disjoint: a type either has a
+// native list resource or it does not, and one that does not either has a
+// Cloud Control list handler or is enumerated by this package's own
+// [IAMListRoutes] (GitHub issue #1477), whose derivation requires that it
+// has none.
 //
 // The Cloud Control arm (#1131, the original two):
 //
@@ -83,20 +89,33 @@ type IAMAPI interface {
 // an API that drops tags by design, which is the same permanent fact the
 // Cloud Control arm's missing Tags property is.
 //
-// Five types satisfy one arm or the other, and all five are IAM's. IAM is
+// The service-list arm (#1477, the sixth):
+//
+//   - live/survey-full.json says the provider type IS taggable, for the
+//     same reason as the other two arms;
+//   - live/survey-full.json says the type has NO list resource, and
+//     live/mapping.json plus live/registry.json say its CFN type has no
+//     input-free list handler, so neither leg above ever sees it;
+//   - the type is IAM's, so the tag index cannot stand in for the missing
+//     listing either;
+//   - [IAMListRoutes] enumerates it, and every object it lists needs its
+//     marker read. iam:ListRoles drops tags by the same documented rule as
+//     the native arm's three operations.
+//
+// Six types satisfy one arm or another, and all six are IAM's. IAM is
 // the service wired here because it is the one #1134 measured the Resource
 // Groups Tagging API failing to cover and the one the pinned emulator
 // serves a tag-read operation for. Sixteen more types satisfy the Cloud
-// Control arm in services the tagging index does cover, so the gate in
-// internal/live/discovery keeps this leg off for them; if one ever proves
-// otherwise, it gets its own service wired here and its own entry in the
+// Control arm in services the tagging index does cover, and they have no
+// route here, so the leg never runs for them; if the index proves not to
+// cover one, it gets its own service wired here and its own entry in the
 // table, not a general mechanism written in advance of a need.
 // TestDerivedSetBeyondIAMIsNamedNotSilent names those sixteen.
-var IAMRoutes = map[string]iamTagOp{
+var IAMRoutes = map[string]iamRoute{
 	// iam:ListInstanceProfileTags. The import identity of an
 	// aws_iam_instance_profile is the profile name, which is exactly what
 	// InstanceProfileName wants.
-	"aws_iam_instance_profile": func(ctx context.Context, api IAMAPI, importID, marker string) ([]iamtypes.Tag, *string, bool, error) {
+	"aws_iam_instance_profile": {action: "iam:ListInstanceProfileTags", read: func(ctx context.Context, api IAMAPI, importID, marker string) ([]iamtypes.Tag, *string, bool, error) {
 		out, err := api.ListInstanceProfileTags(ctx, &iam.ListInstanceProfileTagsInput{
 			InstanceProfileName: aws.String(importID),
 			Marker:              markerOrNil(marker),
@@ -105,13 +124,13 @@ var IAMRoutes = map[string]iamTagOp{
 			return nil, nil, false, err
 		}
 		return out.Tags, out.Marker, out.IsTruncated, nil
-	},
+	}},
 
 	// iam:ListMFADeviceTags. The import identity of an
 	// aws_iam_virtual_mfa_device is its ARN, and IAM's own reference says
 	// "for virtual MFA devices, the serial number is the same as the ARN",
 	// so the identifier goes through unchanged here too.
-	"aws_iam_virtual_mfa_device": func(ctx context.Context, api IAMAPI, importID, marker string) ([]iamtypes.Tag, *string, bool, error) {
+	"aws_iam_virtual_mfa_device": {action: "iam:ListMFADeviceTags", read: func(ctx context.Context, api IAMAPI, importID, marker string) ([]iamtypes.Tag, *string, bool, error) {
 		out, err := api.ListMFADeviceTags(ctx, &iam.ListMFADeviceTagsInput{
 			SerialNumber: aws.String(importID),
 			Marker:       markerOrNil(marker),
@@ -120,7 +139,7 @@ var IAMRoutes = map[string]iamTagOp{
 			return nil, nil, false, err
 		}
 		return out.Tags, out.Marker, out.IsTruncated, nil
-	},
+	}},
 
 	// iam:ListPolicyTags. The identifier discovery's importIdentity hands
 	// this leg is the first of the identity table's IdentityAttrs the
@@ -129,7 +148,7 @@ var IAMRoutes = map[string]iamTagOp{
 	// (discovery.go's #1054 comment, measured with TF_LOG=debug), and the
 	// provider's id for a managed policy is that same ARN. Either way the
 	// string is an ARN, which is what PolicyArn wants.
-	"aws_iam_policy": func(ctx context.Context, api IAMAPI, importID, marker string) ([]iamtypes.Tag, *string, bool, error) {
+	"aws_iam_policy": {action: "iam:ListPolicyTags", read: func(ctx context.Context, api IAMAPI, importID, marker string) ([]iamtypes.Tag, *string, bool, error) {
 		out, err := api.ListPolicyTags(ctx, &iam.ListPolicyTagsInput{
 			PolicyArn: aws.String(importID),
 			Marker:    markerOrNil(marker),
@@ -138,14 +157,14 @@ var IAMRoutes = map[string]iamTagOp{
 			return nil, nil, false, err
 		}
 		return out.Tags, out.Marker, out.IsTruncated, nil
-	},
+	}},
 
 	// iam:ListRoleTags. aws_iam_role's IdentityAttrs are ["id", "name"] and
 	// the provider sets a role's id to its name, so the identifier is the
 	// role name whichever of the two the listed object carried - which is
 	// what RoleName wants. live/survey-full.json agrees from the other
 	// side: required_for_import ["name"].
-	"aws_iam_role": func(ctx context.Context, api IAMAPI, importID, marker string) ([]iamtypes.Tag, *string, bool, error) {
+	"aws_iam_role": {action: "iam:ListRoleTags", read: func(ctx context.Context, api IAMAPI, importID, marker string) ([]iamtypes.Tag, *string, bool, error) {
 		out, err := api.ListRoleTags(ctx, &iam.ListRoleTagsInput{
 			RoleName: aws.String(importID),
 			Marker:   markerOrNil(marker),
@@ -154,12 +173,32 @@ var IAMRoutes = map[string]iamTagOp{
 			return nil, nil, false, err
 		}
 		return out.Tags, out.Marker, out.IsTruncated, nil
-	},
+	}},
+
+	// iam:ListRoleTags again, for the service-linked role (GitHub issue
+	// #1477). This entry is the one place the identifier the caller hands
+	// [ReadTags] is NOT the type's import identity: aws_iam_service_linked_role
+	// imports by ARN (IdentityAttrs ["arn", "id"], ImportSyntax "ARN"), and
+	// iam:ListRoleTags takes RoleName. The listing that produces these
+	// objects is this package's own ([IAMListRoutes]), and it hands the
+	// caller both strings as [Listed.ImportID] and [Listed.ReadKey]; the
+	// caller reads with the ReadKey. Nothing composes the name from the
+	// ARN here, because the listing already returned it.
+	"aws_iam_service_linked_role": {action: "iam:ListRoleTags", read: func(ctx context.Context, api IAMAPI, importID, marker string) ([]iamtypes.Tag, *string, bool, error) {
+		out, err := api.ListRoleTags(ctx, &iam.ListRoleTagsInput{
+			RoleName: aws.String(importID),
+			Marker:   markerOrNil(marker),
+		})
+		if err != nil {
+			return nil, nil, false, err
+		}
+		return out.Tags, out.Marker, out.IsTruncated, nil
+	}},
 
 	// iam:ListUserTags. Same shape as the role above: IdentityAttrs
 	// ["id", "name"], the provider sets a user's id to its name, and
 	// UserName wants that name.
-	"aws_iam_user": func(ctx context.Context, api IAMAPI, importID, marker string) ([]iamtypes.Tag, *string, bool, error) {
+	"aws_iam_user": {action: "iam:ListUserTags", read: func(ctx context.Context, api IAMAPI, importID, marker string) ([]iamtypes.Tag, *string, bool, error) {
 		out, err := api.ListUserTags(ctx, &iam.ListUserTagsInput{
 			UserName: aws.String(importID),
 			Marker:   markerOrNil(marker),
@@ -168,12 +207,22 @@ var IAMRoutes = map[string]iamTagOp{
 			return nil, nil, false, err
 		}
 		return out.Tags, out.Marker, out.IsTruncated, nil
-	},
+	}},
 }
 
-// iamTagOp is one entry of [IAMRoutes]: a paginated tag read, returning the
-// page's tags plus the continuation the next call needs.
+// iamTagOp is the read half of an [IAMRoutes] entry: a paginated tag read,
+// returning the page's tags plus the continuation the next call needs.
 type iamTagOp func(ctx context.Context, api IAMAPI, importID, marker string) (tags []iamtypes.Tag, next *string, truncated bool, err error)
+
+// iamRoute is one entry of [IAMRoutes]: the IAM action the read needs, in
+// the form a policy statement names it, and the read itself. The action is
+// what [IAM.Action] answers and what a refused read's gap tells the operator
+// to grant (GitHub issue #1162's third MARKER_UNREADABLE sentence), so it is
+// written once here beside the call that needs it and nowhere else.
+type iamRoute struct {
+	action string
+	read   iamTagOp
+}
 
 // IAM is the [Reader] for AWS Identity and Access Management.
 type IAM struct {
@@ -191,6 +240,11 @@ func (r *IAM) Route(typeName string) bool {
 	return ok
 }
 
+// Action implements [Reader].
+func (r *IAM) Action(typeName string) string {
+	return IAMRoutes[typeName].action
+}
+
 // ReadTags implements [Reader].
 //
 // Pagination is honoured even though IAM caps a resource at 50 tags and the
@@ -198,10 +252,11 @@ func (r *IAM) Route(typeName string) bool {
 // comparison and it means the function is correct if that cap ever moves,
 // which is cheaper than a comment explaining why it is safe not to.
 func (r *IAM) ReadTags(ctx context.Context, typeName, importID string) (map[string]string, error) {
-	op, ok := IAMRoutes[typeName]
+	route, ok := IAMRoutes[typeName]
 	if !ok {
 		return nil, noRouteError{typeName: typeName}
 	}
+	op := route.read
 	if importID == "" {
 		return nil, fmt.Errorf("no identifier for a %s to read tags for", typeName)
 	}

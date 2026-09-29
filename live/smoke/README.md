@@ -16,10 +16,11 @@ Clone https://github.com/INTENTIUS/choudoufu, then do the following.
 5. Report each step's verdict line as it prints, and each scenario's final
    PASS or FAIL line.
 
-Exit code 0 means every claim held: an estate stood up by stock OpenTofu
-survived losing its state file, and a brand-new estate carried its
-ownership markers from the first create call. Non-zero names the step
-that failed.
+A closing `PASS: smoke scenario '<name>' - every claim held` line means
+every claim held: an estate stood up by stock OpenTofu survived losing
+its state file, and a brand-new estate carried its ownership markers
+from the first create call. Anything else ends on a `FAIL [...]` line
+naming the step that failed.
 ```
 
 ## What this is
@@ -39,7 +40,9 @@ just smoke k8s-the-label-is-the-boundary # one admission policy on the label fen
 just smoke k8s-custom-resource # a kubernetes_manifest block binds by the natural key inside its manifest, carries the label and is swept by it (#1079)
 just smoke k8s-a-held-delete-is-not-gone # a finalizer holds a delete: the run says destroyed, the object stays, and every plan proposes it again until it is gone (#1110)
 just smoke k8s-the-server-gets-the-last-word # admission after the plan: a fail-closed webhook refuses an approved write, a mutating policy rewrites a declared field, and one that strips tofu-estate leaves an object the estate cannot claim (#1110)
-just smoke k8s-a-label-is-a-change # a label or annotation edited in the configuration plans and applies like any other change, and a key the configuration never declared stays the server's (#1177)
+just smoke k8s-a-label-is-a-change # a label or annotation edited in the configuration plans and applies like any other change, a key the configuration never declared stays the server's, and a second directory removes the same label over records shared as Secrets and as bucket objects (#1177, #1394; the bucket half needs Docker and the AWS CLI as well as kind)
+just smoke a-held-delete-is-not-gone # claim 25 on AWS: a secret deleted with a recovery window stays in the account, and the plans after it read it as the provider does, empty (#1599)
+just smoke the-server-gets-the-last-word # claim 26 on AWS: a Deny landing after approval refuses the approved apply in AWS's words, and the same plan file applies once it lifts (#1599)
 just smoke full           # the comprehensive 15-step harness (~6 minutes)
 ```
 
@@ -66,9 +69,26 @@ exports `KUBE_CONFIG_PATH` for the provider; `cluster_down` deletes it on
 exit. A kind cluster is a real API server, so what the scenario asserts is
 what any cluster answers. Needs `kind` and `kubectl` on PATH.
 
-It is claim 21 (#1061): the ConfigMap and the namespace it creates carry
-one `tofu-estate` label, written on the create and read back with kubectl in
-step 2, and listed by `live-ls` in step 3 (#1081) - the substrate learned
+Every `k8s-*` scenario runs inside bounds (#1457), because a call to an API
+server can stall for ever and one did, for 35 minutes of a CI job that left
+no log. `smoke.sh` gives the scenario a time limit. When it runs out the run
+prints `FAIL [<scenario>]: stalled in step "<step>" and killed after <n>s.`,
+names the commands that were still running, kills them, deletes the cluster as on
+any other exit, and exits 124. Scenarios call kubectl through `kc`, or
+`kc_as <kubeconfig>` for another identity, and both pass
+`--request-timeout`. `kubectl config`, which edits a local file, is the
+only kubectl a scenario calls bare. A choudoufu call made while a step has
+the admission chain failing or rewriting goes through `chdf_bounded`, which
+fails the scenario by name the same way. The three variables are under
+Knobs. `bash live/smoke/selftest-bounds.sh` (or `just smoke-selftest`)
+proves each bound against a `kubectl` and a `choudoufu` that never return,
+with no cluster and no Docker, and reads the scenarios for a bare kubectl;
+`.github/workflows/k8s-smoke.yml` runs it on every pull request that touches
+the smokes.
+
+It is claim 7 on Kubernetes (#1061): the ConfigMap and the namespace it
+creates carry one `tofu-estate` label, written on the create and read back
+with kubectl in step 2, and listed by `live-ls` in step 3 (#1081) - the substrate learned
 from the provider block, one label-selected list per kind, each object
 joined to its block on the kind and the natural key - with the listing
 empty again after the destroy; its `BREAK=1` strips the label and requires
@@ -80,8 +100,7 @@ the ConfigMap block from `kubernetes_config_map` to
 to plan no create and no destroy (#1081, item 2: an `api_version` change
 is not a move).
 
-`k8s-no-silent-orphans` is claim 22 (#1065), the Kubernetes sibling of
-claim 1: a ConfigMap's block is deleted and the next plan proposes exactly
+`k8s-no-silent-orphans` is claim 1 on Kubernetes (#1065): a ConfigMap's block is deleted and the next plan proposes exactly
 that object's removal, found by one cluster-wide, label-selected list per
 kind, while the ReplicaSet and Pod a Deployment's template gave the same
 label to are never touched. Its `BREAK=1` strips the orphan's label and
@@ -108,7 +127,12 @@ requires the replan not to list the object, then deletes the object and
 requires the replan to propose creating it. Removing the block for real
 (step 5) has the sweep, which lists every kind the cluster serves under
 `kubernetes_manifest` (#1079's third unit), find the CronTab by its label
-and propose destroying exactly it.
+and propose destroying exactly it. Its last step (#1396, #1434) migrates
+two stock-made ConfigMaps under a 64-character estate name and requires
+the read-only `live-import` to refuse once, naming `2 resource instances`
+and the 63-character cap, with no per-object line, exit 1 and nothing
+changed on the cluster; `BREAK=1`'s last control runs the same migration
+under a 60-character name and requires the report and exit 0.
 
 `k8s-a-held-delete-is-not-gone` is claim 25 (#1110's first fault): a
 finalizer added out of band holds a ConfigMap's delete, so the API accepts
@@ -119,8 +143,10 @@ any other live object and every plan proposes the same one destroy until
 the finalizer clears, at which point the object goes and the plan is
 empty; `apply -destroy` over a held object likewise reports the estate
 destroyed and exits 0, and the plan after it proposes exactly the one
-create that is genuinely missing. The false summary line is #1184; the
-plan is what corrects it. Its `BREAK=1` removes the finalizer before the
+create that is genuinely missing. The provider's summary line stays as
+stock prints it; since #1184 one warning after it, `Delete accepted, object
+not gone`, names the held object and its finalizer, and the plan is what
+corrects the count. Its `BREAK=1` removes the finalizer before the
 destroying apply and requires the object gone in one apply and the replan
 empty - without it the scenario would read the same if choudoufu never
 deleted a ConfigMap at all. The namespace is made with kubectl rather than
@@ -146,6 +172,33 @@ configuration does not declare and requires `No changes.` - without it
 every plan the scenario requires would read the same if choudoufu simply
 planned on any difference at all.
 
+Steps 8 and 9 are #1394. Everything above them runs on the implied local
+store, where the record a removal reads is a file beside the module, so the
+removal works for whoever holds that directory and for nobody else. Each of
+the two applies from one working directory and deletes the label from a
+second that never applied anything, and requires the second to propose the
+removal, write it and settle - over a store the two share. Step 8 is
+`record_store "kubernetes"` (#1392), records as Secrets in the cluster the
+claim already runs on; it names no namespace, so what is used is what the
+estate name derives, and the step creates it, because the records namespace
+is the read boundary and nothing in this fork creates one. Step 9 is
+`record_store "s3"` on the pinned floci emulator, which makes this the one
+scenario here needing both substrates at once.
+
+Both read what no Kubernetes claim had read before. On the cluster store:
+the record Secret's `tofu-estate` label, its `tofu-address` and record-key
+annotations, and its `resourceVersion` moving across the second directory's
+write, with a `kubectl replace` of the copy from before that write refused
+as a conflict. On the bucket: the object's `tofu-estate` and `tofu-address`
+tags and the conditional-write header on each record PUT, through
+`s3proxy.py`. Sub-step 9b holds the second directory's write at the proxy,
+deletes the object underneath it and requires the refusal (#1344's case,
+which the emulator answers 404 exactly as real S3 does). One `BREAK=1`
+control covers both: the same two directories on `record_store "local"`,
+where the second must propose nothing. Step 9 refuses rather than skips
+when Docker or the AWS CLI is missing, and
+`.github/workflows/k8s-smoke.yml` checks for both before the matrix runs.
+
 `k8s-the-server-gets-the-last-word` is claim 26 (#1110's second fault):
 three things admission can do to a write the plan already approved. A real
 `ValidatingWebhookConfiguration` with `failurePolicy: Fail` and no endpoint
@@ -159,8 +212,9 @@ the marker untouched. The third is the boundary case: a policy that strips
 `tofu-estate` on the way in, which is what a label-scheme enforcer does to
 a key it does not recognise. The object is created and no marker is stored,
 so the next plan reads the estate's own object as somebody else's,
-`live-ls` reports the estate empty and the next apply wedges on
-`configmaps "app-config" already exists`. #1192 was that the run making it
+`live-ls` reports the estate empty, and plan and apply both stop with
+`Unlabelled live object holds the declared name` (#1546) rather than
+proposing a create the API server would refuse. #1192 was that the run making it
 said nothing: `Apply complete! Resources: 1 added` with no mention of the
 marker, and `declared_untagged = "adopt"` reporting `0 added, 1 changed, 0
 destroyed` and exit 0 over a label it never wrote, on every run for ever.
@@ -176,9 +230,8 @@ in the run, `live-ls` listing the object and the second apply not wedging -
 without it the whole third part would read the same if choudoufu never
 wrote a label at all.
 
-`k8s-the-label-is-the-boundary` is claim 23 (#1066), the Kubernetes
-sibling of claim 13: the cluster admin installs
-`live/kubernetes/estate-boundary.yaml`, one `ValidatingAdmissionPolicy`
+`k8s-the-label-is-the-boundary` is claim 13 on Kubernetes (#1066): the cluster
+admin installs `live/kubernetes/estate-boundary.yaml`, one `ValidatingAdmissionPolicy`
 whose CEL reads the estate label off the object and asks the authorizer
 whether the caller holds `use` on `estates.choudoufu.intentius.io/<estate>`;
 two ServiceAccounts hold two estates through
@@ -231,17 +284,27 @@ showing its own checks would have caught it.
   today's wire savings are small until #692's vouch widening lands. The
   BREAK control drifts the live world and proves the three-way equality
   comparator can fail.
-- **backend-sets-itself-up** - *Claim 4: the live backend sets itself
-  up automatically when configured.* A live block with no storage
-  declared gets a local record store the way stock implies a local state
-  file - a .tofu-records directory appears beside the module at first
-  use, sentinel already written; declaring record_store "ssm" {} is the
-  entire cloud setup, and the store provisions its own sentinel into
-  Parameter Store where any AWS tool can read it; none of stock's
-  bucket/lock-table/IAM/migration ceremony exists to perform. The BREAK
-  control makes only the SSM store unreachable (the provider stays
-  healthy) and proves the run refuses by name instead of planning an
-  empty-looking estate - the #693 failure class, permanently on watch.
+- **backend-sets-itself-up** - *Claim 4: the backend is a bucket with
+  no lock table and no lock: nothing is held, so nothing gets stuck.*
+  **Real AWS, maintainer-run, for now** (the pinned emulator's
+  CloudFormation applies none of a bucket's properties). A live block
+  with no storage declared gets a local record store the way stock
+  implies a local state file - a .tofu-records directory appears beside
+  the module at first use, sentinel already written. The cloud store is
+  a bucket, stood up with `just up` and checked by the binary with
+  `just verify`: the same bucket, versioning and IAM as stock, plus a
+  lifecycle rule and a public-access block stock never listed, minus
+  the lock table. An apply is then killed with SIGKILL mid-flight and
+  the very next run finishes the work, because nothing was held. The
+  teardown admits there is a bucket to take down, and `just down`
+  refuses while it holds record versions. The stack's resource list must
+  hold only the bucket and its policy, and every key in the bucket is
+  matched against the four shapes this backend writes (#1379). The BREAK
+  control makes only the record store unreachable and proves the run
+  refuses by name instead of planning an empty-looking estate - the #693
+  failure class, permanently on watch (#1349); it does not show that the
+  sentinel is what caught it, because an S3 client fails a closed port
+  either way. Needs jq, just, node and npm.
 - **recovery-is-a-rerun** - *Claim 5: recovery is a re-run, never
   surgery.* An apply that died after its first create call (resource
   made, markers stamped, run gone) recovers by being run again: the plan
@@ -458,6 +521,229 @@ showing its own checks would have caught it.
   account-wide question (`-adoption-only`), which is exactly the branch
   that drops the server-side estate filter, and the cost must explode.
 
+- **a-name-prefix-shares-no-keys** - *Claim 28: two estates whose names
+  prefix one another share a bucket and none of each other's keys.*
+  smoke-prod and smoke-prod-eu apply into one bucket; the AWS CLI shows
+  that the bare prefix tofu-records/smoke-prod names both estates and
+  the delimited one names one; smoke-prod then plans with the request
+  log on, and every LIST it sends ends in a slash while no request in
+  the run names its neighbour; it tears down and the neighbour's keys
+  and plan are unchanged. The delimiter is a line inside the binary, so
+  the BREAK control rebuilds choudoufu with it dropped (go build
+  -overlay, needs Go, refuses a release binary) and passes only when
+  the wire shows smoke-prod fetching smoke-prod-eu's record (#1335).
+
+- **a-wrong-bucket-is-refused** - *Claim 29: a record store bucket that
+  cannot keep its records is refused by name before anything is
+  applied.* A correct bucket costs an apply nothing; then five arms each
+  break one thing with the AWS CLI - versioning suspended, no
+  lifecycle, a lifecycle that exists and expires nothing, no
+  public-access block, and a lifecycle that also expires current objects
+  and so deletes records (#1377) - and each apply must fail naming it and
+  the bucket, with the record store's object versions unchanged. A plan
+  against the drifted bucket goes through, because the assertions do not
+  run on every plan, and the step says what that costs. A brand-new
+  estate's first plan is refused twice running and leaves nothing under
+  its prefix. The BREAK control used to run an arm with nothing
+  corrupted, which corrupted nothing; it now rebuilds choudoufu with
+  CheckBucketContract reporting no findings (go build -overlay, needs
+  Go, refuses a release binary), runs one arm against a bucket whose
+  versioning is Suspended, and passes only when that arm's own check
+  catches the apply going through (#1339, #1379).
+
+- **a-waiver-names-what-it-waives** - *Claim 30: a bucket waiver waives
+  only the assertion it names, and says so on every run.* A bucket with
+  no versioning and `allow_insecure = ["versioning"]`: the apply
+  proceeds, warns with what the waiver costs, and says the bucket really
+  does fail the waived assertion. A plan and a second apply of the
+  unchanged estate each warn again. The lifecycle and the public-access
+  block, broken in turn, are each still refused by name. The plan's own
+  request log is read for the three bucket-configuration calls, which
+  the apply's log carries and the plan's must not. A misspelt name is
+  refused at configuration load, naming the word in what the run says
+  rather than only in the configuration line it echoes back, and listing
+  the three names it does accept. The BREAK control rebuilds choudoufu
+  so the warning appears on an estate's first run only (go build
+  -overlay, needs Go, refuses a release binary) and passes only when run
+  two is caught proceeding in silence (#1340). The same claim on the
+  Kubernetes record store is step 11 of `k8s-records-in-the-cluster`, which
+  also requires `live-cluster` to ignore the waiver (#1441).
+
+- **a-bulk-read-is-complete-or-it-fails** - *Claim 31: a record read
+  that fails mid-fanout fails the read; a short map never reaches a
+  plan.* Twelve record-backed resources, then a small proxy in front of
+  S3 that can answer one record's GET with a 500, which nothing else can
+  do from outside the binary. A control plan through the unarmed proxy
+  is empty, and the proxy's count of record GETs in flight is more than
+  one by default and exactly one under
+  TOFU_LIVE_RECORD_READ_PARALLELISM=1, which is where "eight at a time"
+  is measured; one GET failed once leaves the plan true, empty on a zero
+  exit and a refusal naming the record otherwise; the same GET failed
+  every time makes the run refuse and name the record. Then a second
+  estate of two, #1355's own, with one record's GET answered 404 on the
+  bulk read and the per-key read while the listing still names it: plan,
+  plan -destroy and apply -destroy each refuse with "The record store
+  contradicts itself about a record", naming the address and the key,
+  and the bucket's versions are unchanged (#1430). The BREAK
+  control rebuilds choudoufu so a failed GET drops its key (go build
+  -overlay, needs Go, refuses a release binary) and passes only when the
+  plan is caught proposing to create a resource that exists (#1336).
+  `BREAK_CROSSCHECK=1` is the 404 step's own control: choudoufu rebuilt
+  without the plan-time cross-check, passing only when apply -destroy is
+  caught reporting 1 destroyed of two and exiting 0 with the record
+  still in the bucket, which is #1355's output, manufactured.
+  Needs python3. The same claim on the Kubernetes record store is step 12
+  of `k8s-records-in-the-cluster`, where `live/smoke/k8sproxy.py` answers
+  the second page of the records listing with 410 Expired (#1441).
+
+- **two-writers-one-record** - *Claim 32: two writers, one record: the
+  loser is named, nothing is clobbered, and nothing is held.* Two
+  checkouts of one estate contend for one record. The smoke proxy
+  (`live/smoke/s3proxy.py`) holds both writers' conditional PUTs until
+  both have arrived and releases them in a chosen order, alternating
+  between rounds, so the race is a race every time. Exactly one apply
+  lands per round; the other gets a record store write conflict naming
+  the expected and the found version; the bucket holds no lock-shaped
+  key after any round; the loser re-plans and converges; a writer killed
+  with SIGKILL mid-write leaves the record holding what the round before
+  it left, with the proxy's log showing its PUT dropped and not
+  forwarded. The BREAK control rebuilds
+  choudoufu with no If-Match on the write (go build -overlay, needs Go,
+  refuses a release binary) and passes only when both applies are caught
+  reporting success (#1338). Needs python3. The same claim on the
+  Kubernetes record store is step 10 of `k8s-records-in-the-cluster`,
+  where a RoundTripper parks each writer's first request until both are
+  parked (#1441).
+
+- **cas-holds-under-every-sse-flavour** - *Claim 33: compare-and-swap
+  holds under every SSE flavour.* **Real AWS, maintainer-run, not in
+  CI**: it refuses to start without `SMOKE_REAL_AWS=1`, because an
+  emulator does not reproduce the ETag semantics it measures. It creates
+  a bucket per flavour (SSE-S3, SSE-KMS with the AWS-managed key, SSE-KMS
+  with a customer managed key, DSSE-KMS) and one KMS key, or reuses
+  `SMOKE_KMS_KEY_ARN`, and removes what it made. Each flavour is first
+  checked for what it is, including that its ETag is or is not the
+  payload's MD5; then the record store's conformance suite runs against
+  it, then an estate's whole lifecycle with every count checked. The
+  BREAK control rebuilds choudoufu so the store checks each ETag against
+  an MD5, and passes only when that binary works under SSE-S3 and fails
+  on that check under all three KMS flavours (#1344). Needs Go and
+  python3.
+
+- **a-new-estate-writes-its-first-record** - *Claim 34: under the
+  published IAM policy a new estate's first write succeeds, and so does
+  every write after it.* **Real AWS, maintainer-run**
+  (`SMOKE_REAL_AWS=1`). A control role that is allowed nothing is
+  denied; a brand-new estate applies as its scoped role into an empty
+  prefix under `render-policy.sh`'s output, then updates, replans and
+  destroys with every count checked. Each policy is proven live by a
+  marker statement before it is tested. The BREAK control changes one
+  key, `s3:RequestObjectTag` to `s3:ExistingObjectTag`, and the first
+  create must be denied (#1343). Needs jq.
+- **one-bucket-many-estates** - *Claim 35: reading a neighbour's records
+  takes two mistakes, not one.* **Real AWS, maintainer-run.** Two
+  estates under their own roles in one bucket; one role is refused the
+  other's records, outputs and listings, and the bare prefix; with its
+  prefix deliberately widened it is still refused the read, by the tag;
+  the same widened role overwriting and deleting a neighbour's object is
+  shown allowed, because nothing but the prefix defends that; and a
+  `--reads-outputs-of` grant opens the other estate's outputs and nothing else.
+  Under the widened prefix the role also tries to relabel a neighbour's
+  record as its own and to strip its tag, and both are refused (#1381).
+  The BREAK control has two arms: without the relabel Deny the retag and
+  then the read both succeed, and without the read Deny the read
+  succeeds (#1343). Needs jq.
+- **objects-carry-the-estate-tag** - *Claim 36: every record store
+  object carries its estate's tag, and the tag is load-bearing.* **Real
+  AWS, maintainer-run.** An estate applies as its scoped role and every
+  object is read back tagged, records with the marker form of their
+  address. One record is retagged out of band as another estate's under
+  this estate's own prefix: the role is denied it, and the plan fails
+  naming the record instead of planning around it. The BREAK control
+  rebuilds choudoufu so the store sends no tags, and the published
+  policy must deny its first write (#1337). Needs jq and Go.
+- **the-recommended-secure-configuration** - *Claim 37: the
+  recommended secure configuration works end to end, including
+  recovering a deleted record.* **Real AWS, maintainer-run.** The bucket
+  is stood up with `just up` from `examples/record-store-bucket` under a
+  customer managed key whose key policy names who may use it, and the
+  estate's role carries the rendered `--kms` policy, unedited. The role
+  runs an estate's life, a record destroyed by mistake is recovered from
+  its noncurrent version by the operator (the role is refused the same
+  act), the S3 actions in the request log are reconciled with the
+  policy's grants in both directions, and `just down` refuses while
+  versions remain. The BREAK control takes the role out of the key
+  policy, and the run must be refused naming the key, the KMS action and
+  the role, not just the words "KMS key" (#1345, #1379). Needs jq, just,
+  node and npm.
+- **a-read-only-role-can-plan** - *Claim 38: a role with the read-only
+  policy plans an established estate and writes nothing, and a store with
+  no sentinel is still refused by name.* **Real AWS, maintainer-run.** An
+  estate is recorded once under the full policy, which provisions the
+  sentinel. A second role carries `render-policy.sh --read-only`, with
+  the Allow half of a second read-only render merged in for the estate
+  name step 4 uses. As that role the plan is empty, a direct
+  `put-object` under the estate's prefix is denied, and the three
+  namespaces hold the same object versions after the plan as before, the
+  sentinel included. The same role against an estate name with no
+  sentinel is refused by name, naming the key and saying this identity
+  may not write it, and proposes nothing. The plan's own S3 calls are
+  then reconciled with the rendering in both directions, with the
+  denied sentinel write as the one expected difference and no
+  bucket-configuration read at all. The BREAK control rebuilds choudoufu
+  so a denied sentinel write is returned rather than carried past to the
+  List, and the read-only plan must then fail (#1370). Needs jq and Go.
+
+- **no-secret-survives-in-what-the-tool-keeps** - *Claim 40: no secret
+  the run generates or sets survives in what the tool keeps.* Under
+  `strict { secrets = "refuse" }` a `random_password` and an
+  `aws_iam_access_key` are refused by name and nothing is written. A
+  database's master password, passed only through `TF_VAR_db_password`,
+  is then applied and grepped for by value in every file the run kept
+  (the record, the data dir, the lock file, the configuration), with zero
+  hits and no cache file. A saved plan and a `TF_LOG=debug` file are read
+  on their own: the plan's `tfplan` member and the provider's
+  `CreateDBInstance` request line hold it, as they do on stock. The
+  default run keeps it in the record and the cache and still plans
+  `No changes.` with the cache deleted. The BREAK control applies the same
+  estate under `secrets = "store"`, and the same scan must find the value.
+  The replan under refuse proposes the password again, rotated or not,
+  which is what the refusal costs (#1503).
+- **the-estate-answers-in-the-present-tense** - *Claim 41: the estate
+  answers in the present tense.* "Which of this estate's security groups
+  are attached to nothing" is asked from the `tofu-estate` tag plus a live
+  describe with no choudoufu in the loop, and from the state cache. Both
+  answer `db spare` after the apply. An out-of-band
+  `modify-instance-attribute` moves the instance from `web` to `db`. The
+  live answer becomes `spare web` and the cache still says `db spare`. The
+  next plan proposes the one update that puts it back. The BREAK control
+  skips the move, and both answers must agree. The estate's own resources
+  only; it is not account-wide gap analysis.
+- **a-killed-apply-hides-nothing** - *Claim 42: a killed apply hides
+  nothing it marked.* A real apply is killed with SIGKILL at a point
+  pinned by a count read off the account - hosted zones named
+  `killed-apply.example.`, 0 then 1 - never by a timer. The VPC it
+  created carries its markers, because they rode the create call, so the
+  next plan proposes nothing for it and the re-run binds it. The hosted
+  zone does not: `aws_route53_zone` reads `tag_on_create: false`, so the
+  markers land only when the provider's create step returns, measured
+  15.0s after the zone appeared. The next plan proposes a second zone,
+  the re-run builds it, and the orphan is deleted by hand - the only
+  surgery in the run. The record-carried `terraform_data` had already run
+  its provisioner with no record saying so, so the plan names it as a
+  create and the effect runs twice. The BREAK control strips every marker
+  and requires a duplicate VPC.
+- **an-estate-reads-another-by-declaring-it** - *Claim 44: an estate
+  reads another estate's outputs only by declaring the read.* Estate
+  `network` applies and records one root output. Estate `app` declares
+  `data "terraform_estate_outputs"` naming `network`, and its role is
+  rendered with `--reads-outputs-of network`; its plan uses the value and
+  warns that it is as of network's last apply. `network` is destroyed, its
+  `tofu-outputs/network/` object goes, and `app`'s plan then stops with
+  `Another estate has not recorded this output`. The BREAK control renders
+  `app`'s role without the flag and requires the plan to refuse naming
+  estate `network`. Emulator; the tag-conditioned half is claim 35's.
+
 ## Knobs
 
 | Variable | Effect |
@@ -470,6 +756,10 @@ showing its own checks would have caught it.
 | `SMOKE_INSTRUMENT=1` | capture every request (choudoufu's own clients included, per #682) and print request/retry counts with a top-operations table |
 | `BREAK=1` | corrupt one expected fact mid-scenario; the scenario passes only by CATCHING it - proof its assertions are load-bearing |
 | `BREAK_SLOT=1` | count-is-a-fungible-set's second control: the one corruption an absence assertion can be tested with, a tag that should not be there |
+| `BREAK_CROSSCHECK=1` | a-bulk-read-is-complete-or-it-fails's second control: choudoufu rebuilt without the plan-time cross-check between the store's listing and a record read as absent; passes only when a destroy is caught reporting 1 destroyed of two (#1355's output) |
+| `SMOKE_TIMEOUT_SECS=600` | seconds before a k8s-* scenario with no verdict is killed (default max(600, 2 x claims.json minutes)) |
+| `CHDF_TIMEOUT_SECS=300` | one choudoufu call made behind a failing or rewriting admission chain |
+| `KC_REQUEST_TIMEOUT=30s` | one kubectl request |
 | `FOREIGN_SCALE=50` | plan-cost-under-foreign-load: how large the foreign terralith beside the estate is, in `tools/terralith-gen` scale (74N + 5 resources; default 1) |
 | `OWNED_SCALE=50` | plan-cost-under-foreign-load: how large the estate under test is, same units (default 1) |
 
@@ -483,3 +773,21 @@ Every step prints a `=== N. name ===` banner and an indented verdict
 line. Trust the verdict lines, never the exit code alone; the exit code is
 the summary, the lines are the evidence. A scenario that cannot fail is
 not a check, which is what `BREAK=1` exists to disprove on demand.
+
+Every run ends on exactly one closing line, printed by `smoke.sh` and
+never by a scenario (#1439): `PASS: smoke scenario '<name>' - every claim
+held`, or for a control run `PASS: smoke scenario '<name>' - the control
+(BREAK) caught what it broke, N proof line(s)`, or a `FAIL [<name>]: ...`
+naming what broke and the step it was in. A run whose scenario died under
+`set -e` mid-step, which used to end with no line at all, now ends on
+`FAIL [<name>]: no verdict line - a command failed under set -e in step
+"<step>" ...`; a scenario that exits 0 on its own outside a control arm
+ends on `FAIL [<name>]: no PASS line ...`; and a control run (`BREAK=1`
+or any `BREAK_<NAME>=1`) in which no control printed a `-> caught` proof
+line ends on `FAIL [<name>]: no '-> caught' line ...`. The convention
+every scenario follows: a control arm ends with `proof "caught ..."`, and
+then either exits 0 or runs on into the steps it shares with the main
+arm. CI reads the run's log for those lines rather than the exit code,
+through `live/smoke/ci-run.sh`, and `bash live/smoke/selftest-verdict.sh`
+proves each shape against stubs in a few seconds; `go test ./live/` runs
+it.

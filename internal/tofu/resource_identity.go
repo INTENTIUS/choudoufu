@@ -160,3 +160,74 @@ type AppliedMarkerVerifier interface {
 	// and changes nothing. It must not be called for a delete.
 	VerifyAppliedMarkers(ctx context.Context, addr addrs.AbsResourceInstance, action plans.Action, planned, applied cty.Value, schema providers.Schema) tfdiags.Diagnostics
 }
+
+// CreateConfigValueAdjuster is an optional capability a [ConfigValueAdjuster]
+// may additionally implement (checked with a type assertion on the same
+// value [EvalContext.ConfigValueAdjuster] returns, like
+// [IgnoreChangesAdjuster]), so that an instance being CREATED can have its
+// evaluated configuration value adjusted differently from one being
+// updated. When the adjuster implements it, NodeAbstractResourceInstance.plan
+// calls AdjustCreateConfigValue in place of AdjustConfigValue for an
+// instance with no prior object - none at all, or a tainted one, which plan
+// treats as a create followed by a replace - at exactly the same point and
+// under exactly the same ordering rules (before ignore_changes, never after
+// PlanResourceChange; see [ConfigValueAdjuster]). For an instance that has
+// a prior object, plan calls it as well, on the same evaluated value, and
+// uses the result only if the plan turns out to be a replace: that value
+// plans the replace's create half, because at apply the prior object is
+// gone or deposed and the create is re-planned through this entry point
+// (GitHub issue #1512).
+//
+// GitHub issue #1084: some taggable types cannot be handed tags in the
+// call that creates them (CloudFormation's tagging.tagOnCreate false; a
+// Route 53 hosted zone, whose CreateHostedZone takes no Tags parameter),
+// so a marker the fork stamps into their configuration reaches the object
+// only through a follow-up call the provider makes and the fork cannot
+// report on. The ruling was: withhold the marker from the create call and
+// write it immediately after, in the same apply, through
+// [AppliedMarkerWriter]. Whether an instance is being created is a fact
+// only this package holds at the adjuster's call site, which is why this is
+// a second entry point rather than a flag on AdjustConfigValue's already
+// proven contract. Same interface-shape discipline as the others: nothing
+// here names a graph-node type, an EvalContext, or any other internal/tofu
+// internal.
+type CreateConfigValueAdjuster interface {
+	// AdjustCreateConfigValue returns the configuration value to plan a
+	// create with. It is subject to everything [ConfigValueAdjuster.AdjustConfigValue]
+	// is.
+	AdjustCreateConfigValue(ctx context.Context, addr addrs.AbsResourceInstance, config cty.Value, schema providers.Schema) (cty.Value, tfdiags.Diagnostics)
+}
+
+// AppliedMarkerWriter is an optional capability a [ConfigValueAdjuster] may
+// additionally implement (checked with the same type assertion as
+// [AppliedMarkerVerifier]), so that a marker withheld from a create call by
+// [CreateConfigValueAdjuster] can be written onto the created object
+// immediately after ApplyResourceChange returns and before the PostApply
+// hook reports the instance complete. It is called for a successful Create
+// only - which includes a replace's create half, since the apply node sees
+// a replace simplified to Create (GitHub issue #1512) - never for an
+// update, a delete, or an apply that already carries an error - with the object the provider returned and the provider
+// configuration the instance was applied through, so that the write can be
+// made as the same principal.
+//
+// GitHub issue #1084. A diagnostic returned here joins the apply's own, so
+// an error fails the instance the way a failed ApplyResourceChange would:
+// the object exists, its state is saved, and the run does not report a
+// success it does not have. Any request this makes is the implementation's
+// own; this package issues none on its behalf.
+//
+// It returns the object to store in state: applied itself when nothing was
+// written, and applied with the written marker merged into it when
+// something was. Without that the state, and the state cache a
+// -refresh=false plan reads, kept the object as the provider returned it
+// from a create that carried no marker, and that plan proposed writing the
+// marker again onto an object that already had it (floci tier, 2026-09-22,
+// TestSteadyStateCostAgainstFloci's refresh-false column, #1316). The
+// returned value is stored as-is and must conform to schema; it is used
+// only when the diagnostics carry no error.
+type AppliedMarkerWriter interface {
+	// WriteAppliedMarkers writes whatever marker the create call was not
+	// given onto applied, reports a failure to do so, and returns the
+	// object as it now stands.
+	WriteAppliedMarkers(ctx context.Context, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, action plans.Action, applied cty.Value, schema providers.Schema) (cty.Value, tfdiags.Diagnostics)
+}

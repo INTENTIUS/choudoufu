@@ -77,7 +77,7 @@ func residueDiags(t *testing.T, src string) tfdiags.Diagnostics {
 	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
 		t.Fatalf("writing the fixture: %s", err)
 	}
-	return CheckResidueAttributes(loadConfigDir(t, dir), residueTestSchemas())
+	return CheckResidueAttributes(loadConfigDir(t, dir), Context{Schemas: residueTestSchemas()})
 }
 
 func TestResidueAttributesWarnsOnWriteOnly(t *testing.T) {
@@ -96,7 +96,7 @@ resource "aws_ssm_parameter" "secret" {
 		t.Errorf("severity = %v, want Warning; #126 ruled this a warning, never a refusal", diag.Severity())
 	}
 	desc := diag.Description()
-	if want := "Attribute value cannot round-trip a stateless replan"; desc.Summary != want {
+	if want := "Attribute value cannot round-trip a live replan"; desc.Summary != want {
 		t.Errorf("summary = %q, want %q", desc.Summary, want)
 	}
 	for _, substr := range []string{
@@ -119,8 +119,9 @@ resource "aws_ssm_parameter" "secret" {
 // warning, and since GitHub issue #365 slice 3 it fires only under the
 // setting that makes its claim true.
 //
-// The claim is "no memory of the value survives a run, so every stateless
-// plan will propose sending it again". Under `strict { secrets = "store" }`,
+// The claim is "no record is written for it ... every live plan will
+// therefore propose sending the value again". Under
+// `strict { secrets = "store" }`,
 // the default, that is simply false: internal/live/projection's residue
 // mechanism records a sensitive settable argument exactly as it records an
 // ordinary one, so a warning here would train an author to ignore the one
@@ -260,10 +261,10 @@ resource "aws_s3_object" "doc" {
 }
 
 func TestResidueAttributesNilConfigAndNoSchemas(t *testing.T) {
-	if diags := CheckResidueAttributes(nil, residueTestSchemas()); len(diags) != 0 {
+	if diags := CheckResidueAttributes(nil, Context{Schemas: residueTestSchemas()}); len(diags) != 0 {
 		t.Errorf("expected no warnings for a nil config, got %d", len(diags))
 	}
-	if diags := CheckResidueAttributes(loadConfigDir(t, "testdata/clean"), nil); len(diags) != 0 {
+	if diags := CheckResidueAttributes(loadConfigDir(t, "testdata/clean"), Context{}); len(diags) != 0 {
 		t.Errorf("expected no warnings with no schemas to consult, got %d", len(diags))
 	}
 }

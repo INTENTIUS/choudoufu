@@ -188,7 +188,11 @@ func TestRenderPropose_WithSummary(t *testing.T) {
 
 func TestArtifactCounts_MissingFile(t *testing.T) {
 	root := t.TempDir()
-	if got := artifactCounts(root, "", "live/does-not-exist.json"); got != nil {
+	got, err := artifactCounts(root, "", "live/does-not-exist.json")
+	if err != nil {
+		t.Fatalf("artifactCounts for a missing file: %v", err)
+	}
+	if got != nil {
 		t.Errorf("artifactCounts for a missing file = %v, want nil", got)
 	}
 }

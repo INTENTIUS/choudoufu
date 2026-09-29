@@ -3480,7 +3480,7 @@
     "reason": "the ControlTower service assigns the enabled baseline its own ARN at create time; target_identifier and baseline_identifier are required arguments but name the OU and the baseline being enabled, not this enablement record itself.",
     "import_syntax": "ID",
     "identity_attrs": [
-      "id"
+      "arn"
     ]
   },
   "aws_controltower_control": {
@@ -4661,7 +4661,6 @@
     "reason": "EC2 assigns the metering policy's own id (tgw-mp-…) at create time; the transit_gateway_id argument names the parent gateway but not the policy.",
     "import_syntax": "tgw-mp-ID",
     "identity_attrs": [
-      "id",
       "transit_gateway_metering_policy_id"
     ]
   },
@@ -4858,7 +4857,7 @@
     ],
     "import_syntax": "PRINCIPAL_ARN",
     "identity_attrs": [
-      "id"
+      "principal_arn"
     ]
   },
   "aws_ecr_repository": {
@@ -6747,8 +6746,7 @@
     "reason": "Inspector2 assigns the filter its own ARN at create time; the name argument is client-chosen but is not the import identity.",
     "import_syntax": "ARN",
     "identity_attrs": [
-      "arn",
-      "id"
+      "arn"
     ]
   },
   "aws_inspector2_member_association": {
@@ -7328,8 +7326,7 @@
     "reason": "KMS assigns the key ID (a UUID) at create time, the same shape as aws_kms_key; the type has no name argument and no identity schema in v6.59.0, so nothing in configuration reconstructs it.",
     "import_syntax": "KEYID",
     "identity_attrs": [
-      "id",
-      "key_id"
+      "id"
     ]
   },
   "aws_kms_key": {
@@ -7359,6 +7356,7 @@
         "attrs": [
           "database_name"
         ],
+        "block": "table_data",
         "identity_attr": "*"
       },
       {
@@ -7368,6 +7366,7 @@
         "attrs": [
           "name"
         ],
+        "block": "table_data",
         "identity_attr": "*"
       },
       {
@@ -7377,6 +7376,7 @@
         "attrs": [
           "table_catalog_id"
         ],
+        "block": "table_data",
         "identity_attr": "*"
       },
       {
@@ -7386,6 +7386,7 @@
         "attrs": [
           "table_name"
         ],
+        "block": "table_data",
         "identity_attr": "*"
       }
     ],
@@ -7447,7 +7448,6 @@
     ],
     "import_syntax": "NAME",
     "identity_attrs": [
-      "id",
       "name"
     ]
   },
@@ -9509,7 +9509,7 @@
     "reason": "OpenSearch Ingestion imports a pipeline by its own name; confirmed against the provider's own Identity Schema (v6.59.0, Required: name).",
     "import_syntax": "NAME",
     "identity_attrs": [
-      "name"
+      "pipeline_name"
     ]
   },
   "aws_paymentcryptography_key": {
@@ -11576,8 +11576,7 @@
     ],
     "import_syntax": "FEATUREGROUPNAME",
     "identity_attrs": [
-      "feature_group_name",
-      "name"
+      "feature_group_name"
     ]
   },
   "aws_sagemaker_hub": {
@@ -11639,8 +11638,7 @@
     "reason": "SageMaker AI mints the MLflow App's own ARN at create time; name is Required and client-chosen but names the app, not its identity — the provider's own real Terraform 1.12+ Identity Schema requires arn specifically (the one MLflow proposal in this batch's scope where the registry and the provider agree outright, the same shape aws_msk_cluster's entry above sets). Confirmed against the documented import command (terraform import aws_sagemaker_mlflow_app.example arn:aws:sagemaker:us-east-1:123456789012:mlflow-app/app-ABCD1234).",
     "import_syntax": "ARN",
     "identity_attrs": [
-      "arn",
-      "id"
+      "arn"
     ]
   },
   "aws_sagemaker_mlflow_tracking_server": {
@@ -12143,8 +12141,7 @@
     "reason": "Security Hub assigns the v2 hub's own ARN at create time; nothing in configuration names it.",
     "import_syntax": "ARN",
     "identity_attrs": [
-      "arn",
-      "id"
+      "arn"
     ]
   },
   "aws_securityhub_aggregator_v2": {
@@ -12153,8 +12150,7 @@
     "reason": "Security Hub assigns the v2 aggregator's own ARN at create time; nothing in configuration names it.",
     "import_syntax": "ARN",
     "identity_attrs": [
-      "arn",
-      "id"
+      "arn"
     ]
   },
   "aws_securityhub_automation_rule": {
@@ -12173,8 +12169,7 @@
     "reason": "Security Hub assigns the v2 automation rule's own ARN at create time; nothing in configuration names it.",
     "import_syntax": "ARN",
     "identity_attrs": [
-      "arn",
-      "id"
+      "arn"
     ]
   },
   "aws_securityhub_configuration_policy_association": {
@@ -12198,7 +12193,6 @@
     "reason": "Security Hub assigns the v2 connector's own ID at create time; the provider/name arguments describe it but do not identify it.",
     "import_syntax": "CONNECTORID",
     "identity_attrs": [
-      "id",
       "connector_id"
     ]
   },
@@ -13625,7 +13619,7 @@
     "reason": "the provider's Attribute Reference documents web_app_id as a resource-exported attribute, absent from the Argument Reference entirely (the sole Required argument is the identity_provider_details block; tags is Optional) - the documented import command uses web_app_id, which no configuration argument reconstructs.",
     "import_syntax": "WEB_APP_ID",
     "identity_attrs": [
-      "id",
+      "web_app_id",
       "arn"
     ]
   },
@@ -13641,7 +13635,6 @@
     ],
     "import_syntax": "WEB_APP_ID",
     "identity_attrs": [
-      "id",
       "web_app_id"
     ]
   },

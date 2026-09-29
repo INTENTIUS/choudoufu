@@ -77,7 +77,21 @@ func nextUnitsAgainst(headline []Stage, a *Artifact, set string) []Unit {
 			// should ENQUEUE units, not silently invalidate the board, so
 			// this is real work too, just lower priority than a genuine
 			// failure - see the trailing pass below.
-			if IsStale(r, a.Emulator) {
+			//
+			// r.Substrate != "" (the kind lane, #1067) is excluded from the
+			// emulator check: such a row's last_run.emulator is never
+			// stamped at all (#1594 - a kind-substrate estate does not
+			// launch floci, so the floci pin's movement says nothing about
+			// whether ITS evidence is stale), and treating an unstamped
+			// field as "always stale" would enqueue a permanent,
+			// meaningless re-verify unit for every clear kind estate on
+			// every render.
+			//
+			// IsProviderStale (issue #1253) gets no such exclusion: it
+			// already reads the field that applies to r.Substrate (AWS for
+			// a floci-substrate row, Kubernetes for a kind-substrate one),
+			// so every clear row is checked against its own provider pin.
+			if (r.Substrate == "" && IsStale(r, a.Emulator)) || IsProviderStale(r, a.Providers) {
 				staleClear = append(staleClear, r)
 			}
 			continue
@@ -134,18 +148,41 @@ func nextUnitsAgainst(headline []Stage, a *Artifact, set string) []Unit {
 		return staleClear[i].Name < staleClear[j].Name
 	})
 	for _, r := range staleClear {
-		emu := "unrecorded"
-		if r.LastRun != nil && r.LastRun.Emulator != "" {
-			emu = r.LastRun.Emulator
+		var reasons []string
+		if r.Substrate == "" && IsStale(r, a.Emulator) {
+			emu := "unrecorded"
+			if r.LastRun != nil && r.LastRun.Emulator != "" {
+				emu = r.LastRun.Emulator
+			}
+			reasons = append(reasons, fmt.Sprintf("last verified against emulator %s; the current pin is %s", emu, a.Emulator))
+		}
+		// IsProviderStale (issue #1253): the same split LastRun's own
+		// AWSProviderVersion/KubernetesProviderVersion use - a
+		// kind-substrate row's reason names hashicorp/kubernetes, every
+		// other row's names hashicorp/aws.
+		if IsProviderStale(r, a.Providers) {
+			if r.Substrate == SubstrateKind {
+				got := "unrecorded"
+				if r.LastRun != nil && r.LastRun.KubernetesProviderVersion != "" {
+					got = r.LastRun.KubernetesProviderVersion
+				}
+				reasons = append(reasons, fmt.Sprintf("last verified against hashicorp/kubernetes %s; the current pin is %s", got, a.Providers.Kubernetes))
+			} else {
+				got := "unrecorded"
+				if r.LastRun != nil && r.LastRun.AWSProviderVersion != "" {
+					got = r.LastRun.AWSProviderVersion
+				}
+				reasons = append(reasons, fmt.Sprintf("last verified against hashicorp/aws %s; the current pin is %s", got, a.Providers.AWS))
+			}
 		}
 		units = append(units, Unit{
 			ID: r.Name + "/" + StageStalePin, Estate: r.Name, Set: r.Set,
-			Stage: StageStalePin, StageTitle: "Re-verify against the current emulator pin",
+			Stage: StageStalePin, StageTitle: "Re-verify against the current pin",
 			Verdict:   "stale_evidence",
-			Detail:    fmt.Sprintf("every headline stage passed, but last verified against %s; the current pin is %s", emu, a.Emulator),
+			Detail:    fmt.Sprintf("every headline stage passed, but %s", strings.Join(reasons, "; ")),
 			Remaining: 0, Script: r.Script,
-			Proves: "the estate still behaves like stock against the CURRENT emulator pin, not a superseded one",
-			Oracle: "re-run against the pinned image and confirm the same verdicts",
+			Proves: "the estate still behaves like stock against the CURRENT pin, not a superseded one",
+			Oracle: "re-run against the pinned image/version and confirm the same verdicts",
 		})
 	}
 	return units

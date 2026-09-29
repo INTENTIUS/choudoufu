@@ -6,6 +6,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -25,16 +26,36 @@ func gitDirty(root string) (bool, error) {
 	return strings.TrimSpace(out) != "", nil
 }
 
+// errNotAtRef is gitShow's real "no": the path is not in the tree at ref.
+// Callers test for it with errors.Is; every other error from gitShow means
+// git could not answer, and is not a statement about the path at all.
+var errNotAtRef = errors.New("path does not exist at ref")
+
 // gitShow returns ref's content for relPath (e.g. "HEAD:live/registry.json"
 // via gitShow(root, "HEAD", "live/registry.json")). A path that doesn't
-// exist at ref is a plain error the caller treats as "no before state" (a
-// brand-new artifact).
+// exist at ref returns an error wrapping errNotAtRef, which the caller
+// treats as "no before state" (a brand-new artifact). Any other failure is
+// git's own message (#1220): until this distinguished the two, a git that
+// could not run made every artifact read as newly appearing.
+//
+// `git show` exits 128 for a missing path and for a broken toolchain
+// alike, so the message is what tells them apart: git prints "path '...'
+// does not exist in '<ref>'" or, for a file that is on disk but not
+// committed, "path '...' exists on disk, but not in '<ref>'".
 func gitShow(root, ref, relPath string) ([]byte, error) {
 	cmd := exec.Command("git", "show", ref+":"+relPath) //nolint:gosec // ref/relPath are internal, not attacker input
 	cmd.Dir = root
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, err
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			msg := strings.TrimSpace(string(ee.Stderr))
+			if strings.Contains(msg, "does not exist in") || strings.Contains(msg, "exists on disk, but not in") {
+				return nil, fmt.Errorf("%w: %s:%s", errNotAtRef, ref, relPath)
+			}
+			return nil, fmt.Errorf("git show %s:%s: %w: %s", ref, relPath, err, msg)
+		}
+		return nil, fmt.Errorf("git show %s:%s: %w", ref, relPath, err)
 	}
 	return out, nil
 }

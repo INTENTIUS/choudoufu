@@ -181,21 +181,29 @@ func TestPolicyMatrixAgainstFloci(t *testing.T) {
 	// A third plan is deliberately NOT clean, and that is this exact policy
 	// combination's own second-order consequence rather than a bug: with
 	// declared_tagged still assigned "untag", nothing can stay tagged for
-	// more than one apply. The VPC lost its marker in apply2, so marker
-	// discovery cannot find it any more - it reads as declared_untagged
-	// (needs discovery, no import identity) and the plan proposes creating
-	// it again, exactly the "leaves management" consequence stated above in
-	// so many words. The bucket adopted in apply2 is now declared_tagged
-	// for the first time, and the same untag verb immediately releases its
-	// marker too. Nothing here is destroyed and nothing about the security
-	// group scope fires again, because there is nothing left in it to
-	// reconcile.
+	// more than one apply. The VPC lost its tofu-estate marker in apply2,
+	// so it reads as declared_untagged again - and the fixture's
+	// declared_untagged verb is "converge", so the plan proposes writing
+	// the marker straight back, exactly the "leaves management" consequence
+	// stated above in so many words. The bucket adopted in apply2 is now
+	// declared_tagged for the first time, and the same untag verb releases
+	// its marker in turn. Nothing here is destroyed and nothing about the
+	// security group scope fires again, because there is nothing left in it
+	// to reconcile.
+	//
+	// The re-marking is an in-place tag update, not a create. This
+	// assertion used to demand a create (add >= 1): before the local record
+	// store (#364) the released marker was the only way to find the VPC
+	// again, so the plan proposed a duplicate. With a record from apply1
+	// still naming the live object, the plan finds it without marker
+	// discovery and converges it. The tier that would have measured that
+	// change did not run for the nights it landed on (#1280, #1316).
 	third := tofu(t, tofuBin, dir, "plan")
-	if !strings.Contains(third, "aws_vpc.main") {
-		t.Errorf("the third plan does not propose recreating the now-invisible VPC, which is untag's own documented consequence:\n%s", third)
+	if !strings.Contains(third, "aws_vpc.main <- aws_vpc [declared_untagged=converge]") {
+		t.Errorf("the third plan does not report the now-unmarked VPC as declared_untagged under converge, which is untag's own documented consequence:\n%s", third)
 	}
-	if add, _, destroy, ok := flocitest.PlanSummary(third); !ok || add < 1 || destroy != 0 {
-		t.Errorf("want at least 1 add and 0 destroy on the third plan (the VPC recreate, no more security groups to reconcile), got add=%d destroy=%d ok=%v:\n%s", add, destroy, ok, third)
+	if add, change, destroy, ok := flocitest.PlanSummary(third); !ok || add != 0 || change < 1 || destroy != 0 {
+		t.Errorf("want 0 add, at least 1 change and 0 destroy on the third plan (the VPC re-marked in place, no more security groups to reconcile), got add=%d change=%d destroy=%d ok=%v:\n%s", add, change, destroy, ok, third)
 	}
 
 	assertNoState(t, dir, "after the policy matrix scenario")

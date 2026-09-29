@@ -18,6 +18,23 @@ import (
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
+// SummaryRecordStoreWriteFailed is the diagnostic summary for "this run
+// tried to write a record and could not, and the instance it was for has no
+// other carrier". GitHub issue #1287.
+//
+// It is distinct from "Cannot persist a record", which is the apply path's
+// write-back failure, because the two ask the operator for different things:
+// a failed write-back fails an apply that has already changed live
+// resources, while this one says a MIGRATION is incomplete and must be run
+// again once whatever stopped the write is fixed.
+//
+// Declared here, next to the seeder, and raised from
+// internal/live/liveimport - the same arrangement
+// [SummaryLocatedIdentityNotRecorded] and [SummaryResidueNotClassified]
+// already have, so every record-store diagnostic summary is declared in one
+// package and enumerable from one registry.
+const SummaryRecordStoreWriteFailed = "Record store write failed"
+
 // SeedRecordForInstance writes one record-backed resource instance's object
 // into store, from an object its caller already holds rather than from a
 // state file this package reads - GitHub issue #340's migrate-time half of

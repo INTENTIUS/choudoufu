@@ -1,5 +1,5 @@
 # the-tag-is-the-boundary
-# CLAIM 13 - The tag is the boundary: ownership is a tag, so the cloud's own policy engine governs who may act on what, per resource, and a carve is a governed tag write instead of state surgery nothing can gate. ~4 min.
+# CLAIM 13 (aws) - The tag is the boundary: ownership is a tag, so the cloud's own policy engine governs who may act on what, per resource, and a carve is a governed tag write instead of state surgery nothing can gate. ~4 min.
 #
 # Two roles on one estate, each fenced to its half by a condition on the
 # ownership tag. Then one of them carves her half out into an estate of its
@@ -127,8 +127,16 @@ rename_tag() { local f="$1" from="$2" to="$3" t; t="$(mktemp)"
 # answers UnauthorizedOperation; the emulator answers 403 with a body the EC2
 # SDK cannot parse (lex00/floci: EC2 deny envelope), which the provider
 # reports as a bare 403 (lex00/floci#189).
-denied() { grep -qE 'UnauthorizedOperation|AccessDenied|not authorized to perform|StatusCode: 403' <<< "$1"; }
-refusal_line() { { sed 's/\x1b\[[0-9;]*m//g' <<< "$1" | grep -E 'UnauthorizedOperation|AccessDenied|not authorized to perform|StatusCode: 403' || true; } | head -1 | sed -e 's/^[[:space:]]*//' -e 's/^[^A-Za-z]*//' -e 's/, RequestID: [0-9a-f-]*//'; }
+#
+# $1 is stripped of the "Incomplete sweep for undeclared resources" warning
+# first (GitHub issue #1636): the account-wide sweep this scenario's own
+# apply also runs can be denied a read the role under test was never
+# granted (iam:ListPolicies, unrelated to the ownership-tag condition this
+# claim is about) and that denial's raw provider error string is quoted
+# inside the warning verbatim, so it reads "AccessDenied" too. Matching it
+# would report Bob's cross-half write as still refused even when it landed.
+denied() { strip_incomplete_sweep_warning <<< "$1" | grep -qE 'UnauthorizedOperation|AccessDenied|not authorized to perform|StatusCode: 403'; }
+refusal_line() { { strip_incomplete_sweep_warning <<< "$1" | sed 's/\x1b\[[0-9;]*m//g' | grep -E 'UnauthorizedOperation|AccessDenied|not authorized to perform|StatusCode: 403' || true; } | head -1 | sed -e 's/^[[:space:]]*//' -e 's/^[^A-Za-z]*//' -e 's/, RequestID: [0-9a-f-]*//'; }
 
 step "the claim"
 explain \

@@ -1,0 +1,89 @@
+# One estate's records namespace and the two identities that use it.
+# GitHub issue #1442, the cluster half of examples/record-store-bucket.
+#
+# ESTATE is replaced by `just up <estate>` (sed, the way
+# live/kubernetes/estate-grant.yaml is applied). The namespace name is what
+# `record_store "kubernetes" {}` resolves to with no `namespace` argument,
+# so an estate that declares the block empty lands here.
+#
+# Two Roles and not one, because a plan and an apply need different verbs
+# and internal/live/staterecord/kubernetescontract.go asks for exactly these:
+#
+#   - plan:  get and list on Secrets (KubernetesPlanVerbs). A plan reads
+#            records and writes none; the sentinel an earlier apply left
+#            behind is what lets it proceed without write access (#1370).
+#   - apply: get, list, create, update and delete (KubernetesRecordVerbs).
+#            Nothing else: the store never patches or watches.
+#
+# Both are Roles, never ClusterRoles. The namespace is the read boundary -
+# RBAC cannot condition on a label and admission never sees a get - so an
+# identity bound to a ClusterRole on Secrets reads every other estate's
+# records in the cluster, which is what the contract's read_isolation
+# assertion refuses. live/record_store_cluster_test.go holds these verbs to
+# the store's own lists.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tofu-records-ESTATE
+  labels:
+    app.kubernetes.io/part-of: choudoufu
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: choudoufu-plan
+  namespace: tofu-records-ESTATE
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: choudoufu-apply
+  namespace: tofu-records-ESTATE
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: choudoufu-records-plan
+  namespace: tofu-records-ESTATE
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: choudoufu-records-apply
+  namespace: tofu-records-ESTATE
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "create", "update", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: choudoufu-records-plan
+  namespace: tofu-records-ESTATE
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: choudoufu-records-plan
+subjects:
+  - kind: ServiceAccount
+    name: choudoufu-plan
+    namespace: tofu-records-ESTATE
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: choudoufu-records-apply
+  namespace: tofu-records-ESTATE
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: choudoufu-records-apply
+subjects:
+  - kind: ServiceAccount
+    name: choudoufu-apply
+    namespace: tofu-records-ESTATE

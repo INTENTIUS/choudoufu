@@ -7,17 +7,23 @@ package command
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"strings"
 
 	"github.com/mitchellh/cli"
 
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/liveimport"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -179,11 +185,12 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 	var recordStore *projection.RecordStore
 	var rootOutputStore *projection.RootOutputStore
 	if recordStoreCfg != nil {
-		store, storeErr := projection.NewRecordStore(ctx, recordStoreCfg, retryCfg, args.Estate, ".")
-		if storeErr != nil {
-			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot open the record store", fmt.Sprintf(
-				"The live block's record_store %q could not be opened: %s.", recordStoreCfg.Type, storeErr,
-			)))
+		// The waiver warnings and, when this run will stamp, the store's
+		// contract: see [openRecordStoreForImport], GitHub issues #1340,
+		// #1376 and #1448.
+		store, storeDiags := openRecordStoreForImport(ctx, projection.NewRecordStore, recordStoreCfg, retryCfg, args.Estate, args.Approve)
+		diags = diags.Append(storeDiags)
+		if storeDiags.HasErrors() {
 			return nil, closer, diags
 		}
 		recordStore = projection.NewRecordEnvelopeStore(store, projection.RecordStoreKeyPrefix(recordStoreCfg, args.Estate))
@@ -197,6 +204,13 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		// whatever it names.
 		rootOutputStore = projection.NewRootOutputStore(store, args.Estate)
 	}
+
+	// GitHub issue #1543: the provider-configuration data-read phase, which
+	// the plan paths have run since GitHub issue #313 and this one never
+	// did. Placed here because it must be complete before the first
+	// [statelessProviders.ConfiguredProvider] call, and Ratify's own first
+	// instance makes one.
+	liveImportProviderDataReads(ctx, config, provs, recordStore, stateFile.State)
 
 	rat, impDiags := liveimport.Ratify(ctx, liveimport.Request{
 		Estate: args.Estate,
@@ -228,6 +242,146 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 	})
 	diags = diags.Append(impDiags)
 	return rat, closer, diags
+}
+
+// liveImportProviderDataReads runs GitHub issue #313's provider-
+// configuration data-read phase on the migrate path, which until GitHub
+// issue #1543 only live-plan (live_plan.go:678) and a plan or apply under a
+// live block (live_mode.go:1164) ran. Without it
+// [statelessProviders.providerConfigValue] decodes a provider block through
+// the module's bare static evaluator, so `provider "kubernetes" { host =
+// data.aws_eks_cluster.cluster.endpoint }` - corpus-eks-basic's own shape -
+// refuses with "Dynamic value in static context", [ratifyOne]'s
+// ConfiguredProvider call fails, and every instance that provider serves is
+// reported MISSING. An estate could therefore be planned and not migrated,
+// and since GitHub issue #1108 made an unlabelled declared Kubernetes object
+// read UNOWNED rather than bind by natural key, the marker that migration
+// never wrote turned into a proposed create of an object that already
+// exists.
+//
+// Nothing here raises a diagnostic. Every phase it runs is fatal on the plan
+// path and best-effort here, for the reason [liveimport.Ratify] already
+// drops its own [identity.ResolveWith] diagnostics: this is an input to
+// configuring a provider, not a verdict about the estate, and a migration
+// that refused where it used to report would be a new refusal on the one
+// command whose whole job is to get an existing estate onto markers. What a
+// phase cannot supply leaves the provider exactly as unconfigurable as it is
+// today, with the same diagnostic ratifyOne has always printed for it.
+//
+// # What it costs, and who pays it
+//
+// The gate is offline and exact: [dataread.AnalyzeProviderConfigs] over the
+// bare options walks the provider blocks' own argument expressions and
+// records every declared data resource they reach, before any eligibility
+// rule that would want a schema (see [dataread.Analysis.Empty] and
+// analyzer.classify, which stores its record on every path that gets past
+// "no such data resource"). A configuration whose provider blocks name no
+// data source - every estate that migrated before this existed - returns
+// here having started no plugin, read nothing, and resolved nothing, so its
+// report is unchanged by construction rather than by measurement.
+//
+// A configuration that does pay it pays what a live-plan of the same
+// configuration already pays: every provider plugin started for schemas,
+// one ReadDataSource per data block identity demands, a second resolution
+// pass's PlanResourceChange calls when the first pass refused and named a
+// managed block, and then the fixpoint's own reads. Read-only, and the same
+// calls the plan the operator is migrating towards makes anyway.
+//
+// The read-parallelism setting is read for its value and not for its
+// refusal: [projection.ReadInstances] materializes sequentially at every
+// setting (see [statelessProviderDataReads]'s own note), so raising it here
+// would add a refusal to live-import over a knob that cannot change what
+// live-import does. The plan paths still refuse it, where it is load-bearing.
+//
+// The nil [identity.Scope] is live-import having no -target or -exclude flag
+// to honour, and nil means every block is in scope - the same value
+// live-mv and live-ls pass for the same reason.
+func liveImportProviderDataReads(ctx context.Context, config *configs.Config, provs *statelessProviders, recordStore *projection.RecordStore, state *states.State) {
+	if dataread.AnalyzeProviderConfigs(ctx, config, dataread.Options{}).Empty() {
+		return
+	}
+
+	resourceSchemas := provs.resourceSchemas(ctx)
+
+	// GitHub issue #179's identity data-read class, ahead of resolution
+	// exactly as the plan paths run it: the fixpoint below reads a managed
+	// resource a provider-configuration data source names, and it finds
+	// that resource through the resolution map, so an identity that needs a
+	// data source of its own has to be resolvable before the chain can be
+	// followed.
+	dataResults, drDiags := statelessDataReads(ctx, config, provs, resourceSchemas, nil)
+	for _, d := range drDiags {
+		log.Printf("[TRACE] live-import: identity data reads: %s", d.Description().Summary)
+	}
+
+	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, nil)
+	for _, d := range idDiags {
+		log.Printf("[TRACE] live-import: identity resolution for the provider-configuration data reads: %s", d.Description().Summary)
+	}
+
+	readPar, parDiags := readParallelismSetting()
+	for _, d := range parDiags {
+		log.Printf("[TRACE] live-import: %s", d.Description().Summary)
+	}
+
+	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, recordStore, readPar, nil, liveImportPriorManagedValues(state, resourceSchemas))
+}
+
+// liveImportPriorManagedValues is the state file being migrated, decoded into
+// [projection.ReadInstances]' own output shape - every managed instance in it,
+// keyed by absolute instance address - for [statelessProviderDataReads]'
+// priorManaged argument.
+//
+// It is the migrate path's whole answer to a question the plan path never has
+// to ask. The fixpoint reads a managed instance a provider-configuration data
+// source names, and it reads a record-backed one out of the estate's record
+// store; a migration is what WRITES that store, so during Ratify the store is
+// empty and such an instance cannot be materialized at all. The state file has
+// had the value the whole time. corpus-eks-basic is the measured case:
+// data.aws_eks_cluster.cluster needs module.eks.aws_eks_cluster.this[0], whose
+// identity is parent-derived from random_string.suffix, which is record-backed
+// - the plan path read both and the migrate path read neither.
+//
+// The state is also the RIGHT source rather than a convenient one. It is the
+// prior state stock OpenTofu would hand its own plan graph for this
+// configuration, which is exactly what [statelessProviderDataReads]' doc
+// comment says the phase reproduces, and it is the file this command's whole
+// job is to migrate from.
+//
+// Silent and partial on purpose, like every other input to that phase: a type
+// this run has no schema for, an instance with only a deposed object, an
+// object that will not decode against the schema it was written with, are each
+// left out rather than raised. What is missing costs the one provider
+// configuration that wanted it, which then fails to configure with the
+// diagnostic it already had.
+func liveImportPriorManagedValues(state *states.State, schemas map[string]providers.Schema) map[string]cty.Value {
+	if state == nil || len(schemas) == 0 {
+		return nil
+	}
+	out := make(map[string]cty.Value)
+	for _, mod := range state.Modules {
+		for _, res := range mod.Resources {
+			if res.Addr.Resource.Mode != addrs.ManagedResourceMode {
+				continue
+			}
+			schema, ok := schemas[res.Addr.Resource.Type]
+			if !ok || schema.Block == nil {
+				continue
+			}
+			ty := schema.Block.ImpliedType()
+			for key, inst := range res.Instances {
+				if inst == nil || inst.Current == nil {
+					continue
+				}
+				obj, err := inst.Current.Decode(ty)
+				if err != nil || obj == nil || obj.Value == cty.NilVal {
+					continue
+				}
+				out[res.Addr.Instance(key).String()] = obj.Value
+			}
+		}
+	}
+	return out
 }
 
 func liveImportReport(statePath string, rat *liveimport.Ratification) views.StatelessImportReport {
@@ -271,9 +425,12 @@ Usage: choudoufu [global options] live-import -state=PATH -estate=NAME [-approve
   prints a ratification report. No tag is written on this run.
 
   Rerun with the same two flags plus -approve to stamp this estate's
-  tofu-estate and tofu-address markers onto every resource the report showed
-  as VERIFIED or DRIFTED. Every other status - MISSING, UNTAGGABLE,
-  UNADMITTED_TYPE - is never stamped; the report says why for each one.
+  ownership marker onto every resource the report showed as VERIFIED or
+  DRIFTED. On AWS that marker is two tags, tofu-estate and tofu-address. On
+  Kubernetes it is one label, tofu-estate, and no address: an object is
+  re-bound by its own group, kind, namespace and name, so the address never
+  goes onto it. Every other status - MISSING, UNTAGGABLE, UNADMITTED_TYPE -
+  is never stamped; the report says why for each one.
 
   The state file is opened exactly once, at the start of the run, and is
   never opened again - not to write it, and not to read it a second time,
@@ -293,9 +450,17 @@ Usage: choudoufu [global options] live-import -state=PATH -estate=NAME [-approve
 
   Only resource types with a row in the live-markers admission table
   (live/LIMITATIONS.md) can be verified or stamped at all, and only those
-  whose provider schema carries a tags argument can carry a marker. Every
-  module is considered, root and child alike, and a stamped tofu-address
-  carries the resource's full module path.
+  whose provider schema offers somewhere to write the marker can carry one:
+  an AWS tags argument, a Kubernetes metadata.labels map, or the manifest a
+  kubernetes_manifest holds, which is labelled by one merge patch against
+  the API server. Every module is considered, root and child alike, and a
+  stamped tofu-address carries the resource's full module path.
+
+  An estate name may be up to 128 characters, but a Kubernetes label value
+  is capped at 63 and has its own character rules. When the state holds any
+  object whose marker is a label, a name that cannot be written as a label
+  value is refused once, by the read-only run, rather than once per object
+  at -approve.
 
 Options:
 
@@ -315,7 +480,8 @@ Options:
                           configuration already runs at, over the same kind
                           of work: one provider plan+apply round trip per
                           resource. Lower it if the account's tagging APIs
-                          push back. No effect without -approve.
+                          or the cluster's API server push back. No effect
+                          without -approve.
 
   -no-color               If specified, output won't contain any color.
 

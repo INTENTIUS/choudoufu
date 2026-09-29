@@ -20,6 +20,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/strict"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -172,6 +173,16 @@ type residuable struct {
 	// so the value the last apply sent is the only value there is, and the
 	// state file is where it is written down.
 	applied cty.Value
+
+	// manifestKeys is GitHub issue #1391's seed: for a manifest-shaped
+	// instance, the metadata.labels and metadata.annotations keys the
+	// STATE's own recorded manifest declares, plus the marker key this
+	// migration writes. nil for every other type. Computed at ratification
+	// because that is where the state's recorded object is in hand -
+	// applied above is the live read for a stampable instance, and this
+	// question is about what the last apply declared. See
+	// [seedManifestKeys].
+	manifestKeys map[string][]string
 
 	identity cty.Value
 	private  []byte
@@ -529,6 +540,12 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 	// takes exactly the path it always took.
 	selection := identity.SelectionFor(req.Config)
 
+	// GitHub issue #1396. Counted while the entries are built, because the
+	// carrier is what decides it and the carrier is only known once the
+	// provider's schema for that type has been read. See the refusal below
+	// the loop for what it is for.
+	labelCarriers := 0
+
 	for _, mod := range sortedModules(req.State) {
 		for _, res := range sortedResources(mod) {
 			if res.Addr.Resource.Mode != addrs.ManagedResourceMode {
@@ -540,6 +557,9 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 				rat.Entries = append(rat.Entries, entry)
 				if car.eligible != nil {
 					rat.eligible[addr.String()] = car.eligible
+					if car.eligible.labelled || car.eligible.manifested {
+						labelCarriers++
+					}
 				}
 				if car.recordable != nil {
 					rat.recordable[addr.String()] = car.recordable
@@ -552,6 +572,44 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 				}
 			}
 		}
+	}
+
+	// GitHub issue #1396. An estate name may be 128 characters of [a-z0-9-]
+	// ([markers.ValidEstateName]); a Kubernetes label value may be 63 and
+	// must begin and end with a letter or digit ([markers.ValidLabelValue]).
+	// So a name the bucket, the IAM policy and every AWS tag accept can be
+	// one no object on the label or manifest surface can carry.
+	//
+	// [approveLabel] and [approveManifest] each test it per object, which is
+	// the right place for a backstop and the wrong place for the only test:
+	// a migration of 200 Kubernetes objects printed 200 identical FAILED
+	// lines, and this read-only step - whose whole job is to say what
+	// -approve will do - said nothing at all. It is said once here instead,
+	// with the count, and the per-object tests stay where they are for a
+	// caller that assembles an [eligible] some other way.
+	//
+	// The condition is the carrier, not the provider or the type name: an
+	// AWS-only state under a 64-character estate is untouched by this,
+	// because no entry in it carries a marker as a label.
+	if labelCarriers > 0 && !markers.ValidLabelValue(req.Estate) {
+		// Written out twice rather than assembled from a count and a
+		// plural "s": the sentence disagrees with itself in four places at
+		// once ("instances ... carry their ... these objects ... every one
+		// of them"), and one object is the ordinary case for a small
+		// estate.
+		detail := fmt.Sprintf(
+			"%d resource instances in this state carry their ownership marker as a Kubernetes label, and the estate name %q cannot be written as one: %s. An estate name may be up to 128 characters, so this name is legal for an AWS estate and not for these objects. Nothing was ratified and nothing was written; -approve would have failed on every one of them. Migrate them under a name that is a legal label value.",
+			labelCarriers, req.Estate, labelValueProblem(req.Estate))
+		if labelCarriers == 1 {
+			detail = fmt.Sprintf(
+				"1 resource instance in this state carries its ownership marker as a Kubernetes label, and the estate name %q cannot be written as one: %s. An estate name may be up to 128 characters, so this name is legal for an AWS estate and not for this object. Nothing was ratified and nothing was written; -approve would have failed on it. Migrate it under a name that is a legal label value.",
+				req.Estate, labelValueProblem(req.Estate))
+		}
+		return nil, diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Estate name cannot be written as a Kubernetes label",
+			detail,
+		))
 	}
 
 	return rat, diags
@@ -670,20 +728,37 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	selected := selection.Selects(addr.ConfigResource()) &&
 		identity.SelectedLocatedType(typeName, map[string]providers.Schema{typeName: schema})
 
-	// GitHub issue #1073: a Kubernetes type carries its marker as a label,
-	// not a tag, and was UNTAGGABLE here until the label surface became a
-	// carrier too. Checked after the tags map, which [markers.LabelSurface]
-	// itself refuses to double-count.
-	labelled := !selected && !taggable(schema.Block) && labelSurface(schema.Block)
-
-	// GitHub issue #1109: the manifest shape is the third carrier, and was
-	// not one here, so every kubernetes_manifest entry in a stock state
-	// file - every custom resource an estate declares - was ratified
-	// UNTAGGABLE and migrated without its label. Checked after the other
-	// two, which [markers.ManifestSurface] itself refuses to double-count.
-	manifested := !selected && !taggable(schema.Block) && !labelled && manifestSurface(schema.Block)
-	if !selected && !taggable(schema.Block) && !labelled && !manifested {
-		return ratifyUntaggable(entry, provider, schema, typeName, inst, res.ProviderConfig)
+	// The carrier is how the substrate writes a marker onto an object that
+	// already exists (GitHub issue #1118 moved the choice into
+	// internal/live/substrate):
+	//
+	//   - a tags-only plan on the AWS tag map;
+	//   - a labels-only plan on metadata[0].labels (GitHub issue #1073: a
+	//     Kubernetes type was UNTAGGABLE here until the label surface
+	//     became a carrier too);
+	//   - an API patch on manifest.metadata.labels (GitHub issue #1109: the
+	//     manifest shape was not a carrier, so every kubernetes_manifest
+	//     entry in a stock state file - every custom resource an estate
+	//     declares - was ratified UNTAGGABLE and migrated without its
+	//     label).
+	//
+	// A type with no marker surface at all is untaggable.
+	//
+	// Each carrier is named here, so a surface this switch has not learned
+	// is one the completeness guard (internal/live/markers/seams_test.go)
+	// reports rather than one a migration silently leaves unmarked.
+	var labelled, manifested bool
+	surface, _ := substrate.SurfaceOf(schema.Block)
+	switch surface {
+	case markers.SurfaceTags:
+	case markers.SurfaceLabels:
+		labelled = !selected
+	case markers.SurfaceManifest:
+		manifested = !selected
+	default:
+		if !selected {
+			return ratifyUntaggable(entry, provider, schema, typeName, inst, res.ProviderConfig)
+		}
 	}
 
 	prior, decErr := inst.Current.Decode(schema.Block.ImpliedType())
@@ -744,6 +819,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		schema:       schema,
 		typeName:     typeName,
 		applied:      readResp.NewState,
+		manifestKeys: seedManifestKeys(schema, priorVal),
 		identity:     readResp.NewIdentity,
 		private:      readResp.Private,
 		providerAddr: res.ProviderConfig,
@@ -863,6 +939,7 @@ func ratifyUntaggable(entry Entry, provider providers.Interface, schema provider
 		schema:       schema,
 		typeName:     typeName,
 		applied:      applied,
+		manifestKeys: seedManifestKeys(schema, applied),
 		identity:     prior.Identity,
 		private:      prior.Private,
 		providerAddr: providerAddr,

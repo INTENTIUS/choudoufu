@@ -1,7 +1,7 @@
 ---
 title: "How it works"
 weight: 30
-lead: "Three things have to survive between runs: which live object each block owns, the values the platform cannot hold, and whether an effect already ran. Each lives somewhere the platform already has, and the state file becomes a projection of them."
+lead: "A marker on every resource says who owns it. A record per resource holds what cannot be read back. The state file stays, as a cache you may delete."
 hideChildren: false
 ---
 

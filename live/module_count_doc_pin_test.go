@@ -99,8 +99,8 @@ import (
 // page its author does not own.
 var moduleCountDocs = []string{
 	"MARKERS.md",
-	"../site/content/docs/model/identity.md",
-	"../site/content/docs/use/compatibility.md",
+	"IDENTITY.md",
+	"COMPATIBILITY.md",
 }
 
 // moduleCountTopic decides which chunks are about a module-level count.

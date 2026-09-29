@@ -12,6 +12,22 @@ Nothing here is a template you fill in. It is a project that builds, whose five 
 names are also the five job names a branch-protection rule or a warden policy can
 require: `live-check`, `live-plan`, `live-apply`, `live-adopt`, `live-discover`.
 
+## Substrate
+
+AWS-only. `terraform/main.tf`'s estate deliberately includes an
+`aws_iam_role`, and IAM is one of three services (with Route53 and S3) whose
+tagging call choudoufu does not print a paste-ready `live-adopt` command for
+- the estate demonstrates the honest half of adoption, an unmarked resource
+refused by name rather than silently skipped, and that refusal is specific
+to how the AWS Resource Groups Tagging API and IAM interact. A Kubernetes
+root has no equivalent gap to demonstrate: a Kubernetes resource either
+carries the estate's label or it does not, with no service-specific carve-out
+in between. Three forges' worth of generated pipelines, credentials and
+tests are also written for this one root; a Kubernetes variant would need
+its own generator output, its own credential shape (a kubeconfig or an
+OIDC-issued token, not an IAM role ARN) and its own tests across all three,
+which is not small.
+
 ## The five Ops
 
 | Op / job | Trigger | What it runs | What it may do |
@@ -475,9 +491,9 @@ Three roles, not one, which is the whole reason `setup` is a per-Op option:
 | Job | Repository/project variable | What its role needs |
 |---|---|---|
 | `live-check` | none | nothing. It makes no cloud call |
-| `live-plan`, `live-discover` | `CHOUDOUFU_PLAN_ROLE_ARN` | read: describe the declared types, `tag:GetResources`, and discover the account (below) |
-| `live-adopt` | `CHOUDOUFU_ADOPT_ROLE_ARN` | the above, plus the per-service tagging calls that write a marker |
-| `live-apply` | `CHOUDOUFU_APPLY_ROLE_ARN` | the above, plus create/update/delete on the declared types, and read/write on the record store's SSM prefix |
+| `live-plan`, `live-discover` | `CHOUDOUFU_PLAN_ROLE_ARN` | read: describe the declared types, `tag:GetResources`, discover the account (below), and the record store bucket's read-only policy for this estate (`examples/record-store-bucket/iam/render-policy.sh --read-only`, #1370: `live-plan` reads the estate's records and never writes one) |
+| `live-adopt` | `CHOUDOUFU_ADOPT_ROLE_ARN` | the above, plus the per-service tagging calls that write a marker. The record store policy is the same read-only one: adoption writes two tags on the live resource and no record |
+| `live-apply` | `CHOUDOUFU_APPLY_ROLE_ARN` | the above, plus create/update/delete on the declared types, and the record store bucket's full policy for this estate (the same renderer without `--read-only`): the only one of the three that can write a record |
 
 **Discover the account.** Issue #807's first real-AWS dispatch (run
 34632345663) got past `live-check` and then failed `live-plan` with no
@@ -553,9 +569,9 @@ pull-request job no longer holds a credential that can change the estate:
 | Job | Repository secrets | What they can do |
 |---|---|---|
 | `live-check` | none | nothing. It makes no cloud call |
-| `live-plan`, `live-discover` | `CHOUDOUFU_PLAN_ACCESS_KEY_ID` / `CHOUDOUFU_PLAN_SECRET_ACCESS_KEY` | read: describe the declared types, and `tag:GetResources` |
-| `live-adopt` | `CHOUDOUFU_ADOPT_ACCESS_KEY_ID` / `CHOUDOUFU_ADOPT_SECRET_ACCESS_KEY` | the above, plus the per-service tagging calls that write a marker |
-| `live-apply` | `CHOUDOUFU_APPLY_ACCESS_KEY_ID` / `CHOUDOUFU_APPLY_SECRET_ACCESS_KEY` | the above, plus create/update/delete on the declared types, and read/write on the record store's SSM prefix |
+| `live-plan`, `live-discover` | `CHOUDOUFU_PLAN_ACCESS_KEY_ID` / `CHOUDOUFU_PLAN_SECRET_ACCESS_KEY` | read: describe the declared types, `tag:GetResources`, and the record store bucket's read-only policy for this estate (`render-policy.sh --read-only`) |
+| `live-adopt` | `CHOUDOUFU_ADOPT_ACCESS_KEY_ID` / `CHOUDOUFU_ADOPT_SECRET_ACCESS_KEY` | the above, plus the per-service tagging calls that write a marker; the same read-only record store policy |
+| `live-apply` | `CHOUDOUFU_APPLY_ACCESS_KEY_ID` / `CHOUDOUFU_APPLY_SECRET_ACCESS_KEY` | the above, plus create/update/delete on the declared types, and the record store bucket's full policy for this estate (rendered by `examples/record-store-bucket/iam/render-policy.sh`) |
 
 The two write pairs are not the read pair, and `tests/pipelines.test.ts` asserts as
 much - the same shape the GitHub role table above is asserted by. What is still
@@ -660,9 +676,12 @@ JSON
 # 3. Three roles, three inline policies, least-privilege per the table above:
 #    read (describe the log group and the role by ARN, tag:GetResources/GetTagKeys/
 #    GetTagValues, sts:GetCallerIdentity, and the account-wide DiscoverTheAccount
-#    statement below) for plan; read plus the marker-writing tag calls for adopt;
-#    read plus marker-writing plus create/update/delete on the two resource types
-#    and the SSM record store's own prefix for apply.
+#    statement below) plus the record store bucket's READ-ONLY rendered policy
+#    (render-policy.sh --read-only) for plan; the same plus the marker-writing tag
+#    calls for adopt; read plus marker-writing plus create/update/delete on the two
+#    resource types and the record store bucket's FULL rendered policy for apply.
+#    The bucket itself is stood up beforehand: cd examples/record-store-bucket &&
+#    just up <bucket>.
 #    scripts/oidc-bootstrap.sh (below) generates exactly these three documents from
 #    this same terraform root - the commands here are what it runs.
 aws iam create-role --role-name choudoufu-ci-pipelines-plan \
@@ -697,7 +716,12 @@ them, skips `create-role` for a role that already exists (calling `update-assume
 and `put-role-policy` instead, so it is safe to re-run after a policy change), queries
 `repos/$REPO/actions/oidc/customization/sub` itself to build the two-subject-form
 `StringLike` list above rather than hand-composing it, and refuses to run at all if
-the OIDC provider is missing rather than creating one:
+the OIDC provider is missing rather than creating one. It reads the estate name and
+the record store bucket out of `terraform/estate.chdf.hcl`, refuses to run if that
+bucket does not exist, and takes every role's record store statements from
+`examples/record-store-bucket/iam/render-policy.sh` rather than keeping a copy: the
+full rendering for the apply role, the `--read-only` rendering for the plan and adopt
+roles (#1370, since #1423):
 
 ```bash
 scripts/oidc-bootstrap.sh --dry-run   # prints every aws/gh command it would run
@@ -714,7 +738,7 @@ account, through `aws-actions/configure-aws-credentials` assuming
 check the pin of):
 
 ```
-SMOKE op=choudoufu-pin verdict=pass version=v0.17.0
+SMOKE op=choudoufu-pin verdict=pass version=v0.18.0
 SMOKE op=live-check verdict=pass status=ok
 SMOKE op=live-plan verdict=pass status=ok
 SMOKE op=live-apply verdict=pass status=gated
@@ -733,15 +757,19 @@ SMOKE total pass=13 fail=0
 ```
 
 This section does not tear anything down: after `live-apply` runs `ok` against a real
-account, the CloudWatch log group, the IAM role, and the three SSM record-store
-entries in "The estate" below are real and stay real - nothing in `scripts/smoke.sh`
+account, the CloudWatch log group, the IAM role, and the estate's objects in the
+record store bucket named in "The estate" below are real and stay real - nothing in `scripts/smoke.sh`
 destroys them, on either target, and there is no `live-destroy` in the sequence. On
 the emulator this costs nothing because the whole container is thrown away after;
 against a real account a maintainer who dispatches `target: real-aws` more than once
 is re-applying the same estate, not creating a new one each time (the marker tags are
 how it recognizes its own prior run). Run 34644390301 left exactly that behind - one
-log group, one IAM role, three SSM records, all free - and it is still there. Tearing
-it down is a manual step this issue does not automate:
+log group, one IAM role and, at the time, three Parameter Store records - and it is
+still there. Those three parameters are abandoned, not migrated: Parameter Store is
+retired as a record store (#1346), both resources are taggable, and the first plan
+against the bucket finds them again by their marker tags. Deleting the parameters
+under `/tofu-records/ci-pipelines-example/` and `/tofu-hints/ci-pipelines-example/`
+is safe and is a manual step. Tearing the estate down is one too:
 
 ```bash
 cd terraform && choudoufu destroy   # using the apply role
@@ -756,35 +784,31 @@ log group and an IAM role, both taggable, and no backend block. What makes it li
 ```hcl
 estate = "ci-pipelines-example"
 
-record_store "ssm" {}
+record_store "s3" {
+  bucket = "choudoufu-records-354867293429-us-east-1"
+}
 ```
 
 The sidecar rather than a `live` block inside `terraform{}` because strict HCL parsers
 are right to reject an unknown block there, and the sidecar's extension is one no
 stock tool reads. Either form works, and a root may use only one of them.
 
-The `ssm` record store is a CI decision. Every run gets a fresh runner, so the implied
+The bucket is a CI decision. Every run gets a fresh runner, so the implied
 local record store would be empty every time and every instance would fall back to its
 marker tags, which is correct and slower. That is the foundation's own rule, not a
 workaround: the cache is never consulted for ownership, live always wins, and losing
-the record costs a slower run and nothing else. An `ssm` (or `s3`) store is shared and
-lives under IAM, which is what a pipeline should declare.
+the record costs a slower run and nothing else. A bucket is shared and lives under
+IAM, which is what a pipeline should declare.
 
-Running this root prints `Resource type has no orphan recovery` warnings under
-the v0.15.0 release the generated jobs currently install, and none at all under
-v0.16.0. That is [#980](https://github.com/INTENTIUS/choudoufu/issues/980), found
-by building this example: the warning was firing for the schema-first admission
-path as well as for the type-not-in-the-table path it was written for. It is
-fixed in v0.16.0, which fires it only for types nothing can sweep.
+The bucket is not created by this example. It is stood up once with
+[`examples/record-store-bucket`](../record-store-bucket/) (`just up`, then
+`just verify`), before `scripts/oidc-bootstrap.sh` runs, and its name is global, so a
+fork changes that line. `scripts/smoke.sh` makes its own on the emulator.
 
-`scripts/smoke.sh` counts the warnings on every run and prints the count as its
-own verdict line, so the fix is a number rather than a claim. Measured over
-`live-check`, `live-plan`, `live-apply`, `live-adopt` and `live-discover`
-together: `count=34 per-live-plan=4` on v0.15.0, `count=0 per-live-plan=0` on
-v0.16.0. Two corrections to what this file used to say - the warning names
-`aws_cloudwatch_log_group` only, never `aws_iam_role`, so it was never "one per
-resource"; and a single `live-plan` emits it four times, in the `-json` document
-and the human render both.
+`scripts/smoke.sh` counts `Resource type has no orphan recovery` warnings on
+every run and prints the count as its own verdict line. It is zero: the warning
+fires only for types nothing can sweep
+([#980](https://github.com/INTENTIUS/choudoufu/issues/980)).
 
 The IAM role is in the root on purpose. IAM is one of the services whose tagging call
 choudoufu does not print a paste-ready adopt command for (Route53 and S3 are the

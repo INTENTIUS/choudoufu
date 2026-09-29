@@ -261,6 +261,28 @@ else
   export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test
   export AWS_REGION=us-east-1 AWS_DEFAULT_REGION=us-east-1
   export TF_VAR_aws_region=us-east-1
+
+  # The estate's record store is a bucket (terraform/estate.chdf.hcl, GitHub
+  # issue #1346), and a bucket is stood up before the estate is, not by it.
+  # Against real AWS that is the maintainer's one-time `just up` in
+  # examples/record-store-bucket. A fresh emulator has no bucket, so this
+  # makes one with the three settings choudoufu asserts about a record store
+  # bucket and refuses an apply without. It is three s3api calls and not
+  # `just up` because the pinned emulator's CloudFormation reports
+  # CREATE_COMPLETE while applying none of a bucket's properties.
+  command -v aws >/dev/null 2>&1 || die "the aws CLI is not installed; emulator mode needs it to make the record store bucket"
+  RECORD_BUCKET="$(sed -nE 's/^[[:space:]]*bucket[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$ROOT/examples/ci-pipelines/terraform/estate.chdf.hcl")"
+  [ -n "$RECORD_BUCKET" ] || die "could not read the record store bucket out of terraform/estate.chdf.hcl"
+  aws s3api create-bucket --bucket "$RECORD_BUCKET" >/dev/null || die "could not create the record store bucket $RECORD_BUCKET on the emulator"
+  aws s3api put-bucket-versioning --bucket "$RECORD_BUCKET" --versioning-configuration Status=Enabled \
+    || die "could not enable versioning on $RECORD_BUCKET"
+  aws s3api put-bucket-lifecycle-configuration --bucket "$RECORD_BUCKET" --lifecycle-configuration \
+    '{"Rules":[{"ID":"expire-noncurrent","Status":"Enabled","Filter":{"Prefix":""},"NoncurrentVersionExpiration":{"NoncurrentDays":30}}]}' >/dev/null \
+    || die "could not set the lifecycle rule on $RECORD_BUCKET"
+  aws s3api put-public-access-block --bucket "$RECORD_BUCKET" --public-access-block-configuration \
+    BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true \
+    || die "could not set the public-access block on $RECORD_BUCKET"
+  log "record store bucket on the emulator: s3://$RECORD_BUCKET"
 fi
 
 export CHANT_FORGE=forgejo

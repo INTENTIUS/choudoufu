@@ -24,6 +24,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/mv"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/servicetags"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -137,6 +138,42 @@ func (c *LiveMvCommand) Run(rawArgs []string) int {
 	return 0
 }
 
+// liveMvSweepClients builds the two clients mv.Move's sweep can reach a
+// marker through when a list call did not carry one, or returns nil for
+// both when this run has no AWS endpoint to reach them at.
+//
+// They are a pair and not two independent decisions, which is the whole
+// reason this is a function. The first (GitHub issue #266) is the estate's
+// tag index: some list operations drop tags entirely - iam:ListRoles,
+// iam:ListPolicies - so without it a needs-discovery instance of such a
+// type can never be found by a sweep, however correctly it is tagged. The
+// second (#1125/#1131, added here by #1274) is the service's own tag API,
+// and it exists because the first one is not a fallback for every service:
+// #1134 measured the Resource Groups Tagging API serving no iam:role on
+// real AWS, and the pinned emulator serves no IAM at all (lex00/floci#205,
+// #1152). On such a target the index answers nothing about an
+// aws_iam_policy that carries this estate's marker, and before this
+// live-mv had nothing left to ask - so it refused a rename live-plan, which
+// has had the second leg since #1125, performed happily.
+//
+// Both ride [cloudControlTarget]'s gate, the same gate live-plan builds its
+// own copies behind. Nil for both is the pre-#266 behavior, exactly as an
+// ordinary discovery pass degrades when it has neither.
+//
+// The service reader is built with nil credentials, matching the Tagging
+// client beside it: live-mv has never resolved the provider block's
+// principal for its sweep clients the way live-plan does (#957 landed on
+// the plan path only), and widening that is its own change. A nil becomes
+// aws-sdk-go-v2's default chain, lazily - see [sweepServiceCredentials].
+func liveMvSweepClients(region string) (*cloudcontrol.Client, servicetags.Reader) {
+	ep, on := cloudControlTarget()
+	if !on {
+		return nil, nil
+	}
+	return cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: ep, Region: region}),
+		newServiceTagsReader(region, ep, nil)
+}
+
 type liveMvArgs struct {
 	old, new     addrs.AbsResourceInstance
 	estate       string
@@ -200,14 +237,17 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	// to find a resource, not the only one, and a run with no live block
 	// or no record_store block leaves recordStore nil, which degrades
 	// live-mv to exactly its pre-existing behavior for such a type.
+	// A store that REFUSED does stop it. See [openRecordStoreForMove] and
+	// GitHub issues #1376 and #1448: a rename that will write also asserts
+	// the store's contract here, before the write, and -dry-run does not.
 	var recordStore staterecord.Store
-	if config.Module != nil && config.Module.Live != nil && config.Module.Live.RecordStore != nil {
-		store, storeErr := projection.NewRecordStore(ctx, config.Module.Live.RecordStore, config.Module.Live.Retry, estate, ".")
-		if storeErr != nil {
-			log.Printf("[WARN] live-mv: could not open the record store: %s", storeErr)
-		} else {
-			recordStore = store
+	if config.Module != nil && config.Module.Live != nil {
+		store, storeDiags := openRecordStoreForMove(ctx, projection.NewRecordStore, config.Module.Live.RecordStore, config.Module.Live.Retry, estate, args.dryRun)
+		diags = diags.Append(storeDiags)
+		if storeDiags.HasErrors() {
+			return nil, diags
 		}
+		recordStore = store
 	}
 
 	coreOpts, err := c.contextOpts(ctx)
@@ -235,7 +275,10 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	// GitHub issue #126's ruling: setting a write-only or sensitive argument
 	// warns, never refuses, so it rides alongside the subset check rather
 	// than gating on it. See [lint.CheckResidueAttributes].
-	diags = diags.Append(lint.CheckResidueAttributes(config, resourceSchemas))
+	// No Scope: live-mv has no -target / -exclude flag, so GitHub issue
+	// #1256's narrowing has nothing to narrow by here and every block is in
+	// scope, exactly as it was before that field existed.
+	diags = diags.Append(lint.CheckResidueAttributes(config, lint.Context{Schemas: resourceSchemas}))
 
 	// Resolved now that lint has passed and the estate name is settled, so
 	// that any verb here is already known valid for its quadrant (see
@@ -278,18 +321,7 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	// this run evaluated, exactly as discovery gets it in a plan.
 	region := c.liveMvRegion(ctx, config, provs, args.new, args.old)
 
-	// The same Tagging client live-plan builds (live_plan.go, around its own
-	// req.Tagging assignment), for the same issue #266 fallback: some list
-	// operations drop tags entirely (iam:ListRoles, iam:ListPolicies), and
-	// mv.Move's own sweep needs the estate's tag index to find such an
-	// object at all - see mv.Request.Tagging's doc comment. A nil client
-	// (Cloud Control fallback off, or no endpoint named) degrades live-mv to
-	// exactly its pre-fix behavior for such a type, the same way an ordinary
-	// plan already degrades with no Tagging client.
-	var tagging *cloudcontrol.Client
-	if ep, on := cloudControlTarget(); on {
-		tagging = cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: ep, Region: region})
-	}
+	tagging, serviceTags := liveMvSweepClients(region)
 
 	res, moveDiags := mv.Move(ctx, mv.Request{
 		Estate:             estate,
@@ -303,8 +335,13 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 		DryRun:             args.dryRun,
 		AllowMissingConfig: args.allowMissing,
 		Tagging:            tagging,
+		ServiceTags:        serviceTags,
 		RecordStore:        projection.NewRecordEnvelopeStore(recordStore, recordKeyPrefixFor(config, estate)),
 		ReadParallelism:    readPar,
+		// GitHub issue #1639: a manifest-declared object's rename is an
+		// annotation patch through the cluster's own client, the one
+		// live-import's adoption of the same shape builds.
+		Clusters: provs,
 	})
 	diags = diags.Append(moveDiags)
 	return res, diags
@@ -419,8 +456,10 @@ func liveMvReport(res *mv.Result) views.StatelessMvReport {
 		FoundBy:     liveMvFoundBy(res),
 		DryRun:      res.DryRun,
 
-		LabelSurface:   res.Surface == mv.SurfaceLabel,
+		LabelSurface:   !res.MarkerCarriesAddress(),
 		NothingToWrite: res.NothingToWrite,
+		Reannotated:    !res.MarkerCarriesAddress() && res.FromEstate == "" && !res.NothingToWrite,
+		AlreadyMarked:  res.AlreadyMarked,
 	}
 }
 
@@ -473,12 +512,17 @@ func liveMvJSONReport(res *mv.Result, diags tfdiags.Diagnostics, old, new addrs.
 		rep.Verified = res.Verified
 		rep.FoundBy = string(res.Path)
 		rep.NothingToWrite = res.NothingToWrite
-		if res.Surface != mv.SurfaceTags {
-			// No address on the object (#1016): the escaped markers the
-			// tag surface would have written are not what this object
-			// carries, so the document does not claim them.
+		rep.AlreadyMarked = res.AlreadyMarked
+		if !res.MarkerCarriesAddress() {
 			rep.MarkerSurface = "label"
-			rep.From.Marker, rep.To.Marker = "", ""
+			if res.NothingToWrite {
+				// No address on the object: the escaped markers the tag
+				// surface would have written are not what this object
+				// carries, so the document does not claim them. Every
+				// other Kubernetes object carries them in its address
+				// annotation (GitHub issue #1639).
+				rep.From.Marker, rep.To.Marker = "", ""
+			}
 		}
 	}
 
@@ -558,16 +602,19 @@ Usage: choudoufu [global options] live-mv [options] <old-address> <new-address>
   nothing in the destination estate may already carry it, and the source's
   record for the resource stays behind: the first apply here records it.
 
-  On Kubernetes the marker is one label, tofu-estate, and the object carries
-  no address: it is bound to its block by its own kind, namespace and name.
-  So a rename within one estate has nothing to write - this command says so
-  and exits 0, and renaming the block is the whole rename - while
-  -from-estate is the one governed write: the tofu-estate label is rewritten
-  through the provider, as a labels-only plan and apply on that object, and
-  the cluster's admission policy (live/kubernetes/estate-boundary.yaml)
-  judges it under this run's credential exactly as it judges a plain kubectl
-  label. An object declared through a manifest block is refused by name
-  with the equivalent kubectl write.
+  On Kubernetes the ownership marker is one label, tofu-estate, and the
+  object is bound to its block by its own kind, namespace and name. The
+  block address sits beside the label in the annotation
+  choudoufu.intentius.io/tofu-address. So a rename within one estate
+  rewrites that annotation and nothing else, through the provider for an
+  object with a metadata block and as one annotation patch for an object
+  declared through a manifest block. -from-estate rewrites the tofu-estate
+  label and the annotation together, through the provider, as a
+  markers-only plan and apply on that object, and the cluster's admission
+  policy (live/kubernetes/estate-boundary.yaml) judges it under this run's
+  credential exactly as it judges a plain kubectl label; the policy reads
+  the label, never the annotation. A move of an object declared through a
+  manifest block is refused by name with the equivalent kubectl write.
 
   This command reads and writes the live system. It never reads or writes a
   state file, and it does not run a plan over the rest of the configuration.

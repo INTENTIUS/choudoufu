@@ -8,6 +8,7 @@ package staterecord
 import (
 	"context"
 	"errors"
+	"log"
 	"sort"
 	"strings"
 	"sync"
@@ -106,7 +107,7 @@ func NewRunCache(inner Store, prefix string) Store {
 	}
 	return &RunCache{
 		inner:   inner,
-		prefix:  prefix,
+		prefix:  NamespacePrefix(prefix),
 		entries: map[string]cacheEntry{},
 		lists:   map[string][]string{},
 	}
@@ -121,6 +122,9 @@ func NewRunCache(inner Store, prefix string) Store {
 // site that needs it, and so a store that is not a RunCache needs no special
 // case: see [Fresh].
 func (c *RunCache) Uncached() Store { return c.inner }
+
+// Unwrap returns the wrapped store, for [AsContractChecker].
+func (c *RunCache) Unwrap() Store { return c.inner }
 
 // Fresh returns the store beneath any read cache in s, or s itself when
 // there is none. A caller that must not read a remembered value asks for
@@ -154,7 +158,9 @@ func (c *RunCache) noteWrite() {
 
 // covers reports whether key is inside the namespace a bulk load snapshots.
 func (c *RunCache) covers(key string) bool {
-	return c.prefix != "" && (key == c.prefix || strings.HasPrefix(key, c.prefix+"/"))
+	// c.prefix carries its own trailing delimiter ([NamespacePrefix]), so
+	// this cannot match a sibling namespace whose name starts the same way.
+	return c.prefix != "" && strings.HasPrefix(key, c.prefix)
 }
 
 // ensureLoaded performs the one bulk read, if the wrapped store can do one
@@ -178,6 +184,16 @@ func (c *RunCache) ensureLoaded(ctx context.Context) {
 		// exactly that question, with exactly that question's error
 		// handling. Falling back costs a trip; failing here would turn an
 		// optimization into a new way for a plan to stop.
+		//
+		// It is said, though (GitHub issue #1430). Since #1355 a key the
+		// listing named and two GETs did not find fails the bulk read, so
+		// this is the path a store contradicting itself takes, and until
+		// this line a run that took it was indistinguishable in its log
+		// from one that loaded the snapshot. Every occurrence is logged,
+		// not the first: the load is retried on each read while it keeps
+		// failing, and how many times that happened is part of what a
+		// reader of this log is looking for.
+		log.Printf("[WARN] staterecord: the bulk read of %q failed, so this read and every one until a bulk read succeeds goes to the store per key: %s", c.prefix, err)
 		return
 	}
 
@@ -252,7 +268,23 @@ func (c *RunCache) List(ctx context.Context, keyPrefix string) ([]string, error)
 		c.mu.Lock()
 		if c.loaded {
 			keys := make([]string, 0, len(c.entries))
-			for key := range c.entries {
+			for key, hit := range c.entries {
+				if !hit.exists {
+					// A negative entry: a key read individually and found
+					// absent, remembered so the second read of the same
+					// missing key is free. It is not a stored key, and
+					// [Store.List]'s contract is the stored ones.
+					//
+					// It can only be here for an in-namespace key because
+					// the per-key path ran BEFORE the snapshot loaded -
+					// once c.loaded is set, Get answers every in-namespace
+					// miss from the snapshot and stores nothing. So the
+					// sequence is a bulk read that failed, a miss read
+					// per-key, then [RunCache.ensureLoaded]'s retry on the
+					// next Get succeeding: one transient GetAll failure is
+					// the whole precondition. Issue #1301.
+					continue
+				}
 				if strings.HasPrefix(key, keyPrefix) {
 					keys = append(keys, key)
 				}

@@ -8,6 +8,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -81,12 +82,32 @@ func (r *repo) git(args ...string) (string, error) {
 	return out.String(), nil
 }
 
-// gitOK is git() for commands where a non-zero exit is a legitimate answer
-// (e.g. `git grep` with no matches). It returns stdout and whether the
-// command exited zero.
-func (r *repo) gitOK(args ...string) (string, bool) {
-	out, err := r.git(args...)
-	return out, err == nil
+// gitNoMatchOK is git() for commands where exit status 1 is a legitimate
+// answer meaning "nothing found" (`git grep` with no matches). It returns
+// stdout for exit 0 and exit 1 alike, and an error carrying git's stderr
+// for anything else.
+//
+// The predecessor collapsed every non-zero exit into "exited non-zero",
+// which grepSurvivors then read as an empty match list (#1220): a git that
+// could not run at all (exit 128) reported zero survivors, and every
+// candidate line was classed as lost in the merge. Exit 1 is the real
+// "no"; 128 is "I could not answer", and nothing downstream may treat
+// that as data.
+func (r *repo) gitNoMatchOK(args ...string) (string, error) {
+	full := append([]string{"-C", r.dir}, args...)
+	cmd := exec.Command("git", full...)
+	var out, errb bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &errb
+	err := cmd.Run()
+	if err == nil {
+		return out.String(), nil
+	}
+	var ee *exec.ExitError
+	if errors.As(err, &ee) && ee.ExitCode() == 1 {
+		return out.String(), nil
+	}
+	return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(errb.String()))
 }
 
 // object fetches one object through the batch process. A missing object
