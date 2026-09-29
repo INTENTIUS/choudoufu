@@ -174,6 +174,61 @@
     {
       "schema": 1,
       "estate": "terralith-scale",
+      "target": "aws",
+      "scale": 128,
+      "commit": "686ac8a9583617eaec25277a61f7a97d7c22f53b",
+      "date": "2026-09-16T08:43:56Z",
+      "region": "us-east-2",
+      "resources": {
+        "total": 9477,
+        "taggable": 4229,
+        "skipped": 5248
+      },
+      "stages": {
+        "cold_deploy": {
+          "verdict": "pass",
+          "seconds": 5533,
+          "operation_seconds": 5493,
+          "throttle": 192,
+          "retry": 193,
+          "detail": "9477 resources from stock terraform against aws at scale=128 in 5493s, tofu-cert-run=lc1789508626-60802, debug log 211765614B/192 throttle/193 retry resources=9477 taggable=4229 seconds=5493 throttle=192 retry=193"
+        },
+        "migrate": {
+          "verdict": "pass",
+          "seconds": 7307,
+          "operation_seconds": 3556,
+          "throttle": 716,
+          "retry": 716,
+          "detail": "4229 of 9477 verified, 4229 stamped, 5248 skipped, in 3556s, debug log 240073992B/716 throttle/716 retry resources=9477 taggable=4229 skipped=5248 seconds=3556 throttle=716 retry=716"
+        },
+        "test_apply": {
+          "verdict": "pass",
+          "seconds": 11342,
+          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 260 objects=260"
+        },
+        "test_plan": {
+          "verdict": "pass",
+          "seconds": 1349,
+          "operation_seconds": 1203,
+          "throttle": 444,
+          "retry": 444,
+          "detail": "post-migrate plan is empty in 1203s; zone/role tofu-address confirmed via the AWS CLI; debug log 86709498 bytes, 444 throttling-error line(s), 444 retry line(s); index_lag_s=63 seconds=1203 throttle=444 retry=444 plan_calls_choudoufu=21868 plan_calls_stock=17862"
+        }
+      },
+      "index_lag_s": 63,
+      "plan_calls": {
+        "cold": {
+          "choudoufu": 21868,
+          "stock": 17862
+        }
+      },
+      "total_seconds": 39610.1,
+      "unaccounted_seconds": 14079.1,
+      "source": "gauntlet live-cert terralith-scale (commit 686ac8a9583617eaec25277a61f7a97d7c22f53b)"
+    },
+    {
+      "schema": 1,
+      "estate": "terralith-scale",
       "target": "floci",
       "scale": 1,
       "commit": "fce6b53e202878c2b21f0539af5026095a5fddcb",
