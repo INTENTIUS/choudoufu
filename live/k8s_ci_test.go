@@ -18,7 +18,7 @@ import (
 // The Kubernetes CI story (GitHub issue #1080): every k8s-* smoke scenario
 // runs on a kind cluster in .github/workflows/k8s-smoke.yml, with its
 // BREAK=1 control, and every kubernetes-lane estate in the manifest runs in
-// the nightly gauntlet's kubernetes step. Both workflows pin kind and
+// the gauntlet workflow's kubernetes step. Both workflows pin kind and
 // kubectl to the same releases. Before this the three Kubernetes claims
 // and the lane's rows were measured only on the maintainer's machine.
 //

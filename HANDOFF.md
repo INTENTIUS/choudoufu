@@ -299,30 +299,35 @@ at all, nightly-watch.yml watched bucket-smoke but not k8s-smoke, and
 bucket-smoke.yml's paths were narrow enough that a pull request touching
 only `cmd/` or the rest of `internal/` skipped it silently.
 
-A smoke workflow triggers on `pull_request` and on `push` to `main`, with
-the same path list both times: its own workflow file, `cmd/**`,
-`internal/**`, `live/smoke/**`, `go.mod` and `go.sum` - the code that can
-break any scenario it runs - plus whatever else that substrate needs
-(k8s-smoke.yml also watches `live/kubernetes/**`, `live/e2e/lib/**`,
-`live/e2e/estate-k8s/**` and `examples/record-store-cluster/**`). It also
-runs on a `schedule` cron, so a repin of an emulator or toolchain image, or
-a dependency bump, is caught the day it happens rather than on the next
-pull request that happens to touch one of those paths, and it has
-`workflow_dispatch` so it can be run by hand or by an orchestrator without
-waiting for either. Its name is in `nightly-watch.yml`'s `workflows:` list,
-so a red scheduled run opens and extends a `nightly-red` issue instead of
-dying on the Actions run page (#1316); `live/nightly_watch_test.go` derives
-that list from every workflow file carrying a cron and fails if the two
-disagree.
+Revised 2026-09-29 by the maintainer: **no smoke workflow runs on a pull
+request or a push.** Every pull request touching `internal/**` started about
+47 jobs (claims-smoke ~25, k8s-smoke 10, bucket-smoke 6, CI 4) against the
+organization's 20-job concurrency cap, so every check queued behind them;
+the push-to-`main` runs were nearly all cancelled by the next merge before
+finishing (k8s-smoke 50 of 55, claims-smoke 35 of 36, over 2026-09-27/29).
+The product has no users yet, so a smoke regression found the next morning
+costs little.
 
-A scenario measured over a workflow's own stated minutes budget moves to a
-nightly-only job inside that workflow instead of running on every pull
-request (claims-smoke.yml's `smoke-nightly` job, 2026-09-26 ruling on #1590:
-"same rule as the kubernetes lane"). When a whole workflow is over budget
-for pull-request-time gating - kind-tier.yml stands up a kind cluster and
-runs three separate test suites against it - it carries no
-`pull_request`/`push` trigger at all, but still runs nightly, still has
-`workflow_dispatch`, and is still named in `nightly-watch.yml`.
+So each smoke workflow (k8s-smoke, bucket-smoke, claims-smoke, kind-tier)
+triggers on a `schedule` cron and `workflow_dispatch`, and nothing else;
+`live/smoke_trigger_rule_test.go` reads the `on:` map as YAML and fails on
+any other trigger. The nightly catches a regression, and a repin of an
+emulator or toolchain image or a dependency bump, the night it lands. Its
+name is in `nightly-watch.yml`'s `workflows:` list, so a red scheduled run
+opens and extends a `nightly-red` issue instead of dying on the Actions run
+page (#1316); `live/nightly_watch_test.go` derives that list from every
+workflow file carrying a cron and fails if the two disagree.
+
+To prove a branch before merging, dispatch the smoke on it:
+`gh workflow run k8s-smoke.yml -R INTENTIUS/choudoufu --ref <branch>`.
+
+claims-smoke.yml keeps two jobs, `smoke` and `smoke-nightly` (a scenario
+over the workflow's stated minutes budget, 2026-09-26 ruling on #1590), and
+both run on every scheduled and dispatched run.
+
+The Gauntlet workflow has no schedule either (same date): the board is
+re-measured when the maintainer dispatches it, typically before a release,
+and every dispatch waits for the `corpus` environment approval.
 
 ## Working here
 

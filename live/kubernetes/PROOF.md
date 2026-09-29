@@ -21,10 +21,10 @@ https://intentius.io/choudoufu/kubernetes/proof/.
 
 ## In CI
 
-The eight Kubernetes scenarios run on a kind cluster in GitHub Actions on
-every pull request that touches the Kubernetes surface, each with its
-`BREAK=1` control, and the nightly gauntlet re-measures the kubernetes
-lane's estates on the same cadence as the AWS rows
+The eight Kubernetes scenarios run on a kind cluster in GitHub Actions
+nightly, each with its `BREAK=1` control, and the Gauntlet workflow
+re-measures the kubernetes lane's estates whenever it re-measures the AWS
+rows
 ([#1080](https://github.com/INTENTIUS/choudoufu/issues/1080)). A
 Kubernetes verdict on this site is no longer only a laptop's word.
 

@@ -156,38 +156,17 @@ func TestBucketSmokesRunInCIWithTheirControls(t *testing.T) {
 // BREAK itself, in the one spelling the scenarios use: ${BREAK_NAME:-0}.
 var bucketNamedControl = regexp.MustCompile(`\$\{(BREAK_[A-Z0-9_]+):-`)
 
-// TestBucketSmokeWorkflowWatchesWhatCanBreakIt: the trigger. A workflow that
-// runs only on its own file, or only on demand, is one nobody sees fail.
-//
-// The path list is the smoke trigger rule's common set (issue #1592,
-// HANDOFF.md "CI: smoke workflow triggers", also checked generically across
-// every smoke workflow by live/smoke_trigger_rule_test.go): narrower paths
-// - this file used to name only internal/live/staterecord/** and
-// internal/live/projection/** - let a pull request touching only cmd/ or
-// the rest of internal/ skip it, which is how claim 28 stayed red across
-// several merges.
+// TestBucketSmokeWorkflowWatchesWhatCanBreakIt: the schedule and the matrix.
+// The triggers themselves (nightly and on dispatch only, since 2026-09-29)
+// are held by live/smoke_trigger_rule_test.go across every smoke workflow.
 func TestBucketSmokeWorkflowWatchesWhatCanBreakIt(t *testing.T) {
 	raw, err := os.ReadFile(bucketSmokeWorkflow)
 	if err != nil {
 		t.Fatalf("read %s: %v", bucketSmokeWorkflow, err)
 	}
 	wf := string(raw)
-	for _, path := range []string{
-		".github/workflows/bucket-smoke.yml",
-		"cmd/**",
-		"internal/**",
-		"live/smoke/**",
-		"go.mod",
-		"go.sum",
-	} {
-		// Twice: once under pull_request and once under push, so a merge to
-		// main is measured as well as the pull request that proposed it.
-		if got := strings.Count(wf, `"`+path+`"`); got < 2 {
-			t.Errorf("bucket-smoke.yml names %q %d time(s) in its path filters, want it under both pull_request and push: a change to that tree can break these claims", path, got)
-		}
-	}
 	if !strings.Contains(wf, "schedule:") || !strings.Contains(wf, "cron:") {
-		t.Errorf("bucket-smoke.yml has no schedule; a repin of the emulator image changes nothing under the path filters and would go unmeasured until the next pull request that happens to touch one")
+		t.Errorf("bucket-smoke.yml has no schedule; it runs on no pull request or push, so without one it runs only when someone remembers to dispatch it")
 	}
 	if !strings.Contains(wf, "fail-fast: false") {
 		t.Errorf("bucket-smoke.yml's matrix is fail-fast; one claim failing would hide the state of the other four")

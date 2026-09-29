@@ -9,8 +9,8 @@
 # BREAK=1 control, so a regression in the label carrier, the sweep, the
 # admission policy template, the honesty of a plan over a terminating
 # object or what a run says when admission rewrites what it wrote is
-# caught on the pull request that makes it rather than on the
-# maintainer's laptop. One job per scenario; each is a few minutes. The
+# caught the night after it merges rather than on the maintainer's
+# laptop. One job per scenario; each is a few minutes. The
 # record-store-cluster job below is not a claim: it applies
 # examples/record-store-cluster to a kind cluster and reads its two
 # identities back through the authorizer (#1442), and lives here because it
@@ -56,44 +56,22 @@
 # unless a `-> caught` proof line is there too. live/smoke_verdict_test.go
 # holds every step that runs a scenario to that wrapper.
 #
-# The smoke trigger rule (issue #1592, HANDOFF.md "CI: smoke workflow
-# triggers"): every PR/push that touches cmd/**, internal/**, live/smoke/**,
-# go.mod or go.sum runs this workflow's matrix, plus the Kubernetes-specific
-# paths above; it also runs nightly (the schedule below) and on
-# workflow_dispatch, and is named in nightly-watch.yml's workflows list, so
-# a repin or a drift caught only on a schedule still surfaces as an issue.
+# The smoke trigger rule (issue #1592, revised 2026-09-29; HANDOFF.md
+# "CI: smoke workflow triggers"): no smoke workflow runs on a pull request or
+# a push. Each runs nightly and on workflow_dispatch, and is named in
+# nightly-watch.yml's workflows list, so a red night opens an issue. To
+# prove a branch before merging, dispatch it on that branch.
 # live/smoke_trigger_rule_test.go holds this file to that rule.
 name: k8s-smoke
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/k8s-smoke.yml"
-      - "cmd/**"
-      - "internal/**"
-      - "live/smoke/**"
-      - "live/kubernetes/**"
-      - "live/e2e/lib/**"
-      - "live/e2e/estate-k8s/**"
-      - "examples/record-store-cluster/**"
-      - "go.mod"
-      - "go.sum"
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/k8s-smoke.yml"
-      - "cmd/**"
-      - "internal/**"
-      - "live/smoke/**"
-      - "live/kubernetes/**"
-      - "live/e2e/lib/**"
-      - "live/e2e/estate-k8s/**"
-      - "examples/record-store-cluster/**"
-      - "go.mod"
-      - "go.sum"
+  # Nightly and by hand only: no pull_request or push trigger (smoke
+  # triggers were taken off pull requests on 2026-09-29, see HANDOFF.md
+  # "CI: smoke workflow triggers"). Run one on a branch with
+  #   gh workflow run k8s-smoke.yml --ref <branch>
   schedule:
     # Nightly (the rule below), so a repin of the kind or emulator image, or
-    # a dependency bump, is caught on the day it happens rather than on the
-    # next pull request that happens to touch one of the paths above.
+    # a dependency bump, is caught on the day it happens rather than on the next
+    # release.
     - cron: "27 4 * * *"
   workflow_dispatch:
 permissions:

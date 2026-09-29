@@ -24,7 +24,8 @@ go run ./tools/gauntlet render         # regenerates the artifact and the site's
 ```
 
 Commit the entry, the script, `live/gauntlet.json`, `site/data/gauntlet.json`
-and `site/data/gauntlet_board.json`. CI runs the same two commands nightly.
+and `site/data/gauntlet_board.json`. The Gauntlet workflow runs the same two commands when the maintainer
+dispatches it.
 The site builds its progress pages from those two data files; there is no
 rendered page to commit.
 

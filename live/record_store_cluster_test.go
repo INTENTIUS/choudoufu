@@ -330,9 +330,10 @@ func TestRecordStoreClusterDownRefusesWhileRecordsAreHeld(t *testing.T) {
 // TestRecordStoreClusterSelftestRunsInCI holds the kind selftest to the
 // workflow that has a cluster: k8s-smoke.yml must run
 // examples/record-store-cluster/selftest.sh, read its PASS verdict line
-// rather than its exit code, run the BREAK=1 control and read its "-> caught"
-// line, and be triggered by a change under the example. A selftest nothing
-// runs is a README.
+// rather than its exit code, and run the BREAK=1 control and read its
+// "-> caught" line. It runs nightly with the rest of k8s-smoke (no smoke
+// workflow runs on a pull request since 2026-09-29). A selftest nothing runs
+// is a README.
 //
 // Proving it red: delete the job, or drop the grep for the PASS line.
 func TestRecordStoreClusterSelftestRunsInCI(t *testing.T) {
@@ -342,14 +343,13 @@ func TestRecordStoreClusterSelftestRunsInCI(t *testing.T) {
 	}
 	text := string(wf)
 	for _, want := range []string{
-		`- "examples/record-store-cluster/**"`,
 		"bash examples/record-store-cluster/selftest.sh",
 		"'^PASS: record-store-cluster selftest - '",
 		"'^PASS: record-store-cluster selftest (BREAK=1) - '",
 		"'^  -> caught'",
 	} {
 		if !strings.Contains(text, want) {
-			t.Errorf("%s does not contain %q, so the record-store-cluster selftest is not run, not triggered, or passed on an exit code", k8sSmokeWorkflow, want)
+			t.Errorf("%s does not contain %q, so the record-store-cluster selftest is not run or passed on an exit code", k8sSmokeWorkflow, want)
 		}
 	}
 	selftest, err := os.ReadFile(filepath.Join(recordStoreClusterProject, "selftest.sh"))
