@@ -300,7 +300,7 @@ forward.
 |---|---|
 | commit | `60d0cdf63f` |
 | choudoufu | v0.15.0 (`choudoufu version` inside the demo container) |
-| emulator | floci `sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb`, the digest `live/floci-image` pins |
+| emulator | floci `sha256:a39185cc3971...`, the digest `live/floci-image` pinned at that commit; it has since been repinned, so this run is on an older pin than today's (`git show 60d0cdf63f:live/floci-image` prints it in full) |
 | date | 2026-09-08 |
 | command | `just up` then `tlmig all --auto` in the demo container |
 
