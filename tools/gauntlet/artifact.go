@@ -168,17 +168,13 @@ type OracleVersions struct {
 // ProviderVersions is the pin for the two providers issue #1253 tracks:
 // hashicorp/aws for a floci-substrate estate, hashicorp/kubernetes for a
 // kind-substrate one (the same split Emulator/SubstrateImage use, #1594).
-// Both are FORCED onto every crossing script before init
-// (live/e2e/lib/gauntlet.sh's gauntlet_pin_aws_provider rewrites the lock
-// file to live/oracle-versions.json's aws_provider_version;
-// gauntlet_kubernetes_required_provider, #1252, does the same for
-// kubernetes_provider_version) rather than merely requested, so - unlike
-// OracleVersions's Terraform/Tofu, which nothing forces a local PATH to
-// honour - there is no binary to probe: the pin IS what the run used, and
-// a.Providers (config, refreshed on every Rebuild) and LastRun's own
-// AWSProviderVersion/KubernetesProviderVersion (evidence, stamped by
-// RunEstates from this same file at run time) read the same value at the
-// instant a run launches, exactly like Emulator/live/floci-image do.
+// a.Providers holds it as configuration, refreshed on every Rebuild.
+// LastRun's own AWSProviderVersion/KubernetesProviderVersion are the
+// evidence half, and they are NOT copied from this pin: RunEstates reads
+// them from the .terraform.lock.hcl files the run reported (issue #1739),
+// because a script that never applies the pin (terralith-scale) or inits
+// a root with only a lower bound (corpus-quickpizza) resolves something
+// else, and a copied pin could never read as stale.
 type ProviderVersions struct {
 	AWS        string `json:"aws,omitempty"`
 	Kubernetes string `json:"kubernetes,omitempty"`
@@ -401,19 +397,15 @@ type LastRun struct {
 	SubstrateImage string `json:"substrate_image,omitempty"`
 	// AWSProviderVersion and KubernetesProviderVersion are issue #1253's
 	// counterpart to Emulator/SubstrateImage above, and mutually exclusive
-	// the same way: a floci-substrate run's crossing has
-	// gauntlet_pin_aws_provider rewrite its lock file to
-	// live/oracle-versions.json's aws_provider_version before either
-	// binary runs init, and a kind-substrate run's hand-authored root
-	// reads gauntlet_kubernetes_required_provider for
-	// kubernetes_provider_version (#1252) the same way. Both are FORCED,
-	// unlike Oracle below, so there is nothing to probe: RunEstates reads
-	// the pin once per call (the same moment it reads kindImage/emulator)
-	// and stamps it onto every row this run touches, AWS for a
-	// floci-substrate row and Kubernetes for a kind-substrate one - never
-	// both on the same row. Empty means the same two things Emulator's own
-	// empty value means: a row from before this field existed, or a
-	// legacy-protocol run that recorded no provenance.
+	// the same way: AWS for a floci-substrate row, Kubernetes for a
+	// kind-substrate one, never both. Each is the version the run's own
+	// init resolved, read from the .terraform.lock.hcl files the script
+	// reported through gauntlet_report_lock (issue #1739, lockversions.go)
+	// - never live/oracle-versions.json's pin, which is only what a script
+	// asks for. Empty means one of three things: a row from before this
+	// field existed, a legacy-protocol run that recorded no provenance, or
+	// a run that reported no lock file (or lock files that disagreed). All
+	// three read as stale against the pin, which is the point.
 	AWSProviderVersion        string `json:"aws_provider_version,omitempty"`
 	KubernetesProviderVersion string `json:"kubernetes_provider_version,omitempty"`
 	// Oracle is the stock terraform and tofu releases this run actually
@@ -459,6 +451,18 @@ type LastRun struct {
 // cannot show it was made against (see the backfill comment on Emulator).
 func IsStale(r EstateResult, currentEmulator string) bool {
 	return r.LastRun != nil && r.LastRun.Emulator != currentEmulator
+}
+
+// IsSubstrateStale is IsStale for whichever substrate r ran on: a
+// kind-substrate row's LastRun.SubstrateImage against kindImage (the
+// live/kind-node-image pin), every other row's LastRun.Emulator against
+// emulator (issue #1739). The same carve-out and the same "unrecorded
+// reads as stale" rule as IsStale apply to both.
+func IsSubstrateStale(r EstateResult, emulator, kindImage string) bool {
+	if r.Substrate == SubstrateKind {
+		return r.LastRun != nil && r.LastRun.SubstrateImage != kindImage
+	}
+	return IsStale(r, emulator)
 }
 
 // IsProviderStale mirrors IsStale for the provider-version pin issue

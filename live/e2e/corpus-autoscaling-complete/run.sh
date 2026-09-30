@@ -321,6 +321,7 @@ gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy ($TF_COLD_BIN apply, the real unmodified example) ==="
 ( cd "$PLAIN" && "$TF_COLD_BIN" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
+gauntlet_report_lock "$PLAIN"  # the versions stage 1 resolved, for the row (#1739)
 COLD_OUT="$(cd "$PLAIN" && "$TF_COLD_BIN" apply -input=false -auto-approve -no-color 2>&1)"; COLD_RC=$?
 if [ "$COLD_RC" -ne 0 ]; then
   printf '%s\n' "$COLD_OUT" | grep -E '^Error' -A 6 | head -200

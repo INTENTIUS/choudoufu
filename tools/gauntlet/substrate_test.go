@@ -140,7 +140,7 @@ func TestKindSubstrateStagesReadNAAndStayNeutral(t *testing.T) {
 	// `next` never picks an n/a stage as work.
 	a.Estates[1].Stages["migrate"] = VerdictFail
 	a.Rebuild(m, &BehaviorIndex{}, "img", OracleVersions{}, ProviderVersions{})
-	for _, u := range NextUnits(a, "all") {
+	for _, u := range NextUnits(a, "all", "") {
 		if u.Estate != "k8s-one" {
 			continue
 		}

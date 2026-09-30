@@ -709,7 +709,7 @@ func TestNonHeadlineActiveStageDoesNotGateOrGetPicked(t *testing.T) {
 	}
 	a.Estates = []EstateResult{sideOnlyFails, headlineFails}
 
-	units := nextUnitsAgainst(headlineOnly, a, "all")
+	units := nextUnitsAgainst(headlineOnly, a, "all", "")
 	for _, u := range units {
 		if u.Estate == sideOnlyFails.Name {
 			t.Errorf("estate failing only a non-headline stage was selected as next work: %+v", u)

@@ -833,6 +833,7 @@ gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (plain $TF_COLD, two-phase - see header) ==="
 ( cd "$PLAIN" && "$TF_COLD" init -input=false -no-color >/dev/null 2>&1 ) \
   || { ( cd "$PLAIN" && "$TF_COLD" init -input=false -no-color 2>&1 | tail -30 ); fail "plain init failed"; }
+gauntlet_report_lock "$PLAIN"  # the versions stage 1 resolved, for the row (#1739)
 
 # Phase 1: the NAT gateway and its dependents only. modules/base's own
 # `data "aws_nat_gateway" "default"` (create_network=false) looks the NAT

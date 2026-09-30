@@ -138,7 +138,7 @@ func cmdNext(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	units := NextUnits(a, *set)
+	units := NextUnits(a, *set, kindNodeImagePin(root))
 	wanted := ParseTypes(*types)
 	if len(wanted) > 0 {
 		idx, err := LoadTypeIndex(root)

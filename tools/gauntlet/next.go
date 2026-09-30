@@ -48,15 +48,20 @@ type Unit struct {
 // selection. An estate whose script is legacy still yields a unit: its
 // first unit is always "convert the script to the protocol and re-run",
 // which the worker brief says.
-func NextUnits(a *Artifact, set string) []Unit {
-	return nextUnitsAgainst(HeadlineStages(), a, set)
+//
+// kindImage is the current live/kind-node-image pin (kindNodeImagePin): a
+// clear kind-substrate row whose LastRun.SubstrateImage differs from it is
+// stale the same way a floci row whose LastRun.Emulator differs from
+// a.Emulator is (issue #1739).
+func NextUnits(a *Artifact, set, kindImage string) []Unit {
+	return nextUnitsAgainst(HeadlineStages(), a, set, kindImage)
 }
 
 // nextUnitsAgainst is NextUnits' logic against an explicit headline stage
 // list. Split out so a test can pin the headline-exemption behavior against
 // a synthetic stage list, independent of which real stage in Stages()
 // happens to be both active and non-headline today (next_test.go).
-func nextUnitsAgainst(headline []Stage, a *Artifact, set string) []Unit {
+func nextUnitsAgainst(headline []Stage, a *Artifact, set, kindImage string) []Unit {
 	active := headline
 	type cand struct {
 		r         EstateResult
@@ -78,20 +83,19 @@ func nextUnitsAgainst(headline []Stage, a *Artifact, set string) []Unit {
 			// this is real work too, just lower priority than a genuine
 			// failure - see the trailing pass below.
 			//
-			// r.Substrate != "" (the kind lane, #1067) is excluded from the
-			// emulator check: such a row's last_run.emulator is never
-			// stamped at all (#1594 - a kind-substrate estate does not
-			// launch floci, so the floci pin's movement says nothing about
-			// whether ITS evidence is stale), and treating an unstamped
-			// field as "always stale" would enqueue a permanent,
-			// meaningless re-verify unit for every clear kind estate on
-			// every render.
+			// A kind-substrate row (#1067) is compared against the kind
+			// node image pin instead of the emulator (IsSubstrateStale):
+			// its last_run.emulator is never stamped (#1594 - it does not
+			// launch floci), and it records the node image it ran on in
+			// last_run.substrate_image. Before #1739 kind rows were simply
+			// excluded, so a live/kind-node-image bump left every clear
+			// kind row clear and produced no work at all.
 			//
 			// IsProviderStale (issue #1253) gets no such exclusion: it
 			// already reads the field that applies to r.Substrate (AWS for
 			// a floci-substrate row, Kubernetes for a kind-substrate one),
 			// so every clear row is checked against its own provider pin.
-			if (r.Substrate == "" && IsStale(r, a.Emulator)) || IsProviderStale(r, a.Providers) {
+			if IsSubstrateStale(r, a.Emulator, kindImage) || IsProviderStale(r, a.Providers) {
 				staleClear = append(staleClear, r)
 			}
 			continue
@@ -149,12 +153,20 @@ func nextUnitsAgainst(headline []Stage, a *Artifact, set string) []Unit {
 	})
 	for _, r := range staleClear {
 		var reasons []string
-		if r.Substrate == "" && IsStale(r, a.Emulator) {
-			emu := "unrecorded"
-			if r.LastRun != nil && r.LastRun.Emulator != "" {
-				emu = r.LastRun.Emulator
+		if IsSubstrateStale(r, a.Emulator, kindImage) {
+			if r.Substrate == SubstrateKind {
+				img := "unrecorded"
+				if r.LastRun != nil && r.LastRun.SubstrateImage != "" {
+					img = r.LastRun.SubstrateImage
+				}
+				reasons = append(reasons, fmt.Sprintf("last verified against kind node image %s; the current pin is %s", img, kindImage))
+			} else {
+				emu := "unrecorded"
+				if r.LastRun != nil && r.LastRun.Emulator != "" {
+					emu = r.LastRun.Emulator
+				}
+				reasons = append(reasons, fmt.Sprintf("last verified against emulator %s; the current pin is %s", emu, a.Emulator))
 			}
-			reasons = append(reasons, fmt.Sprintf("last verified against emulator %s; the current pin is %s", emu, a.Emulator))
 		}
 		// IsProviderStale (issue #1253): the same split LastRun's own
 		// AWSProviderVersion/KubernetesProviderVersion use - a
