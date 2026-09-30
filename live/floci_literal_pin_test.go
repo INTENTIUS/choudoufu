@@ -6,6 +6,7 @@
 package residue
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -36,6 +37,47 @@ import (
 // point without claiming to be a live pin; neither can match this pattern,
 // so neither needs an entry in flociLiteralExceptions.
 var flociDigestRef = regexp.MustCompile(`ghcr\.io/lex00/floci@sha256:[0-9a-f]{64}`)
+
+// bareDigest is a full sha256 digest with no repository in front of it.
+// #1741: examples/live-mv-workbench/README.md named
+// `sha256:a39185cc...` as "the digest live/floci-image pins" while the pin
+// had moved on to 6c3d5c2d, and flociDigestRef, which needs the
+// ghcr.io/lex00/floci@ prefix, never saw it. A bare digest on a line that
+// names floci is attributed to floci, and is held to the pin the same way;
+// the same 64-hex rule keeps truncated prose digests out of it.
+var bareDigest = regexp.MustCompile(`sha256:[0-9a-f]{64}`)
+
+// flociMention is how a line attributes a digest to the emulator.
+var flociMention = regexp.MustCompile(`(?i)floci`)
+
+// flociDigestFindings reports every floci digest literal in one file that
+// is not the pin: a full ghcr.io/lex00/floci@sha256 reference anywhere, and
+// a bare sha256 digest on any line that names floci.
+func flociDigestFindings(path, src, pin string) []string {
+	_, pinDigest, _ := strings.Cut(pin, "@")
+	var out []string
+	for n, line := range strings.Split(src, "\n") {
+		for _, m := range flociDigestRef.FindAllString(line, -1) {
+			if m != pin {
+				out = append(out, fmt.Sprintf("%s:%d pins %s, but live/floci-image pins %s.\n"+
+					"Point it at the pin (or generate it from live/floci-image), or add its path "+
+					"to flociLiteralExceptions with why it legitimately differs.", path, n+1, m, pin))
+			}
+		}
+		if !flociMention.MatchString(line) {
+			continue
+		}
+		for _, d := range bareDigest.FindAllString(line, -1) {
+			if d == pinDigest || strings.Contains(line, "floci@"+d) {
+				continue // the pin, or a full reference already judged above
+			}
+			out = append(out, fmt.Sprintf("%s:%d attributes the bare digest %s to floci, but live/floci-image pins %s (#1741).\n"+
+				"A record of what a past run measured says so and quotes the digest truncated, the way this "+
+				"repository's prose does; a full digest beside floci reads as the pin.", path, n+1, d, pinDigest))
+		}
+	}
+	return out
+}
 
 // flociLiteralExceptions lists paths, relative to the repo root, allowed to
 // carry a full floci digest literal that differs from live/floci-image,
@@ -85,7 +127,7 @@ func TestFlociPinLiteralsMatchTheFloatingPin(t *testing.T) {
 	root := repoRoot(t)
 	pin := flociPinRef(t)
 
-	args := []string{"-C", root, "grep", "-Il", "-E", flociDigestRef.String(), "--", "."}
+	args := []string{"-C", root, "grep", "-Il", "-E", bareDigest.String(), "--", "."}
 	for path := range flociLiteralExceptions {
 		args = append(args, ":!"+path)
 	}
@@ -109,18 +151,16 @@ func TestFlociPinLiteralsMatchTheFloatingPin(t *testing.T) {
 			if f == "" {
 				continue
 			}
-			matched[f] = true
 			b, rerr := os.ReadFile(filepath.Join(root, f))
 			if rerr != nil {
 				t.Errorf("reading %s: %v", f, rerr)
 				continue
 			}
-			for _, m := range flociDigestRef.FindAllString(string(b), -1) {
-				if m != pin {
-					t.Errorf("%s pins %s, but live/floci-image pins %s.\n"+
-						"Point it at the pin (or generate it from live/floci-image), or add its path "+
-						"to flociLiteralExceptions with why it legitimately differs.", f, m, pin)
-				}
+			if flociDigestRef.Match(b) {
+				matched[f] = true
+			}
+			for _, finding := range flociDigestFindings(f, string(b), pin) {
+				t.Error(finding)
 			}
 		}
 	}
@@ -150,5 +190,37 @@ func TestFlociLiteralExceptionsStillExist(t *testing.T) {
 			t.Errorf("flociLiteralExceptions exempts %q (%s) but it no longer exists: %v\n"+
 				"Drop the entry.", path, why, err)
 		}
+	}
+}
+
+// TestFlociDigestFindingsIsRedOnABareDigest keeps #1741's case provably red:
+// the README line as it stood, a bare digest attributed to floci that is
+// not the pin.
+func TestFlociDigestFindingsIsRedOnABareDigest(t *testing.T) {
+	pin := flociPinRef(t)
+	_, pinDigest, _ := strings.Cut(pin, "@")
+	const stale = "sha256:a39185cc3971d0188663d61043cb038dff1260d8a975b1aa72c4e2bb1feac3cb"
+	if stale == pinDigest {
+		t.Fatal("the fixture's stale digest is the current pin; pick another")
+	}
+	line := "| emulator | floci `" + stale + "`, the digest `live/floci-image` pins |"
+	got := flociDigestFindings("examples/live-mv-workbench/README.md", line, pin)
+	if len(got) != 1 {
+		t.Fatalf("want one finding for %q, got %v", line, got)
+	}
+	t.Logf("red, as it must be: %s", got[0])
+
+	for _, ok := range []string{
+		"| emulator | floci `" + pinDigest + "`, the digest `live/floci-image` pins |",
+		"| emulator | floci `sha256:a39185cc3971...`, the digest `live/floci-image` pinned at `60d0cdf63f` |",
+		"image: " + pin,
+		"kindest/node:v1.37.0@" + stale, // a digest on a line that never names floci
+	} {
+		if got := flociDigestFindings("x", ok, pin); len(got) != 0 {
+			t.Errorf("finding for %q: %v", ok, got)
+		}
+	}
+	if got := flociDigestFindings("x", "ghcr.io/lex00/floci@"+stale, pin); len(got) != 1 {
+		t.Errorf("a full stale reference should be exactly one finding, not also a bare one: %v", got)
 	}
 }
