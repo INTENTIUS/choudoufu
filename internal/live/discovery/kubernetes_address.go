@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -43,9 +44,15 @@ import (
 // marker index answers for it. It binds only when nothing else could be
 // meant; every other shape stays exactly the orphan it was:
 //
-//   - the annotation parses as an instance address this configuration
-//     declares: a resolution the caller handed in, or an instance the
-//     static evaluator refused ([Request.NodeRefused]). An address nothing
+//   - the annotation names an instance this configuration declares: a
+//     resolution the caller handed in, or an instance the static evaluator
+//     refused ([Request.NodeRefused]). "Names" is [moved.Accepts]: the
+//     escaped annotation compared with the instance's escaped address
+//     under [markers.AddressMatches], or with an address a honoured moved
+//     block says the instance used to have. It is never the annotation
+//     decoded and compared as an address, because decoding cannot tell a
+//     for_each key made of digits from a count index (GitHub issue #1737):
+//     x["0"] stamps as x:0, which decodes to x[0]. An address nothing
 //     declares is a deleted block's, and its object is the orphan it
 //     always was;
 //   - that address's type manages the object's kind: one of the kind's
@@ -118,20 +125,13 @@ func KubernetesAddressBindings(req Request, manifestType string, declared Kubern
 // orphan with. collisions is every address two or more undeclared objects
 // claim, each as its claimants' indexes, in address order: the sweep's
 // collision refusal (GitHub issue #1641).
-func addressClaims(req Request, manifestType string, declared KubernetesDeclared, listed ListedObjects, undeclared []UndeclaredObject) (bound map[int]addressClaim, collisions [][]int) {
-	// What the configuration declares, by address: every resolution it
-	// handed in, and every instance the static evaluator refused.
-	resolved := make(map[string]identity.Resolution, len(req.Resolutions))
-	for _, r := range req.Resolutions {
-		if !r.Undeclared {
-			resolved[r.Addr.String()] = r
-		}
-	}
+func addressClaims(req Request, manifestType string, declared KubernetesDeclared, listed ListedObjects, undeclared []UndeclaredObject) (bound map[int]addressClaim, collisions []addressCollisionSet) {
+	join := newAddressJoin(req, manifestType, undeclared)
 
 	byKey := map[string][]int{}
 	claimed := map[int]addressClaim{}
 	for i, u := range undeclared {
-		c, ok := addressCandidate(req, manifestType, declared, listed, resolved, u)
+		c, ok := addressCandidate(req, manifestType, declared, listed, join, u)
 		if !ok {
 			continue
 		}
@@ -160,12 +160,19 @@ func addressClaims(req Request, manifestType string, declared KubernetesDeclared
 			// a create at the replacement's own name. So the sweep raises
 			// the collision refusal AWS raises for two objects carrying
 			// one tofu-address (GitHub issue #1641), and binds neither.
-			collisions = append(collisions, idxs)
+			collisions = append(collisions, addressCollisionSet{addr: claimed[idxs[0]].addr, idxs: idxs})
 			continue
 		}
 		bound[idxs[0]] = claimed[idxs[0]]
 	}
 	return bound, collisions
+}
+
+// addressCollisionSet is the undeclared objects, by index, whose
+// annotations all name addr.
+type addressCollisionSet struct {
+	addr addrs.AbsResourceInstance
+	idxs []int
 }
 
 // bindByAddress binds what the annotation settles, records it in res, and
@@ -176,11 +183,11 @@ func bindByAddress(req Request, leg KubernetesSweep, declared KubernetesDeclared
 	var diags tfdiags.Diagnostics
 	claims, collisions := addressClaims(req, leg.ManifestType, declared, listed, undeclared)
 	bound := map[int]bool{}
-	for _, idxs := range collisions {
-		for _, idx := range idxs {
+	for _, c := range collisions {
+		for _, idx := range c.idxs {
 			bound[idx] = true
 		}
-		diags = diags.Append(problemDiag(res, addressCollision(req, declared, undeclared, idxs)))
+		diags = diags.Append(problemDiag(res, addressCollision(req, declared, undeclared, c.addr, c.idxs)))
 	}
 	for idx, u := range undeclared {
 		c, ok := claims[idx]
@@ -231,19 +238,16 @@ type addressClaim struct {
 
 // addressCandidate reports the declared instance u's annotation binds it
 // to, when every condition in this file's comment holds.
-func addressCandidate(req Request, manifestType string, declared KubernetesDeclared, listed ListedObjects, resolved map[string]identity.Resolution, u UndeclaredObject) (addressClaim, bool) {
+func addressCandidate(req Request, manifestType string, declared KubernetesDeclared, listed ListedObjects, join *addressJoin, u UndeclaredObject) (addressClaim, bool) {
 	o, k := u.Object, u.Kind
 	if o.Address == "" || o.DeletionTimestamp != "" {
 		return addressClaim{}, false
 	}
-	addr, ok := UnescapeAddress(o.Address)
+	addr, ok := join.match(o.Address)
 	if !ok {
 		return addressClaim{}, false
 	}
 	key := addr.String()
-	if _, isResolved := resolved[key]; !isResolved && !req.NodeRefused[key] {
-		return addressClaim{}, false
-	}
 
 	claim := addressClaim{addr: addr}
 	typeName := addr.Resource.Resource.Type
@@ -282,8 +286,7 @@ func addressCandidate(req Request, manifestType string, declared KubernetesDecla
 // addressCollision is the [ProblemCollision] for two or more listed
 // objects whose address annotations name one declared instance that no
 // listed object holds by its natural key.
-func addressCollision(req Request, declared KubernetesDeclared, undeclared []UndeclaredObject, idxs []int) Problem {
-	addr, _ := UnescapeAddress(undeclared[idxs[0]].Object.Address)
+func addressCollision(req Request, declared KubernetesDeclared, undeclared []UndeclaredObject, addr addrs.AbsResourceInstance, idxs []int) Problem {
 	ids := make([]string, 0, len(idxs))
 	for _, idx := range idxs {
 		o := undeclared[idx].Object
@@ -332,6 +335,7 @@ func accountUnaddressed(req Request, leg KubernetesSweep, unlisted []kubesweep.K
 		}
 	}
 	sort.Strings(keys)
+	stmts := moved.Honoured(req.Config)
 
 refused:
 	for _, key := range keys {
@@ -362,13 +366,18 @@ refused:
 			if settled[i] || u.Object.DeletionTimestamp != "" || !manages(leg.ManifestType, u.Kind, typeName) {
 				continue
 			}
-			if u.Object.Address != "" {
+			if u.Object.Address != "" && !namesInstance(stmts, addr, u.Object.Address) {
 				if _, ok := UnescapeAddress(u.Object.Address); ok {
-					// It names a block, and not this one: this instance
-					// was not bound to it.
+					// It names a block, and not this one.
 					continue
 				}
 			}
+			// No annotation, one that does not parse, or one that names
+			// this very instance and did not bind (GitHub issue #1737):
+			// each could be this instance's object, and the last is the
+			// likeliest to be. Skipping that one as "annotated for
+			// another block" is what let a missed bind lift the refusal
+			// and plan a create beside an orphan destroy of the object.
 			objects = append(objects, u.Kind.Kind+" "+kubesweep.NaturalKey(u.Object.Namespace, u.Object.Name))
 		}
 		if res.KubernetesUnaddressed == nil {
@@ -391,4 +400,127 @@ func ownsInstance(req Request, addr addrs.AbsResourceInstance) bool {
 	}
 	rc := modCfg.Module.ManagedResources[addr.Resource.Resource.String()]
 	return rc != nil && inScope(req.ScopeProvider, rc, modCfg)
+}
+
+// namesInstance reports whether an address annotation names addr: by
+// [moved.Accepts], the one definition of "this marker names this
+// instance", or - kept so a refusal can only ever be held by this, never
+// lifted - by decoding to addr exactly.
+func namesInstance(stmts []moved.Statement, addr addrs.AbsResourceInstance, annotation string) bool {
+	if moved.Accepts(stmts, addr, annotation) {
+		return true
+	}
+	decoded, ok := UnescapeAddress(annotation)
+	return ok && decoded.String() == addr.String()
+}
+
+// addressJoin is what an address annotation is compared with: every
+// instance the configuration declares (a resolution the caller handed in,
+// or an instance [Request.NodeRefused] names), and the addresses the
+// honoured moved blocks say each used to have.
+//
+// It compares escaped strings, as the AWS legs do, and never decodes the
+// annotation into an address to compare: decoding reads a for_each key
+// made of digits as a count index, so x["0"]'s annotation x:0 would come
+// back as x[0], which nothing declares (GitHub issue #1737).
+type addressJoin struct {
+	declared []addrs.AbsResourceInstance
+	// exact is each declared instance's current-grammar escaped address,
+	// the common case, answered without a scan.
+	exact   map[string][]int
+	aliases [][]addrs.AbsResourceInstance
+}
+
+// newAddressJoin indexes the declared instances of the types undeclared's
+// kinds can be declared by: an annotation naming an instance of any other
+// type could not bind to an object of these kinds anyway, and the
+// resolutions carry every provider's instances.
+func newAddressJoin(req Request, manifestType string, undeclared []UndeclaredObject) *addressJoin {
+	types := map[string]bool{}
+	if manifestType != "" {
+		types[manifestType] = true
+	}
+	for _, u := range undeclared {
+		for _, t := range u.Kind.TypeNames {
+			types[t] = true
+		}
+	}
+
+	seen := map[string]bool{}
+	var declared []addrs.AbsResourceInstance
+	add := func(a addrs.AbsResourceInstance) {
+		key := a.String()
+		if seen[key] || a.Resource.Resource.Mode != addrs.ManagedResourceMode || !types[a.Resource.Resource.Type] {
+			return
+		}
+		seen[key] = true
+		declared = append(declared, a)
+	}
+	for _, r := range req.Resolutions {
+		if !r.Undeclared {
+			add(r.Addr)
+		}
+	}
+	refused := make([]string, 0, len(req.NodeRefused))
+	for key, ok := range req.NodeRefused {
+		if ok {
+			refused = append(refused, key)
+		}
+	}
+	sort.Strings(refused)
+	for _, key := range refused {
+		if a, diags := addrs.ParseAbsResourceInstanceStr(key); !diags.HasErrors() {
+			add(a)
+		}
+	}
+
+	stmts := moved.Honoured(req.Config)
+	j := &addressJoin{declared: declared, exact: map[string][]int{}, aliases: make([][]addrs.AbsResourceInstance, len(declared))}
+	for i, a := range declared {
+		esc := markers.EscapeAddress(a.String())
+		j.exact[esc] = append(j.exact[esc], i)
+		j.aliases[i] = moved.Aliases(stmts, a)
+	}
+	return j
+}
+
+// match reports the one declared instance annotation names. A declared
+// instance's own address wins over a moved alias, as it does on the AWS
+// legs (an alias never displaces an address the configuration still
+// declares); two instances named at one level is no match, since the
+// annotation cannot say which.
+func (j *addressJoin) match(annotation string) (addrs.AbsResourceInstance, bool) {
+	if annotation == "" {
+		return addrs.AbsResourceInstance{}, false
+	}
+	if idxs := j.exact[annotation]; len(idxs) > 0 {
+		if len(idxs) == 1 {
+			return j.declared[idxs[0]], true
+		}
+		return addrs.AbsResourceInstance{}, false
+	}
+	one := func(names func(int) bool) (addrs.AbsResourceInstance, int) {
+		var hit addrs.AbsResourceInstance
+		n := 0
+		for i := range j.declared {
+			if names(i) {
+				hit = j.declared[i]
+				n++
+			}
+		}
+		return hit, n
+	}
+	// An older escaping grammar of a declared address.
+	if hit, n := one(func(i int) bool { return markers.AddressMatches(annotation, j.declared[i].String()) }); n > 0 {
+		return hit, n == 1
+	}
+	hit, n := one(func(i int) bool {
+		for _, alias := range j.aliases[i] {
+			if markers.AddressMatches(annotation, alias.String()) {
+				return true
+			}
+		}
+		return false
+	})
+	return hit, n == 1
 }

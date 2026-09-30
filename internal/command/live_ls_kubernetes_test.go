@@ -114,7 +114,7 @@ func TestLiveLsKubernetesList(t *testing.T) {
 		liveLsK8sResolution(t, "kubernetes_manifest", "crontab", "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-k8s,name=my-crontab"),
 	}
 
-	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, types, "kubernetes_manifest", resolutions, nil)
+	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, types, "kubernetes_manifest", resolutions, nil, nil)
 	if diags.HasErrors() {
 		t.Fatalf("unexpected errors: %s", diags.Err())
 	}
@@ -184,7 +184,7 @@ func boolWord(declared bool) string {
 // the AWS listing's own severity for an unreachable tagging index.
 func TestLiveLsKubernetesList_discoveryFailureIsTheSweepsWarning(t *testing.T) {
 	sweeper := &liveLsStubSweeper{kindsErr: errors.New("dial tcp 127.0.0.1:6443: connection refused")}
-	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, []string{"kubernetes_namespace"}, "", nil, nil)
+	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, []string{"kubernetes_namespace"}, "", nil, nil, nil)
 	if len(items) != 0 {
 		t.Errorf("items = %+v, want none", items)
 	}
@@ -501,7 +501,7 @@ func TestLiveLsKubernetesListsControllerHeld(t *testing.T) {
 			"ConfigMap": {{Kind: "ConfigMap", Namespace: "web", Name: "web-greeting", Labels: map[string]string{"tofu-estate": "smoke-k8s"}, HeldBy: "Helm release web/web"}},
 		},
 	}
-	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, []string{"kubernetes_config_map_v1"}, "", nil, nil)
+	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, []string{"kubernetes_config_map_v1"}, "", nil, nil, nil)
 	if diags.HasErrors() {
 		t.Fatalf("unexpected errors: %s", diags.Err())
 	}
@@ -549,7 +549,7 @@ func TestLiveLsKubernetesList_BindsByAddressAnnotation(t *testing.T) {
 		// listed yet - stock's own create-before-destroy shape.
 		resolutions := []identity.Resolution{liveLsK8sResolution(t, "kubernetes_config_map_v1", "cfg", "rep-chdf/cfg-b")}
 
-		items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, types, "", resolutions, nil)
+		items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, types, "", resolutions, nil, nil)
 		if diags.HasErrors() {
 			t.Fatalf("unexpected errors: %s", diags.Err())
 		}
@@ -578,7 +578,7 @@ func TestLiveLsKubernetesList_BindsByAddressAnnotation(t *testing.T) {
 		}
 		nodeRefused := map[string]bool{"kubernetes_config_map_v1.reader": true}
 
-		items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", newSweeper(), types, "", nil, nodeRefused)
+		items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", newSweeper(), types, "", nil, nodeRefused, nil)
 		if diags.HasErrors() {
 			t.Fatalf("unexpected errors: %s", diags.Err())
 		}
@@ -592,7 +592,7 @@ func TestLiveLsKubernetesList_BindsByAddressAnnotation(t *testing.T) {
 		// The control: with no resolution and no nodeRefused entry, nothing
 		// says the annotation names a declared instance, so the object stays
 		// exactly the orphan it always was.
-		items, diags = liveLsKubernetesList(context.Background(), "smoke-k8s", newSweeper(), types, "", nil, nil)
+		items, diags = liveLsKubernetesList(context.Background(), "smoke-k8s", newSweeper(), types, "", nil, nil, nil)
 		if diags.HasErrors() {
 			t.Fatalf("unexpected errors: %s", diags.Err())
 		}
