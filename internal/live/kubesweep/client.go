@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -750,37 +751,108 @@ func HelmReleaseOf(ann map[string]string) (Release, bool) {
 	return Release{Namespace: strings.TrimSpace(ann[HelmReleaseNamespaceAnnotation]), Name: name}, true
 }
 
-// helmReleaseSecretsGVR is where Helm 3 keeps a release's history: one
-// Secret per revision, named sh.helm.release.v1.<name>.v<revision> and
-// labelled owner=helm,name=<name>, in the release's namespace.
-var helmReleaseSecretsGVR = schema.GroupVersionResource{Version: "v1", Resource: "secrets"}
+// helmReleaseStores are where Helm 3 keeps a release's history, one
+// object per revision, named sh.helm.release.v1.<name>.v<revision> and
+// labelled owner=helm, name=<name>, status=<status> and
+// version=<revision>, in the release's namespace. Secrets is Helm's
+// default storage driver; HELM_DRIVER=configmap keeps the same records,
+// same names and labels, in ConfigMaps (helm.sh/helm/v3
+// pkg/storage/driver, secrets.go and cfgmaps.go; GitHub issue #1738).
+// HELM_DRIVER=sql keeps them outside the cluster, where no sweep can
+// read them; a release stored that way reads as gone here.
+var helmReleaseStores = []schema.GroupVersionResource{
+	{Version: "v1", Resource: "secrets"},
+	{Version: "v1", Resource: "configmaps"},
+}
 
-// helmReleaseExists reports whether rel's release still has at least one
-// history Secret in its namespace (GitHub issue #1625). A release with no
+// helmStatusUninstalled is the status Helm writes on a release's latest
+// record when `helm uninstall --keep-history` removes its objects but
+// keeps its history (pkg/release/status.go). Helm's other statuses -
+// unknown, deployed, superseded, failed, uninstalling, pending-install,
+// pending-upgrade, pending-rollback - are all a release Helm still
+// answers for: `helm list -a` shows it and `helm uninstall` deletes its
+// objects, a failed install's among them.
+const helmStatusUninstalled = "uninstalled"
+
+// helmReleaseExists reports whether rel's release still exists: at least
+// one history record in either storage driver, the latest of which does
+// not read uninstalled (GitHub issues #1625, #1738). A release with no
 // namespace annotation - Helm always writes one since 3.2, so this is a
 // pre-3.2 object or a hand-crafted annotation - is looked up in the
-// object's own namespace, the ordinary case for a namespaced release.
+// object's own namespace, the ordinary case for a namespaced release, and
+// the answer is remembered under the namespace actually asked.
 //
-// A cluster that cannot answer is reported as an error, same as every
-// other [Sweeper.List] failure: never as "gone", which would turn a
-// coverage gap into a proposal to destroy a release's own object.
+// A live record in either store is enough on its own: a store the cluster
+// would not list could only have added a record. Short of that, a store
+// that could not be read is reported as an error - a Forbidden one as the
+// cluster's own denial, which the sweep names as a missing grant (#1582) -
+// same as every other [Sweeper.List] failure: never as "gone", which would
+// turn a coverage gap into a proposal to destroy a release's own object.
 func (c *Client) helmReleaseExists(ctx context.Context, cache map[Release]bool, rel Release, objNamespace string) (bool, error) {
-	if v, ok := cache[rel]; ok {
-		return v, nil
-	}
 	ns := rel.Namespace
 	if ns == "" {
 		ns = objNamespace
 	}
-	list, err := c.dyn.Resource(helmReleaseSecretsGVR).Namespace(ns).List(ctx, metav1.ListOptions{
-		LabelSelector: "owner=helm,name=" + rel.Name,
-	})
-	if err != nil {
-		return false, fmt.Errorf("checking whether Helm release %s still exists: %w", rel.String(), err)
+	key := Release{Namespace: ns, Name: rel.Name}
+	if v, ok := cache[key]; ok {
+		return v, nil
 	}
-	exists := len(list.Items) > 0
-	cache[rel] = exists
-	return exists, nil
+	var unread error
+	for _, store := range helmReleaseStores {
+		list, err := c.dyn.Resource(store).Namespace(ns).List(ctx, metav1.ListOptions{
+			LabelSelector: "owner=helm,name=" + rel.Name,
+		})
+		if err != nil {
+			if unread == nil {
+				unread = fmt.Errorf("checking whether %s still exists: %w", key.String(), err)
+			}
+			continue
+		}
+		if helmReleaseLive(list.Items) {
+			cache[key] = true
+			return true, nil
+		}
+	}
+	if unread != nil {
+		return false, unread
+	}
+	cache[key] = false
+	return false, nil
+}
+
+// helmReleaseLive reports whether one store's records for a release say
+// it is live: the latest revision's status is anything but uninstalled.
+// Latest is the highest version label, compared as a number (v10 follows
+// v9). A record whose version does not read as a number leaves the order
+// unknown, and then the release is live unless every record reads
+// uninstalled or superseded - the answer that holds when unsure.
+func helmReleaseLive(records []unstructured.Unstructured) bool {
+	if len(records) == 0 {
+		return false
+	}
+	latest, latestStatus, ordered := -1, "", true
+	for i := range records {
+		labels := records[i].GetLabels()
+		v, err := strconv.Atoi(labels["version"])
+		if err != nil {
+			ordered = false
+			break
+		}
+		if v > latest {
+			latest, latestStatus = v, labels["status"]
+		}
+	}
+	if ordered {
+		return latestStatus != helmStatusUninstalled
+	}
+	for i := range records {
+		switch records[i].GetLabels()["status"] {
+		case helmStatusUninstalled, "superseded":
+		default:
+			return true
+		}
+	}
+	return false
 }
 
 // claimsContent reports whether a managedFields entry owns any of the

@@ -7,9 +7,11 @@ package discovery
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"testing"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -169,5 +171,46 @@ func TestKubernetesSweepStopsHoldingWhenReleaseSecretIsGone(t *testing.T) {
 	}
 	if res.KubernetesOwnerSkipped != 0 {
 		t.Errorf("owner-skipped = %d, want 0", res.KubernetesOwnerSkipped)
+	}
+}
+
+// TestKubernetesSweepDeniedReleaseLookupIsAGapNotAnOrphan (GitHub issue
+// #1738): the release check reads both of Helm's storage drivers, and a
+// role that may list Secrets but not ConfigMaps cannot tell a release gone
+// from one kept by HELM_DRIVER=configmap. The sweep reports that as a
+// denied gap naming configmaps (#1582), and proposes nothing - not the
+// release's object, and not the kind's other objects either, since the
+// kind's listing did not complete.
+func TestKubernetesSweepDeniedReleaseLookupIsAGapNotAnOrphan(t *testing.T) {
+	svcGVR := schema.GroupVersionResource{Version: "v1", Resource: "services"}
+	cmGVR := schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}
+	secretGVR := schema.GroupVersionResource{Version: "v1", Resource: "secrets"}
+	svc := helmConfigMap("smoke-k8s", "web-svc", "web")
+	svc.SetKind("Service")
+	dyn := fakedynamic.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
+		map[schema.GroupVersionResource]string{svcGVR: "ServiceList", cmGVR: "ConfigMapList", secretGVR: "SecretList"},
+		svc,
+	)
+	dyn.PrependReactor("list", "configmaps", func(action clienttesting.Action) (bool, runtime.Object, error) {
+		return true, nil, apierrors.NewForbidden(schema.GroupResource{Resource: "configmaps"}, "",
+			errors.New(`User "sweeper" cannot list resource "configmaps" in API group "" in the namespace "smoke-k8s"`))
+	})
+	kind := kubesweep.Kind{GVR: svcGVR, Kind: "Service", Namespaced: true, APIVersion: "v1", TypeNames: []string{"kubernetes_service_v1"}}
+	req := Request{
+		Estate:   "smoke-k8s",
+		Sweepers: []Sweeper{KubernetesSweep{Client: fixedKindsClient{Client: kubesweep.NewWith(&fakediscovery.FakeDiscovery{Fake: &clienttesting.Fake{}}, dyn), kinds: []kubesweep.Kind{kind}}, Types: []string{"kubernetes_service_v1"}}},
+	}
+	res := &Result{}
+	if diags := sweepKubernetes(context.Background(), req, res); diags.HasErrors() {
+		t.Fatalf("unexpected errors: %s", diags.Err())
+	}
+	if len(res.Orphans) != 0 {
+		t.Errorf("orphans = %+v, want none: the release lookup was refused, not answered", res.Orphans)
+	}
+	if len(res.SweepGaps) != 1 || res.SweepGaps[0].TypeName != "kubernetes_service_v1" || res.SweepGaps[0].Reason != SweepGapListFailed {
+		t.Errorf("gaps = %+v, want one LIST_FAILED gap for kubernetes_service_v1", res.SweepGaps)
+	}
+	if len(res.kubeSweepDenied) != 1 || kubeGrantLine(res.kubeSweepDenied[0]) != `list configmaps in namespace "smoke-k8s"` {
+		t.Errorf("denials = %+v, want one naming list configmaps in namespace \"smoke-k8s\"", res.kubeSweepDenied)
 	}
 }
