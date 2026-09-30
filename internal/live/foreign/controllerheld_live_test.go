@@ -136,23 +136,41 @@ resource "aws_security_group" "web" {
 	if !strings.Contains(foreignSection(t, output), plainSG) {
 		t.Fatalf("the plain control group %s is not reported foreign, so the unclaimed listing did not run and this test proves nothing", plainSG)
 	}
+	// Reported as controller-held, naming the controller and its object.
+	// Every mention of an ACK-made resource in the plan must fall inside
+	// the Controller-held section: a mention anywhere else (the foreign
+	// section, an adoption offer, a destroy) is the resource being treated
+	// as something other than held.
+	held := flocitest.SectionFrom(output, "Controller-held:")
+	if held == "" {
+		t.Fatalf("the plan has no Controller-held section at all")
+	}
+	heldStart := strings.Index(output, held)
+	heldEnd := heldStart + len(held)
 	for _, id := range []string{ackBucket, ackSG} {
-		for _, line := range strings.Split(output, "\n") {
-			if strings.Contains(line, id) && !strings.Contains(line, "[CONTROLLER-HELD]") {
-				t.Errorf("the ACK-made %s appears outside the controller-held section: %q", id, line)
+		found := false
+		for off := 0; ; {
+			i := strings.Index(output[off:], id)
+			if i < 0 {
+				break
 			}
+			at := off + i
+			found = true
+			if at < heldStart || at >= heldEnd {
+				t.Errorf("the ACK-made %s appears outside the controller-held section: %q", id, lineAt(output, at))
+			}
+			off = at + len(id)
+		}
+		if !found {
+			t.Errorf("the ACK-made %s is not in the plan at all", id)
 		}
 	}
 
-	// Reported as controller-held, naming the controller and its object.
-	held := flocitest.SectionFrom(output, "Controller-held:")
 	flat := strings.Join(strings.Fields(held), " ")
 	for _, want := range []string{
-		"aws_s3_bucket " + ackBucket + " [CONTROLLER-HELD]",
-		"made by ACK s3 controller (s3-v1.0.14), custom resource in namespace team-a",
+		"aws_s3_bucket " + ackBucket + " held by ACK s3 controller (s3-v1.0.14), custom resource in namespace team-a",
 		"carries this estate's marker for aws_s3_bucket.gone, which the configuration does not declare; not destroyed.",
-		"aws_security_group " + ackSG,
-		"made by ACK ec2 controller (ec2-v1.2.3), custom resource in namespace team-a",
+		"aws_security_group " + ackSG + " (" + sgName + ") held by ACK ec2 controller (ec2-v1.2.3), custom resource in namespace team-a",
 	} {
 		if !strings.Contains(flat, want) {
 			t.Errorf("the controller-held section does not say %q:\n%s", want, held)
@@ -168,7 +186,19 @@ resource "aws_security_group" "web" {
 	if err != nil {
 		t.Fatalf("live-ls failed: %v", err)
 	}
-	if !strings.Contains(string(lsOut), "controller-held: made by ACK s3 controller (s3-v1.0.14), custom resource in namespace team-a") {
+	lsFlat := strings.Join(strings.Fields(string(lsOut)), " ")
+	if !strings.Contains(lsFlat, "arn:aws:s3:::"+ackBucket+" held by: ACK s3 controller (s3-v1.0.14), custom resource in namespace team-a (controller-held: never swept, never adopted)") {
 		t.Errorf("live-ls does not name %s controller-held", ackBucket)
 	}
+}
+
+// lineAt is the whole line of s containing byte offset at, for a failure
+// message that shows where a mention landed.
+func lineAt(s string, at int) string {
+	start := strings.LastIndex(s[:at], "\n") + 1
+	end := strings.Index(s[at:], "\n")
+	if end < 0 {
+		return s[start:]
+	}
+	return s[start : at+end]
 }
