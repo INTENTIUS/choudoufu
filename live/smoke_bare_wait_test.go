@@ -23,7 +23,13 @@ import (
 //
 // Proving it red: put a bare `wait` back in either scenario.
 
-var bareWait = regexp.MustCompile(`(^|[;&|(]|\bthen|\bdo|\belse)\s*wait\s*($|[;&|)#])`)
+// bareWait is `wait` with no operand, in command position, followed only
+// by redirections before the command ends. #1741: the first version wanted
+// the command to end right after the word, so `wait 2>/dev/null` and
+// `if true; then wait >/dev/null; fi` - both the #1718 stall - passed. A
+// redirection is not an operand: it names no PID, and the wait still waits
+// on the watchdog. `{` and `!` open a command position like `(` and `then`.
+var bareWait = regexp.MustCompile(`(^|[;&|({!]|\bthen|\bdo|\belse)\s*wait(\s*(?:[0-9]*|&)(?:>>?|<)(?:&[0-9-]|\s*[^\s;&|)<>]+))*\s*($|[;&|)}#])`)
 
 func TestSmokeScenariosNeverWaitBare(t *testing.T) {
 	files, err := filepath.Glob(filepath.Join("smoke", "scenarios", "*.sh"))
@@ -51,12 +57,16 @@ func TestSmokeScenariosNeverWaitBare(t *testing.T) {
 }
 
 func TestBareWaitPattern(t *testing.T) {
-	for _, s := range []string{"wait", "wait # both", ") & wait", "foo; wait", "then wait"} {
+	for _, s := range []string{"wait", "wait # both", ") & wait", "foo; wait", "then wait",
+		// #1741: redirections are not operands.
+		"wait 2>/dev/null", "if true; then wait >/dev/null; fi", "wait &>/dev/null", "wait > /dev/null 2>&1",
+		"wait >>log || true", "{ wait; }", "wait 2>&1"} {
 		if !bareWait.MatchString(s) {
 			t.Errorf("pattern misses bare wait in %q", s)
 		}
 	}
-	for _, s := range []string{`wait "$PID_A" "$PID_B" || true`, "wait $pid 2>/dev/null || true", `wait "$APPLY_PID" 2>/dev/null || APPLY_RC=$?`, "await", "wait_for_it"} {
+	for _, s := range []string{`wait "$PID_A" "$PID_B" || true`, "wait $pid 2>/dev/null || true", `wait "$APPLY_PID" 2>/dev/null || APPLY_RC=$?`, "await", "wait_for_it",
+		"wait $pid >/dev/null 2>&1", `wait "$PID" 2>/dev/null`, "echo wait 2>/dev/null", "waited=1"} {
 		if bareWait.MatchString(s) {
 			t.Errorf("pattern flags a PID wait or a non-wait: %q", s)
 		}

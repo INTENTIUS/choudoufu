@@ -4,9 +4,11 @@
 # variable and skipping on its own, so this workflow has one switch
 # (CHOUDOUFU_K8S_TEST) to set rather than needing to know each test's
 # variable by name. live/kind_tier_gate_test.go holds this file to the
-# roster: every package with a k8stest.Gate call site must be named below,
-# and TestFencedIdentityOnACluster - the test issue #1596 found invoked by
-# nothing, on any schedule, anywhere - must be named specifically.
+# roster, read as YAML and as shell words rather than counted as strings
+# (#1741): every step running `go test` carries CHOUDOUFU_K8S_TEST="1" as a
+# value, every -run alternative names a real test, and every Test function
+# that reaches k8stest.Gate - TestFencedIdentityOnACluster among them, the
+# test issue #1596 found invoked by nothing - is selected by some step.
 #
 # The record-store conformance and race tests (internal/live/staterecord)
 # already ran against a real cluster inside claim 39's scenario
@@ -21,9 +23,10 @@
 # versions .github/workflows/k8s-smoke.yml pins, with install_only so this
 # workflow owns the cluster's life.
 #
-# The kind binary version and the node image are read from their pins,
-# live/kind-version and live/kind-node-image (#1594), like every other
-# kind call site.
+# The kind binary version, kubectl's version and the node image are read
+# from their pins, live/kind-version, live/kubectl-version (#1741, held
+# within kubectl's one-minor skew of the node) and live/kind-node-image
+# (#1594), like every other kind call site.
 #
 # The smoke trigger rule (issue #1592, HANDOFF.md "CI: smoke workflow
 # triggers") is a whole workflow's worth of exception here rather than one
@@ -64,14 +67,16 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - name: Read the pinned kind version (issue #1594)
+      - name: Read the pinned kind and kubectl versions (issues #1594, #1741)
         id: kind
-        run: echo "version=$(cat live/kind-version)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(cat live/kind-version)" >> "$GITHUB_OUTPUT"
+          echo "kubectl=$(cat live/kubectl-version)" >> "$GITHUB_OUTPUT"
       - name: kind and kubectl, pinned
         uses: helm/kind-action@v1.15.0
         with:
           version: ${{ steps.kind.outputs.version }}
-          kubectl_version: v1.34.0
+          kubectl_version: ${{ steps.kind.outputs.kubectl }}
           install_only: true
       - name: create the kind cluster
         run: |
@@ -90,10 +95,15 @@ jobs:
             echo "CHOUDOUFU_K8S_RECORD_KUBECONFIG=$KUBECONFIG"
             echo "CHOUDOUFU_K8S_RECORD_NAMESPACE=tofu-records-kind-tier"
           } >> "$GITHUB_ENV"
-      - name: the record store's conformance and race tests
+      # Every staterecord test that reaches k8stest.Gate, named one by one:
+      # live/kind_tier_gate_test.go derives the gated roster from the Go
+      # source and fails when one is not selected here, and fails when a
+      # name here matches no test (#1741). Before that, the nine
+      # absent/survivors/missing-write live tests ran nowhere.
+      - name: the record store's live tests on a real API server
         run: |
           set -euo pipefail
-          go test ./internal/live/staterecord/... -run 'TestKubernetesStore|TestKubernetesTwoWritersOneRecord' -count=1 -v
+          go test ./internal/live/staterecord/... -count=1 -v -run 'TestKubernetesStore|TestKubernetesTwoWritersOneRecord|TestKubernetesListRefusesARecordThatLostItsLabels|TestKubernetesRefusesAMissingNamespaceOnEveryRead|TestKubernetesRefusesATerminatingNamespace|TestKubernetesRefusesARenamedRecordSecret|TestKubernetesRefusesTwoSecretsHoldingOneKey|TestKubernetesListReadsEveryPageOnARealAPIServer|TestKubernetesRefusesAMissingNamespaceOnEveryWrite|TestKubernetesAMissingNamespaceUnderAScopedIdentityIsStillNotAConflict|TestKubernetesAnExpiredContinueTokenFailsTheListingOnARealAPIServer'
       # TestFencedIdentityOnACluster (#1448 section C, internal/live/projection)
       # needs its own namespace and two impersonated identities: one with
       # ordinary CRUD RBAC on Secrets and NO estate grant (the fence must
@@ -121,6 +131,17 @@ jobs:
           # to it, not to the conformance suite's namespace above.
           CHOUDOUFU_K8S_RECORD_NAMESPACE: tofu-records-kind-tier-fence
         run: go test ./internal/live/projection/... -run TestFencedIdentityOnACluster -count=1 -v
+      # The Helm hold tests (internal/live/kubesweep, #1607 and #1625) install
+      # a chart with the helm binary, which ubuntu-latest carries; the
+      # preflight fails the job by name if it ever stops carrying it, rather
+      # than letting the test fail on a missing binary halfway through.
+      # Nightly only, like the rest of this workflow (#1741).
+      - name: the Helm release hold tests (internal/live/kubesweep)
+        run: |
+          set -euo pipefail
+          helm version
+          export CHOUDOUFU_K8S_SWEEP_KUBECONFIG="$KUBECONFIG"
+          go test ./internal/live/kubesweep/... -count=1 -v -run 'TestListHoldsHelmReleaseOnACluster|TestListDropsHelmHoldWhenReleaseSecretIsGoneOnACluster'
       - name: cluster logs, whatever happened to the job
         if: always()
         continue-on-error: true

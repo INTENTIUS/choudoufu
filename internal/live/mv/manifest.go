@@ -12,6 +12,7 @@ import (
 	"maps"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -28,14 +29,14 @@ import (
 // [kubesweep.ChangedOutsideMarkers], the check live-import's adoption of
 // the same shape makes.
 //
-// The patch goes under [kubesweep.DefaultFieldManager], and
-// [kubesweep.Client.PatchMarkers] hands the annotation to that manager's
-// server-side apply entry afterwards (GitHub issue #1704), so the
-// provider's next apply that changes it - the next rename - owns it rather
-// than conflicting with the patch. A block that names its own
-// field_manager is not read here; for one, the annotation stays with
-// "Terraform" and a later rename's apply under the block's manager
-// reports a field manager conflict.
+// The patch goes under the field manager the block declares
+// ([identity.ManifestFieldManager]; [kubesweep.DefaultFieldManager] when it
+// declares none), and [kubesweep.Client.PatchMarkers] hands the annotation
+// to that manager's server-side apply entry afterwards (GitHub issue
+// #1704), so the provider's next apply that changes it - the next rename -
+// owns it rather than conflicting with the patch. Written under
+// "Terraform" for a block that names its own field_manager, the annotation
+// went to the wrong Apply entry and that next apply conflicted (#1720).
 
 // reannotateManifest finds the manifest-declared object this rename's
 // anchor names, checks its estate label and its address annotation the
@@ -113,12 +114,20 @@ func (m *mover) reannotateManifest(ctx context.Context) tfdiags.Diagnostics {
 		m.res.Verified = true
 		return diags
 	}
+	fieldManager, err := identity.ManifestFieldManager(ctx, m.req.Config, m.res.Anchor)
+	if err != nil {
+		return diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Cannot tell the block's field manager",
+			fmt.Sprintf("Renaming %s rewrites the %s annotation on %s under the field manager the block's provider applies it with, so that manager owns the annotation afterwards: %s. Written under any other manager, the provider's next apply that changes the annotation would report a field manager conflict. Nothing was written; declare the field_manager name as a literal, a variable or a local.", m.res.Anchor, markers.AddressAnnotation, ref, err),
+		))
+	}
 	if m.req.DryRun {
 		return diags
 	}
 
 	annotations := map[string]string{markers.AddressAnnotation: m.res.NewMarker}
-	dry, rejected, err := patcher.PatchMarkers(ctx, ref, nil, annotations, "", true)
+	dry, rejected, err := patcher.PatchMarkers(ctx, ref, nil, annotations, fieldManager, true)
 	switch {
 	case err != nil:
 		return diags.Append(tfdiags.Sourceless(
@@ -151,7 +160,7 @@ func (m *mover) reannotateManifest(ctx context.Context) tfdiags.Diagnostics {
 		))
 	}
 
-	written, rejected, err := patcher.PatchMarkers(ctx, ref, nil, annotations, "", false)
+	written, rejected, err := patcher.PatchMarkers(ctx, ref, nil, annotations, fieldManager, false)
 	switch {
 	case err != nil:
 		return diags.Append(tfdiags.Sourceless(

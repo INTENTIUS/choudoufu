@@ -15,6 +15,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
@@ -84,8 +85,8 @@ func manifestSurface(block *configschema.Block) bool {
 // block that set one keeps it; unset, the patch falls back to
 // [kubesweep.DefaultFieldManager].
 const (
-	manifestFieldManagerBlock = "field_manager"
-	manifestFieldManagerAttr  = "name"
+	manifestFieldManagerBlock = identity.ManifestFieldManagerBlock
+	manifestFieldManagerAttr  = identity.ManifestFieldManagerName
 )
 
 // manifestFieldManager reads the field manager the migrated block
