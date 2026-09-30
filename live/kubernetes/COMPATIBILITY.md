@@ -132,9 +132,16 @@ because a label written by a post-renderer is one an out-of-band
 `helm upgrade` strips.
 
 The annotation alone is not trusted forever: the sweep also checks that
-the release it names still has a history secret
+the release it names still has a history record
 (`sh.helm.release.v1.<name>.v*`, labelled `owner=helm,name=<name>`) in the
-release's namespace ([#1625](https://github.com/INTENTIUS/choudoufu/issues/1625)).
+release's namespace, as a Secret or, under `HELM_DRIVER=configmap`, a
+ConfigMap, and that the latest one is not `status=uninstalled`, which is
+what `helm uninstall --keep-history` leaves
+([#1625](https://github.com/INTENTIUS/choudoufu/issues/1625),
+[#1738](https://github.com/INTENTIUS/choudoufu/issues/1738)). The sweep's
+credential therefore needs `list` on Secrets and ConfigMaps in the
+namespaces your releases live in; a refused list is reported as a denied
+gap for the kind being swept, and nothing in it is proposed.
 Moving an object off Helm without re-creating it - adopting it into a
 `kubernetes_manifest` block by import, then removing the release's
 bookkeeping - leaves the annotation in place, because server-side apply

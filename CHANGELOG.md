@@ -39,6 +39,14 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.21.0 (Unreleased)
 
+- The Helm release check behind a controller-held object reads both of
+  Helm's storage drivers, Secrets and ConfigMaps (`HELM_DRIVER=configmap`),
+  so a ConfigMap-driver release's objects are no longer proposed for
+  destroy; treats a release uninstalled with `--keep-history` as gone; and
+  answers each namespace separately for a release with no namespace
+  annotation. A role that cannot list either store gets a denied gap
+  naming it, never an orphan (#1738).
+
 ## choudoufu v0.20.0 (2026-09-27)
 
 Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.20.0.json`](live/history/v0.20.0.json).

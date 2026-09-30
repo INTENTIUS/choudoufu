@@ -245,15 +245,18 @@ opt-in that would bring a release inside the boundary is deferred by the
 #1604 ruling and not built.
 
 The annotation is not trusted past the release itself (#1625): the sweep
-also checks for the release's history secret
-(`sh.helm.release.v1.<name>.v*`, labelled `owner=helm,name=<name>`) in the
-release's namespace before calling an object held, because moving an
+also checks for the release's history record
+(`sh.helm.release.v1.<name>.v*`, labelled `owner=helm,name=<name>`, a
+Secret or under `HELM_DRIVER=configmap` a ConfigMap) in the release's
+namespace, latest revision not `status=uninstalled` (#1738), before
+calling an object held, because moving an
 object off Helm without re-creating it - adopting it into a
 `kubernetes_manifest` block by import, then removing the release's
 bookkeeping - leaves the annotation on the object; server-side apply
-touches only the fields its own writer claims. Once no such secret exists,
+touches only the fields its own writer claims. Once no live record exists,
 the object is judged like any other, on owner references and managedFields
-authorship alone.
+authorship alone. A store the sweep may not list
+is a denied gap, never "gone".
 
 The estate sweep (#1065) is one cluster-wide, label-selected list per kind
 the cluster serves with list and delete verbs, found through API
