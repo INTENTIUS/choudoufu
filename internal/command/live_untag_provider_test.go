@@ -25,6 +25,10 @@ import (
 	"github.com/intentius/choudoufu/internal/tofu"
 )
 
+// untagProviderEstate is the estate these fixtures label their orphans
+// with, the value a release checks the label against (GitHub issue #1743).
+const untagProviderEstate = "prod"
+
 // GitHub issue #1657: undeclared_tagged = "untag" releases each target
 // through the provider configuration whose sweep found it. These drive the
 // runner the way PriorState and AfterApply do around a real apply: the
@@ -201,7 +205,7 @@ provider "kubernetes" {}
 
 	view := &untagRecordingView{}
 	r := &statelessRunner{lib: lib, view: view}
-	r.captureUntag(statelessUntagTargets(merged), markers.TagEstate, config)
+	r.captureUntag(statelessUntagTargets(merged), markers.TagEstate, untagProviderEstate, config)
 	applyDiags := r.AfterApply(context.Background())
 
 	var errs []string
@@ -285,7 +289,7 @@ func TestUntagRefusesAnUnattributedTarget(t *testing.T) {
 	disco := &discovery.Result{Estate: "prod", Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{untagOrphan("aws_sqs_queue", "east-q")}}}
 	view := &untagRecordingView{}
 	r := &statelessRunner{lib: plugins.NewLibrary(plugins.ProviderFactories{}, nil), view: view}
-	r.captureUntag(statelessUntagTargets(disco), markers.TagEstate, liveLsLoadConfig(t, `provider "aws" {}`))
+	r.captureUntag(statelessUntagTargets(disco), markers.TagEstate, untagProviderEstate, liveLsLoadConfig(t, `provider "aws" {}`))
 	diags := r.AfterApply(context.Background())
 	if !diags.HasErrors() || !strings.Contains(diags.Err().Error(), "aws_sqs_queue east-q") {
 		t.Fatalf("diagnostics = %v, want an error naming the unattributed target", diags.Err())
@@ -295,5 +299,20 @@ func TestUntagRefusesAnUnattributedTarget(t *testing.T) {
 	}
 	if v, _ := cloud.get("us-east-1", "east-q"); v.GetAttr("tags").AsValueMap()["tofu-estate"] == cty.NilVal {
 		t.Error("the tag was removed through a provider nobody attributed the target to")
+	}
+}
+
+// GitHub issue #1743: the value a release checks the label against is the
+// policy's tag_value, which defaults to the estate name.
+func TestStatelessPolicyTagValueIsTheEstatesValue(t *testing.T) {
+	if got := statelessPolicyTagValue(policy.Build(nil, "prod")); got != "prod" {
+		t.Errorf("default tag value = %q, want the estate name %q", got, "prod")
+	}
+	custom := policy.Build(&policy.Raw{TagKey: "keep-me", TagKeySet: true, TagValue: "yes", TagValueSet: true}, "prod")
+	if got := statelessPolicyTagValue(custom); got != "yes" {
+		t.Errorf("tag value = %q, want the configured %q", got, "yes")
+	}
+	if got := statelessPolicyTagValue(nil); got != "" {
+		t.Errorf("no policy gave tag value %q", got)
 	}
 }

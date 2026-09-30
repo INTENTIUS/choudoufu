@@ -212,7 +212,7 @@ func TestDeleteMarkersLeavesNoOwnerBehind(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := ObjectRef{APIVersion: "stable.example.com/v1", Kind: "CronTab", Namespace: "smoke-crd", Name: "my-crontab"}
-	got, rejected, err := c.DeleteMarkers(context.Background(), ref, []string{"tofu-estate"}, []string{ssaTestAnnotation}, "", false)
+	got, rejected, err := c.DeleteMarkers(context.Background(), ref, ObjectPin{}, []string{"tofu-estate"}, []string{ssaTestAnnotation}, "", false)
 	if err != nil || rejected != "" {
 		t.Fatalf("DeleteMarkers: err=%v rejected=%q", err, rejected)
 	}

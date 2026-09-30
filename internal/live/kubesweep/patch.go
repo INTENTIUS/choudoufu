@@ -433,9 +433,32 @@ type LabelReleaser interface {
 	// DeleteMarkers removes every key in labels from metadata.labels and
 	// every key in annotations from metadata.annotations on the object at
 	// ref, through ONE merge patch under fieldManager, and returns the
-	// object the server produced. dryRun, rejected and err mean what they
-	// mean on [LabelPatcher.PatchMarkers].
-	DeleteMarkers(ctx context.Context, ref ObjectRef, labels, annotations []string, fieldManager string, dryRun bool) (obj *unstructured.Unstructured, rejected string, err error)
+	// object the server produced. pin, when set, makes the patch apply only
+	// to the object version it names ([ObjectPin]). dryRun, rejected and
+	// err mean what they mean on [LabelPatcher.PatchMarkers].
+	DeleteMarkers(ctx context.Context, ref ObjectRef, pin ObjectPin, labels, annotations []string, fieldManager string, dryRun bool) (obj *unstructured.Unstructured, rejected string, err error)
+}
+
+// ObjectPin names the exact object a write was decided against: its
+// metadata.resourceVersion and metadata.uid. A merge patch carrying them
+// is refused by the API server with a conflict when the stored object's
+// differ - it was written since (resourceVersion) or deleted and recreated
+// under the same name (uid) - so a write checked against what an object
+// carried cannot land on what it carries now. GitHub issue #1743: an untag
+// release checked the estate label, and live-mv could move the object to
+// another estate between that read and the patch. The zero value pins
+// nothing.
+type ObjectPin struct {
+	ResourceVersion string
+	UID             string
+}
+
+// PinOf is the [ObjectPin] for obj as read.
+func PinOf(obj *unstructured.Unstructured) ObjectPin {
+	if obj == nil {
+		return ObjectPin{}
+	}
+	return ObjectPin{ResourceVersion: obj.GetResourceVersion(), UID: string(obj.GetUID())}
 }
 
 var _ LabelReleaser = (*Client)(nil)
@@ -445,8 +468,11 @@ var _ LabelReleaser = (*Client)(nil)
 // null value, which RFC 7386 defines as "remove this key", and nothing
 // else - the request cannot carry a change to any other field, for the
 // same reason [Client.PatchMarkers]'s cannot. A key the object does not
-// carry is a no-op on the server, not an error.
-func (c *Client) DeleteMarkers(ctx context.Context, ref ObjectRef, labels, annotations []string, fieldManager string, dryRun bool) (*unstructured.Unstructured, string, error) {
+// carry is a no-op on the server, not an error. A set pin adds
+// metadata.resourceVersion and metadata.uid, which change nothing on a
+// stored object that already carries them and refuse the patch on one
+// that does not ([ObjectPin]).
+func (c *Client) DeleteMarkers(ctx context.Context, ref ObjectRef, pin ObjectPin, labels, annotations []string, fieldManager string, dryRun bool) (*unstructured.Unstructured, string, error) {
 	if ref.APIVersion == "" || ref.Kind == "" || ref.Name == "" {
 		return nil, "", fmt.Errorf("an object needs an apiVersion, a kind and a name to be patched")
 	}
@@ -466,6 +492,12 @@ func (c *Client) DeleteMarkers(ctx context.Context, ref ObjectRef, labels, annot
 			m[k] = nil
 		}
 		meta[field] = m
+	}
+	if pin.ResourceVersion != "" {
+		meta["resourceVersion"] = pin.ResourceVersion
+	}
+	if pin.UID != "" {
+		meta["uid"] = pin.UID
 	}
 	return c.mergePatch(ctx, ref, map[string]any{"metadata": meta}, fieldManager, dryRun)
 }

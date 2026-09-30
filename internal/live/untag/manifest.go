@@ -39,7 +39,7 @@ import (
 // The patch goes under [kubesweep.DefaultFieldManager]: an undeclared
 // orphan has no configuration to name a field_manager block, and a merge
 // patch that removes a key leaves no field for a manager to own.
-func releaseManifest(ctx context.Context, cluster kubesweep.LabelReleaser, key string, t Target) Outcome {
+func releaseManifest(ctx context.Context, cluster kubesweep.LabelReleaser, key, value string, t Target) Outcome {
 	out := Outcome{Target: t}
 
 	if cluster == nil {
@@ -66,17 +66,28 @@ func releaseManifest(ctx context.Context, cluster kubesweep.LabelReleaser, key s
 		out.Detail = fmt.Sprintf("The live system reports that this %s no longer exists; there is nothing to release a label from.", t.TypeName)
 		return out
 	}
-	_, hasLabel := live.GetLabels()[key]
+	got, hasLabel := live.GetLabels()[key]
 	_, hasAddress := live.GetAnnotations()[markers.AddressAnnotation]
 	if !hasLabel && !hasAddress {
 		out.OK = true
 		out.Detail = fmt.Sprintf("Already carries no %q label; nothing to release.", key)
 		return out
 	}
+	if hasLabel && got != value {
+		// GitHub issue #1743: the object was moved to another estate after
+		// discovery. Its address annotation is that estate's too.
+		out.OK = true
+		out.Detail = anotherEstates(key, got, value, "label")
+		return out
+	}
 
+	// Both patches are pinned to the object just checked, so live-mv
+	// landing between this read and the write makes the server refuse
+	// the write rather than delete the other estate's label.
+	pin := kubesweep.PinOf(live)
 	keys := []string{key}
 	annotations := []string{markers.AddressAnnotation}
-	dry, rejected, err := cluster.DeleteMarkers(ctx, ref, keys, annotations, kubesweep.DefaultFieldManager, true)
+	dry, rejected, err := cluster.DeleteMarkers(ctx, ref, pin, keys, annotations, kubesweep.DefaultFieldManager, true)
 	if err != nil {
 		out.Detail = fmt.Sprintf("The label release on %s could not be submitted to the cluster for a dry run: %s. Nothing was changed.", ref, err)
 		return out
@@ -97,13 +108,13 @@ func releaseManifest(ctx context.Context, cluster kubesweep.LabelReleaser, key s
 		return out
 	}
 
-	written, rejected, err := cluster.DeleteMarkers(ctx, ref, keys, annotations, kubesweep.DefaultFieldManager, false)
+	written, rejected, err := cluster.DeleteMarkers(ctx, ref, pin, keys, annotations, kubesweep.DefaultFieldManager, false)
 	if err != nil {
 		out.Detail = fmt.Sprintf("The label release on %s failed: %s. The write may have partly landed; read the object's labels with kubectl before deciding what to do next.", ref, err)
 		return out
 	}
 	if rejected != "" {
-		out.Detail = fmt.Sprintf("The API server refused the label release on %s: %s. Nothing was changed.", ref, rejected)
+		out.Detail = fmt.Sprintf("The API server refused the label release on %s: %s. Nothing was changed. The release was pinned to resourceVersion %s; if the object changed since (live-mv moving it to another estate, for one), the next run reads it afresh.", ref, rejected, pin.ResourceVersion)
 		return out
 	}
 	if written == nil {
