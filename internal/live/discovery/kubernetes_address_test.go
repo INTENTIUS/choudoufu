@@ -294,11 +294,16 @@ func TestKubernetesSweepAddressAnnotationBindsOnlyWhatItMust(t *testing.T) {
 			wantOrphans: []string{"ns/x"},
 		},
 		{
+			// Not bound here, and not an orphan either (GitHub issue
+			// #1757): the pass whose configuration declares cfg decides
+			// the object, and an orphan here was a destroy beside that
+			// pass's import. Empty, not nil: nil asserts the manifest
+			// binding below.
 			name:        "the address is declared under another provider configuration",
 			objects:     []kubesweep.Object{labelled("ConfigMap", "ns", "x", cfg.String())},
 			refused:     map[string]bool{cfg.String(): true},
 			scope:       addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("kubernetes"), Alias: "other"},
-			wantOrphans: []string{"ns/x"},
+			wantOrphans: []string{},
 		},
 		{
 			// A manifest block may declare a built-in kind; its object
