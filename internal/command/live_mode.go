@@ -738,6 +738,10 @@ type statelessRunner struct {
 	// one that can reach it (GitHub issue #1657).
 	untagGroups []untagGroup
 	untagKey    string
+	// untagValue is the value untagKey must still carry for a release to
+	// touch it (GitHub issue #1743): the policy's tag_value, the estate
+	// name by default.
+	untagValue  string
 	untagConfig *configs.Config
 
 	lib  plugins.Library
@@ -1527,7 +1531,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// "untag" rather than "keep" or "report". Captured here, for
 	// AfterApply, rather than acted on now: this method also runs for a
 	// plan, and a plan must never write to the live system.
-	r.captureUntag(statelessUntagTargets(disco), statelessPolicyTagKey(r.policy), config)
+	r.captureUntag(statelessUntagTargets(disco), statelessPolicyTagKey(r.policy), statelessPolicyTagValue(r.policy), config)
 
 	return projResult.State, diags
 }
@@ -1537,9 +1541,10 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 // ([statelessUntagTargets]). Not the estate's primary provider
 // configuration, which is what this used before GitHub issue #1657 and
 // which cannot reach an orphan in another region, account or cluster.
-func (r *statelessRunner) captureUntag(groups []untagGroup, key string, config *configs.Config) {
+func (r *statelessRunner) captureUntag(groups []untagGroup, key, value string, config *configs.Config) {
 	r.untagGroups = groups
 	r.untagKey = key
+	r.untagValue = value
 	r.untagConfig = config
 }
 
@@ -1682,7 +1687,7 @@ func (r *statelessRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
 		// is the sweep's own for the same configuration (GitHub issue
 		// #1656): a manifest-shape orphan's markers are released by an API
 		// patch through it.
-		groupResult, releaseDiags := untag.Release(ctx, provider, statelessUntagCluster(r.kubeSweepers, g.Provider), r.untagKey, g.Targets)
+		groupResult, releaseDiags := untag.Release(ctx, provider, statelessUntagCluster(r.kubeSweepers, g.Provider), r.untagKey, r.untagValue, g.Targets)
 		diags = diags.Append(releaseDiags)
 		if groupResult != nil {
 			result.Outcomes = append(result.Outcomes, groupResult.Outcomes...)

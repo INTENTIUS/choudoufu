@@ -46,7 +46,7 @@ func TestDeleteMarkersSendsANullMergePatchAndNothingElse(t *testing.T) {
 	})
 	c := NewWith(crontabDiscovery(), dyn)
 
-	got, rejected, err := c.DeleteMarkers(context.Background(), crontabRef, []string{"tofu-estate"}, []string{AddressAnnotation}, "", true)
+	got, rejected, err := c.DeleteMarkers(context.Background(), crontabRef, ObjectPin{}, []string{"tofu-estate"}, []string{AddressAnnotation}, "", true)
 	if err != nil || rejected != "" {
 		t.Fatalf("dry run: rejected=%q err=%v", rejected, err)
 	}
@@ -83,7 +83,7 @@ func TestDeleteMarkersSendsANullMergePatchAndNothingElse(t *testing.T) {
 
 	// The real write carries no dryRun and removes the label on the
 	// stored object, leaving every other label where it was.
-	written, rejected, err := c.DeleteMarkers(context.Background(), crontabRef, []string{"tofu-estate"}, []string{AddressAnnotation}, "custom", false)
+	written, rejected, err := c.DeleteMarkers(context.Background(), crontabRef, ObjectPin{}, []string{"tofu-estate"}, []string{AddressAnnotation}, "custom", false)
 	if err != nil || rejected != "" {
 		t.Fatalf("write: rejected=%q err=%v", rejected, err)
 	}
@@ -108,6 +108,35 @@ func TestDeleteMarkersSendsANullMergePatchAndNothingElse(t *testing.T) {
 	}
 }
 
+// GitHub issue #1743: a pinned release names the object version it was
+// decided against in the patch body, and only that beside the markers.
+func TestDeleteMarkersCarriesThePin(t *testing.T) {
+	dyn := fakedynamic.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{crontabGVR: "CronTabList"}, labelledCrontab())
+	var seen []clienttesting.PatchActionImpl
+	dyn.PrependReactor("patch", "crontabs", func(action clienttesting.Action) (bool, runtime.Object, error) {
+		seen = append(seen, action.(clienttesting.PatchActionImpl))
+		return false, nil, nil
+	})
+	c := NewWith(crontabDiscovery(), dyn)
+	live := labelledCrontab()
+	live.SetUID("u-7")
+	if _, rejected, err := c.DeleteMarkers(context.Background(), crontabRef, PinOf(live), []string{"tofu-estate"}, nil, "", true); err != nil || rejected != "" {
+		t.Fatalf("rejected=%q err=%v", rejected, err)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(seen[0].GetPatch(), &body); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{"metadata": map[string]any{
+		"labels":          map[string]any{"tofu-estate": nil},
+		"resourceVersion": "41",
+		"uid":             "u-7",
+	}}
+	if !reflect.DeepEqual(body, want) {
+		t.Errorf("patch body = %s, want the label set to null plus resourceVersion 41 and uid u-7", seen[0].GetPatch())
+	}
+}
+
 func TestDeleteMarkersReturnsTheServersVerdict(t *testing.T) {
 	dyn := fakedynamic.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{crontabGVR: "CronTabList"}, labelledCrontab())
 	dyn.PrependReactor("patch", "crontabs", func(clienttesting.Action) (bool, runtime.Object, error) {
@@ -115,7 +144,7 @@ func TestDeleteMarkersReturnsTheServersVerdict(t *testing.T) {
 			errors.New("bob may not remove tofu-estate"))
 	})
 	c := NewWith(crontabDiscovery(), dyn)
-	_, rejected, err := c.DeleteMarkers(context.Background(), crontabRef, []string{"tofu-estate"}, []string{AddressAnnotation}, "", true)
+	_, rejected, err := c.DeleteMarkers(context.Background(), crontabRef, ObjectPin{}, []string{"tofu-estate"}, []string{AddressAnnotation}, "", true)
 	if err != nil || !strings.Contains(rejected, "bob may not remove tofu-estate") {
 		t.Errorf("a 403 was not returned as the server's verdict: rejected=%q err=%v", rejected, err)
 	}
@@ -123,23 +152,23 @@ func TestDeleteMarkersReturnsTheServersVerdict(t *testing.T) {
 	dyn.PrependReactor("patch", "crontabs", func(clienttesting.Action) (bool, runtime.Object, error) {
 		return true, nil, errors.New("connection refused")
 	})
-	if _, rejected, err := c.DeleteMarkers(context.Background(), crontabRef, []string{"tofu-estate"}, []string{AddressAnnotation}, "", true); err == nil {
+	if _, rejected, err := c.DeleteMarkers(context.Background(), crontabRef, ObjectPin{}, []string{"tofu-estate"}, []string{AddressAnnotation}, "", true); err == nil {
 		t.Errorf("connection refused returned a verdict: %q", rejected)
 	}
 }
 
 func TestDeleteMarkersRefusesAnEmptyRequest(t *testing.T) {
 	c := NewWith(crontabDiscovery(), fakedynamic.NewSimpleDynamicClient(runtime.NewScheme()))
-	if _, _, err := c.DeleteMarkers(context.Background(), crontabRef, nil, nil, "", true); err == nil {
+	if _, _, err := c.DeleteMarkers(context.Background(), crontabRef, ObjectPin{}, nil, nil, "", true); err == nil {
 		t.Error("a release naming no key was sent")
 	}
-	if _, _, err := c.DeleteMarkers(context.Background(), crontabRef, []string{""}, nil, "", true); err == nil {
+	if _, _, err := c.DeleteMarkers(context.Background(), crontabRef, ObjectPin{}, []string{""}, nil, "", true); err == nil {
 		t.Error("a release naming an empty label key was sent")
 	}
-	if _, _, err := c.DeleteMarkers(context.Background(), crontabRef, nil, []string{""}, "", true); err == nil {
+	if _, _, err := c.DeleteMarkers(context.Background(), crontabRef, ObjectPin{}, nil, []string{""}, "", true); err == nil {
 		t.Error("a release naming an empty annotation key was sent")
 	}
-	if _, _, err := c.DeleteMarkers(context.Background(), ObjectRef{Kind: "CronTab", Name: "x"}, []string{"tofu-estate"}, nil, "", true); err == nil {
+	if _, _, err := c.DeleteMarkers(context.Background(), ObjectRef{Kind: "CronTab", Name: "x"}, ObjectPin{}, []string{"tofu-estate"}, nil, "", true); err == nil {
 		t.Error("a release with no apiVersion was sent")
 	}
 }

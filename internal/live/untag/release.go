@@ -119,11 +119,22 @@ func (r *Result) Failed() bool {
 // (kubernetes_manifest) uses it: its release is a merge patch to the API
 // server rather than a provider plan (GitHub issue #1656; see manifest.go).
 // With a nil cluster such a target is refused by name and left untouched.
-func Release(ctx context.Context, provider providers.Interface, cluster kubesweep.LabelReleaser, key string, targets []Target) (*Result, tfdiags.Diagnostics) {
+//
+// value is this estate's value for key (the policy's tag_value, the estate
+// name by default). A target is released only while key still carries
+// value: discovery saw it that way, but live-mv can move the object to
+// another estate before this runs, rewriting key to that estate's name, and
+// that label is not this estate's to delete (GitHub issue #1743).
+func Release(ctx context.Context, provider providers.Interface, cluster kubesweep.LabelReleaser, key, value string, targets []Target) (*Result, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	res := &Result{Key: key}
 	if len(targets) == 0 {
 		return res, diags
+	}
+	if value == "" {
+		return res, diags.Append(tfdiags.Sourceless(tfdiags.Error,
+			"No estate value for the apply-time tag release",
+			fmt.Sprintf("undeclared_tagged = \"untag\" has %d resource(s) to release %q from, but no value this estate's %q must carry, so it cannot tell this estate's label from another's. Nothing was changed. This is a bug.", len(targets), key, key)))
 	}
 	if provider == nil {
 		return res, diags.Append(tfdiags.Sourceless(tfdiags.Error,
@@ -139,7 +150,7 @@ func Release(ctx context.Context, provider providers.Interface, cluster kubeswee
 	}
 
 	for _, t := range targets {
-		res.Outcomes = append(res.Outcomes, releaseOne(ctx, provider, cluster, schemaResp.ResourceTypes, key, t))
+		res.Outcomes = append(res.Outcomes, releaseOne(ctx, provider, cluster, schemaResp.ResourceTypes, key, value, t))
 	}
 
 	if res.Failed() {
@@ -170,7 +181,7 @@ func Release(ctx context.Context, provider providers.Interface, cluster kubeswee
 // a Kubernetes object-metadata type. Before, this asked only for a tags
 // map, so a labelled Kubernetes orphan was reported as having nothing to
 // release and kept its tofu-estate label for every later sweep to find.
-func releaseOne(ctx context.Context, provider providers.Interface, cluster kubesweep.LabelReleaser, schemas map[string]providers.Schema, key string, t Target) Outcome {
+func releaseOne(ctx context.Context, provider providers.Interface, cluster kubesweep.LabelReleaser, schemas map[string]providers.Schema, key, value string, t Target) Outcome {
 	out := Outcome{Target: t}
 
 	schema, ok := schemas[t.TypeName]
@@ -198,7 +209,7 @@ func releaseOne(ctx context.Context, provider providers.Interface, cluster kubes
 		// The manifest shape's write is an API merge patch, not a provider
 		// plan (substrate.WriteAPIPatch, ruled on #1109 and #1104; the
 		// release ruled on #1656). See manifest.go.
-		return releaseManifest(ctx, cluster, key, t)
+		return releaseManifest(ctx, cluster, key, value, t)
 	default:
 		out.Detail = fmt.Sprintf("%s has no settable tags argument in the provider's schema, so there is nothing to release. Nothing was changed.", t.TypeName)
 		return out
@@ -247,9 +258,17 @@ func releaseOne(ctx context.Context, provider providers.Interface, cluster kubes
 		out.Detail = fmt.Sprintf("%s carries no readable %ss, so there is nothing to release. Nothing was changed.", t.TypeName, w.noun)
 		return out
 	}
-	if _, present := current[key]; !present {
+	got, present := current[key]
+	if !present {
 		out.OK = true
 		out.Detail = fmt.Sprintf("Already carries no %q %s; nothing to release.", key, w.noun)
+		return out
+	}
+	if got != value {
+		// GitHub issue #1743. The provider's apply takes no precondition,
+		// so this read is as close to the write as this path can check.
+		out.OK = true
+		out.Detail = anotherEstates(key, got, value, w.noun)
 		return out
 	}
 
@@ -382,4 +401,11 @@ func importTarget(schema providers.Schema, importID string, identity cty.Value) 
 		}
 	}
 	return providers.ImportTarget{ID: importID}
+}
+
+// anotherEstates is the outcome detail for a target whose key no longer
+// carries this estate's value: live-mv moved it, or something else
+// relabelled it, after discovery.
+func anotherEstates(key, got, value, noun string) string {
+	return fmt.Sprintf("Its %q %s is now %q, not this estate's %q: it was moved to another estate after discovery found it. That %s is not this estate's to release. Nothing was changed.", key, noun, got, value, noun)
 }

@@ -43,7 +43,7 @@ func TestRelease_ManifestSurfaceLeavesAnotherEstatesLabel(t *testing.T) {
 		map[string]string{"app": "cron", markers.TagEstate: otherEstate},
 		map[string]string{markers.AddressAnnotation: "kubernetes_manifest.cron"})}
 
-	_, diags := Release(context.Background(), manifestProvider(), k, testKey, []Target{crontabTarget()})
+	_, diags := Release(context.Background(), manifestProvider(), k, testKey, "smoke-crd", []Target{crontabTarget()})
 	if diags.HasErrors() {
 		t.Fatalf("diags: %v", diags.Err())
 	}
@@ -61,7 +61,7 @@ func TestRelease_LabelSurfaceLeavesAnotherEstatesLabel(t *testing.T) {
 	c := newFakeCluster("kubernetes_config_map_v1", configMapSchema(),
 		configMapObject(map[string]string{"app": "web", markers.TagEstate: otherEstate}))
 
-	_, diags := Release(context.Background(), c, nil, testKey, []Target{configMapTarget()})
+	_, diags := Release(context.Background(), c, nil, testKey, "smoke-k8s", []Target{configMapTarget()})
 	if diags.HasErrors() {
 		t.Fatalf("diags: %v", diags.Err())
 	}
@@ -201,7 +201,7 @@ func TestRelease_ManifestSurfacePatchIsPinnedToTheObjectItChecked(t *testing.T) 
 	checkedRV, checkedUID := p.obj.GetResourceVersion(), string(p.obj.GetUID())
 	p.beforeWrite = liveMvToOtherEstate
 
-	res, _ := Release(context.Background(), manifestProvider(), p.client(t), testKey, []Target{crontabTarget()})
+	res, _ := Release(context.Background(), manifestProvider(), p.client(t), testKey, "smoke-crd", []Target{crontabTarget()})
 
 	if got := p.obj.GetLabels()[markers.TagEstate]; got != otherEstate {
 		t.Errorf("%s = %q after the release, want %q: live-mv moved the object between the check and the patch, and the unpinned patch deleted the other estate's label", markers.TagEstate, got, otherEstate)
@@ -222,7 +222,7 @@ func TestRelease_ManifestSurfacePatchIsPinnedToTheObjectItChecked(t *testing.T) 
 // above.
 func TestRelease_ManifestSurfacePinnedPatchLandsWhenNothingMoved(t *testing.T) {
 	p := newPinCluster(map[string]string{"app": "cron", markers.TagEstate: "smoke-crd"})
-	res, diags := Release(context.Background(), manifestProvider(), p.client(t), testKey, []Target{crontabTarget()})
+	res, diags := Release(context.Background(), manifestProvider(), p.client(t), testKey, "smoke-crd", []Target{crontabTarget()})
 	if out := res.Outcomes[0]; !out.OK || diags.HasErrors() {
 		t.Fatalf("outcome = %s (diags %v), want RELEASED", out, diags.Err())
 	}
