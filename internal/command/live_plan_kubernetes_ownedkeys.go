@@ -10,9 +10,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/hashicorp/hcl/v2"
-	"github.com/zclconf/go-cty/cty"
-
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -135,81 +132,17 @@ func (m *manifestFieldManagers) forAddr(ctx context.Context, addr addrs.AbsResou
 	return name, err
 }
 
-// manifestFieldManagerFor reads the `field_manager { name = ... }` a
-// kubernetes_manifest block declares, or "" when it declares none - which
-// [kubesweep.ManagedMetadataKeys] reads as
-// [kubesweep.DefaultFieldManager], the provider's own default.
+// manifestFieldManagerFor is [identity.ManifestFieldManager], shared with
+// live-mv's manifest rename (#1720) so the two can never disagree on which
+// manager a block writes under.
 //
 // Honouring the override is not a nicety. managedFields is keyed by
 // manager NAME, so asking about "Terraform" on an object a block wrote
 // under "my-pipeline" finds no entry, and the caller would then be told
 // this estate owns no keys at all - the wrong answer, arrived at
-// confidently.
-//
-// A block whose name is not statically resolvable is an ERROR rather
-// than a fallback to the default, for the same reason: the default would
-// be a guess, and a guess here reads as "you own nothing", which makes
-// the rail decline a removal the record licensed. The caller turns the
-// error into the warning that names the key that will not be removed.
+// confidently. An unresolvable name is an error for the same reason, and
+// the caller turns it into the warning that names the key that will not
+// be removed.
 func manifestFieldManagerFor(ctx context.Context, config *configs.Config, addr addrs.AbsResourceInstance) (string, error) {
-	modCfg, ok := identity.ConfigForModule(config, addr.Module)
-	if !ok || modCfg.Module == nil {
-		return "", nil
-	}
-	rc := modCfg.Module.ManagedResources[addr.Resource.Resource.String()]
-	if rc == nil || rc.Config == nil {
-		return "", nil
-	}
-	content, _, _ := rc.Config.PartialContent(&hcl.BodySchema{
-		Blocks: []hcl.BlockHeaderSchema{{Type: manifestFieldManagerBlock}},
-	})
-	eval := modCfg.Module.StaticEvaluator
-	ident := configs.StaticIdentifier{
-		Module:    addr.Module.Module(),
-		Subject:   rc.Addr().String(),
-		DeclRange: rc.DeclRange,
-	}
-	for _, blk := range content.Blocks {
-		if blk == nil || blk.Body == nil {
-			continue
-		}
-		inner, _, _ := blk.Body.PartialContent(&hcl.BodySchema{
-			Attributes: []hcl.AttributeSchema{{Name: manifestFieldManagerName}},
-		})
-		attr, ok := inner.Attributes[manifestFieldManagerName]
-		if !ok || attr == nil {
-			continue
-		}
-		val, diags := attr.Expr.Value(nil)
-		if diags.HasErrors() && eval != nil {
-			// A literal needs no evaluator; a name from a variable or a
-			// local does, and the static evaluator is the same one every
-			// other identity-bearing argument on this block is read
-			// through.
-			val, diags = eval.Evaluate(ctx, attr.Expr, ident)
-		}
-		if diags.HasErrors() {
-			return "", fmt.Errorf("the field_manager name declared by %s cannot be resolved without applying (%s), so this run cannot tell which field manager's keys to ask the API server about", rc.Addr(), diags.Error())
-		}
-		if val.IsNull() || !val.IsKnown() {
-			return "", fmt.Errorf("the field_manager name declared by %s is not known until apply, so this run cannot tell which field manager's keys to ask the API server about", rc.Addr())
-		}
-		val, _ = val.Unmark()
-		if val.Type() != cty.String {
-			return "", fmt.Errorf("the field_manager name declared by %s is a %s rather than a string", rc.Addr(), val.Type().FriendlyName())
-		}
-		if s := val.AsString(); s != "" {
-			return s, nil
-		}
-	}
-	return "", nil
+	return identity.ManifestFieldManager(ctx, config, addr)
 }
-
-// The block and attribute a kubernetes_manifest resource names its
-// server-side-apply field manager in. internal/live/liveimport reads the
-// same pair off a migrated state's object value; this reads it off the
-// configuration, because a stateless run has no state to read.
-const (
-	manifestFieldManagerBlock = "field_manager"
-	manifestFieldManagerName  = "name"
-)
