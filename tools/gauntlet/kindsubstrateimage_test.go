@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -91,18 +92,16 @@ func TestRunEstatesRecordsSubstrateImageNotEmulatorForKindLane(t *testing.T) {
 // Emulator field as evidence that it is stale against the floci pin - that
 // field is never stamped for a kind-lane row (see the test above), so
 // IsStale's "empty always reads as stale" rule would otherwise enqueue a
-// permanent, meaningless re-verify unit for every clear kind estate.
-//
-// Proving it red: drop the `r.Substrate == ""` guard added to
-// nextUnitsAgainst's stale-clear check and this fails - the clear kind row
-// below would show up as a stale_pin unit even though nothing about it
-// disagrees with any pin it actually depends on.
+// permanent, meaningless re-verify unit for every clear kind estate. The
+// row records the kind node image it ran on, and that matches the pin, so
+// nothing about it is stale (#1739 is the test below, where it does not).
 func TestKindLaneClearRowIsNeverEmulatorStale(t *testing.T) {
+	const kindPin = "kindest/node:v1.37.0@sha256:current"
 	m := &Manifest{Estates: []Estate{
 		{Name: "k8s-clear", Source: "s", Lane: LaneKubernetes, Set: SetGrowing},
 	}}
 	a := &Artifact{Estates: []EstateResult{
-		{Name: "k8s-clear", Protocol: ProtocolGauntlet, Stages: passEverything(), LastRun: &LastRun{Commit: "c", Date: "2026-01-01T00:00:00Z"}},
+		{Name: "k8s-clear", Protocol: ProtocolGauntlet, Stages: passEverything(), LastRun: &LastRun{Commit: "c", Date: "2026-01-01T00:00:00Z", SubstrateImage: kindPin}},
 	}}
 	a.Rebuild(m, &BehaviorIndex{}, "ghcr.io/lex00/floci@sha256:current", OracleVersions{}, ProviderVersions{})
 
@@ -112,9 +111,51 @@ func TestKindLaneClearRowIsNeverEmulatorStale(t *testing.T) {
 		}
 	}
 
-	for _, u := range NextUnits(a, "all") {
+	for _, u := range NextUnits(a, "all", kindPin) {
 		if u.Estate == "k8s-clear" {
 			t.Errorf("k8s-clear surfaced as a unit (%q) despite being clear with an unstamped, irrelevant emulator field: %+v", u.Stage, u)
 		}
+	}
+}
+
+// TestKindLaneClearRowGoesStaleOnANodeImageBump is issue #1739's second
+// defect: after live/kind-node-image moves, a clear kind row measured on
+// the old image is stale evidence and must surface as a stale_pin unit
+// naming both images, the way a floci row does when live/floci-image
+// moves. Before #1739, nextUnitsAgainst checked staleness only for
+// r.Substrate == "", so this row stayed clear and produced no work.
+func TestKindLaneClearRowGoesStaleOnANodeImageBump(t *testing.T) {
+	const (
+		oldImage = "kindest/node:v1.36.1@sha256:old"
+		newImage = "kindest/node:v1.37.0@sha256:new"
+	)
+	m := &Manifest{Estates: []Estate{
+		{Name: "k8s-old", Source: "s", Lane: LaneKubernetes, Set: SetGrowing},
+		{Name: "k8s-new", Source: "s", Lane: LaneKubernetes, Set: SetGrowing},
+	}}
+	a := &Artifact{Estates: []EstateResult{
+		{Name: "k8s-old", Protocol: ProtocolGauntlet, Stages: passEverything(), LastRun: &LastRun{Commit: "c", Date: "2026-01-01T00:00:00Z", SubstrateImage: oldImage}},
+		{Name: "k8s-new", Protocol: ProtocolGauntlet, Stages: passEverything(), LastRun: &LastRun{Commit: "c", Date: "2026-01-01T00:00:00Z", SubstrateImage: newImage}},
+	}}
+	a.Rebuild(m, &BehaviorIndex{}, "ghcr.io/lex00/floci@sha256:current", OracleVersions{}, ProviderVersions{})
+
+	var got *Unit
+	for _, u := range NextUnits(a, "all", newImage) {
+		u := u
+		switch u.Estate {
+		case "k8s-new":
+			t.Errorf("k8s-new ran on the current kind node image and must not be work, got %+v", u)
+		case "k8s-old":
+			got = &u
+		}
+	}
+	if got == nil {
+		t.Fatalf("k8s-old was measured on %s and the pin is now %s; expected a %s unit, got none", oldImage, newImage, StageStalePin)
+	}
+	if got.Stage != StageStalePin {
+		t.Errorf("k8s-old surfaced as %q, want %q", got.Stage, StageStalePin)
+	}
+	if !strings.Contains(got.Detail, oldImage) || !strings.Contains(got.Detail, newImage) || strings.Contains(got.Detail, "emulator") {
+		t.Errorf("k8s-old's stale_pin detail should name both kind node images and no emulator, got %q", got.Detail)
 	}
 }

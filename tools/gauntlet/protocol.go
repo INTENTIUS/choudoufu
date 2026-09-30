@@ -70,6 +70,11 @@ type ProtocolResult struct {
 	// every ordinary run, including one whose stages failed - a failure is
 	// a measurement and a refusal is the absence of one.
 	Refusal *ProtocolRefusal
+	// Resolved is what the run's reported .terraform.lock.hcl files say
+	// init resolved (issue #1739, lockversions.go). Filled by runOne from
+	// the files gauntlet_report_lock copied out, not from stdout: a lock
+	// file is written by an init whose output most scripts discard.
+	Resolved ResolvedProviders
 }
 
 // ProtocolRefusal is one `GAUNTLET refused=1 ...` line: why a run would not

@@ -390,7 +390,7 @@ inventory "$KCA" > "$WORK/inventory.stock.json" || fail "could not read the cold
 ( stock_b init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on B"
 ( stock_b apply -auto-approve -input=false -no-color 2>&1 | grep -qF "Apply complete! Resources: 7 added" ) || fail "stock cold deploy failed on B"
 log "  7 objects from plain terraform on A, a real terraform.tfstate, zero labels; the same 7 on B for the oracle"
-gauntlet_stage cold_deploy pass "7 objects (namespace, 3 ConfigMaps, ServiceAccount, Service, Deployment) from plain terraform against kind $(kca version 2>/dev/null | grep -io 'v1\.[0-9.]*' | head -1), a real terraform.tfstate with 7 instances, zero tofu-estate labels read back with kubectl; the identical shape cold-deployed by stock on a second cluster as every later stage's oracle"
+gauntlet_stage cold_deploy pass "7 objects (namespace, 3 ConfigMaps, ServiceAccount, Service, Deployment) from plain terraform against kind $(kca version 2>/dev/null | gauntlet_k8s_server_version), a real terraform.tfstate with 7 instances, zero tofu-estate labels read back with kubectl; the identical shape cold-deployed by stock on a second cluster as every later stage's oracle"
 
 # ── 2. migrate: choudoufu live-import against stock's state ──────────────
 gauntlet_begin_stage migrate

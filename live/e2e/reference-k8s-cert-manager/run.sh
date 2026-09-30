@@ -458,11 +458,12 @@ log "=== 1. cold_deploy: two kind clusters; the un-targeted plan must fail, then
 gauntlet_kind_up "$CLUSTER_A" "$KCA" || fail "kind cluster A ($CLUSTER_A) did not come up"
 gauntlet_kind_up "$CLUSTER_B" "$KCB" || fail "kind cluster B ($CLUSTER_B) did not come up"
 export KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA"
-K8S_VER="$(kca version 2>/dev/null | grep -io 'v1\.[0-9.]*' | tail -1)"
+K8S_VER="$(kca version 2>/dev/null | gauntlet_k8s_server_version)"
 log "  cluster A: $CLUSTER_A (kubernetes $K8S_VER); cluster B: $CLUSTER_B"
 write_root "$STOCK" stock  || fail "could not write the stock root on A"
 write_root "$ORACLE" stock || fail "could not write the oracle root on B"
 ( stock_a init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on A"
+gauntlet_report_lock "$STOCK"  # the versions stage 1 resolved, for the row (#1739)
 ( stock_b init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on B"
 
 # The control the issue asks for: without the pre-apply the plan does not

@@ -6,7 +6,6 @@
 package main
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,74 +55,6 @@ func TestRebuildSetsArtifactProviders(t *testing.T) {
 	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{AWS: "6.64.0", Kubernetes: "3.2.1"})
 	if a.Providers != (ProviderVersions{AWS: "6.64.0", Kubernetes: "3.2.1"}) {
 		t.Errorf("a.Providers = %+v after a second Rebuild, want the refreshed value (not carried forward)", a.Providers)
-	}
-}
-
-// TestRunEstatesRecordsProviderVersions: RunEstates stamps a
-// floci-substrate row's LastRun.AWSProviderVersion and a kind-substrate
-// row's LastRun.KubernetesProviderVersion from live/oracle-versions.json,
-// mutually exclusive the same way Emulator/SubstrateImage are (#1594),
-// beside which these fields sit.
-func TestRunEstatesRecordsProviderVersions(t *testing.T) {
-	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "live"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	pin := `{"aws_provider_version": "6.63.0", "kubernetes_provider_version": "3.2.1"}`
-	if err := os.WriteFile(filepath.Join(root, "live", "oracle-versions.json"), []byte(pin), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	writeScript := func(rel string) {
-		if err := os.MkdirAll(filepath.Join(root, filepath.Dir(rel)), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		script := "#!/usr/bin/env bash\n" +
-			"printf 'GAUNTLET protocol=1\\n'\n" +
-			"printf 'GAUNTLET stage=cold_deploy verdict=pass duration_s=0\\n'\n"
-		if err := os.WriteFile(filepath.Join(root, rel), []byte(script), 0o755); err != nil {
-			t.Fatal(err)
-		}
-	}
-	writeScript(filepath.Join("live", "e2e", "aws-estate", "run.sh"))
-	writeScript(filepath.Join("live", "e2e", "reference-k8s", "run.sh"))
-
-	m := &Manifest{Estates: []Estate{
-		{Name: "aws-estate", Source: "s", Lane: "reference", Set: SetGrowing, Script: filepath.Join("live", "e2e", "aws-estate", "run.sh")},
-		{Name: "reference-k8s", Source: "s", Lane: LaneKubernetes, Set: SetGrowing, Script: filepath.Join("live", "e2e", "reference-k8s", "run.sh")},
-	}}
-	a := &Artifact{Schema: 1}
-	var out bytes.Buffer
-	if _, err := RunEstates(root, m, a, RunOptions{Names: []string{"aws-estate", "reference-k8s"}, Stdout: &out}, "c", "e"); err != nil {
-		t.Fatal(err)
-	}
-
-	aws, ok := a.Result("aws-estate")
-	if !ok {
-		t.Fatal("no result for aws-estate")
-	}
-	if aws.LastRun == nil {
-		t.Fatal("aws-estate LastRun is nil")
-	}
-	if aws.LastRun.AWSProviderVersion != "6.63.0" {
-		t.Errorf("aws-estate LastRun.AWSProviderVersion = %q, want %q", aws.LastRun.AWSProviderVersion, "6.63.0")
-	}
-	if aws.LastRun.KubernetesProviderVersion != "" {
-		t.Errorf("aws-estate LastRun.KubernetesProviderVersion = %q, want empty (mutually exclusive with AWS)", aws.LastRun.KubernetesProviderVersion)
-	}
-
-	k8s, ok := a.Result("reference-k8s")
-	if !ok {
-		t.Fatal("no result for reference-k8s")
-	}
-	if k8s.LastRun == nil {
-		t.Fatal("reference-k8s LastRun is nil")
-	}
-	if k8s.LastRun.KubernetesProviderVersion != "3.2.1" {
-		t.Errorf("reference-k8s LastRun.KubernetesProviderVersion = %q, want %q", k8s.LastRun.KubernetesProviderVersion, "3.2.1")
-	}
-	if k8s.LastRun.AWSProviderVersion != "" {
-		t.Errorf("reference-k8s LastRun.AWSProviderVersion = %q, want empty (mutually exclusive with Kubernetes)", k8s.LastRun.AWSProviderVersion)
 	}
 }
 
@@ -202,7 +133,7 @@ func TestNextSurfacesStaleProviderPinEstates(t *testing.T) {
 	setLastRun("c-stale-provider", "pin", "6.58.0")
 	a.Rebuild(m, nil, "pin", OracleVersions{}, ProviderVersions{AWS: "6.63.0"})
 
-	units := NextUnits(a, "all")
+	units := NextUnits(a, "all", "")
 	var ids []string
 	for _, u := range units {
 		ids = append(ids, u.ID)

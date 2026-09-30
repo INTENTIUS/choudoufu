@@ -536,6 +536,7 @@ gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (plain tofu apply, the real unmodified module) ==="
 ( cd "$PLAIN" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
+gauntlet_report_lock "$PLAIN"  # the versions stage 1 resolved, for the row (#1739)
 # Seed the estate copy's lock file from this init. The shared plugin cache
 # records no checksums, so a directory with no .terraform.lock.hcl re-downloads
 # the whole ~600MB AWS provider purely to compute them - ~320s, per init.

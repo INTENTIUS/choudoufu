@@ -331,6 +331,20 @@ gauntlet_kind_node_image() {
   cat "$ROOT/live/kind-node-image" 2>/dev/null
 }
 
+# gauntlet_k8s_server_version: reads `kubectl version` output on stdin and
+# prints the SERVER's version (v1.37.0), or nothing when there is no
+# "Server Version:" line (an unreachable cluster). A kind-lane stage detail
+# names the Kubernetes it ran against, and that is the cluster's version -
+# the node image live/kind-node-image pins - not the kubectl binary's. The
+# first `v1.x` in `kubectl version` is the CLIENT line, which is how
+# corpus-quickpizza's detail came to read "against kind v1.34.0" on a row
+# whose substrate_image was v1.37.0 (#1739).
+#
+#     against kind $(kca version 2>/dev/null | gauntlet_k8s_server_version)
+gauntlet_k8s_server_version() {
+  sed -n 's/^[[:space:]]*Server Version:[[:space:]]*\(v[0-9][^[:space:]]*\).*$/\1/p' | head -1
+}
+
 # gauntlet_kind_up <name> <kubeconfig>: the kind substrate (#1067). A
 # kubernetes-lane crossing script runs against a kind cluster instead of a
 # floci emulator: a real API server, so what the script asserts is what any
@@ -1658,5 +1672,41 @@ gauntlet_locked_init() {
   "$@"
   rc=$?
   rm -f "$lock"
+  # A successful init has just written the lock file this run's providers
+  # resolved to; hand it to the runner (gauntlet_report_lock, #1739). Every
+  # caller runs this from inside the directory it inits (`cd "$X" &&
+  # gauntlet_locked_init terraform init ...`), or names it with -chdir.
+  if [ "$rc" -eq 0 ]; then
+    local arg initdir=.
+    for arg in "$@"; do
+      case "$arg" in -chdir=*) initdir="${arg#-chdir=}" ;; esac
+    done
+    gauntlet_report_lock "$initdir"
+  fi
   return $rc
+}
+
+# gauntlet_report_lock <dir>: copies <dir>/.terraform.lock.hcl into the
+# directory the runner names in GAUNTLET_LOCK_REPORT_DIR, so tools/gauntlet
+# can record the provider versions THIS run resolved (issue #1739) rather
+# than copying live/oracle-versions.json's pin onto the row. The pin is
+# what a script asks for; the lock file is what init actually chose, and
+# two estates showed the two can differ: terralith-scale's generator
+# hard-codes its own hashicorp/aws version, and corpus-quickpizza inits an
+# upstream root whose hashicorp/kubernetes constraint is a bare lower bound.
+#
+# gauntlet_locked_init calls this after every successful init. A script
+# whose stock init does not go through gauntlet_locked_init calls it itself,
+# once, right after that init. It is silent and returns 0 when either side
+# is missing (no runner, a script run by hand, an init that wrote no lock
+# file): the runner then records no version for the row, which reads as
+# stale on the board - never the pin in its place.
+gauntlet_report_lock() {
+  local dir="${1:-.}"
+  [ -n "${GAUNTLET_LOCK_REPORT_DIR:-}" ] && [ -d "$GAUNTLET_LOCK_REPORT_DIR" ] || return 0
+  [ -f "$dir/.terraform.lock.hcl" ] || return 0
+  local dest
+  dest="$(mktemp "$GAUNTLET_LOCK_REPORT_DIR/lock.XXXXXX")" || return 0
+  cp "$dir/.terraform.lock.hcl" "$dest" 2>/dev/null || rm -f "$dest"
+  return 0
 }

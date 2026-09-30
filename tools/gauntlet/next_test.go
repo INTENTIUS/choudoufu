@@ -52,7 +52,7 @@ func TestNextIsDeterministicAndOrdered(t *testing.T) {
 	// c-far: nothing passes.
 	a.Rebuild(m, nil, "e", OracleVersions{}, ProviderVersions{})
 
-	units := NextUnits(a, "all")
+	units := NextUnits(a, "all", "")
 	got := []string{}
 	for _, u := range units {
 		got = append(got, u.ID)
@@ -65,13 +65,13 @@ func TestNextIsDeterministicAndOrdered(t *testing.T) {
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Errorf("order = %v, want %v", got, want)
 	}
-	again := NextUnits(a, "all")
+	again := NextUnits(a, "all", "")
 	for i := range units {
 		if again[i].ID != units[i].ID {
 			t.Fatal("NextUnits is not deterministic")
 		}
 	}
-	core := NextUnits(a, "core")
+	core := NextUnits(a, "core", "")
 	for _, u := range core {
 		if u.Set != SetCore {
 			t.Errorf("-set core returned %s", u.ID)
@@ -127,7 +127,7 @@ func TestNextSurfacesStaleClearEstatesAsTrailingWork(t *testing.T) {
 	setLastRun("c-stale", "old-pin")
 	a.Rebuild(m, nil, "new-pin", OracleVersions{}, ProviderVersions{})
 
-	units := NextUnits(a, "all")
+	units := NextUnits(a, "all", "")
 	var ids []string
 	for _, u := range units {
 		ids = append(ids, u.ID)

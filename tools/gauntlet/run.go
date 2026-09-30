@@ -190,12 +190,6 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 	// change mid-run, and every kind-substrate estate this call touches is
 	// stamped with the one value (issue #1594).
 	kindImage := kindNodeImagePin(root)
-	// providers is read once here for the same reason (issue #1253):
-	// live/oracle-versions.json's aws_provider_version and
-	// kubernetes_provider_version do not change mid-run, and every row
-	// this call touches is stamped with the one value that applies to its
-	// substrate below.
-	providers := providerVersions(root)
 	var selected []Estate
 	if len(opts.Names) > 0 {
 		for _, n := range opts.Names {
@@ -281,12 +275,21 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 		// estate never launches floci or resolves hashicorp/aws, so recording
 		// either against its row would be recording what a DIFFERENT estate's
 		// run used, not this one's.
+		//
+		// The provider version is what THIS run's lock files say init
+		// resolved (issue #1739), never live/oracle-versions.json's pin: a
+		// script that does not apply the pin resolves whatever its
+		// constraint allows. A run that reported no lock file, or whose lock
+		// files disagree, records nothing, and the row reads as stale.
 		if e.Substrate() == SubstrateKind {
 			r.LastRun.SubstrateImage = kindImage
-			r.LastRun.KubernetesProviderVersion = providers.Kubernetes
+			r.LastRun.KubernetesProviderVersion = res.Resolved.Version(ProviderKubernetes)
 		} else {
 			r.LastRun.Emulator = emulator
-			r.LastRun.AWSProviderVersion = providers.AWS
+			r.LastRun.AWSProviderVersion = res.Resolved.Version(ProviderAWS)
+		}
+		for _, c := range res.Resolved.Conflicts {
+			fmt.Fprintf(opts.Stdout, "%s: records no provider version for a type whose lock files disagree: %s\n", e.Name, c)
 		}
 		// Per-stage provenance (#1069). Stages and Detail keep merging, for
 		// the reasons above; what changes is that every verdict this run
@@ -747,6 +750,15 @@ func runOne(root string, e Estate, opts RunOptions, extraEnv []string) (*Protoco
 	}
 	defer logf.Close()
 
+	// The directory gauntlet_report_lock copies this run's lock files into
+	// (issue #1739): what the row records as its provider version is read
+	// from here after the script exits, never from the pin.
+	lockDir, err := os.MkdirTemp("", "gauntlet-locks-"+e.Name+"-")
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	defer os.RemoveAll(lockDir)
+
 	var captured bytes.Buffer
 	cmd := exec.Command("bash", script)
 	cmd.Dir = root
@@ -754,6 +766,7 @@ func runOne(root string, e Estate, opts RunOptions, extraEnv []string) (*Protoco
 	for _, kv := range extraEnv {
 		cmd.Env = setEnv(cmd.Env, kv)
 	}
+	cmd.Env = setEnv(cmd.Env, LockReportEnv+"="+lockDir)
 	attachCombinedOutput(cmd, &captured, logf)
 	fmt.Fprintf(opts.Stdout, "%s: running %s on %s (log: %s)\n", e.Name, e.ScriptPath(), flociPortEnvEntry(extraEnv), filepath.Join(LogDir, e.Name+".log"))
 	start := time.Now()
@@ -775,6 +788,11 @@ func runOne(root string, e Estate, opts RunOptions, extraEnv []string) (*Protoco
 	if exit != 0 || hasFailingStage(res) {
 		reportFailedRun(root, e.Name, logPath, opts.Stdout)
 	}
+	resolved, err := readReportedLocks(lockDir)
+	if err != nil {
+		return nil, exit, elapsed, fmt.Errorf("estate %q: reading the lock files its run reported: %w", e.Name, err)
+	}
+	res.Resolved = resolved
 	return res, exit, elapsed, nil
 }
 
