@@ -540,7 +540,10 @@ which is every Kubernetes type, so `ignore_changes = all`,
 silently. Refused now, the same way and for the same reason as the AWS
 case; `live/kubernetes/COMPATIBILITY.md`'s version of this section has the
 manifest-surface equivalents. Ignoring a label key of your own stays
-admitted, the same over-refusal guard `tags["Owner"]` has.
+admitted, the same over-refusal guard `tags["Owner"]` has. Since
+[#1740](https://github.com/INTENTIUS/choudoufu/issues/1740) the address
+annotation beside the label is covered too, and index spellings of either
+path (`metadata[0]["labels"]`) are refused as their dotted forms are.
 
 A related gap closed the same month: the stateful un-migration guard
 (issue #613) that refuses a state-backed plan dropping this fork's

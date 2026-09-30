@@ -400,7 +400,13 @@ and `ignore_changes = [metadata[0].labels["tofu-estate"]]` on a
 silently. All of those are refused now, naming the ignored construct and
 the label this mode writes underneath it. Ignoring a label key of your
 own, such as `metadata[0].labels["team"]`, stays admitted - the
-over-refusal guard AWS's `tags["Owner"]` case already has.
+over-refusal guard AWS's `tags["Owner"]` case already has. Since
+[#1740](https://github.com/INTENTIUS/choudoufu/issues/1740) the same
+refusal covers the address annotation (`metadata[0].annotations`,
+`manifest.metadata.annotations`, or the
+`choudoufu.intentius.io/tofu-address` key in either), and compares paths
+step by step, so index spellings such as `metadata[0]["labels"]` or
+`manifest["metadata"]` are refused as their dotted forms are.
 
 The second hazard, a module call's child-side `providers` mapping naming
 an alias nothing resolves, is OpenTofu-level and provider-agnostic:

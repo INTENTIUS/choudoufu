@@ -97,8 +97,9 @@ import (
 // schema carries none of the family surfaces at all (the patch types -
 // kubernetes_labels, kubernetes_config_map_v1_data - and the AWS types
 // [markers.Taggable] already excluded). [checkIgnoreChangesLabel] is the
-// per-surface check for the two Kubernetes shapes; [checkIgnoreChangesTags]
-// is the AWS one above, unchanged.
+// per-surface check for the two Kubernetes shapes, covering the address
+// annotation beside the label since GitHub issue #1740;
+// [checkIgnoreChangesTags] is the AWS one above, unchanged.
 func checkIgnoreChanges(resource *configs.Resource, addr string, path addrs.Module, schemas map[string]providers.Schema, markersRecord *strict.Selection, issues *[]Issue) {
 	managed := resource.Managed
 	if managed == nil {
@@ -149,9 +150,13 @@ func checkIgnoreChanges(resource *configs.Resource, addr string, path addrs.Modu
 
 	switch surface {
 	case markers.SurfaceLabels:
-		checkIgnoreChangesLabel(resource, addr, path, markers.LabelSurfacePath(markers.TagEstate), issues)
+		checkIgnoreChangesLabel(resource, addr, path,
+			markers.LabelSurfacePath(markers.TagEstate),
+			markers.LabelAnnotationPath(markers.AddressAnnotation), issues)
 	case markers.SurfaceManifest:
-		checkIgnoreChangesLabel(resource, addr, path, markers.ManifestLabelPath(markers.TagEstate), issues)
+		checkIgnoreChangesLabel(resource, addr, path,
+			markers.ManifestLabelPath(markers.TagEstate),
+			markers.ManifestAnnotationPath(markers.AddressAnnotation), issues)
 	default:
 		checkIgnoreChangesTags(resource, addr, path, issues)
 	}
@@ -224,25 +229,30 @@ func checkIgnoreChangesTags(resource *configs.Resource, addr string, path addrs.
 
 // checkIgnoreChangesLabel is the Kubernetes counterpart of
 // [checkIgnoreChangesTags], GitHub issue #1645's fix: the same refusal, for
-// a resource whose marker lives in a labels map rather than a tags map.
-// markerPath is the full cty.Path of the one marker this surface carries -
-// [markers.LabelSurfacePath] for SurfaceLabels, [markers.ManifestLabelPath]
-// for SurfaceManifest - always ending in the tofu-estate index step, since
-// neither Kubernetes label map carries tofu-address
-// ([substrate.AddressInMarkers] is false for both; the address rides in an
-// annotation, GitHub issue #1641).
+// a resource whose markers live in its metadata rather than in a tags map.
+// A Kubernetes object carries two: the tofu-estate label at labelPath
+// ([markers.LabelSurfacePath] for SurfaceLabels, [markers.ManifestLabelPath]
+// for SurfaceManifest), and since GitHub issue #1639 its block address in
+// the [markers.AddressAnnotation] annotation at annotationPath
+// ([markers.LabelAnnotationPath], [markers.ManifestAnnotationPath]) - the
+// annotation a moved-block rename rewrites and the #1640 sweep binds on.
+// GitHub issue #1740 added the second; before it, ignoring the annotation
+// passed lint.
 //
 // An ignore_changes entry is refused when its own path is a PREFIX of
-// markerPath (including the whole path, which is the entry naming the
-// marker key itself): ignoring metadata, or metadata[0].labels, throws away
-// the update that writes metadata[0].labels["tofu-estate"] exactly as
-// surely as naming that key directly does. An entry rooted anywhere else -
-// a different label key, a different top-level argument - is left alone,
-// the same "not this rule's business" answer the tags check gives
-// tags["Owner"].
-func checkIgnoreChangesLabel(resource *configs.Resource, addr string, path addrs.Module, markerPath cty.Path, issues *[]Issue) {
+// either marker path (including the whole path, which is the entry naming
+// the marker key itself): ignoring metadata, or metadata[0].labels, throws
+// away the update that writes metadata[0].labels["tofu-estate"] exactly as
+// surely as naming that key directly does. The comparison is step by step
+// through [pathStepsEqual], so metadata[0]["labels"] and manifest["metadata"]
+// are the same paths as their dotted spellings (#1740). An entry rooted
+// anywhere else - a different label or annotation key, a different
+// top-level argument - is left alone, the same "not this rule's business"
+// answer the tags check gives tags["Owner"].
+func checkIgnoreChangesLabel(resource *configs.Resource, addr string, path addrs.Module, labelPath, annotationPath cty.Path, issues *[]Issue) {
 	managed := resource.Managed
-	carrier := pathString(markerPath[:len(markerPath)-1])
+	carrier := pathString(labelPath[:len(labelPath)-1])
+	annotations := pathString(annotationPath[:len(annotationPath)-1])
 
 	if managed.IgnoreAllChanges {
 		*issues = append(*issues, Issue{
@@ -264,14 +274,23 @@ func checkIgnoreChangesLabel(resource *configs.Resource, addr string, path addrs
 
 	for _, traversal := range managed.IgnoreChanges {
 		travPath, ok := traversalToCtyPath(traversal)
-		if !ok || !pathHasPrefix(markerPath, travPath) {
+		if !ok {
+			continue
+		}
+		coversLabel := pathHasPrefix(labelPath, travPath)
+		coversAnnotation := pathHasPrefix(annotationPath, travPath)
+		if !coversLabel && !coversAnnotation {
 			continue
 		}
 
 		entry := pathString(travPath)
 		construct := fmt.Sprintf("lifecycle { ignore_changes = [%s] } on %s", entry, addr)
 		var detail string
-		if len(travPath) < len(markerPath) {
+		switch {
+		case coversLabel && len(travPath) < len(labelPath):
+			// A prefix of the label path. It may cover the annotation too
+			// (metadata, metadata[0]), and the label is the ownership marker
+			// itself, so it is the one the detail leads with.
 			detail = fmt.Sprintf(
 				"%s ignores changes to %s, and the %s label this mode writes at %s to record ownership lives "+
 					"underneath it. An existing object would keep whatever label it has, or none: the update that "+
@@ -280,13 +299,31 @@ func checkIgnoreChangesLabel(resource *configs.Resource, addr string, path addrs
 					"Narrow ignore_changes to the arguments you actually mean, leaving %s out of it.",
 				addr, entry, markers.TagEstate, carrier, carrier,
 			)
-		} else {
+		case coversLabel:
 			detail = fmt.Sprintf(
 				"%s ignores changes to the %s label, which is the ownership marker this mode writes. "+
 					"The update that writes it is planned and then discarded, so an existing object can never be "+
 					"adopted and a label that drifts can never be repaired. Ownership markers are not an argument a "+
 					"configuration manages; remove this entry.",
 				addr, markers.TagEstate,
+			)
+		case len(travPath) < len(annotationPath):
+			detail = fmt.Sprintf(
+				"%s ignores changes to %s, and the %s annotation this mode writes at %s to record the object's "+
+					"block address lives underneath it. The update that writes or rewrites it is planned and then "+
+					"discarded, so a moved block's rename never reaches the object and the next run cannot bind "+
+					"the object to its block by address. "+
+					"Ignore the individual annotation keys something outside this configuration writes - "+
+					"%s[\"example.com/owner\"] - rather than the whole map.",
+				addr, entry, markers.AddressAnnotation, annotations, annotations,
+			)
+		default:
+			detail = fmt.Sprintf(
+				"%s ignores changes to the %s annotation, which carries the block address this mode writes. "+
+					"The update that writes or rewrites it is planned and then discarded, so a moved block's rename "+
+					"never reaches the object and the next run cannot bind the object to its block by address. "+
+					"Ownership markers are not an argument a configuration manages; remove this entry.",
+				addr, markers.AddressAnnotation,
 			)
 		}
 
@@ -408,23 +445,46 @@ func pathHasPrefix(path, prefix cty.Path) bool {
 	return true
 }
 
-// pathStepsEqual compares two cty.PathStep values of the same two kinds
+// pathStepsEqual compares two cty.PathStep values of the two kinds
 // [traversalToCtyPath] and the markers package's *Path functions ever
-// build: an attribute name, or an index key compared with RawEquals (the
+// build, as the path they name rather than as the syntax that named it
+// (GitHub issue #1740): an attribute step and an index step whose key is
+// the string of the same name are one step, because HCL and the core's
+// own ignore_changes both read metadata[0]["labels"] as metadata[0].labels
+// and manifest["metadata"] as manifest.metadata, and labels.tofu-estate
+// as labels["tofu-estate"]. Two index steps compare with RawEquals (the
 // numeric block index and the string label key both round-trip through it
 // cleanly, since both sides are built the same way - HCL's own constant
-// folding on one side, cty.NumberIntVal/cty.StringVal on the other).
+// folding on one side, cty.NumberIntVal/cty.StringVal on the other), so a
+// numeric index still never equals an attribute: metadata[0] is a list
+// element, not an attribute named "0".
 func pathStepsEqual(a, b cty.PathStep) bool {
-	switch as := a.(type) {
-	case cty.GetAttrStep:
-		bs, ok := b.(cty.GetAttrStep)
-		return ok && as.Name == bs.Name
-	case cty.IndexStep:
-		bs, ok := b.(cty.IndexStep)
-		return ok && as.Key.RawEquals(bs.Key)
-	default:
-		return false
+	an, aNamed := stepName(a)
+	bn, bNamed := stepName(b)
+	if aNamed || bNamed {
+		return aNamed && bNamed && an == bn
 	}
+	as, aok := a.(cty.IndexStep)
+	bs, bok := b.(cty.IndexStep)
+	return aok && bok && as.Key.RawEquals(bs.Key)
+}
+
+// stepName reads a path step as a name: an attribute step's name, or an
+// index step's key when that key is a known, unmarked, non-null string.
+// ok is false for anything else, which [pathStepsEqual] then compares as
+// an index.
+func stepName(step cty.PathStep) (string, bool) {
+	switch s := step.(type) {
+	case cty.GetAttrStep:
+		return s.Name, true
+	case cty.IndexStep:
+		k := s.Key
+		if k == cty.NilVal || k.IsMarked() || !k.IsKnown() || k.IsNull() || k.Type() != cty.String {
+			return "", false
+		}
+		return k.AsString(), true
+	}
+	return "", false
 }
 
 // pathString renders a cty.Path the way an operator would write it in an

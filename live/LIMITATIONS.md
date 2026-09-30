@@ -1319,7 +1319,12 @@ entry covering the whole `tags` argument or one of the ownership markers
 inside it. On Kubernetes (GitHub issue #1645): the same two shapes over
 `metadata[0].labels` (or, for a `kubernetes_manifest` object,
 `manifest.metadata.labels`), the map the `tofu-estate` label lives in, or
-over the `tofu-estate` key itself.
+over the `tofu-estate` key itself; and since GitHub issue #1740 the same
+shapes over `metadata[0].annotations` (`manifest.metadata.annotations`) or
+its `choudoufu.intentius.io/tofu-address` key, where the object's block
+address rides (#1639). Paths are compared step by step, not as text, so
+`metadata[0]["labels"]`, `manifest["metadata"]` and
+`metadata[0].labels.tofu-estate` are the paths their other spellings are.
 
 **Why banned.** This is the quietest failure the live path had, and it is
 worse than a refusal. The stamp pass writes `tofu-estate` and `tofu-address`
@@ -1338,21 +1343,21 @@ On Kubernetes the failure is the same one, on the label carrier: no
 schema check sent every one of them home unchecked, and an `ignore_changes`
 over the labels map threw away the `tofu-estate` write exactly as an
 AWS one throws away `tags`, leaving a migrated or newly created object
-unowned from the next run on.
+unowned from the next run on. Ignoring the address annotation throws away
+the rewrite a `moved` block's rename depends on, and the #1640 sweep binds
+an object to its block by that annotation.
 
 **Forwarding address.** Ignore the individual keys rather than the argument:
 `ignore_changes = [tags["Owner"]]`, or on Kubernetes
-`ignore_changes = [metadata[0].labels["some-other-key"]]`. A non-marker key
-is not refused, because ignoring a tag or label this tool does not write
-changes nothing about ownership.
+`ignore_changes = [metadata[0].labels["some-other-key"]]` or
+`ignore_changes = [metadata[0].annotations["example.com/owner"]]`. A
+non-marker key is not refused, because ignoring a tag, label or annotation
+this tool does not write changes nothing about ownership.
 
 **What is not refused.** `tags_all` is the provider's computed union of `tags`
 and the provider-level `default_tags`. Ignoring it does not stop the markers
 being written into `tags`, so the update still happens and the rule leaves it
-alone. On Kubernetes, an entry over `metadata[0].annotations` is left alone
-too: the block address rides in an annotation beside the label (GitHub issue
-#1639), not in the label map this rule polices, and ignoring it is a separate
-concern from ignoring the ownership marker itself.
+alone.
 
 **Enforcement.** `RuleIgnoreChanges`, `internal/live/lint/ignore_changes.go`
 (`checkIgnoreChanges` for AWS tags, `checkIgnoreChangesLabel` for the two
@@ -1362,7 +1367,9 @@ fourth resource is the admitted single-key form, pinned by
 would pass just as happily if all four were refused. The Kubernetes carriers
 are covered separately, by fixture-free table tests in
 `internal/live/lint/ignore_changes_label_test.go`
-(`TestIgnoreChangesLabelSurface*`, `TestIgnoreChangesManifestSurface*`).
+(`TestIgnoreChangesLabelSurface*`, `TestIgnoreChangesManifestSurface*`)
+and `internal/live/lint/ignore_changes_steps_test.go`
+(`TestIgnoreChangesMarkerPathSteps`, the annotation and index-syntax rows).
 
 ### module-providers
 
