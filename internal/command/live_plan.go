@@ -731,7 +731,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// 3's own unrelated reason. Read here, before [discovery.Discover]
 	// ever runs, and handed to it through [discovery.Request.DeposedRecords]
 	// - see that field's own doc comment for what consumes it.
-	deposedRecords := collectDeposedRecords(ctx, recordStoreForReads, resolutions.NeedsDiscovery())
+	deposedRecords := collectDeposedRecords(ctx, recordStoreForReads, config, resolutions.All(), nodeRefusedAddrs(resolver.StaticRefusals))
 
 	// Marker discovery, when anything is waiting on it. Its output is a
 	// resolution list with the discovered instances made concrete, plus the
@@ -1220,20 +1220,33 @@ func statelessRecordBackedNeedsDiscoveryAddrs(ctx context.Context, store *projec
 // fails to match any claimant"), and failing the whole plan over an
 // unreadable deposed-object hint would turn a recovery path into a new way
 // for an estate to be blocked.
-func collectDeposedRecords(ctx context.Context, store *projection.RecordStore, needs []identity.Resolution) map[string]map[string]projection.DeposedRecord {
-	if store == nil || len(needs) == 0 {
+func collectDeposedRecords(ctx context.Context, store *projection.RecordStore, config *configs.Config, all []identity.Resolution, nodeRefused map[string]bool) map[string]map[string]projection.DeposedRecord {
+	if store == nil {
 		return nil
 	}
 	var out map[string]map[string]projection.DeposedRecord
-	for _, r := range needs {
-		deposed, _, _, err := store.GetDeposed(ctx, r.Addr)
+	for _, addr := range deposedRecordAddrs(config, all, nodeRefused) {
+		deposed, _, _, err := store.GetDeposed(ctx, addr)
 		if err != nil || len(deposed) == 0 {
 			continue
 		}
 		if out == nil {
 			out = make(map[string]map[string]projection.DeposedRecord)
 		}
-		out[r.Addr.String()] = deposed
+		out[addr.String()] = deposed
+	}
+	return out
+}
+
+// deposedRecordAddrs is the addresses [collectDeposedRecords] reads a
+// deposed record for: every needs-discovery instance, the population the
+// AWS collision branch consults.
+func deposedRecordAddrs(_ *configs.Config, all []identity.Resolution, _ map[string]bool) []addrs.AbsResourceInstance {
+	var out []addrs.AbsResourceInstance
+	for _, r := range all {
+		if r.Class == identity.ClassNeedsDiscovery {
+			out = append(out, r.Addr)
+		}
 	}
 	return out
 }
