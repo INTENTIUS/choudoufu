@@ -43,7 +43,7 @@ const (
 var (
 	kindActionLine = regexp.MustCompile(`uses: helm/kind-action@(v[0-9]+\.[0-9]+\.[0-9]+)`)
 	kindVersion    = regexp.MustCompile(`\n\s+version: (v[0-9]+\.[0-9]+\.[0-9]+|\$\{\{ steps\.kind\.outputs\.version \}\})`)
-	kubectlVersion = regexp.MustCompile(`\n\s+kubectl_version: (v[0-9]+\.[0-9]+\.[0-9]+)`)
+	kubectlVersion = regexp.MustCompile(`\n\s+kubectl_version: (v[0-9]+\.[0-9]+\.[0-9]+|\$\{\{ steps\.kind\.outputs\.kubectl \}\})`)
 	matrixEntry    = regexp.MustCompile(`\n\s+- (k8s-[a-z0-9-]+)`)
 	// The shard matrix is computed, never typed: a `gauntlet estates` step
 	// in the plan job, read back through fromJSON into `matrix:` (#1550).

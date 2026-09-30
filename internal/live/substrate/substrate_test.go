@@ -90,8 +90,14 @@ func TestSweepClientByFamily(t *testing.T) {
 	}
 	t.Setenv("KUBECONFIG", t.TempDir()+"/none")
 	t.Setenv("HOME", t.TempDir())
-	if c, err := Kubernetes.NewSweeper(cty.NilVal, false); c != nil && err == nil {
-		t.Error("Kubernetes.NewSweeper built a client from no configuration at all")
+	// Both halves, separately (#1741): the old `c != nil && err == nil`
+	// passed on (nil, nil), exactly the silent nil the doc comment names.
+	c, err := Kubernetes.NewSweeper(cty.NilVal, false)
+	if c != nil {
+		t.Errorf("Kubernetes.NewSweeper built a client (%v) from no configuration at all", c)
+	}
+	if err == nil {
+		t.Error("Kubernetes.NewSweeper returned no error for a block with no reachable cluster; a nil client with a nil error is the silent nil this test exists to refuse")
 	}
 }
 
