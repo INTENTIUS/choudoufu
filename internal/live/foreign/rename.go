@@ -16,8 +16,8 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
-	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/staticeval"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 )
 
 // renames pairs the live resources this estate owns at a for_each key the
@@ -105,7 +105,7 @@ func (c *classifier) renameBlocks() map[string]*renameBlock {
 			if o.TypeName != b.typeName || !strings.HasPrefix(o.Normalized, prefix) {
 				continue
 			}
-			if _, held := markers.ControllerHeld(o.Tags); held {
+			if _, held := substrate.ControllerHeld(substrate.HoldEvidence{Tags: o.Tags}); held {
 				// GitHub issue #1606: a controller-held resource is never
 				// offered to this estate, and a marker rewrite is an offer.
 				continue
