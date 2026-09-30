@@ -212,13 +212,18 @@ sweep that binds on it
 [#1539](https://github.com/INTENTIUS/choudoufu/issues/1539) (2026-09-26):
 if the sweep found no object of that kind carrying this estate's label
 and no such annotation, the create is planned; if it found one without
-the annotation, or could not list every kind the type can declare, the
-static refusal stands, naming the object -
+the annotation, one whose annotation names the block but did not bind
+to it, or could not list every kind the type can declare, the static
+refusal stands, naming the object -
 `live/LIMITATIONS.md`'s "Identity not resolvable, and the marker carries
 no address" has the message. Two annotated objects both claiming one
 block - the crash window a `create_before_destroy` replacement leaves -
 is the AWS collision refusal, naming both objects, and destroys neither
-until an operator picks one.
+until an operator picks one. The annotation is compared with the block's
+escaped address the way a `tofu-address` tag is, so a `for_each` key made
+of digits (`x["0"]`, stamped `x:0`) binds, and so does an address a
+`moved` block retired
+([#1737](https://github.com/INTENTIUS/choudoufu/issues/1737)).
 
 ## Your modules
 

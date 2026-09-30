@@ -994,7 +994,7 @@ func (c *LiveLsCommand) liveLsKubernetes(ctx context.Context, estate string, con
 				fmt.Sprintf("No cluster client could be built from provider configuration %s, so no Kubernetes object owned by estate %q is listed through it: %s.", addr, estate, err)))
 			continue
 		}
-		found, listDiags := liveLsKubernetesList(ctx, estate, client, types, manifestType, resolutions, nodeRefused)
+		found, listDiags := liveLsKubernetesList(ctx, estate, client, types, manifestType, resolutions, nodeRefused, config)
 		diags = diags.Append(listDiags)
 		items = append(items, found...)
 	}
@@ -1024,7 +1024,7 @@ func (c *LiveLsCommand) liveLsKubernetes(ctx context.Context, estate string, con
 // says so under its own, so a reader can tell "no cluster" from "no
 // permission on one kind". Neither is an error: the listing is what
 // could be read, and the warning is what could not.
-func liveLsKubernetesList(ctx context.Context, estate string, sweeper kubesweep.Sweeper, types []string, manifestType string, resolutions []identity.Resolution, nodeRefused map[string]bool) ([]views.LiveLsItem, tfdiags.Diagnostics) {
+func liveLsKubernetesList(ctx context.Context, estate string, sweeper kubesweep.Sweeper, types []string, manifestType string, resolutions []identity.Resolution, nodeRefused map[string]bool, config *configs.Config) ([]views.LiveLsItem, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	var items []views.LiveLsItem
 
@@ -1106,7 +1106,7 @@ func liveLsKubernetesList(ctx context.Context, estate string, sweeper kubesweep.
 	// already has its object - one of [discovery.KubernetesAddressBindings]'s
 	// conditions - is a question about the whole listing, exactly as it is
 	// for the sweep.
-	req := discovery.Request{Resolutions: resolutions, NodeRefused: nodeRefused}
+	req := discovery.Request{Resolutions: resolutions, NodeRefused: nodeRefused, Config: config}
 	bound := discovery.KubernetesAddressBindings(req, manifestType, declared, listed, undeclared)
 	for idx, addr := range bound {
 		i := undeclaredItem[idx]

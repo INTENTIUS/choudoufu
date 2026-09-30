@@ -134,7 +134,7 @@ func TestNodeResolver_AddressAnnotationRefusalStandsPerObject(t *testing.T) {
 		wantDetail  string
 	}{
 		{"the sweep listed every kind and found none", map[string][]string{addr.String(): {}}, false, ""},
-		{"the sweep found an unannotated object", map[string][]string{addr.String(): {"ConfigMap m1116-res/old"}}, true, "found ConfigMap m1116-res/old carrying this estate's tofu-estate label and no such annotation"},
+		{"the sweep found an unannotated object", map[string][]string{addr.String(): {"ConfigMap m1116-res/old"}}, true, "found ConfigMap m1116-res/old carrying this estate's tofu-estate label and no annotation that binds it to this block"},
 		{"the sweep found two", map[string][]string{addr.String(): {"ConfigMap ns/a", "ConfigMap ns/b"}}, true, "ConfigMap ns/a and ConfigMap ns/b"},
 		{"the sweep did not account for the instance", nil, true, "could not list every kind"},
 		{"the sweep accounted for another instance", map[string][]string{"kubernetes_config_map_v1.other": {}}, true, "could not list every kind"},

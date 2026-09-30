@@ -99,7 +99,7 @@ func (n *NodeResolver) refuseAddresslessMarker(addr addrs.AbsResourceInstance, s
 	case !substrate.CarriesAddress(surface):
 		marker = fmt.Sprintf("%s's marker is the %s surface, which carries tofu-estate but no tofu-address, so a live object this block already created cannot be told apart from a new one", addr.Resource.Resource.Type, surface)
 	case len(unaddressed) > 0:
-		marker = fmt.Sprintf("A %s carries its block address in the %s annotation, and this run's sweep found %s carrying this estate's %s label and no such annotation, so if this block created %s, it cannot be told apart from a new object", addr.Resource.Resource.Type, markers.AddressAnnotation, quotedObjects(unaddressed), markers.TagEstate, oneOrAny(unaddressed))
+		marker = fmt.Sprintf("A %s carries its block address in the %s annotation, and this run's sweep found %s carrying this estate's %s label and no annotation that binds it to this block, so if this block created %s, it cannot be told apart from a new object", addr.Resource.Resource.Type, markers.AddressAnnotation, quotedObjects(unaddressed), markers.TagEstate, oneOrAny(unaddressed))
 	default:
 		marker = fmt.Sprintf("A %s carries its block address in the %s annotation, but this run's sweep could not list every kind %s can declare, so whether a live object this block already created lacks that annotation cannot be told", addr.Resource.Resource.Type, markers.AddressAnnotation, addr.Resource.Resource.Type)
 	}
