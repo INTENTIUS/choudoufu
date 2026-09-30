@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +19,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/intentius/choudoufu/internal/live/k8stest"
 )
 
 // helmSweepKubeconfigEnvVar names the kubeconfig [TestListHoldsHelmReleaseOnACluster]
@@ -30,6 +31,23 @@ import (
 // object says a release holds it. A skip here is not a pass.
 const helmSweepKubeconfigEnvVar = "CHOUDOUFU_K8S_SWEEP_KUBECONFIG"
 
+// helmCluster opts into the Kubernetes live tier through [k8stest.Gate]
+// (#1741: this file used to skip on its own variable, the #1596 shape, which
+// kept both tests off the Gate roster live/kind_tier_gate_test.go derives,
+// and no workflow set the variable, so they ran nowhere). Past the gate a
+// missing kubeconfig or helm binary is the tier's own setup failing, and
+// fails the test rather than skipping. kind-tier.yml provides both.
+func helmCluster(t *testing.T) (kubeconfig, helm string) {
+	t.Helper()
+	k8stest.Gate(t, "Helm release hold")
+	kubeconfig = k8stest.RequireEnv(t, helmSweepKubeconfigEnvVar, "kind-tier.yml's helm step sets it to the tier's kubeconfig. This test needs a real cluster and the helm binary; the fake-clientset tests pin the rule without one.")
+	helm, err := exec.LookPath("helm")
+	if err != nil {
+		t.Fatalf("the Kubernetes live tier is enabled and helm is not on PATH: %v", err)
+	}
+	return kubeconfig, helm
+}
+
 // TestListHoldsHelmReleaseOnACluster (GitHub issue #1607): a chart whose
 // values put tofu-estate on a ConfigMap is installed with helm, and a
 // ConfigMap carrying the same label is created by an ordinary client beside
@@ -37,14 +55,7 @@ const helmSweepKubeconfigEnvVar = "CHOUDOUFU_K8S_SWEEP_KUBECONFIG"
 // release; before #1607 it returned both, and the sweep proposed destroying
 // the release's object.
 func TestListHoldsHelmReleaseOnACluster(t *testing.T) {
-	path := strings.TrimSpace(os.Getenv(helmSweepKubeconfigEnvVar))
-	if path == "" {
-		t.Skipf("%s is not set. This test needs a real cluster and the helm binary; the fake-clientset tests pin the rule without one. A skip here is not a pass.", helmSweepKubeconfigEnvVar)
-	}
-	helm, err := exec.LookPath("helm")
-	if err != nil {
-		t.Fatalf("%s is set and helm is not on PATH: %v", helmSweepKubeconfigEnvVar, err)
-	}
+	path, helm := helmCluster(t)
 	cfg, err := clientcmd.BuildConfigFromFlags("", path)
 	if err != nil {
 		t.Fatalf("reading the kubeconfig at %s: %v", path, err)
@@ -134,14 +145,7 @@ data:
 // Before this fix, List still reported it held by "Helm release
 // NAMESPACE/web" and never proposed it for adoption or removal.
 func TestListDropsHelmHoldWhenReleaseSecretIsGoneOnACluster(t *testing.T) {
-	path := strings.TrimSpace(os.Getenv(helmSweepKubeconfigEnvVar))
-	if path == "" {
-		t.Skipf("%s is not set. This test needs a real cluster and the helm binary. A skip here is not a pass.", helmSweepKubeconfigEnvVar)
-	}
-	helm, err := exec.LookPath("helm")
-	if err != nil {
-		t.Fatalf("%s is set and helm is not on PATH: %v", helmSweepKubeconfigEnvVar, err)
-	}
+	path, helm := helmCluster(t)
 	cfg, err := clientcmd.BuildConfigFromFlags("", path)
 	if err != nil {
 		t.Fatalf("reading the kubeconfig at %s: %v", path, err)
