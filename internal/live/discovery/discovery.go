@@ -94,7 +94,9 @@ type Request struct {
 	// store, before [Discover] runs - see that file's own comment for why
 	// this has to happen ahead of the scan rather than lazily inside it.
 	//
-	// Consulted only in bind()'s collision branch (two-or-more claimants
+	// Consulted in bind()'s collision branch, and in the Kubernetes leg's
+	// address-annotation collision (GitHub issue #1683,
+	// settleByDeposedRecord in kubernetes_address.go) (two-or-more claimants
 	// for one declared address - exactly the shape a create-before-destroy
 	// crash produces while the new and old object both still carry the
 	// address's marker): if exactly one claimant matches one recorded
