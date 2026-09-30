@@ -48,7 +48,7 @@ func TestTaggableIsMarkersTaggable(t *testing.T) {
 		p.ImportResourceStateFn = func(providers.ImportResourceStateRequest) providers.ImportResourceStateResponse {
 			return providers.ImportResourceStateResponse{}
 		}
-		Release(context.Background(), p, nil, markers.TagEstate, []Target{{TypeName: "test_thing", ImportID: "x"}})
+		Release(context.Background(), p, nil, markers.TagEstate, "test-estate", []Target{{TypeName: "test_thing", ImportID: "x"}})
 		return p.ImportResourceStateCalled
 	}
 	if reaches(refused) {

@@ -88,6 +88,15 @@ type WriteBackRequest struct {
 	// type's own doc comment).
 	RecordFallbackAddrs []addrs.AbsResourceInstance
 
+	// UnmarkedApplyAddrs is every instance GitHub issue #1637's exemption
+	// let this run create with no marker: a needs-discovery instance of a
+	// type with nowhere to carry one, applied only because this write-back
+	// records its identity ([check.NodeStampUnmarkedApplyRecordOnly]). The
+	// record is its only identity carrier, so a failure to derive one is
+	// the same loud error as for RecordFallbackAddrs (GitHub issue #1743).
+	// Nil when the exemption let nothing through.
+	UnmarkedApplyAddrs []addrs.AbsResourceInstance
+
 	// EnvelopeVersions is [Result.EnvelopeVersions]: the plan-time version
 	// of every kind=identity envelope that already existed, covering the
 	// located, residue and provisioned concerns together - see that field's
@@ -698,8 +707,14 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 
 	// GitHub issue #1675's plan-derived record-fallback signal, indexed the
 	// same way - see [WriteBackRequest.RecordFallbackAddrs].
-	viaRecordFallback := make(map[string]bool, len(req.RecordFallbackAddrs))
+	viaRecordFallback := make(map[string]bool, len(req.RecordFallbackAddrs)+len(req.UnmarkedApplyAddrs))
 	for _, a := range req.RecordFallbackAddrs {
+		viaRecordFallback[a.String()] = true
+	}
+	// GitHub issue #1743: an instance #1637 let the apply create unmarked
+	// is in the same position - the record is its only carrier - so it
+	// takes the same loud arm. See [WriteBackRequest.UnmarkedApplyAddrs].
+	for _, a := range req.UnmarkedApplyAddrs {
 		viaRecordFallback[a.String()] = true
 	}
 

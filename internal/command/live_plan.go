@@ -1011,7 +1011,10 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// recordStoreForReads rather than recordShrinkStore - this check is
 	// unconditional, not gated on [nodeResolveEnabled] the way edge 3's
 	// sweep-demand shrink is.
-	diags = diags.Append(statelessUnmarkedApplyGaps(ctx, config, resolutions, resourceSchemas, recordStoreForReads, estate, scope))
+	// A plan applies nothing, so it has no write-back to hand the
+	// record-only instances to.
+	gapDiags, _ := statelessUnmarkedApplyGaps(ctx, config, resolutions, resourceSchemas, recordStoreForReads, estate, scope)
+	diags = diags.Append(gapDiags)
 	if diags.HasErrors() {
 		return 1, false, diags
 	}
@@ -2210,17 +2213,22 @@ func statelessMarkerEstate(ctx context.Context, config *configs.Config, estateFl
 // by that record, so the refusal is skipped for every type whose identity
 // the apply can record ([projection.ApplyRecordsIdentity]). With no store,
 // or a store this run may only read, it fires as before.
-func statelessUnmarkedApplyGaps(ctx context.Context, config *configs.Config, resolutions *identity.Result, resourceSchemas map[string]providers.Schema, store *projection.RecordStore, estate string, scope identity.Scope) tfdiags.Diagnostics {
+//
+// The second return is every instance that exemption let through
+// ([check.NodeStampUnmarkedApplyRecordOnly]). An apply passes it to
+// [projection.WriteBackRequest.UnmarkedApplyAddrs] so a record it cannot
+// derive for one of them fails the run (GitHub issue #1743).
+func statelessUnmarkedApplyGaps(ctx context.Context, config *configs.Config, resolutions *identity.Result, resourceSchemas map[string]providers.Schema, store *projection.RecordStore, estate string, scope identity.Scope) (tfdiags.Diagnostics, []addrs.AbsResourceInstance) {
 	var diags tfdiags.Diagnostics
 	needs := statelessInScopeResolutions(resolutions.NeedsDiscovery(), scope)
 	recordBacked, recordDiags := statelessRecordBackedNeedsDiscoveryAddrs(ctx, store, needs)
 	diags = diags.Append(recordDiags)
 	if recordDiags.HasErrors() {
-		return diags
+		return diags, nil
 	}
 	refusals := check.NodeStampUnmarkedApply(config, resolutions, resourceSchemas, estate, recordBacked, scope, false)
 	if !refusals.HasErrors() || store == nil {
-		return diags.Append(refusals)
+		return diags.Append(refusals), nil
 	}
 	// GitHub issue #1637, ruled 2026-09-27: a run whose record store is
 	// writable records the identity of what it cannot mark, so the refusal
@@ -2233,9 +2241,10 @@ func statelessUnmarkedApplyGaps(ctx context.Context, config *configs.Config, res
 		)))
 	}
 	if !writable {
-		return diags.Append(refusals)
+		return diags.Append(refusals), nil
 	}
-	return diags.Append(check.NodeStampUnmarkedApply(config, resolutions, resourceSchemas, estate, recordBacked, scope, true))
+	exempted, recordOnly := check.NodeStampUnmarkedApplyRecordOnly(config, resolutions, resourceSchemas, estate, recordBacked, scope, true)
+	return diags.Append(exempted), recordOnly
 }
 
 // statelessInScopeResolutions drops the resolutions whose block a

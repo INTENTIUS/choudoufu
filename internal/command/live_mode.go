@@ -738,6 +738,10 @@ type statelessRunner struct {
 	// one that can reach it (GitHub issue #1657).
 	untagGroups []untagGroup
 	untagKey    string
+	// untagValue is the value untagKey must still carry for a release to
+	// touch it (GitHub issue #1743): the policy's tag_value, the estate
+	// name by default.
+	untagValue  string
 	untagConfig *configs.Config
 
 	lib  plugins.Library
@@ -862,6 +866,12 @@ type statelessRunner struct {
 	// WriteBack unchanged for the same reason those two are - this runner's
 	// own WriteBack call has no plan of its own to re-derive it from.
 	recordFallbackAddrs []addrs.AbsResourceInstance
+
+	// unmarkedApplyAddrs is GitHub issue #1743's write-back signal: every
+	// instance #1637's writable-store exemption let this run create with
+	// no marker, from [statelessUnmarkedApplyGaps]. Passed to WriteBack as
+	// [projection.WriteBackRequest.UnmarkedApplyAddrs].
+	unmarkedApplyAddrs []addrs.AbsResourceInstance
 
 	// liveConfig is the configuration WriteBack works from. The residue
 	// classifier re-opens providers from it - the ones PriorState read
@@ -1506,10 +1516,12 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// (line ~1004 above), is read unconditionally - this check is not
 	// gated on [nodeResolveEnabled] the way edge 3's sweep-demand shrink
 	// is.
-	diags = diags.Append(statelessUnmarkedApplyGaps(ctx, config, resolutions, resourceSchemas, r.recordStore, estate, scope))
+	gapDiags, unmarkedApplyAddrs := statelessUnmarkedApplyGaps(ctx, config, resolutions, resourceSchemas, r.recordStore, estate, scope)
+	diags = diags.Append(gapDiags)
 	if diags.HasErrors() {
 		return nil, diags
 	}
+	r.unmarkedApplyAddrs = unmarkedApplyAddrs
 
 	r.view.Policy(statelessPolicyReport(projResult, disco, reconcile, nil))
 
@@ -1519,7 +1531,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// "untag" rather than "keep" or "report". Captured here, for
 	// AfterApply, rather than acted on now: this method also runs for a
 	// plan, and a plan must never write to the live system.
-	r.captureUntag(statelessUntagTargets(disco), statelessPolicyTagKey(r.policy), config)
+	r.captureUntag(statelessUntagTargets(disco), statelessPolicyTagKey(r.policy), statelessPolicyTagValue(r.policy), config)
 
 	return projResult.State, diags
 }
@@ -1529,9 +1541,10 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 // ([statelessUntagTargets]). Not the estate's primary provider
 // configuration, which is what this used before GitHub issue #1657 and
 // which cannot reach an orphan in another region, account or cluster.
-func (r *statelessRunner) captureUntag(groups []untagGroup, key string, config *configs.Config) {
+func (r *statelessRunner) captureUntag(groups []untagGroup, key, value string, config *configs.Config) {
 	r.untagGroups = groups
 	r.untagKey = key
+	r.untagValue = value
 	r.untagConfig = config
 }
 
@@ -1573,6 +1586,7 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 		PriorVersions:       r.recordVersions,
 		EnvelopeVersions:    r.envelopeVersions,
 		RecordFallbackAddrs: r.recordFallbackAddrs,
+		UnmarkedApplyAddrs:  r.unmarkedApplyAddrs,
 		Providers:           provAccess,
 		FinalState:          finalState,
 		Schemas:             schemas,
@@ -1673,7 +1687,7 @@ func (r *statelessRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
 		// is the sweep's own for the same configuration (GitHub issue
 		// #1656): a manifest-shape orphan's markers are released by an API
 		// patch through it.
-		groupResult, releaseDiags := untag.Release(ctx, provider, statelessUntagCluster(r.kubeSweepers, g.Provider), r.untagKey, g.Targets)
+		groupResult, releaseDiags := untag.Release(ctx, provider, statelessUntagCluster(r.kubeSweepers, g.Provider), r.untagKey, r.untagValue, g.Targets)
 		diags = diags.Append(releaseDiags)
 		if groupResult != nil {
 			result.Outcomes = append(result.Outcomes, groupResult.Outcomes...)

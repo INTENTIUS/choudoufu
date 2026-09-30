@@ -204,11 +204,25 @@ func nodeStampDiagnostics(ctx context.Context, cfg *configs.Config, result *iden
 // caller's value, and the online caller's with no store or a read-only one -
 // exempts nothing, which is this function's behavior before #1637.
 func NodeStampUnmarkedApply(cfg *configs.Config, result *identity.Result, schemas flatSchemas, estate string, recordBacked map[string]bool, scope identity.Scope, storeWritable bool) tfdiags.Diagnostics {
+	diags, _ := NodeStampUnmarkedApplyRecordOnly(cfg, result, schemas, estate, recordBacked, scope, storeWritable)
+	return diags
+}
+
+// NodeStampUnmarkedApplyRecordOnly is [NodeStampUnmarkedApply] that also
+// returns every instance the storeWritable exemption let through: a
+// needs-discovery instance with nowhere to carry a marker, which the apply
+// may create only because its write-back will record the identity. That
+// record is the instance's only identity carrier, so the write-back must
+// fail loudly if it cannot derive one (GitHub issue #1743, half a; see
+// [projection.WriteBackRequest.UnmarkedApplyAddrs]). Nil when storeWritable
+// is false, since then nothing is exempted.
+func NodeStampUnmarkedApplyRecordOnly(cfg *configs.Config, result *identity.Result, schemas flatSchemas, estate string, recordBacked map[string]bool, scope identity.Scope, storeWritable bool) (tfdiags.Diagnostics, []addrs.AbsResourceInstance) {
 	var diags tfdiags.Diagnostics
+	var recordOnly []addrs.AbsResourceInstance
 
 	causesByBlock := stampNeedsDiscovery(result)
 	if len(causesByBlock) == 0 {
-		return diags
+		return diags, nil
 	}
 
 	seen := make(map[string]bool, len(causesByBlock))
@@ -258,6 +272,16 @@ func NodeStampUnmarkedApply(cfg *configs.Config, result *identity.Result, schema
 			// GitHub issue #1637. See this function's own doc comment on
 			// storeWritable.
 			mustStamp = false
+			if !markers.Taggable(schema.Block) {
+				// GitHub issue #1743: the record this exemption relies on
+				// is these instances' only carrier. A taggable type is
+				// marked on the node path and needs no such promise.
+				for _, ri := range result.NeedsDiscovery() {
+					if ri.Addr.ConfigResource().String() == key {
+						recordOnly = append(recordOnly, ri.Addr)
+					}
+				}
+			}
 		}
 		switch {
 		case !hasSchema:
@@ -312,7 +336,7 @@ func NodeStampUnmarkedApply(cfg *configs.Config, result *identity.Result, schema
 			// (AdjustConfigValue). Nothing to report.
 		}
 	}
-	return diags
+	return diags, recordOnly
 }
 
 // blockFullyRecordBacked reports whether EVERY instance

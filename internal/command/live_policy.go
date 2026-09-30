@@ -218,6 +218,15 @@ func statelessPolicyTagKey(pol *policy.Policy) string {
 	return pol.TagKey
 }
 
+// statelessPolicyTagValue is [statelessPolicyTagKey]'s value half: what the
+// key must carry for a resource to count as this estate's.
+func statelessPolicyTagValue(pol *policy.Policy) string {
+	if pol == nil {
+		return ""
+	}
+	return pol.TagValue
+}
+
 // statelessPolicyReport assembles GitHub issue #67's policy report for the
 // stateless plan view, from every stage that touched a non-default verb:
 // the projection's declared-quadrant outcomes, discovery's withheld

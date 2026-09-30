@@ -137,6 +137,7 @@ var liveTargetScopeClassification = map[string]struct {
 	"statelessPlannedCreates":             {notAPass, "reads the plan"},
 	"statelessPolicyReport":               {notAPass, "renders"},
 	"statelessPolicyTagKey":               {notAPass, "reads a field"},
+	"statelessPolicyTagValue":             {notAPass, "reads a field"},
 	"statelessNeedsDiscoverySet":          {notAPass, "indexes resolutions already in hand"},
 	"statelessUnownedReport":              {notAPass, "renders"},
 	"statelessUntagTargets":               {notAPass, "reads discovery's result"},

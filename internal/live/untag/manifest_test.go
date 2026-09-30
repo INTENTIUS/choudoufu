@@ -76,7 +76,7 @@ func (f *fakeReleaser) ReadObject(_ context.Context, ref kubesweep.ObjectRef) (*
 	return f.live.DeepCopy(), true, nil
 }
 
-func (f *fakeReleaser) DeleteMarkers(_ context.Context, ref kubesweep.ObjectRef, keys, annotations []string, _ string, dryRun bool) (*unstructured.Unstructured, string, error) {
+func (f *fakeReleaser) DeleteMarkers(_ context.Context, ref kubesweep.ObjectRef, _ kubesweep.ObjectPin, keys, annotations []string, _ string, dryRun bool) (*unstructured.Unstructured, string, error) {
 	f.calls = append(f.calls, releaseCall{ref: ref, keys: keys, annotations: annotations, dryRun: dryRun})
 	if f.rejectAs != "" {
 		return nil, f.rejectAs, nil
@@ -127,7 +127,7 @@ func TestRelease_ManifestSurfaceReleasesTheEstateLabelThroughAPatch(t *testing.T
 		map[string]string{"app": "cron", markers.TagEstate: "smoke-crd"},
 		map[string]string{"note": "keep", markers.AddressAnnotation: "kubernetes_manifest.cron"})}
 
-	res, diags := Release(context.Background(), p, k, testKey, []Target{crontabTarget()})
+	res, diags := Release(context.Background(), p, k, testKey, "smoke-crd", []Target{crontabTarget()})
 	out := res.Outcomes[0]
 	if !out.OK || diags.HasErrors() {
 		t.Fatalf("outcome = %s (diags %v), want RELEASED", out, diags.Err())
@@ -157,7 +157,7 @@ func TestRelease_ManifestSurfaceReleasesTheEstateLabelThroughAPatch(t *testing.T
 
 func TestRelease_ManifestSurfaceAlreadyReleasedWritesNothing(t *testing.T) {
 	k := &fakeReleaser{live: liveCrontab(map[string]string{"app": "cron"})}
-	res, _ := Release(context.Background(), manifestProvider(), k, testKey, []Target{crontabTarget()})
+	res, _ := Release(context.Background(), manifestProvider(), k, testKey, "smoke-crd", []Target{crontabTarget()})
 	if out := res.Outcomes[0]; !out.OK || len(k.calls) != 0 {
 		t.Fatalf("outcome = %s, patches %d; want OK with no patch", out, len(k.calls))
 	}
@@ -165,7 +165,7 @@ func TestRelease_ManifestSurfaceAlreadyReleasedWritesNothing(t *testing.T) {
 
 func TestRelease_ManifestSurfaceGoneIsNothingToRelease(t *testing.T) {
 	k := &fakeReleaser{}
-	res, _ := Release(context.Background(), manifestProvider(), k, testKey, []Target{crontabTarget()})
+	res, _ := Release(context.Background(), manifestProvider(), k, testKey, "smoke-crd", []Target{crontabTarget()})
 	if out := res.Outcomes[0]; !out.OK || len(k.calls) != 0 || !strings.Contains(out.Detail, "no longer exists") {
 		t.Fatalf("outcome = %s, patches %d; want OK, nothing sent", out, len(k.calls))
 	}
@@ -200,7 +200,7 @@ func TestRelease_ManifestSurfaceRefusesADryRunThatChangesMoreThanTheLabel(t *tes
 			k := &fakeReleaser{live: liveCrontabAnnotated(
 				map[string]string{"app": "cron", markers.TagEstate: "smoke-crd"},
 				map[string]string{"note": "keep", markers.AddressAnnotation: "kubernetes_manifest.cron"}), dryHook: hook}
-			res, _ := Release(context.Background(), manifestProvider(), k, testKey, []Target{crontabTarget()})
+			res, _ := Release(context.Background(), manifestProvider(), k, testKey, "smoke-crd", []Target{crontabTarget()})
 			out := res.Outcomes[0]
 			if out.OK || k.writes() != 0 {
 				t.Fatalf("outcome = %s, writes %d; want a refusal after the dry run alone", out, k.writes())
@@ -217,7 +217,7 @@ func TestRelease_ManifestSurfaceRefusesADryRunThatChangesMoreThanTheLabel(t *tes
 
 func TestRelease_ManifestSurfaceServerRejectionWritesNothing(t *testing.T) {
 	k := &fakeReleaser{live: liveCrontab(map[string]string{markers.TagEstate: "smoke-crd"}), rejectAs: "bob may not remove tofu-estate"}
-	res, _ := Release(context.Background(), manifestProvider(), k, testKey, []Target{crontabTarget()})
+	res, _ := Release(context.Background(), manifestProvider(), k, testKey, "smoke-crd", []Target{crontabTarget()})
 	out := res.Outcomes[0]
 	if out.OK || len(k.calls) != 1 || !k.calls[0].dryRun {
 		t.Fatalf("outcome = %s, calls %+v; want one refused dry run", out, k.calls)
@@ -232,7 +232,7 @@ func TestRelease_ManifestSurfaceServerRejectionWritesNothing(t *testing.T) {
 // changing nothing.
 func TestRelease_ManifestSurfaceWithNoClusterClientIsRefusedByName(t *testing.T) {
 	p := manifestProvider()
-	res, _ := Release(context.Background(), p, nil, testKey, []Target{crontabTarget()})
+	res, _ := Release(context.Background(), p, nil, testKey, "smoke-crd", []Target{crontabTarget()})
 	out := res.Outcomes[0]
 	if out.OK || p.applied != 0 || p.ImportResourceStateCalled {
 		t.Fatalf("outcome = %s; want a refusal that touches nothing", out)
@@ -246,7 +246,7 @@ func TestRelease_ManifestSurfaceWithNoClusterClientIsRefusedByName(t *testing.T)
 
 func TestRelease_ManifestSurfaceUnreadableImportIDIsRefused(t *testing.T) {
 	k := &fakeReleaser{live: liveCrontab(map[string]string{markers.TagEstate: "smoke-crd"})}
-	res, _ := Release(context.Background(), manifestProvider(), k, testKey, []Target{{TypeName: "kubernetes_manifest", ImportID: "orphans/stale"}})
+	res, _ := Release(context.Background(), manifestProvider(), k, testKey, "smoke-crd", []Target{{TypeName: "kubernetes_manifest", ImportID: "orphans/stale"}})
 	if out := res.Outcomes[0]; out.OK || len(k.reads) != 0 || len(k.calls) != 0 {
 		t.Fatalf("outcome = %s, reads %d, patches %d; want a refusal before any request", out, len(k.reads), len(k.calls))
 	}
@@ -257,7 +257,7 @@ func TestRelease_ManifestSurfaceUnreadableImportIDIsRefused(t *testing.T) {
 func TestRelease_ManifestSurfaceReleasesAStrayAddressAnnotation(t *testing.T) {
 	k := &fakeReleaser{live: liveCrontabAnnotated(map[string]string{"app": "cron"},
 		map[string]string{markers.AddressAnnotation: "kubernetes_manifest.cron"})}
-	res, _ := Release(context.Background(), manifestProvider(), k, testKey, []Target{crontabTarget()})
+	res, _ := Release(context.Background(), manifestProvider(), k, testKey, "smoke-crd", []Target{crontabTarget()})
 	if out := res.Outcomes[0]; !out.OK || k.writes() != 1 {
 		t.Fatalf("outcome = %s, writes %d; want the annotation released", out, k.writes())
 	}

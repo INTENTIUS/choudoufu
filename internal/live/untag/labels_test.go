@@ -134,7 +134,7 @@ func TestRelease_LabelSurfaceReleasesTheEstateLabel(t *testing.T) {
 	c := newFakeCluster("kubernetes_config_map_v1", configMapSchema(),
 		configMapObject(map[string]string{"app": "web", markers.TagEstate: "smoke-k8s"}))
 
-	res, diags := Release(context.Background(), c, nil, testKey, []Target{configMapTarget()})
+	res, diags := Release(context.Background(), c, nil, testKey, "smoke-k8s", []Target{configMapTarget()})
 	if len(res.Outcomes) != 1 {
 		t.Fatalf("outcomes = %d, want 1", len(res.Outcomes))
 	}
@@ -162,7 +162,7 @@ func TestRelease_LabelSurfaceReleasesTheEstateLabel(t *testing.T) {
 
 func TestRelease_LabelSurfaceAlreadyReleasedWritesNothing(t *testing.T) {
 	c := newFakeCluster("kubernetes_config_map_v1", configMapSchema(), configMapObject(map[string]string{"app": "web"}))
-	res, _ := Release(context.Background(), c, nil, testKey, []Target{configMapTarget()})
+	res, _ := Release(context.Background(), c, nil, testKey, "smoke-k8s", []Target{configMapTarget()})
 	if out := res.Outcomes[0]; !out.OK || c.applied != 0 {
 		t.Fatalf("outcome = %s, applied %d; want OK with no write", out, c.applied)
 	}
@@ -186,7 +186,7 @@ func TestRelease_LabelSurfaceRefusesAPlanThatChangesMoreThanLabels(t *testing.T)
 			c := newFakeCluster("kubernetes_config_map_v1", configMapSchema(),
 				configMapObject(map[string]string{markers.TagEstate: "smoke-k8s"}))
 			c.planHook = hook
-			res, _ := Release(context.Background(), c, nil, testKey, []Target{configMapTarget()})
+			res, _ := Release(context.Background(), c, nil, testKey, "smoke-k8s", []Target{configMapTarget()})
 			out := res.Outcomes[0]
 			if out.OK || c.applied != 0 {
 				t.Fatalf("outcome = %s, applied %d; want a refusal with no write", out, c.applied)
