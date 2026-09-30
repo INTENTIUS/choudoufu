@@ -83,8 +83,7 @@ fails the scenario by name the same way. The three variables are under
 Knobs. `bash live/smoke/selftest-bounds.sh` (or `just smoke-selftest`)
 proves each bound against a `kubectl` and a `choudoufu` that never return,
 with no cluster and no Docker, and reads the scenarios for a bare kubectl;
-`.github/workflows/k8s-smoke.yml` runs it on every pull request that touches
-the smokes.
+`.github/workflows/k8s-smoke.yml` runs it nightly.
 
 It is claim 7 on Kubernetes (#1061): the ConfigMap and the namespace it
 creates carry one `tofu-estate` label, written on the create and read back
@@ -108,12 +107,12 @@ requires the replan to leave the object alone. The Deployment's container
 is `registry.k8s.io/pause`, which kind's node image already carries, and
 `wait_for_rollout` is off, so the scenario needs no image pull.
 
-Every Kubernetes scenario runs in CI on every pull request that touches
-the Kubernetes surface, each followed by its `BREAK=1` control, on a kind
+Every Kubernetes scenario runs in CI nightly (and on dispatch), each
+followed by its `BREAK=1` control, on a kind
 cluster the runner creates (`.github/workflows/k8s-smoke.yml`, #1080;
 `live/k8s_ci_test.go` holds that matrix to this directory, so a new `k8s-*`
-scenario has to be added there too). The nightly gauntlet runs the
-kubernetes lane's estates the same way.
+scenario has to be added there too). The Gauntlet workflow, when
+dispatched, runs the kubernetes lane's estates the same way.
 
 `k8s-custom-resource` is claim 24 (#1079's first unit): a CRD installed
 with kubectl, one `kubernetes_manifest` block declaring a CronTab, applied

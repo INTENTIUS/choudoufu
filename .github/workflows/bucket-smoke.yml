@@ -28,38 +28,22 @@
 # uploaded whether the job passed or failed. live/smoke_verdict_test.go
 # holds every step that runs a scenario to the wrapper.
 #
-# The smoke trigger rule (issue #1592, HANDOFF.md "CI: smoke workflow
-# triggers"): every PR/push that touches cmd/**, internal/**, live/smoke/**,
-# go.mod or go.sum runs this matrix - narrower paths (just
-# internal/live/staterecord/** and internal/live/projection/**) let a PR
-# touching only cmd/ or the rest of internal/ skip it, which is how claim 28
-# stayed red across several merges. It also runs nightly (the schedule
-# below) and on workflow_dispatch, and is named in nightly-watch.yml's
-# workflows list. live/smoke_trigger_rule_test.go holds this file to that
-# rule.
+# The smoke trigger rule (issue #1592, revised 2026-09-29; HANDOFF.md
+# "CI: smoke workflow triggers"): no smoke workflow runs on a pull request or
+# a push. Each runs nightly and on workflow_dispatch, and is named in
+# nightly-watch.yml's workflows list, so a red night opens an issue. To
+# prove a branch before merging, dispatch it on that branch.
+# live/smoke_trigger_rule_test.go holds this file to that rule.
 name: bucket-smoke
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/bucket-smoke.yml"
-      - "cmd/**"
-      - "internal/**"
-      - "live/smoke/**"
-      - "go.mod"
-      - "go.sum"
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/bucket-smoke.yml"
-      - "cmd/**"
-      - "internal/**"
-      - "live/smoke/**"
-      - "go.mod"
-      - "go.sum"
+  # Nightly and by hand only: no pull_request or push trigger (smoke
+  # triggers were taken off pull requests on 2026-09-29, see HANDOFF.md
+  # "CI: smoke workflow triggers"). Run one on a branch with
+  #   gh workflow run bucket-smoke.yml --ref <branch>
   schedule:
     # Nightly, so a repin of the emulator image or of a dependency is caught
     # against these claims on the day it happens rather than on the next
-    # pull request that happens to touch one of the paths above.
+    # release.
     - cron: "37 4 * * *"
   workflow_dispatch:
 permissions:

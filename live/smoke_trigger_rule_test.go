@@ -7,10 +7,12 @@ package residue
 
 import (
 	"os"
-	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 // The smoke trigger rule (issue #1592, HANDOFF.md "CI: smoke workflow
@@ -26,21 +28,19 @@ import (
 // which is how claim 28 stayed red from #1351 to #1369 across several
 // merges.
 //
+// Revised 2026-09-29 by the maintainer: no smoke workflow runs on a pull
+// request or a push any more. Every pull request that touched internal/**
+// started about 40 smoke jobs against a 20-job concurrency cap, which queued
+// every other check behind them, and the push-to-main runs were almost all
+// cancelled by the next merge before finishing. The smokes now run nightly
+// and on workflow_dispatch only; a branch that wants proof before merging
+// dispatches them on itself. The rule below is that revision.
+//
 // This file checks every smoke workflow against the rule directly, rather
 // than trusting each workflow's own header comment to stay in sync with the
-// code: a smoke workflow with a pull_request trigger (k8s-smoke,
-// bucket-smoke, claims-smoke) fires on the same common path set for both
-// pull_request and push, and every smoke workflow or tier (adding
-// kind-tier, which intentionally carries no pull_request/push trigger of
-// its own - see HANDOFF.md) has workflow_dispatch, a nightly schedule, and
-// a name in nightly-watch.yml's workflows list.
-//
-// Proving it red: on the tree before this unit, k8s-smoke.yml has no
-// `schedule:`/`cron:` (TestEverySmokeWorkflowRunsNightly fails),
-// nightly-watch.yml's list omits k8s-smoke
-// (TestEverySmokeWorkflowIsWatchedByNightlyWatch fails), and
-// bucket-smoke.yml's pull_request/push paths lack cmd/** and internal/**
-// (TestSmokeWorkflowsTriggerOnTheCommonPaths fails).
+// code: every smoke workflow or tier (k8s-smoke, bucket-smoke,
+// claims-smoke, kind-tier) triggers on schedule and workflow_dispatch and
+// nothing else, and is named in nightly-watch.yml's workflows list.
 const (
 	pathK8sSmokeWorkflow     = "../.github/workflows/k8s-smoke.yml"
 	pathBucketSmokeWorkflow  = "../.github/workflows/bucket-smoke.yml"
@@ -49,19 +49,8 @@ const (
 	pathNightlyWatchWorkflow = "../.github/workflows/nightly-watch.yml"
 )
 
-// smokeWorkflowsWithPathTrigger is every smoke workflow the rule expects a
-// pull_request/push path trigger from. kind-tier.yml is deliberately not
-// here: standing up a kind cluster and running three test suites against it
-// is over any pull-request-sized budget, so it runs on schedule only (see
-// HANDOFF.md's "CI: smoke workflow triggers").
-var smokeWorkflowsWithPathTrigger = []string{
-	pathK8sSmokeWorkflow,
-	pathBucketSmokeWorkflow,
-	pathClaimsSmokeWorkflow,
-}
-
-// everySmokeWorkflowOrTier is the full roster the dispatch, nightly and
-// watched-by checks below apply to.
+// everySmokeWorkflowOrTier is the full roster the trigger and watched-by
+// checks below apply to.
 var everySmokeWorkflowOrTier = []string{
 	pathK8sSmokeWorkflow,
 	pathBucketSmokeWorkflow,
@@ -69,53 +58,45 @@ var everySmokeWorkflowOrTier = []string{
 	pathKindTierWorkflow,
 }
 
-// commonSmokeTriggerPaths is the path set every smoke workflow's
-// pull_request and push blocks must both carry, beyond the workflow's own
-// file: the code that can break any scenario it runs. A workflow may watch
-// more (k8s-smoke.yml also watches live/kubernetes/** and others), never
-// less.
-var commonSmokeTriggerPaths = []string{"cmd/**", "internal/**", "live/smoke/**", "go.mod", "go.sum"}
+// allowedSmokeTriggers is every event a smoke workflow may run on, and it
+// must carry both: schedule so a repin or a drift is caught the night it
+// lands, workflow_dispatch so a branch can be proved on demand.
+var allowedSmokeTriggers = []string{"schedule", "workflow_dispatch"}
 
-func TestSmokeWorkflowsTriggerOnTheCommonPaths(t *testing.T) {
-	for _, path := range smokeWorkflowsWithPathTrigger {
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read %s: %v", path, err)
-		}
-		wf := string(raw)
-		want := append([]string{".github/workflows/" + filepath.Base(path)}, commonSmokeTriggerPaths...)
-		for _, p := range want {
-			// Twice: once under pull_request and once under push, so a merge
-			// to main is measured as well as the pull request that proposed
-			// it.
-			if got := strings.Count(wf, `"`+p+`"`); got < 2 {
-				t.Errorf("%s names %q %d time(s) in its path filters, want it under both pull_request and push (the smoke trigger rule, issue #1592): a change to that tree can break its scenarios", path, p, got)
-			}
-		}
+// workflowTriggers returns the event names under a workflow's top-level
+// `on:`, read as YAML rather than searched as text, so a trigger named only
+// in a comment, or a `paths:` flipped to `paths-ignore:`, cannot satisfy or
+// dodge the rule.
+func workflowTriggers(t *testing.T, path string) []string {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
 	}
+	var doc map[string]any
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	on, ok := doc["on"].(map[string]any)
+	if !ok || len(on) == 0 {
+		t.Fatalf("%s has no `on:` map; this guard is checking nothing", path)
+	}
+	var events []string
+	for k := range on {
+		events = append(events, k)
+	}
+	sort.Strings(events)
+	return events
 }
 
-func TestEverySmokeWorkflowHasWorkflowDispatch(t *testing.T) {
+// TestSmokeWorkflowsRunOnlyNightlyAndOnDispatch: the rule as revised on
+// 2026-09-29. Red: add a `pull_request:` (or `push:`) trigger back to any
+// smoke workflow, or delete its schedule, and this names the file.
+func TestSmokeWorkflowsRunOnlyNightlyAndOnDispatch(t *testing.T) {
 	for _, path := range everySmokeWorkflowOrTier {
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read %s: %v", path, err)
-		}
-		if !strings.Contains(string(raw), "workflow_dispatch") {
-			t.Errorf("%s has no workflow_dispatch trigger; the smoke trigger rule (issue #1592) requires every smoke workflow to be runnable by hand or by an orchestrator, not only by a matching path change or a schedule", path)
-		}
-	}
-}
-
-func TestEverySmokeWorkflowRunsNightly(t *testing.T) {
-	for _, path := range everySmokeWorkflowOrTier {
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read %s: %v", path, err)
-		}
-		wf := string(raw)
-		if !strings.Contains(wf, "schedule:") || !strings.Contains(wf, "cron:") {
-			t.Errorf("%s has no schedule/cron; the smoke trigger rule (issue #1592) requires every smoke workflow to run nightly, so a repin of a pinned image or a dependency drift is caught the day it happens rather than on the next pull request that happens to touch a watched path", path)
+		events := workflowTriggers(t, path)
+		if strings.Join(events, ",") != strings.Join(allowedSmokeTriggers, ",") {
+			t.Errorf("%s triggers on %v, want exactly %v: smoke workflows run nightly and by hand, never on a pull request or a push (the smoke trigger rule as revised 2026-09-29, HANDOFF.md \"CI: smoke workflow triggers\")", path, events, allowedSmokeTriggers)
 		}
 	}
 }

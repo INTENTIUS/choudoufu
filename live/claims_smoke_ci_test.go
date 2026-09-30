@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 // The rest of the AWS claims' CI story (GitHub issue #1590, part of
@@ -19,8 +21,8 @@ import (
 // 33-38 are real_service and stay maintainer-run; claims 21-27 and 39 are
 // Kubernetes-only and run in k8s-smoke.yml; claims 28-32 and 44 already run
 // in bucket-smoke.yml and are not duplicated here. This file holds
-// claims-smoke.yml's two matrices - smoke (every PR) and smoke-nightly (the
-// scenarios over budget) - to the claim set that is left, so a claim added
+// claims-smoke.yml's two matrices - smoke and smoke-nightly (the scenarios
+// over budget, kept apart for their own budget; both run nightly) - to the claim set that is left, so a claim added
 // later lands with a matrix entry, a nightly-only entry, or a filed finding,
 // never a silent "proven" nobody re-checks.
 //
@@ -40,7 +42,7 @@ var claimsSmokeExcluded = map[string]string{}
 
 // claimsSmokeNightlyOnly is a proven, non-real-AWS AWS cell measured over
 // the 10-minute (both arms) budget the workflow's header states, so it runs
-// in smoke-nightly rather than on every pull request. Moving a slug out of
+// in smoke-nightly rather than in the smoke job. Moving a slug out of
 // this map without moving it into the smoke job's matrix (or vice versa)
 // fails TestClaimsSmokesRunInCIWithTheirControls.
 var claimsSmokeNightlyOnly = map[string]bool{
@@ -185,36 +187,37 @@ func TestClaimsSmokesRunInCIWithTheirControls(t *testing.T) {
 // bounds one job's body inside the jobs: map.
 var nextTopLevelJobKey = regexp.MustCompile(`\n  [a-zA-Z0-9_-]+:\n`)
 
-// TestClaimsSmokeWorkflowWatchesWhatCanBreakIt: the trigger. A workflow
-// that runs only on its own file, or only on demand, is one nobody sees
-// fail - the same guard bucket-smoke.yml and k8s-smoke.yml already carry.
+// TestClaimsSmokeWorkflowWatchesWhatCanBreakIt: both jobs run on the
+// schedule. Until 2026-09-29 the smoke job ran on every pull request and was
+// skipped on the schedule (`if: github.event_name != 'schedule'`), leaving
+// the nightly with only smoke-nightly. With pull request triggers gone
+// (live/smoke_trigger_rule_test.go), that condition would mean its 25
+// scenarios run nowhere but a hand dispatch. Red: put the condition back.
 func TestClaimsSmokeWorkflowWatchesWhatCanBreakIt(t *testing.T) {
 	raw, err := os.ReadFile(claimsSmokeWorkflow)
 	if err != nil {
 		t.Fatalf("read %s: %v", claimsSmokeWorkflow, err)
 	}
 	wf := string(raw)
-	for _, path := range []string{
-		".github/workflows/claims-smoke.yml",
-		"cmd/**",
-		"internal/**",
-		"live/smoke/**",
-		"go.mod",
-		"go.sum",
-	} {
-		// Twice: once under pull_request and once under push, so a merge to
-		// main is measured as well as the pull request that proposed it.
-		if got := strings.Count(wf, `"`+path+`"`); got < 2 {
-			t.Errorf("claims-smoke.yml names %q %d time(s) in its path filters, want it under both pull_request and push: a change to that tree can break these claims", path, got)
-		}
-	}
 	if !strings.Contains(wf, "schedule:") || !strings.Contains(wf, "cron:") {
-		t.Errorf("claims-smoke.yml has no schedule; the over-budget scenario in smoke-nightly would never run, and a repin of the emulator image would go unmeasured until the next pull request that happens to touch one of the paths above")
+		t.Errorf("claims-smoke.yml has no schedule; it runs on no pull request or push, so without one its claims run only when someone remembers to dispatch it")
 	}
-	if !strings.Contains(wf, "if: github.event_name != 'schedule'") {
-		t.Errorf("claims-smoke.yml's smoke job has no `if: github.event_name != 'schedule'`; a nightly run would re-run the PR-time matrix too, which is not what the 2026-09-26 ruling on #1590 asks for")
+	var doc struct {
+		Jobs map[string]struct {
+			If string `yaml:"if"`
+		} `yaml:"jobs"`
 	}
-	if !strings.Contains(wf, "if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'") {
-		t.Errorf("claims-smoke.yml's smoke-nightly job is not scoped to schedule/workflow_dispatch")
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("parse %s: %v", claimsSmokeWorkflow, err)
+	}
+	for _, job := range []string{"smoke", "smoke-nightly"} {
+		j, ok := doc.Jobs[job]
+		if !ok {
+			t.Errorf("claims-smoke.yml has no %q job", job)
+			continue
+		}
+		if strings.Contains(j.If, "event_name") {
+			t.Errorf("claims-smoke.yml's %s job is conditioned on the event (%q); the workflow runs only nightly and on dispatch, so a condition on the event can only stop its claims running nightly", job, j.If)
+		}
 	}
 }
