@@ -1256,7 +1256,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// live_plan.go's own identical call for the fuller comment; this is
 	// the "plain choudoufu plan/apply" path the comment two paragraphs up
 	// already says carries the record store for real.
-	deposedRecords := collectDeposedRecords(ctx, r.recordStore, resolutions.NeedsDiscovery())
+	deposedRecords := collectDeposedRecords(ctx, r.recordStore, config, resolutions.All(), nodeRefusedAddrs(r.resolver.StaticRefusals))
 	// Issue #685's cache, loaded once: BuildWith consumes it below, and
 	// issue #692's vouch-listing pass needs to know, before discovery
 	// runs, which concrete-declared types it holds candidates for. Nil

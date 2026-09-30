@@ -724,14 +724,15 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	}
 
 	// GitHub issue #361's crash-window recovery: one GetDeposed read per
-	// needs-discovery address, from recordStoreForReads - the same
+	// needs-discovery address (and, since #1683, per Kubernetes address -
+	// see deposedRecordAddrs), from recordStoreForReads - the same
 	// unconditionally-open envelope store [statelessProviderDataReads]
 	// already reads directly, above, and NOT recordShrinkStore, which
 	// stays gated on the CHOUDOUFU_NODE_RESOLVE=1 migration flag for edge
 	// 3's own unrelated reason. Read here, before [discovery.Discover]
 	// ever runs, and handed to it through [discovery.Request.DeposedRecords]
 	// - see that field's own doc comment for what consumes it.
-	deposedRecords := collectDeposedRecords(ctx, recordStoreForReads, resolutions.NeedsDiscovery())
+	deposedRecords := collectDeposedRecords(ctx, recordStoreForReads, config, resolutions.All(), nodeRefusedAddrs(resolver.StaticRefusals))
 
 	// Marker discovery, when anything is waiting on it. Its output is a
 	// resolution list with the discovered instances made concrete, plus the
@@ -1205,7 +1206,8 @@ func statelessRecordBackedNeedsDiscoveryAddrs(ctx context.Context, store *projec
 }
 
 // collectDeposedRecords is GitHub issue #361's crash-window recovery: one
-// [projection.RecordStore.GetDeposed] read per needs-discovery address,
+// [projection.RecordStore.GetDeposed] read per address [deposedRecordAddrs]
+// names (the needs-discovery addresses, and since #1683 the Kubernetes ones),
 // from the estate's already-open record envelope store, well before
 // [discovery.Discover] ever runs - see discovery.Request.DeposedRecords'
 // own doc comment for what consumes the result. A store that will not open
@@ -1220,22 +1222,77 @@ func statelessRecordBackedNeedsDiscoveryAddrs(ctx context.Context, store *projec
 // fails to match any claimant"), and failing the whole plan over an
 // unreadable deposed-object hint would turn a recovery path into a new way
 // for an estate to be blocked.
-func collectDeposedRecords(ctx context.Context, store *projection.RecordStore, needs []identity.Resolution) map[string]map[string]projection.DeposedRecord {
-	if store == nil || len(needs) == 0 {
+func collectDeposedRecords(ctx context.Context, store *projection.RecordStore, config *configs.Config, all []identity.Resolution, nodeRefused map[string]bool) map[string]map[string]projection.DeposedRecord {
+	if store == nil {
 		return nil
 	}
 	var out map[string]map[string]projection.DeposedRecord
-	for _, r := range needs {
-		deposed, _, _, err := store.GetDeposed(ctx, r.Addr)
+	for _, addr := range deposedRecordAddrs(config, all, nodeRefused) {
+		deposed, _, _, err := store.GetDeposed(ctx, addr)
 		if err != nil || len(deposed) == 0 {
 			continue
 		}
 		if out == nil {
 			out = make(map[string]map[string]projection.DeposedRecord)
 		}
-		out[r.Addr.String()] = deposed
+		out[addr.String()] = deposed
 	}
 	return out
+}
+
+// deposedRecordAddrs is the addresses [collectDeposedRecords] reads a
+// deposed record for, in address order.
+//
+// Every needs-discovery instance: the population the AWS collision branch
+// consults (#361). And, since GitHub issue #1683, every other declared
+// instance whose block's provider the label-list sweep serves (Kubernetes):
+// that leg's two-claimant collision (#1641) arises at a concrete address
+// whose object is not listed, or at an instance the static evaluator
+// refused and the plan node took over (nodeRefused, #1539's shape), and
+// neither is ever needs-discovery. An AWS instance outside needs-discovery
+// is not asked: nothing would read its answer, and each read is a record
+// store GET.
+func deposedRecordAddrs(config *configs.Config, all []identity.Resolution, nodeRefused map[string]bool) []addrs.AbsResourceInstance {
+	seen := map[string]bool{}
+	var out []addrs.AbsResourceInstance
+	add := func(addr addrs.AbsResourceInstance) {
+		if key := addr.String(); !seen[key] {
+			seen[key] = true
+			out = append(out, addr)
+		}
+	}
+	for _, r := range all {
+		if r.Class == identity.ClassNeedsDiscovery || deposedSweptByLabel(config, r.Addr) {
+			add(r.Addr)
+		}
+	}
+	for key := range nodeRefused {
+		addr, diags := addrs.ParseAbsResourceInstanceStr(key)
+		if diags.HasErrors() || !deposedSweptByLabel(config, addr) {
+			continue
+		}
+		add(addr)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].String() < out[j].String() })
+	return out
+}
+
+// deposedSweptByLabel reports whether addr's block resolves to a provider
+// the label-list sweep serves ([substrate.Sweeps]), asked of the block's
+// own resolved provider the way the sweep itself is built.
+func deposedSweptByLabel(config *configs.Config, addr addrs.AbsResourceInstance) bool {
+	if config == nil {
+		return false
+	}
+	modCfg, ok := identity.ConfigForModule(config, addr.Module)
+	if !ok || modCfg.Module == nil {
+		return false
+	}
+	rc := modCfg.Module.ManagedResources[addr.Resource.Resource.String()]
+	if rc == nil {
+		return false
+	}
+	return substrate.Sweeps(providerscope.ResolveResource(modCfg, rc).Provider.Type)
 }
 
 // statelessDiscover runs the marker discovery pass, wide enough to see the

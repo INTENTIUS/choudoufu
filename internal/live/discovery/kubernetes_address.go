@@ -16,6 +16,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -62,7 +63,11 @@ import (
 //     object wins over one that merely carries the address;
 //   - exactly one listed object claims the address. Two or more are the
 //     collision refusal (GitHub issue #1641), and none of them is an
-//     orphan either;
+//     orphan either - unless there are two and the estate's record names
+//     one of them as the address's deposed object, which is what an
+//     interrupted create_before_destroy rename leaves: that one is the
+//     address's deposed half and the other binds (GitHub issue #1683,
+//     [settleByDeposedRecord]);
 //   - the object is not terminating;
 //   - on a multi-provider run, the address's block is this pass's
 //     provider configuration's ([Request.ScopeProvider]).
@@ -121,7 +126,7 @@ func (l ListedObjects) Add(kind, key string) {
 // (GitHub issue #1677) - a second copy of the rule there would drift from
 // this one the first time either changed.
 func KubernetesAddressBindings(req Request, manifestType string, declared KubernetesDeclared, listed ListedObjects, undeclared []UndeclaredObject) map[int]addrs.AbsResourceInstance {
-	claims, _, _ := addressClaims(req, manifestType, declared, listed, undeclared)
+	claims, _, _, _ := addressClaims(req, manifestType, declared, listed, undeclared)
 	out := make(map[int]addrs.AbsResourceInstance, len(claims))
 	for idx, c := range claims {
 		out[idx] = c.addr
@@ -137,8 +142,11 @@ func KubernetesAddressBindings(req Request, manifestType string, declared Kubern
 // collision refusal (GitHub issue #1641). elsewhere is every object whose
 // annotation names an instance another provider configuration's pass
 // owns (GitHub issue #1757): that pass decides it, and this one leaves it
-// alone. Always empty on a run with one pass.
-func addressClaims(req Request, manifestType string, declared KubernetesDeclared, listed ListedObjects, undeclared []UndeclaredObject) (bound map[int]addressClaim, collisions []addressCollisionSet, elsewhere map[int]bool) {
+// alone. Always empty on a run with one pass. deposed is every claimant
+// the estate's record names as its address's deposed object, when that
+// settles a collision (GitHub issue #1683, [settleByDeposedRecord]): the
+// address's deposed half, neither bound nor an orphan.
+func addressClaims(req Request, manifestType string, declared KubernetesDeclared, listed ListedObjects, undeclared []UndeclaredObject) (bound map[int]addressClaim, collisions []addressCollisionSet, elsewhere map[int]bool, deposed map[int]projection.DeposedBinding) {
 	join := newAddressJoin(req, manifestType, undeclared)
 
 	byKey := map[string][]int{}
@@ -164,9 +172,15 @@ func addressClaims(req Request, manifestType string, declared KubernetesDeclared
 	}
 	sort.Strings(keys)
 	bound = map[int]addressClaim{}
+	deposed = map[int]projection.DeposedBinding{}
 	for _, key := range keys {
 		idxs := byKey[key]
 		if len(idxs) != 1 {
+			if survivor, dIdx, db, ok := settleByDeposedRecord(req, claimed, idxs); ok {
+				bound[survivor] = claimed[survivor]
+				deposed[dIdx] = db
+				continue
+			}
 			// Two objects carry one address, and neither is at the
 			// namespace and name the configuration names for it: which
 			// is the instance's is not something the annotation can say.
@@ -177,13 +191,46 @@ func addressClaims(req Request, manifestType string, declared KubernetesDeclared
 			// be destroyed beside the old object while the node planned
 			// a create at the replacement's own name. So the sweep raises
 			// the collision refusal AWS raises for two objects carrying
-			// one tofu-address (GitHub issue #1641), and binds neither.
+			// one tofu-address (GitHub issue #1641), and binds neither -
+			// unless the record names one of two as the address's deposed
+			// object (GitHub issue #1683), checked just above.
 			collisions = append(collisions, addressCollisionSet{addr: claimed[idxs[0]].addr, idxs: idxs})
 			continue
 		}
 		bound[idxs[0]] = claimed[idxs[0]]
 	}
-	return bound, collisions, elsewhere
+	return bound, collisions, elsewhere, deposed
+}
+
+// settleByDeposedRecord is GitHub issue #361's crash-window recovery on
+// the Kubernetes leg (GitHub issue #1683). A create_before_destroy rename
+// interrupted after its create and before its destroy leaves two objects
+// annotated with one address, which is the collision above. The
+// interrupted apply's write-back recorded the old object as the address's
+// deposed object ([projection.RecordStore.GetDeposed]), so when exactly
+// one of the claimants is the object the record names, and exactly one
+// claimant remains, the record answers the question the annotation could
+// not: the named one is the deposed half, folded into the projection for
+// stock's deposed-object machinery to re-read and destroy, and the other
+// is the block's object.
+//
+// The match is [matchDeposedClaimant]'s, unchanged, so it disambiguates
+// exactly as the AWS collision does: by the recorded import ID against
+// the claimant's, never by guess. Any other count - no record, a record
+// naming neither claimant, a record carrying no identity (a type whose
+// record renders none), or more than one claimant left over - returns ok
+// false and the collision stands.
+func settleByDeposedRecord(req Request, claimed map[int]addressClaim, idxs []int) (survivor, deposedIdx int, db projection.DeposedBinding, ok bool) {
+	addr := claimed[idxs[0]].addr
+	cs := make([]claimant, len(idxs))
+	for i, idx := range idxs {
+		cs[i] = claimant{importID: claimed[idx].importID}
+	}
+	rec, dk, matched, ok := matchDeposedClaimant(req, addr, cs)
+	if !ok || len(idxs) != 2 {
+		return -1, -1, projection.DeposedBinding{}, false
+	}
+	return idxs[1-matched], idxs[matched], projection.NewDeposedBinding(addr, dk, rec), true
 }
 
 // addressCollisionSet is the undeclared objects, by index, whose
@@ -201,10 +248,19 @@ type addressCollisionSet struct {
 // orphan here.
 func bindByAddress(req Request, leg KubernetesSweep, declared KubernetesDeclared, listed ListedObjects, undeclared []UndeclaredObject, res *Result) (map[int]bool, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
-	claims, collisions, elsewhere := addressClaims(req, leg.ManifestType, declared, listed, undeclared)
+	claims, collisions, elsewhere, deposed := addressClaims(req, leg.ManifestType, declared, listed, undeclared)
 	bound := map[int]bool{}
 	for idx := range elsewhere {
 		bound[idx] = true
+	}
+	deposedIdxs := make([]int, 0, len(deposed))
+	for idx := range deposed {
+		deposedIdxs = append(deposedIdxs, idx)
+	}
+	sort.Ints(deposedIdxs)
+	for _, idx := range deposedIdxs {
+		bound[idx] = true
+		res.DeposedBindings = append(res.DeposedBindings, deposed[idx])
 	}
 	for _, c := range collisions {
 		for _, idx := range c.idxs {
