@@ -323,7 +323,8 @@ func TestWorkflowsReadTheKindVersionPin(t *testing.T) {
 	}
 	kindActionUse := regexp.MustCompile(`uses:\s*helm/kind-action@`)
 	// Anchored to "version:" as the whole (trimmed) key, so it never
-	// matches the same job's unrelated kubectl_version: v1.34.0 line.
+	// matches the same job's kubectl_version line, which
+	// TestWorkflowsReadTheKubectlVersionPin governs.
 	literalVersion := regexp.MustCompile(`^version:\s*v[0-9]+\.[0-9]+\.[0-9]+\s*$`)
 	found := 0
 	for _, f := range files {

@@ -23,9 +23,10 @@
 # versions .github/workflows/k8s-smoke.yml pins, with install_only so this
 # workflow owns the cluster's life.
 #
-# The kind binary version and the node image are read from their pins,
-# live/kind-version and live/kind-node-image (#1594), like every other
-# kind call site.
+# The kind binary version, kubectl's version and the node image are read
+# from their pins, live/kind-version, live/kubectl-version (#1741, held
+# within kubectl's one-minor skew of the node) and live/kind-node-image
+# (#1594), like every other kind call site.
 #
 # The smoke trigger rule (issue #1592, HANDOFF.md "CI: smoke workflow
 # triggers") is a whole workflow's worth of exception here rather than one
@@ -66,14 +67,16 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - name: Read the pinned kind version (issue #1594)
+      - name: Read the pinned kind and kubectl versions (issues #1594, #1741)
         id: kind
-        run: echo "version=$(cat live/kind-version)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(cat live/kind-version)" >> "$GITHUB_OUTPUT"
+          echo "kubectl=$(cat live/kubectl-version)" >> "$GITHUB_OUTPUT"
       - name: kind and kubectl, pinned
         uses: helm/kind-action@v1.15.0
         with:
           version: ${{ steps.kind.outputs.version }}
-          kubectl_version: v1.34.0
+          kubectl_version: ${{ steps.kind.outputs.kubectl }}
           install_only: true
       - name: create the kind cluster
         run: |
