@@ -176,3 +176,80 @@ func TestMove_ManifestRenameWithoutFieldManagerUsesTheDefault(t *testing.T) {
 	after := renameThenProviderRename(t, "", kubesweep.DefaultFieldManager)
 	assertAnnotationOwnedBy(t, after, kubesweep.DefaultFieldManager)
 }
+
+// TestMove_ManifestRenameUnderAVariableFieldManager reads the name the way
+// every other identity-bearing argument is read, through the static
+// evaluator, so a name from a variable's default is honoured too.
+func TestMove_ManifestRenameUnderAVariableFieldManager(t *testing.T) {
+	clusters, dyn := newFieldManagedClusters(t)
+	if _, err := fieldManagerProviderApply(dyn, "from-var", labelTestType+".database"); err != nil {
+		t.Fatal(err)
+	}
+	req := fieldManagerRequest(t, clusters, `var.manager`, `
+variable "manager" {
+  default = "from-var"
+}
+`)
+	if _, diags := Move(t.Context(), req); diags.HasErrors() {
+		t.Fatalf("live-mv's rename was refused: %s", diags.Err())
+	}
+	after, err := fieldManagerProviderApply(dyn, "from-var", labelTestType+".database_third")
+	if err != nil {
+		t.Fatalf("the provider's rename after live-mv's conflicted: %v", err)
+	}
+	assertAnnotationOwnedBy(t, after, "from-var")
+}
+
+// TestMove_ManifestRenameRefusesAnUnresolvableFieldManager: a name this
+// run cannot resolve is refused before anything is sent, rather than
+// guessed as "Terraform" and left to conflict at the next apply.
+func TestMove_ManifestRenameRefusesAnUnresolvableFieldManager(t *testing.T) {
+	cluster := &manifestCluster{object: liveCronTab(map[string]string{markers.TagEstate: "app"}, nil)}
+	req := fieldManagerRequest(t, cluster, `var.manager`, `
+variable "manager" {
+  type = string
+}
+`)
+	_, diags := Move(t.Context(), req)
+	if !diags.HasErrors() || !strings.Contains(diags.Err().Error(), "Cannot tell the block's field manager") {
+		t.Fatalf("diags = %v, want the field manager refusal", diags.Err())
+	}
+	if cluster.dryRuns+cluster.realRuns != 0 {
+		t.Errorf("a refused rename sent %d patch(es)", cluster.dryRuns+cluster.realRuns)
+	}
+}
+
+// fieldManagerRequest is the rename request with the destination block's
+// field_manager name set to the expression nameExpr, and extra appended
+// to the configuration.
+func fieldManagerRequest(t *testing.T, clusters Clusters, nameExpr, extra string) Request {
+	t.Helper()
+	dir := t.TempDir()
+	writeFile(t, dir, "main.tf", `
+terraform {
+  required_providers {
+    kubernetes = {
+      source = "hashicorp/kubernetes"
+    }
+  }
+}
+`+extra+`
+resource "`+labelTestType+`" "database_renamed" {
+  provider = kubernetes
+  metadata {
+    name      = "database"
+    namespace = "boundary"
+  }
+  field_manager {
+    name = `+nameExpr+`
+  }
+}
+`)
+	old := mustAddr(t, labelTestType+".database")
+	renamed := mustAddr(t, labelTestType+".database_renamed")
+	provider := newLabelTestCluster(t, manifestTestSchema(), cty.NullVal(manifestTestSchema().Block.ImpliedType()))
+	req := labelTestRequest(t, provider, loadConfigDir(t, dir), old, renamed, "", "app")
+	req.Resolutions[0].ImportID = manifestTestImportID
+	req.Clusters = clusters
+	return req
+}
