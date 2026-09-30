@@ -563,8 +563,8 @@ func liveLsItemFromTags(id string, tags map[string]string, source string) views.
 	if item.Type == "" {
 		item.Type = arnTypeLabel(id)
 	}
-	if hold, ok := markers.ControllerHeld(tags); ok {
-		item.HeldBy = hold.Describe()
+	if hold, ok := substrate.ControllerHeld(substrate.HoldEvidence{Tags: tags}); ok {
+		item.HeldBy = hold.HeldBy
 	}
 	return item
 }
