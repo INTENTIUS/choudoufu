@@ -863,6 +863,12 @@ type statelessRunner struct {
 	// own WriteBack call has no plan of its own to re-derive it from.
 	recordFallbackAddrs []addrs.AbsResourceInstance
 
+	// unmarkedApplyAddrs is GitHub issue #1743's write-back signal: every
+	// instance #1637's writable-store exemption let this run create with
+	// no marker, from [statelessUnmarkedApplyGaps]. Passed to WriteBack as
+	// [projection.WriteBackRequest.UnmarkedApplyAddrs].
+	unmarkedApplyAddrs []addrs.AbsResourceInstance
+
 	// liveConfig is the configuration WriteBack works from. The residue
 	// classifier re-opens providers from it - the ones PriorState read
 	// through are closed before the plan graph starts (see this file's
@@ -1506,10 +1512,12 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// (line ~1004 above), is read unconditionally - this check is not
 	// gated on [nodeResolveEnabled] the way edge 3's sweep-demand shrink
 	// is.
-	diags = diags.Append(statelessUnmarkedApplyGaps(ctx, config, resolutions, resourceSchemas, r.recordStore, estate, scope))
+	gapDiags, unmarkedApplyAddrs := statelessUnmarkedApplyGaps(ctx, config, resolutions, resourceSchemas, r.recordStore, estate, scope)
+	diags = diags.Append(gapDiags)
 	if diags.HasErrors() {
 		return nil, diags
 	}
+	r.unmarkedApplyAddrs = unmarkedApplyAddrs
 
 	r.view.Policy(statelessPolicyReport(projResult, disco, reconcile, nil))
 
@@ -1573,6 +1581,7 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 		PriorVersions:       r.recordVersions,
 		EnvelopeVersions:    r.envelopeVersions,
 		RecordFallbackAddrs: r.recordFallbackAddrs,
+		UnmarkedApplyAddrs:  r.unmarkedApplyAddrs,
 		Providers:           provAccess,
 		FinalState:          finalState,
 		Schemas:             schemas,

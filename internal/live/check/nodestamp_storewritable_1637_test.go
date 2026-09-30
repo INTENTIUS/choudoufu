@@ -6,6 +6,7 @@
 package check
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
@@ -38,9 +39,28 @@ func TestNodeStampUnmarkedApply_writableStoreExemptsARecordableType(t *testing.T
 	})
 
 	t.Run("writable store, recordable type: exempt", func(t *testing.T) {
-		diags := NodeStampUnmarkedApply(cfg, result, recordable, "stampgaps-950", nil, nil, true)
+		diags, recordOnly := NodeStampUnmarkedApplyRecordOnly(cfg, result, recordable, "stampgaps-950", nil, nil, true)
 		if diags.HasErrors() {
 			t.Fatalf("the refusal fired with a writable store on a type the apply records: %s", diags.Err())
+		}
+		// GitHub issue #1743: the exempted instance is handed on, so the
+		// write-back fails loudly if it cannot record it.
+		var want []string
+		for _, r := range result.NeedsDiscovery() {
+			want = append(want, r.Addr.String())
+		}
+		var got []string
+		for _, a := range recordOnly {
+			got = append(got, a.String())
+		}
+		if len(want) == 0 || strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Fatalf("record-only instances = %v, want every exempted needs-discovery instance %v", got, want)
+		}
+	})
+
+	t.Run("no writable store: nothing handed on", func(t *testing.T) {
+		if _, recordOnly := NodeStampUnmarkedApplyRecordOnly(cfg, result, recordable, "stampgaps-950", nil, nil, false); len(recordOnly) != 0 {
+			t.Fatalf("nothing was exempted, but %v were reported as record-only", recordOnly)
 		}
 	})
 
