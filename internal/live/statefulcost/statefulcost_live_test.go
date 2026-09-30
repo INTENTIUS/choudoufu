@@ -66,6 +66,9 @@ type column struct {
 	Calls     []int
 	Verdicts  []string
 	ByAPILast map[string]int
+
+	// CacheOff runs the column with CHOUDOUFU_STATE_CACHE=off (timePlansEnv).
+	CacheOff bool
 }
 
 // TestStatefulCostAgainstFloci is the measurement.

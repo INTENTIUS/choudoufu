@@ -8,6 +8,7 @@ package statefulcost
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -40,6 +41,7 @@ import (
 //	  -run TestSteadyStateCostAgainstFloci -v -timeout 600m
 //
 //	STEADY_SCALE   terralith-gen -scale (default 1; 136 is 10,069 resources)
+//	STEADY_COMMIT  the commit the record names (default: git HEAD, +dirty)
 func TestSteadyStateCostAgainstFloci(t *testing.T) {
 	flocitest.Gate(t, "steadystate")
 	flocitest.RequireBinary(t, "docker")
@@ -147,48 +149,9 @@ func TestSteadyStateCostAgainstFloci(t *testing.T) {
 		t.Logf("state cache present: %s, %d bytes", cachePath, fi.Size())
 	}
 
-	cols = append(cols, timePlans(t, &column{
-		Label: "choudoufu-live", Bin: choudoufuBin, Dir: liveDir,
-		Endpoint: proxyLive.Endpoint(),
-		Args:     []string{"plan", "-input=false", "-no-color"},
-	}, proxyLive))
-
-	// The columns where the cache is actually allowed to serve. Both gates
-	// in live_mode.go require !PlanRefresh: a default plan refreshes every
-	// instance by design, so it switches the cache off and never even
-	// computes the vouch types. The reads policy defaults to "selective",
-	// which is the other gate, so -refresh=false is the whole difference.
-	//
-	// This is choudoufu's equivalent of stock planning from the state file
-	// its own apply wrote: prior state taken from the artifact on disk
-	// rather than re-read from the account.
-	if os.Getenv("STEADY_REFRESH_FALSE") != "0" {
-		cols = append(cols, timePlansEnv(t, &column{
-			Label: "choudoufu-live-refresh-false", Bin: choudoufuBin, Dir: liveDir,
-			Endpoint: proxyLive.Endpoint(),
-			Args:     []string{"plan", "-refresh=false", "-input=false", "-no-color"},
-		}, proxyLive, awsEnv(proxyLive.Endpoint())))
-
-		offEnv2 := append(awsEnv(proxyLive.Endpoint()), "CHOUDOUFU_STATE_CACHE=off")
-		cols = append(cols, timePlansEnv(t, &column{
-			Label: "choudoufu-refresh-false-cache-off", Bin: choudoufuBin, Dir: liveDir,
-			Endpoint: proxyLive.Endpoint(),
-			Args:     []string{"plan", "-refresh=false", "-input=false", "-no-color"},
-		}, proxyLive, offEnv2))
-	}
-
-	// The control that says whether the cache is doing anything at all. Same
-	// estate, same account, same plan, with persistence disabled. If this
-	// column matches the one above call for call, the cache is present and
-	// buying nothing, which is a finding about the cache rather than about
-	// the cost of live mode.
-	if os.Getenv("STEADY_CACHE_CONTROL") != "0" {
-		offEnv := append(awsEnv(proxyLive.Endpoint()), "CHOUDOUFU_STATE_CACHE=off")
-		cols = append(cols, timePlansEnv(t, &column{
-			Label: "choudoufu-live-cache-off", Bin: choudoufuBin, Dir: liveDir,
-			Endpoint: proxyLive.Endpoint(),
-			Args:     []string{"plan", "-input=false", "-no-color"},
-		}, proxyLive, offEnv))
+	for _, c := range steadyLiveColumns(choudoufuBin, liveDir, proxyLive.Endpoint(),
+		os.Getenv("STEADY_REFRESH_FALSE") != "0", os.Getenv("STEADY_CACHE_CONTROL") != "0") {
+		cols = append(cols, timePlansEnv(t, c, proxyLive, awsEnv(proxyLive.Endpoint())))
 	}
 
 	report(t, scale, cols)
@@ -217,11 +180,11 @@ func emitSteadyRecord(t *testing.T, scale, flatPerType int, cols []*column) {
 	rec := SteadyRecord{
 		Estate: "terralith", Shape: shape, Resources: resources,
 		Substrate: "floci", Emulator: flocitest.Image(),
-		Commit: os.Getenv("STEADY_COMMIT"),
+		Commit: steadyCommit(t),
 		Date:   time.Now().UTC().Format(time.RFC3339),
 	}
 	for _, c := range cols {
-		cond := conditionFor(c.Label)
+		cond := conditionFor(c)
 		if cond == "" {
 			// A column this record has no condition for is not published
 			// rather than guessed at. Guessing which column a number came
@@ -259,28 +222,113 @@ func emitSteadyRecord(t *testing.T, scale, flatPerType int, cols []*column) {
 	t.Logf("steady record written: %s", path)
 }
 
-// conditionFor maps a column label onto the condition its figures were taken
-// under. Unknown labels return "" and are omitted from the record rather than
-// assigned a plausible condition.
-func conditionFor(label string) Condition {
-	switch label {
-	case "stock-terraform":
+// steadyCommit is the commit a record names: STEADY_COMMIT when the caller
+// says, otherwise this checkout's HEAD, marked "+dirty" when the tree has
+// uncommitted changes, because a dirty tree measured something HEAD alone
+// does not reproduce. When neither can be read it is "", and [Gate] refuses
+// the record rather than publish a figure nobody can check out again.
+func steadyCommit(t *testing.T) string {
+	t.Helper()
+	if v := strings.TrimSpace(os.Getenv("STEADY_COMMIT")); v != "" {
+		return v
+	}
+	root := flocitest.RepoRoot(t)
+	head, err := exec.Command("git", "-C", root, "rev-parse", "HEAD").Output() //nolint:gosec // fixed args, test-only
+	if err != nil {
+		t.Logf("steady record: STEADY_COMMIT unset and git rev-parse HEAD failed (%v)", err)
+		return ""
+	}
+	commit := strings.TrimSpace(string(head))
+	if status, err := exec.Command("git", "-C", root, "status", "--porcelain").Output(); err != nil || len(strings.TrimSpace(string(status))) > 0 { //nolint:gosec // fixed args, test-only
+		commit += "+dirty"
+	}
+	return commit
+}
+
+// steadyLiveColumns is choudoufu's side of the comparison, declared once so
+// that the pairing [conditionFor] derives from it can be checked without an
+// emulator (TestSteadyColumnsPairUnderOneRefreshMode).
+//
+// Two refresh modes, each with the cache serving and with it off:
+//
+//   - The default plan refreshes every instance by design. Both gates in
+//     live_mode.go require !PlanRefresh, so a default plan switches the
+//     cache off and never computes the vouch types: its cache-on and
+//     cache-off columns measure the same thing, and neither is the cache
+//     serving. They are timed for the table and kept out of the record.
+//   - -refresh=false is where the cache is allowed to serve. It is
+//     choudoufu's equivalent of stock planning from the state file its own
+//     apply wrote: prior state taken from the artifact on disk rather than
+//     re-read from the account. Its cache-off twin is the control.
+//
+// refreshFalse and cacheControl are STEADY_REFRESH_FALSE and
+// STEADY_CACHE_CONTROL; turning either off leaves the record without a
+// column [Gate] requires, so the run refuses to publish rather than pairing
+// what is left.
+func steadyLiveColumns(bin, dir, endpoint string, refreshFalse, cacheControl bool) []*column {
+	defaultPlan := []string{"plan", "-input=false", "-no-color"}
+	noRefresh := []string{"plan", "-refresh=false", "-input=false", "-no-color"}
+	cols := []*column{
+		{Label: "choudoufu-live", Bin: bin, Dir: dir, Endpoint: endpoint, Args: defaultPlan},
+	}
+	if refreshFalse {
+		cols = append(cols, &column{Label: "choudoufu-live-refresh-false", Bin: bin, Dir: dir, Endpoint: endpoint, Args: noRefresh})
+		if cacheControl {
+			cols = append(cols, &column{Label: "choudoufu-refresh-false-cache-off", Bin: bin, Dir: dir, Endpoint: endpoint, Args: noRefresh, CacheOff: true})
+		}
+	}
+	if cacheControl {
+		cols = append(cols, &column{Label: "choudoufu-live-cache-off", Bin: bin, Dir: dir, Endpoint: endpoint, Args: defaultPlan, CacheOff: true})
+	}
+	return cols
+}
+
+// conditionFor derives the condition a column's figures were taken under from
+// how the column was run, not from its label: which binary, whether the plan
+// refreshed, and whether the cache was switched off. Anything else returns ""
+// and is omitted from the record rather than assigned a plausible condition.
+//
+// A refreshing choudoufu plan is never a condition. The cache does not serve
+// it with or without CHOUDOUFU_STATE_CACHE, so calling it warm is the
+// cached-against-uncached misread the record exists to prevent, and calling
+// its cache-off twin the control pairs off against a warm column that is
+// measured under a different refresh mode.
+func conditionFor(c *column) Condition {
+	if c.Bin == terraformBin {
 		return ConditionStateFile
-	case "choudoufu-live", "choudoufu-live-cache-warm":
-		return ConditionCacheWarm
-	case "choudoufu-live-cache-off", "choudoufu-refresh-false-cache-off":
+	}
+	if !planSkipsRefresh(c.Args) {
+		return ""
+	}
+	if c.CacheOff {
 		return ConditionCacheOff
 	}
-	return ""
+	return ConditionCacheWarm
+}
+
+func planSkipsRefresh(args []string) bool {
+	for _, a := range args {
+		if a == "-refresh=false" {
+			return true
+		}
+	}
+	return false
 }
 
 // timePlansEnv is timePlans with the environment overridden, so a column can
 // differ from its neighbour in exactly one variable. timePlans builds its own
-// env from the column's endpoint and has no seam for this.
+// env from the column's endpoint and has no seam for this. A column marked
+// CacheOff gets CHOUDOUFU_STATE_CACHE=off here, from the same field
+// [conditionFor] reads, so the label on a figure and the way it was taken
+// cannot disagree.
 func timePlansEnv(t *testing.T, c *column, proxy *flocitest.CountingProxy, env []string) *column {
 	t.Helper()
+	if c.CacheOff {
+		env = append(append([]string(nil), env...), "CHOUDOUFU_STATE_CACHE=off")
+	}
 	for i := 0; i < repeats; i++ {
 		before := proxy.Total()
+		beforeByAPI := copyCounts(proxy.Counts())
 		start := time.Now()
 		out, err := run(t, c.Dir, env, c.Bin, c.Args...)
 		elapsed := time.Since(start)
@@ -298,6 +346,7 @@ func timePlansEnv(t *testing.T, c *column, proxy *flocitest.CountingProxy, env [
 		c.Seconds = append(c.Seconds, elapsed.Seconds())
 		c.Calls = append(c.Calls, delta)
 		c.Verdicts = append(c.Verdicts, verdict)
+		c.ByAPILast = diffCounts(beforeByAPI, proxy.Counts())
 		t.Logf("%s run %d: %.2fs, %d API calls (%s)", c.Label, i+1, elapsed.Seconds(), delta, verdict)
 	}
 	return c

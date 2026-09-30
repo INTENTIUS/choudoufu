@@ -313,18 +313,20 @@ func TestValidateGeneratedTerralith(t *testing.T) {
 	// with -plugin-dir and asks no registry anything; TF_PLUGIN_CACHE_DIR
 	// alone still queries registry.terraform.io for the version list, which
 	// is what turned this test red on a DNS blip (#1509). A cold cache is
-	// filled by an ordinary init under the cache's cross-process lock.
+	// filled by an ordinary init under the cache's cross-process lock, and
+	// the warm check itself is made under that lock, so a half-extracted
+	// entry another package's init is still writing is not taken for a
+	// complete one (#1699).
 	initArgs := []string{"init", "-backend=false", "-input=false", "-no-color"}
-	if dir, warm := plugincache.FromEnv("registry.terraform.io", "hashicorp", "aws", providerVersion); warm {
+	dir, unlock := flocitest.CachedProvider(t, "registry.terraform.io", "hashicorp", "aws", providerVersion)
+	defer unlock()
+	if dir != "" {
 		initArgs = append(initArgs, "-plugin-dir="+dir)
 		// The same directory as TF_PLUGIN_CACHE_DIR and -plugin-dir makes
 		// terraform refuse to install the cache "to itself" unless
 		// TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE happens to be set;
 		// the mirror alone is the whole install here.
 		t.Setenv(plugincache.EnvDir, "")
-	} else {
-		unlock := flocitest.InitLock(t)
-		defer unlock()
 	}
 
 	for _, scale := range []int{1, 4} {

@@ -223,11 +223,11 @@ func GenerateCohorts(t *testing.T) []string {
 	// failed the golden on a DNS blip, and a fresh executable macOS scans on
 	// first exec, which is what timed out the plugin start under load. A cold
 	// cache is filled by the first render, under the cache's cross-process
-	// lock because that render is a writer; a warm one needs no lock.
+	// lock because that render is a writer; a warm one needs no lock, but
+	// deciding it is warm does (CachedProvider, #1699).
 	PluginCacheDir(t)
-	if _, warm := plugincache.FromEnv("registry.terraform.io", "hashicorp", "aws", pins.AWSProviderVersion); !warm {
-		defer lockPluginCache(t)()
-	}
+	_, unlock := CachedProvider(t, "registry.terraform.io", "hashicorp", "aws", pins.AWSProviderVersion)
+	defer unlock()
 
 	out := filepath.Join(t.TempDir(), "cohorts")
 	cmd := exec.Command("go", "run", "./tools/estate-gen", "-all", "-out", out)
@@ -585,6 +585,34 @@ func lockPluginCache(t *testing.T) (unlock func()) {
 // calls its holder dead. A cold-cache init downloads one provider release,
 // which is minutes at the worst; ten of them is a crash.
 const lockStaleAfter = 10 * time.Minute
+
+// CachedProvider reports whether the shared plugin cache holds a complete
+// install of one provider release, for a caller about to install from it
+// with -plugin-dir and then exec the binary through the symlink init leaves.
+//
+// Warm: dir is the cache directory and unlock is a no-op. Cold: dir is ""
+// and the caller holds the cache's cross-process lock until it calls
+// unlock, because its own init is the writer that fills the entry.
+//
+// The check is made UNDER the lock (#1699). An init filling the cache
+// unpacks the provider in place, so for the seconds an 812MB binary takes to
+// extract the entry holds an executable file that is still open for writing.
+// A check without the lock called that entry warm, the caller's init
+// symlinked it, and the exec failed with "text file busy" - three renders at
+// once on the nightly, each having logged that 6.59.0 "is there". Every
+// writer holds the lock for its whole init, so an entry seen under the lock
+// is complete. Once complete it is not rewritten: [PluginCacheDir] sets
+// TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE, which makes a later init
+// trust the hit rather than reinstall over it.
+func CachedProvider(t *testing.T, host, namespace, typ, version string) (dir string, unlock func()) {
+	t.Helper()
+	unlock = lockPluginCache(t)
+	if dir, warm := plugincache.FromEnv(host, namespace, typ, version); warm {
+		unlock()
+		return dir, func() {}
+	}
+	return "", unlock
+}
 
 // InitLock takes the shared plugin cache's cross-process lock, for a caller
 // that runs an init through its own exec plumbing (a context deadline, a

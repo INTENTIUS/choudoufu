@@ -58,6 +58,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 // SteadyRecordSchema is the record's version. A consumer that does not
@@ -202,6 +203,11 @@ func Gate(rec SteadyRecord) error {
 	if len(rec.Columns) == 0 {
 		return fmt.Errorf("no columns measured")
 	}
+	// A record names the commit it measured or it cannot be reproduced, and
+	// a figure nobody can reproduce is one nobody can check.
+	if strings.TrimSpace(rec.Commit) == "" {
+		return fmt.Errorf("no commit: a record that does not name the commit it measured cannot be reproduced or checked")
+	}
 
 	var warm, off, stock *SteadyColumn
 	for i := range rec.Columns {
@@ -225,13 +231,25 @@ func Gate(rec SteadyRecord) error {
 					"because a percentage on calls is not a percentage on time",
 				c.Label, len(c.Calls), len(c.Seconds))
 		}
+		// One column per condition. Two columns under one condition means
+		// the record cannot say which of them a consumer is reading, and
+		// keeping either silently is how a cache-off default plan came to
+		// stand in for the -refresh=false control (#1736).
+		var slot **SteadyColumn
 		switch c.Condition {
 		case ConditionCacheWarm:
-			warm = c
+			slot = &warm
 		case ConditionCacheOff:
-			off = c
+			slot = &off
 		case ConditionStateFile:
-			stock = c
+			slot = &stock
+		}
+		if slot != nil {
+			if *slot != nil {
+				return fmt.Errorf("columns %q and %q are both %s: a record carries one column per condition, or a reader cannot tell which figure it is quoting",
+					(*slot).Label, c.Label, c.Condition)
+			}
+			*slot = c
 		}
 	}
 
