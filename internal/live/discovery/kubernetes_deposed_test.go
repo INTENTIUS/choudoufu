@@ -117,8 +117,8 @@ func TestKubernetesSweepDeposedRecordSettlesTheCollision(t *testing.T) {
 			if len(res.Bindings) != 1 || res.Bindings[0].Addr.String() != cfg.String() || res.Bindings[0].ImportID != "ns/cfg-b" {
 				t.Fatalf("bindings = %+v, want ns/cfg-b bound at %s", res.Bindings, cfg)
 			}
-			if !res.KubernetesAddressBound[cfg.String()] {
-				t.Errorf("KubernetesAddressBound = %v, want %s", res.KubernetesAddressBound, cfg)
+			if !res.AddressBound[cfg.String()] {
+				t.Errorf("AddressBound = %v, want %s", res.AddressBound, cfg)
 			}
 			found := false
 			for _, r := range res.Resolutions {
@@ -163,8 +163,8 @@ func TestKubernetesSweepDeposedRecordControls(t *testing.T) {
 				if !hasCollision(diags) {
 					t.Errorf("want an error %q, got: %v", problemSummaries[ProblemCollision], diags.ErrWithWarnings())
 				}
-				if len(res.Orphans) != 0 || len(res.Bindings) != 0 || len(res.DeposedBindings) != 0 || len(res.KubernetesAddressBound) != 0 {
-					t.Errorf("orphans %v, bindings %v, deposed %v, bound %v; the record does not settle which object is the block's, so nothing may be proposed", res.Orphans, res.Bindings, res.DeposedBindings, res.KubernetesAddressBound)
+				if len(res.Orphans) != 0 || len(res.Bindings) != 0 || len(res.DeposedBindings) != 0 || len(res.AddressBound) != 0 {
+					t.Errorf("orphans %v, bindings %v, deposed %v, bound %v; the record does not settle which object is the block's, so nothing may be proposed", res.Orphans, res.Bindings, res.DeposedBindings, res.AddressBound)
 				}
 			})
 		}

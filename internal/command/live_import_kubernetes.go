@@ -49,7 +49,7 @@ func (p *statelessProviders) LabelPatcher(ctx context.Context, addr addrs.AbsPro
 	key := providerCacheKey(addr)
 
 	p.mu.Lock()
-	got, cached := p.kubePatchers[key]
+	got, cached := p.markerPatchers[key]
 	p.mu.Unlock()
 	if !cached {
 		client, _, _, schemaDiags, err := p.kubernetesClient(ctx, addr)
@@ -62,10 +62,10 @@ func (p *statelessProviders) LabelPatcher(ctx context.Context, addr addrs.AbsPro
 			got = labelPatcher{client: client}
 		}
 		p.mu.Lock()
-		if p.kubePatchers == nil {
-			p.kubePatchers = map[string]labelPatcher{}
+		if p.markerPatchers == nil {
+			p.markerPatchers = map[string]labelPatcher{}
 		}
-		p.kubePatchers[key] = got
+		p.markerPatchers[key] = got
 		p.mu.Unlock()
 	}
 

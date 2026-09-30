@@ -70,8 +70,8 @@ func assertBoundNotOrphaned(t *testing.T, res *Result, want addrs.AbsResourceIns
 	if !ok || r.ImportID != "m1116-res/reader-0" {
 		t.Errorf("resolution at %s = %+v (present %v)", want, r, ok)
 	}
-	if objects, present := res.KubernetesUnaddressed[want.String()]; present {
-		t.Errorf("KubernetesUnaddressed[%s] = %q (present); a bound instance is answered by the marker index", want, objects)
+	if objects, present := res.Unaddressed[want.String()]; present {
+		t.Errorf("Unaddressed[%s] = %q (present); a bound instance is answered by the marker index", want, objects)
 	}
 }
 
@@ -94,9 +94,9 @@ func TestKubernetesSweepBindsADigitForEachKey(t *testing.T) {
 
 	// reader["1"] has no object: nothing listed could be its, so the
 	// create is safe.
-	got, present := res.KubernetesUnaddressed[one.String()]
+	got, present := res.Unaddressed[one.String()]
 	if !present || len(got) != 0 {
-		t.Errorf("KubernetesUnaddressed[%s] = %q (present %v), want present and empty", one, got, present)
+		t.Errorf("Unaddressed[%s] = %q (present %v), want present and empty", one, got, present)
 	}
 }
 
@@ -189,9 +189,9 @@ func TestUnboundAnnotationForTheInstanceKeepsTheRefusal(t *testing.T) {
 			undeclared := []UndeclaredObject{{Kind: configMapKind(), TypeName: "kubernetes_config_map_v1", Object: labelled("ConfigMap", "m1116-res", "reader-0", tc.annotation)}}
 			res := &Result{}
 			accountUnaddressed(req, leg, nil, undeclared, map[int]bool{}, res)
-			got, present := res.KubernetesUnaddressed[tc.refused.String()]
+			got, present := res.Unaddressed[tc.refused.String()]
 			if !present || !reflect.DeepEqual(nonNil(got), tc.want) {
-				t.Fatalf("KubernetesUnaddressed[%s] = %q (present %v), want %q", tc.refused, got, present, tc.want)
+				t.Fatalf("Unaddressed[%s] = %q (present %v), want %q", tc.refused, got, present, tc.want)
 			}
 			if len(tc.want) == 0 {
 				return
@@ -202,7 +202,7 @@ func TestUnboundAnnotationForTheInstanceKeepsTheRefusal(t *testing.T) {
 			node := &projection.NodeResolver{
 				MarkerIndex:        projection.NewMarkerIndex(nil),
 				StaticRefusals:     map[string]tfdiags.Diagnostics{tc.refused.String(): refusal},
-				UnaddressedObjects: res.KubernetesUnaddressed,
+				UnaddressedObjects: res.Unaddressed,
 			}
 			_, found, diags := node.ResolveResourceIdentity(context.Background(), tc.refused, readerValue(), configMapSchema())
 			refused := false

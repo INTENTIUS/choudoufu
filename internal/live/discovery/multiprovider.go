@@ -285,24 +285,24 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 		// Each pass accounts only for the instances its own provider
 		// configuration owns (GitHub issue #1641), so the passes' keys
 		// are disjoint and the union is the whole account.
-		for key, objects := range p.Result.KubernetesUnaddressed {
-			if res.KubernetesUnaddressed == nil {
-				res.KubernetesUnaddressed = map[string][]string{}
+		for key, objects := range p.Result.Unaddressed {
+			if res.Unaddressed == nil {
+				res.Unaddressed = map[string][]string{}
 			}
-			res.KubernetesUnaddressed[key] = append(res.KubernetesUnaddressed[key], objects...)
-			if res.KubernetesUnaddressed[key] == nil {
-				res.KubernetesUnaddressed[key] = []string{}
+			res.Unaddressed[key] = append(res.Unaddressed[key], objects...)
+			if res.Unaddressed[key] == nil {
+				res.Unaddressed[key] = []string{}
 			}
 		}
-		for key := range p.Result.KubernetesAddressBound {
-			if res.KubernetesAddressBound == nil {
-				res.KubernetesAddressBound = map[string]bool{}
+		for key := range p.Result.AddressBound {
+			if res.AddressBound == nil {
+				res.AddressBound = map[string]bool{}
 			}
-			res.KubernetesAddressBound[key] = true
+			res.AddressBound[key] = true
 		}
 		for _, r := range p.Result.Resolutions {
 			if !r.Undeclared {
-				if p.Result.KubernetesAddressBound[r.Addr.String()] {
+				if p.Result.AddressBound[r.Addr.String()] {
 					// The Kubernetes leg bound this address through the
 					// object's annotation (GitHub issue #1640), which
 					// can rebind a concrete resolution every other pass

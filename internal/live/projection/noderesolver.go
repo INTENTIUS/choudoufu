@@ -207,7 +207,7 @@ type NodeResolver struct {
 
 	// UnaddressedObjects is the sweep's account, for the instances in
 	// StaticRefusals, of the live objects that could be each one's and
-	// carry no address - discovery's KubernetesUnaddressed (GitHub issue
+	// carry no address - discovery's Unaddressed (GitHub issue
 	// #1641), keyed by [addrs.AbsResourceInstance.String]. A key is
 	// present only when the sweep listed every kind the instance's type
 	// can declare; its value names the objects it found that could be the

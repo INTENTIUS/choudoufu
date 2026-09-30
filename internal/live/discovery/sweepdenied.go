@@ -132,7 +132,7 @@ func DeniedSweepWarning(results ...*Result) tfdiags.Diagnostics {
 	for _, r := range results {
 		if r != nil {
 			denials = append(denials, r.sweepDenied...)
-			kubeDenials = append(kubeDenials, r.kubeSweepDenied...)
+			kubeDenials = append(kubeDenials, r.labelListDenied...)
 		}
 	}
 	var diags tfdiags.Diagnostics
@@ -293,7 +293,7 @@ type kubeDenial struct {
 // run (or, over several passes, [DeniedSweepWarning]).
 func sweepGapKubeDenied(res *Result, g SweepGap, kind string, detail kubesweep.ForbiddenDetail, err error) {
 	res.SweepGaps = append(res.SweepGaps, g)
-	res.kubeSweepDenied = append(res.kubeSweepDenied, kubeDenial{
+	res.labelListDenied = append(res.labelListDenied, kubeDenial{
 		typeName:  g.TypeName,
 		kind:      kind,
 		verb:      detail.Verb,

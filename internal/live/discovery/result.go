@@ -40,33 +40,36 @@ type Verdicts struct {
 	// This is the input to projection.BuildFrom.
 	Resolutions []identity.Resolution
 
-	// KubernetesAddressBound names every declared instance the Kubernetes
-	// leg bound through an object's address annotation rather than through
-	// the natural key its configuration names (GitHub issue #1640), keyed
-	// by [addrs.AbsResourceInstance.String]. Each one also has a
-	// [Binding] and a concrete resolution naming the object. It is what
-	// [Merge] reads to keep that resolution over the configuration's
-	// own concrete one, which another pass carries unchanged: both are
-	// bound classes, so nothing else would tell them apart.
-	KubernetesAddressBound map[string]bool
+	// AddressBound names every declared instance a sweep leg bound through an
+	// address carried outside the marker map (the Kubernetes address
+	// annotation, [substrate.AddressInMarkers] false) rather than through the
+	// natural key its configuration names (GitHub issue #1640; renamed from
+	// KubernetesAddressBound by #1705), keyed by
+	// [addrs.AbsResourceInstance.String]. Each one also has a [Binding] and a
+	// concrete resolution naming the object. It is what [Merge] reads to keep
+	// that resolution over the configuration's own concrete one, which another
+	// pass carries unchanged: both are bound classes, so nothing else would
+	// tell them apart.
+	AddressBound map[string]bool
 
-	// KubernetesUnaddressed is the Kubernetes leg's account of every
+	// Unaddressed is the account, from the leg of a substrate whose address
+	// rides outside its marker map (today the Kubernetes leg), of every
 	// instance in [Request.NodeRefused] that it did not bind (GitHub issue
-	// #1641), keyed by [addrs.AbsResourceInstance.String]. An instance is
-	// present only when the leg listed every kind its type can declare,
-	// and the value names the listed objects that could be its object and
-	// carry no address annotation: this estate's label, a kind the type
-	// manages, a namespace and name no concrete resolution declares, not
-	// terminating, and no annotation (or one that does not parse). Such an
-	// object is one an older build created, or one migrated from stock
-	// state before live-import stamped it.
+	// #1641; renamed from KubernetesUnaddressed by #1705), keyed by
+	// [addrs.AbsResourceInstance.String]. An instance is present only when the
+	// leg listed every kind its type can declare, and the value names the
+	// listed objects that could be its object and carry no address annotation:
+	// this estate's label, a kind the type manages, a namespace and name no
+	// concrete resolution declares, not terminating, and no annotation (or one
+	// that does not parse). Such an object is one an older build created, or
+	// one migrated from stock state before live-import stamped it.
 	//
 	// It is what the node's #1617 refusal reads since
 	// substrate.Kubernetes.CarriesAddress flipped: present and empty, a
 	// create is safe, because an object this block made carries the
 	// annotation and would have bound; non-empty, or absent (a kind that
 	// failed to list, a pass that never ran), the refusal stands.
-	KubernetesUnaddressed map[string][]string
+	Unaddressed map[string][]string
 
 	// Bindings lists every declared instance that a live resource claimed,
 	// in address order.
@@ -215,7 +218,7 @@ type Report struct {
 	// tags (GitHub issue #1606): taken out of Unclaimed, and out of the
 	// removal set when they also carried this estate's markers. See
 	// [applyControllerHeld]. On Kubernetes, the objects among
-	// KubernetesOwnerSkipped whose holder the sweep can name: today the
+	// OwnerSkipped whose holder the sweep can name: today the
 	// objects a Helm release holds (#1607), which carry the estate's label
 	// but are never orphans or adoptable. Sorted by type, then identity.
 	ControllerHeld []ControllerHeldResource
@@ -228,13 +231,15 @@ type Report struct {
 	// result.
 	SweepGaps []SweepGap
 
-	// KubernetesOwnerSkipped counts the objects the Kubernetes leg listed
-	// under this estate's label and set aside because a controller owns
-	// them (metadata.ownerReferences non-empty): a Deployment's Pods and
-	// ReplicaSets carrying a template-copied label, a StatefulSet's PVCs.
-	// They are never orphans, and the count says how much of the label's
-	// reach the exclusion is doing (GitHub issue #1065).
-	KubernetesOwnerSkipped int
+	// OwnerSkipped counts the objects a label-list sweep leg
+	// ([substrate.SweepLabelList], today the Kubernetes leg) listed under this
+	// estate's label and set aside because a controller owns them
+	// (metadata.ownerReferences non-empty; renamed from KubernetesOwnerSkipped
+	// by #1705): a Deployment's Pods and ReplicaSets carrying a
+	// template-copied label, a StatefulSet's PVCs. They are never orphans, and
+	// the count says how much of the label's reach the exclusion is doing
+	// (GitHub issue #1065).
+	OwnerSkipped int
 
 	// SweepCovered lists the resource types the estate-wide sweep did
 	// enumerate, sorted. It is the counterpart of SweepGaps: "these types
@@ -364,14 +369,15 @@ type Result struct {
 	// it is the run's own bookkeeping, not a fact about the estate.
 	sweepDenied []sweepDenial
 
-	// kubeSweepDenied is every Kubernetes list call this run's own
+	// labelListDenied is every label-list sweep call
+	// ([substrate.SweepLabelList], today the Kubernetes leg's) this run's own
 	// credential was refused with Forbidden (GitHub issue #1582), the
-	// Kubernetes leg's counterpart of sweepDenied: collected by
-	// [sweepGapKubeDenied] so that [kubeDeniedSweepDiag] raises one
-	// warning for all of them, naming the verb, resource and namespace
-	// the grant lacks, the same way [deniedSweepDiag] does for AWS. The
-	// gaps themselves are in SweepGaps like any other.
-	kubeSweepDenied []kubeDenial
+	// label-list counterpart of sweepDenied (the tagging-index leg's):
+	// collected by [sweepGapKubeDenied] so that [kubeDeniedSweepDiag] raises
+	// one warning for all of them, naming the verb, resource and namespace the
+	// grant lacks, the same way [deniedSweepDiag] does for AWS. The gaps
+	// themselves are in SweepGaps like any other.
+	labelListDenied []kubeDenial
 }
 
 // ParentReadFinding is one live child a parent read found: an untaggable,
@@ -1909,7 +1915,7 @@ func (r *Result) sortEverything() {
 	})
 }
 
-// UnaddressedAccount returns [Verdicts.KubernetesUnaddressed], nil-safely,
+// UnaddressedAccount returns [Verdicts.Unaddressed], nil-safely,
 // for the plan-node resolver's projection.NodeResolver.UnaddressedObjects
 // (GitHub issue #1641). A run with no discovery result has no account,
 // and the node's refusal stands wherever it applies.
@@ -1917,5 +1923,5 @@ func (r *Result) UnaddressedAccount() map[string][]string {
 	if r == nil {
 		return nil
 	}
-	return r.KubernetesUnaddressed
+	return r.Unaddressed
 }

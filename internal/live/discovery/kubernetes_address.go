@@ -86,7 +86,7 @@ import (
 // refusal at the node stands for an instance this cannot bind only where
 // this leg found an object that could be that instance's and carries no
 // annotation, or could not list a kind the instance's type manages: see
-// [Verdicts.KubernetesUnaddressed].
+// [Verdicts.Unaddressed].
 
 // UndeclaredObject is one listed object no natural key declares, with the
 // kind it was listed under and the type an orphan of it is filed at.
@@ -282,10 +282,10 @@ func bindByAddress(req Request, leg KubernetesSweep, declared KubernetesDeclared
 			Marker:      u.Object.Address,
 			DisplayName: u.Kind.Kind + " " + kubesweep.NaturalKey(u.Object.Namespace, u.Object.Name),
 		})
-		if res.KubernetesAddressBound == nil {
-			res.KubernetesAddressBound = map[string]bool{}
+		if res.AddressBound == nil {
+			res.AddressBound = map[string]bool{}
 		}
-		res.KubernetesAddressBound[key] = true
+		res.AddressBound[key] = true
 		r := identity.Resolution{
 			Addr:           c.addr,
 			Class:          identity.ClassConcrete,
@@ -403,7 +403,7 @@ func manages(manifestType string, k kubesweep.Kind, typeName string) bool {
 	return !k.Manifest && slices.Contains(k.TypeNames, typeName)
 }
 
-// accountUnaddressed records [Verdicts.KubernetesUnaddressed] for every
+// accountUnaddressed records [Verdicts.Unaddressed] for every
 // instance in [Request.NodeRefused] this pass owns and did not settle.
 // unlisted is every kind whose list failed; settled is bindByAddress's.
 func accountUnaddressed(req Request, leg KubernetesSweep, unlisted []kubesweep.Kind, undeclared []UndeclaredObject, settled map[int]bool, res *Result) {
@@ -418,7 +418,7 @@ func accountUnaddressed(req Request, leg KubernetesSweep, unlisted []kubesweep.K
 
 refused:
 	for _, key := range keys {
-		if res.KubernetesAddressBound[key] {
+		if res.AddressBound[key] {
 			continue
 		}
 		addr, diags := addrs.ParseAbsResourceInstanceStr(key)
@@ -459,10 +459,10 @@ refused:
 			// and plan a create beside an orphan destroy of the object.
 			objects = append(objects, u.Kind.Kind+" "+kubesweep.NaturalKey(u.Object.Namespace, u.Object.Name))
 		}
-		if res.KubernetesUnaddressed == nil {
-			res.KubernetesUnaddressed = map[string][]string{}
+		if res.Unaddressed == nil {
+			res.Unaddressed = map[string][]string{}
 		}
-		res.KubernetesUnaddressed[key] = objects
+		res.Unaddressed[key] = objects
 	}
 }
 

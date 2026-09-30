@@ -748,21 +748,23 @@ type statelessRunner struct {
 	mgr  *projection.Manager
 	view views.StatelessPlan
 
-	// kubeSweepers is the Kubernetes sweep's cluster client per provider
-	// configuration, captured by PriorState once discovery has built them
-	// and consumed by AfterPlan for the server-side dry run (GitHub issue
-	// #1081, item 3) - the same reason untagGroups above is carried
-	// across: by the time the plan exists the providers PriorState read
-	// through are closed, and the sweep's client is not one of them.
-	kubeSweepers map[string]kubesweep.Sweeper
+	// labelListSweepers is the label-list sweep's client
+	// ([substrate.SweepLabelList], the Kubernetes cluster client) per provider
+	// configuration, keyed by [providerCacheKey] and named for the capability
+	// rather than the family (GitHub issue #1705), captured by PriorState once
+	// discovery has built them and consumed by AfterPlan for the server-side
+	// dry run (GitHub issue #1081, item 3) - the same reason untagGroups above
+	// is carried across: by the time the plan exists the providers PriorState
+	// read through are closed, and the sweep's client is not one of them.
+	labelListSweepers map[string]kubesweep.Sweeper
 
-	// kubeDeletes is GitHub issue #1184's capture: the deletes this run's
-	// plan scheduled through a provider configuration kubeSweepers holds a
-	// client for, read by AfterPlan - the plan is drained as it applies, so
-	// AfterApply could not read them - and consumed by AfterApply, which
-	// asks each cluster which of them it only accepted. Nil for a plan with
-	// no such delete, which is what makes that check free.
-	kubeDeletes map[string]*kubernetesDeleteSet
+	// sweeperDeletes is GitHub issue #1184's capture: the deletes this run's
+	// plan scheduled through a provider configuration labelListSweepers holds
+	// a client for, keyed the same way, read by AfterPlan - the plan is
+	// drained as it applies, so AfterApply could not read them - and consumed
+	// by AfterApply, which asks each cluster which of them it only accepted.
+	// Nil for a plan with no such delete, which is what makes that check free.
+	sweeperDeletes map[string]*kubernetesDeleteSet
 
 	// adoptionOnly is GitHub issue #587's flag, kept as well as folded
 	// into view above. It selected only the renderer until
@@ -1272,7 +1274,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	}
 	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, nodeRefusedAddrs(r.resolver.StaticRefusals), estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords, cacheVouchTypes, r.adoptionOnly, scope)
 	diags = diags.Append(discoDiags)
-	r.kubeSweepers = provs.kubernetesSweepers()
+	r.labelListSweepers = provs.kubernetesSweepers()
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
 		// each other, and acting on them would act on the wrong resource.
@@ -1646,7 +1648,7 @@ func (r *statelessRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
 	// an error, and no request at all when the plan deleted nothing there.
 	// See live_apply_kubernetes_held.go.
 	if r.resolver != nil {
-		diags = diags.Append(statelessHeldKubernetesDeletes(ctx, r.kubeSweepers, r.kubeDeletes, r.resolver.Estate))
+		diags = diags.Append(statelessHeldKubernetesDeletes(ctx, r.labelListSweepers, r.sweeperDeletes, r.resolver.Estate))
 	}
 
 	if len(r.untagGroups) == 0 {
@@ -1687,7 +1689,7 @@ func (r *statelessRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
 		// is the sweep's own for the same configuration (GitHub issue
 		// #1656): a manifest-shape orphan's markers are released by an API
 		// patch through it.
-		groupResult, releaseDiags := untag.Release(ctx, provider, statelessUntagCluster(r.kubeSweepers, g.Provider), r.untagKey, r.untagValue, g.Targets)
+		groupResult, releaseDiags := untag.Release(ctx, provider, statelessUntagCluster(r.labelListSweepers, g.Provider), r.untagKey, r.untagValue, g.Targets)
 		diags = diags.Append(releaseDiags)
 		if groupResult != nil {
 			result.Outcomes = append(result.Outcomes, groupResult.Outcomes...)
