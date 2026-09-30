@@ -67,6 +67,16 @@ import (
 //   - on a multi-provider run, the address's block is this pass's
 //     provider configuration's ([Request.ScopeProvider]).
 //
+// An object whose annotation names a declared instance of ANOTHER
+// provider configuration is not this pass's to decide at all (GitHub
+// issue #1757): it is neither bound nor filed as an orphan here. Two
+// configurations on one cluster list the same objects, and the pass that
+// owns the block settles the object under every rule above - binds it,
+// raises the collision, or orphans it. Orphaning it here as well put a
+// destroy of ns/x beside the owner's import of ns/x in one merged plan.
+// This is the annotation's counterpart of the natural-key join, which
+// already reads every configuration's resolutions, not only this pass's.
+//
 // Nothing here reads CarriesAddress. Since #1641 flipped it, #1617's
 // refusal at the node stands for an instance this cannot bind only where
 // this leg found an object that could be that instance's and carries no
@@ -111,7 +121,7 @@ func (l ListedObjects) Add(kind, key string) {
 // (GitHub issue #1677) - a second copy of the rule there would drift from
 // this one the first time either changed.
 func KubernetesAddressBindings(req Request, manifestType string, declared KubernetesDeclared, listed ListedObjects, undeclared []UndeclaredObject) map[int]addrs.AbsResourceInstance {
-	claims, _ := addressClaims(req, manifestType, declared, listed, undeclared)
+	claims, _, _ := addressClaims(req, manifestType, declared, listed, undeclared)
 	out := make(map[int]addrs.AbsResourceInstance, len(claims))
 	for idx, c := range claims {
 		out[idx] = c.addr
@@ -124,13 +134,21 @@ func KubernetesAddressBindings(req Request, manifestType string, declared Kubern
 // address does not carry, to build the concrete resolution it replaces the
 // orphan with. collisions is every address two or more undeclared objects
 // claim, each as its claimants' indexes, in address order: the sweep's
-// collision refusal (GitHub issue #1641).
-func addressClaims(req Request, manifestType string, declared KubernetesDeclared, listed ListedObjects, undeclared []UndeclaredObject) (bound map[int]addressClaim, collisions []addressCollisionSet) {
+// collision refusal (GitHub issue #1641). elsewhere is every object whose
+// annotation names an instance another provider configuration's pass
+// owns (GitHub issue #1757): that pass decides it, and this one leaves it
+// alone. Always empty on a run with one pass.
+func addressClaims(req Request, manifestType string, declared KubernetesDeclared, listed ListedObjects, undeclared []UndeclaredObject) (bound map[int]addressClaim, collisions []addressCollisionSet, elsewhere map[int]bool) {
 	join := newAddressJoin(req, manifestType, undeclared)
 
 	byKey := map[string][]int{}
 	claimed := map[int]addressClaim{}
+	elsewhere = map[int]bool{}
 	for i, u := range undeclared {
+		if addr, ok := join.match(u.Object.Address); ok && !ownsInstance(req, addr) {
+			elsewhere[i] = true
+			continue
+		}
 		c, ok := addressCandidate(req, manifestType, declared, listed, join, u)
 		if !ok {
 			continue
@@ -165,7 +183,7 @@ func addressClaims(req Request, manifestType string, declared KubernetesDeclared
 		}
 		bound[idxs[0]] = claimed[idxs[0]]
 	}
-	return bound, collisions
+	return bound, collisions, elsewhere
 }
 
 // addressCollisionSet is the undeclared objects, by index, whose
@@ -176,13 +194,18 @@ type addressCollisionSet struct {
 }
 
 // bindByAddress binds what the annotation settles, records it in res, and
-// reports which of undeclared it settled, by index: bound, or held back as
+// reports which of undeclared it settled, by index: bound, held back as
 // one of several claimants of one address (the collision refusal, GitHub
-// issue #1641), which are never orphans.
+// issue #1641), or left to the pass whose provider configuration owns the
+// block its annotation names (GitHub issue #1757). None of those is an
+// orphan here.
 func bindByAddress(req Request, leg KubernetesSweep, declared KubernetesDeclared, listed ListedObjects, undeclared []UndeclaredObject, res *Result) (map[int]bool, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
-	claims, collisions := addressClaims(req, leg.ManifestType, declared, listed, undeclared)
+	claims, collisions, elsewhere := addressClaims(req, leg.ManifestType, declared, listed, undeclared)
 	bound := map[int]bool{}
+	for idx := range elsewhere {
+		bound[idx] = true
+	}
 	for _, c := range collisions {
 		for _, idx := range c.idxs {
 			bound[idx] = true
