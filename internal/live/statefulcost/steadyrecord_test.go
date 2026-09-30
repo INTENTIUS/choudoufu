@@ -223,3 +223,101 @@ func TestMedianSecondsQuotesTheMiddleRun(t *testing.T) {
 		t.Errorf("MedianSeconds() = %v, want 13.2 - the middle run, not the mean", got)
 	}
 }
+
+// TestGateRefusesTwoColumnsUnderOneCondition: Gate used to keep the last
+// column per condition, so a second cache-off column silently replaced the
+// first and the control compared whatever happened to come last (#1736).
+func TestGateRefusesTwoColumnsUnderOneCondition(t *testing.T) {
+	rec := valid()
+	dup := rec.Columns[2]
+	dup.Label = "choudoufu-another-cache-off"
+	rec.Columns = append(rec.Columns, dup)
+
+	err := Gate(rec)
+	if err == nil {
+		t.Fatal("two cache-off columns were accepted; the record cannot say which one is the control")
+	}
+	if !strings.Contains(err.Error(), "one column per condition") {
+		t.Errorf("the refusal should name the collision, got: %s", err)
+	}
+}
+
+// TestGateRefusesAnEmptyCommit: STEADY_COMMIT was read and never checked.
+func TestGateRefusesAnEmptyCommit(t *testing.T) {
+	for _, commit := range []string{"", "  "} {
+		rec := valid()
+		rec.Commit = commit
+		err := Gate(rec)
+		if err == nil {
+			t.Fatalf("a record with commit %q was accepted", commit)
+		}
+		if !strings.Contains(err.Error(), "no commit") {
+			t.Errorf("the refusal should name the missing commit, got: %s", err)
+		}
+	}
+}
+
+// TestSteadyColumnsPairUnderOneRefreshMode pins the pairing the steady-state
+// floci test publishes, with no emulator: the columns are the ones that test
+// declares (steadyLiveColumns) and the conditions are the ones it records
+// (conditionFor).
+//
+// What the API promises, from live_mode.go's two cache gates: the cache serves
+// only a plan with refresh off. So the warm column and its control must both
+// be -refresh=false plans differing only in CHOUDOUFU_STATE_CACHE, a
+// refreshing plan must never be labelled warm or off, and no two columns may
+// share a condition. Red on the label mapping #1732 carried, which called the
+// default plan warm and dropped choudoufu-live-refresh-false.
+func TestSteadyColumnsPairUnderOneRefreshMode(t *testing.T) {
+	stock := &column{Label: "stock-terraform", Bin: terraformBin, Args: []string{"plan", "-input=false", "-no-color"}}
+	cols := append([]*column{stock}, steadyLiveColumns("choudoufu", "/estate", "http://proxy", true, true)...)
+
+	byCond := map[Condition]*column{}
+	for _, c := range cols {
+		cond := conditionFor(c)
+		if cond == "" {
+			if c.Bin != terraformBin && planSkipsRefresh(c.Args) {
+				t.Errorf("column %q is a -refresh=false plan and has no condition; it is the column the cache serves", c.Label)
+			}
+			continue
+		}
+		if prev, dup := byCond[cond]; dup {
+			t.Errorf("columns %q and %q are both %s", prev.Label, c.Label, cond)
+			continue
+		}
+		byCond[cond] = c
+	}
+
+	warm, off := byCond[ConditionCacheWarm], byCond[ConditionCacheOff]
+	if byCond[ConditionStateFile] != stock {
+		t.Errorf("the stock column is not the %s column", ConditionStateFile)
+	}
+	if warm == nil || off == nil {
+		t.Fatalf("the declared columns yield warm=%v off=%v; the record needs both", warm, off)
+	}
+	if warm.Label != "choudoufu-live-refresh-false" {
+		t.Errorf("the cache-warm column is %q, want choudoufu-live-refresh-false", warm.Label)
+	}
+	if off.Label != "choudoufu-refresh-false-cache-off" {
+		t.Errorf("the cache-off column is %q, want choudoufu-refresh-false-cache-off", off.Label)
+	}
+	if !planSkipsRefresh(warm.Args) || !planSkipsRefresh(off.Args) {
+		t.Errorf("warm (%v) and off (%v) must both be -refresh=false plans: the cache serves nothing else", warm.Args, off.Args)
+	}
+	if strings.Join(warm.Args, " ") != strings.Join(off.Args, " ") || warm.CacheOff || !off.CacheOff {
+		t.Errorf("warm and off must differ in CHOUDOUFU_STATE_CACHE alone: warm %v cacheOff=%v, off %v cacheOff=%v",
+			warm.Args, warm.CacheOff, off.Args, off.CacheOff)
+	}
+
+	// Either toggle off leaves no pair, and the record must then have no
+	// warm/off pair at all rather than a mismatched one.
+	for _, tc := range []struct{ refreshFalse, cacheControl bool }{{false, true}, {true, false}} {
+		n := map[Condition]int{}
+		for _, c := range steadyLiveColumns("choudoufu", "/estate", "http://proxy", tc.refreshFalse, tc.cacheControl) {
+			n[conditionFor(c)]++
+		}
+		if n[ConditionCacheWarm] > 0 && n[ConditionCacheOff] > 0 {
+			t.Errorf("refreshFalse=%v cacheControl=%v still yields a warm/off pair: %v", tc.refreshFalse, tc.cacheControl, n)
+		}
+	}
+}
