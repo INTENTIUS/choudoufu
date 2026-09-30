@@ -24,7 +24,7 @@ import (
 // GitHub issue #1641 (#1605 step 3): substrate.Kubernetes.CarriesAddress
 // is true, so #1617's refusal stands only where the sweep found an object
 // of the refused instance's type that carries no address annotation. The
-// sweep's half is Verdicts.KubernetesUnaddressed.
+// sweep's half is Verdicts.Unaddressed.
 
 func TestKubernetesSweepAccountsUnaddressedObjects(t *testing.T) {
 	reader := k8sInstance(t, "kubernetes_config_map_v1", "reader")
@@ -147,9 +147,9 @@ func TestKubernetesSweepAccountsUnaddressedObjects(t *testing.T) {
 			if diags := sweepKubernetes(context.Background(), req, res); diags.HasErrors() {
 				t.Fatalf("unexpected errors: %s", diags.Err())
 			}
-			got, present := res.KubernetesUnaddressed[tc.refused.String()]
+			got, present := res.Unaddressed[tc.refused.String()]
 			if present != tc.want.present || !reflect.DeepEqual(nonNil(got), nonNil(tc.want.objects)) {
-				t.Fatalf("KubernetesUnaddressed[%s] = %q (present %v), want %q (present %v)", tc.refused, got, present, tc.want.objects, tc.want.present)
+				t.Fatalf("Unaddressed[%s] = %q (present %v), want %q (present %v)", tc.refused, got, present, tc.want.objects, tc.want.present)
 			}
 		})
 	}
@@ -172,8 +172,8 @@ func TestKubernetesSweepBoundInstanceIsNotUnaddressed(t *testing.T) {
 	if diags := sweepKubernetes(context.Background(), req, res); diags.HasErrors() {
 		t.Fatalf("unexpected errors: %s", diags.Err())
 	}
-	if _, present := res.KubernetesUnaddressed[reader.String()]; present {
-		t.Fatalf("KubernetesUnaddressed = %v; %s was bound", res.KubernetesUnaddressed, reader)
+	if _, present := res.Unaddressed[reader.String()]; present {
+		t.Fatalf("Unaddressed = %v; %s was bound", res.Unaddressed, reader)
 	}
 }
 
@@ -207,7 +207,7 @@ func TestKubernetesSweepUnaddressedDecidesTheNodeRefusal(t *testing.T) {
 			node := &projection.NodeResolver{
 				MarkerIndex:        projection.NewMarkerIndex(res.Resolutions),
 				StaticRefusals:     map[string]tfdiags.Diagnostics{reader.String(): refusal},
-				UnaddressedObjects: res.KubernetesUnaddressed,
+				UnaddressedObjects: res.Unaddressed,
 			}
 			value := readerValue()
 			if !tc.wantRefuse {
@@ -287,8 +287,8 @@ func TestKubernetesSweepTwoClaimantsAreACollision(t *testing.T) {
 			if len(res.Orphans) != 0 {
 				t.Errorf("orphans = %v; neither object may be proposed for destruction while which one is the block's is unknown", res.Orphans)
 			}
-			if len(res.Bindings) != 0 || len(res.KubernetesAddressBound) != 0 {
-				t.Errorf("bound %v / %v; the annotation cannot say which object is the block's", res.Bindings, res.KubernetesAddressBound)
+			if len(res.Bindings) != 0 || len(res.AddressBound) != 0 {
+				t.Errorf("bound %v / %v; the annotation cannot say which object is the block's", res.Bindings, res.AddressBound)
 			}
 			var collision tfdiags.Diagnostic
 			for _, d := range diags {
@@ -324,7 +324,7 @@ func TestKubernetesSweepTwoClaimantsAreACollision(t *testing.T) {
 // node plan a create.
 func TestMergeKeepsTheUnaddressedAccount(t *testing.T) {
 	kube := &Result{}
-	kube.KubernetesUnaddressed = map[string][]string{
+	kube.Unaddressed = map[string][]string{
 		"kubernetes_config_map_v1.reader": {},
 		"kubernetes_config_map_v1.other":  {"ConfigMap ns/x"},
 	}

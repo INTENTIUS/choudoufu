@@ -263,8 +263,8 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 		rep.Gaps = cmp.Gaps
 		rep.GapsSkipped = cmp.Skipped
 		rep.Schemas = cmp.Schemas
-		if len(cmp.Kubernetes) > 0 {
-			rep.Items = append(rep.Items, cmp.Kubernetes...)
+		if len(cmp.LabelListItems) > 0 {
+			rep.Items = append(rep.Items, cmp.LabelListItems...)
 			sortLiveLsItems(rep.Items)
 		}
 		for i := range rep.Items {
@@ -836,7 +836,7 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 	}
 	sort.Slice(gaps, func(i, j int) bool { return gaps[i].Address < gaps[j].Address })
 
-	return liveLsComparison{Gaps: gaps, Declared: declared, Schemas: schemasRead, Kubernetes: kube}, diags
+	return liveLsComparison{Gaps: gaps, Declared: declared, Schemas: schemasRead, LabelListItems: kube}, diags
 }
 
 // liveLsSubstrateSet is which substrates a listing covers, read off DIR's
@@ -1134,12 +1134,14 @@ type liveLsComparison struct {
 	Schemas  bool
 	Skipped  string
 
-	// Kubernetes is the cluster listing (GitHub issue #1081), made here
-	// rather than beside the AWS passes because what it calls declared
-	// is a resolution's kind and natural key, which only exist once DIR
-	// has been resolved. Nil when DIR names no kubernetes provider, or
-	// when the comparison skipped before resolution.
-	Kubernetes []views.LiveLsItem
+	// LabelListItems is the listing of every substrate whose sweep is
+	// [substrate.SweepLabelList] (the Kubernetes cluster listing, GitHub issue
+	// #1081), made here rather than beside the tagging-index passes because
+	// what it calls declared is a resolution's kind and natural key, which
+	// only exist once DIR has been resolved. Nil when DIR names no provider of
+	// such a substrate, or when the comparison skipped before resolution.
+	// Named for the capability, not the family (GitHub issue #1705).
+	LabelListItems []views.LiveLsItem
 }
 
 // liveLsRung classifies why a declared instance cannot be found by this

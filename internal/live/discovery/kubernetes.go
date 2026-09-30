@@ -203,7 +203,7 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 				res.SweepCovered = append(res.SweepCovered, t)
 			}
 		}
-		res.KubernetesOwnerSkipped += ownerSkipped.Count
+		res.OwnerSkipped += ownerSkipped.Count
 
 		typeName := manifestType
 		if !k.Manifest {

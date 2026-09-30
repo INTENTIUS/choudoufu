@@ -122,8 +122,8 @@ func TestKubernetesSweepHoldsHelmReleaseObjects(t *testing.T) {
 	if h.TypeName != "kubernetes_config_map_v1" || h.Kind != "ConfigMap" || h.ImportID != "smoke-k8s/web-greeting" || h.Controller != "Helm" || h.HeldBy != "Helm release smoke-k8s/web" {
 		t.Errorf("held = %+v, want kubernetes_config_map_v1 ConfigMap smoke-k8s/web-greeting held by Helm release smoke-k8s/web", h)
 	}
-	if res.KubernetesOwnerSkipped != 1 {
-		t.Errorf("owner-skipped = %d, want 1: a held object is counted with the rest of what the sweep set aside", res.KubernetesOwnerSkipped)
+	if res.OwnerSkipped != 1 {
+		t.Errorf("owner-skipped = %d, want 1: a held object is counted with the rest of what the sweep set aside", res.OwnerSkipped)
 	}
 }
 
@@ -169,8 +169,8 @@ func TestKubernetesSweepStopsHoldingWhenReleaseSecretIsGone(t *testing.T) {
 	if len(res.ControllerHeld) != 0 {
 		t.Errorf("held = %+v, want none: the annotation names a release that no longer exists", res.ControllerHeld)
 	}
-	if res.KubernetesOwnerSkipped != 0 {
-		t.Errorf("owner-skipped = %d, want 0", res.KubernetesOwnerSkipped)
+	if res.OwnerSkipped != 0 {
+		t.Errorf("owner-skipped = %d, want 0", res.OwnerSkipped)
 	}
 }
 
@@ -210,7 +210,7 @@ func TestKubernetesSweepDeniedReleaseLookupIsAGapNotAnOrphan(t *testing.T) {
 	if len(res.SweepGaps) != 1 || res.SweepGaps[0].TypeName != "kubernetes_service_v1" || res.SweepGaps[0].Reason != SweepGapListFailed {
 		t.Errorf("gaps = %+v, want one LIST_FAILED gap for kubernetes_service_v1", res.SweepGaps)
 	}
-	if len(res.kubeSweepDenied) != 1 || kubeGrantLine(res.kubeSweepDenied[0]) != `list configmaps in namespace "smoke-k8s"` {
-		t.Errorf("denials = %+v, want one naming list configmaps in namespace \"smoke-k8s\"", res.kubeSweepDenied)
+	if len(res.labelListDenied) != 1 || kubeGrantLine(res.labelListDenied[0]) != `list configmaps in namespace "smoke-k8s"` {
+		t.Errorf("denials = %+v, want one naming list configmaps in namespace \"smoke-k8s\"", res.labelListDenied)
 	}
 }

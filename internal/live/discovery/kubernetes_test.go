@@ -169,8 +169,8 @@ func TestKubernetesSweepFilesOrphansAtASyntheticAddress(t *testing.T) {
 			t.Errorf("scan %+v is not a server-side, estate-scoped Kubernetes sweep scan", scan)
 		}
 	}
-	if res.KubernetesOwnerSkipped != 2 {
-		t.Errorf("owner-skipped = %d, want 2 (one per successful list)", res.KubernetesOwnerSkipped)
+	if res.OwnerSkipped != 2 {
+		t.Errorf("owner-skipped = %d, want 2 (one per successful list)", res.OwnerSkipped)
 	}
 	if len(sweeper.listed) != 3 || sweeper.listed[0] != "ConfigMap tofu-estate=smoke-k8s" {
 		t.Errorf("lists issued = %v; want one per kind, selected on the estate label", sweeper.listed)
@@ -190,7 +190,7 @@ func TestKubernetesSweepFilesOrphansAtASyntheticAddress(t *testing.T) {
 //
 // Before this fix, sweepKubernetes had no path to this at all: every list
 // error, 403 included, became SweepGapListFailed with the raw error text
-// and nothing else, so res.kubeSweepDenied stayed empty and
+// and nothing else, so res.labelListDenied stayed empty and
 // kubeDeniedSweepDiag raised nothing - which is the red this test pins.
 func TestKubernetesSweepDeniedListIsClassedAndNamed(t *testing.T) {
 	secret := kubesweep.Kind{GVR: schema.GroupVersionResource{Version: "v1", Resource: "secrets"}, Kind: "Secret", Namespaced: true, TypeNames: []string{"kubernetes_secret"}}
@@ -222,14 +222,14 @@ func TestKubernetesSweepDeniedListIsClassedAndNamed(t *testing.T) {
 		t.Fatalf("denied gap = %v, want LIST_FAILED - the same reason a denial keeps on the AWS leg", gaps["kubernetes_secret"])
 	}
 
-	if len(res.kubeSweepDenied) != 1 {
-		t.Fatalf("kubeSweepDenied = %+v, want exactly one recorded denial", res.kubeSweepDenied)
+	if len(res.labelListDenied) != 1 {
+		t.Fatalf("labelListDenied = %+v, want exactly one recorded denial", res.labelListDenied)
 	}
-	if got := res.kubeSweepDenied[0]; got.kind != "Secret" || got.verb != "list" || got.resource != "secrets" || got.namespace != "" {
+	if got := res.labelListDenied[0]; got.kind != "Secret" || got.verb != "list" || got.resource != "secrets" || got.namespace != "" {
 		t.Errorf("recorded denial = %+v, want kind Secret, verb list, resource secrets, cluster-scoped (namespace \"\")", got)
 	}
 
-	warn := kubeDeniedSweepDiag(res.kubeSweepDenied)
+	warn := kubeDeniedSweepDiag(res.labelListDenied)
 	if len(warn) != 1 {
 		t.Fatalf("kubeDeniedSweepDiag = %d diagnostics, want exactly one; got %v", len(warn), warn)
 	}

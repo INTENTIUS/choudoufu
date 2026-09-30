@@ -39,12 +39,12 @@ import (
 //
 // It does not chase the field-naming half of the same sentence
 // (discovery.Result.KubernetesAddressBound and its siblings, #1705's
-// concern): those are struct fields read as capability flags, never a
-// string literal, and no syntactic rule here would tell one apart from an
-// ordinary field read without type information this scanner deliberately
-// does not carry (see measureSurfaceSeams's own doc comment in
-// seams_test.go for the same trade: syntax only, so it costs about a
-// second, at the price of over-approximating and never under-approximating
+// concern, since renamed to capability names): those are struct fields
+// read as capability flags, never a string literal, and no syntactic
+// rule here would tell one apart from an ordinary field read without
+// type information this scanner deliberately does not carry (see
+// measureSurfaceSeams's own doc comment in seams_test.go for the same
+// trade: syntax only, so it costs about a second, at the price of over-approximating and never under-approximating
 // what it cannot see at all - here, under-approximating in the other
 // direction, by design: it does not claim the field-naming half).
 //
@@ -168,7 +168,9 @@ var providerStringAllowed = map[string]providerStringException{
 // provider AWS fallback and live-ls's two hard sweep arms) are both real,
 // but neither one's named sites take any of those four shapes - #1705's
 // are struct field declarations and reads (KubernetesAddressBound,
-// kubeSweepers, kubeDeletes, liveLsComparison.Kubernetes), and #1707's
+// kubeSweepers, kubeDeletes, liveLsComparison.Kubernetes, since renamed
+// by #1705 to AddressBound, labelListSweepers, sweeperDeletes and
+// liveLsComparison.LabelListItems), and #1707's
 // fallback is a bool (known) and a typed discovery.Sweeper value, not a
 // string literal anywhere in the path this guard reads. Neither produced a
 // site to seed here; this map is empty until a round-2 unit's own diff

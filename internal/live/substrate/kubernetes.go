@@ -78,6 +78,16 @@ func (kubernetes) CarriesAddress() bool { return true }
 // [kubernetes.MarkersOf] reads (#1641).
 func (kubernetes) AddressInMarkers() bool { return false }
 
+// AddressCarrier: the markers.AddressAnnotation annotation, on both
+// surfaces (#1639).
+func (kubernetes) AddressCarrier(surface markers.Surface) (key, noun string) {
+	switch surface {
+	case markers.SurfaceLabels, markers.SurfaceManifest:
+		return markers.AddressAnnotation, "annotation"
+	}
+	return "", ""
+}
+
 func (kubernetes) Sweep() Sweep { return SweepLabelList }
 
 // NewSweeper is the cluster client the provider block's own connection

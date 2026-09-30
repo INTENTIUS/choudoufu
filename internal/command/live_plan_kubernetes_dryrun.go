@@ -226,11 +226,11 @@ func plannedNamespaceName(rc *plans.ResourceInstanceChangeSrc, schema *providers
 func (p *statelessProviders) kubernetesSweepers() map[string]kubesweep.Sweeper {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if len(p.kubeSweepers) == 0 {
+	if len(p.labelListSweepers) == 0 {
 		return nil
 	}
-	out := make(map[string]kubesweep.Sweeper, len(p.kubeSweepers))
-	for k, v := range p.kubeSweepers {
+	out := make(map[string]kubesweep.Sweeper, len(p.labelListSweepers))
+	for k, v := range p.labelListSweepers {
 		out[k] = v
 	}
 	return out
@@ -250,7 +250,7 @@ func (r *statelessRunner) AfterPlan(ctx context.Context, config *configs.Config,
 	// AfterApply. Read here because this is the last moment the plan still
 	// holds them; nothing is asked of any cluster until an apply has run.
 	if r.resolver != nil {
-		r.kubeDeletes = statelessKubernetesDeletes(r.kubeSweepers, plan, schemas, r.resolver.MarkerIndex)
+		r.sweeperDeletes = statelessKubernetesDeletes(r.labelListSweepers, plan, schemas, r.resolver.MarkerIndex)
 	}
 
 	// GitHub issue #1002: the declared_tagged = "untag" releases the walk
@@ -260,7 +260,7 @@ func (r *statelessRunner) AfterPlan(ctx context.Context, config *configs.Config,
 		r.view.Policy(statelessPolicyReport(nil, nil, nil, r.resolver.UntagReleases()))
 	}
 
-	evidence, diags := statelessKubernetesDryRun(ctx, r.kubeSweepers, config, plan, schemas)
+	evidence, diags := statelessKubernetesDryRun(ctx, r.labelListSweepers, config, plan, schemas)
 	if r.view != nil {
 		r.view.KubernetesDryRun(evidence)
 	}
@@ -275,8 +275,8 @@ func (p *statelessProviders) rememberKubernetesSweeper(addr addrs.AbsProviderCon
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.kubeSweepers == nil {
-		p.kubeSweepers = map[string]kubesweep.Sweeper{}
+	if p.labelListSweepers == nil {
+		p.labelListSweepers = map[string]kubesweep.Sweeper{}
 	}
-	p.kubeSweepers[providerCacheKey(addr)] = sweeper
+	p.labelListSweepers[providerCacheKey(addr)] = sweeper
 }

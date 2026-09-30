@@ -604,6 +604,13 @@ type addressCarrier interface {
 	// whose marker map is the labels and whose address is the
 	// markers.AddressAnnotation annotation beside them.
 	AddressInMarkers() bool
+
+	// AddressCarrier names where surface's block address lives on an
+	// object, for a message that has to tell an operator the address is
+	// missing: the key it is written under, and what one entry there is
+	// called ("tag", "annotation"). GitHub issue #1705 moved the
+	// Kubernetes wording #1641's refusal hard-coded behind this.
+	AddressCarrier(surface markers.Surface) (key, noun string)
 }
 
 // AddressInMarkers reports whether surface's marker map holds the
@@ -612,6 +619,17 @@ type addressCarrier interface {
 func AddressInMarkers(surface markers.Surface) bool {
 	s := For(surface)
 	return s != nil && s.AddressInMarkers()
+}
+
+// AddressCarrier is surface's family's [Substrate.AddressCarrier]: the key
+// the block address is written under and what one entry there is called.
+// Empty for the zero Surface, which carries no address.
+func AddressCarrier(surface markers.Surface) (key, noun string) {
+	s := For(surface)
+	if s == nil {
+		return "", ""
+	}
+	return s.AddressCarrier(surface)
 }
 
 // ---- GitHub issue #1706: controller-held is the family's answer ----

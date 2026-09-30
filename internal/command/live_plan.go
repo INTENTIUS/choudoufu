@@ -3701,21 +3701,22 @@ type statelessProviders struct {
 	// needed.
 	providerDataResults map[string]cty.Value
 
-	// kubeSweepers is the Kubernetes sweep's cluster client per provider
-	// configuration (GitHub issue #1065), kept past the sweep for the
-	// post-plan server-side dry run (#1081, item 3), which runs after the
-	// provider plugins are closed and needs the same cluster. Keyed by
-	// [providerCacheKey]; absent for a configuration no client could be
-	// built from, which the sweep already warned about.
-	kubeSweepers map[string]kubesweep.Sweeper
+	// labelListSweepers is the label-list sweep's client
+	// ([substrate.SweepLabelList], the Kubernetes cluster client) per provider
+	// configuration (GitHub issue #1065; named for the capability by #1705),
+	// kept past the sweep for the post-plan server-side dry run (#1081, item
+	// 3), which runs after the provider plugins are closed and needs the same
+	// cluster. Keyed by [providerCacheKey]; absent for a configuration no
+	// client could be built from, which the sweep already warned about.
+	labelListSweepers map[string]kubesweep.Sweeper
 
-	// kubePatchers is the same client again for live-import's one-label
-	// merge patch (GitHub issue #1109), cached per provider configuration
-	// with the error that stood in the way of building one - a migration
-	// asks once per resource instance, and a cluster that cannot be
-	// reached must not be re-dialled once per custom resource in the
-	// state file. See live_import_kubernetes.go.
-	kubePatchers map[string]labelPatcher
+	// markerPatchers is the same client again for live-import's one-label
+	// merge patch, the [substrate.WriteAPIPatch] marker write (GitHub issue
+	// #1109), cached per provider configuration with the error that stood in
+	// the way of building one - a migration asks once per resource instance,
+	// and a cluster that cannot be reached must not be re-dialled once per
+	// custom resource in the state file. See live_import_kubernetes.go.
+	markerPatchers map[string]labelPatcher
 }
 
 var _ projection.Providers = (*statelessProviders)(nil)

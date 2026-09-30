@@ -57,6 +57,14 @@ func (aws) CarriesAddress() bool { return true }
 // AddressInMarkers: the address is the tofu-address tag (#1641).
 func (aws) AddressInMarkers() bool { return true }
 
+// AddressCarrier: the tofu-address tag, inside the tag map.
+func (aws) AddressCarrier(surface markers.Surface) (key, noun string) {
+	if surface == markers.SurfaceTags {
+		return markers.TagAddress, "tag"
+	}
+	return "", ""
+}
+
 func (aws) Sweep() Sweep { return SweepTaggingIndex }
 
 func (aws) NewSweeper(cty.Value, bool) (Sweeper, error) { return nil, nil }

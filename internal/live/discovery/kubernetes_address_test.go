@@ -159,8 +159,8 @@ func TestKubernetesSweepBindsByAddressAnnotation(t *testing.T) {
 	if !ok || b.ImportID != "m1116-res/my-awesome-cron-image-reader" || b.TypeName != "kubernetes_config_map_v1" {
 		t.Errorf("binding = %+v (present %v)", b, ok)
 	}
-	if !res.KubernetesAddressBound[reader.String()] {
-		t.Errorf("KubernetesAddressBound = %v, want %s", res.KubernetesAddressBound, reader)
+	if !res.AddressBound[reader.String()] {
+		t.Errorf("AddressBound = %v, want %s", res.AddressBound, reader)
 	}
 	if !res.MarkerVerified()[reader.String()] {
 		t.Errorf("the binding is not marker-verified; the object carries this estate's label and was listed by it")
@@ -352,8 +352,8 @@ func TestKubernetesSweepAddressAnnotationBindsOnlyWhatItMust(t *testing.T) {
 				if !ok || r.ImportID != kubesweep.ManifestImportID("v1", "ConfigMap", "ns", "m") {
 					t.Errorf("manifest resolution = %+v (present %v)", r, ok)
 				}
-			} else if len(res.KubernetesAddressBound) != 0 || len(res.Bindings) != 0 {
-				t.Errorf("bound %v / %v; nothing should bind", res.KubernetesAddressBound, res.Bindings)
+			} else if len(res.AddressBound) != 0 || len(res.Bindings) != 0 {
+				t.Errorf("bound %v / %v; nothing should bind", res.AddressBound, res.Bindings)
 			}
 		})
 	}
@@ -402,7 +402,7 @@ func TestMergeKeepsTheAddressBoundResolution(t *testing.T) {
 	aws.Resolutions = []identity.Resolution{fromConfig}
 	kube := &Result{}
 	kube.Resolutions = []identity.Resolution{rebound}
-	kube.KubernetesAddressBound = map[string]bool{cfg.String(): true}
+	kube.AddressBound = map[string]bool{cfg.String(): true}
 	kube.Bindings = []Binding{{Addr: cfg, TypeName: "kubernetes_config_map_v1", ImportID: "rep-chdf/cfg-a"}}
 
 	awsPass := Pass{Provider: testProviderAddr(t, ""), Result: aws}
@@ -423,8 +423,8 @@ func TestMergeKeepsTheAddressBoundResolution(t *testing.T) {
 			if len(got) != 1 || got[0] != "rep-chdf/cfg-a" {
 				t.Fatalf("merged resolutions at %s = %v, want [rep-chdf/cfg-a]", cfg, got)
 			}
-			if !merged.KubernetesAddressBound[cfg.String()] {
-				t.Errorf("KubernetesAddressBound lost in the merge: %v", merged.KubernetesAddressBound)
+			if !merged.AddressBound[cfg.String()] {
+				t.Errorf("AddressBound lost in the merge: %v", merged.AddressBound)
 			}
 		})
 	}
