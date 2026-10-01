@@ -60,7 +60,13 @@ func (c StatePushCommand) Execute(args *arguments.StatePush, view views.State) i
 
 	ctx := c.CommandContext()
 
-	// TODO(#1778 step 3): port the fork's c.statelessStateGuard(ctx, "push") call (before any backend/state manager opens) into Execute
+	// See statelessStateGuard: refused before the source state is even read,
+	// and well before anything reaches a state manager.
+	if guardDiags := c.statelessStateGuard(ctx, "push"); guardDiags.HasErrors() {
+		view.Diagnostics(diags.Append(guardDiags))
+		return 1
+	}
+
 	if diags := c.Meta.checkRequiredVersion(ctx); diags != nil {
 		view.Diagnostics(diags)
 		return 1

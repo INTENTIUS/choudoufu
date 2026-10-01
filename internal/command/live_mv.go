@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/mitchellh/cli"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/command/arguments"
@@ -54,21 +53,29 @@ type LiveMvCommand struct {
 	Meta
 }
 
-func (c *LiveMvCommand) Run(rawArgs []string) int {
-	ctx := c.CommandContext()
-
-	common, rawArgs := arguments.ParseView(rawArgs)
-	c.View.Configure(common)
-
-	args, diags := arguments.ParseLiveMv(rawArgs)
-	if diags.HasErrors() {
-		// Argument errors print the usage text, the way state mv and every
-		// other command in this package answers a malformed command line.
-		// The diagnostic says what was wrong with it; the help says what the
-		// command accepts, and only one copy of that has to be maintained.
-		c.View.Diagnostics(diags)
-		return cli.RunResultHelp
+// LiveMvCommander is live-mv's entry in the new CLI's command tree. See
+// [LiveCommanders].
+func LiveMvCommander() Command {
+	cmd := Command{
+		Name:  "live-mv",
+		Short: (&LiveMvCommand{}).Synopsis(),
 	}
+
+	args := arguments.BindLiveMv(&cmd.CommandLine)
+	applyLegacyHelp(&cmd, (&LiveMvCommand{}).Help())
+	cmd.Run = func(meta Meta) int {
+		return (&LiveMvCommand{Meta: meta}).Execute(args)
+	}
+	return cmd
+}
+
+func (c *LiveMvCommand) Run(rawArgs []string) int {
+	return RunCommand(LiveMvCommander(), c.Meta, rawArgs)
+}
+
+func (c *LiveMvCommand) Execute(args *arguments.LiveMv) int {
+	ctx := c.CommandContext()
+	var diags tfdiags.Diagnostics
 
 	oldAddr, oldDiags := addrs.ParseAbsResourceInstanceStr(args.RawOldAddr)
 	diags = diags.Append(oldDiags)

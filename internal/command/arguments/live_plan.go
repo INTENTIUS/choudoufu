@@ -28,26 +28,28 @@ type LivePlan struct {
 	Estate string
 }
 
-// ParseLivePlan processes CLI arguments, returning a LivePlan value, a closer
-// function, and errors. If errors are encountered, a LivePlan value is still
-// returned representing the best effort interpretation of the arguments.
+// BindLivePlan registers the live-plan command's options on cli: the plan
+// command's whole option set, from [BindPlan], plus -estate.
 //
-// -estate is registered on the plan command's own flag set rather than added
-// to [Plan], which would make it an option of "choudoufu plan" as well: a flag
-// naming a stateless concept on the command that has state files. Registering
-// it here keeps the stock plan surface exactly as it was, and still gets
+// -estate is registered here rather than added to [Plan], which would make it
+// an option of "choudoufu plan" as well: a flag naming a stateless concept on
+// the command that has state files. Registering it on live-plan's own
+// CommandLine keeps the stock plan surface exactly as it was, and still gets
 // -estate the parsing every other option has - end-of-flags handling, the
 // -estate=NAME and -estate NAME forms, and a real error for a flag that is
 // not one.
-//
-// TODO(#1778 step 3): a minimal compile stub written in step 4, after v1.13.0
-// removed parsePlan's flag.FlagSet. -estate is registered on the plan
-// command's CommandLine; -verbose, -adoption-only and -filter are not on
-// BindPlan yet (see the TODO in ParsePlan).
+func BindLivePlan(cli *CommandLine) *LivePlan {
+	livePlan := &LivePlan{Plan: BindPlan(cli)}
+	cli.StringVar(&livePlan.Estate, "estate", "", "The estate whose ownership markers this run looks for. Refused when the configuration has a live block, which names the estate itself.").SetDisplay("=name")
+	return livePlan
+}
+
+// ParseLivePlan processes CLI arguments, returning a LivePlan value, a closer
+// function, and errors. If errors are encountered, a LivePlan value is still
+// returned representing the best effort interpretation of the arguments.
 func ParseLivePlan(args []string) (*LivePlan, func(), tfdiags.Diagnostics) {
 	cli := new(CommandLine)
-	livePlan := &LivePlan{Plan: BindPlan(cli)}
-	cli.StringVar(&livePlan.Estate, "estate", "", "The estate whose ownership markers this run looks for.")
+	livePlan := BindLivePlan(cli)
 	closer, diags := cli.parseWithHooks("live-plan", args)
 	return livePlan, closer, diags
 }

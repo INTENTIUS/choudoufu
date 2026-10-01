@@ -78,41 +78,12 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 func (c ApplyCommand) Execute(args *arguments.Apply, view views.Apply) int {
 	var diags tfdiags.Diagnostics
 	ctx := c.CommandContext()
-	// TODO(#1778 step 3): fork's ParseView/ParseApply flag handling and -verbose; move into ApplyCommander/Execute (BindApply)
-
-	// Parse and apply global view arguments
-	common, rawArgs := arguments.ParseView(rawArgs)
-	c.View.Configure(common)
-
-	// Parse and validate flags
-	var args *arguments.Apply
-	var closer func()
-	switch {
-	case c.Destroy:
-		args, closer, diags = arguments.ParseApplyDestroy(rawArgs)
-	default:
-		args, closer, diags = arguments.ParseApply(rawArgs)
-	}
-	defer closer()
-
-	c.View.SetShowSensitive(args.ShowSensitive)
+	// -verbose is this fork's, and per-command rather than a view flag: see
+	// views.View's verbose field for why it is set here and not by
+	// View.Configure. -show-sensitive needs no such line any more, since
+	// v1.13.0 moved it onto arguments.View and RunCli's Configure applies it.
 	c.View.SetVerbose(args.Verbose)
 
-	// Instantiate the view, even if there are flag errors, so that we render
-	// diagnostics according to the desired view
-	view := views.NewApply(args.ViewOptions, c.Destroy, c.View)
-
-	// FIXME: the -input flag value is needed to initialize the backend and the
-	// operation, but there is no clear path to pass this value down, so we
-	// continue to mutate the Meta object state for now.
-	c.Meta.input = args.ViewOptions.InputEnabled
-
-	if diags.HasErrors() {
-		view.Diagnostics(diags)
-		view.HelpPrompt()
-		return 1
-	}
-	// TODO(#1778 step 3): upstream v1.13.0 lines below, to fold into the Execute shape
 	ctx = tfdiags.ContextWithLintFilterHints(ctx, args.View.LintInclude, args.View.LintExclude)
 	diags = diags.Append(tfdiags.ExperimentalLintWarn(ctx))
 
@@ -183,7 +154,8 @@ func (c ApplyCommand) Execute(args *arguments.Apply, view views.Apply) int {
 	if statelessCfg != nil {
 		planPath = ""
 	}
-	planFile, diags := c.LoadPlanFile(planPath, enc)
+	planFile, planDiags := c.LoadPlanFile(planPath, enc)
+	diags = diags.Append(planDiags)
 	if diags.HasErrors() {
 		view.Diagnostics(diags)
 		return 1
@@ -208,7 +180,7 @@ func (c ApplyCommand) Execute(args *arguments.Apply, view views.Apply) int {
 		// question. arguments.Apply does not carry it and this passes false
 		// rather than plumbing one.
 		diags = diags.Append(statelessBegin(be, opReq, statelessCfg, c.View, false, nil, c.liveEstateOutputs(),
-			statelessRejections(surfaceLiveBlock, args.Operation, args.State, args.ViewOptions, "", "", "")))
+			statelessRejections(surfaceLiveBlock, args.Operation, args.State, args.View, "", "", "")))
 		diags = diags.Append(c.checkAWSProviderVersionSkew())
 		if approved != nil {
 			opReq.PlanGuard = approvalGuard(approved, &approvalRefused)

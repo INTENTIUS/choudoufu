@@ -53,7 +53,12 @@ func (c StateShowCommand) Execute(args *arguments.StateShow, view views.State) i
 
 	ctx := c.CommandContext()
 
-	// TODO(#1778 step 3): port the fork's c.statelessStateGuard(ctx, "show") call (before any backend/state manager opens) into Execute
+	// See statelessStateGuard: refused before anything reaches a state manager.
+	if guardDiags := c.statelessStateGuard(ctx, "show"); guardDiags.HasErrors() {
+		view.Diagnostics(diags.Append(guardDiags))
+		return 1
+	}
+
 	// Check for user-supplied plugin path
 	var err error
 	if c.pluginPath, err = c.loadPluginPath(); err != nil {

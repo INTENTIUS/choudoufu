@@ -53,7 +53,12 @@ func (c StatePullCommand) Execute(args *arguments.StatePull, view views.State) i
 	var diags tfdiags.Diagnostics
 	ctx := c.CommandContext()
 
-	// TODO(#1778 step 3): port the fork's c.statelessStateGuard(ctx, "pull") call (before any backend/state manager opens) into Execute
+	// See statelessStateGuard: refused before anything reaches a state manager.
+	if guardDiags := c.statelessStateGuard(ctx, "pull"); guardDiags.HasErrors() {
+		view.Diagnostics(diags.Append(guardDiags))
+		return 1
+	}
+
 	if diags := c.Meta.checkRequiredVersion(ctx); diags != nil {
 		view.Diagnostics(diags)
 		return 1

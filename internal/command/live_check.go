@@ -39,17 +39,30 @@ type LiveCheckCommand struct {
 	Meta
 }
 
-func (c *LiveCheckCommand) Run(rawArgs []string) int {
-	ctx := c.CommandContext()
-
-	common, rawArgs := arguments.ParseView(rawArgs)
-	c.View.Configure(common)
-
-	dir, jsonOutput, diags := parseLiveCheckArgs(rawArgs)
-	if diags.HasErrors() {
-		c.View.Diagnostics(diags)
-		return 1
+// LiveCheckCommander is live-check's entry in the new CLI's command tree. See
+// [LiveCommanders].
+func LiveCheckCommander() Command {
+	cmd := Command{
+		Name:  "live-check",
+		Short: (&LiveCheckCommand{}).Synopsis(),
 	}
+
+	args := arguments.BindLiveCheck(&cmd.CommandLine)
+	applyLegacyHelp(&cmd, (&LiveCheckCommand{}).Help())
+	cmd.Run = func(meta Meta) int {
+		return (&LiveCheckCommand{Meta: meta}).Execute(args)
+	}
+	return cmd
+}
+
+func (c *LiveCheckCommand) Run(rawArgs []string) int {
+	return RunCommand(LiveCheckCommander(), c.Meta, rawArgs)
+}
+
+func (c *LiveCheckCommand) Execute(args *arguments.LiveCheck) int {
+	ctx := c.CommandContext()
+	var diags tfdiags.Diagnostics
+	dir, jsonOutput := args.Dir, args.JSON
 
 	// Nothing here prompts: this command's audience is someone evaluating
 	// the mode on a repository they may not have written, and a prompt is
@@ -98,28 +111,8 @@ func (c *LiveCheckCommand) Run(rawArgs []string) int {
 // machine can trust, and a silently-ignored typo'd flag would undermine
 // that for either reader.
 func parseLiveCheckArgs(rawArgs []string) (dir string, jsonOutput bool, diags tfdiags.Diagnostics) {
-	var positional []string
-	for _, arg := range rawArgs {
-		if arg == "-json" {
-			jsonOutput = true
-			continue
-		}
-		if strings.HasPrefix(arg, "-") {
-			diags = diags.Append(fmt.Errorf("live-check accepts only -json; got %q", arg))
-			continue
-		}
-		positional = append(positional, arg)
-	}
-
-	switch len(positional) {
-	case 0:
-		return ".", jsonOutput, diags
-	case 1:
-		return positional[0], jsonOutput, diags
-	default:
-		diags = diags.Append(fmt.Errorf("live-check takes at most one argument, the directory to check; got %d", len(positional)))
-		return ".", jsonOutput, diags
-	}
+	args, diags := arguments.ParseLiveCheck(rawArgs)
+	return args.Dir, args.JSON, diags
 }
 
 // liveCheck runs the shared analysis over one directory.

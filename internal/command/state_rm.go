@@ -54,7 +54,12 @@ func (c StateRmCommand) Execute(args *arguments.StateRm, view views.State) int {
 
 	ctx := c.CommandContext()
 
-	// TODO(#1778 step 3): port the fork's c.statelessStateGuard(ctx, "rm") call (before any backend/state manager opens) into Execute
+	// See statelessStateGuard: refused before anything reaches a state manager.
+	if guardDiags := c.statelessStateGuard(ctx, "rm"); guardDiags.HasErrors() {
+		view.Diagnostics(diags.Append(guardDiags))
+		return 1
+	}
+
 	if diags := c.Meta.checkRequiredVersion(ctx); diags != nil {
 		view.Diagnostics(diags)
 		return 1

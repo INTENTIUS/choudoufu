@@ -60,7 +60,12 @@ func (c StateListCommand) Execute(args *arguments.StateList, view views.State) i
 
 	ctx := c.CommandContext()
 
-	// TODO(#1778 step 3): port the fork's c.statelessStateGuard(ctx, "list") call (before any backend/state manager opens) into Execute
+	// See statelessStateGuard: refused before anything reaches a state manager.
+	if guardDiags := c.statelessStateGuard(ctx, "list"); guardDiags.HasErrors() {
+		view.Diagnostics(diags.Append(guardDiags))
+		return 1
+	}
+
 	// Load the encryption configuration
 	enc, encDiags := c.Encryption(ctx)
 	if encDiags.HasErrors() {

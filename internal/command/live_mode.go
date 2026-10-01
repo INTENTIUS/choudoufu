@@ -596,7 +596,7 @@ const (
 // live-plan's "-estate" form, where plain apply in the same directory is an
 // ordinary state-backed command and the file it wrote would be applied by
 // something that has never heard of the estate.
-func statelessRejections(surface statelessSurface, op *arguments.Operation, state *arguments.State, viewOpts arguments.ViewOptions, planOut, generateConfigOut, planFile string) tfdiags.Diagnostics {
+func statelessRejections(surface statelessSurface, op *arguments.Operation, state *arguments.State, viewOpts *arguments.View, planOut, generateConfigOut, planFile string) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	reject := func(summary, detail string) {

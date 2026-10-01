@@ -54,7 +54,24 @@ func (c UnlockCommand) Execute(args *arguments.Unlock, view views.Unlock) int {
 	ctx, span := tracing.Tracer().Start(ctx, "Unlock")
 	defer span.End()
 
-	// TODO(#1778 step 3): port the fork's c.statelessCommandGuard(ctx, "force-unlock") call (before any backend/state manager opens) into Execute
+	// Under a live block there is no lock to force open; refuse with the
+	// true reason before any backend machinery can produce stock's
+	// misleading "State locked by another local process" for a lock that
+	// never existed (found by the no-locks claim scenario's probe). This
+	// runs after variables are parsed, like every other guarded command
+	// (import.go, taint.go, refresh.go, untaint.go) - RunCli has put the
+	// -var values on Meta before Execute is called - because the guard's
+	// own config load statically evaluates the backend block and a -var
+	// this command was given is not visible to it otherwise - not just
+	// under a live block, but for any configuration whose backend depends
+	// on a variable, live or not.
+	if guardDiags := c.statelessCommandGuard(ctx, "force-unlock"); len(guardDiags) > 0 {
+		view.Diagnostics(guardDiags)
+		if guardDiags.HasErrors() {
+			return 1
+		}
+	}
+
 	lockID := args.LockID
 
 	// This gets the current directory as full path.

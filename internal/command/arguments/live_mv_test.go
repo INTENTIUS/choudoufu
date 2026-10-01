@@ -71,12 +71,11 @@ func TestParseLiveMv_invalid(t *testing.T) {
 		args        []string
 		wantSummary string
 	}{
-		"no addresses":     {nil, "Two resource addresses are required"},
-		"one address":      {[]string{"aws_vpc.old"}, "Two resource addresses are required"},
-		"three addresses":  {[]string{"a.b", "c.d", "e.f"}, "Two resource addresses are required"},
-		"unknown flag":     {[]string{"-nope", "aws_vpc.old", "aws_vpc.new"}, "Invalid option"},
-		"estate no value":  {[]string{"aws_vpc.old", "aws_vpc.new", "-estate"}, "Two resource addresses are required"},
-		"flag after addrs": {[]string{"aws_vpc.old", "aws_vpc.new", "-dry-run"}, "Two resource addresses are required"},
+		"no addresses":    {nil, "Two resource addresses are required"},
+		"one address":     {[]string{"aws_vpc.old"}, "Two resource addresses are required"},
+		"three addresses": {[]string{"a.b", "c.d", "e.f"}, "Two resource addresses are required"},
+		"unknown flag":    {[]string{"-nope", "aws_vpc.old", "aws_vpc.new"}, "flag provided but not defined: -nope"},
+		"estate no value": {[]string{"aws_vpc.old", "aws_vpc.new", "-estate"}, "Two resource addresses are required"},
 	}
 
 	for name, tc := range testCases {
@@ -89,6 +88,24 @@ func TestParseLiveMv_invalid(t *testing.T) {
 				t.Errorf("wrong diagnostic %q, want it to name %q", got, tc.wantSummary)
 			}
 		})
+	}
+}
+
+// TestParseLiveMv_flagAfterAddresses: the new CLI's parser (urfave/cli, used
+// by every command since OpenTofu v1.13.0) reads a flag wherever it sits, so
+// an option after the two addresses is an option, not a third operand. The
+// stdlib flag set this replaced stopped at the first operand and refused the
+// same line as three addresses.
+func TestParseLiveMv_flagAfterAddresses(t *testing.T) {
+	got, diags := ParseLiveMv([]string{"aws_vpc.old", "aws_vpc.new", "-dry-run"})
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %v", diags.Err())
+	}
+	if !got.DryRun {
+		t.Error("-dry-run after the addresses was not parsed as a flag")
+	}
+	if got.RawOldAddr != "aws_vpc.old" || got.RawNewAddr != "aws_vpc.new" {
+		t.Errorf("addresses %q and %q, want aws_vpc.old and aws_vpc.new", got.RawOldAddr, got.RawNewAddr)
 	}
 }
 

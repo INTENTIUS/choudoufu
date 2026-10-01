@@ -36,7 +36,7 @@ func TestLiveLs_controllerHeldItemIsNamed(t *testing.T) {
 	rep := views.LiveLsReport{Estate: "prod", Items: []views.LiveLsItem{item}}
 
 	streams, done := terminal.StreamsForTesting(t)
-	views.NewLiveLs(arguments.ViewOptions{ViewType: arguments.ViewHuman}, views.NewView(streams)).Report(rep)
+	views.NewLiveLs(&arguments.View{ViewType: arguments.ViewHuman}, views.NewView(streams)).Report(rep)
 	human := done(t).Stdout()
 	want := "  held by: ACK s3 controller (s3-v1.0.14), custom resource in namespace team-a (controller-held: never swept, never adopted)"
 	if !strings.Contains(human, want) {
@@ -44,7 +44,7 @@ func TestLiveLs_controllerHeldItemIsNamed(t *testing.T) {
 	}
 
 	streams, done = terminal.StreamsForTesting(t)
-	views.NewLiveLs(arguments.ViewOptions{ViewType: arguments.ViewJSON}, views.NewView(streams)).Report(rep)
+	views.NewLiveLs(&arguments.View{ViewType: arguments.ViewJSON}, views.NewView(streams)).Report(rep)
 	var doc struct {
 		Items []map[string]any `json:"items"`
 	}
@@ -64,7 +64,7 @@ func TestLiveLs_controllerHeldItemIsNamed(t *testing.T) {
 		"tofu-address": "aws_s3_bucket.plain",
 	}, "tagging")
 	streams, done = terminal.StreamsForTesting(t)
-	views.NewLiveLs(arguments.ViewOptions{ViewType: arguments.ViewHuman}, views.NewView(streams)).Report(views.LiveLsReport{Estate: "prod", Items: []views.LiveLsItem{plain}})
+	views.NewLiveLs(&arguments.View{ViewType: arguments.ViewHuman}, views.NewView(streams)).Report(views.LiveLsReport{Estate: "prod", Items: []views.LiveLsItem{plain}})
 	if out := done(t).Stdout(); strings.Contains(out, "controller-held") {
 		t.Errorf("an ordinary item is reported controller-held:\n%s", out)
 	}

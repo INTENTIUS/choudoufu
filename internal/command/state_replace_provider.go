@@ -52,7 +52,12 @@ func (c StateReplaceProviderCommand) Execute(args *arguments.StateReplaceProvide
 
 	ctx := c.CommandContext()
 
-	// TODO(#1778 step 3): port the fork's c.statelessStateGuard(ctx, "replace-provider") call (before any backend/state manager opens) into Execute
+	// See statelessStateGuard: refused before anything reaches a state manager.
+	if guardDiags := c.statelessStateGuard(ctx, "replace-provider"); guardDiags.HasErrors() {
+		view.Diagnostics(diags.Append(guardDiags))
+		return 1
+	}
+
 	if diags := c.Meta.checkRequiredVersion(ctx); diags != nil {
 		view.Diagnostics(diags)
 		return 1

@@ -39,7 +39,7 @@ import (
 // HasErrors boolean, because the thing that drifted last time was the wording
 // as much as the verdict: live-plan's -out diagnostic asserted "this
 // configuration has no live block" over configurations that had one.
-func renderRejections(surface statelessSurface, op *arguments.Operation, state *arguments.State, viewOpts arguments.ViewOptions, planOut, generateConfigOut, planFile string) map[string]string {
+func renderRejections(surface statelessSurface, op *arguments.Operation, state *arguments.State, viewOpts *arguments.View, planOut, generateConfigOut, planFile string) map[string]string {
 	diags := statelessRejections(surface, op, state, viewOpts, planOut, generateConfigOut, planFile)
 	out := make(map[string]string, len(diags))
 	for _, d := range diags {
@@ -95,13 +95,13 @@ func TestStatelessRejections_surfacesAgree(t *testing.T) {
 	}
 	views := []struct {
 		name string
-		opts arguments.ViewOptions
+		opts *arguments.View
 	}{
-		{"human", arguments.ViewOptions{ViewType: arguments.ViewHuman}},
-		{"json", arguments.ViewOptions{ViewType: arguments.ViewJSON}},
+		{"human", &arguments.View{ViewType: arguments.ViewHuman}},
+		{"json", &arguments.View{ViewType: arguments.ViewJSON}},
 		// JSONInto is only ever compared against nil, so any open file
 		// serves; nothing here writes to it.
-		{"json-into", arguments.ViewOptions{ViewType: arguments.ViewHuman, JSONInto: os.Stdout}},
+		{"json-into", &arguments.View{ViewType: arguments.ViewHuman, JSONInto: os.Stdout}},
 	}
 	states := []struct {
 		name  string
@@ -236,7 +236,7 @@ func withoutKey(keys []string, drop string) []string {
 // one thing GitHub issue #878 removed outright - the plan-file refusal - is
 // gone from both surfaces rather than moved.
 func TestStatelessRejections_divergencesSayWhy(t *testing.T) {
-	human := arguments.ViewOptions{ViewType: arguments.ViewHuman}
+	human := &arguments.View{ViewType: arguments.ViewHuman}
 
 	t.Run("destroy names the mechanical reason, not a principle", func(t *testing.T) {
 		got := unwrapped(renderRejections(surfaceEstateFlag, &arguments.Operation{PlanMode: plans.DestroyMode}, nil, human, "", "", "")[destroyOnlyOnEstateFlag])
@@ -294,7 +294,7 @@ func TestStatelessRejections_divergencesSayWhy(t *testing.T) {
 	})
 
 	t.Run("-json's live-block refusal names the pipeline that does have a document", func(t *testing.T) {
-		jsonView := arguments.ViewOptions{ViewType: arguments.ViewJSON}
+		jsonView := &arguments.View{ViewType: arguments.ViewJSON}
 		block := unwrapped(renderRejections(surfaceLiveBlock, nil, nil, jsonView, "", "", "")[jsonOutputSummary])
 		if block == "" {
 			t.Fatalf("the live-block surface accepted -json - GitHub issue #788 only widens the -estate surface, and #894 moved the runs that want a document onto it rather than widening this one")
@@ -460,5 +460,5 @@ func TestStatelessRejections_oneList(t *testing.T) {
 // whoever removed it has to decide deliberately what happens to the two
 // divergences above.
 var _ = func(surface statelessSurface) tfdiags.Diagnostics {
-	return statelessRejections(surface, nil, nil, arguments.ViewOptions{ViewType: arguments.ViewHuman}, "", "", "")
+	return statelessRejections(surface, nil, nil, &arguments.View{ViewType: arguments.ViewHuman}, "", "", "")
 }

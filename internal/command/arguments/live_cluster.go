@@ -6,8 +6,6 @@
 package arguments
 
 import (
-	"fmt"
-
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -40,22 +38,36 @@ type LiveCluster struct {
 	JSON bool
 }
 
-func ParseLiveCluster(args []string) (*LiveCluster, tfdiags.Diagnostics) {
-	var diags tfdiags.Diagnostics
+// BindLiveCluster registers live-cluster's options on cli. See
+// [BindLiveBucket] for why -json is the command's own.
+func BindLiveCluster(cli *CommandLine) *LiveCluster {
 	lc := &LiveCluster{}
+	BindView(cli, viewFlagNone)
 
-	cmdFlags := defaultFlagSet("live-cluster")
-	cmdFlags.StringVar(&lc.Namespace, "namespace", "", "namespace")
-	cmdFlags.StringVar(&lc.Estate, "estate", "", "estate")
-	cmdFlags.BoolVar(&lc.PlanIdentity, "plan-identity", false, "plan-identity")
-	cmdFlags.BoolVar(&lc.JSON, "json", false, "json")
+	cli.StringVar(&lc.Namespace, "namespace", "", "The records namespace to check, instead of the one the configuration resolves to.").SetDisplay("=name")
+	cli.StringVar(&lc.Estate, "estate", "", "The estate whose records live there.").SetDisplay("=name")
+	cli.BoolVar(&lc.PlanIdentity, "plan-identity", false, "Ask what a PLAN job's identity needs instead of what an apply needs.")
+	cli.BoolVar(&lc.JSON, "json", false, "One JSON document on stdout.")
 
-	if err := cmdFlags.Parse(args); err != nil {
-		return lc, diags.Append(tfdiags.Sourceless(tfdiags.Error, "Invalid option", fmt.Sprintf("%s.", err)))
-	}
-	if len(cmdFlags.Args()) != 0 {
-		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Too many arguments",
-			"live-cluster takes no positional arguments. Run it in a configuration directory, or name a namespace with -namespace=<name>."))
-	}
+	var rest []string
+	cli.VariadicArg(&rest, "ARGS")
+
+	cli.PreHook(func() tfdiags.Diagnostics {
+		var diags tfdiags.Diagnostics
+		if len(rest) != 0 {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Too many arguments",
+				"live-cluster takes no positional arguments. Run it in a configuration directory, or name a namespace with -namespace=<name>."))
+		}
+		return diags
+	})
+	return lc
+}
+
+// ParseLiveCluster processes CLI arguments through [BindLiveCluster].
+func ParseLiveCluster(args []string) (*LiveCluster, tfdiags.Diagnostics) {
+	cli := new(CommandLine)
+	lc := BindLiveCluster(cli)
+	closer, diags := cli.parseWithHooks("live-cluster", args)
+	closer()
 	return lc, diags
 }

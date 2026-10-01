@@ -56,6 +56,10 @@ func bindApply(cli *CommandLine, withLinting bool) *Apply {
 
 	cli.BoolVar(&apply.AutoApprove, "auto-approve", false, "Skip interactive approval of plan before applying.")
 	cli.BoolVar(&apply.SuppressForgetErrorsDuringDestroy, "suppress-forget-errors", false, "Suppress the error that occurs when a destroy operation completes successfully but leaves forgotten instances behind.")
+	// This fork's: see Apply.Verbose. Registered here rather than in
+	// BindApply so that "choudoufu destroy" accepts it too, as it did when
+	// ParseApplyDestroy was ParseApply plus a mode check.
+	cli.BoolVar(&apply.Verbose, "verbose", false, "Under a live block, print in full the detail a live-markers run summarizes by default, such as the type-by-type list of what was not swept for removal.")
 
 	cli.PositionalArg(&apply.PlanPath, "PLAN", true)
 
@@ -108,13 +112,13 @@ func BindApplyDestroy(cli *CommandLine) *Apply {
 			return tfdiags.New(tfdiags.Sourceless(
 				tfdiags.Error,
 				"Invalid mode option",
-				"The -destroy option is not valid for \"tofu destroy\", because this command always runs in destroy mode.",
+				"The -destroy option is not valid for \"choudoufu destroy\", because this command always runs in destroy mode.",
 			))
 		case plans.RefreshOnlyMode:
 			return tfdiags.New(tfdiags.Sourceless(
 				tfdiags.Error,
 				"Invalid mode option",
-				"The -refresh-only option is not valid for \"tofu destroy\".",
+				"The -refresh-only option is not valid for \"choudoufu destroy\".",
 			))
 		default:
 			// This is a non-ideal error message for if we forget to handle a
@@ -123,7 +127,7 @@ func BindApplyDestroy(cli *CommandLine) *Apply {
 			return tfdiags.New(tfdiags.Sourceless(
 				tfdiags.Error,
 				"Invalid mode option",
-				fmt.Sprintf("The \"tofu destroy\" command doesn't support %s.", apply.Operation.PlanMode),
+				fmt.Sprintf("The \"choudoufu destroy\" command doesn't support %s.", apply.Operation.PlanMode),
 			))
 		}
 
@@ -142,7 +146,6 @@ func BindApplyDestroy(cli *CommandLine) *Apply {
 // If errors are encountered, an Apply value is still returned representing
 // the best effort interpretation of the arguments.
 func ParseApply(args []string) (*Apply, func(), tfdiags.Diagnostics) {
-	// TODO(#1778 step 3): port -verbose onto BindApply (fork's ParseApply registered it on the flag set)
 	cli := new(CommandLine)
 	apply := BindApply(cli)
 	closer, diags := cli.parseWithHooks("apply", args)

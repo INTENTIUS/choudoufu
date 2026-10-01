@@ -558,7 +558,7 @@ func TestStdoutOnStderr_hooksAndWarningsLeaveStdoutAlone(t *testing.T) {
 	redirected := NewView(streams).StdoutOnStderr()
 
 	// A plan view's hooks are what the plan graph calls while it walks.
-	hooks := NewPlan(arguments.ViewOptions{ViewType: arguments.ViewHuman}, redirected).Hooks()
+	hooks := NewPlan(&arguments.View{ViewType: arguments.ViewHuman}, redirected).Hooks()
 	if len(hooks) != 1 {
 		t.Fatalf("a human plan view has %d hooks, want 1 - this test drives the wrong thing", len(hooks))
 	}

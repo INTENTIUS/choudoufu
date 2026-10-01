@@ -415,6 +415,9 @@ func RootCommander(help *bool, ver *bool, chdir *string) Command {
 		},
 	}
 
+	// choudoufu's live-* commands. See LiveCommanders.
+	root.Commands = append(root.Commands, LiveCommanders()...)
+
 	root.CommandLine.FlagGroups = []arguments.FlagGroup{{
 		Title: "Global options (use these before the subcommand, if any)",
 	}}

@@ -10,8 +10,6 @@ import (
 	"log"
 	"strings"
 
-	"github.com/mitchellh/cli"
-
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
@@ -45,19 +43,29 @@ type LiveImportCommand struct {
 	Meta
 }
 
-func (c *LiveImportCommand) Run(rawArgs []string) int {
-	ctx := c.CommandContext()
-
-	common, rawArgs := arguments.ParseView(rawArgs)
-	c.View.Configure(common)
-
-	args, diags := arguments.ParseLiveImport(rawArgs)
-	if diags.HasErrors() {
-		// Argument errors print the usage text, the way state mv and
-		// live-mv answer a malformed command line.
-		c.View.Diagnostics(diags)
-		return cli.RunResultHelp
+// LiveImportCommander is live-import's entry in the new CLI's command tree. See
+// [LiveCommanders].
+func LiveImportCommander() Command {
+	cmd := Command{
+		Name:  "live-import",
+		Short: (&LiveImportCommand{}).Synopsis(),
 	}
+
+	args := arguments.BindLiveImport(&cmd.CommandLine)
+	applyLegacyHelp(&cmd, (&LiveImportCommand{}).Help())
+	cmd.Run = func(meta Meta) int {
+		return (&LiveImportCommand{Meta: meta}).Execute(args)
+	}
+	return cmd
+}
+
+func (c *LiveImportCommand) Run(rawArgs []string) int {
+	return RunCommand(LiveImportCommander(), c.Meta, rawArgs)
+}
+
+func (c *LiveImportCommand) Execute(args *arguments.LiveImport) int {
+	ctx := c.CommandContext()
+	var diags tfdiags.Diagnostics
 
 	var err error
 	if c.pluginPath, err = c.loadPluginPath(); err != nil {

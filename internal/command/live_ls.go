@@ -19,7 +19,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/mitchellh/cli"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 
@@ -82,18 +81,29 @@ type LiveLsCommand struct {
 	Meta
 }
 
-func (c *LiveLsCommand) Run(rawArgs []string) int {
-	ctx := c.CommandContext()
-
-	common, rawArgs := arguments.ParseView(rawArgs)
-	c.View.Configure(common)
-
-	args, closer, diags := arguments.ParseLiveLs(rawArgs)
-	defer closer()
-	if diags.HasErrors() {
-		c.View.Diagnostics(diags)
-		return cli.RunResultHelp
+// LiveLsCommander is live-ls's entry in the new CLI's command tree. See
+// [LiveCommanders].
+func LiveLsCommander() Command {
+	cmd := Command{
+		Name:  "live-ls",
+		Short: (&LiveLsCommand{}).Synopsis(),
 	}
+
+	args := arguments.BindLiveLs(&cmd.CommandLine)
+	applyLegacyHelp(&cmd, (&LiveLsCommand{}).Help())
+	cmd.Run = func(meta Meta) int {
+		return (&LiveLsCommand{Meta: meta}).Execute(args)
+	}
+	return cmd
+}
+
+func (c *LiveLsCommand) Run(rawArgs []string) int {
+	return RunCommand(LiveLsCommander(), c.Meta, rawArgs)
+}
+
+func (c *LiveLsCommand) Execute(args *arguments.LiveLs) int {
+	ctx := c.CommandContext()
+	var diags tfdiags.Diagnostics
 
 	// Nothing here prompts, and nothing reads a variable: this command's
 	// whole business is a read-only listing of the live system, by name.
@@ -102,9 +112,9 @@ func (c *LiveLsCommand) Run(rawArgs []string) int {
 	report, lsDiags := c.liveLs(ctx, args)
 	diags = diags.Append(lsDiags)
 	if report != nil {
-		views.NewLiveLs(args.ViewOptions, c.View).Report(*report)
+		views.NewLiveLs(args.View, c.View).Report(*report)
 	}
-	if args.ViewOptions.ViewType == arguments.ViewJSON {
+	if args.View.ViewType == arguments.ViewJSON {
 		// GitHub issue #966. [views.View.Diagnostics] sends WARNINGS to
 		// Stdout, and every diagnostic this command raises is a warning by
 		// design ("every failure along the way downgrades to a warning" -

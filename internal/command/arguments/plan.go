@@ -39,8 +39,8 @@ type Plan struct {
 	// removal" section's full type-by-type breakdown, collapsed to a
 	// one-line count by default (GitHub issue #78, "First plan drowns a
 	// small estate in the not-swept type list"). It lives on Plan itself,
-	// not behind the [parsePlan] extraFlags hook the way -estate is (see
-	// that hook's own comment), because -verbose does nothing to a stock
+	// not added by [BindLivePlan] the way -estate is (see that
+	// function's own comment), because -verbose does nothing to a stock
 	// plan rather than naming a stateless-only concept, and because it also
 	// needs to reach "choudoufu apply" against a live block
 	// (arguments.Apply.Verbose), where -estate has no equivalent need
@@ -96,6 +96,16 @@ func BindPlan(cli *CommandLine) *Plan {
 OpenTofu may still attempt to write configuration if planning fails with an error.`,
 	).SetDisplay("=path")
 
+	// This fork's three. -verbose and -adoption-only are plain booleans;
+	// -filter validates each word as it is parsed (bindReportFilter). They
+	// are on every plan, not only a live one, so that a state-backed
+	// "choudoufu plan -adoption-only" is refused by name in the command
+	// (planRejectAdoptionOnly, planRejectReportFilter) instead of failing as
+	// a flag that does not exist.
+	cli.BoolVar(&plan.Verbose, "verbose", false, "Under a live block, print in full the detail a live-markers run summarizes by default, such as the type-by-type list of what was not swept for removal.")
+	cli.BoolVar(&plan.AdoptionOnly, "adoption-only", false, "Under a live block, print only the adoption ledger: what can be adopted, what cannot, and why. The plan itself runs as it would otherwise.")
+	bindReportFilter(cli, &plan.Filter)
+
 	// Special handling for flag groups!
 	for _, name := range []string{"destroy", "refresh-only", "refresh", "replace", "target", "target-file", "exclude", "exclude-file", "var", "var-file"} {
 		cli.Flags[name].SetGroup("plan")
@@ -124,7 +134,6 @@ OpenTofu may still attempt to write configuration if planning fails with an erro
 // If errors are encountered, a Plan value is still returned representing
 // the best effort interpretation of the arguments.
 func ParsePlan(args []string) (*Plan, func(), tfdiags.Diagnostics) {
-	// TODO(#1778 step 3): port -verbose, -adoption-only, -filter onto BindPlan, and the parsePlan extraFlags hook ParseLivePlan uses for -estate
 	cli := new(CommandLine)
 	plan := BindPlan(cli)
 	closer, diags := cli.parseWithHooks("plan", args)

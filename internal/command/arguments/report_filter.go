@@ -6,8 +6,11 @@
 package arguments
 
 import (
+	"flag"
 	"fmt"
 	"strings"
+
+	"github.com/urfave/cli/v3"
 )
 
 // The report categories -filter selects among (GitHub issue #1197). The words
@@ -100,4 +103,37 @@ func (v reportFilterFlag) Set(word string) error {
 	}
 	*v.dst = next
 	return nil
+}
+
+// Get satisfies flag.Getter, which urfave/cli's GenericFlag requires of its
+// Value on top of flag.Value.
+func (v reportFilterFlag) Get() any {
+	if v.dst == nil {
+		return ReportFilter(nil)
+	}
+	return *v.dst
+}
+
+// bindReportFilter registers -filter on a CommandLine. CommandLine has typed
+// helpers for strings, bools and string arrays but none for a flag.Value of
+// a command's own, so this builds the [Flag] the way [CommandLine.RawFlags]
+// does: a stdlib Var for the legacy parser and a GenericFlag for urfave/cli,
+// both writing through the same reportFilterFlag so that each occurrence of
+// -filter is validated and unioned by Set in either parser. A
+// StringArrayVar would not do: it accepts any word and leaves the check to
+// later, where "-filter nonsense" would no longer be a usage error.
+func bindReportFilter(c *CommandLine, dst *ReportFilter) *Flag {
+	value := reportFilterFlag{dst: dst}
+	usage := "Under a live block, narrow the report to the named category: " + strings.Join(ReportFilterWords, ", ") + ". Repeat to show more than one. Narrows the report, never the plan."
+	f := c.Flag(&Flag{
+		Name:   "filter",
+		Usage:  usage,
+		Stdlib: func(fs *flag.FlagSet) { fs.Var(value, "filter", usage) },
+	})
+	f.SetDisplay("=category")
+	f.Cli = func() cli.Flag {
+		dest := cli.Value(value)
+		return &cli.GenericFlag{Name: f.Name, Category: f.GroupID, DefaultText: f.Display, Local: true, Usage: f.Usage, Hidden: f.Hidden, Destination: &dest, Value: dest}
+	}
+	return f
 }
