@@ -91,6 +91,121 @@ func TestFunctions(t *testing.T) {
 			},
 		},
 
+		"assumeequal": {
+			{
+				`assumeequal("a", "a")`,
+				cty.StringVal("a"),
+			},
+		},
+
+		"assumelistlength": {
+			{
+				`assumelistlength([1, 2], 1, 2)`,
+				cty.ListVal([]cty.Value{ // tuple automatically converted to list
+					cty.NumberIntVal(1),
+					cty.NumberIntVal(2),
+				}),
+			},
+		},
+
+		"assumelistlengthmax": {
+			{
+				`assumelistlengthmax([1, 2], 3)`,
+				cty.ListVal([]cty.Value{ // tuple automatically converted to list
+					cty.NumberIntVal(1),
+					cty.NumberIntVal(2),
+				}),
+			},
+		},
+
+		"assumelistlengthmin": {
+			{
+				`assumelistlengthmin([1, 2], 1)`,
+				cty.ListVal([]cty.Value{ // tuple automatically converted to list
+					cty.NumberIntVal(1),
+					cty.NumberIntVal(2),
+				}),
+			},
+		},
+
+		"assumemaplength": {
+			{
+				`assumemaplength({a = 1, b = 2}, 1, 2)`,
+				cty.MapVal(map[string]cty.Value{ // object automatically converted to map
+					"a": cty.NumberIntVal(1),
+					"b": cty.NumberIntVal(2),
+				}),
+			},
+		},
+
+		"assumemaplengthmax": {
+			{
+				`assumemaplengthmax({a = 1, b = 2}, 3)`,
+				cty.MapVal(map[string]cty.Value{ // object automatically converted to map
+					"a": cty.NumberIntVal(1),
+					"b": cty.NumberIntVal(2),
+				}),
+			},
+		},
+
+		"assumemaplengthmin": {
+			{
+				`assumemaplengthmin({a = 1, b = 2}, 1)`,
+				cty.MapVal(map[string]cty.Value{ // object automatically converted to map
+					"a": cty.NumberIntVal(1),
+					"b": cty.NumberIntVal(2),
+				}),
+			},
+		},
+
+		"assumenotnull": {
+			{
+				`assumenotnull("hello")`,
+				cty.StringVal("hello"),
+			},
+		},
+
+		"assumesetlength": {
+			{
+				`assumesetlength([1, 2], 1, 2)`,
+				cty.SetVal([]cty.Value{ // tuple automatically converted to set
+					cty.NumberIntVal(1),
+					cty.NumberIntVal(2),
+				}),
+			},
+		},
+
+		"assumesetlengthmax": {
+			{
+				`assumesetlengthmax([1, 2], 3)`,
+				cty.SetVal([]cty.Value{ // tuple automatically converted to set
+					cty.NumberIntVal(1),
+					cty.NumberIntVal(2),
+				}),
+			},
+		},
+
+		"assumesetlengthmin": {
+			{
+				`assumesetlengthmin([1, 2], 1)`,
+				cty.SetVal([]cty.Value{ // tuple automatically converted to set
+					cty.NumberIntVal(1),
+					cty.NumberIntVal(2),
+				}),
+			},
+		},
+
+		"assumestringprefix": {
+			{
+				`assumestringprefix("foo-bar", "foo-")`,
+				cty.StringVal("foo-bar"),
+			},
+			{
+				`assumestringprefix(true, "tru")`,
+				cty.StringVal("true"), // bool automatically converted to string
+			},
+		},
+
 		"base64decode": {
 			{
 				`base64decode("YWJjMTIzIT8kKiYoKSctPUB+")`,
@@ -108,13 +223,13 @@ func TestFunctions(t *testing.T) {
 		"base64gzip": {
 			{
 				`base64gzip("test")`,
-				cty.StringVal("H4sIAAAAAAAA/ypJLS4BAAAA//8BAAD//wx+f9gEAAAA"),
+				cty.StringVal("H4sIAAAAAAAA/wAEAPv/dGVzdAAAAP//AwAMfn/YBAAAAA=="),
 			},
 		},
 
 		"base64gunzip": {
 			{
-				`base64gunzip("H4sIAAAAAAAA/ypJLS4BAAAA//8BAAD//wx+f9gEAAAA")`,
+				`base64gunzip("H4sIAAAAAAAA/wAEAPv/dGVzdAAAAP//AwAMfn/YBAAAAA==")`,
 				cty.StringVal("test"),
 			},
 		},
@@ -292,6 +407,13 @@ func TestFunctions(t *testing.T) {
 			{ // Should also work with sets, due to automatic conversion
 				`contains(toset(["a", "b"]), "a")`,
 				cty.True,
+			},
+		},
+
+		"convert": {
+			{
+				`convert("hello", string)`,
+				cty.StringVal("hello"),
 			},
 		},
 
@@ -1235,7 +1357,7 @@ func TestFunctions(t *testing.T) {
 	}
 
 	experimentalFuncs := map[string]experiments.Experiment{}
-	experimentalFuncs["defaults"] = experiments.ModuleVariableOptionalAttrs
+	experimentalFuncs["defaults"] = experiments.Experiment("custom_experiment")
 
 	t.Run("all functions are tested", func(t *testing.T) {
 		data := &dataForTests{} // no variables available; we only need literals here
@@ -1315,6 +1437,7 @@ func TestFunctions(t *testing.T) {
 					data := &dataForTests{} // no variables available; we only need literals here
 					scope := &Scope{
 						Data:          data,
+						ParseRef:      addrs.ParseRef,
 						BaseDir:       "./testdata/functions-test", // for the functions that read from the filesystem
 						PlanTimestamp: time.Date(2004, 04, 25, 15, 00, 00, 000, time.UTC),
 					}
@@ -1347,7 +1470,7 @@ func TestFunctions(t *testing.T) {
 
 func TestFunctionsPrefixedCorrectly(t *testing.T) {
 	dir := t.TempDir()
-	baseFuncs := makeBaseFunctionTable(dir)
+	baseFuncs := makeBaseFunctionTable(dir, nil)
 	s := &Scope{BaseDir: dir}
 	got := s.Functions()
 

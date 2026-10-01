@@ -11,7 +11,6 @@ import (
 
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs/configload"
-	"github.com/mitchellh/cli"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/backend"
@@ -22,45 +21,39 @@ import (
 	"github.com/intentius/choudoufu/internal/tofumigrate"
 )
 
+func StateShowCommander() Command {
+	cmd := Command{
+		Name:  "show",
+		Short: "Show a resource in the state",
+		Long: `Shows the attributes of a resource in the OpenTofu state.
+
+This command shows the attributes of a single resource in the OpenTofu state. The address argument must be used to specify a single resource. You can view the list of available resources with "tofu state list".`,
+
+		DiagsWithNewline: true,
+	}
+
+	args := arguments.BindStateShow(&cmd.CommandLine)
+	cmd.Run = func(meta Meta) int {
+		return StateShowCommand{StateMeta{meta}}.Execute(args, views.NewState(args.View, meta.View))
+	}
+
+	return cmd
+}
+
 // StateShowCommand is a Command implementation that shows a single resource.
 type StateShowCommand struct {
-	Meta
 	StateMeta
 }
 
 func (c *StateShowCommand) Run(rawArgs []string) int {
+	return RunCommand(StateShowCommander(), c.Meta, rawArgs)
+}
+func (c StateShowCommand) Execute(args *arguments.StateShow, view views.State) int {
+	var diags tfdiags.Diagnostics
+
 	ctx := c.CommandContext()
 
-	common, rawArgs := arguments.ParseView(rawArgs)
-	c.View.Configure(common)
-	// Because the legacy UI was using println to show diagnostics and the new view is using, by default, print,
-	// in order to keep functional parity, we setup the view to add a new line after each diagnostic.
-	c.View.DiagsWithNewline()
-
-	// Parse and validate flags
-	args, closer, diags := arguments.ParseStateShow(rawArgs)
-	defer closer()
-
-	// Instantiate the view, even if there are flag errors, so that we render
-	// diagnostics according to the desired view
-	view := views.NewState(args.ViewOptions, c.View)
-	if diags.HasErrors() {
-		view.Diagnostics(diags)
-		if args.ViewOptions.ViewType == arguments.ViewJSON {
-			return 1 // in case it's json, do not print the help of the command
-		}
-		return cli.RunResultHelp
-	}
-	c.View.SetShowSensitive(args.ShowSensitive)
-	c.Meta.variableArgs = args.Vars.All()
-	c.Meta.stateArgs = *args.State
-
-	// See statelessStateGuard: refused before anything reaches a state manager.
-	if guardDiags := c.statelessStateGuard(ctx, "show"); guardDiags.HasErrors() {
-		view.Diagnostics(diags.Append(guardDiags))
-		return 1
-	}
-
+	// TODO(#1778 step 3): port the fork's c.statelessStateGuard(ctx, "show") call (before any backend/state manager opens) into Execute
 	// Check for user-supplied plugin path
 	var err error
 	if c.pluginPath, err = c.loadPluginPath(); err != nil {

@@ -11,11 +11,27 @@ import (
 
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
-	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
+
+func WorkspaceListCommander(legacyName bool) Command {
+	cmd := Command{
+		Name:  "list",
+		Short: "List Workspaces",
+		Long:  `List OpenTofu workspaces.`,
+
+		DiagsWithNewline: true,
+	}
+
+	args := arguments.BindWorkspaceList(&cmd.CommandLine)
+	cmd.Run = func(meta Meta) int {
+		return WorkspaceListCommand{meta, legacyName}.Execute(args, views.NewWorkspace(args.View, meta.View))
+	}
+
+	return cmd
+}
 
 type WorkspaceListCommand struct {
 	Meta
@@ -23,29 +39,12 @@ type WorkspaceListCommand struct {
 }
 
 func (c *WorkspaceListCommand) Run(rawArgs []string) int {
+	return RunCommand(WorkspaceListCommander(c.LegacyName), c.Meta, rawArgs)
+}
+func (c WorkspaceListCommand) Execute(args *arguments.WorkspaceList, view views.Workspace) int {
+	var diags tfdiags.Diagnostics
+
 	ctx := c.CommandContext()
-
-	common, rawArgs := arguments.ParseView(rawArgs)
-	c.View.Configure(common)
-	// Because the legacy UI was using println to show diagnostics and the new view is using, by default, print,
-	// in order to keep functional parity, we setup the view to add a new line after each diagnostic.
-	c.View.DiagsWithNewline()
-
-	// Parse and validate flags
-	args, closer, diags := arguments.ParseWorkspaceList(rawArgs)
-	defer closer()
-
-	// Instantiate the view, even if there are flag errors, so that we render
-	// diagnostics according to the desired view
-	view := views.NewWorkspace(args.ViewOptions, c.View)
-	if diags.HasErrors() {
-		view.Diagnostics(diags)
-		if args.ViewOptions.ViewType == arguments.ViewJSON {
-			return 1
-		}
-		return cli.RunResultHelp
-	}
-	c.Meta.variableArgs = args.Vars.All()
 
 	view.WarnWhenUsedAsEnvCmd(c.LegacyName)
 

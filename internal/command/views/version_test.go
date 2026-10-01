@@ -226,7 +226,7 @@ func TestVersionViews_fork(t *testing.T) {
 
 func testVersionHuman(t *testing.T, viewType arguments.ViewType, call func(v Version), wantStdout, wantStderr string) {
 	view, done := testView(t)
-	v := NewVersion(arguments.ViewOptions{ViewType: viewType}, view)
+	v := NewVersion(&arguments.View{ViewType: viewType}, view)
 	call(v)
 	output := done(t)
 	if diff := cmp.Diff(wantStderr, output.Stderr()); diff != "" {

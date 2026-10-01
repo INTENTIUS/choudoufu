@@ -16,14 +16,13 @@ func TestProviders(t *testing.T) {
 	t.Chdir(testFixturePath("providers/basic"))
 
 	view, done := testView(t)
-	c := &ProvidersCommand{
-		Meta: Meta{
-			WorkingDir: workdir.NewDir("."),
-			View:       view,
-		},
+
+	meta := Meta{
+		WorkingDir: workdir.NewDir("."),
+		View:       view,
 	}
 
-	code := c.Run(nil)
+	code := RunCommander(t, ProvidersCommander(), meta, nil)
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("bad: %d\n\n%s", code, output.Stderr())
@@ -47,14 +46,13 @@ func TestProviders_noConfigs(t *testing.T) {
 	t.Chdir(testFixturePath(""))
 
 	view, done := testView(t)
-	c := &ProvidersCommand{
-		Meta: Meta{
-			WorkingDir: workdir.NewDir("."),
-			View:       view,
-		},
+
+	meta := Meta{
+		WorkingDir: workdir.NewDir("."),
+		View:       view,
 	}
 
-	code := c.Run(nil)
+	code := RunCommander(t, ProvidersCommander(), meta, nil)
 	output := done(t)
 	if code == 0 {
 		t.Fatal("expected command to return non-zero exit code" +
@@ -87,10 +85,7 @@ func TestProviders_modules(t *testing.T) {
 		View:             initView,
 		ProviderSource:   providerSource,
 	}
-	ic := &InitCommand{
-		Meta: initMeta,
-	}
-	code := ic.Run(nil)
+	code := RunCommander(t, InitCommander(), initMeta, nil)
 	initOutput := initDone(t)
 	if code != 0 {
 		t.Fatalf("init failed\n%s", initOutput.Stderr())
@@ -98,14 +93,13 @@ func TestProviders_modules(t *testing.T) {
 
 	// Providers command
 	view, done := testView(t)
-	c := &ProvidersCommand{
-		Meta: Meta{
-			WorkingDir: workdir.NewDir("."),
-			View:       view,
-		},
+
+	meta := Meta{
+		WorkingDir: workdir.NewDir("."),
+		View:       view,
 	}
 
-	code = c.Run(nil)
+	code = RunCommander(t, ProvidersCommander(), meta, nil)
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("bad: %d\n\n%s", code, output.Stderr())
@@ -130,14 +124,13 @@ func TestProviders_state(t *testing.T) {
 	t.Chdir(testFixturePath("providers/state"))
 
 	view, done := testView(t)
-	c := &ProvidersCommand{
-		Meta: Meta{
-			WorkingDir: workdir.NewDir("."),
-			View:       view,
-		},
+
+	meta := Meta{
+		WorkingDir: workdir.NewDir("."),
+		View:       view,
 	}
 
-	code := c.Run(nil)
+	code := RunCommander(t, ProvidersCommander(), meta, nil)
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("bad: %d\n\n%s", code, output.Stderr())
@@ -162,14 +155,13 @@ func TestProviders_tests(t *testing.T) {
 	t.Chdir(testFixturePath("providers/tests"))
 
 	view, done := testView(t)
-	c := &ProvidersCommand{
-		Meta: Meta{
-			WorkingDir: workdir.NewDir("."),
-			View:       view,
-		},
+
+	meta := Meta{
+		WorkingDir: workdir.NewDir("."),
+		View:       view,
 	}
 
-	code := c.Run(nil)
+	code := RunCommander(t, ProvidersCommander(), meta, nil)
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("bad: %d\n\n%s", code, output.Stderr())

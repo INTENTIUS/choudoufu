@@ -15,8 +15,22 @@ import (
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs/configload"
 	"github.com/intentius/choudoufu/internal/tfdiags"
-	"github.com/mitchellh/cli"
 )
+
+func ProvidersSchemaCommander() Command {
+	cmd := Command{
+		Name:  "schema",
+		Short: "Show schemas for the providers used in the configuration",
+		Long:  `Prints out a json representation of the schemas for all providers used in the current configuration.`,
+	}
+
+	args := arguments.BindProvidersSchema(&cmd.CommandLine)
+	cmd.Run = func(meta Meta) int {
+		return ProvidersSchemaCommand{meta}.Execute(args, views.NewProvidersSchema(meta.View))
+	}
+
+	return cmd
+}
 
 // ProvidersSchemaCommand is a Command implementation that prints out information
 // about the providers used in the current configuration/state.
@@ -33,21 +47,11 @@ func (c *ProvidersSchemaCommand) Synopsis() string {
 }
 
 func (c *ProvidersSchemaCommand) Run(rawArgs []string) int {
+	return RunCommand(ProvidersSchemaCommander(), c.Meta, rawArgs)
+}
+func (c ProvidersSchemaCommand) Execute(args *arguments.ProvidersSchema, view views.ProvidersSchema) int {
+	var diags tfdiags.Diagnostics
 	ctx := c.CommandContext()
-
-	common, rawArgs := arguments.ParseView(rawArgs)
-	c.View.Configure(common)
-
-	args, closer, diags := arguments.ParseProvidersSchema(rawArgs)
-	defer closer()
-
-	view := views.NewProvidersSchema(c.View)
-	if diags.HasErrors() {
-		view.Diagnostics(diags)
-		return cli.RunResultHelp
-	}
-
-	c.Meta.variableArgs = args.Vars.All()
 
 	// Check for user-supplied plugin path
 	var err error

@@ -7,15 +7,32 @@ package command
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
-	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
+
+func WorkspaceSelectCommander(legacyName bool) Command {
+	cmd := Command{
+		Name:  "select",
+		Short: "Select a workspace",
+		Long:  `Select a different OpenTofu workspace.`,
+
+		DiagsWithNewline: true,
+	}
+
+	args := arguments.BindWorkspaceSelect(&cmd.CommandLine)
+	cmd.Run = func(meta Meta) int {
+		return WorkspaceSelectCommand{meta, legacyName}.Execute(args, views.NewWorkspace(args.View, meta.View))
+	}
+
+	return cmd
+}
 
 type WorkspaceSelectCommand struct {
 	Meta
@@ -23,29 +40,11 @@ type WorkspaceSelectCommand struct {
 }
 
 func (c *WorkspaceSelectCommand) Run(rawArgs []string) int {
+	return RunCommand(WorkspaceSelectCommander(c.LegacyName), c.Meta, rawArgs)
+}
+func (c WorkspaceSelectCommand) Execute(args *arguments.WorkspaceSelect, view views.Workspace) int {
+	var diags tfdiags.Diagnostics
 	ctx := c.CommandContext()
-
-	common, rawArgs := arguments.ParseView(rawArgs)
-	c.View.Configure(common)
-	// Because the legacy UI was using println to show diagnostics and the new view is using, by default, print,
-	// in order to keep functional parity, we setup the view to add a new line after each diagnostic.
-	c.View.DiagsWithNewline()
-
-	// Parse and validate flags
-	args, closer, diags := arguments.ParseWorkspaceSelect(rawArgs)
-	defer closer()
-
-	// Instantiate the view, even if there are flag errors, so that we render
-	// diagnostics according to the desired view
-	view := views.NewWorkspace(args.ViewOptions, c.View)
-	if diags.HasErrors() {
-		view.Diagnostics(diags)
-		if args.ViewOptions.ViewType == arguments.ViewJSON {
-			return 1 // in case it's json, do not print the help of the command
-		}
-		return cli.RunResultHelp
-	}
-	c.Meta.variableArgs = args.Vars.All()
 
 	view.WarnWhenUsedAsEnvCmd(c.LegacyName)
 
@@ -116,13 +115,7 @@ func (c *WorkspaceSelectCommand) Run(rawArgs []string) int {
 		return 0
 	}
 
-	found := false
-	for _, s := range states {
-		if name == s {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(states, name)
 
 	var newState bool
 

@@ -17,7 +17,9 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/collections"
 	"github.com/intentius/choudoufu/internal/command/arguments"
+	"github.com/intentius/choudoufu/internal/linting"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/terminal"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -162,7 +164,6 @@ func TestView_Diagnostics(t *testing.T) {
 		validate func(*testing.T, *terminal.TestOutput)
 	}{
 		"empty diagnostics": {
-
 			diags: tfdiags.Diagnostics{},
 			validate: func(t *testing.T, output *terminal.TestOutput) {
 				if output.Stdout() != "" {
@@ -173,8 +174,21 @@ func TestView_Diagnostics(t *testing.T) {
 				}
 			},
 		},
+		"lint diagnostic": {
+			diags: tfdiags.Diagnostics{
+				tfdiags.LintMessage(linting.MustParseRuleAddr("core:foo"), nil, "Test foo linting", "This is a test warning", nil, nil),
+			},
+			setup: func(view *View) {
+				view.lintInclude = collections.NewSet(linting.AllRulesGroupID)
+			},
+			validate: func(t *testing.T, output *terminal.TestOutput) {
+				stdout := output.Stdout()
+				if !strings.Contains(stdout, "Test foo linting (core:foo)") {
+					t.Errorf("expected stdout to contain 'Test foo linting (core:foo)', got %q", stdout)
+				}
+			},
+		},
 		"warning diagnostic": {
-
 			diags: tfdiags.Diagnostics{
 				tfdiags.Sourceless(
 					tfdiags.Warning,
@@ -193,7 +207,6 @@ func TestView_Diagnostics(t *testing.T) {
 			},
 		},
 		"error diagnostic": {
-
 			diags: tfdiags.Diagnostics{
 				tfdiags.Sourceless(
 					tfdiags.Error,
@@ -212,7 +225,6 @@ func TestView_Diagnostics(t *testing.T) {
 			},
 		},
 		"multiple diagnostics": {
-
 			diags: tfdiags.Diagnostics{
 				tfdiags.Sourceless(
 					tfdiags.Warning,
@@ -224,6 +236,10 @@ func TestView_Diagnostics(t *testing.T) {
 					"Error 1",
 					"First error",
 				),
+				tfdiags.LintMessage(linting.MustParseRuleAddr("foo"), nil, "Test foo linting", "This is a test warning", nil, nil),
+			},
+			setup: func(view *View) {
+				view.lintInclude = collections.NewSet(linting.AllRulesGroupID)
 			},
 			validate: func(t *testing.T, output *terminal.TestOutput) {
 				stdout := output.Stdout()
@@ -235,10 +251,12 @@ func TestView_Diagnostics(t *testing.T) {
 				if !strings.Contains(stderr, "Error 1") {
 					t.Errorf("expected stderr to contain error, got %q", stderr)
 				}
+				if !strings.Contains(stdout, "Test foo linting (foo)") {
+					t.Errorf("expected stdout to contain 'Test foo linting (foo)', got %q", stdout)
+				}
 			},
 		},
 		"multiple diagnostics with newline": {
-
 			setup: func(view *View) {
 				view.DiagsWithNewline()
 			},
@@ -273,7 +291,6 @@ func TestView_Diagnostics(t *testing.T) {
 			},
 		},
 		"compact warnings - warnings only": {
-
 			diags: tfdiags.Diagnostics{
 				tfdiags.Sourceless(
 					tfdiags.Warning,
@@ -297,7 +314,6 @@ func TestView_Diagnostics(t *testing.T) {
 			},
 		},
 		"consolidate warnings": {
-
 			diags: tfdiags.Diagnostics{}.
 				Append(&hcl.Diagnostic{
 					Severity: hcl.DiagWarning,
@@ -325,7 +341,6 @@ func TestView_Diagnostics(t *testing.T) {
 			},
 		},
 		"consolidate errors": {
-
 			diags: tfdiags.Diagnostics{}.
 				Append(&hcl.Diagnostic{
 					Severity: hcl.DiagError,
@@ -353,7 +368,6 @@ func TestView_Diagnostics(t *testing.T) {
 			},
 		},
 		"diagnostics with sources": {
-
 			diags: tfdiags.Diagnostics{}.
 				Append(&hcl.Diagnostic{
 					Severity: hcl.DiagError,
@@ -406,13 +420,24 @@ foo bar warning
 				}
 			},
 		},
+		"exclude not requested linting diagnostics": {
+			diags: tfdiags.New(tfdiags.LintMessage(linting.MustParseRuleAddr("foo"), nil, "Test foo linting", "This is a test warning", nil, nil)),
+			setup: func(view *View) {
+				view.lintExclude = collections.NewSet(linting.AllRulesGroupID)
+			},
+			validate: func(t *testing.T, output *terminal.TestOutput) {
+				stdout := output.Stdout()
+				if strings.Contains(stdout, "foo") {
+					t.Errorf("expected stdout to contain no linting information but it looks like it does. Got %q", stdout)
+				}
+			},
+		},
 	}
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			streams, done := terminal.StreamsForTesting(t)
 			view := NewView(streams)
-
 			if tc.setup != nil {
 				tc.setup(view)
 			}
@@ -444,13 +469,22 @@ func TestView_HelpPrompt(t *testing.T) {
 // This was moved as is to keep the same testing patterns but in the context of the
 // views package.
 func TestViewColorize(t *testing.T) {
+	parseView := func(args []string) (*arguments.View, []string) {
+		var cli arguments.CommandLine
+		var newArgs []string
+		cli.VariadicArg(&newArgs, "args")
+		view := arguments.BindView(&cli, 0)
+		cli.ParseDirect(t.Context(), args)
+		return view, newArgs
+	}
+
 	t.Run("with color enabled", func(t *testing.T) {
 		view, done := testView(t)
 		defer done(t)
 
 		args := []string{"foo", "bar"}
 		wantArgs := []string{"foo", "bar"}
-		viewArgs, args := arguments.ParseView(args)
+		viewArgs, args := parseView(args)
 
 		view.Configure(viewArgs)
 
@@ -468,7 +502,7 @@ func TestViewColorize(t *testing.T) {
 
 		args := []string{"foo", "-no-color", "bar"}
 		args2 := []string{"foo", "bar"}
-		viewArgs, args := arguments.ParseView(args)
+		viewArgs, args := parseView(args)
 
 		view.Configure(viewArgs)
 		if !reflect.DeepEqual(args, args2) {
@@ -487,7 +521,7 @@ func TestViewColorize(t *testing.T) {
 		// E.g. an additional -no-color arg could be added by TF_CLI_ARGS.
 		args := []string{"foo", "-no-color", "bar", "-no-color"}
 		args2 := []string{"foo", "bar"}
-		viewArgs, args := arguments.ParseView(args)
+		viewArgs, args := parseView(args)
 
 		view.Configure(viewArgs)
 

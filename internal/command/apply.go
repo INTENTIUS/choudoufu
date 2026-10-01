@@ -19,6 +19,45 @@ import (
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
+func ApplyCommander() Command {
+	cmd := Command{
+		Name:  "apply",
+		Short: "Create or update infrastructure",
+		Long: `Creates or updates infrastructure according to OpenTofu configuration files in the current directory.
+
+By default, OpenTofu will generate a new plan and present it for your approval before taking any action. You can optionally provide a plan file created by a previous call to "tofu plan", in which case OpenTofu will take the actions described in that plan without any confirmation prompt.`,
+
+		GroupID: MainCommandGroup.ID,
+	}
+
+	args := arguments.BindApply(&cmd.CommandLine)
+	cmd.Run = func(meta Meta) int {
+		return ApplyCommand{meta, false}.Execute(args, views.NewApply(args.View, false, meta.View))
+	}
+
+	return cmd
+}
+
+func DestroyCommander() Command {
+	cmd := Command{
+		Name:  "destroy",
+		Short: "Destroy previously-created infrastructure",
+		Long: `Destroy OpenTofu-managed infrastructure.
+
+This command is a convenience alias for:
+    tofu apply -destroy`,
+
+		GroupID: MainCommandGroup.ID,
+	}
+
+	args := arguments.BindApplyDestroy(&cmd.CommandLine)
+	cmd.Run = func(meta Meta) int {
+		return ApplyCommand{meta, true}.Execute(args, views.NewApply(args.View, true, meta.View))
+	}
+
+	return cmd
+}
+
 // ApplyCommand is a Command implementation that applies a OpenTofu
 // configuration and actually builds or changes infrastructure.
 type ApplyCommand struct {
@@ -30,8 +69,16 @@ type ApplyCommand struct {
 }
 
 func (c *ApplyCommand) Run(rawArgs []string) int {
+	if c.Destroy {
+		return RunCommand(DestroyCommander(), c.Meta, rawArgs)
+	}
+	return RunCommand(ApplyCommander(), c.Meta, rawArgs)
+}
+
+func (c ApplyCommand) Execute(args *arguments.Apply, view views.Apply) int {
 	var diags tfdiags.Diagnostics
 	ctx := c.CommandContext()
+	// TODO(#1778 step 3): fork's ParseView/ParseApply flag handling and -verbose; move into ApplyCommander/Execute (BindApply)
 
 	// Parse and apply global view arguments
 	common, rawArgs := arguments.ParseView(rawArgs)
@@ -65,6 +112,9 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 		view.HelpPrompt()
 		return 1
 	}
+	// TODO(#1778 step 3): upstream v1.13.0 lines below, to fold into the Execute shape
+	ctx = tfdiags.ContextWithLintFilterHints(ctx, args.View.LintInclude, args.View.LintExclude)
+	diags = diags.Append(tfdiags.ExperimentalLintWarn(ctx))
 
 	// Check for user-supplied plugin path
 	var err error
@@ -73,9 +123,6 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 		view.Diagnostics(diags)
 		return 1
 	}
-
-	// Inject variables from args into meta for static evaluation
-	c.Meta.variableArgs = args.Vars.All()
 
 	// Load the encryption configuration
 	enc, encDiags := c.Encryption(ctx)
@@ -141,14 +188,6 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 		view.Diagnostics(diags)
 		return 1
 	}
-
-	// FIXME: the -parallelism flag is used to control the concurrency of
-	// OpenTofu operations. At the moment, this value is used both to
-	// initialize the backend via the ContextOpts field inside CLIOpts, and to
-	// set a largely unused field on the Operation request. Again, there is no
-	// clear path to pass this value down, so we continue to mutate the Meta
-	// object state for now.
-	c.Meta.parallelism = args.Operation.Parallelism
 
 	// Prepare the backend, passing the plan file if present, and the
 	// backend-specific arguments
@@ -277,8 +316,6 @@ func (c *ApplyCommand) LoadPlanFile(path string, enc encryption.Encryption) (*pl
 
 func (c *ApplyCommand) PrepareBackend(ctx context.Context, planFile *planfile.WrappedPlanFile, args *arguments.State, backendView views.Backend, enc encryption.StateEncryption) (backend.Enhanced, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
-
-	c.Meta.stateArgs = *args
 
 	// Load the backend
 	var be backend.Enhanced
@@ -479,6 +516,14 @@ Options:
                                modules that are imported with a relative path.
                                When "none" is selected, all the deprecation
                                warnings will be dropped.
+
+  -lint=all                    Configures the linting rules to be executed during
+                               this command. By specifying this flag, the built-in
+                               linting will be enabled, which will start issuing
+                               warning diagnostics if any included rule will be
+                               violated. For more details on the format and
+                               available linting rules, refer to the official
+                               documentation.
 
   If you don't provide a saved plan file then this command will also accept
   all of the plan-customization options accepted by the choudoufu plan command.

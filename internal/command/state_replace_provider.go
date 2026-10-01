@@ -17,8 +17,24 @@ import (
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
-	"github.com/mitchellh/cli"
 )
+
+func StateReplaceProviderCommander() Command {
+	cmd := Command{
+		Name:  "replace-provider",
+		Short: "Replace provider in the state",
+		Long:  `Replace provider for resources in the OpenTofu state.`,
+
+		DiagsWithNewline: true,
+	}
+
+	args := arguments.BindStateReplaceProvider(&cmd.CommandLine)
+	cmd.Run = func(meta Meta) int {
+		return StateReplaceProviderCommand{StateMeta{meta}}.Execute(args, views.NewState(args.View, meta.View))
+	}
+
+	return cmd
+}
 
 // StateReplaceProviderCommand is a Command implementation that allows users
 // to change the provider associated with existing resources. This is only
@@ -29,38 +45,14 @@ type StateReplaceProviderCommand struct {
 }
 
 func (c *StateReplaceProviderCommand) Run(rawArgs []string) int {
+	return RunCommand(StateReplaceProviderCommander(), c.Meta, rawArgs)
+}
+func (c StateReplaceProviderCommand) Execute(args *arguments.StateReplaceProvider, view views.State) int {
+	var diags tfdiags.Diagnostics
+
 	ctx := c.CommandContext()
 
-	common, rawArgs := arguments.ParseView(rawArgs)
-	c.View.Configure(common)
-	// Because the legacy UI was using println to show diagnostics and the new view is using, by default, print,
-	// in order to keep functional parity, we setup the view to add a new line after each diagnostic.
-	c.View.DiagsWithNewline()
-
-	// Parse and validate flags
-	args, closer, diags := arguments.ParseReplaceProvider(rawArgs)
-	defer closer()
-
-	// Instantiate the view, even if there are flag errors, so that we render
-	// diagnostics according to the desired view
-	view := views.NewState(args.ViewOptions, c.View)
-	if diags.HasErrors() {
-		view.Diagnostics(diags)
-		if args.ViewOptions.ViewType == arguments.ViewJSON {
-			return 1 // We don't want to print the help of the command in JSON view
-		}
-		return cli.RunResultHelp
-	}
-	c.Meta.stateArgs = *args.State
-	c.Meta.variableArgs = args.Vars.All()
-	c.Meta.backendArgs = *args.Backend
-
-	// See statelessStateGuard: refused before anything reaches a state manager.
-	if guardDiags := c.statelessStateGuard(ctx, "replace-provider"); guardDiags.HasErrors() {
-		view.Diagnostics(diags.Append(guardDiags))
-		return 1
-	}
-
+	// TODO(#1778 step 3): port the fork's c.statelessStateGuard(ctx, "replace-provider") call (before any backend/state manager opens) into Execute
 	if diags := c.Meta.checkRequiredVersion(ctx); diags != nil {
 		view.Diagnostics(diags)
 		return 1

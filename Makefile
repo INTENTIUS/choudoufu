@@ -70,7 +70,7 @@ protobuf:
 # had ever seen what the linux pass says, because make stopped there (#148).
 .PHONY: golangci-lint
 golangci-lint:
-	GOBIN=$(CURDIR)/tools go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.6.0
+	GOBIN=$(CURDIR)/tools go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.1
 	@rc=0; \
 	for goos in windows linux; do \
 		echo "==> golangci-lint GOOS=$$goos"; \

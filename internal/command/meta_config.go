@@ -24,11 +24,14 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configload"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/experiments"
 	"github.com/intentius/choudoufu/internal/httpclient"
 	"github.com/intentius/choudoufu/internal/initwd"
 	"github.com/intentius/choudoufu/internal/registry"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
+
+	"github.com/intentius/choudoufu/internal/configs/symlib"
 )
 
 // loadConfig reads a configuration from the given directory, which should
@@ -84,8 +87,22 @@ func (m *Meta) loadSingleModule(ctx context.Context, dir string, load configs.Se
 		return nil, diags
 	}
 
-	module, hclDiags := m.configLoader().LoadConfigDirSelective(dir, call, load)
+	module, hclDiags := m.configLoader().LoadConfigDirSelective(dir, load)
 	diags = diags.Append(hclDiags)
+
+	if module != nil && module.LanguageExperiments.Has(experiments.SymbolLibraries) {
+		// Hack for symbol libraries
+		// Full config load to include libraries given the poor state of config builder
+		config, cDiags := m.loadConfig(ctx, dir)
+		diags = diags.Append(cDiags)
+		if config != nil {
+			module = config.Module
+		}
+	} else {
+		fDiags := module.Finalize(symlib.EmptyTable, call)
+		diags = diags.Append(fDiags)
+	}
+
 	return module, diags
 }
 
@@ -167,8 +184,22 @@ func (m *Meta) loadSingleModuleWithTests(ctx context.Context, dir string, testDi
 		return nil, diags
 	}
 
-	module, hclDiags := m.configLoader().LoadConfigDirWithTests(dir, testDir, call)
+	module, hclDiags := m.configLoader().LoadConfigDirWithTests(dir, testDir)
 	diags = diags.Append(hclDiags)
+
+	if module != nil && module.LanguageExperiments.Has(experiments.SymbolLibraries) {
+		// Hack for symbol libraries
+		// Full config load to include libraries given the poor state of config builder
+		config, cDiags := m.loadConfig(ctx, dir)
+		diags = diags.Append(cDiags)
+		if config != nil {
+			module = config.Module
+		}
+	} else {
+		fDiags := module.Finalize(symlib.EmptyTable, call)
+		diags = diags.Append(fDiags)
+	}
+
 	return module, diags
 }
 
@@ -391,7 +422,7 @@ func (m *Meta) configLoader() configload.Loader {
 	if m.cfgLoader == nil {
 		loader := configload.NewLazy(&configload.Config{
 			ModulesDir:               m.WorkingDir.ModulesDir(),
-			AllowLanguageExperiments: m.SystemCfg.AllowExperimentalFeatures,
+			AllowLanguageExperiments: true, // Experiments are allowed in all OpenTofu builds
 		})
 		m.cfgLoader = loader
 		if m.View != nil {

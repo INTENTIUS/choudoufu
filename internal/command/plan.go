@@ -18,6 +18,25 @@ import (
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
+func PlanCommander() Command {
+	cmd := Command{
+		Name:  "plan",
+		Short: "Show changes required by the current configuration",
+		Long: `Generates a speculative execution plan, showing what actions OpenTofu would take to apply the current configuration. This command will not actually perform the planned actions.
+
+You can optionally save the plan to a file, which you can then pass to the "apply" command to perform exactly the actions described in the plan.`,
+
+		GroupID: MainCommandGroup.ID,
+	}
+
+	args := arguments.BindPlan(&cmd.CommandLine)
+	cmd.Run = func(meta Meta) int {
+		return PlanCommand{meta}.Execute(args, views.NewPlan(args.View, meta.View))
+	}
+
+	return cmd
+}
+
 // PlanCommand is a Command implementation that compares a OpenTofu
 // configuration to an actual infrastructure and shows the differences.
 type PlanCommand struct {
@@ -25,7 +44,12 @@ type PlanCommand struct {
 }
 
 func (c *PlanCommand) Run(rawArgs []string) int {
+	return RunCommand(PlanCommander(), c.Meta, rawArgs)
+}
+func (c PlanCommand) Execute(args *arguments.Plan, view views.Plan) int {
+	var diags tfdiags.Diagnostics
 	ctx := c.CommandContext()
+	// TODO(#1778 step 3): fork's -json live-plan delegation (#894), -verbose, ParseView; move into PlanCommander/Execute (BindPlan)
 
 	// Kept for the delegation below, which hands live-plan the arguments
 	// exactly as they arrived so that it can parse them itself. An
@@ -95,6 +119,9 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 		view.HelpPrompt()
 		return 1
 	}
+	// TODO(#1778 step 3): upstream v1.13.0 lines below, to fold into the Execute shape
+	ctx = tfdiags.ContextWithLintFilterHints(ctx, args.View.LintInclude, args.View.LintExclude)
+	diags = diags.Append(tfdiags.ExperimentalLintWarn(ctx))
 
 	// Check for user-supplied plugin path
 	var err error
@@ -104,23 +131,7 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 		return 1
 	}
 
-	// FIXME: the -input flag value is needed to initialize the backend and the
-	// operation, but there is no clear path to pass this value down, so we
-	// continue to mutate the Meta object state for now.
-	c.Meta.input = args.ViewOptions.InputEnabled
-
-	// FIXME: the -parallelism flag is used to control the concurrency of
-	// OpenTofu operations. At the moment, this value is used both to
-	// initialize the backend via the ContextOpts field inside CLIOpts, and to
-	// set a largely unused field on the Operation request. Again, there is no
-	// clear path to pass this value down, so we continue to mutate the Meta
-	// object state for now.
-	c.Meta.parallelism = args.Operation.Parallelism
-
 	diags = diags.Append(c.providerDevOverrideRuntimeWarnings())
-
-	// Inject variables from args into meta for static evaluation
-	c.Meta.variableArgs = args.Vars.All()
 
 	// Load the encryption configuration
 	enc, encDiags := c.Encryption(ctx)
@@ -175,7 +186,7 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 	}
 
 	// Build the operation request
-	opReq, opDiags := c.OperationRequest(ctx, be, view, args.ViewOptions, args.Operation, args.OutPath, args.GenerateConfigPath, enc)
+	opReq, opDiags := c.OperationRequest(ctx, be, view, args.View, args.Operation, args.OutPath, args.GenerateConfigPath, enc)
 	diags = diags.Append(opDiags)
 	if diags.HasErrors() {
 		view.Diagnostics(diags)
@@ -223,8 +234,6 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 }
 
 func (c *PlanCommand) PrepareBackend(ctx context.Context, args *arguments.State, view views.Plan, enc encryption.Encryption) (backend.Enhanced, tfdiags.Diagnostics) {
-	c.Meta.stateArgs = *args
-
 	backendConfig, diags := c.loadBackendConfig(ctx, ".")
 	if diags.HasErrors() {
 		return nil, diags
@@ -247,7 +256,7 @@ func (c *PlanCommand) OperationRequest(
 	ctx context.Context,
 	be backend.Enhanced,
 	view views.Plan,
-	viewOptions arguments.ViewOptions,
+	viewOptions *arguments.View,
 	args *arguments.Operation,
 	planOutPath string,
 	generateConfigOut string,
@@ -452,6 +461,14 @@ Other Options:
                                imported with a relative path. When "none" is
                                selected, all the deprecation warnings will be
                                dropped.
+
+  -lint=all                    Configures the linting rules to be executed during
+                               this command. By specifying this flag, the built-in
+                               linting will be enabled, which will start issuing
+                               warning diagnostics if any included rule will be
+                               violated. For more details on the format and
+                               available linting rules, refer to the official
+                               documentation.
 `
 	return strings.TrimSpace(helpText)
 }

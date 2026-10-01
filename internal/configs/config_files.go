@@ -25,9 +25,20 @@ import (
 // and leave the module carrying the backend that spelling of the loader still
 // finds, then report the module as edited.
 //
+// Symbol library files (.sym.hcl, OpenTofu v1.13.0's experimental symbol
+// libraries) are returned with the primary set (#1778). They are part of the
+// module's source text - [BuildConfig] reads them for every module through
+// [Parser.LoadSymbolFilesInDir] - so a caller that must see every file the
+// module is made of has to see them too, for the same narrower-than-the-loader
+// reason as above. They cannot carry a backend or a live block, so a rewriter
+// finds nothing to edit in one; returning them costs that caller a parse, and
+// leaving them out would make the set narrower than what the loader reads.
+//
 // Test files are deliberately not returned. They are not part of the module
 // and cannot carry a terraform block's backend.
 func (p *Parser) ConfigFiles(dir string) (primary, override []string, diags hcl.Diagnostics) {
-	primary, override, _, diags = p.dirFiles(dir, "")
+	var symbols []string
+	primary, override, _, symbols, diags = p.dirFiles(dir, "")
+	primary = append(primary, symbols...)
 	return primary, override, diags
 }
