@@ -372,3 +372,41 @@ func TestPostCreate_theWalkSeesAWSWithholding(t *testing.T) {
 	}
 	t.Logf("%d types withhold at create: %v", len(withheld), withheld)
 }
+
+// withheldMarkers is [NodeResolver.markersWithheld] on the tags surface,
+// the shape the #1084 pins in nodetagoncreate_test.go call.
+func (n *NodeResolver) withheldMarkers(addr addrs.AbsResourceInstance) map[string]string {
+	return n.markersWithheld(markers.SurfaceTags, addr)
+}
+
+// withWrittenMarkers is [withMarkersAt] on the tags surface's carriers,
+// the shape the #1316 pin in nodetagoncreate_test.go calls.
+func withWrittenMarkers(obj cty.Value, written map[string]string) cty.Value {
+	return withMarkersAt(obj, written, substrate.CarrierPaths(markers.SurfaceTags))
+}
+
+// TestWithMarkersAt_aMarkOnTheWayToTheCarrierIsNeverRewritten: a mark on
+// a value enclosing a nested carrier (meta) leaves that carrier as the
+// provider returned it, and carries the mark through, while an unmarked
+// sibling carrier still takes the written markers.
+func TestWithMarkersAt_aMarkOnTheWayToTheCarrierIsNeverRewritten(t *testing.T) {
+	obj := cty.ObjectVal(map[string]cty.Value{
+		"id":     cty.StringVal("B1"),
+		"labels": cty.NullVal(cty.Map(cty.String)),
+		"tags":   cty.NullVal(cty.Map(cty.String)),
+		"meta": cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{
+			"labels": cty.NullVal(cty.Map(cty.String)),
+		})}).Mark("sensitive"),
+	})
+	got := withMarkersAt(obj, map[string]string{markers.TagEstate: "prod"}, bareFamily{}.CarrierPaths(bareSurface))
+	if mapEntry(got.GetAttr("labels"), markers.TagEstate) != "prod" {
+		t.Errorf("the unmarked carrier did not take the marker: %#v", got.GetAttr("labels"))
+	}
+	meta := got.GetAttr("meta")
+	if !meta.HasMark("sensitive") {
+		t.Fatal("the mark on meta was lost")
+	}
+	if inner, _ := meta.Unmark(); !inner.Index(cty.NumberIntVal(0)).GetAttr("labels").IsNull() {
+		t.Errorf("a carrier under a marked value was rewritten: %#v", inner)
+	}
+}
