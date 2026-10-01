@@ -78,11 +78,26 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # Both versions belong in the notes: the fork release and the
-          # upstream OpenTofu it is built on (version/VERSION, minus the
-          # -dev suffix that marks an unreleased upstream tree).
-          upstream=$(sed 's/-dev$//' src/version/VERSION)
+          # upstream OpenTofu it is built on. The base is the fork point's
+          # own version/VERSION, verbatim: a -dev tree is unreleased
+          # upstream main, not the release it precedes (#1778). Version and
+          # fork point both come from live/fork-surface.json
+          # (tools/forkdiff-gen), so neither is typed here; the tree's own
+          # version/VERSION must agree, or that artifact is stale.
+          surface=src/live/fork-surface.json
+          upstream=$(jq -r '.base_opentofu_version // empty' "$surface")
+          fork=$(jq -r '.fork_point_short // empty' "$surface")
+          tree=$(tr -d '[:space:]' < src/version/VERSION)
+          if [ -z "$upstream" ] || [ -z "$fork" ]; then
+            echo "::error::$surface lacks base_opentofu_version or fork_point_short" >&2
+            exit 1
+          fi
+          if [ "$upstream" != "$tree" ]; then
+            echo "::error::$surface says base $upstream but version/VERSION reads $tree; run go run ./tools/forkdiff-gen" >&2
+            exit 1
+          fi
           cat > NOTES.md <<EOF
-          choudoufu $GITHUB_REF_NAME, built on OpenTofu $upstream (fork point [\`03743ce6e8\`](https://github.com/opentofu/opentofu/commit/03743ce6e8)).
+          choudoufu $GITHUB_REF_NAME, built on OpenTofu $upstream (fork point [\`$fork\`](https://github.com/opentofu/opentofu/commit/$fork)).
 
           Everything outside live resource markers is stock OpenTofu $upstream. Binaries below are macOS, Linux and Windows, amd64 and arm64; macOS and Linux are \`.tar.gz\`, Windows is \`.zip\`; verify with \`SHA256SUMS\`.
           EOF

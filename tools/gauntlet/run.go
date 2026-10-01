@@ -185,6 +185,10 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 		return 0, err
 	}
 	oracle := probeOracle()
+	// The engine base of the binary every script below runs (#1778
+	// ruling 6), asked once: TOFU_BIN, or the tree every script builds
+	// from, does not change mid-run.
+	engine := engineVersionProbe(root, opts.Env)
 	// kindImage is read once here, the same way emulator is read once by
 	// the caller before this function runs: live/kind-node-image does not
 	// change mid-run, and every kind-substrate estate this call touches is
@@ -269,7 +273,7 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 		}
 		runSeconds := map[string]float64{}
 		rowOracle := oracle
-		r.LastRun = &LastRun{Commit: commit, Date: time.Now().UTC().Format(time.RFC3339), Oracle: &rowOracle, ExitCode: exit, DurationS: roundSeconds(elapsed)}
+		r.LastRun = &LastRun{Commit: commit, Date: time.Now().UTC().Format(time.RFC3339), Oracle: &rowOracle, UpstreamVersion: engine, ExitCode: exit, DurationS: roundSeconds(elapsed)}
 		// Emulator/SubstrateImage and AWSProviderVersion/KubernetesProviderVersion
 		// are each mutually exclusive (issues #1594, #1253): a kind-substrate
 		// estate never launches floci or resolves hashicorp/aws, so recording

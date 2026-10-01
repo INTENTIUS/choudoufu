@@ -3,16 +3,16 @@
   "fork_point": "03743ce6e8ddbc18c72a4fddb4d1a2ff8e765df5",
   "fork_point_short": "03743ce6e8",
   "fork_point_subject": "RFC: Speed up tofu show \u003cplanfile\u003e by embedding schemas into the planfile (#4239)",
-  "measured_at_head": "0e6703b26565d246ec79cd317991d13b35c8b70b",
-  "generated_at": "2026-09-05T22:11:08Z",
-  "base_opentofu_version": "1.13.0",
+  "measured_at_head": "1a793063998a0d14723135603dc0650a6985746d",
+  "generated_at": "2026-10-01T19:01:21Z",
+  "base_opentofu_version": "1.13.0-dev",
   "counts": {
-    ".github/": 28,
-    "internal/live/": 1269,
-    "live/": 482,
-    "other": 983,
-    "site/": 92,
-    "tools/": 404
+    ".github/": 35,
+    "internal/live/": 1608,
+    "live/": 529,
+    "other": 1239,
+    "site/": 155,
+    "tools/": 472
   },
   "files": {
     ".github/": [
@@ -65,6 +65,10 @@
         "status": "A"
       },
       {
+        "path": ".github/workflows/bucket-smoke.yml",
+        "status": "A"
+      },
+      {
         "path": ".github/workflows/build.yml",
         "status": "D"
       },
@@ -73,7 +77,15 @@
         "status": "D"
       },
       {
+        "path": ".github/workflows/ci-pipelines-smoke.yml",
+        "status": "A"
+      },
+      {
         "path": ".github/workflows/ci.yml",
+        "status": "A"
+      },
+      {
+        "path": ".github/workflows/claims-smoke.yml",
         "status": "A"
       },
       {
@@ -99,6 +111,22 @@
       {
         "path": ".github/workflows/govulncheck.yml",
         "status": "D"
+      },
+      {
+        "path": ".github/workflows/k8s-smoke.yml",
+        "status": "A"
+      },
+      {
+        "path": ".github/workflows/kind-tier.yml",
+        "status": "A"
+      },
+      {
+        "path": ".github/workflows/live-cert.yml",
+        "status": "A"
+      },
+      {
+        "path": ".github/workflows/nightly-watch.yml",
+        "status": "A"
       },
       {
         "path": ".github/workflows/nightly.yml",
@@ -131,6 +159,14 @@
     ],
     "internal/live/": [
       {
+        "path": "internal/live/absent/absent.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/absent/absent_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/acceptance/acceptance_live_test.go",
         "status": "A"
       },
@@ -156,6 +192,22 @@
       },
       {
         "path": "internal/live/acceptance/testdata/synth-composite/versions.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/approval/approval.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/approval/approval_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/approval/values.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/approval/values_test.go",
         "status": "A"
       },
       {
@@ -239,6 +291,22 @@
         "status": "A"
       },
       {
+        "path": "internal/live/check/nodestamp_kubernetes_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/check/nodestamp_recordbacked_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/check/nodestamp_storewritable_1637_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/check/nodestamp_targetscope_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/check/overlay.go",
         "status": "A"
       },
@@ -280,6 +348,10 @@
       },
       {
         "path": "internal/live/check/sweep_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/check/synthesisgolden_test.go",
         "status": "A"
       },
       {
@@ -383,6 +455,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/check/testdata/stamp-uniquename-exempt/main.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/live/check/testdata/stamp-untaggable-record-located/main.tf",
         "status": "A"
       },
@@ -396,6 +472,10 @@
       },
       {
         "path": "internal/live/check/testdata/strict-markers-unrecordable/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/check/testdata/synthesis-golden.txt",
         "status": "A"
       },
       {
@@ -471,11 +551,23 @@
         "status": "A"
       },
       {
+        "path": "internal/live/cloudcontrol/signedas_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/cloudcontrol/tagging.go",
         "status": "A"
       },
       {
         "path": "internal/live/cloudcontrol/tagging_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/cohorts/cohorts.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/cohorts/cohorts_test.go",
         "status": "A"
       },
       {
@@ -779,6 +871,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/attribute_orphans_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/bindtags.go",
         "status": "A"
       },
@@ -791,11 +887,23 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/classes.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/classes_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/classifyorphan_dependency_test.go",
         "status": "A"
       },
       {
         "path": "internal/live/discovery/cloudcontrol.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/cloudcontrol_denied_test.go",
         "status": "A"
       },
       {
@@ -835,6 +943,18 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/controllerheld.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/controllerheld_family_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/controllerheld_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/count.go",
         "status": "A"
       },
@@ -848,6 +968,10 @@
       },
       {
         "path": "internal/live/discovery/countwalk_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/crashwindowclose_test.go",
         "status": "A"
       },
       {
@@ -871,6 +995,14 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/directread.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/directread_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/discovery.go",
         "status": "A"
       },
@@ -891,6 +1023,14 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/doublesighting_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/ecsservicearnjoin_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/estatename.go",
         "status": "A"
       },
@@ -907,11 +1047,19 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/fold_read_scope_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/fold_read_test.go",
         "status": "A"
       },
       {
         "path": "internal/live/discovery/foreach_key_migration_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/foreignload_bench_test.go",
         "status": "A"
       },
       {
@@ -939,7 +1087,75 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/kubernetes.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/kubernetes_address.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/kubernetes_address_join_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/kubernetes_address_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/kubernetes_carries_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/kubernetes_deposed_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/kubernetes_dryrun.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/kubernetes_dryrun_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/kubernetes_held.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/kubernetes_held_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/kubernetes_helm_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/kubernetes_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/kubernetes_twoconfig_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/laggedindex_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/locatedfallback.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/locatedfallback_composite_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/lookalikerelist.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/lookalikerelist_test.go",
         "status": "A"
       },
       {
@@ -951,7 +1167,15 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/merge_fields_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/module_rename_withhold_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/modulescope.go",
         "status": "A"
       },
       {
@@ -967,6 +1191,22 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/nameprefixmarker_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/nativemarkergap_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/nativeperobjectgate_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/nativeservicetagread_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/nativesweep.go",
         "status": "A"
       },
@@ -975,7 +1215,23 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/neighbourestate_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/outofscope.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/outofscope_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/ownership_address_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/pagination_test.go",
         "status": "A"
       },
       {
@@ -995,6 +1251,14 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/perregion_live_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/phantomrecord_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/policy.go",
         "status": "A"
       },
@@ -1008,6 +1272,10 @@
       },
       {
         "path": "internal/live/discovery/reconcile.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/reconcile_targetscope_test.go",
         "status": "A"
       },
       {
@@ -1027,7 +1295,15 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/recordfirst_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/recordorphan_parent_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/recordorphan_provider_test.go",
         "status": "A"
       },
       {
@@ -1039,6 +1315,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/recordorphan_scope_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/refusals.go",
         "status": "A"
       },
@@ -1047,11 +1327,35 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/registrytagflag_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/result.go",
         "status": "A"
       },
       {
         "path": "internal/live/discovery/scale_bench_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/scope.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/servicelist.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/servicelist_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/servicetagread.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/servicetagread_test.go",
         "status": "A"
       },
       {
@@ -1072,6 +1376,10 @@
       },
       {
         "path": "internal/live/discovery/supersededclaimant_number_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/supersededclaimant_secondaryid_test.go",
         "status": "A"
       },
       {
@@ -1103,6 +1411,26 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/sweepdedup_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/sweepdenied.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/sweepdenied_1513_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/sweeper.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/sweeper_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/tagfree_probe_live_test.go",
         "status": "A"
       },
@@ -1116,6 +1444,22 @@
       },
       {
         "path": "internal/live/discovery/tagging_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/taggingcoverage_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/tagindexfallback.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/tagindexfallback_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/targetscope_test.go",
         "status": "A"
       },
       {
@@ -1203,7 +1547,67 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/testdata/iam-policy-direct-read-count/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/testdata/iam-policy-direct-read-foreach-dynamic/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/testdata/iam-policy-direct-read-foreach/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/testdata/iam-policy-direct-read-module-foreach-dynamic/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/testdata/iam-policy-direct-read-module-foreach-dynamic/modules/team_pod/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/testdata/iam-policy-direct-read-module-foreach/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/testdata/iam-policy-direct-read-module-foreach/modules/team_pod/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/testdata/iam-policy-direct-read-name-prefix/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/testdata/iam-policy-direct-read/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/testdata/iam-policy-pagination/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/testdata/iam-policy-sweep-dedup/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/testdata/iam-role-collect-unclaimed/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/testdata/iam-service-linked-role-named/main.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/testdata/iam-service-linked-role-sibling/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/testdata/lookalike-relist/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/testdata/manifest-unserved/main.tf",
         "status": "A"
       },
       {
@@ -1239,7 +1643,19 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/testdata/moved-sweep-double-sighting/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/testdata/perregion-e2e/main.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/testdata/propagated-child-marker/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/testdata/region-change/main.tf",
         "status": "A"
       },
       {
@@ -1255,7 +1671,15 @@
         "status": "A"
       },
       {
+        "path": "internal/live/discovery/testdata/vouch-two-region/main.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/live/discovery/tombstoneghost_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/unclaimed_legs_test.go",
         "status": "A"
       },
       {
@@ -1264,6 +1688,14 @@
       },
       {
         "path": "internal/live/discovery/uniquename_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/unservednoroute_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/vouchperpass_test.go",
         "status": "A"
       },
       {
@@ -1276,6 +1708,10 @@
       },
       {
         "path": "internal/live/docsref/docsref.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/flocitest/cachedprovider_test.go",
         "status": "A"
       },
       {
@@ -1319,6 +1755,18 @@
         "status": "A"
       },
       {
+        "path": "internal/live/foreign/controllerheld_family_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/foreign/controllerheld_live_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/foreign/controllerheld_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/foreign/doc.go",
         "status": "A"
       },
@@ -1331,7 +1779,15 @@
         "status": "A"
       },
       {
+        "path": "internal/live/foreign/lookalike_controllerheld_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/foreign/lookalike_live_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/foreign/lookalike_plainplan_test.go",
         "status": "A"
       },
       {
@@ -1383,7 +1839,19 @@
         "status": "A"
       },
       {
+        "path": "internal/live/identity/apiversion_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/identity/audit_conditional_foreach_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/identity/classes.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/identity/classes_test.go",
         "status": "A"
       },
       {
@@ -1535,6 +2003,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/identity/fieldmanager.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/identity/foreach_comprehension_test.go",
         "status": "A"
       },
@@ -1671,11 +2143,31 @@
         "status": "A"
       },
       {
+        "path": "internal/live/identity/manifest.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/identity/manifest_object_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/identity/manifest_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/identity/markerfallback.go",
         "status": "A"
       },
       {
         "path": "internal/live/identity/markerless_generated.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/identity/metadata.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/identity/metadata_test.go",
         "status": "A"
       },
       {
@@ -1759,6 +2251,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/identity/nonaws_substrate_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/identity/notimportable.go",
         "status": "A"
       },
@@ -1772,6 +2268,14 @@
       },
       {
         "path": "internal/live/identity/omitifabsent_trailing_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/identity/orphan_warning_scope_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/identity/ownership_clause_test.go",
         "status": "A"
       },
       {
@@ -1859,11 +2363,19 @@
         "status": "A"
       },
       {
+        "path": "internal/live/identity/scope_signal_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/identity/scope_test.go",
         "status": "A"
       },
       {
         "path": "internal/live/identity/scopecontext_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/identity/secondaryid.go",
         "status": "A"
       },
       {
@@ -1876,6 +2388,14 @@
       },
       {
         "path": "internal/live/identity/selected.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/identity/sensitiveidentityattr_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/identity/sensitivepopulation_855_test.go",
         "status": "A"
       },
       {
@@ -3135,6 +3655,98 @@
         "status": "A"
       },
       {
+        "path": "internal/live/k8stest/k8stest.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/client.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/config.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/connect.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/connect_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/dryrun_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/forbidden.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/groups.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/groups_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/held_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/helm_held_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/helm_live_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/helm_manifest.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/helm_manifest_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/kubesweep_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/managedkeys.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/managedkeys_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/markerdiff.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/patch.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/patch_ssa_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/patch_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/release_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/kubesweep/types.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/lifecycle/crash_unix_test.go",
         "status": "A"
       },
@@ -3179,6 +3791,14 @@
         "status": "A"
       },
       {
+        "path": "internal/live/lifecycle/tagoncreate_live_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lifecycle/tagoncreate_replace_live_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/lifecycle/untag_apply_live_test.go",
         "status": "A"
       },
@@ -3211,7 +3831,15 @@
         "status": "A"
       },
       {
+        "path": "internal/live/lint/count_index_large_domain_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/lint/count_index_markers_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/count_index_module_count_test.go",
         "status": "A"
       },
       {
@@ -3239,7 +3867,23 @@
         "status": "A"
       },
       {
+        "path": "internal/live/lint/generate_name.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/helm_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/lint/ignore_changes.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/ignore_changes_label_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/ignore_changes_steps_test.go",
         "status": "A"
       },
       {
@@ -3315,6 +3959,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/lint/ownership_clause_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/lint/policy.go",
         "status": "A"
       },
@@ -3335,10 +3983,6 @@
         "status": "A"
       },
       {
-        "path": "internal/live/lint/reserved_symbol.go",
-        "status": "A"
-      },
-      {
         "path": "internal/live/lint/residue_attribute.go",
         "status": "A"
       },
@@ -3348,6 +3992,10 @@
       },
       {
         "path": "internal/live/lint/residue_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/retry.go",
         "status": "A"
       },
       {
@@ -3379,7 +4027,15 @@
         "status": "A"
       },
       {
+        "path": "internal/live/lint/strict_secrets_ssm_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/lint/tagverbs_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/targetscope_test.go",
         "status": "A"
       },
       {
@@ -3428,6 +4084,26 @@
       },
       {
         "path": "internal/live/lint/testdata/connection/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/count-index-large-domain/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/count-index-module-count-collision/counted/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/count-index-module-count-collision/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/count-index-module-count-direct/counted/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/count-index-module-count-direct/main.tf",
         "status": "A"
       },
       {
@@ -3731,11 +4407,47 @@
         "status": "A"
       },
       {
+        "path": "internal/live/lint/testdata/strict-providerchange-invalid/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/strict-providerchange-recreate/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/strict-providerchange-refuse/main.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/live/lint/testdata/strict-secrets-invalid/main.tf",
         "status": "A"
       },
       {
         "path": "internal/live/lint/testdata/strict-secrets-refuse/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/strict-secrets-ssm-block-without-setting/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/strict-secrets-ssm-clean/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/strict-secrets-ssm-implied-store/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/strict-secrets-ssm-local-store/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/strict-secrets-ssm-no-block/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/testdata/strict-secrets-ssm-no-key/main.tf",
         "status": "A"
       },
       {
@@ -3787,6 +4499,18 @@
         "status": "A"
       },
       {
+        "path": "internal/live/liveimport/address_annotation_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/liveimport/classes.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/liveimport/classes_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/liveimport/configvalue_agreement_test.go",
         "status": "A"
       },
@@ -3796,6 +4520,22 @@
       },
       {
         "path": "internal/live/liveimport/doc.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/liveimport/fault_import_crash_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/liveimport/labelestate_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/liveimport/labels.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/liveimport/labels_test.go",
         "status": "A"
       },
       {
@@ -3811,6 +4551,18 @@
         "status": "A"
       },
       {
+        "path": "internal/live/liveimport/manifest.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/liveimport/manifest_declaredkeys_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/liveimport/manifest_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/liveimport/ratify.go",
         "status": "A"
       },
@@ -3820,6 +4572,10 @@
       },
       {
         "path": "internal/live/liveimport/record_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/liveimport/recordwritefailure_test.go",
         "status": "A"
       },
       {
@@ -3895,7 +4651,19 @@
         "status": "A"
       },
       {
+        "path": "internal/live/markers/annotations.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/markers/collision_bruteforce_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/markers/controllers.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/markers/controllers_test.go",
         "status": "A"
       },
       {
@@ -3904,6 +4672,22 @@
       },
       {
         "path": "internal/live/markers/keyspace_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/markers/labels.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/markers/labels_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/markers/manifest.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/markers/manifest_test.go",
         "status": "A"
       },
       {
@@ -3923,7 +4707,31 @@
         "status": "A"
       },
       {
-        "path": "internal/live/markers/modulemarker.go",
+        "path": "internal/live/markers/objecttags_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/markers/seams_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/markers/surfaces.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/markers/testdata/seamguard/markers/markers.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/markers/testdata/seamguard/seams/caller/caller.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/markers/testdata/seamguard/seams/consts.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/markers/testdata/seamguard/seams/seams.go",
         "status": "A"
       },
       {
@@ -3932,6 +4740,10 @@
       },
       {
         "path": "internal/live/markerstrip/markerstrip_live_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/markerstrip/markerstrip_surface_test.go",
         "status": "A"
       },
       {
@@ -4059,11 +4871,23 @@
         "status": "A"
       },
       {
+        "path": "internal/live/mv/address_annotation_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/mv/checkaddresses_integration_test.go",
         "status": "A"
       },
       {
         "path": "internal/live/mv/checkaddresses_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/mv/classes.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/mv/classes_test.go",
         "status": "A"
       },
       {
@@ -4079,11 +4903,31 @@
         "status": "A"
       },
       {
+        "path": "internal/live/mv/fault_move_crash_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/mv/followers_test.go",
         "status": "A"
       },
       {
+        "path": "internal/live/mv/label.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/mv/label_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/mv/located_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/mv/manifest.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/mv/manifest_fieldmanager_test.go",
         "status": "A"
       },
       {
@@ -4123,6 +4967,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/mv/servicetagsweep_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/mv/settabletags_single_test.go",
         "status": "A"
       },
@@ -4148,6 +4996,14 @@
       },
       {
         "path": "internal/live/pins/pins.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/plugincache/plugincache.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/plugincache/plugincache_test.go",
         "status": "A"
       },
       {
@@ -4187,6 +5043,14 @@
         "status": "A"
       },
       {
+        "path": "internal/live/projection/backendname_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/bucketfirstcontact_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/build.go",
         "status": "A"
       },
@@ -4195,11 +5059,31 @@
         "status": "A"
       },
       {
+        "path": "internal/live/projection/bulkreadoption_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/checklayer_test.go",
         "status": "A"
       },
       {
+        "path": "internal/live/projection/classes.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/classes_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/deposed_k8s_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/deposed_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/destroyone_stress_test.go",
         "status": "A"
       },
       {
@@ -4212,6 +5096,26 @@
       },
       {
         "path": "internal/live/projection/envelope_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/estateoutputs.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/estateoutputs_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/estateprefix_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/fenced_live_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/fencedopensstore_test.go",
         "status": "A"
       },
       {
@@ -4235,7 +5139,39 @@
         "status": "A"
       },
       {
+        "path": "internal/live/projection/identitytable_live_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/importtarget_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/kubernetes_contract.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/kubernetes_contract_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/kubernetes_store.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/kubernetes_store_refusal_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/kubernetes_store_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/kubernetes_tls_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/listedbutabsent_test.go",
         "status": "A"
       },
       {
@@ -4287,6 +5223,38 @@
         "status": "A"
       },
       {
+        "path": "internal/live/projection/manifest_declaredkeys_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/manifest_norecord_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/manifest_refseed_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/manifest_residue_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/manifest_seed_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/manifestkeys.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/manifestkeys_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/manifestpartialseed.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/markers_record_test.go",
         "status": "A"
       },
@@ -4299,6 +5267,14 @@
         "status": "A"
       },
       {
+        "path": "internal/live/projection/noderesolver_noaddress.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/noderesolver_noaddress_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/noderesolver_test.go",
         "status": "A"
       },
@@ -4307,11 +5283,63 @@
         "status": "A"
       },
       {
+        "path": "internal/live/projection/nodestamp_address_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/nodestamp_conflict_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/nodestamp_ignorechanges.go",
         "status": "A"
       },
       {
+        "path": "internal/live/projection/nodestamp_labels.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/nodestamp_labels_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/nodestamp_manifest.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/nodestamp_manifest_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/nodestamp_release.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/nodestamp_release_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/nodestamp_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/nodetagoncreate.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/nodetagoncreate_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/nodeverify.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/nodeverify_manifest_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/nodeverify_test.go",
         "status": "A"
       },
       {
@@ -4320,6 +5348,14 @@
       },
       {
         "path": "internal/live/projection/normalize_identity_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/notfound_k8s_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/objecttags_test.go",
         "status": "A"
       },
       {
@@ -4339,11 +5375,27 @@
         "status": "A"
       },
       {
+        "path": "internal/live/projection/ownership_k8s_conflict_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/ownership_k8s_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/ownership_test.go",
         "status": "A"
       },
       {
+        "path": "internal/live/projection/ownership_undeclared_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/parentdefer_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/phantomkey_test.go",
         "status": "A"
       },
       {
@@ -4359,11 +5411,27 @@
         "status": "A"
       },
       {
+        "path": "internal/live/projection/plan_scope_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/plan_test.go",
         "status": "A"
       },
       {
         "path": "internal/live/projection/policy_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/postcreate_family_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/postcreate_inputs_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/probewritable_1637_test.go",
         "status": "A"
       },
       {
@@ -4407,11 +5475,19 @@
         "status": "A"
       },
       {
+        "path": "internal/live/projection/readeropensstore_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/record.go",
         "status": "A"
       },
       {
         "path": "internal/live/projection/record_floci_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/record_k8s_test.go",
         "status": "A"
       },
       {
@@ -4432,6 +5508,10 @@
       },
       {
         "path": "internal/live/projection/recordfresh_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/recordkeylength_test.go",
         "status": "A"
       },
       {
@@ -4495,6 +5575,26 @@
         "status": "A"
       },
       {
+        "path": "internal/live/projection/secondaryid_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/secretseed_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/seed_dynamic_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/seedrepetition.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/seedrepetition_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/sensitive_rpc_test.go",
         "status": "A"
       },
@@ -4528,6 +5628,22 @@
       },
       {
         "path": "internal/live/projection/store.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/storelog.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/storerefusal_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/supersedeidentity_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/targetscope_test.go",
         "status": "A"
       },
       {
@@ -4643,7 +5759,35 @@
         "status": "A"
       },
       {
+        "path": "internal/live/projection/testdata/timeouts/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/testdata/two-region/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/timeouts.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/timeouts_framework_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/timeouts_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/tombstone_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/tombstonedeposed_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/tombstonedeposeddestroy_test.go",
         "status": "A"
       },
       {
@@ -4667,7 +5811,35 @@
         "status": "A"
       },
       {
+        "path": "internal/live/projection/unservedrecord.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/unservedrecord_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/vouchperpass_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/vouchsightings.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/projection/writeback.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/writeback_recordfallback_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/writeback_unrecordable_log_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/writefailure_test.go",
         "status": "A"
       },
       {
@@ -4807,6 +5979,42 @@
         "status": "A"
       },
       {
+        "path": "internal/live/retry/retry.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/retry/retry_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/servicetags/doc.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/servicetags/iam.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/servicetags/iam_list_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/servicetags/iam_routes_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/servicetags/iam_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/servicetags/list.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/servicetags/servicetags.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/slots/doc.go",
         "status": "A"
       },
@@ -4827,35 +6035,11 @@
         "status": "A"
       },
       {
-        "path": "internal/live/stamp/audit_countmodule_test.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/stamp/audit_unstampable_severity_test.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/stamp/continuation_test.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/stamp/count_test.go",
-        "status": "A"
-      },
-      {
         "path": "internal/live/stamp/discoverycause_test.go",
         "status": "A"
       },
       {
         "path": "internal/live/stamp/doc.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/stamp/foreach_escape_test.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/stamp/keyspace_test.go",
         "status": "A"
       },
       {
@@ -4867,63 +6051,11 @@
         "status": "A"
       },
       {
-        "path": "internal/live/stamp/markers_record_test.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/stamp/merge_test.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/stamp/modulecontext_test.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/stamp/modulekeyed_markerloss_test.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/stamp/modulekeyed_prefix_test.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/stamp/modulekeyed_untrusted_test.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/stamp/ownership_test.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/stamp/perinstance.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/stamp/policy_test.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/stamp/recordbackedblocks_test.go",
-        "status": "A"
-      },
-      {
         "path": "internal/live/stamp/refusals.go",
         "status": "A"
       },
       {
         "path": "internal/live/stamp/refusals_test.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/stamp/sharedbody.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/stamp/sharedbody_test.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/stamp/stamp.go",
         "status": "A"
       },
       {
@@ -5051,19 +6183,11 @@
         "status": "A"
       },
       {
-        "path": "internal/live/stamp/stamp_live_test.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/stamp/stamp_test.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/stamp/strict_toggle_test.go",
-        "status": "A"
-      },
-      {
         "path": "internal/live/stamp/summaries.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/stamp/taggability_live_test.go",
         "status": "A"
       },
       {
@@ -5071,7 +6195,11 @@
         "status": "A"
       },
       {
-        "path": "internal/live/stamp/unknown_schema_test.go",
+        "path": "internal/live/stamp/taggability_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/stamp/unmarked.go",
         "status": "A"
       },
       {
@@ -5079,7 +6207,15 @@
         "status": "A"
       },
       {
+        "path": "internal/live/statefulcost/neighbourcost_live_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/statefulcost/readconcurrency_live_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/statefulcost/saveoutput_test.go",
         "status": "A"
       },
       {
@@ -5087,11 +6223,75 @@
         "status": "A"
       },
       {
+        "path": "internal/live/statefulcost/steadyrecord.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/statefulcost/steadyrecord_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/statefulcost/steadystate_live_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/annotationprefix_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/bucketcontract.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/bucketcontract_survivors_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/bucketcontract_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/bucketlifecycle_expiry_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/bucketowner.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/bucketowner_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/bucketwaiver_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/staterecord/bulk.go",
         "status": "A"
       },
       {
+        "path": "internal/live/staterecord/bulkcomplete_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/bulkfanout_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/bulkincomplete_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/staterecord/conformance_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/contract.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/contract_test.go",
         "status": "A"
       },
       {
@@ -5103,7 +6303,91 @@
         "status": "A"
       },
       {
+        "path": "internal/live/staterecord/denied.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/denied_kubernetes_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/destroyone_stress_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/staterecord/doc.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/kmsdenied.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/kmsdenied_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/kubernetes.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/kubernetes_absent_live_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/kubernetes_absent_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/kubernetes_live_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/kubernetes_missing_write_live_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/kubernetes_race_live_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/kubernetes_survivors_live_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/kubernetes_survivors_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/kubernetes_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/kubernetesadmission.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/kubernetesadmission_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/kubernetesboundary.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/kubernetescontract.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/kubernetescontract_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/kubernetescontract_tls_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/kubernetescontract_unchecked_test.go",
         "status": "A"
       },
       {
@@ -5115,7 +6399,23 @@
         "status": "A"
       },
       {
+        "path": "internal/live/staterecord/objecttags.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/objecttags_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/phantomlist_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/staterecord/runcache.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/runcache_fallback_log_test.go",
         "status": "A"
       },
       {
@@ -5127,23 +6427,51 @@
         "status": "A"
       },
       {
+        "path": "internal/live/staterecord/s3_getall_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/s3_missingbucket_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/s3_sse_live_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/staterecord/s3_test.go",
         "status": "A"
       },
       {
-        "path": "internal/live/staterecord/ssm.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/staterecord/ssm_live_test.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/staterecord/ssm_test.go",
+        "path": "internal/live/staterecord/shortsnapshot_test.go",
         "status": "A"
       },
       {
         "path": "internal/live/staterecord/store.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staterecord/testing.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staticeval/argument.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staticeval/evaluate.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staticeval/expansion.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staticeval/scope.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/staticeval/staticeval_test.go",
         "status": "A"
       },
       {
@@ -5179,6 +6507,42 @@
         "status": "A"
       },
       {
+        "path": "internal/live/substrate/aws.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/substrate/controllerheld_readers_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/substrate/controllerheld_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/substrate/identity.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/substrate/kubernetes.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/substrate/providerstring_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/substrate/substrate.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/substrate/substrate_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/substrate/testdata/providerstringfixture/fixture.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/uniquename/uniquename.go",
         "status": "A"
       },
@@ -5195,6 +6559,22 @@
         "status": "A"
       },
       {
+        "path": "internal/live/untag/labels.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/untag/labels_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/untag/manifest.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/untag/manifest_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/untag/release.go",
         "status": "A"
       },
@@ -5205,9 +6585,25 @@
       {
         "path": "internal/live/untag/tags.go",
         "status": "A"
+      },
+      {
+        "path": "internal/live/untag/value_pin_1743_test.go",
+        "status": "A"
       }
     ],
     "live/": [
+      {
+        "path": "live/ADOPTION-ONLY.md",
+        "status": "A"
+      },
+      {
+        "path": "live/COMPATIBILITY.md",
+        "status": "A"
+      },
+      {
+        "path": "live/CONTRIBUTE-GAUNTLET.md",
+        "status": "A"
+      },
       {
         "path": "live/COVERAGE.md",
         "status": "A"
@@ -5225,6 +6621,10 @@
         "status": "A"
       },
       {
+        "path": "live/IDENTITY.md",
+        "status": "A"
+      },
+      {
         "path": "live/LIMITATIONS.md",
         "status": "A"
       },
@@ -5233,7 +6633,19 @@
         "status": "A"
       },
       {
+        "path": "live/MEASUREMENT.md",
+        "status": "A"
+      },
+      {
+        "path": "live/MIGRATE.md",
+        "status": "A"
+      },
+      {
         "path": "live/OUTPUTS.md",
+        "status": "A"
+      },
+      {
+        "path": "live/PROVIDER-BUMP.md",
         "status": "A"
       },
       {
@@ -5241,7 +6653,31 @@
         "status": "A"
       },
       {
+        "path": "live/RECOVERY.md",
+        "status": "A"
+      },
+      {
+        "path": "live/REPORT-FILTER.md",
+        "status": "A"
+      },
+      {
+        "path": "live/SECRETS.md",
+        "status": "A"
+      },
+      {
+        "path": "live/STORAGE.md",
+        "status": "A"
+      },
+      {
+        "path": "live/STRICT.md",
+        "status": "A"
+      },
+      {
         "path": "live/SURVEY.md",
+        "status": "A"
+      },
+      {
+        "path": "live/TERRALITH-MIGRATION.md",
         "status": "A"
       },
       {
@@ -5253,6 +6689,38 @@
         "status": "A"
       },
       {
+        "path": "live/artifact_readers_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/aws-page-query-baseline.json",
+        "status": "A"
+      },
+      {
+        "path": "live/aws-paginating-operations.json",
+        "status": "A"
+      },
+      {
+        "path": "live/aws-prices.json",
+        "status": "A"
+      },
+      {
+        "path": "live/awspagequery.go",
+        "status": "A"
+      },
+      {
+        "path": "live/awspagequery_baseline.go",
+        "status": "A"
+      },
+      {
+        "path": "live/awspagequery_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/awspaginators.go",
+        "status": "A"
+      },
+      {
         "path": "live/behaviors.json",
         "status": "A"
       },
@@ -5261,7 +6729,19 @@
         "status": "A"
       },
       {
+        "path": "live/bucket_ci_test.go",
+        "status": "A"
+      },
+      {
         "path": "live/ci_coverage_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/ci_pipelines_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/claims_smoke_ci_test.go",
         "status": "A"
       },
       {
@@ -5270,6 +6750,10 @@
       },
       {
         "path": "live/cohort-triage.json",
+        "status": "A"
+      },
+      {
+        "path": "live/compatibility_outline_test.go",
         "status": "A"
       },
       {
@@ -5297,7 +6781,19 @@
         "status": "A"
       },
       {
+        "path": "live/costs/plan-cost.md",
+        "status": "A"
+      },
+      {
+        "path": "live/costs/what-you-pay.md",
+        "status": "A"
+      },
+      {
         "path": "live/credential-sweep.json",
+        "status": "A"
+      },
+      {
+        "path": "live/cross_estate_dependency_test.go",
         "status": "A"
       },
       {
@@ -5437,6 +6933,10 @@
         "status": "A"
       },
       {
+        "path": "live/e2e/corpus-quickpizza/run.sh",
+        "status": "A"
+      },
+      {
         "path": "live/e2e/corpus-raw-resolution-logs/run.sh",
         "status": "A"
       },
@@ -5505,6 +7005,10 @@
         "status": "A"
       },
       {
+        "path": "live/e2e/crash-interrupt/run.sh",
+        "status": "A"
+      },
+      {
         "path": "live/e2e/create-over/main.tf",
         "status": "A"
       },
@@ -5562,6 +7066,14 @@
       },
       {
         "path": "live/e2e/estate-block/versions.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/estate-k8s/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/estate-k8s/versions.tf",
         "status": "A"
       },
       {
@@ -5701,7 +7213,11 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/estates/ai-location/GENERATED.md",
+        "path": "live/e2e/estates/.gitignore",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/estates/README.md",
         "status": "A"
       },
       {
@@ -5709,55 +7225,7 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/estates/ai-location/ai-location.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ai-location/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ai-location/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ai-location/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ai-location/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/apigateway/GENERATED.md",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/estates/apigateway/README.md",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/apigateway/apigateway.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/apigateway/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/apigateway/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/apigateway/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/apigateway/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/aps/GENERATED.md",
         "status": "A"
       },
       {
@@ -5765,51 +7233,7 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/estates/aps/aps.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/aps/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/aps/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/aps/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/compute-platforms/GENERATED.md",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/estates/compute-platforms/README.md",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/compute-platforms/compute-platforms.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/compute-platforms/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/compute-platforms/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/compute-platforms/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/compute-platforms/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/connect-euc/GENERATED.md",
         "status": "A"
       },
       {
@@ -5817,51 +7241,7 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/estates/connect-euc/connect-euc.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/connect-euc/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/connect-euc/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/connect-euc/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/data-movement/GENERATED.md",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/estates/data-movement/README.md",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/data-movement/data-movement.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/data-movement/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/data-movement/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/data-movement/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/data-movement/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/data/GENERATED.md",
         "status": "A"
       },
       {
@@ -5869,55 +7249,7 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/estates/data/data.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/data/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/data/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/data/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/data/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/databases/GENERATED.md",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/estates/databases/README.md",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/databases/databases.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/databases/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/databases/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/databases/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/databases/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/devtools/GENERATED.md",
         "status": "A"
       },
       {
@@ -5925,55 +7257,7 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/estates/devtools/devtools.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/devtools/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/devtools/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/devtools/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/devtools/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/dynamodb-elasticache/GENERATED.md",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/estates/dynamodb-elasticache/README.md",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/dynamodb-elasticache/dynamodb-elasticache.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/dynamodb-elasticache/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/dynamodb-elasticache/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/dynamodb-elasticache/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/dynamodb-elasticache/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ec2-core/GENERATED.md",
         "status": "A"
       },
       {
@@ -5981,55 +7265,7 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/estates/ec2-core/ec2-core.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ec2-core/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ec2-core/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ec2-core/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ec2-core/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ec2-networking/GENERATED.md",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/estates/ec2-networking/README.md",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ec2-networking/ec2-networking.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ec2-networking/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ec2-networking/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ec2-networking/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ec2-networking/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ecs-eks/GENERATED.md",
         "status": "A"
       },
       {
@@ -6037,31 +7273,7 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/estates/ecs-eks/ecs-eks.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ecs-eks/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ecs-eks/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ecs-eks/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/ecs-eks/versions.tf",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/estates/example/README.md",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/governance/GENERATED.md",
         "status": "A"
       },
       {
@@ -6069,55 +7281,7 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/estates/governance/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/governance/governance.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/governance/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/governance/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/governance/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/iam-ecr/GENERATED.md",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/estates/iam-ecr/README.md",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/iam-ecr/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/iam-ecr/iam-ecr.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/iam-ecr/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/iam-ecr/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/iam-ecr/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/identity/GENERATED.md",
         "status": "A"
       },
       {
@@ -6125,55 +7289,7 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/estates/identity/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/identity/identity.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/identity/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/identity/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/identity/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/iot/GENERATED.md",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/estates/iot/README.md",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/iot/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/iot/iot.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/iot/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/iot/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/iot/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/lambda/GENERATED.md",
         "status": "A"
       },
       {
@@ -6181,51 +7297,7 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/estates/lambda/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/lambda/lambda.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/lambda/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/lambda/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/lambda/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/media/GENERATED.md",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/estates/media/README.md",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/media/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/media/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/media/media.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/media/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/messaging/GENERATED.md",
         "status": "A"
       },
       {
@@ -6233,51 +7305,7 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/estates/messaging/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/messaging/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/messaging/messaging.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/messaging/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/messaging/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/networking-advanced/GENERATED.md",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/estates/networking-advanced/README.md",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/networking-advanced/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/networking-advanced/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/networking-advanced/networking-advanced.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/networking-advanced/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/observability/GENERATED.md",
         "status": "A"
       },
       {
@@ -6285,55 +7313,7 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/estates/observability/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/observability/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/observability/observability.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/observability/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/observability/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/rds/GENERATED.md",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/estates/rds/README.md",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/rds/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/rds/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/rds/rds.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/rds/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/rds/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/remainder/GENERATED.md",
         "status": "A"
       },
       {
@@ -6341,55 +7321,7 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/estates/remainder/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/remainder/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/remainder/remainder.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/remainder/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/remainder/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/route53-cloudfront/GENERATED.md",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/estates/route53-cloudfront/README.md",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/route53-cloudfront/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/route53-cloudfront/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/route53-cloudfront/route53-cloudfront.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/route53-cloudfront/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/route53-cloudfront/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/s3/GENERATED.md",
         "status": "A"
       },
       {
@@ -6397,51 +7329,7 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/estates/s3/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/s3/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/s3/s3.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/s3/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/sagemaker/GENERATED.md",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/estates/sagemaker/README.md",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/sagemaker/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/sagemaker/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/sagemaker/sagemaker.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/sagemaker/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/sagemaker/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/security/GENERATED.md",
         "status": "A"
       },
       {
@@ -6449,55 +7337,7 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/estates/security/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/security/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/security/security.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/security/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/security/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/storage/GENERATED.md",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/estates/storage/README.md",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/storage/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/storage/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/storage/storage.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/storage/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/storage/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/stragglers/GENERATED.md",
         "status": "A"
       },
       {
@@ -6505,51 +7345,7 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/estates/stragglers/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/stragglers/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/stragglers/stragglers.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/stragglers/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/stragglers/versions.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/streaming/GENERATED.md",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/estates/streaming/README.md",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/streaming/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/streaming/locals.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/streaming/streaming.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/streaming/supporting.tf",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/estates/streaming/versions.tf",
         "status": "A"
       },
       {
@@ -6629,6 +7425,10 @@
         "status": "A"
       },
       {
+        "path": "live/e2e/limits/generate-name/main.tf",
+        "status": "A"
+      },
+      {
         "path": "live/e2e/limits/ignore-changes/main.tf",
         "status": "A"
       },
@@ -6701,7 +7501,7 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/limits/reserved-symbol/main.tf",
+        "path": "live/e2e/limits/retry/main.tf",
         "status": "A"
       },
       {
@@ -6721,7 +7521,15 @@
         "status": "A"
       },
       {
+        "path": "live/e2e/limits/strict-provider-change/main.tf",
+        "status": "A"
+      },
+      {
         "path": "live/e2e/limits/strict-secrets-refusal/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/limits/strict-secrets-ssm/main.tf",
         "status": "A"
       },
       {
@@ -6781,11 +7589,47 @@
         "status": "A"
       },
       {
+        "path": "live/e2e/reference-k8s-cert-manager/README.md",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/reference-k8s-cert-manager/convert.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/reference-k8s-cert-manager/order.py",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/reference-k8s-cert-manager/root/cert-manager.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/reference-k8s-cert-manager/root/custom-resources.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/reference-k8s-cert-manager/run.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/reference-k8s-stateful/run.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/reference-k8s/run.sh",
+        "status": "A"
+      },
+      {
         "path": "live/e2e/repeated-module/run.sh",
         "status": "A"
       },
       {
         "path": "live/e2e/run.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/selftest-floci-sweep.sh",
         "status": "A"
       },
       {
@@ -6809,7 +7653,19 @@
         "status": "A"
       },
       {
+        "path": "live/e2e/terralith-scale/scale-history.json",
+        "status": "A"
+      },
+      {
         "path": "live/estate-types.json",
+        "status": "A"
+      },
+      {
+        "path": "live/estateobjects_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/example_substrates_test.go",
         "status": "A"
       },
       {
@@ -6818,6 +7674,10 @@
       },
       {
         "path": "live/floci-image",
+        "status": "A"
+      },
+      {
+        "path": "live/floci_literal_pin_test.go",
         "status": "A"
       },
       {
@@ -6837,11 +7697,27 @@
         "status": "A"
       },
       {
+        "path": "live/flocipostmortem_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/flocisweep_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/foreign_resources_evidence_guard_test.go",
+        "status": "A"
+      },
+      {
         "path": "live/fork-surface.json",
         "status": "A"
       },
       {
         "path": "live/forkdiff_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/gauntlet-scale.json",
         "status": "A"
       },
       {
@@ -6854,6 +7730,18 @@
       },
       {
         "path": "live/gauntlet/regressions.json",
+        "status": "A"
+      },
+      {
+        "path": "live/gauntlet_pr_token_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/gauntlet_shards_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/grepblind_test.go",
         "status": "A"
       },
       {
@@ -6874,6 +7762,38 @@
       },
       {
         "path": "live/history/v0.12.0.json",
+        "status": "A"
+      },
+      {
+        "path": "live/history/v0.13.0.json",
+        "status": "A"
+      },
+      {
+        "path": "live/history/v0.14.0.json",
+        "status": "A"
+      },
+      {
+        "path": "live/history/v0.15.0.json",
+        "status": "A"
+      },
+      {
+        "path": "live/history/v0.16.0.json",
+        "status": "A"
+      },
+      {
+        "path": "live/history/v0.17.0.json",
+        "status": "A"
+      },
+      {
+        "path": "live/history/v0.18.0.json",
+        "status": "A"
+      },
+      {
+        "path": "live/history/v0.19.0.json",
+        "status": "A"
+      },
+      {
+        "path": "live/history/v0.20.0.json",
         "status": "A"
       },
       {
@@ -6909,6 +7829,10 @@
         "status": "A"
       },
       {
+        "path": "live/iam_template_test.go",
+        "status": "A"
+      },
+      {
         "path": "live/identity-sources.json",
         "status": "A"
       },
@@ -6918,6 +7842,78 @@
       },
       {
         "path": "live/import-grammar.json",
+        "status": "A"
+      },
+      {
+        "path": "live/indexwait_partition_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/k8s_ci_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/kind-node-image",
+        "status": "A"
+      },
+      {
+        "path": "live/kind-version",
+        "status": "A"
+      },
+      {
+        "path": "live/kind_pin_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/kind_tier_gate_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/kubectl-version",
+        "status": "A"
+      },
+      {
+        "path": "live/kubernetes/ADOPT.md",
+        "status": "A"
+      },
+      {
+        "path": "live/kubernetes/COMPATIBILITY.md",
+        "status": "A"
+      },
+      {
+        "path": "live/kubernetes/FAULTS.md",
+        "status": "A"
+      },
+      {
+        "path": "live/kubernetes/GATE.md",
+        "status": "A"
+      },
+      {
+        "path": "live/kubernetes/OPERATE.md",
+        "status": "A"
+      },
+      {
+        "path": "live/kubernetes/PROOF.md",
+        "status": "A"
+      },
+      {
+        "path": "live/kubernetes/embed.go",
+        "status": "A"
+      },
+      {
+        "path": "live/kubernetes/estate-boundary.yaml",
+        "status": "A"
+      },
+      {
+        "path": "live/kubernetes/estate-grant.yaml",
+        "status": "A"
+      },
+      {
+        "path": "live/kubernetes_gate_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/limitations_counts_test.go",
         "status": "A"
       },
       {
@@ -6933,11 +7929,59 @@
         "status": "A"
       },
       {
+        "path": "live/live-cert/selftest-heartbeat.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/live-cert/selftest-hold-resume.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/live-cert/selftest-iam-headroom.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/live-cert/selftest-index-wait.sh",
+        "status": "A"
+      },
+      {
         "path": "live/live-cert/selftest-kill.sh",
         "status": "A"
       },
       {
+        "path": "live/live-cert/selftest-pagination.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/live-cert/selftest-prefix-count.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/live-cert/selftest-record-store-s3.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/live-cert/selftest-teardown-timeout.sh",
+        "status": "A"
+      },
+      {
         "path": "live/live-cert/terralith-scale.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/live-cert/wallclock-gaps.py",
+        "status": "A"
+      },
+      {
+        "path": "live/livecert_ceilings_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/livecert_selftests_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/lockfile_platforms_test.go",
         "status": "A"
       },
       {
@@ -6957,6 +8001,22 @@
         "status": "A"
       },
       {
+        "path": "live/nightly_watch_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/no_state_absence_claims_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/no_stateless_prose_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/oidc_bootstrap_selftest_test.go",
+        "status": "A"
+      },
+      {
         "path": "live/oracle-versions.json",
         "status": "A"
       },
@@ -6965,7 +8025,19 @@
         "status": "A"
       },
       {
+        "path": "live/pipeline_governance_test.go",
+        "status": "A"
+      },
+      {
         "path": "live/plan-budget.json",
+        "status": "A"
+      },
+      {
+        "path": "live/plugin_mirror_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/proven_cell_ci_test.go",
         "status": "A"
       },
       {
@@ -6981,11 +8053,47 @@
         "status": "A"
       },
       {
+        "path": "live/record_store_bucket_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/record_store_cluster_rbac_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/record_store_cluster_test.go",
+        "status": "A"
+      },
+      {
         "path": "live/registry-schema-facts.json",
         "status": "A"
       },
       {
         "path": "live/registry.json",
+        "status": "A"
+      },
+      {
+        "path": "live/repro/1355/README.md",
+        "status": "A"
+      },
+      {
+        "path": "live/repro/1355/jitterproxy.py",
+        "status": "A"
+      },
+      {
+        "path": "live/repro/1355/loop.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/repro/1355/mkbucket.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/repro/1355/retagger.py",
+        "status": "A"
+      },
+      {
+        "path": "live/repro/1355/run.sh",
         "status": "A"
       },
       {
@@ -7001,7 +8109,31 @@
         "status": "A"
       },
       {
-        "path": "live/rowgen-convergence.json",
+        "path": "live/rowgen-mismatches.json",
+        "status": "A"
+      },
+      {
+        "path": "live/schema-precedence.json",
+        "status": "A"
+      },
+      {
+        "path": "live/site_figure_provenance_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/site_outline_pairs_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/site_size_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/site_slots_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/slot_presence_doc_pin_test.go",
         "status": "A"
       },
       {
@@ -7013,7 +8145,247 @@
         "status": "A"
       },
       {
+        "path": "live/smoke/bucket-iam.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/ci-run.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/README.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/a-bulk-read-is-complete-or-it-fails.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/a-killed-apply-hides-nothing.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/a-name-prefix-shares-no-keys.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/a-new-estate-writes-its-first-record.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/a-read-only-role-can-plan.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/a-shadow-is-not-a-claimant.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/a-waiver-names-what-it-waives.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/a-wrong-bucket-is-refused.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/an-estate-reads-another-by-declaring-it.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/an-ignored-tag-is-not-drift.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/apply-what-was-approved.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/backend-sets-itself-up.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/cache-serves-the-whole-estate.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/carve-by-retag.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/cas-holds-under-every-sse-flavour.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/count-is-a-fungible-set.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/identity-is-a-tag.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/k8s-a-deleted-namespace-is-gone.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/k8s-a-held-delete-is-not-gone.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/k8s-a-label-is-a-change.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/k8s-custom-resource.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/k8s-greenfield.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/k8s-no-silent-orphans.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/k8s-records-in-the-cluster.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/k8s-the-label-is-the-boundary.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/k8s-the-server-gets-the-last-word.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/no-secret-survives-in-what-the-tool-keeps.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/no-self-managed-locks.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/no-silent-orphans.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/objects-carry-the-estate-tag.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/one-bucket-many-estates.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/plan-cost-tracks-the-estate.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/plan-cost-under-foreign-load.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/record-only-survives-cache-loss.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/recovery-is-a-rerun.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/roundtrip.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/staleness-costs-reads.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/stock-when-you-need-it.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/the-boundary-holds-across-accounts.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/the-boundary-holds-across-regions.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/the-estate-answers-in-the-present-tense.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/the-recommended-secure-configuration.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/the-tag-is-the-boundary.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/two-estates-at-once.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/two-writers-one-record.md",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/claims/unchanged-is-free.md",
+        "status": "A"
+      },
+      {
         "path": "live/smoke/docker-compose.yml",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/a-new-estate-writes-its-first-record.lastrun.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/a-read-only-role-can-plan.lastrun.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/backend-sets-itself-up.lastrun.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/cas-holds-under-every-sse-flavour.lastrun.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/k8s-a-label-is-a-change.lastrun.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/k8s-records-in-the-cluster.lastrun.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/no-silent-orphans.lastrun.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/objects-carry-the-estate-tag.lastrun.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/one-bucket-many-estates.lastrun.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/the-recommended-secure-configuration.lastrun.json",
         "status": "A"
       },
       {
@@ -7021,7 +8393,63 @@
         "status": "A"
       },
       {
+        "path": "live/smoke/k8sproxy.py",
+        "status": "A"
+      },
+      {
         "path": "live/smoke/lib.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/s3proxy.py",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/a-bulk-read-is-complete-or-it-fails.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/a-held-delete-is-not-gone.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/a-killed-apply-hides-nothing.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/a-name-prefix-shares-no-keys.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/a-new-estate-writes-its-first-record.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/a-read-only-role-can-plan.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/a-shadow-is-not-a-claimant.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/a-waiver-names-what-it-waives.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/a-wrong-bucket-is-refused.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/an-estate-reads-another-by-declaring-it.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/an-ignored-tag-is-not-drift.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/apply-what-was-approved.sh",
         "status": "A"
       },
       {
@@ -7034,6 +8462,10 @@
       },
       {
         "path": "live/smoke/scenarios/carve-by-retag.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/cas-holds-under-every-sse-flavour.sh",
         "status": "A"
       },
       {
@@ -7057,6 +8489,46 @@
         "status": "A"
       },
       {
+        "path": "live/smoke/scenarios/k8s-a-deleted-namespace-is-gone.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/k8s-a-held-delete-is-not-gone.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/k8s-a-label-is-a-change.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/k8s-custom-resource.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/k8s-greenfield.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/k8s-no-silent-orphans.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/k8s-records-in-the-cluster.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/k8s-the-label-is-the-boundary.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/k8s-the-server-gets-the-last-word.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/no-secret-survives-in-what-the-tool-keeps.sh",
+        "status": "A"
+      },
+      {
         "path": "live/smoke/scenarios/no-self-managed-locks.sh",
         "status": "A"
       },
@@ -7065,7 +8537,23 @@
         "status": "A"
       },
       {
+        "path": "live/smoke/scenarios/objects-carry-the-estate-tag.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/one-bucket-many-estates.sh",
+        "status": "A"
+      },
+      {
         "path": "live/smoke/scenarios/plan-cost-tracks-the-estate.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/plan-cost-under-foreign-load.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/record-only-survives-cache-loss.sh",
         "status": "A"
       },
       {
@@ -7085,7 +8573,35 @@
         "status": "A"
       },
       {
+        "path": "live/smoke/scenarios/the-boundary-holds-across-accounts.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/the-boundary-holds-across-regions.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/the-estate-answers-in-the-present-tense.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/the-recommended-secure-configuration.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/the-server-gets-the-last-word.sh",
+        "status": "A"
+      },
+      {
         "path": "live/smoke/scenarios/the-tag-is-the-boundary.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/two-estates-at-once.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/scenarios/two-writers-one-record.sh",
         "status": "A"
       },
       {
@@ -7093,11 +8609,63 @@
         "status": "A"
       },
       {
+        "path": "live/smoke/selftest-bounds.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/selftest-teardown.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/selftest-verdict.sh",
+        "status": "A"
+      },
+      {
         "path": "live/smoke/smoke.sh",
         "status": "A"
       },
       {
+        "path": "live/smoke_bare_wait_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke_break_patches_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke_claims_keys_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke_claims_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke_stall_bound_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke_teardown_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke_trigger_rule_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke_verdict_test.go",
+        "status": "A"
+      },
+      {
         "path": "live/stale_state_ruling_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/substrates.json",
+        "status": "A"
+      },
+      {
+        "path": "live/substrates_site_test.go",
         "status": "A"
       },
       {
@@ -7133,6 +8701,10 @@
         "status": "A"
       },
       {
+        "path": "live/upstream_base_label_test.go",
+        "status": "A"
+      },
+      {
         "path": "live/wo-sweep.json",
         "status": "A"
       }
@@ -7163,12 +8735,12 @@
         "status": "A"
       },
       {
-        "path": ".gitignore",
+        "path": ".gitattributes",
         "status": "M"
       },
       {
-        "path": ".gitmodules",
-        "status": "A"
+        "path": ".gitignore",
+        "status": "M"
       },
       {
         "path": ".goreleaser.yaml",
@@ -7208,6 +8780,10 @@
       },
       {
         "path": "CODE_OF_CONDUCT.md",
+        "status": "M"
+      },
+      {
+        "path": "CONTRIBUTING.RELEASE.md",
         "status": "M"
       },
       {
@@ -7288,6 +8864,14 @@
       },
       {
         "path": "cmd/choudoufu/testing.go",
+        "status": "A"
+      },
+      {
+        "path": "cmd/choudoufu/umask_unix_test.go",
+        "status": "A"
+      },
+      {
+        "path": "cmd/choudoufu/umask_windows_test.go",
         "status": "A"
       },
       {
@@ -7463,6 +9047,286 @@
         "status": "A"
       },
       {
+        "path": "examples/ci-pipelines/.gitignore",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/PIPELINE.md",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/README.md",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/chant.config.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/e2e/gitlab/README.md",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/e2e/gitlab/bootstrap.sh",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/e2e/gitlab/docker-compose.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/e2e/gitlab/overlay/.gitlab-ci.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/forgejo/.forgejo/workflows/live-adopt.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/forgejo/.forgejo/workflows/live-apply.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/forgejo/.forgejo/workflows/live-check.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/forgejo/.forgejo/workflows/live-discover.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/forgejo/.forgejo/workflows/live-plan.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/generate.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/generated-from.json",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/github/.github/workflows/live-adopt.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/github/.github/workflows/live-apply.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/github/.github/workflows/live-check.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/github/.github/workflows/live-discover.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/github/.github/workflows/live-plan.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/gitlab/ops.gitlab-ci.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/package-lock.json",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/package.json",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/scripts/oidc-bootstrap.sh",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/scripts/selftest-oidc-bootstrap.sh",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/scripts/smoke.sh",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/src/forge.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/src/live-adopt.op.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/src/live-apply.op.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/src/live-check.op.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/src/live-discover.op.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/src/live-plan.op.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/terraform/.terraform.lock.hcl",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/terraform/estate.chdf.hcl",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/terraform/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/tests/currency.test.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/ci-pipelines/tests/pipelines.test.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/converge-operator/.gitignore",
+        "status": "A"
+      },
+      {
+        "path": "examples/converge-operator/README.md",
+        "status": "A"
+      },
+      {
+        "path": "examples/converge-operator/chant.config.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/converge-operator/package-lock.json",
+        "status": "A"
+      },
+      {
+        "path": "examples/converge-operator/package.json",
+        "status": "A"
+      },
+      {
+        "path": "examples/converge-operator/scripts/demo.sh",
+        "status": "A"
+      },
+      {
+        "path": "examples/converge-operator/src/dev-apply.op.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/converge-operator/src/dev-converge.op.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/converge-operator/terraform/estate.chdf.hcl",
+        "status": "A"
+      },
+      {
+        "path": "examples/converge-operator/terraform/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "examples/converge-operator/tests/config.test.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/.gitignore",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/README.md",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/chant.config.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/forgejo/.forgejo/workflows/estates-apply.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/forgejo/.forgejo/workflows/estates-plan.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/generate.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/generated-from.json",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/github/.github/workflows/estates-apply.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/github/.github/workflows/estates-plan.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/gitlab/ops.gitlab-ci.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/package-lock.json",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/package.json",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/scripts/prove.sh",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/src/estates-apply.op.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/src/estates-plan.op.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/src/forge.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/terraform/network/estate.chdf.hcl",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/terraform/network/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/terraform/service/estate.chdf.hcl",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/terraform/service/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/tests/estates.test.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/cross-estate-dependency/tests/pipelines.test.ts",
+        "status": "A"
+      },
+      {
         "path": "examples/live-mv-workbench/.gitignore",
         "status": "A"
       },
@@ -7587,11 +9451,19 @@
         "status": "A"
       },
       {
+        "path": "examples/live-mv-workbench/tests/test_approval.py",
+        "status": "A"
+      },
+      {
         "path": "examples/live-mv-workbench/tests/test_carve.py",
         "status": "A"
       },
       {
         "path": "examples/live-mv-workbench/tests/test_carve_cost.py",
+        "status": "A"
+      },
+      {
+        "path": "examples/live-mv-workbench/tests/test_carve_references.py",
         "status": "A"
       },
       {
@@ -7624,6 +9496,10 @@
       },
       {
         "path": "examples/live-mv-workbench/tests/test_moveset.py",
+        "status": "A"
+      },
+      {
+        "path": "examples/live-mv-workbench/tests/test_pins.py",
         "status": "A"
       },
       {
@@ -7660,6 +9536,10 @@
       },
       {
         "path": "examples/live-mv-workbench/tlmig/adopt.py",
+        "status": "A"
+      },
+      {
+        "path": "examples/live-mv-workbench/tlmig/approval.py",
         "status": "A"
       },
       {
@@ -7751,6 +9631,146 @@
         "status": "A"
       },
       {
+        "path": "examples/pipeline-governance/README.md",
+        "status": "A"
+      },
+      {
+        "path": "examples/pipeline-governance/forgejo/governance.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/pipeline-governance/github/governance.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/pipeline-governance/gitlab/governance.yml",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/.gitignore",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/CONTRACT.md",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/ENCRYPTION.md",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/README.md",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/chant.config.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/iam/README.md",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/iam/example-key-statement.json",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/iam/example-prod-read-only.json",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/iam/example-prod-with-account.json",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/iam/example-prod-with-key-and-dependency.json",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/iam/example-prod.json",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/iam/render-key-statement.sh",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/iam/render-policy.sh",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/justfile",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/package-lock.json",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/package.json",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/src/bucket-apply.op.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/src/bucket-plan.op.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/src/bucket.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/src/params.ts",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-bucket/tsconfig.json",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-cluster/.gitignore",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-cluster/CONTRACT.md",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-cluster/README.md",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-cluster/justfile",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-cluster/manifests/records.yaml",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-cluster/rbac/README.md",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-cluster/rbac/example-apply.yaml",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-cluster/rbac/example-plan-read-only.yaml",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-cluster/rbac/render-role.sh",
+        "status": "A"
+      },
+      {
+        "path": "examples/record-store-cluster/selftest.sh",
+        "status": "A"
+      },
+      {
         "path": "go.mod",
         "status": "M"
       },
@@ -7783,6 +9803,18 @@
         "status": "A"
       },
       {
+        "path": "internal/backend/local/live_afterplan_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/backend/local/live_beforeapply_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/backend/local/live_replaced_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/backend/local/plan_guard.go",
         "status": "A"
       },
@@ -7809,6 +9841,14 @@
       {
         "path": "internal/backend/remote/backend_test.go",
         "status": "M"
+      },
+      {
+        "path": "internal/builtin/providers/tf/data_source_estate_outputs.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/builtin/providers/tf/data_source_estate_outputs_test.go",
+        "status": "A"
       },
       {
         "path": "internal/builtin/providers/tf/provider.go",
@@ -7867,6 +9907,14 @@
         "status": "M"
       },
       {
+        "path": "internal/command/arguments/live_bucket.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/arguments/live_cluster.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/arguments/live_import.go",
         "status": "A"
       },
@@ -7913,6 +9961,14 @@
       {
         "path": "internal/command/arguments/providers_schema_test.go",
         "status": "M"
+      },
+      {
+        "path": "internal/command/arguments/report_filter.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/arguments/report_filter_test.go",
+        "status": "A"
       },
       {
         "path": "internal/command/command_test.go",
@@ -7987,11 +10043,67 @@
         "status": "A"
       },
       {
+        "path": "internal/command/live_apply_kubernetes_held.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_apply_kubernetes_held_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_approval.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_approval_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_bucket.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_bucket_contract.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_bucket_contract_apply_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_bucket_contract_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_bucket_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/live_check.go",
         "status": "A"
       },
       {
         "path": "internal/command/live_check_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_classes.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_classes_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_cluster.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_cluster_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_cluster_tls_test.go",
         "status": "A"
       },
       {
@@ -8007,7 +10119,31 @@
         "status": "A"
       },
       {
+        "path": "internal/command/live_contract_runs_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_controllerheld_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/live_dataread_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_deposed_kubernetes_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_estate_outputs.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_estate_outputs_prune_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_estate_outputs_test.go",
         "status": "A"
       },
       {
@@ -8019,6 +10155,18 @@
         "status": "A"
       },
       {
+        "path": "internal/command/live_import_help_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_import_kubernetes.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_import_providerdata_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/live_import_test.go",
         "status": "A"
       },
@@ -8027,11 +10175,31 @@
         "status": "A"
       },
       {
+        "path": "internal/command/live_ls_controllerheld_family_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_ls_kubernetes_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/live_ls_live_test.go",
         "status": "A"
       },
       {
+        "path": "internal/command/live_ls_region_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/live_ls_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_marker_tagger.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_marker_tagger_test.go",
         "status": "A"
       },
       {
@@ -8051,7 +10219,19 @@
         "status": "A"
       },
       {
+        "path": "internal/command/live_mv_k8s_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_mv_servicetags_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/live_mv_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_node_refused_hookup_test.go",
         "status": "A"
       },
       {
@@ -8059,7 +10239,23 @@
         "status": "A"
       },
       {
+        "path": "internal/command/live_plan_bound_identity_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_plan_count_class_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/live_plan_count_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_plan_credentials.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_plan_credentials_test.go",
         "status": "A"
       },
       {
@@ -8067,7 +10263,31 @@
         "status": "A"
       },
       {
+        "path": "internal/command/live_plan_foreign_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/live_plan_guided_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_plan_kubernetes_dryrun.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_plan_kubernetes_dryrun_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_plan_kubernetes_exec_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_plan_kubernetes_ownedkeys.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_plan_kubernetes_sensitive_test.go",
         "status": "A"
       },
       {
@@ -8079,11 +10299,31 @@
         "status": "A"
       },
       {
+        "path": "internal/command/live_plan_sweep_denied_1513_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_plan_sweeplegs_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/live_plan_test.go",
         "status": "A"
       },
       {
         "path": "internal/command/live_policy.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_policy_targetscope_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_policy_untag_cluster_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_policy_untag_report_test.go",
         "status": "A"
       },
       {
@@ -8099,6 +10339,30 @@
         "status": "A"
       },
       {
+        "path": "internal/command/live_record_read_parallelism.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_record_read_parallelism_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_record_store_lenient_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_record_store_open.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_record_store_open_fenced_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_record_store_open_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/live_recordbacked_test.go",
         "status": "A"
       },
@@ -8107,7 +10371,23 @@
         "status": "A"
       },
       {
+        "path": "internal/command/live_report_filter.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_report_filter_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/live_resolve_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_schema_dir_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_state_cache_secrets_test.go",
         "status": "A"
       },
       {
@@ -8123,11 +10403,51 @@
         "status": "A"
       },
       {
+        "path": "internal/command/live_target_discovery_1514_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_target_provider_work_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_target_scope_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_target_signal_1470_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_unmarked_apply_store_1637_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_unmarked_apply_unrecorded_1743_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/live_unmigrate_guard.go",
         "status": "A"
       },
       {
+        "path": "internal/command/live_unmigrate_guard_doc_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_unmigrate_guard_labels_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/live_unmigrate_guard_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_untag_provider_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_vouch_provider_test.go",
         "status": "A"
       },
       {
@@ -8151,12 +10471,24 @@
         "status": "M"
       },
       {
+        "path": "internal/command/meta.go",
+        "status": "M"
+      },
+      {
         "path": "internal/command/meta_backend.go",
         "status": "M"
       },
       {
         "path": "internal/command/meta_backend_test.go",
         "status": "M"
+      },
+      {
+        "path": "internal/command/meta_dependencies.go",
+        "status": "M"
+      },
+      {
+        "path": "internal/command/meta_plugins_dir.go",
+        "status": "A"
       },
       {
         "path": "internal/command/meta_providers.go",
@@ -8205,10 +10537,6 @@
       {
         "path": "internal/command/push.go",
         "status": "M"
-      },
-      {
-        "path": "internal/command/record_backed_needs_discovery_test.go",
-        "status": "A"
       },
       {
         "path": "internal/command/refresh.go",
@@ -8275,6 +10603,10 @@
         "status": "M"
       },
       {
+        "path": "internal/command/testdata/live-apply-unmarked-store-1637/main.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/command/testdata/live-block-backend/main.tf",
         "status": "A"
       },
@@ -8299,11 +10631,43 @@
         "status": "A"
       },
       {
+        "path": "internal/command/testdata/live-estate-outputs-producer/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-estate-outputs/main.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/command/testdata/live-import-basic/import.tfstate",
         "status": "A"
       },
       {
         "path": "internal/command/testdata/live-import-basic/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-import-providerdata-record/import.tfstate",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-import-providerdata-record/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-import-providerdata/import.tfstate",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-import-providerdata/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-k8s-needs-discovery-1565/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-lint-target-scope-1256/main.tf",
         "status": "A"
       },
       {
@@ -8320,6 +10684,10 @@
       },
       {
         "path": "internal/command/testdata/live-mv-unrenamed/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-plan-count-classes/main.tf",
         "status": "A"
       },
       {
@@ -8379,7 +10747,31 @@
         "status": "A"
       },
       {
+        "path": "internal/command/testdata/live-plan-stampgaps-unmarked-apply-950/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-plan-target-discovery-1514/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-plan-target-discovery-provider-1514/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-plan-target-scope-1203/main.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/command/testdata/live-plan-target-scope/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-plan-target-signal-1470/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-plan-two-accounts/main.tf",
         "status": "A"
       },
       {
@@ -8407,7 +10799,23 @@
         "status": "A"
       },
       {
+        "path": "internal/command/testdata/live-target-provider-work/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-untag-report-1002/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/plan-marker-create-labels/main.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/command/testdata/plan-marker-create/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/plan-marker-strip-labels/main.tf",
         "status": "A"
       },
       {
@@ -8427,7 +10835,15 @@
         "status": "M"
       },
       {
+        "path": "internal/command/validate_dir_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/version.go",
+        "status": "M"
+      },
+      {
+        "path": "internal/command/version_test.go",
         "status": "M"
       },
       {
@@ -8463,11 +10879,23 @@
         "status": "A"
       },
       {
+        "path": "internal/command/views/live_bucket.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/views/live_check.go",
         "status": "A"
       },
       {
         "path": "internal/command/views/live_check_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/views/live_cluster.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/views/live_controller_held_test.go",
         "status": "A"
       },
       {
@@ -8479,6 +10907,10 @@
         "status": "A"
       },
       {
+        "path": "internal/command/views/live_ls_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/views/live_mv.go",
         "status": "A"
       },
@@ -8487,7 +10919,19 @@
         "status": "A"
       },
       {
+        "path": "internal/command/views/live_plan_filter_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/views/live_plan_kubernetes_dryrun_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/views/live_plan_nativesweep_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/views/live_plan_reconcile_test.go",
         "status": "A"
       },
       {
@@ -8505,6 +10949,10 @@
       {
         "path": "internal/command/views/output.go",
         "status": "M"
+      },
+      {
+        "path": "internal/command/views/schema_source.go",
+        "status": "A"
       },
       {
         "path": "internal/command/views/state.go",
@@ -8679,7 +11127,51 @@
         "status": "A"
       },
       {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-allow-insecure-boolean.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-allow-insecure-bucket-name-on-kubernetes.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-allow-insecure-on-local.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-allow-insecure-twice.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-allow-insecure-unknown-on-kubernetes.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-allow-insecure-unknown.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-bucket-owner-not-an-account.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-bucket-owner-on-local.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-bucket-owner-too-short.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/configs/testdata/invalid-files/live-record-store-duplicate.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-exec-on-local.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-key-prefix-another-estate.tf",
         "status": "A"
       },
       {
@@ -8687,7 +11179,15 @@
         "status": "A"
       },
       {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-key-prefix-leading-slash.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/configs/testdata/invalid-files/live-record-store-key-prefix-located.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-key-prefix-no-estate.tf",
         "status": "A"
       },
       {
@@ -8703,11 +11203,51 @@
         "status": "A"
       },
       {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-key-prefix-records-root.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/configs/testdata/invalid-files/live-record-store-key-prefix-residue.tf",
         "status": "A"
       },
       {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-kubernetes-bad-namespace.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-kubernetes-bucket.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-kubernetes-exec-no-command.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-kubernetes-region.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-namespace-on-s3.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/configs/testdata/invalid-files/live-record-store-s3-no-bucket.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-ssm-retired-with-tier.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-ssm-retired.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-ssm-tier-is-not-a-backend.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-record-store-tier-is-gone.tf",
         "status": "A"
       },
       {
@@ -8744,6 +11284,18 @@
       },
       {
         "path": "internal/configs/testdata/invalid-files/live-strict-secrets-non-literal.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-strict-ssm-duplicate.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-strict-ssm-non-literal.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/invalid-files/live-strict-ssm-unknown-argument.tf",
         "status": "A"
       },
       {
@@ -8803,7 +11355,23 @@
         "status": "A"
       },
       {
+        "path": "internal/configs/testdata/valid-modules/live-record-store-kubernetes-insecure-waived/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/valid-modules/live-record-store-kubernetes/main.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/configs/testdata/valid-modules/live-record-store-local/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/valid-modules/live-record-store-s3-allow-insecure/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/valid-modules/live-record-store-s3-bucket-owner/main.tf",
         "status": "A"
       },
       {
@@ -8811,7 +11379,7 @@
         "status": "A"
       },
       {
-        "path": "internal/configs/testdata/valid-modules/live-record-store-ssm/main.tf",
+        "path": "internal/configs/testdata/valid-modules/live-retry/main.tf",
         "status": "A"
       },
       {
@@ -8832,6 +11400,10 @@
       },
       {
         "path": "internal/configs/testdata/valid-modules/live-strict-secrets/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/testdata/valid-modules/live-strict-ssm/main.tf",
         "status": "A"
       },
       {
@@ -9003,11 +11575,15 @@
         "status": "M"
       },
       {
-        "path": "internal/tofu/evaluate.go",
+        "path": "internal/tofu/graph_walk_context.go",
         "status": "M"
       },
       {
-        "path": "internal/tofu/graph_walk_context.go",
+        "path": "internal/tofu/marks.go",
+        "status": "M"
+      },
+      {
+        "path": "internal/tofu/marks_test.go",
         "status": "M"
       },
       {
@@ -9028,6 +11604,10 @@
       },
       {
         "path": "internal/tofu/resource_identity.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/tofu/resource_identity_replace_test.go",
         "status": "A"
       },
       {
@@ -9267,11 +11847,27 @@
         "status": "M"
       },
       {
+        "path": "scripts/floci-sweep.sh",
+        "status": "A"
+      },
+      {
+        "path": "scripts/gauntlet-pr-token-check.sh",
+        "status": "A"
+      },
+      {
+        "path": "scripts/nightly-watch.sh",
+        "status": "A"
+      },
+      {
         "path": "scripts/pickup.sh",
         "status": "A"
       },
       {
         "path": "scripts/render-logo.sh",
+        "status": "A"
+      },
+      {
+        "path": "scripts/warm-plugin-cache.sh",
         "status": "A"
       },
       {
@@ -11085,6 +13681,10 @@
         "status": "A"
       },
       {
+        "path": "site/assets/css/site.css",
+        "status": "A"
+      },
+      {
         "path": "site/assets/diagram-effects.svg",
         "status": "A"
       },
@@ -11105,11 +13705,31 @@
         "status": "A"
       },
       {
-        "path": "site/assets/styles/custom.css",
+        "path": "site/content/_index.md",
         "status": "A"
       },
       {
-        "path": "site/content/_index.md",
+        "path": "site/content/aws/_index.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/aws/adopt.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/aws/compatibility.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/aws/gate.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/aws/operate.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/aws/proof.md",
         "status": "A"
       },
       {
@@ -11117,7 +13737,179 @@
         "status": "A"
       },
       {
-        "path": "site/content/docs/claims.md",
+        "path": "site/content/docs/claims/_index.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/a-bulk-read-is-complete-or-it-fails.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/a-killed-apply-hides-nothing.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/a-name-prefix-shares-no-keys.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/a-new-estate-writes-its-first-record.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/a-read-only-role-can-plan.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/a-shadow-is-not-a-claimant.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/a-waiver-names-what-it-waives.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/a-wrong-bucket-is-refused.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/an-estate-reads-another-by-declaring-it.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/an-ignored-tag-is-not-drift.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/apply-what-was-approved.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/backend-sets-itself-up.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/cache-serves-the-whole-estate.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/carve-by-retag.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/cas-holds-under-every-sse-flavour.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/count-is-a-fungible-set.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/identity-is-a-tag.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/k8s-a-deleted-namespace-is-gone.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/k8s-a-held-delete-is-not-gone.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/k8s-a-label-is-a-change.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/k8s-custom-resource.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/k8s-records-in-the-cluster.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/k8s-the-server-gets-the-last-word.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/no-secret-survives-in-what-the-tool-keeps.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/no-self-managed-locks.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/no-silent-orphans.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/objects-carry-the-estate-tag.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/one-bucket-many-estates.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/plan-cost-tracks-the-estate.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/plan-cost-under-foreign-load.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/record-only-survives-cache-loss.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/recovery-is-a-rerun.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/roundtrip.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/staleness-costs-reads.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/stock-when-you-need-it.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/the-boundary-holds-across-accounts.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/the-boundary-holds-across-regions.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/the-estate-answers-in-the-present-tense.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/the-recommended-secure-configuration.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/the-tag-is-the-boundary.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/two-estates-at-once.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/two-writers-one-record.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/claims/unchanged-is-free.md",
         "status": "A"
       },
       {
@@ -11141,7 +13933,7 @@
         "status": "A"
       },
       {
-        "path": "site/content/docs/model/effects.md",
+        "path": "site/content/docs/model/from-a-state-file.md",
         "status": "A"
       },
       {
@@ -11161,6 +13953,10 @@
         "status": "A"
       },
       {
+        "path": "site/content/docs/progress/_content.gotmpl",
+        "status": "A"
+      },
+      {
         "path": "site/content/docs/progress/_index.md",
         "status": "A"
       },
@@ -11173,114 +13969,6 @@
         "status": "A"
       },
       {
-        "path": "site/content/docs/progress/corpus-alb-complete.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-autoscaling-complete.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-dynamodb-table-basic.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-ec2-instance-complete.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-ecs-fargate.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-eks-basic.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-evoteum-modules.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-giantswarm-crossplane.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-hongbomiao-harbor.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-hongbomiao-labelbox.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-hongbomiao-storage.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-iam-policy.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-iam-read-only-policy.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-lambda-simple.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-leynos-monitoring.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-mastino-dns.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-overture-tiles.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-rds-complete-postgres.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-s3-bucket-complete.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-security-group-complete.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-simpleinfra-dns.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-sqs-basic.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-sumaform-aws.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-vpc-complete.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/corpus-xancloud-iac.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/reference-ec2-vpc.md",
-        "status": "A"
-      },
-      {
-        "path": "site/content/docs/progress/terralith-scale.md",
-        "status": "A"
-      },
-      {
         "path": "site/content/docs/tutorial.md",
         "status": "A"
       },
@@ -11289,11 +13977,23 @@
         "status": "A"
       },
       {
+        "path": "site/content/docs/use/bucket.md",
+        "status": "A"
+      },
+      {
         "path": "site/content/docs/use/check-a-config.md",
         "status": "A"
       },
       {
+        "path": "site/content/docs/use/cicd.md",
+        "status": "A"
+      },
+      {
         "path": "site/content/docs/use/compatibility.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/docs/use/cross-estate.md",
         "status": "A"
       },
       {
@@ -11353,6 +14053,10 @@
         "status": "A"
       },
       {
+        "path": "site/content/docs/use/recover-an-estate.md",
+        "status": "A"
+      },
+      {
         "path": "site/content/docs/use/reference.md",
         "status": "A"
       },
@@ -11369,6 +14073,10 @@
         "status": "A"
       },
       {
+        "path": "site/content/docs/use/secrets.md",
+        "status": "A"
+      },
+      {
         "path": "site/content/docs/use/setup.md",
         "status": "A"
       },
@@ -11381,7 +14089,51 @@
         "status": "A"
       },
       {
-        "path": "site/content/docs/what-you-pay.md",
+        "path": "site/content/how-it-works/_index.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/how-it-works/cache.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/how-it-works/identity.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/how-it-works/values.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/kubernetes/_index.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/kubernetes/adopt.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/kubernetes/compatibility.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/kubernetes/gate.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/kubernetes/operate.md",
+        "status": "A"
+      },
+      {
+        "path": "site/content/kubernetes/proof.md",
+        "status": "A"
+      },
+      {
+        "path": "site/data/claims.json",
+        "status": "A"
+      },
+      {
+        "path": "site/data/fork_surface.json",
         "status": "A"
       },
       {
@@ -11389,15 +14141,95 @@
         "status": "A"
       },
       {
+        "path": "site/data/gauntlet_board.json",
+        "status": "A"
+      },
+      {
+        "path": "site/data/gauntlet_scale.json",
+        "status": "A"
+      },
+      {
+        "path": "site/data/providers.yaml",
+        "status": "A"
+      },
+      {
+        "path": "site/data/readiness.json",
+        "status": "A"
+      },
+      {
+        "path": "site/data/substrates.json",
+        "status": "A"
+      },
+      {
         "path": "site/hugo.toml",
         "status": "A"
       },
       {
-        "path": "site/layouts/_default/_markup/render-image.html",
+        "path": "site/layouts/404.html",
         "status": "A"
       },
       {
-        "path": "site/layouts/_partials/docs/inject/head.html",
+        "path": "site/layouts/_markup/render-image.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/_partials/analytics.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/_partials/footer.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/_partials/header.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/_partials/search.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/_partials/sidebar.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/baseof.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/home.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/home.searchindex.json",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/hub.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/page.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/redirect.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/section.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/shortcodes/claims-count.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/shortcodes/claims-table.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/shortcodes/fork-surface.html",
         "status": "A"
       },
       {
@@ -11405,11 +14237,35 @@
         "status": "A"
       },
       {
+        "path": "site/layouts/shortcodes/gauntlet-board.html",
+        "status": "A"
+      },
+      {
         "path": "site/layouts/shortcodes/gauntlet-num.html",
         "status": "A"
       },
       {
+        "path": "site/layouts/shortcodes/hint.html",
+        "status": "A"
+      },
+      {
         "path": "site/layouts/shortcodes/iamref.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/shortcodes/providers.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/shortcodes/readiness.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/shortcodes/scale-num.html",
+        "status": "A"
+      },
+      {
+        "path": "site/layouts/shortcodes/substrates-table.html",
         "status": "A"
       },
       {
@@ -11431,14 +14287,6 @@
       {
         "path": "site/static/favicon.ico",
         "status": "A"
-      },
-      {
-        "path": "site/static/style.css",
-        "status": "A"
-      },
-      {
-        "path": "site/themes/hugo-book",
-        "status": "A"
       }
     ],
     "tools/": [
@@ -11456,6 +14304,10 @@
       },
       {
         "path": "tools/admission-pipeline/git_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/admission-pipeline/gitanswers_test.go",
         "status": "A"
       },
       {
@@ -11503,11 +14355,31 @@
         "status": "A"
       },
       {
+        "path": "tools/aws-paginators-gen/main.go",
+        "status": "A"
+      },
+      {
         "path": "tools/ci-gate/ci_gate_test.go",
         "status": "A"
       },
       {
+        "path": "tools/ci-gate/gitanswers_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/cloudcontrol-probe/main.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/contribute/contribute_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/corpus-fetch/estates_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/corpus-fetch/gitanswers_test.go",
         "status": "A"
       },
       {
@@ -11540,6 +14412,10 @@
       },
       {
         "path": "tools/corpus-gen/pins.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/cost-project/main.go",
         "status": "A"
       },
       {
@@ -11576,6 +14452,10 @@
       },
       {
         "path": "tools/estate-gen/main.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/estate-gen/offline_init_test.go",
         "status": "A"
       },
       {
@@ -11747,6 +14627,14 @@
         "status": "A"
       },
       {
+        "path": "tools/estate-types/corpuscheck.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/estate-types/gitanswers_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/estate-types/main.go",
         "status": "A"
       },
@@ -11835,6 +14723,10 @@
         "status": "A"
       },
       {
+        "path": "tools/forkdiff-gen/gitanswers_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/forkdiff-gen/main.go",
         "status": "A"
       },
@@ -11871,7 +14763,51 @@
         "status": "A"
       },
       {
+        "path": "tools/gauntlet/board.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/boardmerge_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/boardnote_kind_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/day2crashkindnote_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/day2crashrename_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/day2replacekindreason_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/flociteardown_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/gauntlet/gauntlet_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/gitanswers_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/indexwait_record_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/k8swaitall_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/kindsubstrateimage_test.go",
         "status": "A"
       },
       {
@@ -11883,7 +14819,35 @@
         "status": "A"
       },
       {
+        "path": "tools/gauntlet/livecertlock.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/livecertlock_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/livecertsignal.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/livecertsignal_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/lockversions.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/lockversions_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/gauntlet/main.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/main_test.go",
         "status": "A"
       },
       {
@@ -11899,11 +14863,19 @@
         "status": "A"
       },
       {
+        "path": "tools/gauntlet/mergerendered.go",
+        "status": "A"
+      },
+      {
         "path": "tools/gauntlet/next.go",
         "status": "A"
       },
       {
         "path": "tools/gauntlet/next_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/noladder_test.go",
         "status": "A"
       },
       {
@@ -11923,7 +14895,23 @@
         "status": "A"
       },
       {
+        "path": "tools/gauntlet/oraclepin_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/plugincache_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/preapply_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/gauntlet/protocol.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/providerversion_test.go",
         "status": "A"
       },
       {
@@ -11932,6 +14920,10 @@
       },
       {
         "path": "tools/gauntlet/ratchet_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/refusal_test.go",
         "status": "A"
       },
       {
@@ -11951,7 +14943,63 @@
         "status": "A"
       },
       {
+        "path": "tools/gauntlet/scaleaccounting_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/scalepatch.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/scalerecord.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/scalerecord_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/scaleslice.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/scaleslice_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/scriptstale.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/scriptstale_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/shards.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/shards_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/silenttooling_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/stageprovenance.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/stageprovenance_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/gauntlet/stages.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/substrate_test.go",
         "status": "A"
       },
       {
@@ -11971,6 +15019,10 @@
         "status": "A"
       },
       {
+        "path": "tools/iamref-gen/artifact_comment_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/iamref-gen/docspan.go",
         "status": "A"
       },
@@ -11984,6 +15036,10 @@
       },
       {
         "path": "tools/iamref-gen/main.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/iamref-gen/reach_denominator_test.go",
         "status": "A"
       },
       {
@@ -12243,6 +15299,10 @@
         "status": "A"
       },
       {
+        "path": "tools/limits-gen/roster.go",
+        "status": "A"
+      },
+      {
         "path": "tools/loggraphdiff/loggraphdiff.go",
         "status": "D"
       },
@@ -12387,6 +15447,10 @@
         "status": "A"
       },
       {
+        "path": "tools/merge-guard/gitanswers_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/merge-guard/main.go",
         "status": "A"
       },
@@ -12431,6 +15495,10 @@
         "status": "A"
       },
       {
+        "path": "tools/readiness-gen/gitanswers_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/readiness-gen/main.go",
         "status": "A"
       },
@@ -12443,6 +15511,10 @@
         "status": "A"
       },
       {
+        "path": "tools/readiness-gen/substrate_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/refusal-probe/cause.go",
         "status": "A"
       },
@@ -12452,6 +15524,10 @@
       },
       {
         "path": "tools/refusal-probe/corpus.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/refusal-probe/gitanswers_test.go",
         "status": "A"
       },
       {
@@ -12631,6 +15707,14 @@
         "status": "A"
       },
       {
+        "path": "tools/row-gen/comparison.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/row-gen/comparison_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/row-gen/compositeimport.go",
         "status": "A"
       },
@@ -12644,14 +15728,6 @@
       },
       {
         "path": "tools/row-gen/contentmatch_test.go",
-        "status": "A"
-      },
-      {
-        "path": "tools/row-gen/convergence.go",
-        "status": "A"
-      },
-      {
-        "path": "tools/row-gen/convergence_test.go",
         "status": "A"
       },
       {
@@ -12715,6 +15791,14 @@
         "status": "A"
       },
       {
+        "path": "tools/row-gen/identityvocab.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/row-gen/identityvocab_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/row-gen/idnotwhole.go",
         "status": "A"
       },
@@ -12760,6 +15844,14 @@
       },
       {
         "path": "tools/row-gen/markerless_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/row-gen/mismatches.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/row-gen/mismatches_test.go",
         "status": "A"
       },
       {
@@ -12867,6 +15959,22 @@
         "status": "A"
       },
       {
+        "path": "tools/substrates-gen/build.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/substrates-gen/build_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/substrates-gen/main.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/substrates-gen/types.go",
+        "status": "A"
+      },
+      {
         "path": "tools/survey-gen/admission_evidence_test.go",
         "status": "A"
       },
@@ -12904,6 +16012,10 @@
       },
       {
         "path": "tools/survey-gen/main.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/survey-gen/notresourceattrs_test.go",
         "status": "A"
       },
       {
@@ -12948,6 +16060,10 @@
       },
       {
         "path": "tools/survey-gen/surveymd.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/survey-gen/tagfilteredlist_unserved_test.go",
         "status": "A"
       },
       {
@@ -13023,6 +16139,10 @@
         "status": "A"
       },
       {
+        "path": "tools/terralith-gen/iamroles_test.go",
+        "status": "A"
+      },
+      {
         "path": "tools/terralith-gen/main.go",
         "status": "A"
       },
@@ -13061,7 +16181,7 @@
     ]
   },
   "mechanical_module_rename": {
-    "excluded_count": 1137,
+    "excluded_count": 1133,
     "scope": "internal/**/*.go files (M-status) that would otherwise land in the other bucket",
     "note": "excluded because every changed line, order-independently, is the quoted Go import path moving from github.com/opentofu/opentofu to github.com/intentius/choudoufu - see the package doc's Limits section"
   },
