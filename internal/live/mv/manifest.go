@@ -110,11 +110,27 @@ func (m *mover) reannotateManifest(ctx context.Context) tfdiags.Diagnostics {
 	if d := m.checkAddressAnnotation(live.GetAnnotations()[markers.AddressAnnotation]); d.HasErrors() {
 		return diags.Append(d)
 	}
-	if m.res.AlreadyMarked {
-		m.res.Verified = true
-		return diags
-	}
 	fieldManager, err := identity.ManifestFieldManager(ctx, m.req.Config, m.res.Anchor)
+	if m.res.AlreadyMarked {
+		// The object carries the new address already. That is the whole
+		// rename when the block's manager holds the annotation in its
+		// Apply entry; when the manager's Update entry still holds it, an
+		// earlier live-mv was killed between PatchMarkers' two requests
+		// (GitHub issue #1764) and the provider's next rename would
+		// conflict with that entry, so the write is sent again to finish
+		// the hand-off. A field manager this run cannot read leaves the
+		// rerun as it was before #1764: verified, nothing written.
+		held := false
+		if err == nil {
+			held, _ = kubesweep.MarkersHeldByUpdate(live, fieldManager, nil, []string{markers.AddressAnnotation})
+		}
+		if !held {
+			m.res.Verified = true
+			return diags
+		}
+		m.res.AlreadyMarked = false
+		log.Printf("[TRACE] stateless/mv: %s on %s already names %q but field manager %q's Update entry still holds it; re-sending the write", markers.AddressAnnotation, ref, m.res.NewMarker, fieldManager)
+	}
 	if err != nil {
 		return diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
@@ -166,7 +182,7 @@ func (m *mover) reannotateManifest(ctx context.Context) tfdiags.Diagnostics {
 		return diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Failed marker rewrite",
-			fmt.Sprintf("The annotation write on %s failed: %s. The write may have partly landed: read the object's annotations with kubectl before deciding what to do next - if %s already names %s, the rename is done.", ref, err, markers.AddressAnnotation, m.res.NewMarker),
+			fmt.Sprintf("The annotation write on %s failed: %s. The rename is not finished. Rerun the same live-mv command; it completes a write that partly landed.", ref, err),
 		))
 	case rejected != "":
 		return diags.Append(tfdiags.Sourceless(

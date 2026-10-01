@@ -262,3 +262,50 @@ func TestPatchMarkersRetriesTheTransferOnAConflict(t *testing.T) {
 		}
 	}
 }
+
+// TestMarkersHeldByUpdate is GitHub issue #1764's question, asked of the
+// three objects it has to tell apart: the provider's own apply (no Update
+// entry), a merge patch whose ownership hand-off never ran (the killed
+// run), and the same patch after the hand-off (the finished run). Only
+// the second is held, and only under the manager that wrote it.
+func TestMarkersHeldByUpdate(t *testing.T) {
+	c, dyn := fieldManagedCluster(t)
+	created, err := providerApply(t, dyn, providerManifest(nil, nil))
+	if err != nil {
+		t.Fatalf("stock create: %v", err)
+	}
+	labels, annotations := []string{"tofu-estate"}, []string{ssaTestAnnotation}
+	if held, err := MarkersHeldByUpdate(created, "", labels, annotations); held || err != nil {
+		t.Errorf("the provider's own apply: held = %v, err = %v; want false", held, err)
+	}
+
+	// The killed run: the merge patch alone, as an Update under the
+	// default manager.
+	ref := ObjectRef{APIVersion: "stable.example.com/v1", Kind: "CronTab", Namespace: "smoke-crd", Name: "my-crontab"}
+	halfway, rejected, err := c.mergePatch(context.Background(), ref, map[string]any{"metadata": map[string]any{
+		"labels":      map[string]string{"tofu-estate": "smoke-crd"},
+		"annotations": map[string]string{ssaTestAnnotation: "kubernetes_manifest.x"},
+	}}, "", false)
+	if err != nil || rejected != "" {
+		t.Fatalf("merge patch: err=%v rejected=%q", err, rejected)
+	}
+	if held, err := MarkersHeldByUpdate(halfway, "", labels, annotations); !held || err != nil {
+		t.Errorf("a merge patch with no hand-off: held = %v, err = %v; want true", held, err)
+	}
+	if held, _ := MarkersHeldByUpdate(halfway, "my-pipeline", labels, annotations); held {
+		t.Errorf("held under a manager that wrote nothing")
+	}
+	if held, _ := MarkersHeldByUpdate(halfway, "", nil, []string{"some-other-annotation"}); held {
+		t.Errorf("held for a key the Update entry does not own")
+	}
+
+	finished, rejected, err := c.PatchMarkers(context.Background(), ref,
+		map[string]string{"tofu-estate": "smoke-crd"},
+		map[string]string{ssaTestAnnotation: "kubernetes_manifest.x"}, "", false)
+	if err != nil || rejected != "" {
+		t.Fatalf("PatchMarkers: err=%v rejected=%q", err, rejected)
+	}
+	if held, err := MarkersHeldByUpdate(finished, "", labels, annotations); held || err != nil {
+		t.Errorf("after PatchMarkers re-sent over the same values: held = %v, err = %v; want false", held, err)
+	}
+}

@@ -230,8 +230,15 @@ func approveManifest(ctx context.Context, estate string, addr addrs.AbsResourceI
 	gotAddress := live.GetAnnotations()[markers.AddressAnnotation]
 	addressOK := gotAddress != "" && markers.AddressMatches(markers.EscapeAddress(gotAddress), addr.String())
 
+	// GitHub issue #1764: markers whose values are right but which the
+	// block manager's Update entry still holds are what an -approve killed
+	// between PatchMarkers' two requests leaves. The provider's next apply
+	// that changes one would conflict with that entry, so the write is
+	// sent again to finish the hand-off rather than reported as done.
+	held, _ := kubesweep.MarkersHeldByUpdate(live, e.fieldManager, []string{markers.TagEstate}, []string{markers.AddressAnnotation})
+
 	switch got := live.GetLabels()[markers.TagEstate]; {
-	case got == estate && addressOK:
+	case got == estate && addressOK && !held:
 		out.Outcome = OutcomeAlreadyStamped
 		out.Detail = "Already carries this estate's label and this block's address annotation; nothing written."
 		return out
@@ -267,7 +274,7 @@ func approveManifest(ctx context.Context, estate string, addr addrs.AbsResourceI
 	written, rejected, err := e.patcher.PatchMarkers(ctx, ref, labels, annotations, e.fieldManager, false)
 	if err != nil {
 		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("The marker write on %s failed: %s. The write may have partly landed; read the object's labels and annotations with kubectl before deciding what to do next.", ref, err)
+		out.Detail = fmt.Sprintf("The marker write on %s failed: %s. The adoption is not finished. Rerun the same live-import -approve command; it completes a write that partly landed.", ref, err)
 		return out
 	}
 	if rejected != "" {
@@ -278,6 +285,9 @@ func approveManifest(ctx context.Context, estate string, addr addrs.AbsResourceI
 
 	out.Outcome = OutcomeStamped
 	out.Detail = fmt.Sprintf("Wrote the tofu-estate label and the %s annotation.", markers.AddressAnnotation)
+	if held && live.GetLabels()[markers.TagEstate] == estate && addressOK {
+		out.Detail = fmt.Sprintf("Already carried the tofu-estate label and the %s annotation, but field manager %q's Update entry still held them (an earlier -approve was cut short); re-sent the write so its Apply entry owns them.", markers.AddressAnnotation, fieldManagerOrDefault(e.fieldManager))
+	}
 	switch {
 	case written == nil || written.GetLabels()[markers.TagEstate] != estate:
 		out.Detail = "The write reported no error, but the object read back afterwards does not carry the tofu-estate label. Verify with kubectl before relying on this."
@@ -285,6 +295,15 @@ func approveManifest(ctx context.Context, estate string, addr addrs.AbsResourceI
 		out.Detail = fmt.Sprintf("The write reported no error, but the object read back afterwards does not carry the %s annotation. Verify with kubectl before relying on this.", markers.AddressAnnotation)
 	}
 	return out
+}
+
+// fieldManagerOrDefault is the manager a write under fieldManager goes
+// under.
+func fieldManagerOrDefault(fieldManager string) string {
+	if fieldManager == "" {
+		return kubesweep.DefaultFieldManager
+	}
+	return fieldManager
 }
 
 // changedOutsideManifestLabels names the paths at which the object the

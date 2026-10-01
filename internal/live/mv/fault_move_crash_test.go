@@ -8,6 +8,7 @@ package mv
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -101,65 +102,98 @@ func faultProviderApply(dyn *fakedynamic.FakeDynamicClient, address string) erro
 	return err
 }
 
-// rerunRecovers is what the fault test expects of the rerun. It is false
-// because the rerun does not recover today: the rerun reads the new address
-// on the object, takes the "already marked" branch (manifest.go's
-// reannotateManifest), reports the rename verified, and never re-sends the
-// ownership write, so the Update entry keeps the annotation and the
-// provider's next rename fails with
+// rerunRecovers is what the fault test expects of the rerun (GitHub issue
+// #1764). Before the fix the rerun read the new address on the object,
+// took the "already marked" branch (manifest.go's reannotateManifest),
+// reported the rename verified, and never re-sent the ownership write, so
+// the Update entry kept the annotation and the provider's next rename
+// failed with
 //
 //	Apply failed with 1 conflict: conflict with "Terraform" using
 //	stable.example.com/v1: .metadata.annotations.choudoufu.intentius.io/tofu-address
 //
-// That is the defect this injector found (GitHub issue #1110's move-crash
-// half; filed as its own issue). The fix flips this to true, and the test
-// then asserts recovery. Flipping it without the fix is the red control:
-// the test fails with the line above.
-const rerunRecovers = false
+// Flipping it to false is the red control: the test then fails because
+// the rerun recovers.
+const rerunRecovers = true
+
+// countPatches counts every patch request the cluster is sent from here
+// on, dry runs included.
+func countPatches(dyn *fakedynamic.FakeDynamicClient) (count func() int) {
+	n := 0
+	dyn.PrependReactor("patch", "crontabs", func(clienttesting.Action) (bool, runtime.Object, error) {
+		n++
+		return false, nil, nil
+	})
+	return func() int { return n }
+}
+
+// faultRenameRequest is manifestRenameRequest over the fault cluster, with
+// the renamed block declaring field_manager { name = declared } when
+// declared is not empty.
+func faultRenameRequest(t *testing.T, client *kubesweep.Client, declared string) (Request, addrs.AbsResourceInstance) {
+	t.Helper()
+	req, renamed := manifestRenameRequest(t, nil)
+	if declared != "" {
+		req.Config = fieldManagerTestConfig(t, declared)
+	}
+	req.Clusters = kubeClusters{client}
+	return req, renamed
+}
 
 // TestMove_ManifestRenameCrashBetweenItsWrites is the fault. The first
 // live-mv dies between the marker write and the ownership write; the
 // operator reruns it, as the first run's error tells them to; then the
-// provider's next rename (a moved block) applies. A run that was never
-// killed lets that apply through
+// provider's next rename (a moved block) applies under the block's
+// manager. A run that was never killed lets that apply through
 // (TestMove_ManifestRenameWithoutAFaultLeavesTheProviderFree).
 func TestMove_ManifestRenameCrashBetweenItsWrites(t *testing.T) {
-	client, dyn := faultCluster(t)
-	if err := faultProviderApply(dyn, labelTestType+".database"); err != nil {
-		t.Fatalf("greenfield create: %v", err)
-	}
-	fired := crashBetweenMarkerWrites(dyn)
-	req, renamed := manifestRenameRequest(t, nil)
-	req.Clusters = kubeClusters{client}
+	for _, tc := range []struct{ name, declared, manager string }{
+		{"default manager", "", kubesweep.DefaultFieldManager},
+		{"block's field_manager", "my-pipeline", "my-pipeline"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client, dyn := faultCluster(t)
+			if _, err := fieldManagerProviderApply(dyn, tc.manager, labelTestType+".database"); err != nil {
+				t.Fatalf("greenfield create: %v", err)
+			}
+			fired := crashBetweenMarkerWrites(dyn)
+			req, renamed := faultRenameRequest(t, client, tc.declared)
 
-	_, diags := Move(t.Context(), req)
-	if !fired() {
-		t.Fatal("the injected fault never fired: the run did not reach the ownership write")
-	}
-	if !diags.HasErrors() {
-		t.Fatal("the killed run reported success")
-	}
+			_, diags := Move(t.Context(), req)
+			if !fired() {
+				t.Fatal("the injected fault never fired: the run did not reach the ownership write")
+			}
+			if !diags.HasErrors() {
+				t.Fatal("the killed run reported success")
+			}
+			if msg := diags.Err().Error(); strings.Contains(msg, "the rename is done") || !strings.Contains(msg, "Rerun the same live-mv") {
+				t.Errorf("the killed run must say the rename is not finished and that rerunning live-mv finishes it: %s", msg)
+			}
 
-	res, diags := Move(t.Context(), req)
-	if diags.HasErrors() {
-		t.Fatalf("the rerun was refused: %s", diags.Err())
-	}
-	if !res.Verified {
-		t.Errorf("the rerun did not verify the new address")
-	}
-	err := faultProviderApply(dyn, renamed.String()+"_again")
-	switch {
-	case rerunRecovers && err != nil:
-		t.Errorf("after a killed live-mv and its rerun, the provider's next rename conflicts (#1704 reopened by a crash): %v", err)
-	case !rerunRecovers && err == nil:
-		t.Errorf("the rerun now recovers from the crash: set rerunRecovers to true so this test guards the recovery")
-	case !rerunRecovers && !res.AlreadyMarked:
-		t.Errorf("the rerun no longer takes the already-marked branch, yet the provider still conflicts: %v", err)
+			res, diags := Move(t.Context(), req)
+			if diags.HasErrors() {
+				t.Fatalf("the rerun was refused: %s", diags.Err())
+			}
+			if !res.Verified {
+				t.Errorf("the rerun did not verify the new address")
+			}
+			after, err := fieldManagerProviderApply(dyn, tc.manager, renamed.String()+"_again")
+			switch {
+			case rerunRecovers && err != nil:
+				t.Errorf("after a killed live-mv and its rerun, the provider's next rename conflicts (#1704 reopened by a crash): %v", err)
+			case rerunRecovers:
+				assertAnnotationOwnedBy(t, after, tc.manager)
+			case err == nil:
+				t.Errorf("the rerun now recovers from the crash: set rerunRecovers to true so this test guards the recovery")
+			}
+		})
 	}
 }
 
 // TestMove_ManifestRenameWithoutAFaultLeavesTheProviderFree is the control:
-// the same rename with no fault, then the same provider rename.
+// the same rename with no fault, then the same provider rename. A rerun of
+// the clean rename in between reads managedFields, finds the annotation
+// already with the Apply entry, and sends no patch at all.
 func TestMove_ManifestRenameWithoutAFaultLeavesTheProviderFree(t *testing.T) {
 	client, dyn := faultCluster(t)
 	if err := faultProviderApply(dyn, labelTestType+".database"); err != nil {
@@ -170,6 +204,19 @@ func TestMove_ManifestRenameWithoutAFaultLeavesTheProviderFree(t *testing.T) {
 	if _, diags := Move(t.Context(), req); diags.HasErrors() {
 		t.Fatalf("the rename was refused: %s", diags.Err())
 	}
+
+	patches := countPatches(dyn)
+	res, diags := Move(t.Context(), req)
+	if diags.HasErrors() {
+		t.Fatalf("the rerun was refused: %s", diags.Err())
+	}
+	if !res.AlreadyMarked || res.Written || !res.Verified {
+		t.Errorf("rerun: AlreadyMarked = %v, Written = %v, Verified = %v; want an already-marked, verified rerun that wrote nothing", res.AlreadyMarked, res.Written, res.Verified)
+	}
+	if n := patches(); n != 0 {
+		t.Errorf("the rerun of a clean rename sent %d patch(es), want none", n)
+	}
+
 	if err := faultProviderApply(dyn, renamed.String()+"_again"); err != nil {
 		t.Errorf("the provider's next rename conflicts after an unfaulted live-mv: %v", err)
 	}
