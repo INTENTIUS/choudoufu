@@ -124,6 +124,10 @@ type BoardEstate struct {
 	// has moved. Markdown. Empty for a row whose run never recorded a
 	// provider version.
 	ProviderNote string `json:"provider_note,omitempty"`
+	// EngineNote is the engine-provenance sentence (#1778 ruling 6): the
+	// OpenTofu base of the binary the run used, with its **Stale** marker
+	// when IsEngineStale says so. Markdown.
+	EngineNote string `json:"engine_note,omitempty"`
 	// StaleNote is staleStagesNote's sentence: how many of this row's
 	// verdicts were carried forward from an earlier run rather than
 	// measured by the run recorded below (#1069). Markdown. Empty when the

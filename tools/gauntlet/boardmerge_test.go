@@ -71,7 +71,7 @@ func boardMergeFixture(t *testing.T) (base, ours, theirs Board, names []string) 
 		})
 	}
 	m := &Manifest{Estates: es}
-	a.Rebuild(m, nil, "sha256:probe", OracleVersions{}, ProviderVersions{})
+	a.Rebuild(m, nil, "sha256:probe", OracleVersions{}, ProviderVersions{}, "")
 
 	st := func(changed ...string) map[string]ScriptStaleness {
 		out := map[string]ScriptStaleness{}
