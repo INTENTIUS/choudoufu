@@ -498,6 +498,170 @@ EOF
   fi
 }
 
+# gauntlet_kind_day2_crash_rename <adopted-root> <namespace>: the half of
+# day2_crash on the kind substrate that interrupts the create_before_destroy
+# rename window (#1768), the window day2_replace opens and the AWS half's
+# crash stage interrupts. A rename of a create_before_destroy ConfigMap
+# creates the new object, carrying the block's address annotation, and then
+# destroys the old one as the address's deposed object; a kill between the
+# two leaves both objects annotated with one address and the record holding
+# the old one as the deposed object.
+#
+# The kill is the engine's own, TOFU_E2E_APPLY_RESOURCE_INTERRUPT at
+# -parallelism=1 on the e2eTestingFeatures build ($TOFU_CRASH): the hook
+# fires the instant the new object's create commits, before the deposed
+# destroy is dispatched, which is the hook the AWS half uses (#490).
+#
+# The rerun reaches the old object by one of two paths, and both are run:
+#
+#   same configuration   the new object is at the declared, listed key, so
+#                        the old one is filed at orphan_<ns>_<name> and
+#                        destroyed there.
+#   name read at plan    the block's name comes from another block's
+#   time (#1539)         attribute, so neither object is at a declared key;
+#                        since #1683 the deposed record settles the
+#                        collision and the old object is destroyed as the
+#                        address's deposed object.
+#
+# The oracle is the outcome, not the plan's wording (#1768's ruling): stock
+# holds the old object as deposed and plans `(deposed object ...) will be
+# destroyed`, and the same-configuration rerun here plans an orphan destroy
+# instead. What has to agree is the end state after one more apply, which is
+# what stock's uninterrupted replace leaves on the oracle cluster in
+# day2_replace: exactly the new object, carrying the block's annotation, the
+# old one gone, the record's deposed entry gone, and an empty replan. So that
+# is the verdict, and each leg's plan is held only to proposing one destroy
+# and nothing else - no create of the object the crash already made, no
+# refusal.
+#
+# Both legs use kubernetes_config_map, whose record renders the object's
+# identity (#1188); a _v1 type's deposed record names no object, and #1539's
+# shape over one ends in the two-claimant collision, which needs a human.
+# The blocks live in a file of their own (day2_crash_rename.tf) and are
+# removed at the end, so every later count is what it was.
+#
+# The caller supplies fail, log, kca, TOFU, TOFU_CRASH, KCA and ESTATE, and
+# reads CRASH_RENAME_DETAIL into its own day2_crash verdict. BREAK_CRASH=1 is the
+# stage's Break line for this window too: after each interrupt it asserts
+# nothing is proposed, which must fail, and then recovers as the real check
+# does so the stage's own multi-object window starts from a converged estate.
+CRASH_RENAME_DETAIL=""
+gauntlet_kind_day2_crash_rename() {
+  local adopted="$1" ns="$2" leg block old new path x_out x_rc rec dep r_plan r_line r_apply replan legs_detail=""
+  _crash_rename_chdf() { ( cd "$adopted" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" "$@" ); }
+  _crash_rename_tf() { # $1 leg, $2 the name's suffix
+    case "$1" in
+      orphan) cat > "$adopted/day2_crash_rename.tf" <<EOF
+resource "kubernetes_config_map" "crash_rename" {
+  metadata {
+    name      = "crash-rename-$2"
+    namespace = "$ns"
+  }
+  data = { v = "$2" }
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+EOF
+        ;;
+      deposed) cat > "$adopted/day2_crash_rename.tf" <<EOF
+resource "kubernetes_config_map" "crash_rename_src" {
+  metadata {
+    name      = "crash-rename-src"
+    namespace = "$ns"
+  }
+  data = { suffix = "$2" }
+}
+
+resource "kubernetes_config_map" "crash_rename_read" {
+  metadata {
+    name      = "crash-read-\${kubernetes_config_map.crash_rename_src.data["suffix"]}"
+    namespace = "$ns"
+  }
+  data = { v = "$2" }
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+EOF
+        ;;
+    esac
+  }
+  # _crash_rename_deposed <record>: the import IDs of the record's deposed
+  # entries, one per line.
+  _crash_rename_deposed() {
+    python3 - "$1" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+for v in (d.get("deposed") or {}).values():
+    print((v.get("identity") or {}).get("import_id", ""))
+PY
+  }
+  _crash_rename_ann() { kca get configmap "$1" -n "$ns" -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}' 2>&1; }
+
+  for leg in orphan deposed; do
+    case "$leg" in
+      orphan)  block="kubernetes_config_map.crash_rename";      old="crash-rename-a"; new="crash-rename-b"; path="orphan_${ns}_${old}" ;;
+      deposed) block="kubernetes_config_map.crash_rename_read"; old="crash-read-a";   new="crash-read-b";   path="(deposed object" ;;
+    esac
+
+    _crash_rename_tf "$leg" a
+    r_apply="$(_crash_rename_chdf "$TOFU" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$r_apply" | tail -20; fail "$leg leg: the apply of $old failed"; }
+    [ "$(_crash_rename_ann "$old")" = "$block" ] || fail "$leg leg: $old carries the address annotation '$(_crash_rename_ann "$old")', want $block (#1639)"
+
+    _crash_rename_tf "$leg" b
+    # A non-zero exit is the normal outcome: the process was killed.
+    x_out="$(_crash_rename_chdf env TOFU_E2E_APPLY_RESOURCE_INTERRUPT="$block" "$TOFU_CRASH" apply -auto-approve -input=false -no-color -parallelism=1 2>&1)"; x_rc=$?
+    [ "$x_rc" -ne 0 ] || { printf '%s\n' "$x_out" | tail -20; fail "$leg leg: the interrupted rename apply exited 0, so the engine's self-signal never landed and nothing was interrupted"; }
+    grep -qE "${block//./\\.}: Creation complete" <<< "$x_out" || { printf '%s\n' "$x_out" | tail -20; fail "$leg leg: the interrupted apply never completed $new's create, so the kill landed before the window opened"; }
+    if grep -qE "${block//./\\.} \(deposed object [^)]*\): Destroying" <<< "$x_out"; then
+      printf '%s\n' "$x_out" | tail -20; fail "$leg leg: the deposed destroy of $old was dispatched before the kill, so the window was closed when it landed"
+    fi
+    [ "$(_crash_rename_ann "$old")" = "$block" ] && [ "$(_crash_rename_ann "$new")" = "$block" ] \
+      || fail "$leg leg: after the interrupt $old carries '$(_crash_rename_ann "$old")' and $new carries '$(_crash_rename_ann "$new")'; the window is both objects carrying $block"
+    rec="$(gauntlet_record_file "$adopted/.tofu-records" "$block")" || fail "$leg leg: the interrupted apply left no record for $block"
+    dep="$(_crash_rename_deposed "$rec" | tr '\n' ' ' | sed 's/ $//')"
+    [ "$dep" = "$ns/$old" ] || fail "$leg leg: the record's deposed entries for $block are [${dep:-none}], want [$ns/$old]: the interrupted apply's write-back did not record the old object as deposed"
+
+    r_plan="$(_crash_rename_chdf "$TOFU" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$r_plan" | tail -20; fail "$leg leg: the plan after the interrupted rename failed: $(grep -E '^Error' <<< "$r_plan" | head -1)"; }
+    r_line="$(grep -E '^Plan:|^No changes' <<< "$r_plan" | head -1 | sed 's/\.$//')"
+    if [ "${BREAK_CRASH:-}" = "1" ]; then
+      grep -q "No changes." <<< "$r_plan" \
+        && { printf '%s\n' "$r_plan" | tail -20; fail "BREAK_CRASH=1, $leg leg: the plan after a real interrupted create_before_destroy rename is empty, so the window's check is not load-bearing"; }
+      log "  BREAK_CRASH=1, $leg leg: caught - the plan after the interrupted rename proposes work ($r_line)"
+    fi
+    grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$r_plan" \
+      || { printf '%s\n' "$r_plan" | grep -E '^Plan:|^No changes| will be | must be ' | head -10; fail "$leg leg: the plan after the interrupted rename is $r_line, not the one destroy that leaves stock's end state"; }
+    grep -qF "$path" <<< "$r_plan" \
+      || { printf '%s\n' "$r_plan" | grep -E ' will be | must be ' | head -10; fail "$leg leg: the one destroy is not planned at '$path'; the rerun took a path this leg does not exercise"; }
+
+    r_apply="$(_crash_rename_chdf "$TOFU" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$r_apply" | tail -20; fail "$leg leg: the recovery apply failed"; }
+    grep -qF "Apply complete! Resources: 0 added, 0 changed, 1 destroyed." <<< "$r_apply" || { printf '%s\n' "$r_apply" | tail -10; fail "$leg leg: the recovery apply did not destroy exactly one object"; }
+    grep -qE "Destroying\.\.\. \[id=$ns/$old\]" <<< "$r_apply" || { printf '%s\n' "$r_apply" | grep -E 'Destroying' | head -3; fail "$leg leg: the recovery apply's one destroy is not $ns/$old"; }
+    kca get configmap "$old" -n "$ns" >/dev/null 2>&1 && fail "$leg leg: $old still exists after the recovery apply"
+    [ "$(_crash_rename_ann "$new")" = "$block" ] || fail "$leg leg: $new is not there carrying $block after the recovery apply ('$(_crash_rename_ann "$new")')"
+    [ "$(kca get configmap -n "$ns" -l "tofu-estate=$ESTATE" -o name 2>/dev/null | grep -cE "^configmap/${old%a}[ab]\$")" = "1" ] \
+      || fail "$leg leg: not exactly one of $old and $new carries tofu-estate=$ESTATE after the recovery: $(kca get configmap -n "$ns" -l "tofu-estate=$ESTATE" -o name 2>/dev/null | grep -E "^configmap/${old%a}" | tr '\n' ' ')"
+    rec="$(gauntlet_record_file "$adopted/.tofu-records" "$block")" || fail "$leg leg: the record for $block is gone after the recovery"
+    dep="$(_crash_rename_deposed "$rec" | tr '\n' ' ' | sed 's/ $//')"
+    [ -z "$dep" ] || fail "$leg leg: the record still holds deposed [$dep] for $block after the recovery apply destroyed it"
+    replan="$(_crash_rename_chdf "$TOFU" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$replan" | tail -20; fail "$leg leg: the replan after the recovery failed"; }
+    grep -q "No changes." <<< "$replan" || { printf '%s\n' "$replan" | grep -E '^Plan:| will be | must be ' | head -10; fail "$leg leg: the replan after the recovery is not empty"; }
+
+    rm -f "$adopted/day2_crash_rename.tf"
+    r_apply="$(_crash_rename_chdf "$TOFU" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$r_apply" | tail -20; fail "$leg leg: removing the rename block failed"; }
+    kca get configmap "$new" -n "$ns" >/dev/null 2>&1 && fail "$leg leg: $new still exists after its block was removed"
+    log "  $leg leg: interrupted after $new's create (exit $x_rc), both annotated, record deposed $ns/$old; rerun planned $r_line at '$path'; one apply left $new alone, the record's deposed entry cleared, and the replan empty"
+    legs_detail="$legs_detail $leg leg: $r_line, the destroy at '$path';"
+  done
+
+  if [ "${BREAK_CRASH:-}" = "1" ]; then
+    CRASH_RENAME_DETAIL="The create_before_destroy rename window (#1768) is interrupted too: BREAK_CRASH=1 asserted nothing is proposed after each of its two real interrupts and that correctly failed ($legs_detail ) before the window was recovered."
+  else
+    CRASH_RENAME_DETAIL="The create_before_destroy rename window is interrupted too (#1768): a kubernetes_config_map renamed under create_before_destroy was killed by the engine's own hook the instant the new object's create committed, at -parallelism=1, leaving both objects carrying the block's address annotation and the record holding the old one as the address's deposed object. The verdict is the end state stock's replace leaves, not the plan's wording: after one more apply exactly the new object remains, the old one is gone, the record's deposed entry is cleared and the replan is empty. Both of the rerun's paths reached it -$legs_detail the same configuration through the orphan destroy, and the name read from another block's attribute (#1539's shape) through the deposed record (#1683), where stock's plan reads the same deposed-object destroy."
+  fi
+}
+
 # gauntlet_k8s_wait_all <kubeconfig> <namespace> <kind> <condition>
 #                       <timeout-seconds> <where>
 #
