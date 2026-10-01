@@ -254,6 +254,10 @@ var refusals = []Refusal{
 		What:    "GitHub issue #1084: the instance's type cannot carry tags in the call that creates it (live/registry.json: tagging.tag_on_create false - a Route 53 hosted zone, say), so the node writer withheld this fork's ownership markers from the create and the live path wrote them onto the created object immediately after, through the Resource Groups Tagging API's TagResources, and that write failed. The object exists, unmarked, and is named by ARN and id; the diagnostic prints the aws resourcegroupstaggingapi tag-resources command that marks it, which is the same operation this run attempted. The instance is not reported complete.",
 	},
 	{
+		Summary: SummaryNoPostCreateWrite,
+		What:    "GitHub issue #1742: the instance's provider family says its create call cannot carry the ownership marker, so the node writer would withhold it from the create, and the family's answers name nothing that would write it afterwards - its surface's post-create write is never-needed or unanswered, or the family carries the block address outside the marker map such a write sets. An error at plan, before anything is created, naming the instance and the answer that disagrees: creating the object would leave it carrying no marker naming the estate, and nothing is created silently. No AWS or Kubernetes type reaches it; it guards a family whose answers disagree.",
+	},
+	{
 		Summary: "Ownership marker is not a legal label value",
 		What:    "GitHub issue #1061: the estate name cannot be written as a Kubernetes label value - over 63 characters, or ending in a hyphen, both legal estate names - so the node-path stamp refuses to mark a Kubernetes resource with it rather than write a label the API server rejects. Rename the estate, or keep the resource out of a Kubernetes estate. See live/MARKERS.md, \"Kubernetes: one label\".",
 	},

@@ -203,7 +203,28 @@ func TestNodeResolver_AdjustConfigValue_awsShapeUnaffectedByLabelBranch(t *testi
 // [substrate.PostCreateNeeded] before stamping at create, so a
 // labels- or manifest-surfaced family answering true here had nothing
 // asking it.
+//
+// GitHub issue #1742: it names a real post-create write for the labels
+// surface. Embedding Kubernetes alone inherited PostCreate never-needed, so
+// this fake withheld the marker with nothing to write it afterwards - the
+// silent unmarked create #1742 item 1 describes, which the create side now
+// refuses at plan. Its post-create write sets the label map and nothing
+// else, so it carries no block address outside that map (CarriesAddress
+// false): an address annotation withheld with the labels would otherwise
+// be lost, which is refused too.
 type alwaysWithholdLabels struct{ substrate.Substrate }
+
+func (alwaysWithholdLabels) Writes(surface markers.Surface) substrate.Writes {
+	w := substrate.Kubernetes.Writes(surface)
+	if surface == markers.SurfaceLabels {
+		w.PostCreate = "fake-label-write"
+	}
+	return w
+}
+func (alwaysWithholdLabels) MarkerWriter(addrs.AbsProviderConfig) substrate.Write {
+	return "fake-label-write"
+}
+func (alwaysWithholdLabels) CarriesAddress() bool { return false }
 
 func (alwaysWithholdLabels) PostCreateNeeded(surface markers.Surface, created substrate.Created, _ substrate.Facts) (string, bool) {
 	if surface == markers.SurfaceLabels {
