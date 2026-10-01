@@ -51,9 +51,15 @@ type Board struct {
 	// version agrees with the current pin, or when no row has recorded
 	// one yet - it says nothing rather than assert agreement no row
 	// supports.
-	ProviderBanner string       `json:"provider_banner,omitempty"`
-	StageCount     int          `json:"stage_count"`
-	Stages         []BoardStage `json:"stages"`
+	ProviderBanner string `json:"provider_banner,omitempty"`
+	// UpstreamVersion is a.UpstreamVersion, the engine's OpenTofu base
+	// (#1778 ruling 6): configuration for the next run, beside Emulator.
+	UpstreamVersion string `json:"upstream_version,omitempty"`
+	// EngineBanner is engineBanner's sentence: the current engine base
+	// and how many rows IsEngineStale marks. Markdown.
+	EngineBanner string       `json:"engine_banner,omitempty"`
+	StageCount   int          `json:"stage_count"`
+	Stages       []BoardStage `json:"stages"`
 	// Estates is every row, core set first, then by name - the order the
 	// index table has always used.
 	Estates      []BoardEstate   `json:"estates"`
@@ -197,16 +203,18 @@ type BoardLiveCert struct {
 // row's recorded LastRun.SubstrateImage still matches the current pin.
 func buildBoard(m *Manifest, a *Artifact, st map[string]ScriptStaleness, kindImage string) Board {
 	b := Board{
-		Schema:         1,
-		Emulator:       a.Emulator,
-		Banner:         boardBanner(a),
-		RuntimeBanner:  runtimeBanner(a),
-		ScriptBanner:   scriptStaleBanner(a, st),
-		ProviderBanner: providerBanner(a),
-		StageCount:     len(a.Stages),
-		Lanes:          append([]string(nil), KnownLanes...),
-		ExampleEntry:   exampleEntryJSON(m),
-		LiveCert:       []BoardLiveCert{},
+		Schema:          1,
+		Emulator:        a.Emulator,
+		Banner:          boardBanner(a),
+		RuntimeBanner:   runtimeBanner(a),
+		ScriptBanner:    scriptStaleBanner(a, st),
+		ProviderBanner:  providerBanner(a),
+		UpstreamVersion: a.UpstreamVersion,
+		EngineBanner:    engineBanner(a),
+		StageCount:      len(a.Stages),
+		Lanes:           append([]string(nil), KnownLanes...),
+		ExampleEntry:    exampleEntryJSON(m),
+		LiveCert:        []BoardLiveCert{},
 	}
 	for _, s := range a.Stages {
 		headline := "yes"
@@ -255,6 +263,7 @@ func boardEstate(r EstateResult, a *Artifact, s ScriptStaleness, kindImage strin
 		StaleNote:    staleStagesNote(r),
 		ScriptNote:   scriptStaleNote(s, EstateDir(r)),
 		ProviderNote: providerNote(r, a),
+		EngineNote:   engineNote(r, a),
 	}
 	if s.State == ScriptChanged || s.State == ScriptUnknown {
 		e.ScriptStale = s.State

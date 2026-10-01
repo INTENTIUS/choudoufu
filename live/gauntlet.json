@@ -9,6 +9,7 @@
     "aws": "6.63.0",
     "kubernetes": "3.2.1"
   },
+  "upstream_version": "1.13.0-dev",
   "stages": [
     {
       "id": "cold_deploy",

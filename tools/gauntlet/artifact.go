@@ -132,7 +132,7 @@ type Artifact struct {
 	// row from the binary the run used (probeEngine, engine.go).
 	UpstreamVersion string                `json:"upstream_version,omitempty"`
 	Stages          []Stage               `json:"stages"`
-	Sets      map[string]SetSummary `json:"sets"`
+	Sets            map[string]SetSummary `json:"sets"`
 	// Lanes is one summary per lane the manifest carries (#1067), the
 	// same shape as Sets. The kubernetes lane's is the Kubernetes bar: its
 	// estates run on a kind cluster and are in neither AWS set above, so
@@ -434,7 +434,7 @@ type LastRun struct {
 	// each reads.
 	UpstreamVersion string            `json:"upstream_version,omitempty"`
 	ExitCode        int               `json:"exit_code"`
-	Detail   map[string]string `json:"detail,omitempty"`
+	Detail          map[string]string `json:"detail,omitempty"`
 	// DurationS is the whole run's wall-clock seconds: measured in Go around
 	// the script's process (runOne, run.go), from just before cmd.Run() to
 	// just after it returns. Recorded for every protocol, gauntlet or
@@ -579,6 +579,7 @@ func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, orac
 	a.Emulator = emulator
 	a.Oracle = oracle
 	a.Providers = providers
+	a.UpstreamVersion = engine
 	a.Stages = Stages()
 	a.BehaviorsProven, a.BehaviorsTotal = BehaviorsProven(bi)
 

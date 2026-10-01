@@ -252,3 +252,32 @@ func writeEngineVersionPin(t *testing.T, root, body string) {
 		t.Fatal(err)
 	}
 }
+
+// TestEngineBannerCountsEngineStaleRows: the board-wide sentence counts the
+// rows IsEngineStale marks - the same rule `gauntlet next` enqueues by - and
+// keeps pre-field rows in their own bucket while they read unknown.
+func TestEngineBannerCountsEngineStaleRows(t *testing.T) {
+	a := &Artifact{UpstreamVersion: "1.13.0", Estates: []EstateResult{
+		{Name: "now", LastRun: &LastRun{UpstreamVersion: "1.13.0"}},
+		{Name: "old", LastRun: &LastRun{UpstreamVersion: "1.13.0-dev"}},
+		{Name: "pre", LastRun: &LastRun{}},
+		{Name: "never"},
+	}}
+	got := engineBanner(a)
+	for _, want := range []string{"`1.13.0`", "Of the 3 estates measured so far", "1 recorded running on it", "2 are engine-stale"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("engineBanner = %q, want it to contain %q", got, want)
+		}
+	}
+	a.UpstreamVersion = LegacyEngineBase
+	a.Estates[0].LastRun.UpstreamVersion = LegacyEngineBase
+	got = engineBanner(a)
+	for _, want := range []string{"2 recorded running on it", "1 predate `last_run.upstream_version`"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("engineBanner = %q, want it to contain %q", got, want)
+		}
+	}
+	if strings.Contains(got, "engine-stale") {
+		t.Errorf("no row is engine-stale while the base is %s; got %q", LegacyEngineBase, got)
+	}
+}

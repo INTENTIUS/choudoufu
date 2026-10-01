@@ -95,7 +95,10 @@ func nextUnitsAgainst(headline []Stage, a *Artifact, set, kindImage string) []Un
 			// already reads the field that applies to r.Substrate (AWS for
 			// a floci-substrate row, Kubernetes for a kind-substrate one),
 			// so every clear row is checked against its own provider pin.
-			if IsSubstrateStale(r, a.Emulator, kindImage) || IsProviderStale(r, a.Providers) {
+			//
+			// IsEngineStale (#1778 ruling 6) is the same for the engine
+			// base: every substrate runs the one binary.
+			if IsSubstrateStale(r, a.Emulator, kindImage) || IsProviderStale(r, a.Providers) || IsEngineStale(r, a.UpstreamVersion) {
 				staleClear = append(staleClear, r)
 			}
 			continue
@@ -186,6 +189,13 @@ func nextUnitsAgainst(headline []Stage, a *Artifact, set, kindImage string) []Un
 				}
 				reasons = append(reasons, fmt.Sprintf("last verified against hashicorp/aws %s; the current pin is %s", got, a.Providers.AWS))
 			}
+		}
+		if IsEngineStale(r, a.UpstreamVersion) {
+			got := r.LastRun.UpstreamVersion
+			if got == "" {
+				got = "an unrecorded base (so " + LegacyEngineBase + ")"
+			}
+			reasons = append(reasons, fmt.Sprintf("last verified on OpenTofu engine base %s; the current base is %s", got, a.UpstreamVersion))
 		}
 		units = append(units, Unit{
 			ID: r.Name + "/" + StageStalePin, Estate: r.Name, Set: r.Set,
