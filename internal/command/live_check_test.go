@@ -50,7 +50,7 @@ func TestLiveCheckJSON_ParsesArgs(t *testing.T) {
 		{name: "json only", args: []string{"-json"}, wantDir: ".", wantJSON: true},
 		{name: "json then dir", args: []string{"-json", "some/dir"}, wantDir: "some/dir", wantJSON: true},
 		{name: "dir then json", args: []string{"some/dir", "-json"}, wantDir: "some/dir", wantJSON: true},
-		{name: "unknown flag refused", args: []string{"-verbose"}, wantErr: true, errContain: "-json"},
+		{name: "unknown flag refused", args: []string{"-verbose"}, wantErr: true, errContain: "flag provided but not defined: -verbose"},
 		{name: "two dirs refused", args: []string{"a", "b"}, wantErr: true, errContain: "at most one argument"},
 	}
 	for _, tt := range tests {

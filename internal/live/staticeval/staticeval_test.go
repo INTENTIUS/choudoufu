@@ -17,6 +17,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/configs/symlib"
 )
 
 // TestAllowedIsPinnedByValue pins the allowlist itself rather than any use
@@ -439,7 +440,12 @@ func loadModule(t *testing.T, src string) *configs.Module {
 		dir,
 		"default",
 	)
-	mod, diags := parser.LoadConfigDir(dir, call)
+	mod, diags := parser.LoadConfigDir(dir)
+	if mod != nil && !diags.HasErrors() {
+		// Static evaluation is a separate step since OpenTofu v1.13.0
+		// (f831fa1aa4); this fixture has no symbol libraries (#1778).
+		diags = append(diags, mod.Finalize(symlib.EmptyTable, call)...)
+	}
 	if diags.HasErrors() {
 		t.Fatalf("loading fixture: %s", diags.Error())
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs/symlib"
 	"github.com/intentius/choudoufu/internal/experiments"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -83,6 +84,8 @@ type Scope struct {
 	// first caller - see managedproj.go's doc). nil, the default, changes
 	// nothing.
 	FuncOverrides map[string]function.Function
+
+	SymbolTable symlib.Table
 }
 
 type ProviderFunction func(context.Context, addrs.ProviderFunction, tfdiags.SourceRange) (*function.Function, tfdiags.Diagnostics)

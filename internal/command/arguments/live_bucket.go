@@ -40,32 +40,49 @@ type LiveBucket struct {
 	JSON bool
 }
 
-func ParseLiveBucket(args []string) (*LiveBucket, tfdiags.Diagnostics) {
-	var diags tfdiags.Diagnostics
+// BindLiveBucket registers live-bucket's options on cli. The view options
+// are the ones every command shares (-no-color and the warning controls);
+// -json is this command's own, because what it prints is one document of its
+// own rather than the UI-message stream [BindView]'s -json selects.
+func BindLiveBucket(cli *CommandLine) *LiveBucket {
 	lb := &LiveBucket{}
+	BindView(cli, viewFlagNone)
 
-	cmdFlags := defaultFlagSet("live-bucket")
-	cmdFlags.StringVar(&lb.Bucket, "bucket", "", "bucket")
-	cmdFlags.StringVar(&lb.Region, "region", "", "region")
-	cmdFlags.StringVar(&lb.BucketOwner, "bucket-owner", "", "bucket-owner")
-	cmdFlags.StringVar(&lb.Estate, "estate", "", "estate")
-	cmdFlags.BoolVar(&lb.JSON, "json", false, "json")
+	cli.StringVar(&lb.Bucket, "bucket", "", "The bucket to check, instead of the configuration's.").SetDisplay("=name")
+	cli.StringVar(&lb.Region, "region", "", "The bucket's region.").SetDisplay("=name")
+	cli.StringVar(&lb.BucketOwner, "bucket-owner", "", "The twelve-digit AWS account that must own the bucket.").SetDisplay("=id")
+	cli.StringVar(&lb.Estate, "estate", "", "With -bucket: check the lifecycle against this estate's key namespaces.").SetDisplay("=name")
+	cli.BoolVar(&lb.JSON, "json", false, "One JSON document on stdout.")
 
-	if err := cmdFlags.Parse(args); err != nil {
-		return lb, diags.Append(tfdiags.Sourceless(tfdiags.Error, "Invalid option", fmt.Sprintf("%s.", err)))
-	}
-	if len(cmdFlags.Args()) != 0 {
-		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Too many arguments",
-			"live-bucket takes no positional arguments. Run it in a configuration directory, or name a bucket with -bucket=<name>."))
-	}
-	if lb.BucketOwner != "" && !validAWSAccountID(lb.BucketOwner) {
-		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Invalid -bucket-owner",
-			fmt.Sprintf("-bucket-owner=%q is not an AWS account ID. It must be exactly twelve digits, with no dashes and no ARN around them: it goes on every request as ExpectedBucketOwner, and anything else is refused by S3 on all three reads with nothing saying the flag is why.", lb.BucketOwner)))
-	}
-	if lb.Estate != "" && lb.Bucket == "" {
-		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "-estate needs -bucket",
-			"Without -bucket the estate comes from this directory's live block, and -estate would contradict it. Pass both, or neither."))
-	}
+	var rest []string
+	cli.VariadicArg(&rest, "ARGS")
+
+	cli.PreHook(func() tfdiags.Diagnostics {
+		var diags tfdiags.Diagnostics
+		if len(rest) != 0 {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Too many arguments",
+				"live-bucket takes no positional arguments. Run it in a configuration directory, or name a bucket with -bucket=<name>."))
+		}
+		if lb.BucketOwner != "" && !validAWSAccountID(lb.BucketOwner) {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Invalid -bucket-owner",
+				fmt.Sprintf("-bucket-owner=%q is not an AWS account ID. It must be exactly twelve digits, with no dashes and no ARN around them: it goes on every request as ExpectedBucketOwner, and anything else is refused by S3 on all three reads with nothing saying the flag is why.", lb.BucketOwner)))
+		}
+		if lb.Estate != "" && lb.Bucket == "" {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "-estate needs -bucket",
+				"Without -bucket the estate comes from this directory's live block, and -estate would contradict it. Pass both, or neither."))
+		}
+		return diags
+	})
+	return lb
+}
+
+// ParseLiveBucket processes CLI arguments through [BindLiveBucket], the way
+// the new CLI does, for callers that hold a raw argument list.
+func ParseLiveBucket(args []string) (*LiveBucket, tfdiags.Diagnostics) {
+	cli := new(CommandLine)
+	lb := BindLiveBucket(cli)
+	closer, diags := cli.parseWithHooks("live-bucket", args)
+	closer()
 	return lb, diags
 }
 

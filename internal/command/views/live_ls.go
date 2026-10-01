@@ -216,7 +216,7 @@ type LiveLs interface {
 // NewLiveLs returns the LiveLs implementation for args.ViewType: the JSON
 // implementation GitHub issue #789 asks for by name, or the ordinary human
 // report every other live-* command already has one of.
-func NewLiveLs(args arguments.ViewOptions, view *View) LiveLs {
+func NewLiveLs(args *arguments.View, view *View) LiveLs {
 	switch args.ViewType {
 	case arguments.ViewJSON:
 		return &LiveLsJSON{view: view}

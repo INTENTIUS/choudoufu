@@ -91,10 +91,13 @@ func TestForkSurfaceBaseVersionIsTheForkPointsOwn(t *testing.T) {
 var changelogBuiltOnRe = regexp.MustCompile("Built on OpenTofu ([^ ]+) \\(upstream [^`()]+ `([0-9a-f]{10})`\\)")
 
 // changelogPastBases maps an earlier fork point's short hash to its own
-// version/VERSION. Empty while every release shares one fork point; when
-// the base moves (#1778's port), the outgoing pair is added here so the
-// historical entries keep checking against what they were built on.
-var changelogPastBases = map[string]string{}
+// version/VERSION. When the base moves, the outgoing pair is added here so
+// the historical entries keep checking against what they were built on.
+var changelogPastBases = map[string]string{
+	// v0.1.0-v0.20.0: upstream main before the v1.13.0 tag. #1778 moved the
+	// base to 2b6193043d.
+	"03743ce6e8": "1.13.0-dev",
+}
 
 // TestChangelogBuiltOnLinesNameTheForkPointVersion holds every CHANGELOG
 // "Built on OpenTofu" claim to the version/VERSION of the fork point it

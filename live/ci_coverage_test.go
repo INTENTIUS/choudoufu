@@ -139,28 +139,29 @@ var forkOwnedMixedRoots = []string{
 	"internal/tofu",
 }
 
-// upstreamBaseCommit is the last upstream OpenTofu commit before this fork's
-// first (5acc1ee12f, "choudoufu: OpenTofu with stateless mode"). Everything
-// under a mixed root that is not in this commit's tree was added by this
-// fork, which is what makes "does the fork own this subpackage" a
-// measurement rather than a claim in a comment.
+// upstreamBaseCommit is the commit that carries upstream OpenTofu's tree
+// as this fork last merged it. Everything under a mixed root that is not in
+// this commit's tree was added by this fork, which is what makes "does the
+// fork own this subpackage" a measurement rather than a claim in a comment.
 //
-// It is the same upstream commit tools/forkdiff-gen calls the fork point -
-// "RFC: Speed up tofu show <planfile> by embedding schemas into the planfile
-// (#4239)" - but deliberately not the same SHA. forkdiff-gen names
-// 03743ce6e8, the pre-rewrite hash, which the 2026-08-14 history purge and
-// re-root left off HEAD's ancestry entirely; it is in this checkout only
-// because the `upstream` remote is configured here, and that tool documents
-// `git fetch upstream` as its prerequisite. 46ee2e77a3 is the re-rooted copy
-// of that same commit - identical tree 262f6fdf23 - and it is an ancestor of
-// HEAD, so the workflow's existing fetch-depth: 0 is enough and CI needs no
-// upstream remote. A guard that has to reach the network for its ground
-// truth is a guard that skips when the network is down.
+// It is the graft from #1778 (ruling 5): OpenTofu v1.13.0's tree (upstream
+// 2b6193043d, the commit tools/forkdiff-gen calls the fork point) committed
+// with the re-rooted original fork point 46ee2e77a3 as its parent, then
+// merged into this fork. Same tree as 2b6193043d (53f60e3359), different
+// SHA. forkdiff-gen names upstream's own commit because it runs a content
+// diff and wants a hash a reader can find in opentofu/opentofu; that commit
+// is in this checkout only through the `upstream` remote. The graft is an
+// ancestor of HEAD, so the workflow's existing fetch-depth: 0 is enough and
+// CI needs no upstream remote. A guard that has to reach the network for its
+// ground truth is a guard that skips when the network is down.
+//
+// The next upstream point release is grafted onto this commit the same way
+// and this constant moves to that graft.
 //
 // checkUpstreamBase below asserts the ancestry rather than trusting this
 // comment, so a repin to a commit only a local clone can see fails here
 // instead of only in CI.
-const upstreamBaseCommit = "46ee2e77a318e5b71f349a925fd43a7673201eec"
+const upstreamBaseCommit = "2958e54f45f2072c9d2389b38aec969903ef051e"
 
 // ciExcludedPackages names a fork-owned test package CI deliberately does
 // not run, and why. Empty is the intended state. An entry here is a
@@ -410,7 +411,7 @@ func forkOwnedTestPackages(t *testing.T) []string {
 // That is what makes the pin CI-reachable: `actions/checkout` fetches this
 // repository, so a commit on HEAD's ancestry is guaranteed present under the
 // workflow's fetch-depth: 0 and a commit off it is not. forkdiff-gen's
-// 03743ce6e8 is the second kind - resolvable here only because a developer
+// 2b6193043d is the second kind - resolvable here only because a developer
 // clone carries an `upstream` remote - and repinning to something like it
 // would pass every local run and fail every CI one.
 func checkUpstreamBase(t *testing.T) {
@@ -421,7 +422,7 @@ func checkUpstreamBase(t *testing.T) {
 		t.Fatalf("upstreamBaseCommit %s is not an ancestor of HEAD (%v).\n"+
 			"This guard classifies mixed-root subpackages against that commit's tree, and CI reaches "+
 			"it only through this repository's own history. Pin it to the last upstream commit that is "+
-			"on HEAD's ancestry - the re-rooted copy, not tools/forkdiff-gen's pre-rewrite 03743ce6e8 - "+
+			"on HEAD's ancestry - the graft, not tools/forkdiff-gen's upstream 2b6193043d - "+
 			"or, if the checkout is shallow, deepen it.",
 			upstreamBaseCommit, err)
 	}

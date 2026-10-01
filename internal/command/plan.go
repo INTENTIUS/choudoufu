@@ -18,6 +18,25 @@ import (
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
+func PlanCommander() Command {
+	cmd := Command{
+		Name:  "plan",
+		Short: "Show changes required by the current configuration",
+		Long: `Generates a speculative execution plan, showing what actions OpenTofu would take to apply the current configuration. This command will not actually perform the planned actions.
+
+You can optionally save the plan to a file, which you can then pass to the "apply" command to perform exactly the actions described in the plan.`,
+
+		GroupID: MainCommandGroup.ID,
+	}
+
+	args := arguments.BindPlan(&cmd.CommandLine)
+	cmd.Run = func(meta Meta) int {
+		return PlanCommand{meta}.run(args)
+	}
+
+	return cmd
+}
+
 // PlanCommand is a Command implementation that compares a OpenTofu
 // configuration to an actual infrastructure and shows the differences.
 type PlanCommand struct {
@@ -25,76 +44,65 @@ type PlanCommand struct {
 }
 
 func (c *PlanCommand) Run(rawArgs []string) int {
-	ctx := c.CommandContext()
+	return RunCommand(PlanCommander(), c.Meta, rawArgs)
+}
 
-	// Kept for the delegation below, which hands live-plan the arguments
-	// exactly as they arrived so that it can parse them itself. An
-	// independent copy for the reason LivePlanCommand.Run's own
-	// originalArgs documents: arguments.ParseView compacts recognized
-	// flags out of its argument slice IN PLACE.
-	originalArgs := append([]string(nil), rawArgs...)
-
-	// Parse and apply global view arguments
-	common, rawArgs := arguments.ParseView(rawArgs)
-	c.View.Configure(common)
-
-	// Parse and validate flags
-	args, closer, diags := arguments.ParsePlan(rawArgs)
-	defer closer()
-
-	c.View.SetShowSensitive(args.ShowSensitive)
-	c.View.SetVerbose(args.Verbose)
-
-	// GitHub issue #894's alias, pointing the opposite way from
-	// LivePlanCommand.Run's: a configuration that names its own estate,
-	// asked for -json, is asking for GitHub issue #788's document, and
-	// LivePlanCommand.livePlan is the only pipeline in the fork that
-	// builds one. Nothing below this point can - statelessBegin and
-	// backend_local.go's StatelessRun have no hook that renders it, which
-	// is what statelessRejections' "Machine-readable output is not
-	// available under live resource markers yet" has always been saying -
-	// so the choice is to delegate or to keep refusing, and #894 is the
-	// report of a consumer who could not get the document for the
-	// configuration shape the docs recommend.
-	//
-	// It runs BEFORE views.NewPlan below and it has to: with ViewType
-	// ViewJSON that constructor builds a [views.PlanJSON], and building
-	// one prints an NDJSON "version" message the instant it exists
-	// (views.NewJSONView). Deciding afterwards would leave that line on
-	// stdout ahead of a document this command had already decided not to
-	// print - the exact stream mixing #894's second half is about.
-	//
-	// No recursion: LivePlanCommand.Run delegates back here only when
-	// -json was NOT requested.
-	//
-	// -json-into is excluded rather than delegated. It asks for the
-	// general JSON UI-message stream written to a second file, which is a
-	// different feature with no representation on either pipeline, and it
-	// keeps its refusal from the one shared list below.
-	if !diags.HasErrors() && args.ViewOptions.ViewType == arguments.ViewJSON && args.ViewOptions.JSONInto == nil {
-		// statelessSettings resolves the root module call, which is cached
-		// and which needs the -var values; asking before they are set
-		// would answer the rest of the run's questions with the wrong
-		// variables. Same ordering, and the same tolerated load errors, as
-		// LivePlanCommand.Run's own alias. Both fields are assigned again
-		// below with the identical values.
-		c.Meta.input = args.ViewOptions.InputEnabled
-		c.Meta.variableArgs = args.Vars.All()
-		if settings, _ := c.statelessSettings(ctx, true); settings != nil {
-			live := &LivePlanCommand{Meta: c.Meta}
-			return live.Run(originalArgs)
+// run is this fork's step between parsing and [PlanCommand.Execute]: it
+// decides whether the run is GitHub issue #894's alias, and only otherwise
+// builds the plan view and executes.
+//
+// The alias points the opposite way from LivePlanCommand.Execute's: a
+// configuration that names its own estate, asked for -json, is asking for
+// GitHub issue #788's document, and LivePlanCommand.livePlan is the only
+// pipeline in the fork that builds one. Nothing in Execute can -
+// statelessBegin and backend_local.go's StatelessRun have no hook that
+// renders it, which is what statelessRejections' "Machine-readable output is
+// not available under live resource markers yet" has always been saying - so
+// the choice is to delegate or to keep refusing, and #894 is the report of a
+// consumer who could not get the document for the configuration shape the
+// docs recommend.
+//
+// It runs BEFORE views.NewPlan and it has to, which is why it lives here and
+// not in Execute, whose view argument already exists: with ViewType ViewJSON
+// that constructor builds a [views.PlanJSON], and building one prints an
+// NDJSON "version" message the instant it exists (views.NewJSONView).
+// Deciding afterwards would leave that line on stdout ahead of a document
+// this command had already decided not to print - the exact stream mixing
+// #894's second half is about.
+//
+// No recursion: LivePlanCommand.Execute delegates back to Execute only when
+// -json was NOT requested.
+//
+// -json-into is excluded rather than delegated. It asks for the general JSON
+// UI-message stream written to a second file, which is a different feature
+// with no representation on either pipeline, and it keeps its refusal from
+// the one shared list in Execute.
+//
+// statelessSettings resolves the root module call, which is cached and which
+// needs the -var values; RunCli has set those on Meta before this runs. Load
+// errors are tolerated here, as in LivePlanCommand.Execute's own alias: the
+// ordinary path reports them in its own voice.
+func (c PlanCommand) run(args *arguments.Plan) int {
+	if args.View.ViewType == arguments.ViewJSON && args.View.JSONInto == nil {
+		if settings, _ := c.statelessSettings(c.CommandContext(), true); settings != nil {
+			return (&LivePlanCommand{Meta: c.Meta}).Execute(&arguments.LivePlan{Plan: args})
 		}
 	}
+	return c.Execute(args, views.NewPlan(args.View, c.View))
+}
 
-	// Instantiate the view, even if there are flag errors, so that we render
-	// diagnostics according to the desired view
-	view := views.NewPlan(args.ViewOptions, c.View)
+func (c PlanCommand) Execute(args *arguments.Plan, view views.Plan) int {
+	var diags tfdiags.Diagnostics
+	ctx := c.CommandContext()
 
-	if diags.HasErrors() {
-		view.Diagnostics(diags)
-		view.HelpPrompt()
-		return 1
-	}
+	// -verbose is this fork's, and per-command rather than a view flag: see
+	// views.View's verbose field for why it is set here and not by
+	// View.Configure. -show-sensitive needs no such line any more, since
+	// v1.13.0 moved it onto arguments.View and RunCli's Configure applies it.
+	c.View.SetVerbose(args.Verbose)
+
+	ctx = tfdiags.ContextWithLintFilterHints(ctx, args.View.LintInclude, args.View.LintExclude)
+	diags = diags.Append(tfdiags.ExperimentalLintWarn(ctx))
 
 	// Check for user-supplied plugin path
 	var err error
@@ -104,23 +112,7 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 		return 1
 	}
 
-	// FIXME: the -input flag value is needed to initialize the backend and the
-	// operation, but there is no clear path to pass this value down, so we
-	// continue to mutate the Meta object state for now.
-	c.Meta.input = args.ViewOptions.InputEnabled
-
-	// FIXME: the -parallelism flag is used to control the concurrency of
-	// OpenTofu operations. At the moment, this value is used both to
-	// initialize the backend via the ContextOpts field inside CLIOpts, and to
-	// set a largely unused field on the Operation request. Again, there is no
-	// clear path to pass this value down, so we continue to mutate the Meta
-	// object state for now.
-	c.Meta.parallelism = args.Operation.Parallelism
-
 	diags = diags.Append(c.providerDevOverrideRuntimeWarnings())
-
-	// Inject variables from args into meta for static evaluation
-	c.Meta.variableArgs = args.Vars.All()
 
 	// Load the encryption configuration
 	enc, encDiags := c.Encryption(ctx)
@@ -175,7 +167,7 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 	}
 
 	// Build the operation request
-	opReq, opDiags := c.OperationRequest(ctx, be, view, args.ViewOptions, args.Operation, args.OutPath, args.GenerateConfigPath, enc)
+	opReq, opDiags := c.OperationRequest(ctx, be, view, args.View, args.Operation, args.OutPath, args.GenerateConfigPath, enc)
 	diags = diags.Append(opDiags)
 	if diags.HasErrors() {
 		view.Diagnostics(diags)
@@ -184,7 +176,7 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 
 	if statelessCfg != nil {
 		moreDiags := statelessBegin(be, opReq, statelessCfg, c.View, args.AdoptionOnly, args.Filter, c.liveEstateOutputs(),
-			statelessRejections(surfaceLiveBlock, args.Operation, args.State, args.ViewOptions, args.OutPath, args.GenerateConfigPath, ""))
+			statelessRejections(surfaceLiveBlock, args.Operation, args.State, args.View, args.OutPath, args.GenerateConfigPath, ""))
 		diags = diags.Append(moreDiags)
 		if moreDiags.HasErrors() {
 			view.Diagnostics(diags)
@@ -223,8 +215,6 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 }
 
 func (c *PlanCommand) PrepareBackend(ctx context.Context, args *arguments.State, view views.Plan, enc encryption.Encryption) (backend.Enhanced, tfdiags.Diagnostics) {
-	c.Meta.stateArgs = *args
-
 	backendConfig, diags := c.loadBackendConfig(ctx, ".")
 	if diags.HasErrors() {
 		return nil, diags
@@ -247,7 +237,7 @@ func (c *PlanCommand) OperationRequest(
 	ctx context.Context,
 	be backend.Enhanced,
 	view views.Plan,
-	viewOptions arguments.ViewOptions,
+	viewOptions *arguments.View,
 	args *arguments.Operation,
 	planOutPath string,
 	generateConfigOut string,
@@ -452,6 +442,14 @@ Other Options:
                                imported with a relative path. When "none" is
                                selected, all the deprecation warnings will be
                                dropped.
+
+  -lint=all                    Configures the linting rules to be executed during
+                               this command. By specifying this flag, the built-in
+                               linting will be enabled, which will start issuing
+                               warning diagnostics if any included rule will be
+                               violated. For more details on the format and
+                               available linting rules, refer to the official
+                               documentation.
 `
 	return strings.TrimSpace(helpText)
 }

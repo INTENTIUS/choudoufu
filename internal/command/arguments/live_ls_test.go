@@ -68,8 +68,8 @@ func TestParseLiveLs_valid(t *testing.T) {
 			if got.ConfigDir != tc.wantConfigDir {
 				t.Errorf("ConfigDir = %q, want %q", got.ConfigDir, tc.wantConfigDir)
 			}
-			if got.ViewOptions.ViewType != tc.wantViewType {
-				t.Errorf("ViewType = %v, want %v", got.ViewOptions.ViewType, tc.wantViewType)
+			if got.View.ViewType != tc.wantViewType {
+				t.Errorf("ViewType = %v, want %v", got.View.ViewType, tc.wantViewType)
 			}
 		})
 	}
@@ -81,7 +81,7 @@ func TestParseLiveLs_invalid(t *testing.T) {
 		wantSummary string
 	}{
 		"no estate":       {nil, "No estate named"},
-		"unknown flag":    {[]string{"-estate=prod", "-nope"}, "Invalid option"},
+		"unknown flag":    {[]string{"-estate=prod", "-nope"}, "flag provided but not defined: -nope"},
 		"two directories": {[]string{"-estate=prod", "a", "b"}, "Too many arguments"},
 	}
 

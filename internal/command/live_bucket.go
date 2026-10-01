@@ -62,16 +62,29 @@ type liveBucketSettingLine struct {
 	Found   string `json:"found"`
 }
 
-func (c *LiveBucketCommand) Run(rawArgs []string) int {
-	ctx := c.CommandContext()
-	common, rawArgs := arguments.ParseView(rawArgs)
-	c.View.Configure(common)
-
-	args, diags := arguments.ParseLiveBucket(rawArgs)
-	if diags.HasErrors() {
-		c.View.Diagnostics(diags)
-		return 1
+// LiveBucketCommander is live-bucket's entry in the new CLI's command tree. See
+// [LiveCommanders].
+func LiveBucketCommander() Command {
+	cmd := Command{
+		Name:  "live-bucket",
+		Short: (&LiveBucketCommand{}).Synopsis(),
 	}
+
+	args := arguments.BindLiveBucket(&cmd.CommandLine)
+	applyLegacyHelp(&cmd, (&LiveBucketCommand{}).Help())
+	cmd.Run = func(meta Meta) int {
+		return (&LiveBucketCommand{Meta: meta}).Execute(args)
+	}
+	return cmd
+}
+
+func (c *LiveBucketCommand) Run(rawArgs []string) int {
+	return RunCommand(LiveBucketCommander(), c.Meta, rawArgs)
+}
+
+func (c *LiveBucketCommand) Execute(args *arguments.LiveBucket) int {
+	ctx := c.CommandContext()
+	var diags tfdiags.Diagnostics
 	c.Meta.input = false
 
 	bucket, region, estate := args.Bucket, args.Region, args.Estate

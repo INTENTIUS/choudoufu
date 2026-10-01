@@ -199,6 +199,12 @@ func (b *Local) opPlan(
 			State: plan.PrevRunState,
 		}
 
+		// The schemas were loaded above, and a failure there already ended
+		// the operation (this fork keeps a schema failure fatal before the
+		// save, because the stateless post-plan step needs them), so the
+		// saved plan always embeds them for `tofu show` (#1778).
+		schemasForPlanFile := schemas.Providers
+
 		log.Printf("[INFO] backend/local: writing plan output to: %s", path)
 		err := planfile.Create(path, planfile.CreateArgs{
 			ConfigSnapshot:       configSnap,
@@ -206,6 +212,8 @@ func (b *Local) opPlan(
 			StateFile:            plannedStateFile,
 			Plan:                 plan,
 			DependencyLocks:      op.DependencyLocks,
+			Schemas:              schemasForPlanFile,
+			Config:               lr.Config,
 		}, op.Encryption.Plan())
 		if err != nil {
 			diags = diags.Append(tfdiags.Sourceless(

@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/configs/symlib"
 	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -100,7 +101,8 @@ resource "foo" "bar" {}
 	dummyIdentifier := StaticIdentifier{Subject: "local.test"}
 
 	t.Run("Empty Eval", func(t *testing.T) {
-		mod, _ := NewModule([]*File{file}, nil, RootModuleCallForTesting(), "dir", SelectiveLoadAll)
+		mod, _ := NewModule([]*File{file}, nil, "dir", SelectiveLoadAll)
+		_ = mod.Finalize(symlib.EmptyTable, RootModuleCallForTesting())
 		emptyEval := StaticEvaluator{}
 
 		// Expr with no traversals shouldn't access any fields
@@ -134,8 +136,9 @@ resource "foo" "bar" {}
 		call := NewStaticModuleCall(nil, hcl.Range{}, func(_ *Variable) (cty.Value, hcl.Diagnostics) {
 			panic("Variables have not been configured for this test!")
 		}, "dir", "")
-		mod, _ := NewModule([]*File{file}, nil, call, "dir", SelectiveLoadAll)
-		eval := NewStaticEvaluator(mod, call)
+		mod, _ := NewModule([]*File{file}, nil, "dir", SelectiveLoadAll)
+		_ = mod.Finalize(symlib.EmptyTable, call)
+		eval := NewStaticEvaluator(mod, nil, call)
 
 		locals := []struct {
 			ident string
@@ -188,8 +191,9 @@ resource "foo" "bar" {}
 			}
 			return v.Default, nil
 		}, "<testing>", "")
-		mod, _ := NewModule([]*File{file}, nil, call, "dir", SelectiveLoadAll)
-		eval := NewStaticEvaluator(mod, call)
+		mod, _ := NewModule([]*File{file}, nil, "dir", SelectiveLoadAll)
+		_ = mod.Finalize(symlib.EmptyTable, call)
+		eval := NewStaticEvaluator(mod, nil, call)
 
 		locals := []struct {
 			ident string
@@ -214,8 +218,9 @@ resource "foo" "bar" {}
 	})
 
 	t.Run("Bad References", func(t *testing.T) {
-		mod, _ := NewModule([]*File{file}, nil, RootModuleCallForTesting(), "dir", SelectiveLoadAll)
-		eval := NewStaticEvaluator(mod, RootModuleCallForTesting())
+		mod, _ := NewModule([]*File{file}, nil, "dir", SelectiveLoadAll)
+		_ = mod.Finalize(symlib.EmptyTable, RootModuleCallForTesting())
+		eval := NewStaticEvaluator(mod, nil, RootModuleCallForTesting())
 
 		locals := []struct {
 			ident string
@@ -240,8 +245,9 @@ resource "foo" "bar" {}
 	})
 
 	t.Run("Circular References", func(t *testing.T) {
-		mod, _ := NewModule([]*File{file}, nil, RootModuleCallForTesting(), "dir", SelectiveLoadAll)
-		eval := NewStaticEvaluator(mod, RootModuleCallForTesting())
+		mod, _ := NewModule([]*File{file}, nil, "dir", SelectiveLoadAll)
+		_ = mod.Finalize(symlib.EmptyTable, RootModuleCallForTesting())
+		eval := NewStaticEvaluator(mod, nil, RootModuleCallForTesting())
 
 		locals := []struct {
 			ident string
@@ -277,8 +283,9 @@ resource "foo" "bar" {}
 				Subject:  v.DeclRange.Ptr(),
 			}}
 		}, "<testing>", "")
-		mod, _ := NewModule([]*File{file}, nil, call, "dir", SelectiveLoadAll)
-		eval := NewStaticEvaluator(mod, call)
+		mod, _ := NewModule([]*File{file}, nil, "dir", SelectiveLoadAll)
+		_ = mod.Finalize(symlib.EmptyTable, call)
+		eval := NewStaticEvaluator(mod, nil, call)
 
 		badref := mod.Locals["ref_c"]
 		_, diags := eval.Evaluate(t.Context(), badref.Expr, StaticIdentifier{Subject: fmt.Sprintf("local.%s", badref.Name), DeclRange: badref.DeclRange})
@@ -291,8 +298,9 @@ resource "foo" "bar" {}
 	})
 
 	t.Run("Missing References", func(t *testing.T) {
-		mod, _ := NewModule([]*File{file}, nil, RootModuleCallForTesting(), "dir", SelectiveLoadAll)
-		eval := NewStaticEvaluator(mod, RootModuleCallForTesting())
+		mod, _ := NewModule([]*File{file}, nil, "dir", SelectiveLoadAll)
+		_ = mod.Finalize(symlib.EmptyTable, RootModuleCallForTesting())
+		eval := NewStaticEvaluator(mod, nil, RootModuleCallForTesting())
 
 		locals := []struct {
 			ident string
@@ -312,8 +320,9 @@ resource "foo" "bar" {}
 
 	t.Run("Workspace", func(t *testing.T) {
 		call := NewStaticModuleCall(nil, hcl.Range{}, nil, "<testing>", "my-workspace")
-		mod, _ := NewModule([]*File{file}, nil, call, "dir", SelectiveLoadAll)
-		eval := NewStaticEvaluator(mod, call)
+		mod, _ := NewModule([]*File{file}, nil, "dir", SelectiveLoadAll)
+		_ = mod.Finalize(symlib.EmptyTable, call)
+		eval := NewStaticEvaluator(mod, nil, call)
 
 		value, diags := eval.Evaluate(t.Context(), mod.Locals["ws"].Expr, dummyIdentifier)
 		if diags.HasErrors() {
@@ -325,8 +334,9 @@ resource "foo" "bar" {}
 	})
 
 	t.Run("Functions", func(t *testing.T) {
-		mod, _ := NewModule([]*File{file}, nil, RootModuleCallForTesting(), "dir", SelectiveLoadAll)
-		eval := NewStaticEvaluator(mod, RootModuleCallForTesting())
+		mod, _ := NewModule([]*File{file}, nil, "dir", SelectiveLoadAll)
+		_ = mod.Finalize(symlib.EmptyTable, RootModuleCallForTesting())
+		eval := NewStaticEvaluator(mod, nil, RootModuleCallForTesting())
 
 		value, diags := eval.Evaluate(t.Context(), mod.Locals["func"].Expr, dummyIdentifier)
 		if diags.HasErrors() {
@@ -350,7 +360,8 @@ func TestStaticEvaluator_DecodeExpression(t *testing.T) {
 	if fileDiags.HasErrors() {
 		t.Fatal(fileDiags)
 	}
-	mod, _ := NewModule([]*File{file}, nil, RootModuleCallForTesting(), "dir", SelectiveLoadAll)
+	mod, _ := NewModule([]*File{file}, nil, "dir", SelectiveLoadAll)
+	_ = mod.Finalize(symlib.EmptyTable, RootModuleCallForTesting())
 	mod.Locals["my_ephemeral_local"] = &Local{
 		Name:      "my_ephemeral_local",
 		Expr:      hcl.StaticExpr(cty.StringVal("ephemeral local value").Mark(marks.Ephemeral), hcl.Range{}),
@@ -361,7 +372,7 @@ func TestStaticEvaluator_DecodeExpression(t *testing.T) {
 		Expr:      hcl.StaticExpr(cty.StringVal("sensitive local value").Mark(marks.Sensitive), hcl.Range{}),
 		DeclRange: hcl.Range{},
 	}
-	eval := NewStaticEvaluator(mod, RootModuleCallForTesting())
+	eval := NewStaticEvaluator(mod, nil, RootModuleCallForTesting())
 	cases := []struct {
 		expr  string
 		diags []string
@@ -482,7 +493,8 @@ terraform {
 					return v.Default, nil
 				},
 			}
-			mod, _ := NewModule([]*File{file}, nil, modCall, "dir", SelectiveLoadAll)
+			mod, _ := NewModule([]*File{file}, nil, "dir", SelectiveLoadAll)
+			_ = mod.Finalize(symlib.EmptyTable, modCall)
 
 			_, diags := mod.Backend.Hash(t.Context(), schema)
 			if diags.HasErrors() {
@@ -531,11 +543,12 @@ dynamic "item" {
 	}
 
 	call := RootModuleCallForTesting()
-	mod, modDiags := NewModule(nil, nil, call, "dir", SelectiveLoadAll)
+	mod, modDiags := NewModule(nil, nil, "dir", SelectiveLoadAll)
+	modDiags = append(modDiags, mod.Finalize(symlib.EmptyTable, call)...)
 	if modDiags.HasErrors() {
 		t.Fatal(modDiags)
 	}
-	eval := NewStaticEvaluator(mod, call)
+	eval := NewStaticEvaluator(mod, nil, call)
 
 	val, decDiags := eval.DecodeBlock(t.Context(), f.Body, spec, StaticIdentifier{Subject: "test"})
 	if decDiags.HasErrors() {
@@ -577,8 +590,9 @@ locals {
 	frozenCall := NewStaticModuleCall(nil, hcl.Range{}, func(v *Variable) (cty.Value, hcl.Diagnostics) {
 		return cty.StringVal("frozen"), nil
 	}, "<testing>", "")
-	mod, _ := NewModule([]*File{file}, nil, frozenCall, "dir", SelectiveLoadAll)
-	eval := NewStaticEvaluator(mod, frozenCall)
+	mod, _ := NewModule([]*File{file}, nil, "dir", SelectiveLoadAll)
+	_ = mod.Finalize(symlib.EmptyTable, frozenCall)
+	eval := NewStaticEvaluator(mod, nil, frozenCall)
 
 	ident := StaticIdentifier{Subject: "local.y", DeclRange: mod.Locals["y"].DeclRange}
 
@@ -635,11 +649,12 @@ module "child" {
 	}
 
 	call := RootModuleCallForTesting()
-	mod, modDiags := NewModule([]*File{file}, nil, call, "dir", SelectiveLoadAll)
+	mod, modDiags := NewModule([]*File{file}, nil, "dir", SelectiveLoadAll)
+	modDiags = append(modDiags, mod.Finalize(symlib.EmptyTable, call)...)
 	if modDiags.HasErrors() {
 		t.Fatal(modDiags)
 	}
-	eval := NewStaticEvaluator(mod, call)
+	eval := NewStaticEvaluator(mod, nil, call)
 
 	mc := mod.ModuleCalls["child"]
 	if mc == nil {
@@ -912,7 +927,8 @@ func TestStaticEvaluator_BareFileResolvesAgainstEntryDirectory(t *testing.T) {
 
 	parser := NewParser(nil)
 	rootCall := NewStaticModuleCall(nil, hcl.Range{}, nil, relDir, "")
-	mod, diags := parser.LoadConfigDir(relDir, rootCall)
+	mod, diags := parser.LoadConfigDir(relDir)
+	diags = append(diags, mod.Finalize(symlib.EmptyTable, rootCall)...)
 	if diags.HasErrors() {
 		t.Fatalf("load: %s", diags)
 	}
@@ -977,7 +993,8 @@ func TestStaticEvaluator_PathModulePrefixedFileDoesNotDouble(t *testing.T) {
 
 	parser := NewParser(nil)
 	rootCall := NewStaticModuleCall(nil, hcl.Range{}, nil, relDir, "")
-	mod, diags := parser.LoadConfigDir(relDir, rootCall)
+	mod, diags := parser.LoadConfigDir(relDir)
+	diags = append(diags, mod.Finalize(symlib.EmptyTable, rootCall)...)
 	if diags.HasErrors() {
 		t.Fatalf("load: %s", diags)
 	}
@@ -1040,7 +1057,8 @@ func TestStaticEvaluator_PathRootPrefixedFileDoesNotDouble(t *testing.T) {
 
 	parser := NewParser(nil)
 	rootCall := NewStaticModuleCall(nil, hcl.Range{}, nil, relDir, "")
-	mod, diags := parser.LoadConfigDir(relDir, rootCall)
+	mod, diags := parser.LoadConfigDir(relDir)
+	diags = append(diags, mod.Finalize(symlib.EmptyTable, rootCall)...)
 	if diags.HasErrors() {
 		t.Fatalf("load: %s", diags)
 	}
@@ -1078,7 +1096,8 @@ func TestStaticEvaluator_PathRootBasenameAbspathSurvives(t *testing.T) {
 
 	parser := NewParser(nil)
 	rootCall := NewStaticModuleCall(nil, hcl.Range{}, nil, relDir, "")
-	mod, diags := parser.LoadConfigDir(relDir, rootCall)
+	mod, diags := parser.LoadConfigDir(relDir)
+	diags = append(diags, mod.Finalize(symlib.EmptyTable, rootCall)...)
 	if diags.HasErrors() {
 		t.Fatalf("load: %s", diags)
 	}
@@ -1138,7 +1157,8 @@ func TestStaticEvaluator_ChildModuleFileResolution(t *testing.T) {
 	childCall := NewStaticModuleCall(nil, hcl.Range{}, nil, rootRel, "")
 
 	parser := NewParser(nil)
-	mod, diags := parser.LoadConfigDir(childRel, childCall)
+	mod, diags := parser.LoadConfigDir(childRel)
+	diags = append(diags, mod.Finalize(symlib.EmptyTable, childCall)...)
 	if diags.HasErrors() {
 		t.Fatalf("load: %s", diags)
 	}

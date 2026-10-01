@@ -2665,6 +2665,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Attempt to get attribute from null value | error | `hcl` | "Attempt to get attribute from null value" |
 | 0 | 0 | identity | Attempt to index null value | error | `hcl` | "Attempt to index null value" |
 | 0 | 0 | identity | Call to unknown function | error | `hcl` | "Call to unknown function" |
+| - | - | identity | Cannot evaluate traversal pattern | error | `hcl` | "Cannot evaluate traversal pattern" |
 | 0 | 0 | identity | Circular for_each reference | error | `internal/live/identity` | "Circular for_each reference" |
 | 0 | 0 | identity | Circular identity reference | error | `internal/live/identity` | "Circular identity reference" |
 | 0 | 0 | identity | Circular reference | error | `internal/configs` | "Circular reference" |
@@ -2728,9 +2729,11 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Sensitive lifecycle.enabled expression | error | `internal/live/identity` | "Sensitive lifecycle.enabled expression" |
 | 0 | 0 | identity | Sensitive value not allowed | error | `internal/configs` | "Sensitive value not allowed" |
 | 0 | 0 | identity | Splat of null value | error | `hcl` | "Splat of null value" |
+| - | - | identity | Symbol library function in static context | error | `internal/configs` | "Symbol library function in static context" |
 | 0 | 0 | identity | The identity table names something the provider does not have | error | `internal/live/identity` | "The identity table names something the provider does not have" |
 | 0 | 0 | identity | Too many function arguments | error | `hcl` | "Too many function arguments" |
 | 0 | 0 | identity | Unable to parse provider function | error | `internal/addrs` | "Unable to parse provider function" |
+| - | - | identity | Unable to parse symbols function | error | `internal/addrs` | "Unable to parse symbols function" |
 | 0 | 0 | identity | Unable to use variable in static context | error | `internal/configs` | "Unable to use variable in static context" |
 | 0 | 0 | identity | Undefined local | error | `internal/configs` | "Undefined local" |
 | 0 | 0 | identity | Undefined variable | error | `internal/configs` | "Undefined variable" |
@@ -2841,7 +2844,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**257 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**260 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -3467,6 +3470,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### Cannot evaluate traversal pattern
+
+**What.** A traversal pattern - a reference with a wildcard step, meant for matching other references - reached evaluation, where only a concrete traversal has a value. New with the HCL fork OpenTofu v1.13.0 builds against.
+
+**Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Circular for_each reference
 
 **What.** A resource's for_each depends on its own instances, directly or through another resource's for_each.
@@ -3973,6 +3984,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### Symbol library function in static context
+
+**What.** An identity argument, a count or a for_each calls a function from an experimental symbol library (symbols::<library>::<function>). Stock static evaluation admits these; this fork refuses them by name until upstream stabilises symbol libraries (#1778).
+
+**Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### The identity table names something the provider does not have
 
 **What.** The identity table builds a type's identity from an argument the installed provider's schema has no such name for; usually provider-version skew.
@@ -3996,6 +4015,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** Raised by `internal/addrs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
 **How often.** Blocked no configuration in the measured corpus.
+
+#### Unable to parse symbols function
+
+**What.** A symbols:: function reference is not in the form the address parser accepts.
+
+**Where.** Raised by `internal/addrs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
 
 #### Unable to use variable in static context
 

@@ -149,6 +149,11 @@ var refusals = []Refusal{
 		Origin:  OriginHCL,
 	},
 	{
+		Summary: "Cannot evaluate traversal pattern",
+		What:    "A traversal pattern - a reference with a wildcard step, meant for matching other references - reached evaluation, where only a concrete traversal has a value. New with the HCL fork OpenTofu v1.13.0 builds against.",
+		Origin:  OriginHCL,
+	},
+	{
 		Summary: "Circular reference",
 		What:    "A local is defined, directly or transitively, in terms of itself. Only local-to-local cycles are detected here: the static scope pushes a frame when it resolves a local and not when it resolves a variable.",
 		Origin:  OriginConfigs,
@@ -349,6 +354,11 @@ var refusals = []Refusal{
 		Origin:  OriginHCL,
 	},
 	{
+		Summary: "Symbol library function in static context",
+		What:    "An identity argument, a count or a for_each calls a function from an experimental symbol library (symbols::<library>::<function>). Stock static evaluation admits these; this fork refuses them by name until upstream stabilises symbol libraries (#1778).",
+		Origin:  OriginConfigs,
+	},
+	{
 		Summary: "Too many function arguments",
 		What:    "A function inside a statically evaluated expression was called with too many arguments.",
 		Origin:  OriginHCL,
@@ -361,6 +371,11 @@ var refusals = []Refusal{
 	{
 		Summary: "Unable to parse provider function",
 		What:    "A provider:: function reference is not in the form the address parser accepts.",
+		Origin:  OriginAddrs,
+	},
+	{
+		Summary: "Unable to parse symbols function",
+		What:    "A symbols:: function reference is not in the form the address parser accepts.",
 		Origin:  OriginAddrs,
 	},
 	{

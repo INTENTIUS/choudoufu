@@ -52,65 +52,72 @@ type LiveImport struct {
 	Parallelism int
 }
 
-// ParseLiveImport processes CLI arguments, returning a LiveImport value and
-// errors. If errors are encountered, a LiveImport value is still returned
-// representing the best effort interpretation of the arguments.
-func ParseLiveImport(args []string) (*LiveImport, tfdiags.Diagnostics) {
-	var diags tfdiags.Diagnostics
+// BindLiveImport registers live-import's options on cli.
+func BindLiveImport(cli *CommandLine) *LiveImport {
 	li := &LiveImport{}
+	BindView(cli, viewFlagNone)
 
 	// -input is accepted and ignored: this command never prompts, and
 	// scripts pass it to every OpenTofu command out of habit.
 	var input bool
 
-	cmdFlags := defaultFlagSet("live-import")
-	cmdFlags.StringVar(&li.StatePath, "state", "", "state")
-	cmdFlags.StringVar(&li.Estate, "estate", "", "estate")
-	cmdFlags.BoolVar(&li.Approve, "approve", false, "approve")
-	cmdFlags.BoolVar(&input, "input", true, "input")
-	cmdFlags.IntVar(&li.Parallelism, "parallelism", defaultLiveImportParallelism, "parallelism")
+	cli.StringVar(&li.StatePath, "state", "", "The tfstate file to read. Required.").SetDisplay("=path")
+	cli.StringVar(&li.Estate, "estate", "", "The estate this run verifies against and, with -approve, stamps. Required.").SetDisplay("=name")
+	cli.BoolVar(&li.Approve, "approve", false, "Stamp every VERIFIED or DRIFTED resource from the ratification report.")
+	cli.BoolVar(&input, "input", true, "Accepted and ignored: this command never prompts.").SetDisplay("=false")
+	cli.IntVar(&li.Parallelism, "parallelism", defaultLiveImportParallelism, "Limit the number of resources stamped at once.").SetDisplay("=n")
 
-	if err := cmdFlags.Parse(args); err != nil {
-		return li, diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Invalid option",
-			fmt.Sprintf("%s.", err),
-		))
-	}
+	var rest []string
+	cli.VariadicArg(&rest, "ARGS")
 
-	if rest := cmdFlags.Args(); len(rest) != 0 {
-		return li, diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Unexpected arguments",
-			fmt.Sprintf("live-import takes no positional arguments; got %d. Name the state file with -state and the estate with -estate.", len(rest)),
-		))
-	}
+	cli.PreHook(func() tfdiags.Diagnostics {
+		var diags tfdiags.Diagnostics
+		if len(rest) != 0 {
+			return diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Unexpected arguments",
+				fmt.Sprintf("live-import takes no positional arguments; got %d. Name the state file with -state and the estate with -estate.", len(rest)),
+			))
+		}
 
-	if li.StatePath == "" {
-		diags = diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"No state file named",
-			"live-import reads an existing tfstate file once, read-only. Pass -state=<path> naming it.",
-		))
-	}
-	if li.Estate == "" {
-		diags = diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"No estate named",
-			"live-import has no configuration to derive an estate name from - the state file it reads may belong to a configuration that has never used markers. Pass -estate=<name>.",
-		))
-	}
-	// The same refusal stock's own -parallelism makes, in the same words:
-	// internal/tofu/context.go rejects a non-positive value rather than
-	// reading it as "no limit", and a migration that silently stamped an
-	// estate with no bound at all would be exactly the wrong reading.
-	if li.Parallelism < 1 {
-		diags = diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Invalid parallelism value",
-			fmt.Sprintf("The parallelism must be a positive value. Not %d.", li.Parallelism),
-		))
-	}
+		if li.StatePath == "" {
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"No state file named",
+				"live-import reads an existing tfstate file once, read-only. Pass -state=<path> naming it.",
+			))
+		}
+		if li.Estate == "" {
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"No estate named",
+				"live-import has no configuration to derive an estate name from - the state file it reads may belong to a configuration that has never used markers. Pass -estate=<name>.",
+			))
+		}
+		// The same refusal stock's own -parallelism makes, in the same words:
+		// internal/tofu/context.go rejects a non-positive value rather than
+		// reading it as "no limit", and a migration that silently stamped an
+		// estate with no bound at all would be exactly the wrong reading.
+		if li.Parallelism < 1 {
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Invalid parallelism value",
+				fmt.Sprintf("The parallelism must be a positive value. Not %d.", li.Parallelism),
+			))
+		}
+		return diags
+	})
+	return li
+}
 
+// ParseLiveImport processes CLI arguments through [BindLiveImport],
+// returning a LiveImport value and errors. If errors are encountered, a
+// LiveImport value is still returned representing the best effort
+// interpretation of the arguments.
+func ParseLiveImport(args []string) (*LiveImport, tfdiags.Diagnostics) {
+	cli := new(CommandLine)
+	li := BindLiveImport(cli)
+	closer, diags := cli.parseWithHooks("live-import", args)
+	closer()
 	return li, diags
 }

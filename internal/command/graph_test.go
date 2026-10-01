@@ -24,15 +24,14 @@ func TestGraph(t *testing.T) {
 	t.Chdir(td)
 
 	view, done := testView(t)
-	c := &GraphCommand{
-		Meta: Meta{
-			WorkingDir:       workdir.NewDir("."),
-			testingOverrides: metaOverridesForProvider(applyFixtureProvider()),
-			View:             view,
-		},
+
+	meta := Meta{
+		WorkingDir:       workdir.NewDir("."),
+		testingOverrides: metaOverridesForProvider(applyFixtureProvider()),
+		View:             view,
 	}
 
-	code := c.Run(nil)
+	code := RunCommander(t, GraphCommander(), meta, nil)
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("bad: \n%s", output.Stderr())
@@ -45,19 +44,18 @@ func TestGraph(t *testing.T) {
 
 func TestGraph_multipleArgs(t *testing.T) {
 	view, done := testView(t)
-	c := &GraphCommand{
-		Meta: Meta{
-			WorkingDir:       workdir.NewDir("."),
-			testingOverrides: metaOverridesForProvider(applyFixtureProvider()),
-			View:             view,
-		},
+
+	meta := Meta{
+		WorkingDir:       workdir.NewDir("."),
+		testingOverrides: metaOverridesForProvider(applyFixtureProvider()),
+		View:             view,
 	}
 
 	args := []string{
 		"bad",
 		"bad",
 	}
-	code := c.Run(args)
+	code := RunCommander(t, GraphCommander(), meta, args)
 	output := done(t)
 	if code != cli.RunResultHelp {
 		t.Fatalf("bad: \n%s", output.All())
@@ -70,15 +68,14 @@ func TestGraph_noArgs(t *testing.T) {
 	t.Chdir(td)
 
 	view, done := testView(t)
-	c := &GraphCommand{
-		Meta: Meta{
-			WorkingDir:       workdir.NewDir("."),
-			testingOverrides: metaOverridesForProvider(applyFixtureProvider()),
-			View:             view,
-		},
+
+	meta := Meta{
+		WorkingDir:       workdir.NewDir("."),
+		testingOverrides: metaOverridesForProvider(applyFixtureProvider()),
+		View:             view,
 	}
 
-	code := c.Run(nil)
+	code := RunCommander(t, GraphCommander(), meta, nil)
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("bad: \n%s", output.Stderr())
@@ -95,18 +92,17 @@ func TestGraph_noConfig(t *testing.T) {
 	t.Chdir(td)
 
 	view, done := testView(t)
-	c := &GraphCommand{
-		Meta: Meta{
-			WorkingDir:       workdir.NewDir("."),
-			testingOverrides: metaOverridesForProvider(applyFixtureProvider()),
-			View:             view,
-		},
+
+	meta := Meta{
+		WorkingDir:       workdir.NewDir("."),
+		testingOverrides: metaOverridesForProvider(applyFixtureProvider()),
+		View:             view,
 	}
 
 	// Running the graph command without a config should not panic,
 	// but this may be an error at some point in the future.
 	args := []string{"-type", "apply"}
-	code := c.Run(args)
+	code := RunCommander(t, GraphCommander(), meta, args)
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("bad: \n%s", output.All())
@@ -125,11 +121,9 @@ func TestGraph_plan(t *testing.T) {
 			Type: "test_instance",
 			Name: "bar",
 		}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance),
-		ChangeSrc: plans.ChangeSrc{
-			Action: plans.Delete,
-			Before: plans.DynamicValue(`{}`),
-			After:  plans.DynamicValue(`null`),
-		},
+		Action: plans.Delete,
+		Before: plans.DynamicValue(`{}`),
+		After:  plans.DynamicValue(`null`),
 		ProviderAddr: addrs.AbsProviderConfig{
 			Provider: addrs.NewDefaultProvider("test"),
 			Module:   addrs.RootModule,
@@ -152,18 +146,17 @@ func TestGraph_plan(t *testing.T) {
 	planPath := testPlanFile(t, configSnap, states.NewState(), plan)
 
 	view, done := testView(t)
-	c := &GraphCommand{
-		Meta: Meta{
-			WorkingDir:       workdir.NewDir("."),
-			testingOverrides: metaOverridesForProvider(applyFixtureProvider()),
-			View:             view,
-		},
+
+	meta := Meta{
+		WorkingDir:       workdir.NewDir("."),
+		testingOverrides: metaOverridesForProvider(applyFixtureProvider()),
+		View:             view,
 	}
 
 	args := []string{
 		"-plan", planPath,
 	}
-	code := c.Run(args)
+	code := RunCommander(t, GraphCommander(), meta, args)
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("bad: \n%s", output.Stderr())

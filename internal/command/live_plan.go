@@ -134,38 +134,44 @@ type LivePlanCommand struct {
 	Meta
 }
 
+// LivePlanCommander is live-plan's entry in the new CLI's command tree
+// ([RootCommander]). The legacy CLI reaches the same Execute through
+// [LivePlanCommand.Run].
+func LivePlanCommander() Command {
+	cmd := Command{
+		Name:  "live-plan",
+		Short: (&LivePlanCommand{}).Synopsis(),
+	}
+
+	args := arguments.BindLivePlan(&cmd.CommandLine)
+	applyLegacyHelp(&cmd, (&LivePlanCommand{}).Help())
+	cmd.Run = func(meta Meta) int {
+		return (&LivePlanCommand{Meta: meta}).Execute(args)
+	}
+	return cmd
+}
+
 func (c *LivePlanCommand) Run(rawArgs []string) int {
+	return RunCommand(LivePlanCommander(), c.Meta, rawArgs)
+}
+
+// Execute runs live-plan over already-parsed arguments. Its view is built
+// here rather than handed in, unlike most Execute methods in this package,
+// because which view it may build depends on -json in a way the caller
+// cannot settle: see jsonRequested below.
+func (c *LivePlanCommand) Execute(args *arguments.LivePlan) int {
 	ctx := c.CommandContext()
+	var diags tfdiags.Diagnostics
 
-	// Kept for the alias below, which hands the plan command the arguments
-	// exactly as they arrived so that it can parse them itself. This must be
-	// an independent copy, not just a second slice header over the same
-	// backing array: arguments.ParseView compacts recognized flags (like
-	// -no-color) out of its argument slice IN PLACE, and without a copy here
-	// that compaction silently overwrites originalArgs's later elements too
-	// (observed concretely as -target runs reaching the plan-command alias
-	// with -no-color gone from originalArgs and the last -target duplicated
-	// into the slot -no-color used to occupy - a real, narrow bug, not a
-	// hypothetical one).
-	originalArgs := append([]string(nil), rawArgs...)
-
-	common, rawArgs := arguments.ParseView(rawArgs)
-	c.View.Configure(common)
-
-	// The stock plan flag set plus -estate, so that -target, -var, -var-file
-	// and friends parse and behave identically and this command's own option
-	// parses like any of them. See statelessEstateName for what -estate is
-	// for and what happens when it is absent. Options this command cannot
-	// honor are rejected below rather than silently ignored.
-	args, closer, diags := arguments.ParseLivePlan(rawArgs)
-	defer closer()
+	// See statelessEstateName for what -estate is for and what happens when
+	// it is absent. Options this command cannot honor are rejected below
+	// rather than silently ignored.
 	estateFlag := args.Estate
 
-	c.View.SetShowSensitive(args.ShowSensitive)
 	c.View.SetVerbose(args.Verbose)
 
 	// jsonRequested is read before view is built, from the untouched
-	// args.ViewOptions, because view itself is never allowed to become
+	// args.View, because view itself is never allowed to become
 	// [views.NewPlan]'s ViewJSON branch here: constructing a [views.PlanJSON]
 	// calls [views.NewJSONView], which prints an NDJSON "version" message
 	// the instant it exists - before this command even knows whether the
@@ -181,8 +187,8 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 	// human-readable plan keep rendering exactly as they always have. The
 	// document itself is [StatelessPlanJSON.Document]'s job, called from
 	// [LivePlanCommand.livePlan] below.
-	jsonRequested := args.ViewOptions.ViewType == arguments.ViewJSON
-	renderOpts := args.ViewOptions
+	jsonRequested := args.View.ViewType == arguments.ViewJSON
+	renderOpts := *args.View
 	renderOpts.ViewType = arguments.ViewHuman
 	// GitHub issue #894's stream half. Under -json this command's stdout
 	// carries exactly one thing - the document, printed by statelessView
@@ -198,13 +204,7 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 	if jsonRequested {
 		renderView = c.View.StdoutOnStderr()
 	}
-	view := views.NewPlan(renderOpts, renderView)
-
-	if diags.HasErrors() {
-		view.Diagnostics(diags)
-		view.HelpPrompt()
-		return 1
-	}
+	view := views.NewPlan(&renderOpts, renderView)
 
 	var err error
 	if c.pluginPath, err = c.loadPluginPath(); err != nil {
@@ -213,14 +213,15 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 		return 1
 	}
 
-	c.Meta.input = args.ViewOptions.InputEnabled
+	c.Meta.input = args.View.InputEnabled
 	c.Meta.parallelism = args.Operation.Parallelism
 	c.Meta.variableArgs = args.Vars.All()
 
 	// Alias. When the configuration carries a live block, plain
 	// "choudoufu plan" is this pipeline, so this command is that command - down to
-	// the flag set, since delegating means the plan command parses the
-	// original arguments itself. The only difference is -estate, which the
+	// the flag set, since live-plan's arguments are the plan command's
+	// ([arguments.BindLivePlan]) and the delegate is handed them as parsed.
+	// The only difference is -estate, which the
 	// block replaces: accepting it here would let a run name an estate the
 	// configuration disagrees with, which is the ambiguity the block exists
 	// to remove.
@@ -259,8 +260,12 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 			return 1
 		}
 		if !jsonRequested {
-			plan := &PlanCommand{Meta: c.Meta}
-			return plan.Run(originalArgs)
+			// The plan command's own Execute, handed the plan half of this
+			// command's arguments: live-plan's option set is the plan
+			// command's plus -estate, and -estate was refused just above.
+			// Not [PlanCommand.run], whose only job is the opposite alias
+			// and which cannot apply here without -json.
+			return PlanCommand{Meta: c.Meta}.Execute(args.Plan, views.NewPlan(args.View, c.View))
 		}
 		// GitHub issue #894's document route. This function's own pipeline
 		// ([LivePlanCommand.livePlan]) is the ONLY thing in the fork that
@@ -363,7 +368,7 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 	//
 	// renderView, not c.View: under -json every word this command speaks
 	// belongs on stderr (#894).
-	if moreDiags := statelessRejections(surfaceEstateFlag, args.Operation, args.State, args.ViewOptions, args.OutPath, args.GenerateConfigPath, ""); moreDiags.HasErrors() {
+	if moreDiags := statelessRejections(surfaceEstateFlag, args.Operation, args.State, args.View, args.OutPath, args.GenerateConfigPath, ""); moreDiags.HasErrors() {
 		renderView.Diagnostics(moreDiags)
 		return 1
 	}
@@ -2935,7 +2940,7 @@ func statelessOmissions(res *projection.Result) []views.StatelessOmission {
 // what either one needs. A record source needs a live block's own
 // record_store, and the "-estate" form by definition has no live block at
 // all (a configuration that has one is delegated to PlanCommand - see this
-// file's own doc comment on LivePlanCommand.Run's alias); a cache source
+// file's own doc comment on LivePlanCommand.Execute's alias); a cache source
 // needs [projection.Options.StateCache], which livePlan's own BuildWith
 // call above never sets, on purpose (this diagnostic command "neither
 // reads nor writes the #685 state cache", this file's top-of-file doc

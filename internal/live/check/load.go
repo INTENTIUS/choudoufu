@@ -91,7 +91,7 @@ func LoadOverlay(ctx context.Context, dir string, overlay map[string][]byte, var
 	parser := configs.NewParser(overlayFS(overlay))
 
 	rootCall := configs.NewStaticModuleCall(addrs.RootModule, hcl.Range{}, vars.value, dir, defaultWorkspace)
-	rootMod, diags := parser.LoadConfigDir(dir, rootCall)
+	rootMod, diags := parser.LoadConfigDir(dir)
 	if diags.HasErrors() {
 		result.Diags = diags
 		return result
@@ -108,11 +108,11 @@ func LoadOverlay(ctx context.Context, dir string, overlay map[string][]byte, var
 			// run. The skip is reported through UnresolvedModules.
 			return nil, nil, nil
 		}
-		mod, modDiags := parser.LoadConfigDir(childDir, req.Call)
+		mod, modDiags := parser.LoadConfigDir(childDir)
 		return mod, nil, modDiags
-	})
+	}, parser.LoadSymbolFilesInDir)
 
-	cfg, buildDiags := configs.BuildConfig(ctx, rootMod, walker)
+	cfg, buildDiags := configs.BuildConfig(ctx, rootMod, rootCall, walker)
 	result.Diags = append(result.Diags, buildDiags...)
 	if buildDiags.HasErrors() {
 		return result
@@ -189,6 +189,19 @@ type UnresolvedModule struct {
 // the two means that need no network. See [Load].
 func (r *LoadResult) resolveModuleDir(rootDir string, manifest modsdir.Manifest, req *configs.ModuleRequest) (string, bool) {
 	path := strings.Join(req.Path, ".")
+
+	// A nil source is a module call whose source did not evaluate
+	// statically: a `source` that depends on a variable with no value, or an
+	// invalid one. Since OpenTofu v1.13.0 (f831fa1aa4) static evaluation
+	// runs inside configs.BuildConfig, after the root module has loaded, so
+	// that failure no longer stops the load before the walker runs: the
+	// walker is called with req.SourceAddr == nil and the evaluation error
+	// reaches BuildConfig's own diagnostics. Skip the child without
+	// recording it as unresolved, because the error already says why, and
+	// an "unresolved" row with no source would name nothing (#1778).
+	if req.SourceAddr == nil {
+		return "", false
+	}
 
 	if local, ok := req.SourceAddr.(addrs.ModuleSourceLocal); ok {
 		dir := filepath.Join(req.Parent.Module.SourceDir, string(local))

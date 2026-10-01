@@ -52,6 +52,29 @@ var otherAllowlist = []otherAllowEntry{
 	// internal/, package by package. Each of these packages is upstream's,
 	// and each holds either whole fork-authored files, a small wiring edit
 	// to a stock file, or both.
+	// #1778's port onto v1.13.0's urfave/cli command tree, file by file.
+	// These come before the internal/command/ prefix below because the
+	// first matching entry wins, so each stock file the port edited
+	// carries its own reason rather than the package's.
+	{"internal/command/command.go", "#1778: RootCommander appends LiveCommanders() so the seven live-* commands are reachable under the new CLI, and the usage header and root usage say `choudoufu` rather than `tofu`"},
+	{"internal/command/plan.go", "#1778: PlanCommand.run sits between parsing and Execute, routing a -json plan of an estate-naming configuration to live-plan's document (#894), plus the live-block dispatch, -verbose and -adoption-only in Execute"},
+	{"internal/command/apply.go", "#1778: the live-block dispatch (statelessSettings, the plan-approval and saved-plan paths) and -verbose, ported into the new Execute body"},
+	{"internal/command/unlock.go", "#1778: statelessCommandGuard(ctx, \"force-unlock\") before any backend opens, ported into Execute, and `choudoufu` in Help()"},
+	{"internal/command/state_list.go", "#1778: statelessStateGuard(ctx, \"list\") before anything reaches a state manager, ported into Execute, and `choudoufu` in Help()"},
+	{"internal/command/state_pull.go", "#1778: statelessStateGuard(ctx, \"pull\") ported into Execute, and `choudoufu` in Help()"},
+	{"internal/command/state_push.go", "#1778: statelessStateGuard(ctx, \"push\") before the source state is read, ported into Execute, and `choudoufu` in Help()"},
+	{"internal/command/state_replace_provider.go", "#1778: statelessStateGuard(ctx, \"replace-provider\") ported into Execute, and `choudoufu` in Help()"},
+	{"internal/command/state_replace_provider_test.go", "#1778: TestStateReplaceProvider_docs, which v1.13.0 deleted, kept so the legacy help keeps naming `choudoufu`"},
+	{"internal/command/state_rm.go", "#1778: statelessStateGuard(ctx, \"rm\") ported into Execute, and `choudoufu` in Help()"},
+	{"internal/command/state_show.go", "#1778: statelessStateGuard(ctx, \"show\") ported into Execute, and `choudoufu` in Help()"},
+	{"internal/command/arguments/apply.go", "#1778: Apply.Verbose bound on the CommandLine (so destroy accepts it too), and `choudoufu destroy` in the mode errors"},
+	{"internal/command/arguments/plan.go", "#1778: Plan's Verbose, AdoptionOnly and Filter fields bound in BindPlan, plus the hook ParseLivePlan uses to add -estate"},
+	{"internal/command/arguments/metadata_functions.go", "#1778: `choudoufu metadata functions` in the -json requirement error"},
+	{"internal/command/arguments/providers_schema.go", "#1778: `choudoufu providers schema` in the -json requirement error"},
+	{"internal/command/views/view.go", "#1778: the fork's verbose field and SetVerbose (set per command by plan, apply and live-plan), StdoutOnStderr and DiagnosticsToStderr for the live-* commands whose stdout is a document, kept across the port"},
+	{"internal/configs/symlib/compiler_test.go", "#1778: one comment cited rfc/20260424-symbol-libraries.md, a path neither this fork nor the v1.13.0 tree carries; it now names opentofu/opentofu"},
+	{"version/official.go", "#1778: the officialBuild ldflag example names this module's path, the one .goreleaser.yaml passes; comment only"},
+
 	{"internal/command/", "the fork's command surface: live_* files (live_plan, live_import, live_mv, live_check, discovery/lint guards, their views) plus wiring edits to stock commands (init, apply, plan, state*, meta_backend, workspace*, providers*) that call into it; mirrors ci_coverage_test.go's forkOwnedMixedRoots entry for this package"},
 	{"internal/configs/", "the live block, record_store and strict{} config schema and HCL parsing (live.go, parser_live_sidecar.go), plus the static evaluator and static scope (the foundation-order ruling (#388) item 3) that live-import, live-mv, live-check and discovery consume"},
 	{"internal/tofu/", "the plan-node seam: identity resolution and marker stamping hooked into node_resource_plan_instance.go and resource_identity.go, plus the graph-walk and evaluation plumbing they need; mirrors forkOwnedMixedRoots"},
@@ -149,7 +172,10 @@ type forkSurfaceDoc struct {
 // regeneration against the wrong commit - the fork point moving without a
 // deliberate, documented decision - fails loudly instead of quietly
 // widening or narrowing what every other check in this file assumes.
-const forkSurfaceForkPoint = "03743ce6e8ddbc18c72a4fddb4d1a2ff8e765df5"
+//
+// It moved from 03743ce6e8 (upstream main, 1.13.0-dev) to 2b6193043d (the
+// v1.13.0 tag) with #1778's upgrade.
+const forkSurfaceForkPoint = "2b6193043d500dcfef1f3b4f4819b938b667099f"
 
 func loadForkSurface(t *testing.T) forkSurfaceDoc {
 	t.Helper()

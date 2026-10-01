@@ -135,7 +135,7 @@ func TestHasConfigFilesMatchesTheLoaderSuffixes(t *testing.T) {
 			}
 
 			parser := configs.NewParser(nil)
-			mod, diags := parser.LoadConfigDir(dir, configs.RootModuleCallForTesting())
+			mod, diags := parser.LoadConfigDir(dir)
 			if tc.loadable && diags.HasErrors() {
 				t.Fatalf("test fixture is wrong: loader rejected %s: %s", tc.filename, diags)
 			}

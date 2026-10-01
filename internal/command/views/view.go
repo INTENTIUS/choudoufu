@@ -10,8 +10,10 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/collections"
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/format"
+	"github.com/intentius/choudoufu/internal/linting"
 	"github.com/intentius/choudoufu/internal/terminal"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/mitchellh/colorstring"
@@ -28,6 +30,11 @@ type View struct {
 	consolidateWarnings bool
 	consolidateErrors   bool
 
+	// lintInclude and lintExclude contains the linting rules that are used later
+	// to determine if a specific diagnostic should be shown or not based on the
+	// linting rule IDs (or/and groupIDs) that diagnostic is configured with.
+	lintInclude, lintExclude collections.Set[linting.RuleAddr]
+
 	// When this is true it's a hint that OpenTofu is being run indirectly
 	// via a wrapper script or other automation and so we may wish to replace
 	// direct examples of commands to run with more conceptual directions.
@@ -41,18 +48,13 @@ type View struct {
 
 	// verbose is Concise's opposite: a command that summarizes something by
 	// default may print the full detail instead when this is set. Unlike
-	// Concise it is not parsed by [arguments.ParseView] - "-verbose" already
-	// names an unrelated per-command flag on "choudoufu test" and "choudoufu
-	// graph" (arguments/test.go, arguments/graph.go), each on its own flag
-	// set, and ParseView's early pass runs ahead of every command's own flag
-	// set and would swallow the flag before either one saw it. It is set via
-	// [View.SetVerbose] instead, the same way [View.SetShowSensitive] is,
-	// from -verbose on "choudoufu plan"'s and "choudoufu apply"'s own flag
-	// sets (arguments.Plan.Verbose, arguments.Apply.Verbose) - which
-	// "choudoufu live-plan" inherits by embedding Plan, and a plain
-	// "choudoufu plan"/"apply" against a live block
-	// (internal/command/live_mode.go's alias) inherits by being the same
-	// command.
+	// Concise it is not a view flag ([arguments.BindView]): "-verbose"
+	// already names an unrelated per-command flag on "choudoufu test" and
+	// "choudoufu graph". It is bound per command instead, on "choudoufu
+	// plan" and "choudoufu apply" (arguments.Plan.Verbose,
+	// arguments.Apply.Verbose), which "choudoufu live-plan" inherits by
+	// embedding Plan, and each of those commands' Execute sets it here
+	// through [View.SetVerbose].
 	verbose bool
 
 	// ModuleDeprecationWarnLvl is used to filter out deprecation warnings for outputs and variables as requested by the user.
@@ -127,7 +129,11 @@ func (v *View) Configure(view *arguments.View) {
 	v.consolidateWarnings = view.ConsolidateWarnings
 	v.consolidateErrors = view.ConsolidateErrors
 	v.concise = view.Concise
+	v.showSensitive = view.ShowSensitive
 	v.ModuleDeprecationWarnLvl = view.ModuleDeprecationWarnLvl
+
+	v.lintInclude = view.LintInclude
+	v.lintExclude = view.LintExclude
 }
 
 func (v *View) DiagsWithNewline() {
@@ -277,6 +283,14 @@ func (v *View) diagnostics(diags tfdiags.Diagnostics, forceStderr bool) {
 	}
 	diags = newDiags
 
+	var lintDiags tfdiags.Diagnostics
+	// Since linting related diagnostics use the Warning severity, we want to extract those out of the
+	// main diagnostics slice before consolidating warning diagnostics. These are merged again later.
+	diags, lintDiags = diags.SplitLint()
+	// Because of the in-context linting hints, this should not be necessary but it's just a guard in case
+	// there is any linting rule included without using the in-context linting hints.
+	lintDiags = lintDiags.FilterLint(v.lintInclude, v.lintExclude)
+
 	if v.consolidateWarnings {
 		diags = diags.Consolidate(1, tfdiags.Warning, func(diag tfdiags.Diagnostic) string {
 			// Check to see if we have a DeprecationCause
@@ -285,10 +299,10 @@ func (v *View) diagnostics(diags tfdiags.Diagnostics, forceStderr bool) {
 				return depExtra
 			}
 			return tfdiags.DefaultDiagnosticsConsolidation(diag)
-		})
+		}, tfdiags.ConsolidationOptDefault)
 	}
 	if v.consolidateErrors {
-		diags = diags.Consolidate(1, tfdiags.Error, tfdiags.DefaultDiagnosticsConsolidation)
+		diags = diags.Consolidate(1, tfdiags.Error, tfdiags.DefaultDiagnosticsConsolidation, tfdiags.ConsolidationOptDefault)
 	}
 
 	// Since warning messages are generally competing
@@ -313,7 +327,10 @@ func (v *View) diagnostics(diags tfdiags.Diagnostics, forceStderr bool) {
 		}
 	}
 
-	for _, diag := range diags {
+	// This slice is built with lint diagnostics in front of everything, to keep the order applied at the begining
+	// of this method. This is to follow the reasoning described on diags.Sort().
+	allDiags := append(lintDiags, diags...)
+	for _, diag := range allDiags {
 		var msg string
 		if v.colorize.Disable {
 			msg = format.DiagnosticPlain(diag, v.configSources(), v.streams.Stderr.Columns())
@@ -377,10 +394,6 @@ func (v *View) errorColumns() int {
 // visually de-emphasize it.
 func (v *View) outputHorizRule() {
 	v.streams.Println(format.HorizontalRule(v.colorize, v.outputColumns()))
-}
-
-func (v *View) SetShowSensitive(showSensitive bool) {
-	v.showSensitive = showSensitive
 }
 
 // SetVerbose sets the view's verbose flag. See the verbose field's own

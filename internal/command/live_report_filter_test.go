@@ -32,8 +32,12 @@ func TestLivePlanFilter_unknownWordIsAUsageError(t *testing.T) {
 			c := &LivePlanCommand{Meta: liveBlockMeta(view, liveBlockCloud())}
 			code := c.Run(args)
 			output := done(t)
-			if code != 1 {
-				t.Fatalf("exit code %d, want 1\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+			// A flag value the parser refuses is a usage error, answered with
+			// cli.RunResultHelp the way every command's parse errors are
+			// since OpenTofu v1.13.0's CLI (the process still exits 1, after
+			// the usage text).
+			if code != RunResultHelp {
+				t.Fatalf("exit code %d, want RunResultHelp\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
 			}
 			stderr := output.Stderr()
 			for _, want := range []string{"unowned", "adoptable", "foreign"} {

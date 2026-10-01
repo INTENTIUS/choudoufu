@@ -91,16 +91,29 @@ type liveClusterSettingLine struct {
 	Verbs []staterecord.VerbAccess `json:"verbs,omitempty"`
 }
 
-func (c *LiveClusterCommand) Run(rawArgs []string) int {
-	ctx := c.CommandContext()
-	common, rawArgs := arguments.ParseView(rawArgs)
-	c.View.Configure(common)
-
-	args, diags := arguments.ParseLiveCluster(rawArgs)
-	if diags.HasErrors() {
-		c.View.Diagnostics(diags)
-		return 1
+// LiveClusterCommander is live-cluster's entry in the new CLI's command tree. See
+// [LiveCommanders].
+func LiveClusterCommander() Command {
+	cmd := Command{
+		Name:  "live-cluster",
+		Short: (&LiveClusterCommand{}).Synopsis(),
 	}
+
+	args := arguments.BindLiveCluster(&cmd.CommandLine)
+	applyLegacyHelp(&cmd, (&LiveClusterCommand{}).Help())
+	cmd.Run = func(meta Meta) int {
+		return (&LiveClusterCommand{Meta: meta}).Execute(args)
+	}
+	return cmd
+}
+
+func (c *LiveClusterCommand) Run(rawArgs []string) int {
+	return RunCommand(LiveClusterCommander(), c.Meta, rawArgs)
+}
+
+func (c *LiveClusterCommand) Execute(args *arguments.LiveCluster) int {
+	ctx := c.CommandContext()
+	var diags tfdiags.Diagnostics
 	c.Meta.input = false
 
 	// The configuration is read whether or not -namespace was given. A

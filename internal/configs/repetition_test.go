@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs/symlib"
 	"github.com/intentius/choudoufu/internal/instances"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -40,9 +41,10 @@ func repetitionEval(t *testing.T, source string) *StaticEvaluator {
 		".",
 		"irrelevant",
 	)
-	mod, diags := p.LoadConfigDir(".", call)
+	mod, diags := p.LoadConfigDir(".")
+	diags = append(diags, mod.Finalize(symlib.EmptyTable, call)...)
 	assertNoDiagnostics(t, diags)
-	return NewStaticEvaluator(mod, call)
+	return NewStaticEvaluator(mod, nil, call)
 }
 
 // TestStaticEvaluator_WithRepetitionData_TopLevel pins the base case: a

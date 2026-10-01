@@ -50,7 +50,7 @@ func (r *Reference) DisplayString() string {
 			ret.WriteByte('[')
 			switch tStep.Key.Type() {
 			case cty.String:
-				ret.WriteString(fmt.Sprintf("%q", tStep.Key.AsString()))
+				fmt.Fprintf(&ret, "%q", tStep.Key.AsString())
 			case cty.Number:
 				bf := tStep.Key.AsBigFloat()
 				ret.WriteString(bf.Text('g', 10))
@@ -259,7 +259,17 @@ func parseRef(traversal hcl.Traversal) (*Reference, tfdiags.Diagnostics) {
 			Subject:  rootRange.Ptr(),
 		})
 		return nil, diags
+	case "symbols":
+		return parseSingleAttrRef(traversal, func(name string) Referenceable {
+			return NewSymbolsAttr(name)
+		})
 	default:
+		if len(traversal) == 1 && isTypeKeyword(traversal.RootName()) {
+			return &Reference{
+				Subject:     TypeKeyword(traversal.RootName()),
+				SourceRange: tfdiags.SourceRangeFromHCL(rootRange),
+			}, nil
+		}
 		function := ParseFunction(root)
 		if function.IsNamespace(FunctionNamespaceProvider) {
 			pf, err := function.AsProviderFunction()
@@ -267,6 +277,21 @@ func parseRef(traversal hcl.Traversal) (*Reference, tfdiags.Diagnostics) {
 				return nil, diags.Append(&hcl.Diagnostic{
 					Severity: hcl.DiagError,
 					Summary:  "Unable to parse provider function",
+					Detail:   err.Error(),
+					Subject:  rootRange.Ptr(),
+				})
+			}
+			return &Reference{
+				Subject:     pf,
+				SourceRange: tfdiags.SourceRangeFromHCL(rootRange),
+			}, diags
+		}
+		if function.IsNamespace(FunctionNamespaceSymbols) {
+			pf, err := function.AsSymbolsFunction()
+			if err != nil {
+				return nil, diags.Append(&hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  "Unable to parse symbols function",
 					Detail:   err.Error(),
 					Subject:  rootRange.Ptr(),
 				})

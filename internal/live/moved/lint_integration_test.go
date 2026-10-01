@@ -126,7 +126,7 @@ func loadConfigDir(t *testing.T, dir string) *configs.Config {
 	t.Helper()
 
 	parser := configs.NewParser(nil)
-	rootMod, diags := parser.LoadConfigDir(dir, testModuleCall(dir))
+	rootMod, diags := parser.LoadConfigDir(dir)
 	if diags.HasErrors() {
 		t.Fatalf("failed to load %s: %s", dir, diags.Error())
 	}
@@ -142,11 +142,11 @@ func loadConfigDir(t *testing.T, dir string) *configs.Config {
 			}}
 		}
 		childDir := filepath.Join(req.Parent.Module.SourceDir, string(sourceAddr))
-		mod, diags := parser.LoadConfigDir(childDir, req.Call)
+		mod, diags := parser.LoadConfigDir(childDir)
 		return mod, nil, diags
-	})
+	}, parser.LoadSymbolFilesInDir)
 
-	cfg, diags := configs.BuildConfig(t.Context(), rootMod, walker)
+	cfg, diags := configs.BuildConfig(t.Context(), rootMod, testModuleCall(dir), walker)
 	if diags.HasErrors() {
 		t.Fatalf("failed to build config from %s: %s", dir, diags.Error())
 	}

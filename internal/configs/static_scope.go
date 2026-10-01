@@ -30,6 +30,7 @@ func newStaticScope(eval *StaticEvaluator, stack0 StaticIdentifier, stack ...Sta
 		BaseDir:       eval.baseDir(),
 		PureOnly:      eval.pureOnly,
 		ConsoleMode:   false,
+		SymbolTable:   eval.table,
 		FuncOverrides: eval.funcOverrides,
 	}
 }
@@ -380,6 +381,20 @@ func (s staticScopeData) StaticValidateReferences(_ context.Context, refs []*add
 			diags = diags.Append(&hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  "Provider function in static context",
+				Detail:   fmt.Sprintf("Unable to use %s in static context, which is required by %s", subject.String(), top.String()),
+				Subject:  ref.SourceRange.ToHCL().Ptr(),
+				Extra:    refused(subject),
+			})
+		case addrs.SymbolsFunction:
+			// A symbol library function (#4474, experimental upstream in
+			// v1.13.0) is admitted by stock static evaluation. choudoufu's
+			// static subset refuses it by name (#1778 ruling 8) until
+			// upstream stabilises symbol libraries: an identity, a count or
+			// a for_each must not depend on a function whose definition
+			// lives in a separate, still-experimental file kind.
+			diags = diags.Append(&hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Symbol library function in static context",
 				Detail:   fmt.Sprintf("Unable to use %s in static context, which is required by %s", subject.String(), top.String()),
 				Subject:  ref.SourceRange.ToHCL().Ptr(),
 				Extra:    refused(subject),

@@ -15,10 +15,28 @@ import (
 	"github.com/intentius/choudoufu/internal/states/statemgr"
 	"github.com/intentius/choudoufu/internal/tracing"
 
-	"github.com/mitchellh/cli"
-
+	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
 )
+
+func UnlockCommander() Command {
+	cmd := Command{
+		Name:  "force-unlock",
+		Short: "Release a stuck lock on the current workspace",
+		Long: `Manually unlock the state for the defined configuration.
+
+This will not modify your infrastructure. This command removes the lock on the state for the current workspace. The behavior of this lock is dependent on the backend being used. Local state files cannot be unlocked by another process.`,
+
+		DiagsWithNewline: true,
+	}
+
+	args := arguments.BindUnlock(&cmd.CommandLine)
+	cmd.Run = func(meta Meta) int {
+		return UnlockCommand{meta}.Execute(args, views.NewUnlock(args.View, meta.View))
+	}
+
+	return cmd
+}
 
 // UnlockCommand is a cli.Command implementation that manually unlocks
 // the state.
@@ -27,40 +45,22 @@ type UnlockCommand struct {
 }
 
 func (c *UnlockCommand) Run(rawArgs []string) int {
+	return RunCommand(UnlockCommander(), c.Meta, rawArgs)
+}
+func (c UnlockCommand) Execute(args *arguments.Unlock, view views.Unlock) int {
+	var diags tfdiags.Diagnostics
+
 	ctx := c.CommandContext()
 	ctx, span := tracing.Tracer().Start(ctx, "Unlock")
 	defer span.End()
-
-	// new view
-	common, rawArgs := arguments.ParseView(rawArgs)
-	c.View.Configure(common)
-	// Because the legacy UI was using println to show diagnostics and the new view is using, by default, print,
-	// in order to keep functional parity, we setup the view to add a new line after each diagnostic.
-	c.View.DiagsWithNewline()
-
-	// Parse and validate flags
-	args, closer, diags := arguments.ParseUnlock(rawArgs)
-	defer closer()
-
-	// Instantiate the view, even if there are flag errors, so that we render
-	// diagnostics according to the desired view
-	view := views.NewUnlock(args.ViewOptions, c.View)
-
-	if diags.HasErrors() {
-		view.Diagnostics(diags)
-		if args.ViewOptions.ViewType == arguments.ViewJSON {
-			return 1 // in case it's json, do not print the help of the command
-		}
-		return cli.RunResultHelp
-	}
-	c.Meta.variableArgs = args.Vars.All()
 
 	// Under a live block there is no lock to force open; refuse with the
 	// true reason before any backend machinery can produce stock's
 	// misleading "State locked by another local process" for a lock that
 	// never existed (found by the no-locks claim scenario's probe). This
 	// runs after variables are parsed, like every other guarded command
-	// (import.go, taint.go, refresh.go, untaint.go), because the guard's
+	// (import.go, taint.go, refresh.go, untaint.go) - RunCli has put the
+	// -var values on Meta before Execute is called - because the guard's
 	// own config load statically evaluates the backend block and a -var
 	// this command was given is not visible to it otherwise - not just
 	// under a live block, but for any configuration whose backend depends

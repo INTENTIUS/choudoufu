@@ -290,21 +290,22 @@ func loadConfigWithModules(t *testing.T, dir string) *configs.Config {
 		func(v *configs.Variable) (cty.Value, hcl.Diagnostics) { return v.Default, nil },
 		dir, "default",
 	)
-	mod, diags := parser.LoadConfigDir(dir, call)
+	mod, diags := parser.LoadConfigDir(dir)
 	if diags.HasErrors() {
 		t.Fatalf("loading %s: %s", dir, diags.Error())
 	}
-	cfg, cfgDiags := configs.BuildConfig(context.Background(), mod, configs.ModuleWalkerFunc(
+	cfg, cfgDiags := configs.BuildConfig(context.Background(), mod, call, configs.ModuleWalkerFunc(
 		func(_ context.Context, req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
+			if req.SourceAddr == nil {
+				// A source that did not evaluate statically; BuildConfig reports it (#1778).
+				return nil, nil, nil
+			}
 			sub := filepath.Join(dir, filepath.FromSlash(req.SourceAddr.String()))
-			subCall := configs.NewStaticModuleCall(
-				req.Path, hcl.Range{},
-				func(v *configs.Variable) (cty.Value, hcl.Diagnostics) { return v.Default, nil },
-				sub, "default",
-			)
-			m, d := parser.LoadConfigDir(sub, subCall)
+			// configs.BuildConfig builds the child's static call itself since
+			// OpenTofu v1.13.0, from the module block's own arguments (#1778).
+			m, d := parser.LoadConfigDir(sub)
 			return m, version.Must(version.NewVersion("0.0.0")), d
-		},
+		}, parser.LoadSymbolFilesInDir,
 	))
 	if cfgDiags.HasErrors() {
 		t.Fatalf("building config for %s: %s", dir, cfgDiags.Error())

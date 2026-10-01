@@ -803,15 +803,15 @@ func loadConfig(t *testing.T, dir string, vars map[string]cty.Value) *configs.Co
 		"default",
 	)
 
-	mod, diags := parser.LoadConfigDir(dir, call)
+	mod, diags := parser.LoadConfigDir(dir)
 	if diags.HasErrors() {
 		t.Fatalf("loading %s: %s", dir, diags.Error())
 	}
-	cfg, cfgDiags := configs.BuildConfig(context.Background(), mod, configs.ModuleWalkerFunc(
+	cfg, cfgDiags := configs.BuildConfig(context.Background(), mod, call, configs.ModuleWalkerFunc(
 		func(_ context.Context, req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
 			t.Fatalf("test fixture %s unexpectedly calls module %q", dir, req.Name)
 			return nil, nil, nil
-		},
+		}, parser.LoadSymbolFilesInDir,
 	))
 	if cfgDiags.HasErrors() {
 		t.Fatalf("building config for %s: %s", dir, cfgDiags.Error())
@@ -851,21 +851,25 @@ func loadConfigTree(t *testing.T, dir string, vars map[string]cty.Value) *config
 		"default",
 	)
 
-	mod, diags := parser.LoadConfigDir(dir, call)
+	mod, diags := parser.LoadConfigDir(dir)
 	if diags.HasErrors() {
 		t.Fatalf("loading %s: %s", dir, diags.Error())
 	}
 
 	dirs := map[string]string{"": dir}
-	cfg, cfgDiags := configs.BuildConfig(context.Background(), mod, configs.ModuleWalkerFunc(
+	cfg, cfgDiags := configs.BuildConfig(context.Background(), mod, call, configs.ModuleWalkerFunc(
 		func(_ context.Context, req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
+			if req.SourceAddr == nil {
+				// A source that did not evaluate statically; BuildConfig reports it (#1778).
+				return nil, nil, nil
+			}
 			parentDir := dirs[req.Parent.Path.String()]
 			sourcePath := filepath.Join(parentDir, req.SourceAddr.String())
 			dirs[req.Path.String()] = sourcePath
 
-			childMod, modDiags := parser.LoadConfigDir(sourcePath, req.Call)
+			childMod, modDiags := parser.LoadConfigDir(sourcePath)
 			return childMod, nil, modDiags
-		},
+		}, parser.LoadSymbolFilesInDir,
 	))
 	if cfgDiags.HasErrors() {
 		t.Fatalf("building config for %s: %s", dir, cfgDiags.Error())

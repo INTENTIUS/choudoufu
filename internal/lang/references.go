@@ -28,6 +28,12 @@ import (
 // given traversal, though it is not guaranteed that the references will
 // appear in the same order as the given traversals.
 func References(parseRef ParseRef, traversals []hcl.Traversal) ([]*addrs.Reference, tfdiags.Diagnostics) {
+	if parseRef == nil {
+		// We default to the main ParseRef implementation. This is mainly for
+		// the benefit of various tests that don't bother to populate
+		// [Scope.ParseRef] before evaluating.
+		parseRef = addrs.ParseRef
+	}
 	if len(traversals) == 0 {
 		return nil, nil
 	}
@@ -72,7 +78,7 @@ func ReferencesInBlock(parseRef ParseRef, body hcl.Body, schema *configschema.Bl
 	// in a better position to test this due to having mock providers etc
 	// available.
 	traversals := blocktoattr.ExpandedVariables(body, schema)
-	funcs := filterProviderFunctions(blocktoattr.ExpandedFunctions(body, schema))
+	funcs := filterCustomFunctions(blocktoattr.ExpandedFunctions(body, schema))
 
 	return References(parseRef, append(traversals, funcs...))
 }
@@ -86,27 +92,27 @@ func ReferencesInExpr(parseRef ParseRef, expr hcl.Expression) ([]*addrs.Referenc
 	}
 	traversals := expr.Variables()
 	if fexpr, ok := expr.(hcl.ExpressionWithFunctions); ok {
-		funcs := filterProviderFunctions(fexpr.Functions())
+		funcs := filterCustomFunctions(fexpr.Functions())
 		traversals = append(traversals, funcs...)
 	}
 	return References(parseRef, traversals)
 }
 
-// ProviderFunctionsInExpr is a helper wrapper around References that searches for provider
+// CustomFunctionsInExpr is a helper wrapper around References that searches for
 // function traversals in an ExpressionWithFunctions, then converts the traversals into
 // references
-func ProviderFunctionsInExpr(parseRef ParseRef, expr hcl.Expression) ([]*addrs.Reference, tfdiags.Diagnostics) {
+func CustomFunctionsInExpr(parseRef ParseRef, expr hcl.Expression) ([]*addrs.Reference, tfdiags.Diagnostics) {
 	if expr == nil {
 		return nil, nil
 	}
 	if fexpr, ok := expr.(hcl.ExpressionWithFunctions); ok {
-		funcs := filterProviderFunctions(fexpr.Functions())
+		funcs := filterCustomFunctions(fexpr.Functions())
 		return References(parseRef, funcs)
 	}
 	return nil, nil
 }
 
-func filterProviderFunctions(funcs []hcl.Traversal) []hcl.Traversal {
+func filterCustomFunctions(funcs []hcl.Traversal) []hcl.Traversal {
 	pfuncs := make([]hcl.Traversal, 0, len(funcs))
 	for _, fn := range funcs {
 		if len(fn) == 0 {
@@ -114,6 +120,9 @@ func filterProviderFunctions(funcs []hcl.Traversal) []hcl.Traversal {
 		}
 		if root, ok := fn[0].(hcl.TraverseRoot); ok {
 			if addrs.ParseFunction(root.Name).IsNamespace(addrs.FunctionNamespaceProvider) {
+				pfuncs = append(pfuncs, fn)
+			}
+			if addrs.ParseFunction(root.Name).IsNamespace(addrs.FunctionNamespaceSymbols) {
 				pfuncs = append(pfuncs, fn)
 			}
 		}

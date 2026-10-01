@@ -45,64 +45,65 @@ type LiveLs struct {
 	// the account holds under an estate) needs no configuration to keep.
 	ConfigDir string
 
-	// ViewOptions carries -json (and, for parity with every other command
-	// that supports it, -json-into is deliberately NOT offered here - see
-	// ParseLiveLs's own comment).
-	ViewOptions ViewOptions
+	// View carries -json. -json-into is deliberately NOT offered here - see
+	// BindLiveLs's own comment.
+	View *View
 }
 
-// ParseLiveLs processes CLI arguments, returning a LiveLs value and errors.
-// If errors are encountered, a LiveLs value is still returned representing
-// the best effort interpretation of the arguments.
-func ParseLiveLs(args []string) (*LiveLs, func(), tfdiags.Diagnostics) {
-	var diags tfdiags.Diagnostics
+// BindLiveLs registers live-ls's options and its optional directory on cli.
+func BindLiveLs(cli *CommandLine) *LiveLs {
 	ls := &LiveLs{}
 
 	// -input is not offered at all: this command never prompts, reads no
-	// variables and has nothing to prompt for even in principle.
-	cmdFlags := defaultFlagSet("live-ls")
-	cmdFlags.StringVar(&ls.Estate, "estate", "", "estate")
-	cmdFlags.StringVar(&ls.Region, "region", "", "region")
-	cmdFlags.BoolVar(&ls.Consistent, "consistent", false, "consistent")
-	// jsonInto=false: this is a listing command with one shape of output,
-	// not a plan whose JSON a pipeline stage consumes separately from the
-	// text a human reads on the same run - see arguments/live_plan.go's own
-	// -json-into for the case that pattern exists for.
-	ls.ViewOptions.AddGranularFlags(cmdFlags, false, false)
+	// variables and has nothing to prompt for even in principle. -json-into
+	// is not offered either: this is a listing command with one shape of
+	// output, not a plan whose JSON a pipeline stage consumes separately
+	// from the text a human reads on the same run.
+	ls.View = BindView(cli, viewFlagJson)
 
-	if err := cmdFlags.Parse(args); err != nil {
-		return ls, func() {}, diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Invalid option",
-			fmt.Sprintf("%s.", err),
-		))
-	}
+	cli.StringVar(&ls.Estate, "estate", "", "The estate to list. Required.").SetDisplay("=name")
+	cli.StringVar(&ls.Region, "region", "", "The AWS region to list in.").SetDisplay("=name")
+	cli.BoolVar(&ls.Consistent, "consistent", false, "Re-read the listing until two consecutive reads agree.")
 
-	rest := cmdFlags.Args()
-	switch len(rest) {
-	case 0:
-		// No configuration directory: the listing prints with no declared-
-		// instance cross-reference. See LiveLs.ConfigDir's own doc comment.
-	case 1:
-		ls.ConfigDir = rest[0]
-	default:
-		diags = diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Too many arguments",
-			fmt.Sprintf("live-ls takes at most one argument, the configuration directory to cross-reference the listing against; got %d.", len(rest)),
-		))
-	}
+	var rest []string
+	cli.VariadicArg(&rest, "DIR")
 
-	if ls.Estate == "" {
-		diags = diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"No estate named",
-			"live-ls lists what the account holds under one estate, and has no configuration it must be run against to derive the name from. Pass -estate=<name>.",
-		))
-	}
+	cli.PreHook(func() tfdiags.Diagnostics {
+		var diags tfdiags.Diagnostics
+		switch len(rest) {
+		case 0:
+			// No configuration directory: the listing prints with no
+			// declared-instance cross-reference. See LiveLs.ConfigDir's own
+			// doc comment.
+		case 1:
+			ls.ConfigDir = rest[0]
+		default:
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Too many arguments",
+				fmt.Sprintf("live-ls takes at most one argument, the configuration directory to cross-reference the listing against; got %d.", len(rest)),
+			))
+		}
 
-	closer, viewDiags := ls.ViewOptions.Parse()
-	diags = diags.Append(viewDiags)
+		if ls.Estate == "" {
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"No estate named",
+				"live-ls lists what the account holds under one estate, and has no configuration it must be run against to derive the name from. Pass -estate=<name>.",
+			))
+		}
+		return diags
+	})
+	return ls
+}
 
+// ParseLiveLs processes CLI arguments through [BindLiveLs], returning a
+// LiveLs value, a closer and errors. If errors are encountered, a LiveLs
+// value is still returned representing the best effort interpretation of
+// the arguments.
+func ParseLiveLs(args []string) (*LiveLs, func(), tfdiags.Diagnostics) {
+	cli := new(CommandLine)
+	ls := BindLiveLs(cli)
+	closer, diags := cli.parseWithHooks("live-ls", args)
 	return ls, closer, diags
 }

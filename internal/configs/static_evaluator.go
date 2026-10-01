@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs/symlib"
 	"github.com/intentius/choudoufu/internal/instances"
 	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/lang/marks"
@@ -84,8 +85,9 @@ func RootModuleCallForTesting() StaticModuleCall {
 // which only understands "static" (non-state) data. Internally, it relies
 // on staticData
 type StaticEvaluator struct {
-	call StaticModuleCall
-	cfg  *Module
+	call  StaticModuleCall
+	table symlib.Table
+	cfg   *Module
 
 	// pureOnly makes every scope this evaluator builds refuse to produce a
 	// value from an impure function. See [StaticEvaluator.Pure].
@@ -412,10 +414,11 @@ func (s *StaticEvaluator) repetitionAttr(subject addrs.Referenceable) (cty.Value
 }
 
 // Creates a static evaluator based from the given module and module call
-func NewStaticEvaluator(mod *Module, call StaticModuleCall) *StaticEvaluator {
+func NewStaticEvaluator(mod *Module, l symlib.Table, call StaticModuleCall) *StaticEvaluator {
 	return &StaticEvaluator{
-		call: call,
-		cfg:  mod,
+		call:  call,
+		table: l,
+		cfg:   mod,
 	}
 }
 

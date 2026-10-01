@@ -435,7 +435,7 @@ func (m *Meta) contextOptsForDir(ctx context.Context, rootDir string) (*tofu.Con
 
 		// This gets the current directory as full path.
 		path := m.WorkingDir.NormalizePath(m.WorkingDir.RootModuleDir())
-		root, _ := loader.LoadConfigDirUneval(path, configs.SelectiveLoadAll)
+		root, _ := loader.LoadConfigDir(path)
 		opts.Modules = &newRuntimeModules{
 			loader: loader,
 			root:   root,

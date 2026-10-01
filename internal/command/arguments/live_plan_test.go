@@ -97,7 +97,7 @@ func TestParseLivePlan_planFlags(t *testing.T) {
 	if got.Operation.Parallelism != 5 {
 		t.Errorf("parallelism %d, want 5", got.Operation.Parallelism)
 	}
-	if got.ViewOptions.InputEnabled {
+	if got.View.InputEnabled {
 		t.Error("-input=false did not reach the embedded Plan")
 	}
 	wantTargets := []string{"aws_vpc.main"}

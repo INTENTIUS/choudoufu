@@ -557,7 +557,7 @@ const (
 	// estate name comes from the live block or the estate.chdf.hcl
 	// sidecar instead of the flag. The surface is the same because what
 	// the pipeline can honour is the same - the estate name's source
-	// changes nothing about it - and LivePlanCommand.Run answers -out and
+	// changes nothing about it - and LivePlanCommand.Execute answers -out and
 	// -destroy on that route before this function ever sees them, so
 	// neither of the two clauses below that explain themselves by "this
 	// configuration has no live block" can be reached with a live block
@@ -566,7 +566,7 @@ const (
 	//
 	// A live-block run that is NOT asking for the document still delegates
 	// to PlanCommand and gets surfaceLiveBlock's answers, because there
-	// live-plan simply is that command (see LivePlanCommand.Run's alias).
+	// live-plan simply is that command (see LivePlanCommand.Execute's alias).
 	surfaceEstateFlag
 )
 
@@ -596,7 +596,7 @@ const (
 // live-plan's "-estate" form, where plain apply in the same directory is an
 // ordinary state-backed command and the file it wrote would be applied by
 // something that has never heard of the estate.
-func statelessRejections(surface statelessSurface, op *arguments.Operation, state *arguments.State, viewOpts arguments.ViewOptions, planOut, generateConfigOut, planFile string) tfdiags.Diagnostics {
+func statelessRejections(surface statelessSurface, op *arguments.Operation, state *arguments.State, viewOpts *arguments.View, planOut, generateConfigOut, planFile string) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	reject := func(summary, detail string) {
@@ -617,13 +617,13 @@ func statelessRejections(surface statelessSurface, op *arguments.Operation, stat
 	// What GitHub issue #894 changed is which runs arrive here at all.
 	// "choudoufu plan -json" and "choudoufu live-plan -json" over a
 	// configuration that names its own estate are now handed to livePlan's
-	// pipeline before either command builds a view (PlanCommand.Run's
-	// alias, and LivePlanCommand.Run's), so they reach this function as
+	// pipeline before either command builds a view (PlanCommand.run's
+	// alias, and LivePlanCommand.Execute's), so they reach this function as
 	// surfaceEstateFlag and are accepted by the case below. What still
 	// reaches the reject is what genuinely has nowhere to be rendered: an
 	// apply, and -json-into on either surface - the general JSON
 	// UI-message stream written to a second file, a different feature and,
-	// per [arguments.ViewOptions.Parse], mutually exclusive with -json
+	// per [arguments.BindView], mutually exclusive with -json
 	// itself, so a run can never satisfy this case and the next one at
 	// once.
 	case surface == surfaceEstateFlag && viewOpts.ViewType == arguments.ViewJSON && viewOpts.JSONInto == nil:
@@ -1215,7 +1215,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// (LivePlanCommand.livePlan) has carried it since 1c1b00324f, but a
 	// configuration WITH a live block, which is what plain "choudoufu plan"/
 	// "apply" and "live-plan" both run through for such a configuration
-	// (LivePlanCommand.Run's own alias, above statelessBegin), reaches this
+	// (LivePlanCommand.Execute's own alias, above statelessBegin), reaches this
 	// function instead, and nothing here ever called it. r.recordStore is
 	// opened unconditionally above whenever the live block names a
 	// record_store, regardless of the migration flag - unlike

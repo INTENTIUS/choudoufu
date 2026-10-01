@@ -294,16 +294,20 @@ resource "aws_vpc" "main" {
 		dir,
 		"default",
 	)
-	rootMod, diags := parser.LoadConfigDir(dir, rootCall)
+	rootMod, diags := parser.LoadConfigDir(dir)
 	if diags.HasErrors() {
 		t.Fatalf("loading %s: %s", dir, diags.Error())
 	}
-	cfg, cfgDiags := configs.BuildConfig(t.Context(), rootMod, configs.ModuleWalkerFunc(
+	cfg, cfgDiags := configs.BuildConfig(t.Context(), rootMod, rootCall, configs.ModuleWalkerFunc(
 		func(_ context.Context, req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
+			if req.SourceAddr == nil {
+				// A source that did not evaluate statically; BuildConfig reports it (#1778).
+				return nil, nil, nil
+			}
 			childDir := filepath.Join(req.Parent.Module.SourceDir, req.SourceAddr.String())
-			mod, modDiags := parser.LoadConfigDir(childDir, req.Call)
+			mod, modDiags := parser.LoadConfigDir(childDir)
 			return mod, nil, modDiags
-		},
+		}, parser.LoadSymbolFilesInDir,
 	))
 	if cfgDiags.HasErrors() {
 		t.Fatalf("building config: %s", cfgDiags.Error())

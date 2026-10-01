@@ -24,14 +24,14 @@ import (
 
 func TestBuildConfig(t *testing.T) {
 	parser := NewParser(nil)
-	mod, diags := parser.LoadConfigDir("testdata/config-build", RootModuleCallForTesting())
+	mod, diags := parser.LoadConfigDir("testdata/config-build")
 	assertNoDiagnostics(t, diags)
 	if mod == nil {
 		t.Fatal("got nil root module; want non-nil")
 	}
 
 	versionI := 0
-	cfg, diags := BuildConfig(t.Context(), mod, ModuleWalkerFunc(
+	cfg, diags := BuildConfig(t.Context(), mod, RootModuleCallForTesting(), ModuleWalkerFunc(
 		func(_ context.Context, req *ModuleRequest) (*Module, *version.Version, hcl.Diagnostics) {
 			// For the sake of this test we're going to just treat our
 			// SourceAddr as a path relative to our fixture directory.
@@ -39,11 +39,11 @@ func TestBuildConfig(t *testing.T) {
 			// various different source address syntaxes OpenTofu supports.
 			sourcePath := filepath.Join("testdata/config-build", req.SourceAddr.String())
 
-			mod, modDiags := parser.LoadConfigDir(sourcePath, req.Call)
+			mod, modDiags := parser.LoadConfigDir(sourcePath)
 			version, _ := version.NewVersion(fmt.Sprintf("1.0.%d", versionI))
 			versionI++
 			return mod, version, modDiags
-		},
+		}, parser.LoadSymbolFilesInDir,
 	))
 	assertNoDiagnostics(t, diags)
 	if cfg == nil {
@@ -80,14 +80,14 @@ func TestBuildConfig(t *testing.T) {
 
 func TestBuildConfigDiags(t *testing.T) {
 	parser := NewParser(nil)
-	mod, diags := parser.LoadConfigDir("testdata/nested-errors", RootModuleCallForTesting())
+	mod, diags := parser.LoadConfigDir("testdata/nested-errors")
 	assertNoDiagnostics(t, diags)
 	if mod == nil {
 		t.Fatal("got nil root module; want non-nil")
 	}
 
 	versionI := 0
-	cfg, diags := BuildConfig(t.Context(), mod, ModuleWalkerFunc(
+	cfg, diags := BuildConfig(t.Context(), mod, RootModuleCallForTesting(), ModuleWalkerFunc(
 		func(_ context.Context, req *ModuleRequest) (*Module, *version.Version, hcl.Diagnostics) {
 			// For the sake of this test we're going to just treat our
 			// SourceAddr as a path relative to our fixture directory.
@@ -95,11 +95,11 @@ func TestBuildConfigDiags(t *testing.T) {
 			// various different source address syntaxes OpenTofu supports.
 			sourcePath := filepath.Join("testdata/nested-errors", req.SourceAddr.String())
 
-			mod, modDiags := parser.LoadConfigDir(sourcePath, req.Call)
+			mod, modDiags := parser.LoadConfigDir(sourcePath)
 			version, _ := version.NewVersion(fmt.Sprintf("1.0.%d", versionI))
 			versionI++
 			return mod, version, modDiags
-		},
+		}, parser.LoadSymbolFilesInDir,
 	))
 
 	wantDiag := filepath.FromSlash(`testdata/nested-errors/child_c/child_c.tf:5,1-8: `) +
@@ -125,13 +125,13 @@ func TestBuildConfigDiags(t *testing.T) {
 
 func TestBuildConfigChildModuleBackend(t *testing.T) {
 	parser := NewParser(nil)
-	mod, diags := parser.LoadConfigDir("testdata/nested-backend-warning", RootModuleCallForTesting())
+	mod, diags := parser.LoadConfigDir("testdata/nested-backend-warning")
 	assertNoDiagnostics(t, diags)
 	if mod == nil {
 		t.Fatal("got nil root module; want non-nil")
 	}
 
-	cfg, diags := BuildConfig(t.Context(), mod, ModuleWalkerFunc(
+	cfg, diags := BuildConfig(t.Context(), mod, RootModuleCallForTesting(), ModuleWalkerFunc(
 		func(_ context.Context, req *ModuleRequest) (*Module, *version.Version, hcl.Diagnostics) {
 			// For the sake of this test we're going to just treat our
 			// SourceAddr as a path relative to our fixture directory.
@@ -139,10 +139,10 @@ func TestBuildConfigChildModuleBackend(t *testing.T) {
 			// various different source address syntaxes OpenTofu supports.
 			sourcePath := filepath.Join("testdata/nested-backend-warning", req.SourceAddr.String())
 
-			mod, modDiags := parser.LoadConfigDir(sourcePath, req.Call)
+			mod, modDiags := parser.LoadConfigDir(sourcePath)
 			version, _ := version.NewVersion("1.0.0")
 			return mod, version, modDiags
-		},
+		}, parser.LoadSymbolFilesInDir,
 	))
 
 	assertDiagnosticSummary(t, diags, "Backend configuration ignored")
@@ -176,7 +176,7 @@ func TestBuildConfigInvalidModules(t *testing.T) {
 			parser := NewParser(nil)
 			path := filepath.Join(testDir, name)
 
-			mod, diags := parser.LoadConfigDirWithTests(path, "tests", RootModuleCallForTesting())
+			mod, diags := parser.LoadConfigDirWithTests(path, "tests")
 			if diags.HasErrors() {
 				// these tests should only trigger errors that are caught in
 				// the config loader.
@@ -217,15 +217,15 @@ func TestBuildConfigInvalidModules(t *testing.T) {
 			expectedErrs := readDiags(os.ReadFile(filepath.Join(testDir, name, "errors")))
 			expectedWarnings := readDiags(os.ReadFile(filepath.Join(testDir, name, "warnings")))
 
-			_, buildDiags := BuildConfig(t.Context(), mod, ModuleWalkerFunc(
+			_, buildDiags := BuildConfig(t.Context(), mod, RootModuleCallForTesting(), ModuleWalkerFunc(
 				func(_ context.Context, req *ModuleRequest) (*Module, *version.Version, hcl.Diagnostics) {
 					// for simplicity, these tests will treat all source
 					// addresses as relative to the root module
 					sourcePath := filepath.Join(path, req.SourceAddr.String())
-					mod, diags := parser.LoadConfigDir(sourcePath, req.Call)
+					mod, diags := parser.LoadConfigDir(sourcePath)
 					version, _ := version.NewVersion("1.0.0")
 					return mod, version, diags
-				},
+				}, parser.LoadSymbolFilesInDir,
 			))
 
 			// we can make this less repetitive later if we want
@@ -297,13 +297,13 @@ func TestBuildConfigInvalidModules(t *testing.T) {
 
 func TestBuildConfig_WithNestedTestModules(t *testing.T) {
 	parser := NewParser(nil)
-	mod, diags := parser.LoadConfigDirWithTests("testdata/valid-modules/with-tests-nested-module", "tests", RootModuleCallForTesting())
+	mod, diags := parser.LoadConfigDirWithTests("testdata/valid-modules/with-tests-nested-module", "tests")
 	assertNoDiagnostics(t, diags)
 	if mod == nil {
 		t.Fatal("got nil root module; want non-nil")
 	}
 
-	cfg, diags := BuildConfig(t.Context(), mod, ModuleWalkerFunc(
+	cfg, diags := BuildConfig(t.Context(), mod, RootModuleCallForTesting(), ModuleWalkerFunc(
 		func(_ context.Context, req *ModuleRequest) (*Module, *version.Version, hcl.Diagnostics) {
 
 			// Bit of a hack to get the test working, but we know all the source
@@ -318,10 +318,10 @@ func TestBuildConfig_WithNestedTestModules(t *testing.T) {
 			}
 			sourcePath := filepath.Join("testdata/valid-modules/with-tests-nested-module", addr)
 
-			mod, modDiags := parser.LoadConfigDir(sourcePath, req.Call)
+			mod, modDiags := parser.LoadConfigDir(sourcePath)
 			version, _ := version.NewVersion("1.0.0")
 			return mod, version, modDiags
-		},
+		}, parser.LoadSymbolFilesInDir,
 	))
 	assertNoDiagnostics(t, diags)
 	if cfg == nil {
@@ -377,13 +377,13 @@ func TestBuildConfig_WithNestedTestModules(t *testing.T) {
 
 func TestBuildConfig_WithTestModule(t *testing.T) {
 	parser := NewParser(nil)
-	mod, diags := parser.LoadConfigDirWithTests("testdata/valid-modules/with-tests-module", "tests", RootModuleCallForTesting())
+	mod, diags := parser.LoadConfigDirWithTests("testdata/valid-modules/with-tests-module", "tests")
 	assertNoDiagnostics(t, diags)
 	if mod == nil {
 		t.Fatal("got nil root module; want non-nil")
 	}
 
-	cfg, diags := BuildConfig(t.Context(), mod, ModuleWalkerFunc(
+	cfg, diags := BuildConfig(t.Context(), mod, RootModuleCallForTesting(), ModuleWalkerFunc(
 		func(_ context.Context, req *ModuleRequest) (*Module, *version.Version, hcl.Diagnostics) {
 			// For the sake of this test we're going to just treat our
 			// SourceAddr as a path relative to our fixture directory.
@@ -391,10 +391,10 @@ func TestBuildConfig_WithTestModule(t *testing.T) {
 			// various different source address syntaxes OpenTofu supports.
 			sourcePath := filepath.Join("testdata/valid-modules/with-tests-module", req.SourceAddr.String())
 
-			mod, modDiags := parser.LoadConfigDir(sourcePath, req.Call)
+			mod, modDiags := parser.LoadConfigDir(sourcePath)
 			version, _ := version.NewVersion("1.0.0")
 			return mod, version, modDiags
-		},
+		}, parser.LoadSymbolFilesInDir,
 	))
 	assertNoDiagnostics(t, diags)
 	if cfg == nil {
@@ -441,14 +441,14 @@ func TestBuildConfig_UninitModuleAndProviderValidation(t *testing.T) {
 	fixtureDir := "testdata/uninit-module-and-provider-refs"
 
 	parser := NewParser(nil)
-	mod, diags := parser.LoadConfigDir(fixtureDir, RootModuleCallForTesting())
+	mod, diags := parser.LoadConfigDir(fixtureDir)
 	assertNoDiagnostics(t, diags)
 	if mod == nil {
 		t.Fatal("got nil root module; want non-nil")
 	}
 
 	const diagSummary = "Not available in TestBuildConfig_UninitModuleAndProviderValidation"
-	_, diags = BuildConfig(t.Context(), mod, ModuleWalkerFunc(
+	_, diags = BuildConfig(t.Context(), mod, RootModuleCallForTesting(), ModuleWalkerFunc(
 		func(_ context.Context, req *ModuleRequest) (*Module, *version.Version, hcl.Diagnostics) {
 			switch req.Name {
 			case "child":
@@ -457,7 +457,7 @@ func TestBuildConfig_UninitModuleAndProviderValidation(t *testing.T) {
 				// A "real" implementation of ModuleWalker should accept the
 				// various different source address syntaxes OpenTofu supports.
 				sourcePath := filepath.Join(fixtureDir, req.SourceAddr.String())
-				mod, diags := parser.LoadConfigDir(sourcePath, req.Call)
+				mod, diags := parser.LoadConfigDir(sourcePath)
 				return mod, nil, diags
 			default:
 				// No other modules (including the one declared as "uninit"
@@ -469,7 +469,7 @@ func TestBuildConfig_UninitModuleAndProviderValidation(t *testing.T) {
 				})
 				return nil, nil, diags
 			}
-		},
+		}, parser.LoadSymbolFilesInDir,
 	))
 
 	// If the system behaved correctly then the only diagnostic returned

@@ -45,8 +45,8 @@ The name is stinky tofu, fermented and famously an acquired taste, a fit for
 an OpenTofu counterpart whose state is allowed to be stale. The
 [FAQ](https://intentius.io/choudoufu/docs/use/faq/) has the longer answer.
 
-Built on OpenTofu (fork point
-[`03743ce6e8`](https://github.com/opentofu/opentofu/commit/03743ce6e8)). The
+Built on OpenTofu v1.13.0 (fork point
+[`2b6193043d`](https://github.com/opentofu/opentofu/commit/2b6193043d)). The
 exact upstream version lives in [`version/VERSION`](version/VERSION), and
 each [release](https://github.com/INTENTIUS/choudoufu/releases)'s notes name
 both. Everything outside live markers is stock OpenTofu.
@@ -189,7 +189,7 @@ All stock OpenTofu documentation lives at
 ## License
 
 MPL-2.0. Forked from [opentofu/opentofu](https://github.com/opentofu/opentofu)
-at `03743ce6e8`. LICENSE and all copyright headers are unchanged from
+at `2b6193043d` (v1.13.0). LICENSE and all copyright headers are unchanged from
 upstream.
 
 choudoufu is not affiliated with or endorsed by OpenTofu or the Linux

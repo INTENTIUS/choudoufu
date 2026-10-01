@@ -49,57 +49,59 @@ type LiveMv struct {
 	JSON bool
 }
 
-// ParseLiveMv processes CLI arguments, returning a LiveMv value and errors.
-// If errors are encountered, a LiveMv value is still returned representing
-// the best effort interpretation of the arguments.
+// BindLiveMv registers live-mv's options and its two addresses on cli.
 //
-// There is no closer and no ViewOptions here, unlike most of this package.
-// This command's view is configured from [ParseView] in the ordinary way, so
-// the -no-color and -compact-warnings it accepts are gone from the arguments
-// before this parser sees them, and there is nothing to close.
-//
-// Options come before the two addresses, because the flag set stops at the
-// first operand the way every other command's does.
-func ParseLiveMv(args []string) (*LiveMv, tfdiags.Diagnostics) {
-	var diags tfdiags.Diagnostics
+// Options may sit before or after the two addresses under the new CLI;
+// the legacy CLI's stdlib parser still stops at the first address.
+// The addresses are left unparsed here; the command parses them as resource
+// instance addresses, which is where the diagnostic about a malformed one
+// belongs. See [BindLiveBucket] for why -json is the command's own.
+func BindLiveMv(cli *CommandLine) *LiveMv {
 	liveMv := &LiveMv{}
+	BindView(cli, viewFlagNone)
 
 	// -input is accepted and ignored: this command never prompts, and
 	// scripts pass it to every OpenTofu command out of habit.
 	var input bool
 
-	cmdFlags := defaultFlagSet("live-mv")
-	cmdFlags.StringVar(&liveMv.Estate, "estate", "", "estate")
-	cmdFlags.StringVar(&liveMv.FromEstate, "from-estate", "", "from estate")
-	cmdFlags.BoolVar(&liveMv.DryRun, "dry-run", false, "dry run")
-	cmdFlags.BoolVar(&liveMv.AllowMissingConfig, "allow-missing-config", false, "allow missing config")
-	cmdFlags.BoolVar(&liveMv.JSON, "json", false, "json")
-	cmdFlags.BoolVar(&input, "input", true, "input")
+	cli.StringVar(&liveMv.Estate, "estate", "", "The estate that owns the resource.").SetDisplay("=name")
+	cli.StringVar(&liveMv.FromEstate, "from-estate", "", "Move the resource into this estate from the named one.").SetDisplay("=name")
+	cli.BoolVar(&liveMv.DryRun, "dry-run", false, "Make every check and report what would be rewritten, without writing.")
+	cli.BoolVar(&liveMv.AllowMissingConfig, "allow-missing-config", false, "Permit a destination address the configuration does not declare.")
+	cli.BoolVar(&liveMv.JSON, "json", false, "Print the move as one JSON document.")
+	cli.BoolVar(&input, "input", true, "Accepted and ignored: this command never prompts.").SetDisplay("=false")
 
-	// Neither refusal below repeats the usage line. The command answers an
-	// argument error with cli.RunResultHelp, the way state mv does, so the
-	// help text is printed straight after the diagnostic and there is one
-	// copy of it to keep true.
-	if err := cmdFlags.Parse(args); err != nil {
-		return liveMv, diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Invalid option",
-			fmt.Sprintf("%s.", err),
-		))
-	}
+	var rest []string
+	cli.VariadicArg(&rest, "ADDRESSES")
 
-	rest := cmdFlags.Args()
-	if len(rest) != 2 {
-		return liveMv, diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Two resource addresses are required",
-			fmt.Sprintf(
-				"A rename names the address the live resource carries now and the one to write onto it, in that order. Got %d argument(s); options come before the addresses.",
-				len(rest)),
-		))
-	}
-	liveMv.RawOldAddr = rest[0]
-	liveMv.RawNewAddr = rest[1]
+	// The refusal below does not repeat the usage line; the command's help
+	// says what it accepts, and only one copy of that has to be maintained.
+	cli.PreHook(func() tfdiags.Diagnostics {
+		var diags tfdiags.Diagnostics
+		if len(rest) != 2 {
+			return diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Two resource addresses are required",
+				fmt.Sprintf(
+					"A rename names the address the live resource carries now and the one to write onto it, in that order. Got %d argument(s).",
+					len(rest)),
+			))
+		}
+		liveMv.RawOldAddr = rest[0]
+		liveMv.RawNewAddr = rest[1]
+		return diags
+	})
+	return liveMv
+}
 
+// ParseLiveMv processes CLI arguments through [BindLiveMv], returning a
+// LiveMv value and errors. If errors are encountered, a LiveMv value is
+// still returned representing the best effort interpretation of the
+// arguments.
+func ParseLiveMv(args []string) (*LiveMv, tfdiags.Diagnostics) {
+	cli := new(CommandLine)
+	liveMv := BindLiveMv(cli)
+	closer, diags := cli.parseWithHooks("live-mv", args)
+	closer()
 	return liveMv, diags
 }
