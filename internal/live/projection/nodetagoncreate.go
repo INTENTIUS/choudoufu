@@ -79,9 +79,9 @@ import (
 // The object the provider returns carries the zone's tags WITHOUT the
 // markers, because this run never sent them through the provider. So a
 // successful write returns that object with the markers it wrote merged
-// into tags and tags_all ([withWrittenMarkers]), and core stores that: the
-// state, the state cache written at run end, and the apply's -json stream
-// then describe the object as it stands. Until #1316 they carried the
+// into tags and tags_all, or wherever the family keeps its marker
+// ([withMarkersAt]), and core stores that: the state, the state cache
+// written at run end, and the apply's -json stream then describe the object as it stands. Until #1316 they carried the
 // provider's pre-marker copy, and a -refresh=false plan, which reads the
 // cache instead of the cloud, proposed writing the markers again onto a
 // zone that already had them. The cache is still never consulted for
@@ -93,8 +93,14 @@ import (
 // patch path (HostedZoneTags here, Tags elsewhere), and the pinned emulator
 // answers UnsupportedOperation for it. TagResources needs only an ARN.
 
-// SummaryMarkerNotWritten is the one diagnostic this file raises.
+// SummaryMarkerNotWritten is the diagnostic a failed post-create write
+// raises.
 const SummaryMarkerNotWritten = "Created object is not marked"
+
+// SummaryNoPostCreateWrite is the create-side refusal of GitHub issue
+// #1742: the family would withhold the marker from the create and has no
+// write to put it back.
+const SummaryNoPostCreateWrite = "Object would be created without its marker"
 
 // CreatedInstance is what a post-create marker write addresses (GitHub
 // issue #1638): the instance this run just created, as the run knows it -
@@ -165,17 +171,24 @@ func (n *NodeResolver) AdjustCreateConfigValue(ctx context.Context, addr addrs.A
 	return n.adjustConfigValue(ctx, addr, config, schema, true)
 }
 
-// postCreateNeeded reports whether addr's type, whose schema carries
-// surface, is one whose create call cannot carry the marker, and the
-// sentence naming why. It is the surface's family's answer (GitHub issue
-// #1642, [substrate.PostCreateNeeded]): AWS reads live/registry.json's
-// tagging.tag_on_create through its entry in [NodeResolver.Facts] for the
-// Terraform type's CloudFormation counterpart, as #1084 did here;
-// Kubernetes answers never; another family answers for its own types from
-// its own facts (#1708). False for a run with no AWS facts, a type the mapping never joined, and a type the registry cannot
-// vouch for - all of which take the ordinary path.
-func (n *NodeResolver) postCreateNeeded(addr addrs.AbsResourceInstance, surface markers.Surface) (string, bool) {
-	return substrate.PostCreateNeeded(surface, substrate.Created{Addr: addr}, n.Facts)
+// postCreateNeeded reports whether created's type, whose schema carries
+// surface, is one whose create call cannot carry the marker, the sentence
+// naming why, and the write that puts the marker back. It is the surface's
+// family's answer (GitHub issue #1642, [substrate.PostCreateNeeded]): AWS
+// reads live/registry.json's tagging.tag_on_create through its entry in
+// [NodeResolver.Facts] for the Terraform type's CloudFormation
+// counterpart, as #1084 did here; Kubernetes answers never; another family
+// answers for its own types from its own facts (#1708). False for a run
+// with no AWS facts, a type the mapping never joined, and a type the
+// registry cannot vouch for - all of which take the ordinary path.
+//
+// Since GitHub issue #1742 it is [substrate.PostCreateWrite], which holds
+// that answer together with the write the surface names and the family's
+// writer: err is non-nil when the create would be withheld and nothing
+// could mark the object afterwards. Both halves ask it, so they cannot
+// disagree about whether a create is withheld.
+func (n *NodeResolver) postCreateNeeded(created substrate.Created, surface markers.Surface) (why string, write substrate.Write, needed bool, err error) {
+	return substrate.PostCreateWrite(surface, created, n.Facts)
 }
 
 // WriteAppliedMarkers implements internal/tofu.AppliedMarkerWriter.
@@ -194,13 +207,12 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 		return applied, diags
 	}
 	// GitHub issue #1642: whether this create needed the write at all is
-	// the surface's family's answer, not the AWS registry's alone.
-	why, needed := n.postCreateNeeded(addr, surface)
+	// the surface's family's answer, not the AWS registry's alone. GitHub
+	// issue #1742: a family that withheld the marker and names no write to
+	// put it back is a failure naming the object, never a silent return.
+	created := CreatedInstance{Addr: addr, Provider: provider, Object: applied}
+	why, write, needed, answerErr := n.postCreateNeeded(created, surface)
 	if !needed {
-		return applied, diags
-	}
-	write := substrate.WritesOf(surface).PostCreate
-	if write == substrate.WriteNeverNeeded {
 		return applied, diags
 	}
 	if n.recordSelected(addr, schema) {
@@ -210,17 +222,15 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 		return applied, diags
 	}
 
-	want := n.withheldMarkers(addr)
+	want := n.markersWithheld(surface, addr)
 	if len(want) == 0 {
 		return applied, diags
 	}
 
-	created := CreatedInstance{Addr: addr, Provider: provider, Object: applied}
-
 	var err error
 	switch {
-	case write == "":
-		err = fmt.Errorf("the %s surface names no post-create write, so nothing can mark the object", surface)
+	case answerErr != nil:
+		err = answerErr
 	case n.MarkerWriter == nil:
 		err = errors.New("this run has no tagging client")
 	default:
@@ -236,7 +246,7 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 	}
 	if err == nil {
 		log.Printf("[DEBUG] stateless/projection: marked %s (%s) after its create: %s", addr, substrate.CreatedObject(surface, created), markers.TagsArgument(want))
-		return withWrittenMarkers(applied, want), diags
+		return withMarkersAt(applied, want, substrate.CarrierPaths(surface)), diags
 	}
 
 	// GitHub issue #1708: how the object is named, and the manual remedy
@@ -254,18 +264,20 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 	return applied, diags
 }
 
-// withheldMarkers is the marker map [NodeResolver.stampedTags] would have
-// added to addr's tags and [NodeResolver.AdjustCreateConfigValue] withheld:
-// tofu-estate, tofu-address, and tofu-slot where the sweep assigned one,
-// minus any key [NodeResolver.PolicyUntag] releases for this instance.
-func (n *NodeResolver) withheldMarkers(addr addrs.AbsResourceInstance) map[string]string {
+// markersWithheld is the marker map [NodeResolver.stampSurface] would have
+// written onto addr's surface and [NodeResolver.AdjustCreateConfigValue]
+// withheld: tofu-estate, tofu-address where the address is a key of the
+// surface's marker map ([substrate.AddressInMarkers], GitHub issue #1742),
+// and tofu-slot where the sweep assigned one, minus any key
+// [NodeResolver.PolicyUntag] releases for this instance.
+func (n *NodeResolver) markersWithheld(surface markers.Surface, addr addrs.AbsResourceInstance) map[string]string {
 	address := markers.EscapeAddress(addr.String())
 	untagKey := n.PolicyUntag[addr.String()]
 	out := map[string]string{}
 	if untagKey != markers.TagEstate {
 		out[markers.TagEstate] = n.Estate
 	}
-	if untagKey != markers.TagAddress {
+	if untagKey != markers.TagAddress && substrate.AddressInMarkers(surface) {
 		out[markers.TagAddress] = address
 	}
 	if slot, ok := n.Slots[address]; ok && untagKey != markers.TagSlot {
@@ -288,66 +300,166 @@ func appliedString(obj cty.Value, name string) string {
 	return v.AsString()
 }
 
-// withWrittenMarkers returns obj with written merged into its tags and
-// tags_all maps: what the object carries once [NodeResolver.WriteAppliedMarkers]'s
-// write has landed, and what a refresh would read back from the cloud.
+// withMarkersAt returns obj with written merged into the map at each of
+// carriers, the surface's own [substrate.CarrierPaths] (GitHub issue #1742:
+// AWS's tags and tags_all, another family's wherever it keeps its marker):
+// what the object carries once [NodeResolver.WriteAppliedMarkers]'s write
+// has landed, and what a refresh would read back from the cloud.
 //
-// It changes only a map(string) attribute it can read. A tags or tags_all
-// that is absent, unknown, of another type, or marked as a whole is left
-// exactly as the provider returned it, since nothing here can merge into a
-// value it cannot see; marks elsewhere in obj are carried through untouched.
-// A null map becomes the written markers. Keys already present keep the
-// marker's value, which is the value the write just stored.
-func withWrittenMarkers(obj cty.Value, written map[string]string) cty.Value {
+// It changes only a map(string) it can reach and read. A carrier that is
+// absent, unknown, of another type, reached through an unknown or null
+// value, or marked - on itself, inside it, or on any value on the way to
+// it - is left exactly as the provider returned it, since nothing here can
+// merge into a value it cannot see; marks elsewhere in obj are carried
+// through untouched. A null map becomes the written markers. Keys already
+// present keep the marker's value, which is the value the write just
+// stored.
+func withMarkersAt(obj cty.Value, written map[string]string, carriers []cty.Path) cty.Value {
 	if len(written) == 0 || obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() || !obj.Type().IsObjectType() {
 		return obj
 	}
 	unmarked, pvm := obj.UnmarkDeepWithPaths()
-	attrs := unmarked.AsValueMap()
 	changed := false
-	for _, name := range []string{"tags", "tags_all"} {
-		v, ok := attrs[name]
-		if !ok || !v.Type().Equals(cty.Map(cty.String)) || !v.IsKnown() || markedAt(pvm, name) {
+	for _, path := range carriers {
+		if len(path) == 0 || markedOnPath(pvm, path) {
 			continue
 		}
-		merged := map[string]cty.Value{}
-		// v came out of UnmarkDeepWithPaths, so it carries no mark; the
-		// explicit test is for internal/live/marksafe, which proves a read
-		// safe only from a guard it can see at the call site.
-		if !v.IsNull() && !v.ContainsMarked() {
-			for k, e := range v.AsValueMap() {
-				merged[k] = e
-			}
+		if next, ok := replaceAt(unmarked, path, func(v cty.Value) (cty.Value, bool) { return mergedMarkerMap(v, written) }); ok {
+			unmarked = next
+			changed = true
 		}
-		for k, val := range written {
-			merged[k] = cty.StringVal(val)
-		}
-		attrs[name] = cty.MapVal(merged)
-		changed = true
 	}
 	if !changed {
 		return obj
 	}
-	return cty.ObjectVal(attrs).MarkWithPaths(pvm)
+	return unmarked.MarkWithPaths(pvm)
 }
 
-// markedAt reports whether any mark in pvm sits on attribute name or inside
-// it, so [withWrittenMarkers] never rewrites a value carrying a mark.
-func markedAt(pvm []cty.PathValueMarks, name string) bool {
+// mergedMarkerMap is v, a map(string), with written merged in, or false
+// when v is not a known map(string) this can read.
+func mergedMarkerMap(v cty.Value, written map[string]string) (cty.Value, bool) {
+	if !v.Type().Equals(cty.Map(cty.String)) || !v.IsKnown() || v.IsMarked() {
+		return v, false
+	}
+	merged := map[string]cty.Value{}
+	// v came out of UnmarkDeepWithPaths, so it carries no mark; the
+	// explicit test is for internal/live/marksafe, which proves a read
+	// safe only from a guard it can see at the call site.
+	if !v.IsNull() && !v.ContainsMarked() {
+		for k, e := range v.AsValueMap() {
+			merged[k] = e
+		}
+	}
+	for k, val := range written {
+		merged[k] = cty.StringVal(val)
+	}
+	return cty.MapVal(merged), true
+}
+
+// replaceAt returns v with the value at path replaced by f's answer, or
+// false when path does not reach a value through known, non-null objects,
+// lists, tuples and maps, or f declines. v carries no marks (the caller
+// unmarked it).
+func replaceAt(v cty.Value, path cty.Path, f func(cty.Value) (cty.Value, bool)) (cty.Value, bool) {
+	if len(path) == 0 {
+		return f(v)
+	}
+	if v.IsNull() || !v.IsKnown() || v.ContainsMarked() {
+		return v, false
+	}
+	ty := v.Type()
+	switch step := path[0].(type) {
+	case cty.GetAttrStep:
+		if !ty.IsObjectType() || !ty.HasAttribute(step.Name) {
+			return v, false
+		}
+		attrs := v.AsValueMap()
+		next, ok := replaceAt(attrs[step.Name], path[1:], f)
+		if !ok {
+			return v, false
+		}
+		attrs[step.Name] = next
+		return cty.ObjectVal(attrs), true
+	case cty.IndexStep:
+		key := step.Key
+		if key.IsMarked() || key.IsNull() || !key.IsKnown() {
+			return v, false
+		}
+		switch {
+		case (ty.IsListType() || ty.IsTupleType()) && key.Type() == cty.Number:
+			i, acc := key.AsBigFloat().Int64()
+			elems := v.AsValueSlice()
+			if acc != 0 || i < 0 || i >= int64(len(elems)) {
+				return v, false
+			}
+			next, ok := replaceAt(elems[i], path[1:], f)
+			if !ok {
+				return v, false
+			}
+			elems[i] = next
+			if ty.IsTupleType() {
+				return cty.TupleVal(elems), true
+			}
+			return cty.ListVal(elems), true
+		case ty.IsMapType() && key.Type() == cty.String:
+			name := key.AsString()
+			elems := v.AsValueMap()
+			e, present := elems[name]
+			if !present {
+				return v, false
+			}
+			next, ok := replaceAt(e, path[1:], f)
+			if !ok {
+				return v, false
+			}
+			elems[name] = next
+			return cty.MapVal(elems), true
+		}
+	}
+	return v, false
+}
+
+// markedOnPath reports whether any mark in pvm sits on path, inside the
+// value at path, or on a value on the way to it, so [withMarkersAt] never
+// rewrites a value carrying a mark. A mark on obj itself (an empty path)
+// does not count: it is reapplied to the whole result.
+func markedOnPath(pvm []cty.PathValueMarks, path cty.Path) bool {
 	for _, m := range pvm {
 		if len(m.Path) == 0 {
 			continue
 		}
-		if step, ok := m.Path[0].(cty.GetAttrStep); ok && step.Name == name {
+		n := len(m.Path)
+		if len(path) < n {
+			n = len(path)
+		}
+		if m.Path[:n].Equals(path[:n]) {
 			return true
 		}
 	}
 	return false
 }
 
-// withholdsAtCreate is [NodeResolver.postCreateNeeded] without the reason,
-// for the create-side half ([NodeResolver.AdjustCreateConfigValue]).
-func (n *NodeResolver) withholdsAtCreate(addr addrs.AbsResourceInstance, surface markers.Surface) bool {
-	_, needed := n.postCreateNeeded(addr, surface)
-	return needed
+// withholdsAtCreate is [NodeResolver.postCreateNeeded] for the create-side
+// half ([NodeResolver.AdjustCreateConfigValue]): whether the create call
+// goes out without this run's markers. False, and nothing asked, when the
+// instance is not being created.
+//
+// A create whose family would withhold the markers with nothing to write
+// them afterwards (GitHub issue #1742) is refused here, at plan, before any
+// object exists: creating it would leave an object carrying no marker, and
+// nothing is created or dropped silently. The write side
+// ([NodeResolver.WriteAppliedMarkers]) still fails the apply naming the
+// object, for a create this refusal did not see.
+func (n *NodeResolver) withholdsAtCreate(addr addrs.AbsResourceInstance, surface markers.Surface, creating bool) (bool, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	if !creating {
+		return false, diags
+	}
+	why, _, needed, err := n.postCreateNeeded(substrate.Created{Addr: addr}, surface)
+	if needed && err != nil {
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryNoPostCreateWrite,
+			fmt.Sprintf("%s cannot be created marked: %s, so this run would withhold the ownership markers from the create, and %s. Creating it would leave an object carrying no marker naming estate %q, which the next plan would not find at this address, so it is not created.",
+				addr, why, err, n.Estate)))
+	}
+	return needed, diags
 }

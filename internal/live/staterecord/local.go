@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -107,11 +108,45 @@ func (s *LocalStore) pathFor(key string) (string, error) {
 	if err := validateKey(key); err != nil {
 		return "", err
 	}
+	if err := listableLocalKey(key); err != nil {
+		return "", err
+	}
 	full := filepath.Join(s.dir, filepath.FromSlash(key))
 	if full != s.dir && !strings.HasPrefix(full, s.dir+string(filepath.Separator)) {
 		return "", fmt.Errorf("staterecord: local: key %q resolves outside the store directory", key)
 	}
 	return full, nil
+}
+
+// listableLocalKey refuses a key this store could write and then never name
+// in a listing, so that no key exists that Get serves and GetAll leaves out.
+//
+// GitHub issue #1355. [RunCache] answers every read under its namespace from
+// one [LocalStore.GetAll], and [RunCache.List] from the same map, so a key the
+// walk does not name is a record the run reads as absent with nothing said
+// anywhere - the listing-versus-read cross-check (#1429) compares the map
+// with itself. Two spellings of key reach that state:
+//
+//   - A key that is not a clean path ("a//b", "a/./b", "a/b/"). filepath.Join
+//     cleans it, so the record is written at the clean path and the walk lists
+//     it under the clean key, never the one that was written.
+//   - A key whose last segment ends in [lockSuffix] or carries [tmpInfix]. The
+//     walk skips those names because this store's own sidecars carry them, and
+//     a record spelled that way is skipped with them.
+//
+// Nothing in this repository builds such a key (projection's record keys end
+// in a base64url segment and are joined with single slashes), which is why the
+// refusal costs nothing; it exists so that the bulk read's completeness is a
+// property of the store rather than of its callers' spelling.
+func listableLocalKey(key string) error {
+	if clean := path.Clean(key); clean != key {
+		return fmt.Errorf("staterecord: local: key %q is not a clean path; it would be written at %q and listed under that key, so a bulk read of its namespace could never name it (GitHub issue #1355)", key, clean)
+	}
+	leaf := path.Base(key)
+	if strings.HasSuffix(leaf, lockSuffix) || strings.Contains(leaf, tmpInfix) {
+		return fmt.Errorf("staterecord: local: key %q ends in a segment spelled like this store's own lock or temp files (%q, %q), which every listing skips, so a bulk read of its namespace could never name it (GitHub issue #1355)", key, lockSuffix, tmpInfix)
+	}
+	return nil
 }
 
 // contentVersion is the version this store assigns to payload: its sha256,

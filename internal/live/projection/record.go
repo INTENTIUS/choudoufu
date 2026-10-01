@@ -1155,27 +1155,43 @@ func (s *RecordStore) GetIdentityFresh(ctx context.Context, addr addrs.AbsResour
 	return s.getIdentity(ctx, addr, true)
 }
 
+// GetIdentityWithProvider is [RecordStore.GetIdentity] plus the record's
+// [recordEnvelope.Provider]: the provider configuration that managed the
+// object at the envelope's last write, "" when the envelope predates that
+// field (#389). GitHub issue #1721: a scoped discovery pass reads it to tell
+// whether an undeclared record is its own configuration's to remove, when
+// another configuration of the same provider serves the type just as well.
+func (s *RecordStore) GetIdentityWithProvider(ctx context.Context, addr addrs.AbsResourceInstance) (rec LocatedRecord, provider string, keyExists bool, identityFound bool, err error) {
+	rec, provider, _, keyExists, identityFound, err = s.getIdentityEnv(ctx, addr, false)
+	return rec, provider, keyExists, identityFound, err
+}
+
 func (s *RecordStore) getIdentity(ctx context.Context, addr addrs.AbsResourceInstance, fresh bool) (rec LocatedRecord, version string, keyExists bool, identityFound bool, err error) {
+	rec, _, version, keyExists, identityFound, err = s.getIdentityEnv(ctx, addr, fresh)
+	return rec, version, keyExists, identityFound, err
+}
+
+func (s *RecordStore) getIdentityEnv(ctx context.Context, addr addrs.AbsResourceInstance, fresh bool) (rec LocatedRecord, provider string, version string, keyExists bool, identityFound bool, err error) {
 	env, version, exists, err := s.getEnvelope(ctx, addr, fresh)
 	if err != nil {
-		return LocatedRecord{}, "", false, false, err
+		return LocatedRecord{}, "", "", false, false, err
 	}
 	if !exists {
-		return LocatedRecord{}, "", false, false, nil
+		return LocatedRecord{}, "", "", false, false, nil
 	}
 	if env.Identity == nil {
-		return LocatedRecord{}, version, true, false, nil
+		return LocatedRecord{}, env.Provider, version, true, false, nil
 	}
 	out := LocatedRecord{ImportID: env.Identity.ImportID, Components: env.Identity.Attrs, SecondaryID: env.Identity.SecondaryID}
 	if out.Empty() {
-		return LocatedRecord{}, "", false, false, fmt.Errorf("the located record for %s carries an empty identity", addr)
+		return LocatedRecord{}, "", "", false, false, fmt.Errorf("the located record for %s carries an empty identity", addr)
 	}
 	for name, v := range out.Components {
 		if v == "" {
-			return LocatedRecord{}, "", false, false, fmt.Errorf("the located record for %s carries an empty %q component", addr, name)
+			return LocatedRecord{}, "", "", false, false, fmt.Errorf("the located record for %s carries an empty %q component", addr, name)
 		}
 	}
-	return out, version, true, true, nil
+	return out, env.Provider, version, true, true, nil
 }
 
 // DeposedRecord is one deposed object recorded for an address: the same
