@@ -159,6 +159,7 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 	listed := ListedObjects{}
 	var undeclared []UndeclaredObject
 	var unlisted []kubesweep.Kind
+	var notInManifest []kubesweep.HeldObject
 	for _, k := range kinds {
 		objects, ownerSkipped, err := leg.Client.List(ctx, k, markers.TagEstate, req.Estate)
 		if err != nil {
@@ -231,6 +232,7 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 				HeldBy:     heldBy,
 			})
 		}
+		notInManifest = append(notInManifest, ownerSkipped.Unlisted...)
 		for _, o := range objects {
 			listed.Add(k.Kind, kubesweep.NaturalKey(o.Namespace, o.Name))
 			if _, isDeclared := declared.Declares(k.Kind, kubesweep.NaturalKey(o.Namespace, o.Name)); isDeclared {
@@ -239,6 +241,8 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 			undeclared = append(undeclared, UndeclaredObject{Kind: k, TypeName: typeName, Object: o})
 		}
 	}
+
+	diags = diags.Append(helmNotInManifestDiag(notInManifest))
 
 	// An object no natural key declares may still be a declared
 	// instance's: its address annotation names the block that made it
@@ -528,4 +532,40 @@ func manifestBlockRange(root *configs.Config, addr addrs.AbsResourceInstance) *h
 		return nil
 	}
 	return block.DeclRange.Ptr()
+}
+
+// SummaryHelmNotInManifest is the warning for the objects a sweep set
+// aside because a live Helm release's annotation is on them while its
+// manifest does not list them (GitHub issue #1738 item 4, ruled
+// 2026-09-30: option A with D's labelling). A warning, because nothing in
+// the run is wrong: they are reported rather than held, and never
+// proposed for destroy, so a manifest match that is wrong can only ever
+// produce this line.
+const SummaryHelmNotInManifest = "Annotated with a live Helm release, not in its manifest"
+
+// helmNotInManifestDiag is the one warning naming every such object, nil
+// for none.
+func helmNotInManifestDiag(objs []kubesweep.HeldObject) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if len(objs) == 0 {
+		return diags
+	}
+	sorted := append([]kubesweep.HeldObject(nil), objs...)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		if sorted[i].Kind != sorted[j].Kind {
+			return sorted[i].Kind < sorted[j].Kind
+		}
+		return kubesweep.NaturalKey(sorted[i].Namespace, sorted[i].Name) < kubesweep.NaturalKey(sorted[j].Namespace, sorted[j].Name)
+	})
+	var b strings.Builder
+	if len(sorted) == 1 {
+		b.WriteString("1 object carries this estate's label and a live Helm release's annotation, but the release's manifest does not list it. The release does not hold it and this plan does not destroy it:\n\n")
+	} else {
+		fmt.Fprintf(&b, "%d objects carry this estate's label and a live Helm release's annotation, but the release's manifest does not list them. The release does not hold them and this plan does not destroy them:\n\n", len(sorted))
+	}
+	for _, o := range sorted {
+		fmt.Fprintf(&b, "  - %s %s: annotated with live %s, not in its manifest\n", o.Kind, kubesweep.NaturalKey(o.Namespace, o.Name), o.HeldBy)
+	}
+	b.WriteString("\nA chart that dropped an object under helm.sh/resource-policy: keep leaves it like this, and so does a copy of a Helm object's YAML. Declare and import it to keep it in the estate; remove its meta.helm.sh/release-name annotation to let the sweep propose destroying it.")
+	return diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryHelmNotInManifest, b.String()))
 }

@@ -131,7 +131,8 @@ jobs:
           # to it, not to the conformance suite's namespace above.
           CHOUDOUFU_K8S_RECORD_NAMESPACE: tofu-records-kind-tier-fence
         run: go test ./internal/live/projection/... -run TestFencedIdentityOnACluster -count=1 -v
-      # The Helm hold tests (internal/live/kubesweep, #1607 and #1625) install
+      # The Helm hold tests (internal/live/kubesweep, #1607, #1625 and
+      # #1738 item 4's manifest match) install
       # a chart with the helm binary, which ubuntu-latest carries; the
       # preflight fails the job by name if it ever stops carrying it, rather
       # than letting the test fail on a missing binary halfway through.
@@ -141,7 +142,7 @@ jobs:
           set -euo pipefail
           helm version
           export CHOUDOUFU_K8S_SWEEP_KUBECONFIG="$KUBECONFIG"
-          go test ./internal/live/kubesweep/... -count=1 -v -run 'TestListHoldsHelmReleaseOnACluster|TestListDropsHelmHoldWhenReleaseSecretIsGoneOnACluster'
+          go test ./internal/live/kubesweep/... -count=1 -v -run 'TestListHoldsHelmReleaseOnACluster|TestListDropsHelmHoldWhenReleaseSecretIsGoneOnACluster|TestListHoldsOnlyWhatTheManifestListsOnACluster'
       - name: cluster logs, whatever happened to the job
         if: always()
         continue-on-error: true

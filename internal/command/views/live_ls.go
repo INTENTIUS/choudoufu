@@ -172,6 +172,12 @@ type LiveLsItem struct {
 	// #1606). Such a resource is never swept and never adopted, whatever
 	// markers it carries, and is listed so the markers' reach is visible.
 	HeldBy string
+
+	// NotInManifest is set for a Kubernetes object annotated with a live
+	// Helm release whose manifest does not list it, and names that release
+	// (GitHub issue #1738 item 4). Not held and not swept: the plan
+	// reports it and proposes nothing for it.
+	NotInManifest string
 }
 
 // LiveLsGap is one declared instance the listing itself cannot see, and why.
@@ -245,6 +251,9 @@ type liveLsJSONItem struct {
 	APIVersion string `json:"api_version,omitempty"`
 	// HeldBy appears on a controller-held item only, AWS or Kubernetes.
 	HeldBy string `json:"held_by,omitempty"`
+	// NotInReleaseManifest appears on a Kubernetes object annotated with
+	// a live Helm release whose manifest does not list it.
+	NotInReleaseManifest string `json:"not_in_release_manifest,omitempty"`
 }
 
 type liveLsJSONGap struct {
@@ -302,16 +311,17 @@ func (v *LiveLsJSON) Report(rep LiveLsReport) {
 	}
 	for _, item := range rep.Items {
 		out.Items = append(out.Items, liveLsJSONItem{
-			ID:         item.ID,
-			Type:       item.Type,
-			Address:    item.Address,
-			Slot:       item.Slot,
-			Declared:   item.Declared,
-			Source:     item.Source,
-			Tags:       item.Tags,
-			Kind:       item.Kind,
-			APIVersion: item.APIVersion,
-			HeldBy:     item.HeldBy,
+			ID:                   item.ID,
+			Type:                 item.Type,
+			Address:              item.Address,
+			Slot:                 item.Slot,
+			Declared:             item.Declared,
+			Source:               item.Source,
+			Tags:                 item.Tags,
+			Kind:                 item.Kind,
+			APIVersion:           item.APIVersion,
+			HeldBy:               item.HeldBy,
+			NotInReleaseManifest: item.NotInManifest,
 		})
 	}
 	for _, gap := range rep.Gaps {
@@ -376,6 +386,9 @@ func (v *LiveLsHuman) Report(rep LiveLsReport) {
 		}
 		if item.HeldBy != "" {
 			fmt.Fprintf(&b, "  held by: %s (controller-held: never swept, never adopted)\n", item.HeldBy)
+		}
+		if item.NotInManifest != "" {
+			fmt.Fprintf(&b, "  annotated with live %s, not in its manifest (not swept)\n", item.NotInManifest)
 		}
 		if item.Address != "" {
 			declared := ""

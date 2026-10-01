@@ -47,6 +47,7 @@ type liveLsStubSweeper struct {
 	kindsErr  error
 	selectors []string
 	held      map[string][]kubesweep.HeldObject
+	unlisted  map[string][]kubesweep.HeldObject
 }
 
 func (s *liveLsStubSweeper) Kinds(_ context.Context, _ []string, _ string) ([]kubesweep.Kind, []string, error) {
@@ -74,7 +75,7 @@ func (s *liveLsStubSweeper) List(_ context.Context, k kubesweep.Kind, key, value
 	if k.Kind == s.failKind {
 		return nil, kubesweep.Skipped{}, errors.New("forbidden")
 	}
-	return s.objects[k.Kind], kubesweep.Skipped{Count: len(s.held[k.Kind]), Held: s.held[k.Kind]}, nil
+	return s.objects[k.Kind], kubesweep.Skipped{Count: len(s.held[k.Kind]) + len(s.unlisted[k.Kind]), Held: s.held[k.Kind], Unlisted: s.unlisted[k.Kind]}, nil
 }
 
 func liveLsK8sResolution(t *testing.T, typeName, name, importID string) identity.Resolution {
@@ -510,6 +511,30 @@ func TestLiveLsKubernetesListsControllerHeld(t *testing.T) {
 	}
 	it := items[0]
 	if it.ID != "web/web-greeting" || it.HeldBy != "Helm release web/web" || it.Declared || it.Address != "" || it.Tags["tofu-estate"] != "smoke-k8s" {
+		t.Errorf("item = %+v", it)
+	}
+}
+
+// TestLiveLsKubernetesListsHelmNotInManifest (GitHub issue #1738 item 4):
+// an object annotated with a live Helm release whose manifest does not list
+// it is listed, naming the release, and is neither held nor bound.
+func TestLiveLsKubernetesListsHelmNotInManifest(t *testing.T) {
+	cm := kubesweep.Kind{GVR: schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}, Kind: "ConfigMap", Namespaced: true, APIVersion: "v1", TypeNames: []string{"kubernetes_config_map_v1"}}
+	sweeper := &liveLsStubSweeper{
+		kinds: []kubesweep.Kind{cm},
+		unlisted: map[string][]kubesweep.HeldObject{
+			"ConfigMap": {{Kind: "ConfigMap", Namespace: "web", Name: "web-old", Labels: map[string]string{"tofu-estate": "smoke-k8s"}, HeldBy: "Helm release web/web"}},
+		},
+	}
+	items, diags := liveLsKubernetesList(context.Background(), "smoke-k8s", sweeper, []string{"kubernetes_config_map_v1"}, "", nil, nil, nil)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected errors: %s", diags.Err())
+	}
+	if len(items) != 1 {
+		t.Fatalf("items = %+v, want the unlisted object", items)
+	}
+	it := items[0]
+	if it.ID != "web/web-old" || it.NotInManifest != "Helm release web/web" || it.HeldBy != "" || it.Declared || it.Address != "" {
 		t.Errorf("item = %+v", it)
 	}
 }

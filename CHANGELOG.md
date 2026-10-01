@@ -46,6 +46,15 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
   answers each namespace separately for a release with no namespace
   annotation. A role that cannot list either store gets a denied gap
   naming it, never an orphan (#1738).
+- A Helm release holds an object only if the release's manifest lists it,
+  matched on kind, namespace and name over the latest and last deployed
+  revisions. An object annotated with a live release but missing from its
+  manifest (a `helm.sh/resource-policy: keep` drop, a copied annotation)
+  is reported as `Annotated with a live Helm release, not in its
+  manifest` and never proposed for destroy. Release records are listed
+  metadata-only and fetched once per release per run; the sweep's
+  credential needs `get` on Secrets and ConfigMaps in release namespaces
+  to read manifests (without it, objects stay held) (#1738).
 
 ## choudoufu v0.20.0 (2026-09-27)
 

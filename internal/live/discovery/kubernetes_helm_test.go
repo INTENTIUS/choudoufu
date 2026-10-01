@@ -6,9 +6,14 @@
 package discovery
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"sort"
+	"strings"
 	"testing"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -21,6 +26,7 @@ import (
 	clienttesting "k8s.io/client-go/testing"
 
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // fixedKindsClient is the real [kubesweep.Client] over a fake dynamic
@@ -212,5 +218,71 @@ func TestKubernetesSweepDeniedReleaseLookupIsAGapNotAnOrphan(t *testing.T) {
 	}
 	if len(res.labelListDenied) != 1 || kubeGrantLine(res.labelListDenied[0]) != `list configmaps in namespace "smoke-k8s"` {
 		t.Errorf("denials = %+v, want one naming list configmaps in namespace \"smoke-k8s\"", res.labelListDenied)
+	}
+}
+
+// TestKubernetesSweepReportsHelmObjectNotInManifest (GitHub issue #1738
+// item 4, ruled 2026-09-30): an object annotated with a live release whose
+// manifest does not list it - here one the chart dropped under
+// helm.sh/resource-policy: keep - is not controller-held and is not an
+// orphan either. It is named in one warning, with its release, and the
+// plan proposes nothing for it.
+func TestKubernetesSweepReportsHelmObjectNotInManifest(t *testing.T) {
+	gvr := schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}
+	secretGVR := schema.GroupVersionResource{Version: "v1", Resource: "secrets"}
+	rls, err := json.Marshal(map[string]any{
+		"name": "web", "namespace": "smoke-k8s", "version": 2, "info": map[string]any{"status": "deployed"},
+		"manifest": "---\n# Source: web/templates/cm.yaml\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: web-greeting\ndata:\n  greeting: hello\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var gz bytes.Buffer
+	w := gzip.NewWriter(&gz)
+	_, _ = w.Write(rls)
+	_ = w.Close()
+	record := helmReleaseSecret("smoke-k8s", "web")
+	// The revision label is what picks the record to read; without one
+	// the order is unknown, and an unknown order holds everything.
+	record.SetLabels(map[string]string{"owner": "helm", "name": "web", "status": "deployed", "version": "2"})
+	record.Object["data"] = map[string]any{"release": base64.StdEncoding.EncodeToString([]byte(base64.StdEncoding.EncodeToString(gz.Bytes())))}
+	dyn := fakedynamic.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
+		map[schema.GroupVersionResource]string{gvr: "ConfigMapList", secretGVR: "SecretList"},
+		helmConfigMap("smoke-k8s", "web-greeting", "web"),
+		helmConfigMap("smoke-k8s", "web-dropped", "web"),
+		record,
+	)
+	cm := kubesweep.Kind{GVR: gvr, Kind: "ConfigMap", Namespaced: true, APIVersion: "v1", TypeNames: []string{"kubernetes_config_map_v1"}}
+	req := Request{
+		Estate:   "smoke-k8s",
+		Sweepers: []Sweeper{KubernetesSweep{Client: fixedKindsClient{Client: kubesweep.NewWith(&fakediscovery.FakeDiscovery{Fake: &clienttesting.Fake{}}, dyn), kinds: []kubesweep.Kind{cm}}, Types: []string{"kubernetes_config_map_v1"}}},
+	}
+	res := &Result{}
+	diags := sweepKubernetes(context.Background(), req, res)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected errors: %s", diags.Err())
+	}
+	if len(res.Orphans) != 0 {
+		t.Errorf("orphans = %+v, want none: an object annotated with a live release is never proposed for destroy", res.Orphans)
+	}
+	if len(res.ControllerHeld) != 1 || res.ControllerHeld[0].ImportID != "smoke-k8s/web-greeting" {
+		t.Errorf("held = %+v, want smoke-k8s/web-greeting alone", res.ControllerHeld)
+	}
+	var found bool
+	for _, d := range diags {
+		if d.Description().Summary != SummaryHelmNotInManifest {
+			continue
+		}
+		found = true
+		if d.Severity() != tfdiags.Warning {
+			t.Errorf("severity = %v, want a warning", d.Severity())
+		}
+		want := "ConfigMap smoke-k8s/web-dropped: annotated with live Helm release smoke-k8s/web, not in its manifest"
+		if detail := d.Description().Detail; !strings.Contains(detail, want) || strings.Contains(detail, "web-greeting") {
+			t.Errorf("detail = %q, want it to name web-dropped alone: %q", detail, want)
+		}
+	}
+	if !found {
+		t.Errorf("no %q warning in %v", SummaryHelmNotInManifest, diags)
 	}
 }

@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/metadata"
 	restclient "k8s.io/client-go/rest"
 )
 
@@ -113,6 +113,15 @@ type Skipped struct {
 	// Held are the ones whose holder can be named, in listing order: today
 	// the objects a Helm release holds ([HelmRelease]; GitHub issue #1607).
 	Held []HeldObject
+	// Unlisted are the objects annotated with a Helm release that is live
+	// but whose manifest does not list them (GitHub issue #1738 item 4):
+	// a chart's drop under helm.sh/resource-policy: keep, or a copy of a
+	// Helm object's YAML. Not held, since the release does not answer for
+	// them, and not returned for the destroy proposal either, since the
+	// one thing that tells them apart from the release's own is a manifest
+	// match: each is reported, HeldBy naming the release, and counted in
+	// Count.
+	Unlisted []HeldObject
 }
 
 // HeldObject is one live object carrying the estate's label that a
@@ -174,6 +183,16 @@ type Client struct {
 	kindsKey  string
 	kindsVal  []Kind
 	kindsGaps []string
+
+	// meta lists Helm's release records metadata-only (GitHub issue #1738
+	// item 4). Nil for a [NewWith] client, which lists them in full
+	// through dyn instead.
+	meta metadata.Interface
+	// helmCache remembers each Helm release's answer for the client's
+	// life, so the sweep's kinds and the post-apply look ask once per
+	// release. Only an answer is kept, never an error.
+	helmMu    sync.Mutex
+	helmCache map[Release]*helmContents
 }
 
 // New connects. Nothing is called until [Client.Kinds] or [Client.List].
@@ -192,12 +211,21 @@ func New(cfg *restclient.Config) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("dynamic client: %w", creds.explain(err))
 	}
-	return &Client{disc: disc, dyn: dyn, creds: creds}, nil
+	meta, err := metadata.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("metadata client: %w", creds.explain(err))
+	}
+	return &Client{disc: disc, dyn: dyn, meta: meta, creds: creds}, nil
 }
 
 // NewWith is [New] over already-built clients, for tests.
 func NewWith(disc discovery.DiscoveryInterface, dyn dynamic.Interface) *Client {
 	return &Client{disc: disc, dyn: dyn}
+}
+
+// NewWithMetadata is [NewWith] plus the metadata client [New] builds.
+func NewWithMetadata(disc discovery.DiscoveryInterface, dyn dynamic.Interface, meta metadata.Interface) *Client {
+	return &Client{disc: disc, dyn: dyn, meta: meta}
 }
 
 // Kinds implements [Sweeper]: every group's preferred version of every
@@ -329,10 +357,6 @@ func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object,
 		skipped Skipped
 		cont    string
 	)
-	// releaseCache remembers one List call's release-existence answers, so
-	// the several objects one release usually holds cost one secret list
-	// each rather than one per object.
-	releaseCache := map[Release]bool{}
 	for {
 		opts.Continue = cont
 		ul, err := res.Namespace(metav1.NamespaceAll).List(ctx, opts)
@@ -341,13 +365,12 @@ func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object,
 		}
 		for _, item := range ul.Items {
 			if rel, ok := HelmRelease(&item); ok {
-				exists, err := c.helmReleaseExists(ctx, releaseCache, rel, item.GetNamespace())
+				contents, err := c.helmReleaseContents(ctx, rel, item.GetNamespace())
 				if err != nil {
 					return nil, Skipped{}, c.creds.explain(err)
 				}
-				if exists {
-					skipped.Count++
-					skipped.Held = append(skipped.Held, HeldObject{
+				if contents != nil {
+					h := HeldObject{
 						Kind:        k.Kind,
 						Namespace:   item.GetNamespace(),
 						Name:        item.GetName(),
@@ -355,7 +378,16 @@ func (c *Client) List(ctx context.Context, k Kind, key, value string) ([]Object,
 						Annotations: item.GetAnnotations(),
 						Controller:  ControllerHelm,
 						HeldBy:      rel.String(),
-					})
+					}
+					skipped.Count++
+					if contents.lists(k.Kind, item.GetNamespace(), item.GetName()) {
+						skipped.Held = append(skipped.Held, h)
+					} else {
+						// Annotated with a live release whose manifest
+						// does not list it (#1738 item 4): reported, and
+						// never proposed for destroy.
+						skipped.Unlisted = append(skipped.Unlisted, h)
+					}
 					continue
 				}
 				// The annotation names a release whose secret is gone
@@ -773,87 +805,6 @@ var helmReleaseStores = []schema.GroupVersionResource{
 // answers for: `helm list -a` shows it and `helm uninstall` deletes its
 // objects, a failed install's among them.
 const helmStatusUninstalled = "uninstalled"
-
-// helmReleaseExists reports whether rel's release still exists: at least
-// one history record in either storage driver, the latest of which does
-// not read uninstalled (GitHub issues #1625, #1738). A release with no
-// namespace annotation - Helm always writes one since 3.2, so this is a
-// pre-3.2 object or a hand-crafted annotation - is looked up in the
-// object's own namespace, the ordinary case for a namespaced release, and
-// the answer is remembered under the namespace actually asked.
-//
-// A live record in either store is enough on its own: a store the cluster
-// would not list could only have added a record. Short of that, a store
-// that could not be read is reported as an error - a Forbidden one as the
-// cluster's own denial, which the sweep names as a missing grant (#1582) -
-// same as every other [Sweeper.List] failure: never as "gone", which would
-// turn a coverage gap into a proposal to destroy a release's own object.
-func (c *Client) helmReleaseExists(ctx context.Context, cache map[Release]bool, rel Release, objNamespace string) (bool, error) {
-	ns := rel.Namespace
-	if ns == "" {
-		ns = objNamespace
-	}
-	key := Release{Namespace: ns, Name: rel.Name}
-	if v, ok := cache[key]; ok {
-		return v, nil
-	}
-	var unread error
-	for _, store := range helmReleaseStores {
-		list, err := c.dyn.Resource(store).Namespace(ns).List(ctx, metav1.ListOptions{
-			LabelSelector: "owner=helm,name=" + rel.Name,
-		})
-		if err != nil {
-			if unread == nil {
-				unread = fmt.Errorf("checking whether %s still exists: %w", key.String(), err)
-			}
-			continue
-		}
-		if helmReleaseLive(list.Items) {
-			cache[key] = true
-			return true, nil
-		}
-	}
-	if unread != nil {
-		return false, unread
-	}
-	cache[key] = false
-	return false, nil
-}
-
-// helmReleaseLive reports whether one store's records for a release say
-// it is live: the latest revision's status is anything but uninstalled.
-// Latest is the highest version label, compared as a number (v10 follows
-// v9). A record whose version does not read as a number leaves the order
-// unknown, and then the release is live unless every record reads
-// uninstalled or superseded - the answer that holds when unsure.
-func helmReleaseLive(records []unstructured.Unstructured) bool {
-	if len(records) == 0 {
-		return false
-	}
-	latest, latestStatus, ordered := -1, "", true
-	for i := range records {
-		labels := records[i].GetLabels()
-		v, err := strconv.Atoi(labels["version"])
-		if err != nil {
-			ordered = false
-			break
-		}
-		if v > latest {
-			latest, latestStatus = v, labels["status"]
-		}
-	}
-	if ordered {
-		return latestStatus != helmStatusUninstalled
-	}
-	for i := range records {
-		switch records[i].GetLabels()["status"] {
-		case helmStatusUninstalled, "superseded":
-		default:
-			return true
-		}
-	}
-	return false
-}
 
 // claimsContent reports whether a managedFields entry owns any of the
 // object's own content: a top-level field that is not metadata, status,

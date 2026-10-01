@@ -258,6 +258,19 @@ the object is judged like any other, on owner references and managedFields
 authorship alone. A store the sweep may not list
 is a denied gap, never "gone".
 
+Held means listed by the release, not only annotated with it (#1738 item
+4, ruled 2026-09-30): the sweep lists the release's records
+metadata-only, fetches the latest and the last `deployed` one, decodes
+their manifests the way Helm's storage driver wrote them, and holds an
+object only if one lists it by kind, namespace (the release's when the
+document omits it) and name, group and version ignored. An object
+annotated with a live release that its manifest does not list - a
+`helm.sh/resource-policy: keep` drop, a copied annotation - is reported
+in the warning `Annotated with a live Helm release, not in its manifest`
+and in `live-ls`, and kept out of the destroy proposal, so a wrong match
+can only produce that warning. A record that cannot be fetched or
+decoded holds.
+
 The estate sweep (#1065) is one cluster-wide, label-selected list per kind
 the cluster serves with list and delete verbs, found through API
 discovery: a kind the provider has a resource type for, served at the

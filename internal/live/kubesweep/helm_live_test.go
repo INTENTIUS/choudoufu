@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 
@@ -108,7 +109,12 @@ data:
 		t.Fatal(err)
 	}
 
-	c := NewWith(nil, dyn)
+	// New, not NewWith: the metadata-only listing and record GET are
+	// the path a run takes (#1738 item 4).
+	c, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
 	got, skipped, err := c.List(ctx, Kind{GVR: cmGVR, Kind: "ConfigMap", Namespaced: true}, "tofu-estate", estate)
 	if err != nil {
 		t.Fatal(err)
@@ -216,7 +222,12 @@ data:
 		t.Fatalf("the ConfigMap's Helm annotation did not survive the secret's deletion; the fixture proves nothing: %+v", ann)
 	}
 
-	c := NewWith(nil, dyn)
+	// New, not NewWith: the metadata-only listing and record GET are
+	// the path a run takes (#1738 item 4).
+	c, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
 	got, skipped, err := c.List(ctx, Kind{GVR: cmGVR, Kind: "ConfigMap", Namespaced: true}, "tofu-estate", estate)
 	if err != nil {
 		t.Fatal(err)
@@ -231,6 +242,128 @@ data:
 	}
 	if len(skipped.Held) != 0 {
 		t.Errorf("held = %+v, want none: the annotation names a release that no longer exists", skipped.Held)
+	}
+}
+
+// TestListHoldsOnlyWhatTheManifestListsOnACluster (GitHub issue #1738
+// item 4, ruled 2026-09-30): a chart whose templates omit
+// metadata.namespace installs two ConfigMaps, one under
+// helm.sh/resource-policy: keep. An upgrade drops the keep one from the
+// chart; Helm leaves it in the cluster with its release annotations. A
+// third ConfigMap is a hand-made copy carrying the same annotations. List
+// holds the one the release's manifest still lists - matched although its
+// document names no namespace - and reports the other two as annotated
+// with a live release, not in its manifest; it returns none of them for
+// the destroy proposal.
+func TestListHoldsOnlyWhatTheManifestListsOnACluster(t *testing.T) {
+	path, helm := helmCluster(t)
+	cfg, err := clientcmd.BuildConfigFromFlags("", path)
+	if err != nil {
+		t.Fatalf("reading the kubeconfig at %s: %v", path, err)
+	}
+	dyn, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano()%1_000_000)
+	ns, estate, release := "helm-keep-"+suffix, "helm-keep-"+suffix, "web"
+
+	nsGVR := schema.GroupVersionResource{Version: "v1", Resource: "namespaces"}
+	nsObj := &unstructured.Unstructured{}
+	nsObj.SetAPIVersion("v1")
+	nsObj.SetKind("Namespace")
+	nsObj.SetName(ns)
+	if _, err := dyn.Resource(nsGVR).Create(ctx, nsObj, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = dyn.Resource(nsGVR).Delete(context.Background(), ns, metav1.DeleteOptions{})
+	})
+
+	chart := t.TempDir()
+	writeFile(t, filepath.Join(chart, "Chart.yaml"), "apiVersion: v2\nname: web\nversion: 0.1.0\n")
+	writeFile(t, filepath.Join(chart, "values.yaml"), "estate: \"\"\nwithKept: true\n")
+	writeFile(t, filepath.Join(chart, "templates", "main.yaml"), `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-main
+  labels:
+    tofu-estate: {{ .Values.estate | quote }}
+data:
+  greeting: hello
+`)
+	writeFile(t, filepath.Join(chart, "templates", "kept.yaml"), `{{- if .Values.withKept }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-kept
+  labels:
+    tofu-estate: {{ .Values.estate | quote }}
+  annotations:
+    helm.sh/resource-policy: keep
+data:
+  greeting: kept
+{{- end }}
+`)
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command(helm, append(args, "--namespace", ns, "--kubeconfig", path)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("helm %v: %v\n%s", args, err, out)
+		}
+	}
+	run("install", release, chart, "--set", "estate="+estate)
+	run("upgrade", release, chart, "--set", "estate="+estate, "--set", "withKept=false")
+
+	cmGVR := schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}
+	kept, err := dyn.Resource(cmGVR).Namespace(ns).Get(ctx, release+"-kept", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("helm upgrade removed the keep-policy ConfigMap; the fixture proves nothing: %v", err)
+	}
+	if kept.GetAnnotations()[HelmReleaseNameAnnotation] != release {
+		t.Fatalf("the kept ConfigMap lost its release annotation; the fixture proves nothing: %+v", kept.GetAnnotations())
+	}
+
+	copied := &unstructured.Unstructured{}
+	copied.SetAPIVersion("v1")
+	copied.SetKind("ConfigMap")
+	copied.SetNamespace(ns)
+	copied.SetName("copied")
+	copied.SetLabels(map[string]string{"tofu-estate": estate})
+	copied.SetAnnotations(map[string]string{HelmReleaseNameAnnotation: release, HelmReleaseNamespaceAnnotation: ns})
+	if _, err := dyn.Resource(cmGVR).Namespace(ns).Create(ctx, copied, metav1.CreateOptions{FieldManager: "kubectl"}); err != nil {
+		t.Fatal(err)
+	}
+
+	c, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, skipped, err := c.List(ctx, Kind{GVR: cmGVR, Kind: "ConfigMap", Namespaced: true}, "tofu-estate", estate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names, held, unlisted []string
+	for _, o := range got {
+		names = append(names, o.Name)
+	}
+	for _, h := range skipped.Held {
+		held = append(held, h.Name)
+	}
+	for _, u := range skipped.Unlisted {
+		unlisted = append(unlisted, u.Name)
+	}
+	sort.Strings(unlisted)
+	t.Logf("listed %v; held %v; unlisted %v", names, held, unlisted)
+	if len(got) != 0 {
+		t.Errorf("listed %v, want none: an object annotated with a live release is never proposed for destroy", names)
+	}
+	if len(held) != 1 || held[0] != release+"-main" {
+		t.Errorf("held = %v, want [%s-main]: its manifest document names no namespace and must still match", held, release)
+	}
+	if len(unlisted) != 2 || unlisted[0] != "copied" || unlisted[1] != release+"-kept" {
+		t.Errorf("unlisted = %v, want [copied %s-kept]", unlisted, release)
 	}
 }
 
