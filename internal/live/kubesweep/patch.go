@@ -312,6 +312,31 @@ func (c *Client) handMarkersToApply(ctx context.Context, ref ObjectRef, obj *uns
 	}
 }
 
+// MarkersHeldByUpdate reports whether fieldManager's Update entry on obj
+// still owns any of the given marker keys, which is what a
+// [Client.PatchMarkers] killed between its two requests leaves behind
+// (GitHub issue #1764): the values are already right, so a caller that
+// judges by them alone writes nothing, and the provider's next apply that
+// changes a marker conflicts with that entry. A caller whose markers
+// already read right re-sends [Client.PatchMarkers] when this is true; it
+// is false for an object whose markers the Apply entry already holds, so
+// a clean rerun still sends nothing. fieldManager defaults to
+// [DefaultFieldManager] when empty. A managedFields entry that cannot be
+// decoded answers true with the error, so the caller's write reports it.
+func MarkersHeldByUpdate(obj *unstructured.Unstructured, fieldManager string, labels, annotations []string) (bool, error) {
+	if obj == nil {
+		return false, nil
+	}
+	if fieldManager == "" {
+		fieldManager = DefaultFieldManager
+	}
+	_, held, err := transferMarkerOwnership(obj.GetManagedFields(), fieldManager, labels, annotations)
+	if err != nil {
+		return true, err
+	}
+	return held, nil
+}
+
 // ownershipRetries bounds how many times [Client.handMarkersToApply]
 // re-reads and resends after a resourceVersion conflict.
 const ownershipRetries = 5

@@ -166,8 +166,8 @@ func TestMove_ManifestRenameCrashBetweenItsWrites(t *testing.T) {
 			if !diags.HasErrors() {
 				t.Fatal("the killed run reported success")
 			}
-			if strings.Contains(diags.Err().Error(), "the rename is done") {
-				t.Errorf("the killed run calls the rename done, and it is not: %s", diags.Err())
+			if msg := diags.Err().Error(); strings.Contains(msg, "the rename is done") || !strings.Contains(msg, "Rerun the same live-mv") {
+				t.Errorf("the killed run must say the rename is not finished and that rerunning live-mv finishes it: %s", msg)
 			}
 
 			res, diags := Move(t.Context(), req)

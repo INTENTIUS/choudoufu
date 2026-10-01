@@ -8,6 +8,7 @@ package liveimport
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -119,8 +120,10 @@ func importFaultEligible(client *kubesweep.Client, declared string) *eligible {
 }
 
 // importRerunRecovers records whether a rerun of a killed live-import
-// hands the markers to the block manager's Apply entry. Flipping it to
-// false is the red control for the fix.
+// hands the markers to the block manager's Apply entry. Before #1764's fix
+// the rerun reported ALREADY_STAMPED and the provider's next rename failed
+// with "conflict with \"Terraform\"" on the address annotation. Flipping
+// it to false is the red control for the fix.
 const importRerunRecovers = true
 
 // TestApproveManifest_CrashBetweenItsWrites is the fault, under the
@@ -143,6 +146,9 @@ func TestApproveManifest_CrashBetweenItsWrites(t *testing.T) {
 			}
 			if first.Outcome != OutcomeFailed {
 				t.Fatalf("the killed run reported %s (%s), want FAILED", first.Outcome, first.Detail)
+			}
+			if !strings.Contains(first.Detail, "Rerun the same live-import -approve") {
+				t.Errorf("the killed run does not name the command that finishes it: %s", first.Detail)
 			}
 
 			rerun := approveManifest(t.Context(), testEstate, importFaultAddr, importFaultEligible(client, tc.declared))
