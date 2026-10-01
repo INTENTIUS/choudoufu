@@ -135,7 +135,10 @@ func (p Pass) label() string {
 // see the ScopeProvider reasoning above for why only one pass could ever
 // have bound it. An address with no resource block (Undeclared true) has
 // no such owner to deduplicate against and is unique to the pass that
-// found it, subject to the collision handling below.
+// found it, subject to the collision handling below - except a removal read
+// from the record store ([identity.Resolution.RecordRooted]) whose record
+// names no managing configuration, which every pass serving the type
+// proposes and which is kept once (GitHub issue #1721).
 //
 // Orphans are the one field that is not simply concatenated, because an
 // orphan carries no configuration to say which provider it "belongs" to -
@@ -184,6 +187,7 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 		// rebuilt field by field so a single-provider caller gets exactly
 		// what a direct call to Discover would have given it.
 		p := passes[0]
+		refuseRecordedProviderAbsent(passes, p.Result, &diags)
 		p.Result.AttributeOrphans(p.Provider)
 		for _, r := range p.Result.Resolutions {
 			if r.Undeclared {
@@ -241,6 +245,17 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 	sweepGapSeen := make(map[string]bool)
 	sweepCoveredSeen := make(map[string]bool)
 	addressBound := make(map[string]bool)
+
+	// recordRemoval is where each record-orphan removal already sits in
+	// res.Resolutions, keyed by address (GitHub issue #1721). A record whose
+	// envelope names its managing configuration is proposed by that pass
+	// alone ([recordOrphanReadSweep]), but one older than #389 names none,
+	// and every pass whose provider serves the type proposes it: two aws
+	// configurations both did, and the merge used to keep both removals
+	// and read the object through whichever pass sorted last. The
+	// projection then materialized one and reported the other as a
+	// relocated instance it was not.
+	recordRemoval := make(map[string]int)
 
 	for pi, p := range passes {
 		p.Result.AttributeOrphans(p.Provider)
@@ -331,9 +346,25 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 				// destroy it is held back.
 				continue
 			}
-			// Undeclared resolutions (orphan removals, parent-read
-			// removals) have no config-declared owner to deduplicate
-			// against: each one is unique to the pass that found it.
+			if r.RecordRooted {
+				key := r.Addr.String()
+				if at, dup := recordRemoval[key]; dup && res.Resolutions[at].ImportID == r.ImportID {
+					// The same record read by a second pass: one removal,
+					// read through the default configuration when one of
+					// the proposing passes is it (nothing in the record
+					// says which one managed it), else the first.
+					if isDefaultConfig(p.Provider) && !isDefaultConfig(providerOf[key]) {
+						res.Resolutions[at] = r
+						providerOf[key] = p.Provider
+					}
+					continue
+				}
+				recordRemoval[key] = len(res.Resolutions)
+			}
+			// Every other undeclared resolution (a tag-found orphan, a
+			// parent-read removal) has no config-declared owner to
+			// deduplicate against: each one is unique to the pass that
+			// found it.
 			res.Resolutions = append(res.Resolutions, r)
 			providerOf[r.Addr.String()] = p.Provider
 		}
@@ -342,6 +373,8 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 	for _, key := range baseOrder {
 		res.Resolutions = append(res.Resolutions, base[key])
 	}
+
+	refuseRecordedProviderAbsent(passes, res, &diags)
 
 	res.sortEverything()
 	return res, providerOf, diags
@@ -578,6 +611,80 @@ func (r *Result) AttributeOrphans(provider addrs.AbsProviderConfig) {
 	for i := range r.Orphans {
 		if r.Orphans[i].Provider.Provider.Type == "" {
 			r.Orphans[i].Provider = provider
+		}
+	}
+}
+
+// isDefaultConfig reports whether p is a provider's default configuration:
+// unaliased and declared in the root module, the one a resource block with
+// no provider argument uses.
+func isDefaultConfig(p addrs.AbsProviderConfig) bool {
+	return p.Alias == "" && p.Module.IsRoot()
+}
+
+// refuseRecordedProviderAbsent raises [ProblemRecordedProviderAbsent] once
+// per record that a scoped pass left to another provider configuration
+// ([Result.RecordedElsewhere]) when no pass ran through that configuration,
+// and [ProblemRemovedTypeUnserved] once per record whose type no pass's
+// provider serves: every pass skipped it, so without this the removal
+// would be missed with nobody told (GitHub issue #1721).
+func refuseRecordedProviderAbsent(passes []Pass, res *Result, diags *tfdiags.Diagnostics) {
+	ran := make(map[string]bool, len(passes))
+	for _, p := range passes {
+		ran[p.Provider.String()] = true
+	}
+	// unservedBy counts the passes whose provider has no schema for an
+	// address's type. Only when it is every pass is nobody left to remove
+	// it: a pass that serves the type and skipped the record leg (the
+	// Kubernetes label sweep, #1715) accounts for it its own way.
+	unservedBy := make(map[string]int)
+	for _, p := range passes {
+		seen := make(map[string]bool)
+		for _, e := range p.Result.RecordedElsewhere {
+			if e.Unserved && !seen[e.Addr.String()] {
+				seen[e.Addr.String()] = true
+				unservedBy[e.Addr.String()]++
+			}
+		}
+	}
+	raised := make(map[string]bool)
+	for _, p := range passes {
+		for _, e := range p.Result.RecordedElsewhere {
+			key := e.Addr.String()
+			if raised[key] {
+				continue
+			}
+			if e.Unserved {
+				if unservedBy[key] < len(passes) {
+					continue
+				}
+				raised[key] = true
+				managed := ""
+				if e.Provider != "" {
+					managed = fmt.Sprintf(" (its record names %s)", e.Provider)
+				}
+				*diags = diags.Append(problemDiag(res, Problem{
+					Kind:     ProblemRemovedTypeUnserved,
+					TypeName: e.TypeName,
+					Addr:     e.Addr,
+					Detail: fmt.Sprintf(
+						"%s is no longer declared, and no provider configuration in this run serves %s%s, so its removal cannot be planned and the object would stay live. Add that provider's configuration back so the removal can be planned.",
+						e.Addr, e.TypeName, managed),
+				}))
+				continue
+			}
+			if ran[e.Provider] {
+				continue
+			}
+			raised[key] = true
+			*diags = diags.Append(problemDiag(res, Problem{
+				Kind:     ProblemRecordedProviderAbsent,
+				TypeName: e.TypeName,
+				Addr:     e.Addr,
+				Detail: fmt.Sprintf(
+					"%s is no longer declared, and its record names provider configuration %s, which this configuration no longer has. Its removal is read only through the configuration that managed it, so it cannot be proposed, and the object would stay live. Declare %s again so the plan can destroy %s, then remove it.",
+					e.Addr, e.Provider, e.Provider, e.Addr),
+			}))
 		}
 	}
 }

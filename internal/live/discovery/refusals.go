@@ -175,6 +175,10 @@ var refusals = []Refusal{
 		What:    "A live resource carries this estate's marker for an address the configuration declares under a provider configuration that never listed it, and only passes that address does not belong to found it - a region or account change that left the old region's object behind. Proceeding would create a second live resource carrying one address's marker, so the plan refuses instead.",
 	},
 	{
+		Summary: "No configured provider serves a removed resource's type",
+		What:    "A resource block was removed, and the record its instance left names a type that no provider configuration in this run has a schema for - the provider's own block was removed along with it, in a root with several providers (GitHub issue #1721). No pass can read or destroy the object, so its removal cannot be planned. Adding that provider's configuration back lets the plan destroy it.",
+	},
+	{
 		Summary: "No AWS account ID from the provider",
 		What:    "The account this run is against could not be resolved, so identities embedding the account cannot be computed and marker discovery has to stand in for them.",
 	},
@@ -201,6 +205,10 @@ var refusals = []Refusal{
 	{
 		Summary: "Partial slot markers on a count set",
 		What:    "Some instances of a count-expanded resource carry tofu-slot markers and some do not, so the set cannot be read either as slotted or as positional.",
+	},
+	{
+		Summary: "Removed resource's provider configuration is gone",
+		What:    "A resource block was removed, and the record its instance left (the record-orphan-read leg, issue #364) names the provider configuration that managed it, which no pass of this run reads through - an alias renamed or removed in a root with several configurations of one provider (GitHub issue #1721). Its removal is read only through that configuration, because reading the identity through another region or account could reach a different object of the same name. Declaring the configuration again lets the plan destroy it.",
 	},
 	{
 		Summary: "Resolved resource missing from the configuration",
