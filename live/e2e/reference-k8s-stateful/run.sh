@@ -94,9 +94,8 @@
 # or label; this script exercises the moved-block half only - live-mv also
 # has a Kubernetes leg since #1639, not exercised here. day2_replace is a
 # create_before_destroy rename (#1541, #1641), measured in section 9b;
-# day2_crash does not interrupt that window (#1683), so what this script
-# interrupts instead
-# is an apply that creates several objects (#1110, part 4): the kill lands
+# day2_crash interrupts that window (#1768), and also
+# an apply that creates several objects (#1110, part 4): the kill lands
 # between one object's create committing and the next object's, and the
 # next plan has to propose exactly the remainder. Every other stage
 # applies.
@@ -1215,7 +1214,7 @@ gauntlet_kind_day2_replace "$ADOPTED" "$ORACLE" "$NS"
 # on AWS - after a create_before_destroy create, before the paired destroy -
 # cannot exist here: a name is unique in its namespace, so nothing is
 # created before the object it replaces is gone, except by a rename, which
-# day2_replace measures and this stage does not interrupt (#1683). The
+# day2_replace measures and this stage interrupts first (#1768). The other
 # Kubernetes window with the same question in it is an apply that creates
 # several objects. Kill it after one object exists and before the next
 # does, and the next plan has to propose exactly the remainder, with the
@@ -1244,6 +1243,14 @@ gauntlet_kind_day2_replace "$ADOPTED" "$ORACLE" "$NS"
 # below by taking it away again.
 gauntlet_begin_stage day2_crash
 log "=== 10. day2_crash: SIGTERM between the create of one object and the create of the next ==="
+
+# The create_before_destroy rename window first (#1768): the body is shared
+# by the four kind estates, live/e2e/lib/gauntlet.sh's
+# gauntlet_kind_day2_crash_rename, which adds its own blocks, interrupts,
+# recovers and removes them again, and leaves CRASH_RENAME_DETAIL for
+# every day2_crash verdict below.
+gauntlet_kind_day2_crash_rename "$ADOPTED" "$NS"
+
 crash_pair() { # $1: first, second or both (default)
   local which="${1:-both}"
   if [ "$which" != "second" ]; then
@@ -1346,7 +1353,7 @@ if [ "${BREAK_CRASH:-}" = "1" ]; then
   grep -qF "No changes." <<< "$R_PLAN" \
     && { printf '%s\n' "$R_PLAN" | tail -20; fail "BREAK_CRASH=1: the plan after a real interrupted two-object apply came back empty, so this stage's own check is not load-bearing"; }
   log "  BREAK_CRASH=1: caught - the plan proposes work ($R_LINE), so 'nothing is proposed' correctly fails to hold"
-  gauntlet_stage day2_crash pass "BREAK_CRASH=1 control: after the same real interrupt the plan proposes work ($R_LINE), so the stage's own Break line - interrupt and then assert nothing is proposed - correctly fails to hold; the real check is skipped"
+  gauntlet_stage day2_crash pass "BREAK_CRASH=1 control: after the same real interrupt the plan proposes work ($R_LINE), so the stage's own Break line - interrupt and then assert nothing is proposed - correctly fails to hold; the real check is skipped $CRASH_RENAME_DETAIL"
   ( cd "$ADOPTED" && "$TOFU" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_CRASH: the recovery apply failed afterwards"
 elif [ "${BREAK_CRASH_UNBOUND:-}" = "1" ]; then
   log "=== 10b (BREAK_CRASH_UNBOUND=1). the same check against an unbound object - this must fail ==="
@@ -1355,13 +1362,13 @@ elif [ "${BREAK_CRASH_UNBOUND:-}" = "1" ]; then
     fail "BREAK_CRASH_UNBOUND=1: the recovery check still holds with crash-first carrying no tofu-estate label - it is not measuring whether the crashed-out object was bound at all"
   fi
   log "  BREAK_CRASH_UNBOUND=1: caught - with the label stripped the recovery check fails ($R_LINE)"
-  gauntlet_stage day2_crash pass "BREAK_CRASH_UNBOUND=1 control: with the tofu-estate label stripped off the object the interrupted apply created - the unrecovered run this stage exists to catch - the recovery check correctly fails to hold ($R_LINE); the real check is skipped"
+  gauntlet_stage day2_crash pass "BREAK_CRASH_UNBOUND=1 control: with the tofu-estate label stripped off the object the interrupted apply created - the unrecovered run this stage exists to catch - the recovery check correctly fails to hold ($R_LINE); the real check is skipped $CRASH_RENAME_DETAIL"
   kca delete secret crash-first -n "$NS" >/dev/null 2>&1 || fail "BREAK_CRASH_UNBOUND: could not delete the unlabelled crash-first afterwards"
   ( cd "$ADOPTED" && "$TOFU" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_CRASH_UNBOUND: the apply after the cleanup failed"
 else
   if ! recovered; then
     printf '%s\n' "$R_PLAN" | grep -E '^Plan:|^No changes|will be' | head -20
-    gauntlet_stage day2_crash fail "the plan after a real interrupt between the create of kubernetes_config_map_v1.crash_first and the create of kubernetes_config_map_v1.crash_second is not exactly the remainder: ${R_LINE:-no plan line} (exit $R_RC). crash-first exists on the cluster carrying tofu-estate=$ESTATE and crash-second does not, both read with kubectl; stock, walked into the same position on the oracle cluster, plans exactly one add (crash_second). The interrupted apply wrote one record for kubernetes_secret_v1.crash_first carrying residue ${X_RESIDUE:-none} (records $X_RECORDS_BEFORE -> $X_RECORDS_AFTER)"
+    gauntlet_stage day2_crash fail "the plan after a real interrupt between the create of kubernetes_config_map_v1.crash_first and the create of kubernetes_config_map_v1.crash_second is not exactly the remainder: ${R_LINE:-no plan line} (exit $R_RC). crash-first exists on the cluster carrying tofu-estate=$ESTATE and crash-second does not, both read with kubectl; stock, walked into the same position on the oracle cluster, plans exactly one add (crash_second). The interrupted apply wrote one record for kubernetes_secret_v1.crash_first carrying residue ${X_RESIDUE:-none} (records $X_RECORDS_BEFORE -> $X_RECORDS_AFTER) $CRASH_RENAME_DETAIL"
   else
     # ── the record's contribution, measured rather than counted (#1235) ──
     #
@@ -1399,7 +1406,7 @@ else
       fail "the replan after the recovery exited $R_REPLAN_RC: ${R_ERR:-no Error: line; the last 30 lines of the plan are above this verdict in the log}"; }
     grep -q "No changes." <<< "$R_REPLAN" || { printf '%s\n' "$R_REPLAN" | tail -30; fail "the replan after the recovery is not empty"; }
     [ "$(pvc_count_a)" = "0" ] || fail "$(pvc_count_a) PVC(s) carry the estate label after the crash recovery"
-    gauntlet_stage day2_crash pass "an apply creating two objects was interrupted by a real SIGTERM (exit $X_RC), delivered by the engine itself inside the -parallelism=1 graph walker the instant kubernetes_config_map_v1.crash_first's create committed (internal/command/apply_e2etesting_crash.go); crash_second reads crash_first's name, so the walker cannot have reached it - kubectl confirms crash-first exists carrying tofu-estate=$ESTATE and crash-second does not. The next plan proposed exactly the remainder ($R_LINE, kubernetes_config_map_v1.crash_second created) and proposed nothing at all for crash-first, which it bound by its label and its namespace and name - not a second create the API server would refuse, not an orphan sweep - matching stock's own plan from the same position on the oracle cluster; the recovery apply added exactly one object, both read back with kubectl, the plan after it is empty and no PVC carries the estate's label. The record store's contribution is read, not counted: the interrupted apply wrote exactly one record (files $X_RECORDS_BEFORE -> $X_RECORDS_AFTER) for kubernetes_secret_v1.crash_first carrying residue $X_RESIDUE, and taking that one file out of the store and replanning from the identical position turns the recovery plan from $R_LINE into $N_LINE, proposing wait_for_service_account_token back on the object the crash left behind; putting it back restores the exact-remainder plan. The crash pair's first object is a Secret and not a ConfigMap for that reason (#1235): a kubernetes_config_map(_v1) has neither a ratified identity row nor a config-only argument, records nothing, and made this line the 12 -> 12 count #1188 could not read anything out of. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips the label off crash-first and the same recovery check correctly fails"
+    gauntlet_stage day2_crash pass "an apply creating two objects was interrupted by a real SIGTERM (exit $X_RC), delivered by the engine itself inside the -parallelism=1 graph walker the instant kubernetes_config_map_v1.crash_first's create committed (internal/command/apply_e2etesting_crash.go); crash_second reads crash_first's name, so the walker cannot have reached it - kubectl confirms crash-first exists carrying tofu-estate=$ESTATE and crash-second does not. The next plan proposed exactly the remainder ($R_LINE, kubernetes_config_map_v1.crash_second created) and proposed nothing at all for crash-first, which it bound by its label and its namespace and name - not a second create the API server would refuse, not an orphan sweep - matching stock's own plan from the same position on the oracle cluster; the recovery apply added exactly one object, both read back with kubectl, the plan after it is empty and no PVC carries the estate's label. The record store's contribution is read, not counted: the interrupted apply wrote exactly one record (files $X_RECORDS_BEFORE -> $X_RECORDS_AFTER) for kubernetes_secret_v1.crash_first carrying residue $X_RESIDUE, and taking that one file out of the store and replanning from the identical position turns the recovery plan from $R_LINE into $N_LINE, proposing wait_for_service_account_token back on the object the crash left behind; putting it back restores the exact-remainder plan. The crash pair's first object is a Secret and not a ConfigMap for that reason (#1235): a kubernetes_config_map(_v1) has neither a ratified identity row nor a config-only argument, records nothing, and made this line the 12 -> 12 count #1188 could not read anything out of. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips the label off crash-first and the same recovery check correctly fails $CRASH_RENAME_DETAIL"
   fi
 fi
 gauntlet_end_stage

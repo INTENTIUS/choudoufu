@@ -99,9 +99,12 @@ func TestDay2CrashRenameBodyVerdictIsTheEndState(t *testing.T) {
 	if start < 0 {
 		t.Fatalf("live/e2e/lib/gauntlet.sh defines no %s", crashRenameFunc)
 	}
-	end := strings.Index(lib[start+1:], "\n}\n")
+	// The body runs to the next function's header comment: a "}" at the
+	// start of a line is no end marker here, because the body's own
+	// heredocs write HCL that closes its blocks there.
+	end := strings.Index(lib[start+1:], "\n# gauntlet_")
 	if end < 0 {
-		t.Fatalf("%s has no closing brace", crashRenameFunc)
+		end = len(lib) - start - 1
 	}
 	body := lib[start : start+1+end]
 	for _, want := range []struct{ text, why string }{
