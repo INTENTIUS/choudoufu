@@ -1946,6 +1946,12 @@ func (r *Result) sortEverything() {
 	})
 	sort.Strings(r.SweepCovered)
 	sort.Strings(r.GuidedSweepSkipped)
+	sort.SliceStable(r.DeposedBindings, func(i, j int) bool {
+		if r.DeposedBindings[i].Addr.String() != r.DeposedBindings[j].Addr.String() {
+			return r.DeposedBindings[i].Addr.String() < r.DeposedBindings[j].Addr.String()
+		}
+		return r.DeposedBindings[i].DeposedKey < r.DeposedBindings[j].DeposedKey
+	})
 	sort.Slice(r.Resolutions, func(i, j int) bool {
 		return r.Resolutions[i].Addr.String() < r.Resolutions[j].Addr.String()
 	})
