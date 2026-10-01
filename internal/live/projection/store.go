@@ -149,6 +149,7 @@ func isStoreFault(err error) bool {
 		collision   *staterecord.KeyCollisionError
 		unlabelled  *staterecord.UnlabelledRecordError
 		misnamed    *staterecord.MisnamedRecordError
+		unannotated *staterecord.UnannotatedRecordError
 		duplicate   *staterecord.DuplicateRecordKeyError
 		admission   *staterecord.AdmissionDeniedError
 	)
@@ -159,6 +160,7 @@ func isStoreFault(err error) bool {
 		errors.As(err, &collision) ||
 		errors.As(err, &unlabelled) ||
 		errors.As(err, &misnamed) ||
+		errors.As(err, &unannotated) ||
 		errors.As(err, &duplicate) ||
 		errors.As(err, &admission)
 }

@@ -377,6 +377,26 @@ func (e *MisnamedRecordError) Error() string {
 		e.Namespace, e.SecretName)
 }
 
+// UnannotatedRecordError reports a Secret named the way this store names a
+// record, labelled as this estate's or as no estate's, that carries no
+// record-key annotation.
+//
+// The annotation is the only place a record's key survives - the name is its
+// hash - so no listing can say which key this object holds, while a Get of
+// that key still finds it by name. Leaving it out of a listing made a bulk
+// read short by one record with no error. GitHub issue #1355; see
+// [KubernetesStore.unattributedRecord].
+type UnannotatedRecordError struct {
+	Namespace  string
+	SecretName string
+}
+
+func (e *UnannotatedRecordError) Error() string {
+	return fmt.Sprintf(
+		"staterecord: kubernetes: Secret %q in namespace %q is named the way this store names a record and carries no %s annotation, so no listing can say which key it holds while a read of that key still reaches it by name; a listing that skipped it would read as an estate with one record fewer than it has. The key cannot be recovered from the name, which is its SHA-256: restore the annotation from a copy of the object, or, if it is not a record, delete it with `kubectl -n %s delete secret %s`",
+		e.SecretName, e.Namespace, KubernetesRecordKeyAnnotation, e.Namespace, e.SecretName)
+}
+
 // DuplicateRecordKeyError reports two or more Secrets in the namespace whose
 // record-key annotation carries the SAME key.
 //
@@ -499,8 +519,29 @@ func (s *KubernetesStore) keyFromStoreKey(storeKey string) (string, bool) {
 // Exported so an operator can be told the object to look at - the same reason
 // [S3Store.ObjectKey] is exported (#916).
 func (s *KubernetesStore) SecretName(key string) string {
-	sum := sha256.Sum256([]byte(s.storeKey(key)))
+	return secretNameForStoreKey(s.storeKey(key))
+}
+
+// secretNameForStoreKey is [KubernetesStore.SecretName] for a key that already
+// carries the store's prefix, which is what a record-key annotation holds.
+func secretNameForStoreKey(storeKey string) string {
+	sum := sha256.Sum256([]byte(storeKey))
 	return KubernetesSecretNamePrefix + hex.EncodeToString(sum[:])
+}
+
+// hasRecordSecretName reports whether name is spelled the way this store names
+// every record: [KubernetesSecretNamePrefix] and a hex SHA-256.
+func hasRecordSecretName(name string) bool {
+	sum, ok := strings.CutPrefix(name, KubernetesSecretNamePrefix)
+	if !ok || len(sum) != 2*sha256.Size {
+		return false
+	}
+	for _, c := range sum {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 // namespaceLabelValue is the key's first "/"-delimited segment when that can
@@ -882,6 +923,14 @@ func (s *KubernetesStore) list(ctx context.Context, keyPrefix string, withPayloa
 		}
 		cont = page.Continue
 		if cont == "" {
+			// The API server leaves remainingItemCount unset on a list's last
+			// page. A page that says items remain and hands back no token to
+			// ask for them with is a listing short by that many, which used to
+			// be returned as the whole namespace: S3's truncated page with no
+			// token (#1429), on this backend. GitHub issue #1355.
+			if n := page.RemainingItemCount; n != nil && *n > 0 {
+				return nil, nil, fmt.Errorf("staterecord: kubernetes: listing %q in namespace %q: the API server answered a page that says %d more Secrets remain and carries no continue token to ask for them with, so what came back is short; refusing rather than reading it as the whole namespace (GitHub issue #1355)", keyPrefix, s.namespace, *n)
+			}
 			break
 		}
 	}
@@ -931,17 +980,14 @@ func (s *KubernetesStore) list(ctx context.Context, keyPrefix string, withPayloa
 // an unlabelled one that kept its name is too; one that lost both is a Secret
 // this store has no way to tell from someone else's.
 func (s *KubernetesStore) attributeRecord(secret *corev1.Secret, prefix string) (key string, mine bool, err error) {
-	storeKey, ok := secret.Annotations[KubernetesRecordKeyAnnotation]
-	if !ok {
-		// No key annotation: something else wrote it, or an operator edited
-		// it. It is not a record, and inventing a key for it would put a key
-		// in a listing that no Get can answer.
-		return "", false, nil
+	storeKey, annotated := secret.Annotations[KubernetesRecordKeyAnnotation]
+	if !annotated || !strings.HasPrefix(storeKey, prefix) {
+		// Not a record under this prefix by its annotation. Whether a read
+		// can still reach it by its NAME is the other question, and the one
+		// a bulk read cannot leave unasked: see [unattributedRecord].
+		return "", false, s.unattributedRecord(secret, storeKey, annotated)
 	}
-	if !strings.HasPrefix(storeKey, prefix) {
-		return "", false, nil
-	}
-	key, ok = s.keyFromStoreKey(storeKey)
+	key, ok := s.keyFromStoreKey(storeKey)
 	if !ok {
 		return "", false, nil
 	}
@@ -977,6 +1023,47 @@ func (s *KubernetesStore) attributeRecord(secret *corev1.Secret, prefix string) 
 		Key:        storeKey,
 		Missing:    missing,
 	}
+}
+
+// unattributedRecord is the refusal for a Secret the listing does not count
+// as a record under the prefix being listed while a Get may still reach it,
+// and nil for one it may skip.
+//
+// Get finds a record by NAME, the hash of its key, and only then reads the
+// annotation to check it ([KubernetesStore.readSecret]). The listing finds one
+// by its ANNOTATION. So an object named like a record whose annotation was
+// stripped, or rewritten to a key the name is not the hash of, is reachable by
+// a Get of the key it was written for and absent from every listing. A Get
+// refuses it, by name ([KeyCollisionError]); a bulk read used to leave it out
+// with no error, and [RunCache] then answered "no record" for that key from the
+// snapshot without ever making the Get. That is an instance missing from prior
+// state under a success line, which is GitHub issue #1355's shape, and the
+// listing-versus-read cross-check (#1429) cannot see it because the cache
+// answers List from the same snapshot.
+//
+// Which key it was written for cannot be recovered from the name, so the
+// refusal does not depend on the prefix being listed: a record of this estate
+// that lost its annotation refuses every listing of the namespace, including
+// one for a prefix it was never under. That is the price of a hash, and it is
+// paid only by an object that is already broken.
+//
+// Skipped: anything not named like a record, another estate's object by its
+// own tofu-estate label, and a record correctly named for a key outside the
+// prefix (an ordinary record of another namespace).
+func (s *KubernetesStore) unattributedRecord(secret *corev1.Secret, storeKey string, annotated bool) error {
+	if !hasRecordSecretName(secret.Name) {
+		return nil
+	}
+	if estate := secret.Labels[KubernetesEstateLabel]; estate != "" && estate != s.estate {
+		return nil
+	}
+	if !annotated {
+		return &UnannotatedRecordError{Namespace: s.namespace, SecretName: secret.Name}
+	}
+	if want := secretNameForStoreKey(storeKey); secret.Name != want {
+		return &MisnamedRecordError{Namespace: s.namespace, SecretName: secret.Name, Key: storeKey, WantName: want}
+	}
+	return nil
 }
 
 // listFault is what a listing refuses with when the namespace holds a record
