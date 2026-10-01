@@ -133,6 +133,17 @@ func foldChildReadSweepType(ctx context.Context, req Request, schemas listclient
 		if r.Type() != parentType || r.Undeclared {
 			continue
 		}
+		if modCfg, ok := identity.ConfigForModule(req.Config, r.Addr.Module); ok && modCfg.Module != nil {
+			if rc, ok := modCfg.Module.ManagedResources[r.Addr.Resource.Resource.String()]; ok && !inScope(req.ScopeProvider, rc, modCfg) {
+				// Issue #69's multi-provider sweep, the same check
+				// [parentReadSweepType] applies: this parent belongs to
+				// another provider configuration, whose pass reads its
+				// child. Reading it here too was a list against the wrong
+				// account or region and a second, duplicate finding once
+				// the passes merged (GitHub issue #1721, found by #1729).
+				continue
+			}
+		}
 		vals, ok := renderIdentityValues(r, lookup)
 		if !ok {
 			// The parent's own identity is not fully settled by this pass -

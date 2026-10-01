@@ -166,6 +166,8 @@ func TestTheStoresOwnFaultsAreRefusals(t *testing.T) {
 		{"a Secret holding another key", &staterecord.KeyCollisionError{Key: "k", SecretName: "tofu-record-a", FoundKey: "other"}},
 		{"a record that lost its labels", &staterecord.UnlabelledRecordError{Namespace: contractNamespace, SecretName: "tofu-record-a", Key: "k", Missing: []string{"tofu-estate=" + contractEstate}}},
 		{"a record under the wrong name", &staterecord.MisnamedRecordError{Namespace: contractNamespace, SecretName: "renamed", Key: "k", WantName: "tofu-record-a"}},
+		{"a record that lost its key annotation", &staterecord.UnannotatedRecordError{Namespace: contractNamespace, SecretName: "tofu-record-a"}},
+		{"a record labelled as another estate's", &staterecord.ForeignEstateRecordError{Namespace: contractNamespace, SecretName: "tofu-record-a", Key: "k", Estate: contractEstate, Labelled: "staging"}},
 		{"two Secrets holding one key", &staterecord.DuplicateRecordKeyError{Namespace: contractNamespace, Key: "k", SecretNames: []string{"a", "b"}, WantName: "a"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

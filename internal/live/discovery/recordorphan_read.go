@@ -206,6 +206,7 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 				continue
 			}
 		}
+		unserved := false
 		if req.ScopeProvider.Provider.Type != "" {
 			if _, served := schemas.ResourceSchema(typeName); !served {
 				// GitHub issue #1715: one pass of a multi-provider root
@@ -220,10 +221,16 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 				// through helm. The pass whose provider serves the type
 				// accounts for it (the Kubernetes label sweep files the
 				// same object as its own orphan).
-				continue
+				//
+				// GitHub issue #1721: unless no pass serves it at all (the
+				// kubernetes provider block removed with the ConfigMap's),
+				// when the removal would vanish with nobody told. The
+				// record is read below and noted, not proposed, and
+				// [Merge] refuses when every pass noted it.
+				unserved = true
 			}
 		}
-		if typeTaggable(schemas, typeName) && !selection.Selects(addr.ConfigResource()) {
+		if !unserved && typeTaggable(schemas, typeName) && !selection.Selects(addr.ConfigResource()) {
 			// Taggable, meaning the ordinary tag sweep already covers it
 			// (and already ran, above, before this leg) and would already
 			// be in known if it found anything. [typeTaggable] reads the
@@ -295,7 +302,7 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			continue
 		}
 
-		rec, _, keyExists, identityFound, err := store.GetIdentity(ctx, addr)
+		rec, recordedProvider, keyExists, identityFound, err := store.GetIdentityWithProvider(ctx, addr)
 		if err != nil {
 			diags = diags.Append(problemDiag(res, Problem{
 				Kind:     ProblemLocatedRecordUnreadable,
@@ -309,6 +316,27 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			// Not a kind=identity record at all - a kind=object record is
 			// [builder.discoverOrphanedRecords]'s own population, and a key
 			// this store cannot decode is not this leg's to guess at.
+			continue
+		}
+		if unserved {
+			res.RecordedElsewhere = append(res.RecordedElsewhere, RecordedElsewhere{Addr: resolvedAddr, TypeName: typeName, Provider: recordedProvider, Unserved: true})
+			continue
+		}
+		if req.ScopeProvider.Provider.Type != "" && recordedProvider != "" && recordedProvider != req.ScopeProvider.String() {
+			// GitHub issue #1721: the record names the provider
+			// configuration that managed the object at its last write
+			// (#389), and it is not this pass's. Two configurations of one
+			// provider (aws and aws.west) both serve the type, so the
+			// schema check above lets both passes through; the record is
+			// what tells them apart, and only the pass it names may read
+			// and destroy the object. A record naming a configuration no
+			// pass runs for (an alias renamed or removed) is proposed by
+			// no pass: reading its identity through another region or
+			// account could find a different object of the same name.
+			// [Merge] refuses for it instead (ProblemRecordedProviderAbsent).
+			// An empty Provider (an envelope older than #389) falls back
+			// to the schema check alone, and [Merge] keeps one removal.
+			res.RecordedElsewhere = append(res.RecordedElsewhere, RecordedElsewhere{Addr: resolvedAddr, TypeName: typeName, Provider: recordedProvider})
 			continue
 		}
 		importID := rec.ImportID
