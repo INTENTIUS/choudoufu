@@ -779,3 +779,64 @@ func objectString(obj cty.Value, name string) string {
 	}
 	return v.AsString()
 }
+
+// ---- GitHub issue #1742: the post-create answers, held together ----
+//
+// Kept in its own block, like #1642's above.
+//
+// The post-create question had three answers asked in three places:
+// [Substrate.PostCreateNeeded] decided the create withheld the marker,
+// [Writes.PostCreate] named the write that would put it back, and the
+// family's MarkerWriter named the write a provider configuration builds a
+// client for. Nothing tied them together, so a family that withheld and
+// named [WriteNeverNeeded] created an object with no marker and reported
+// nothing: the create side withheld, the write side returned on "never
+// needed". Both sides now ask [PostCreateWrite], which answers all three
+// at once and says which disagree.
+
+// PostCreateWrite is the post-create answer for a create of created whose
+// schema carries surface: whether the create withholds the marker
+// ([Substrate.PostCreateNeeded]), the reason, and the write that puts it
+// back ([Writes.PostCreate]). err is non-nil when needed is true and the
+// family's answers cannot mark the object:
+//
+//   - the surface names no write, or [WriteNeverNeeded];
+//   - created.Provider is set and the family's MarkerWriter for it names a
+//     different write than the surface does;
+//   - the family carries the block address ([Substrate.CarriesAddress])
+//     outside its marker map ([Substrate.AddressInMarkers] false), where
+//     the post-create write, which sets the marker map, cannot put it.
+//
+// The create side asks it with only created.Addr set, as
+// [Substrate.PostCreateNeeded] is asked, so the MarkerWriter check is the
+// write side's. False, with no error, for the zero Surface.
+func PostCreateWrite(surface markers.Surface, created Created, facts Facts) (reason string, write Write, needed bool, err error) {
+	s := For(surface)
+	if s == nil {
+		return "", "", false, nil
+	}
+	reason, needed = s.PostCreateNeeded(surface, created, facts)
+	if !needed {
+		return "", "", false, nil
+	}
+	write = s.Writes(surface).PostCreate
+	switch {
+	case write == "" || write == WriteNeverNeeded:
+		err = fmt.Errorf("provider family %s withholds the %s surface's marker from this create (%s) and names post-create write %q, so nothing would mark the object", s.Name(), surface, reason, write)
+	case created.Provider.Provider != (addrs.Provider{}) && s.MarkerWriter(created.Provider) != write:
+		err = fmt.Errorf("the %s surface names post-create write %q and provider family %s builds %q for provider configuration %s", surface, write, s.Name(), s.MarkerWriter(created.Provider), created.Provider)
+	case s.CarriesAddress() && !s.AddressInMarkers():
+		key, noun := s.AddressCarrier(surface)
+		err = fmt.Errorf("provider family %s carries the block address in the %s %s, outside the marker map post-create write %q sets, so the object would be written without it", s.Name(), key, noun, write)
+	}
+	return reason, write, true, err
+}
+
+// CarrierPaths is surface's family's [Substrate.CarrierPaths]: the paths of
+// the maps its marker lives in. Nil for the zero Surface.
+func CarrierPaths(surface markers.Surface) []cty.Path {
+	if s := For(surface); s != nil {
+		return s.CarrierPaths(surface)
+	}
+	return nil
+}
