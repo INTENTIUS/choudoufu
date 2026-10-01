@@ -24,6 +24,10 @@ import (
 // at all (#1066)", which stopped being true with #1639: the rename
 // rewrites the address annotation, and on a kubernetes_manifest object it
 // is two requests, a window whose recovery is #1764.
+//
+// #1768 then made the stage interrupt the rename window, so the note may no
+// longer say it does not; "does not interrupt" stays required for the
+// manifest-rename window, which it still does not interrupt (#1764).
 func TestDay2CrashKindNoteSaysWhatItDoesNotInterrupt(t *testing.T) {
 	var reason string
 	for _, s := range Stages() {
@@ -37,12 +41,14 @@ func TestDay2CrashKindNoteSaysWhatItDoesNotInterrupt(t *testing.T) {
 	for _, stale := range []string{
 		"does not exist here",
 		"writes nothing on the cluster at all",
+		// #1768: the stage interrupts the rename window now.
+		"this stage does not interrupt it (#1683)",
 	} {
 		if strings.Contains(reason, stale) {
 			t.Errorf("day2_crash's kind note still says %q: %s", stale, reason)
 		}
 	}
-	for _, want := range []string{"create_before_destroy", "does not interrupt", "1683", "1639", "1764"} {
+	for _, want := range []string{"create_before_destroy", "does not interrupt", "1683", "1639", "1764", "1768"} {
 		if !strings.Contains(reason, want) {
 			t.Errorf("day2_crash's kind note does not say %q: %s", want, reason)
 		}
