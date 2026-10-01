@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
-  "banner": "Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, recorded between 2026-09-23T20:13:04Z and 2026-10-01T05:52:03Z. Each row below carries its own `last_run` date; they are not all the same run.",
-  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 5h1m51.6s, but not from one sweep: 10m29.1s across 1 estate(s) at commit `58d3e89ec3`; 13m29.6s across 1 estate(s) at commit `6b043d9c35`; 15m1.6s across 1 estate(s) at commit `9bf25ff69f`; 45m14.8s across 1 estate(s) at commit `a61480bd60`; 3h26m23.5s across 26 estate(s) at commit `bfbebd754a`; 11m13s across 1 estate(s) at commit `d61000b810`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
-  "script_banner": "**27 of 31 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 17 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, terralith-scale.",
+  "banner": "Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, recorded between 2026-09-23T20:13:04Z and 2026-10-01T20:39:58Z. Each row below carries its own `last_run` date; they are not all the same run.",
+  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 4h59m5.2s, but not from one sweep: 10m29.1s across 1 estate(s) at commit `58d3e89ec3`; 13m29.6s across 1 estate(s) at commit `6b043d9c35`; 15m1.6s across 1 estate(s) at commit `9bf25ff69f`; 45m14.8s across 1 estate(s) at commit `a61480bd60`; 3h20m8.3s across 25 estate(s) at commit `bfbebd754a`; 3m28.8s across 1 estate(s) at commit `d49d7f43ff`; 11m13s across 1 estate(s) at commit `d61000b810`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "script_banner": "**26 of 31 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 16 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, terralith-scale.",
   "upstream_version": "1.13.0",
-  "engine_banner": "The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 31 estates measured so far, 0 recorded running on it; 31 are engine-stale: measured on a different base, or predating `last_run.upstream_version` and so measured on `1.13.0-dev` - stale evidence, not a failure, and `go run ./tools/gauntlet next` surfaces it as work.",
+  "engine_banner": "The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 31 estates measured so far, 1 recorded running on it; 30 are engine-stale: measured on a different base, or predating `last_run.upstream_version` and so measured on `1.13.0-dev` - stale evidence, not a failure, and `go run ./tools/gauntlet next` surfaces it as work.",
   "stage_count": 14,
   "stages": [
     {
@@ -3309,83 +3309,82 @@
         "pass",
         "pass"
       ],
-      "runtime_total": "6m15.2s",
-      "runtime_cells": "cold_deploy 1m51s, migrate 43s, test_plan 5s, test_apply 6s, drift_reconverge 11s, day2_rename 21s, day2_remove 14s, day2_count 42s, day2_replace 36s, day2_crash 47s, plan_approval 29s, greenfield 10s, strict -",
-      "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:32:16Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 6m15.2s.",
+      "runtime_total": "3m28.8s",
+      "runtime_cells": "cold_deploy 1m13s, migrate 31s, test_plan 1s, test_apply 3s, drift_reconverge 4s, day2_rename 7s, day2_remove 5s, day2_count 16s, day2_replace 26s, day2_crash 31s, plan_approval 9s, greenfield 2s, strict 1s",
+      "last_run_note": "Last run at commit `d49d7f43ff` on 2026-10-01T20:39:58Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 3m28.8s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6` (matches the current pin).",
-      "engine_note": "Engine: OpenTofu base not recorded (the run predates `last_run.upstream_version`, so it was on `1.13.0-dev`). **Stale**: the current base is `1.13.0`.",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
+      "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "1m51s",
+          "duration": "1m13s",
           "detail": "5 resources from plain terraform, a real terraform.tfstate, zero markers"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "43s",
+          "duration": "31s",
           "detail": "5 of 5 verified, 5 stamped, 0 skipped"
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "5s",
+          "duration": "1s",
           "detail": "post-adoption plan is empty; markers read back through the AWS CLI in part A"
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "6s",
+          "duration": "3s",
           "detail": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 5"
         },
         {
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
           "verdict": "pass",
-          "duration": "11s",
+          "duration": "4s",
           "detail": "one object tampered, exactly aws_instance.main proposed, apply changed 1 and the tag reads back as configured"
         },
         {
           "id": "day2_rename",
           "title": "Rename",
           "verdict": "pass",
-          "duration": "21s",
+          "duration": "7s",
           "detail": "moved block: aws_security_group renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_internet_gateway renamed with zero churn, marker rewritten in place; stock oracle over the same two-resource rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
         },
         {
           "id": "day2_remove",
           "title": "Remove a block",
           "verdict": "pass",
-          "duration": "14s",
+          "duration": "5s",
           "detail": "choudoufu: deleting aws_internet_gateway.renamed's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (describe-internet-gateways on the old id no longer returns it, read via the AWS CLI, not choudoufu's own report), and the next plan is empty; stock oracle on cold_deploy's own state (B1.6) also proposes exactly one destroy for the same object; classifyOrphans did not withhold the destroy because no other aws_internet_gateway block is declared anywhere in this config"
         },
         {
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "42s",
+          "duration": "16s",
           "detail": "choudoufu: scaling aws_security_group.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live id and tofu-address marker unchanged; scaling back from 1 to 2 created exactly count_test[1] under a NEW live id (0 add, 0 change -\u003e 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the B1.7 stock oracle on the same 2-instance count block, applied fresh in the idle greenfield account, shows the identical shape: destroy the higher index only, create the higher index back under a new id, the lower index's id unchanged both times"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
           "verdict": "pass",
-          "duration": "36s",
-          "detail": "choudoufu: changing aws_instance.main's ForceNew ami argument proposed exactly one isolated instance replace at the same declared address (1 to add, 1 to destroy, nothing else), matching B1.8's own plan shape; applied cleanly; the old instance (i-c140187321ab5dd43) is confirmed terminated and the new instance (i-23fe01be9759e5426) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance, not the terminated one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here)."
+          "duration": "26s",
+          "detail": "choudoufu: changing aws_instance.main's ForceNew ami argument proposed exactly one isolated instance replace at the same declared address (1 to add, 1 to destroy, nothing else), matching B1.8's own plan shape; applied cleanly; the old instance (i-069ee9e8802e8d3c1) is confirmed terminated and the new instance (i-1b793a4980ce6874b) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance, not the terminated one; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here)."
         },
         {
           "id": "day2_crash",
           "title": "Crash mid-apply",
           "verdict": "pass",
-          "duration": "47s",
-          "detail": "choudoufu: a real create_before_destroy replace of aws_instance.main was interrupted with SIGTERM (landed on attempt 1 of 3; deterministic by construction, not by timing luck - internal/command/apply_e2etesting_crash.go self-signals synchronously inside the single -parallelism=1 graph-walker goroutine the instant the create half's own write-back commits in memory, replacing #483's external tail/grep/kill race that produced issue #490's own retry-lottery evidence) strictly between the create committing (new object i-8682ab41b583faf34, confirmed running via the AWS CLI) and the destroy of the deposed old object (i-23fe01be9759e5426, confirmed still running and untouched via the AWS CLI) ever dispatching; the local record's one write-back correctly carried both facts at once (current=i-8682ab41b583faf34, deposed=i-23fe01be9759e5426). Real investigation before writing this check found a genuine engine gap: issue #415's record-backed collision branch (internal/live/discovery/discovery.go, decl.recordBacked's 2-claimant path) called collisionProblem unconditionally with no deposed-record lookup at all, so a record-backed address's own crash window - exactly what a real crash's write-back leaves, since it answers the address's CURRENT identity in the same commit - could never recover on its own; fixed generically (mirrors the scalar path's own matchDeposedClaimant call, no resource type name in the fix), covered by two new unit tests (internal/live/discovery/deposed_test.go). The next plan proposed exactly one destroy (the deposed object, 0 add, 0 change, 1 destroy) and nothing else, matching stock's own documented deposed-object semantics (Stock records the old object as deposed and destroys it on the next apply); applying it destroyed exactly that object (confirmed terminated via the AWS CLI), cleared the deposed record entry, and left the current identity untouched; the plan after that is empty. BREAK_CRASH=1 confirms the empty-plan assertion this stage's Break text names correctly fails to hold against the same real crash window."
+          "duration": "31s",
+          "detail": "choudoufu: a real create_before_destroy replace of aws_instance.main was interrupted with SIGTERM (landed on attempt 1 of 3; deterministic by construction, not by timing luck - internal/command/apply_e2etesting_crash.go self-signals synchronously inside the single -parallelism=1 graph-walker goroutine the instant the create half's own write-back commits in memory, replacing #483's external tail/grep/kill race that produced issue #490's own retry-lottery evidence) strictly between the create committing (new object i-6466fab3836d458be, confirmed running via the AWS CLI) and the destroy of the deposed old object (i-1b793a4980ce6874b, confirmed still running and untouched via the AWS CLI) ever dispatching; the local record's one write-back correctly carried both facts at once (current=i-6466fab3836d458be, deposed=i-1b793a4980ce6874b). Real investigation before writing this check found a genuine engine gap: issue #415's record-backed collision branch (internal/live/discovery/discovery.go, decl.recordBacked's 2-claimant path) called collisionProblem unconditionally with no deposed-record lookup at all, so a record-backed address's own crash window - exactly what a real crash's write-back leaves, since it answers the address's CURRENT identity in the same commit - could never recover on its own; fixed generically (mirrors the scalar path's own matchDeposedClaimant call, no resource type name in the fix), covered by two new unit tests (internal/live/discovery/deposed_test.go). The next plan proposed exactly one destroy (the deposed object, 0 add, 0 change, 1 destroy) and nothing else, matching stock's own documented deposed-object semantics (Stock records the old object as deposed and destroys it on the next apply); applying it destroyed exactly that object (confirmed terminated via the AWS CLI), cleared the deposed record entry, and left the current identity untouched; the plan after that is empty. BREAK_CRASH=1 confirms the empty-plan assertion this stage's Break text names correctly fails to hold against the same real crash window."
         },
         {
           "id": "day2_teardown",
@@ -3396,21 +3395,21 @@
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "29s",
-          "detail": "one argument edited (aws_subnet.main's tags gain Reviewed=yes - the one leaf of this five-resource estate no later part renames, removes, replaces or crashes, and a tags-only update that is not ForceNew, so the subnet id aws_instance.main points at is untouched), \"plan -out=approved.tfplan\" wrote a 8636-byte stock-format plan file whose whole change set is one update on aws_subnet.main; the world then moved out of band (i-c140187321ab5dd43's Name tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both aws_instance.main and the live i-c140187321ab5dd43 it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - subnet-7b61ddf5 still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and subnet-7b61ddf5 read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+          "duration": "9s",
+          "detail": "one argument edited (aws_subnet.main's tags gain Reviewed=yes - the one leaf of this five-resource estate no later part renames, removes, replaces or crashes, and a tags-only update that is not ForceNew, so the subnet id aws_instance.main points at is untouched), \"plan -out=approved.tfplan\" wrote a 14141-byte stock-format plan file whose whole change set is one update on aws_subnet.main; the world then moved out of band (i-069ee9e8802e8d3c1's Name tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both aws_instance.main and the live i-069ee9e8802e8d3c1 it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - subnet-45c49e68 still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and subnet-45c49e68 read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "10s",
+          "duration": "2s",
           "detail": "5-object structural comparison (vpc/subnet/igw/sg/instance) between the greenfield estate and stock's cold deploy matches, via the AWS CLI on both endpoints, marker tags never compared; local record store held 5 records, one per instance (#364 A2); replanned empty both with and without the local record store"
         },
         {
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "pass",
-          "duration": "-",
+          "duration": "1s",
           "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming aws_ebs_volume) against a scratch estate carrying one resource, random_password.db: exactly one refusal, matching live/LIMITATIONS.md's \"strict-secrets\" text word for word (Logical resource is not admitted / SECRET_REFUSED / strict { secrets = \"refuse\" }); no_source_create and marker_repair are on and silent, reaching nothing this config declares. BREAK_STRICT=1 turns secrets back to \"store\" alone: the refusal disappears, the plan becomes an ordinary create, and no other refusal appears. Not part of the headline bars: tools/gauntlet/stages.go keeps Status planned here, because isClear (tools/gauntlet/artifact.go) and NextUnits (tools/gauntlet/next.go) both key strictly off ActiveStages today, with no exemption for a stage the docs already call non-headline - flipping Status without first adding that exemption would silently start gating the two headline bars on this stage, which #363 did not ask for and this unit did not build."
         }
       ]
