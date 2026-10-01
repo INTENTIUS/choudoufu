@@ -311,8 +311,28 @@ APPLY_PID=$!
 for _ in $(seq 1 90); do [ -f "$W/slow-started" ] && break; sleep 1; done
 [ -f "$W/slow-started" ] || { kill -9 "$APPLY_PID" 2>/dev/null; fail "k8srec" "the slow resource never started creating, so there was no apply in flight to kill: $(cat "$W/killed.out")"; }
 kill -0 "$APPLY_PID" 2>/dev/null || fail "k8srec" "the apply had already exited before it could be killed: $(cat "$W/killed.out")"
-kill -9 "$APPLY_PID"; wait "$APPLY_PID" 2>/dev/null && fail "k8srec" "the killed apply exited 0"
-# SIGKILL orphans the provisioner's own process. It is this scenario's to end.
+# APPLY_PID is the background subshell, not choudoufu: no_aws is a function
+# whose body is a subshell, so nothing between here and the binary can exec
+# into it. A kill -9 of APPLY_PID alone killed only bash and left the apply
+# running, orphaned; ending its sleep below then failed the provisioner, and
+# the "killed" apply went on to write a tainted record for
+# terraform_data.slow while the next run was planning. That is a second
+# writer, and the store named it one (GitHub issue #1783). So the whole
+# tree is killed, as a-killed-apply-hides-nothing does, and the kill is
+# checked to have left nothing of the apply alive.
+KIDS="$(smoke_descendants "$APPLY_PID")" || KIDS=""
+[ -n "$KIDS" ] || fail "k8srec" "found no process under the background apply's subshell, so there was no choudoufu to kill"
+# shellcheck disable=SC2086  # a list of pids, split on purpose
+kill -9 "$APPLY_PID" $KIDS 2>/dev/null || true
+wait "$APPLY_PID" 2>/dev/null && fail "k8srec" "the killed apply exited 0"
+for _ in $(seq 1 10); do
+  ALIVE=""
+  for pid in $KIDS; do kill -0 "$pid" 2>/dev/null && ALIVE="$ALIVE $pid"; done
+  [ -z "$ALIVE" ] && break
+  sleep 1
+done
+[ -z "$ALIVE" ] || fail "k8srec" "processes of the killed apply are still running after SIGKILL (pids$ALIVE), so the next run would race a writer that was never killed: $(ps -o pid=,command= -p "$(tr ' ' ',' <<< "${ALIVE# }")" 2>&1)"
+# The provisioner's own process was in the tree; this is belt and braces.
 kill "$(cat "$W/slow.pid" 2>/dev/null)" 2>/dev/null || true
 grep -q "Apply complete" "$W/killed.out" && fail "k8srec" "the apply completed; it was not killed in flight"
 echo "killed with SIGKILL while terraform_data.slow was creating" | evidence
