@@ -624,19 +624,56 @@ func isDefaultConfig(p addrs.AbsProviderConfig) bool {
 
 // refuseRecordedProviderAbsent raises [ProblemRecordedProviderAbsent] once
 // per record that a scoped pass left to another provider configuration
-// ([Result.RecordedElsewhere]) when no pass ran through that configuration:
-// every pass skipped it, so without this the removal would be missed with
-// nobody told (GitHub issue #1721).
+// ([Result.RecordedElsewhere]) when no pass ran through that configuration,
+// and [ProblemRemovedTypeUnserved] once per record whose type no pass's
+// provider serves: every pass skipped it, so without this the removal
+// would be missed with nobody told (GitHub issue #1721).
 func refuseRecordedProviderAbsent(passes []Pass, res *Result, diags *tfdiags.Diagnostics) {
 	ran := make(map[string]bool, len(passes))
 	for _, p := range passes {
 		ran[p.Provider.String()] = true
 	}
+	// unservedBy counts the passes whose provider has no schema for an
+	// address's type. Only when it is every pass is nobody left to remove
+	// it: a pass that serves the type and skipped the record leg (the
+	// Kubernetes label sweep, #1715) accounts for it its own way.
+	unservedBy := make(map[string]int)
+	for _, p := range passes {
+		seen := make(map[string]bool)
+		for _, e := range p.Result.RecordedElsewhere {
+			if e.Unserved && !seen[e.Addr.String()] {
+				seen[e.Addr.String()] = true
+				unservedBy[e.Addr.String()]++
+			}
+		}
+	}
 	raised := make(map[string]bool)
 	for _, p := range passes {
 		for _, e := range p.Result.RecordedElsewhere {
 			key := e.Addr.String()
-			if ran[e.Provider] || raised[key] {
+			if raised[key] {
+				continue
+			}
+			if e.Unserved {
+				if unservedBy[key] < len(passes) {
+					continue
+				}
+				raised[key] = true
+				managed := ""
+				if e.Provider != "" {
+					managed = fmt.Sprintf(" (its record names %s)", e.Provider)
+				}
+				*diags = diags.Append(problemDiag(res, Problem{
+					Kind:     ProblemRemovedTypeUnserved,
+					TypeName: e.TypeName,
+					Addr:     e.Addr,
+					Detail: fmt.Sprintf(
+						"%s is no longer declared, and no provider configuration in this run serves %s%s, so its removal cannot be planned and the object would stay live. Add that provider's configuration back so the removal can be planned.",
+						e.Addr, e.TypeName, managed),
+				}))
+				continue
+			}
+			if ran[e.Provider] {
 				continue
 			}
 			raised[key] = true

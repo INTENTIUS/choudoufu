@@ -2645,6 +2645,7 @@ refused, and each says so in its own entry.
 | - | - | discovery | Marked resource outside its address's provider configuration | error | `internal/live/discovery` | "Marked resource outside its address's provider configuration" |
 | - | - | discovery | No AWS account ID from the provider | warning | `internal/live/discovery` | "No AWS account ID from the provider" |
 | - | - | discovery | No configuration to discover against | error | `internal/live/discovery` | "No configuration to discover against" |
+| - | - | discovery | No configured provider serves a removed resource's type | error | `internal/live/discovery` | "No configured provider serves a removed resource's type" |
 | - | - | discovery | No provider access | error | `internal/live/discovery` | "No provider access" |
 | - | - | discovery | No slot left to mint | error | `internal/live/discovery` | "No slot left to mint" |
 | - | - | discovery | One marker value for two declared addresses | error | `internal/live/discovery` | "One marker value for two declared addresses" |
@@ -2838,7 +2839,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**254 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**255 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -3297,6 +3298,14 @@ reserved for the limits wing's fixture directories, and
 #### No configuration to discover against
 
 **What.** Discovery was given no configuration to match markers against. A caller error, not a configuration one.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### No configured provider serves a removed resource's type
+
+**What.** A resource block was removed, and the record its instance left names a type that no provider configuration in this run has a schema for - the provider's own block was removed along with it, in a root with several providers (GitHub issue #1721). No pass can read or destroy the object, so its removal cannot be planned. Adding that provider's configuration back lets the plan destroy it.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 

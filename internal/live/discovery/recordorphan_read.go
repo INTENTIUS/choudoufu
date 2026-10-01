@@ -206,6 +206,7 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 				continue
 			}
 		}
+		unserved := false
 		if req.ScopeProvider.Provider.Type != "" {
 			if _, served := schemas.ResourceSchema(typeName); !served {
 				// GitHub issue #1715: one pass of a multi-provider root
@@ -220,10 +221,16 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 				// through helm. The pass whose provider serves the type
 				// accounts for it (the Kubernetes label sweep files the
 				// same object as its own orphan).
-				continue
+				//
+				// GitHub issue #1721: unless no pass serves it at all (the
+				// kubernetes provider block removed with the ConfigMap's),
+				// when the removal would vanish with nobody told. The
+				// record is read below and noted, not proposed, and
+				// [Merge] refuses when every pass noted it.
+				unserved = true
 			}
 		}
-		if typeTaggable(schemas, typeName) && !selection.Selects(addr.ConfigResource()) {
+		if !unserved && typeTaggable(schemas, typeName) && !selection.Selects(addr.ConfigResource()) {
 			// Taggable, meaning the ordinary tag sweep already covers it
 			// (and already ran, above, before this leg) and would already
 			// be in known if it found anything. [typeTaggable] reads the
@@ -309,6 +316,10 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			// Not a kind=identity record at all - a kind=object record is
 			// [builder.discoverOrphanedRecords]'s own population, and a key
 			// this store cannot decode is not this leg's to guess at.
+			continue
+		}
+		if unserved {
+			res.RecordedElsewhere = append(res.RecordedElsewhere, RecordedElsewhere{Addr: resolvedAddr, TypeName: typeName, Provider: recordedProvider, Unserved: true})
 			continue
 		}
 		if req.ScopeProvider.Provider.Type != "" && recordedProvider != "" && recordedProvider != req.ScopeProvider.String() {

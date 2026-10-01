@@ -4888,4 +4888,5 @@ var problemSummaries = map[ProblemKind]string{
 	ProblemAmbiguousContentMatch:     "Content match found more than one live candidate",
 	ProblemDirectReadUnresolved:      "Direct read could not settle a tag-index-lagged instance",
 	ProblemRecordedProviderAbsent:    "Removed resource's provider configuration is gone",
+	ProblemRemovedTypeUnserved:       "No configured provider serves a removed resource's type",
 }
