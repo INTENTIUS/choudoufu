@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/experiments"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 
@@ -24,14 +25,12 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configload"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/experiments"
+	"github.com/intentius/choudoufu/internal/configs/symlib"
 	"github.com/intentius/choudoufu/internal/httpclient"
 	"github.com/intentius/choudoufu/internal/initwd"
 	"github.com/intentius/choudoufu/internal/registry"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
-
-	"github.com/intentius/choudoufu/internal/configs/symlib"
 )
 
 // loadConfig reads a configuration from the given directory, which should

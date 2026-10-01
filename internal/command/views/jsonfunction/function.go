@@ -9,10 +9,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
+
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // FormatVersion represents the version of the json format and will be

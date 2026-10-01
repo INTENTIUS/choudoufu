@@ -14,7 +14,6 @@ import (
 	"sort"
 
 	"github.com/hashicorp/hcl/v2"
-
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/collections"
 	"github.com/intentius/choudoufu/internal/configs"
