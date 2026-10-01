@@ -543,11 +543,12 @@ dynamic "item" {
 	}
 
 	call := RootModuleCallForTesting()
-	mod, modDiags := NewModule(nil, nil, call, "dir", SelectiveLoadAll)
+	mod, modDiags := NewModule(nil, nil, "dir", SelectiveLoadAll)
+	modDiags = append(modDiags, mod.Finalize(symlib.EmptyTable, call)...)
 	if modDiags.HasErrors() {
 		t.Fatal(modDiags)
 	}
-	eval := NewStaticEvaluator(mod, call)
+	eval := NewStaticEvaluator(mod, nil, call)
 
 	val, decDiags := eval.DecodeBlock(t.Context(), f.Body, spec, StaticIdentifier{Subject: "test"})
 	if decDiags.HasErrors() {
@@ -589,8 +590,9 @@ locals {
 	frozenCall := NewStaticModuleCall(nil, hcl.Range{}, func(v *Variable) (cty.Value, hcl.Diagnostics) {
 		return cty.StringVal("frozen"), nil
 	}, "<testing>", "")
-	mod, _ := NewModule([]*File{file}, nil, frozenCall, "dir", SelectiveLoadAll)
-	eval := NewStaticEvaluator(mod, frozenCall)
+	mod, _ := NewModule([]*File{file}, nil, "dir", SelectiveLoadAll)
+	_ = mod.Finalize(symlib.EmptyTable, frozenCall)
+	eval := NewStaticEvaluator(mod, nil, frozenCall)
 
 	ident := StaticIdentifier{Subject: "local.y", DeclRange: mod.Locals["y"].DeclRange}
 
@@ -647,11 +649,12 @@ module "child" {
 	}
 
 	call := RootModuleCallForTesting()
-	mod, modDiags := NewModule([]*File{file}, nil, call, "dir", SelectiveLoadAll)
+	mod, modDiags := NewModule([]*File{file}, nil, "dir", SelectiveLoadAll)
+	modDiags = append(modDiags, mod.Finalize(symlib.EmptyTable, call)...)
 	if modDiags.HasErrors() {
 		t.Fatal(modDiags)
 	}
-	eval := NewStaticEvaluator(mod, call)
+	eval := NewStaticEvaluator(mod, nil, call)
 
 	mc := mod.ModuleCalls["child"]
 	if mc == nil {
@@ -924,7 +927,8 @@ func TestStaticEvaluator_BareFileResolvesAgainstEntryDirectory(t *testing.T) {
 
 	parser := NewParser(nil)
 	rootCall := NewStaticModuleCall(nil, hcl.Range{}, nil, relDir, "")
-	mod, diags := parser.LoadConfigDir(relDir, rootCall)
+	mod, diags := parser.LoadConfigDir(relDir)
+	diags = append(diags, mod.Finalize(symlib.EmptyTable, rootCall)...)
 	if diags.HasErrors() {
 		t.Fatalf("load: %s", diags)
 	}
@@ -989,7 +993,8 @@ func TestStaticEvaluator_PathModulePrefixedFileDoesNotDouble(t *testing.T) {
 
 	parser := NewParser(nil)
 	rootCall := NewStaticModuleCall(nil, hcl.Range{}, nil, relDir, "")
-	mod, diags := parser.LoadConfigDir(relDir, rootCall)
+	mod, diags := parser.LoadConfigDir(relDir)
+	diags = append(diags, mod.Finalize(symlib.EmptyTable, rootCall)...)
 	if diags.HasErrors() {
 		t.Fatalf("load: %s", diags)
 	}
@@ -1052,7 +1057,8 @@ func TestStaticEvaluator_PathRootPrefixedFileDoesNotDouble(t *testing.T) {
 
 	parser := NewParser(nil)
 	rootCall := NewStaticModuleCall(nil, hcl.Range{}, nil, relDir, "")
-	mod, diags := parser.LoadConfigDir(relDir, rootCall)
+	mod, diags := parser.LoadConfigDir(relDir)
+	diags = append(diags, mod.Finalize(symlib.EmptyTable, rootCall)...)
 	if diags.HasErrors() {
 		t.Fatalf("load: %s", diags)
 	}
@@ -1090,7 +1096,8 @@ func TestStaticEvaluator_PathRootBasenameAbspathSurvives(t *testing.T) {
 
 	parser := NewParser(nil)
 	rootCall := NewStaticModuleCall(nil, hcl.Range{}, nil, relDir, "")
-	mod, diags := parser.LoadConfigDir(relDir, rootCall)
+	mod, diags := parser.LoadConfigDir(relDir)
+	diags = append(diags, mod.Finalize(symlib.EmptyTable, rootCall)...)
 	if diags.HasErrors() {
 		t.Fatalf("load: %s", diags)
 	}
@@ -1150,7 +1157,8 @@ func TestStaticEvaluator_ChildModuleFileResolution(t *testing.T) {
 	childCall := NewStaticModuleCall(nil, hcl.Range{}, nil, rootRel, "")
 
 	parser := NewParser(nil)
-	mod, diags := parser.LoadConfigDir(childRel, childCall)
+	mod, diags := parser.LoadConfigDir(childRel)
+	diags = append(diags, mod.Finalize(symlib.EmptyTable, childCall)...)
 	if diags.HasErrors() {
 		t.Fatalf("load: %s", diags)
 	}

@@ -210,7 +210,7 @@ func TestPolicyString(t *testing.T) {
 // scope or threshold, since the example sets neither.
 func TestBuildMaintainerExample(t *testing.T) {
 	parser := configs.NewParser(nil)
-	mod, diags := parser.LoadConfigDir("../../configs/testdata/valid-modules/live-policy", configs.RootModuleCallForTesting())
+	mod, diags := parser.LoadConfigDir("../../configs/testdata/valid-modules/live-policy")
 	if diags.HasErrors() {
 		t.Fatalf("unexpected diagnostics: %s", diags.Error())
 	}

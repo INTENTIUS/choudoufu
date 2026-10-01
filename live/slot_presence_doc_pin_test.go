@@ -302,14 +302,14 @@ resource "aws_s3_bucket" "shard" {
 		dir,
 		"default",
 	)
-	rootMod, diags := parser.LoadConfigDir(dir, rootCall)
+	rootMod, diags := parser.LoadConfigDir(dir)
 	if diags.HasErrors() {
 		t.Fatalf("loading %s: %s", dir, diags.Error())
 	}
-	cfg, cfgDiags := configs.BuildConfig(t.Context(), rootMod, configs.ModuleWalkerFunc(
+	cfg, cfgDiags := configs.BuildConfig(t.Context(), rootMod, rootCall, configs.ModuleWalkerFunc(
 		func(_ context.Context, req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
 			return nil, nil, nil
-		},
+		}, parser.LoadSymbolFilesInDir,
 	))
 	if cfgDiags.HasErrors() {
 		t.Fatalf("building config: %s", cfgDiags.Error())

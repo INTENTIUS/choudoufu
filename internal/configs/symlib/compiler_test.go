@@ -260,7 +260,7 @@ function "inner" {
 	w.Wait()
 }
 
-// This initial set of tests mirrors what is in the RFC (rfc/20260424-symbol-libraries.md)
+// This initial set of tests mirrors what is in the RFC (opentofu/opentofu rfc/20260424-symbol-libraries.md, not in the v1.13.0 tree)
 func TestRFCExamples(t *testing.T) {
 	cases := []struct {
 		name   string

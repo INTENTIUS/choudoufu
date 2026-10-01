@@ -127,19 +127,23 @@ func loadModuleConfig(t *testing.T, dir string) *configs.Config {
 		"default",
 	)
 
-	mod, diags := parser.LoadConfigDir(dir, call)
+	mod, diags := parser.LoadConfigDir(dir)
 	if diags.HasErrors() {
 		t.Fatalf("loading %s: %s", dir, diags.Error())
 	}
 
-	cfg, cfgDiags := configs.BuildConfig(context.Background(), mod, configs.ModuleWalkerFunc(
+	cfg, cfgDiags := configs.BuildConfig(context.Background(), mod, call, configs.ModuleWalkerFunc(
 		func(_ context.Context, req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
-			child, childDiags := parser.LoadConfigDir(filepath.Join(dir, req.SourceAddr.String()), req.Call)
+			if req.SourceAddr == nil {
+				// A source that did not evaluate statically; BuildConfig reports it (#1778).
+				return nil, nil, nil
+			}
+			child, childDiags := parser.LoadConfigDir(filepath.Join(dir, req.SourceAddr.String()))
 			if childDiags.HasErrors() {
 				t.Fatalf("loading child module %q: %s", req.Name, childDiags.Error())
 			}
 			return child, nil, nil
-		},
+		}, parser.LoadSymbolFilesInDir,
 	))
 	if cfgDiags.HasErrors() {
 		t.Fatalf("building config for %s: %s", dir, cfgDiags.Error())

@@ -402,7 +402,7 @@ func TestModule_liveSidecar(t *testing.T) {
 // it is stateless.
 func TestModule_liveSidecarSelectiveBackendWall(t *testing.T) {
 	parser := NewParser(nil)
-	_, diags := parser.LoadConfigDirSelective("testdata/invalid-modules/live-sidecar-and-backend", RootModuleCallForTesting(), SelectiveLoadBackend)
+	_, diags := parser.LoadConfigDirSelective("testdata/invalid-modules/live-sidecar-and-backend", SelectiveLoadBackend)
 	if !diags.HasErrors() {
 		t.Fatal("a sidecar live configuration beside a backend block loaded with no errors under SelectiveLoadBackend")
 	}
@@ -422,7 +422,7 @@ func TestModule_liveSidecarSelectiveBackendVisible(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			parser := NewParser(nil)
-			mod, diags := parser.LoadConfigDirSelective("testdata/valid-modules/live-sidecar", RootModuleCallForTesting(), load)
+			mod, diags := parser.LoadConfigDirSelective("testdata/valid-modules/live-sidecar", load)
 			if diags.HasErrors() {
 				t.Fatalf("unexpected diagnostics: %s", diags.Error())
 			}
@@ -432,20 +432,9 @@ func TestModule_liveSidecarSelectiveBackendVisible(t *testing.T) {
 		})
 	}
 
-	t.Run("LoadConfigDirUneval", func(t *testing.T) {
-		parser := NewParser(nil)
-		mod, diags := parser.LoadConfigDirUneval("testdata/valid-modules/live-sidecar", SelectiveLoadAll)
-		if diags.HasErrors() {
-			t.Fatalf("unexpected diagnostics: %s", diags.Error())
-		}
-		if mod.Live == nil || !mod.Live.Sidecar {
-			t.Fatalf("the sidecar live configuration is not visible under LoadConfigDirUneval: %+v", mod.Live)
-		}
-	})
-
 	t.Run("LoadConfigDirWithTests", func(t *testing.T) {
 		parser := NewParser(nil)
-		mod, diags := parser.LoadConfigDirWithTests("testdata/valid-modules/live-sidecar", DefaultTestDirectory, RootModuleCallForTesting())
+		mod, diags := parser.LoadConfigDirWithTests("testdata/valid-modules/live-sidecar", DefaultTestDirectory)
 		if diags.HasErrors() {
 			t.Fatalf("unexpected diagnostics: %s", diags.Error())
 		}

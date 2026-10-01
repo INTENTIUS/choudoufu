@@ -13,6 +13,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configload"
+	"github.com/intentius/choudoufu/internal/configs/symlib"
 	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/live/approval"
 	"github.com/intentius/choudoufu/internal/plans"
@@ -194,7 +195,13 @@ func (c *ApplyCommand) planFileEstate(ctx context.Context, path string, reader *
 	// SelectiveLoadBackend is the same narrow load statelessSettings uses
 	// for the working directory: enough of the file to see the live block,
 	// and none of the resource bodies.
-	mod, hclDiags := configload.NewLoaderFromSnapshot(snap).LoadConfigDirSelective(root.Dir, call, configs.SelectiveLoadBackend)
+	// Static evaluation is a separate step since OpenTofu v1.13.0
+	// (f831fa1aa4); finalizing here keeps this load reporting exactly what
+	// the single call that did both used to (#1778).
+	mod, hclDiags := configload.NewLoaderFromSnapshot(snap).LoadConfigDirSelective(root.Dir, configs.SelectiveLoadBackend)
+	if mod != nil && !hclDiags.HasErrors() {
+		hclDiags = append(hclDiags, mod.Finalize(symlib.EmptyTable, call)...)
+	}
 	if hclDiags.HasErrors() {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,

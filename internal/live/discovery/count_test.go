@@ -583,15 +583,15 @@ func loadCountConfig(t *testing.T, size int) *configs.Config {
 		"default",
 	)
 
-	mod, diags := parser.LoadConfigDir(countDir, call)
+	mod, diags := parser.LoadConfigDir(countDir)
 	if diags.HasErrors() {
 		t.Fatalf("loading %s: %s", countDir, diags.Error())
 	}
-	cfg, cfgDiags := configs.BuildConfig(context.Background(), mod, configs.ModuleWalkerFunc(
+	cfg, cfgDiags := configs.BuildConfig(context.Background(), mod, call, configs.ModuleWalkerFunc(
 		func(_ context.Context, req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
 			t.Fatalf("fixture %s unexpectedly calls module %q", countDir, req.Name)
 			return nil, nil, nil
-		},
+		}, parser.LoadSymbolFilesInDir,
 	))
 	if cfgDiags.HasErrors() {
 		t.Fatalf("building config for %s: %s", countDir, cfgDiags.Error())

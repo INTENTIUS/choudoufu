@@ -6,8 +6,6 @@
 package arguments
 
 import (
-	"flag"
-
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -41,11 +39,15 @@ type LivePlan struct {
 // -estate the parsing every other option has - end-of-flags handling, the
 // -estate=NAME and -estate NAME forms, and a real error for a flag that is
 // not one.
+//
+// TODO(#1778 step 3): a minimal compile stub written in step 4, after v1.13.0
+// removed parsePlan's flag.FlagSet. -estate is registered on the plan
+// command's CommandLine; -verbose, -adoption-only and -filter are not on
+// BindPlan yet (see the TODO in ParsePlan).
 func ParseLivePlan(args []string) (*LivePlan, func(), tfdiags.Diagnostics) {
-	livePlan := &LivePlan{}
-	plan, closer, diags := parsePlan(args, func(cmdFlags *flag.FlagSet) {
-		cmdFlags.StringVar(&livePlan.Estate, "estate", "", "estate")
-	})
-	livePlan.Plan = plan
+	cli := new(CommandLine)
+	livePlan := &LivePlan{Plan: BindPlan(cli)}
+	cli.StringVar(&livePlan.Estate, "estate", "", "The estate whose ownership markers this run looks for.")
+	closer, diags := cli.parseWithHooks("live-plan", args)
 	return livePlan, closer, diags
 }

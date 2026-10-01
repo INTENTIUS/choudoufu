@@ -1656,14 +1656,14 @@ func loadConfig(t *testing.T, dir string) *configs.Config {
 		"default",
 	)
 
-	mod, diags := parser.LoadConfigDir(dir, call)
+	mod, diags := parser.LoadConfigDir(dir)
 	if diags.HasErrors() {
 		t.Fatalf("loading %s: %s", dir, diags.Error())
 	}
-	cfg, cfgDiags := configs.BuildConfig(context.Background(), mod, configs.ModuleWalkerFunc(
+	cfg, cfgDiags := configs.BuildConfig(context.Background(), mod, call, configs.ModuleWalkerFunc(
 		func(_ context.Context, req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
 			return loadLocalModule(t, parser, dir, req)
-		},
+		}, parser.LoadSymbolFilesInDir,
 	))
 	if cfgDiags.HasErrors() {
 		t.Fatalf("building config for %s: %s", dir, cfgDiags.Error())
@@ -1691,6 +1691,10 @@ func loadConfig(t *testing.T, dir string) *configs.Config {
 func loadLocalModule(t *testing.T, parser *configs.Parser, rootDir string, req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
 	t.Helper()
 
+	if req.SourceAddr == nil {
+		// A source that did not evaluate statically; BuildConfig reports it (#1778).
+		return nil, nil, nil
+	}
 	local, ok := req.SourceAddr.(addrs.ModuleSourceLocal)
 	if !ok {
 		t.Fatalf("fixture %s calls module %q from a non-local source %q, which this minimal loader does not resolve", rootDir, req.Name, req.SourceAddr)
@@ -1698,7 +1702,7 @@ func loadLocalModule(t *testing.T, parser *configs.Parser, rootDir string, req *
 	}
 
 	childDir := filepath.Join(req.Parent.Module.SourceDir, string(local))
-	mod, modDiags := parser.LoadConfigDir(childDir, req.Call)
+	mod, modDiags := parser.LoadConfigDir(childDir)
 	return mod, nil, modDiags
 }
 

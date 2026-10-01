@@ -2087,15 +2087,15 @@ func statelessTestLoadConfig(t *testing.T, dir string) *configs.Config {
 		dir,
 		"default",
 	)
-	mod, diags := parser.LoadConfigDir(dir, call)
+	mod, diags := parser.LoadConfigDir(dir)
 	if diags.HasErrors() {
 		t.Fatalf("loading %s: %s", dir, diags.Error())
 	}
-	cfg, cfgDiags := configs.BuildConfig(t.Context(), mod, configs.ModuleWalkerFunc(
+	cfg, cfgDiags := configs.BuildConfig(t.Context(), mod, call, configs.ModuleWalkerFunc(
 		func(_ context.Context, req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
 			t.Fatalf("fixture %s unexpectedly calls module %q", dir, req.Name)
 			return nil, nil, nil
-		},
+		}, parser.LoadSymbolFilesInDir,
 	))
 	if cfgDiags.HasErrors() {
 		t.Fatalf("building config for %s: %s", dir, cfgDiags.Error())

@@ -11,6 +11,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs/symlib"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -32,10 +33,11 @@ func carryScope(t *testing.T, src map[string]string, top StaticIdentifier, name 
 		".",
 		"irrelevant",
 	)
-	mod, diags := p.LoadConfigDir(".", call)
+	mod, diags := p.LoadConfigDir(".")
+	diags = append(diags, mod.Finalize(symlib.EmptyTable, call)...)
 	assertNoDiagnostics(t, diags)
 
-	scope := newStaticScope(NewStaticEvaluator(mod, call), top)
+	scope := newStaticScope(NewStaticEvaluator(mod, nil, call), top)
 	_, moreDiags := scope.Data.GetLocalValue(t.Context(), addrs.LocalValue{Name: name}, tfdiags.SourceRange{Filename: "test.tf"})
 	if !moreDiags.HasErrors() {
 		t.Fatal("unexpected success; want errors")

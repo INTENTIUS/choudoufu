@@ -45,10 +45,14 @@ type LiveLs struct {
 	// the account holds under an estate) needs no configuration to keep.
 	ConfigDir string
 
-	// ViewOptions carries -json (and, for parity with every other command
+	// View carries -json (and, for parity with every other command
 	// that supports it, -json-into is deliberately NOT offered here - see
 	// ParseLiveLs's own comment).
-	ViewOptions ViewOptions
+	//
+	// TODO(#1778 step 3): a minimal compile stub written in step 4 so the
+	// arguments package builds after v1.13.0 removed ViewOptions. Only
+	// ViewType is set; port this command onto BindView/CommandLine.
+	View View
 }
 
 // ParseLiveLs processes CLI arguments, returning a LiveLs value and errors.
@@ -68,7 +72,8 @@ func ParseLiveLs(args []string) (*LiveLs, func(), tfdiags.Diagnostics) {
 	// not a plan whose JSON a pipeline stage consumes separately from the
 	// text a human reads on the same run - see arguments/live_plan.go's own
 	// -json-into for the case that pattern exists for.
-	ls.ViewOptions.AddGranularFlags(cmdFlags, false, false)
+	var jsonFlag bool
+	cmdFlags.BoolVar(&jsonFlag, "json", false, "json")
 
 	if err := cmdFlags.Parse(args); err != nil {
 		return ls, func() {}, diags.Append(tfdiags.Sourceless(
@@ -101,8 +106,10 @@ func ParseLiveLs(args []string) (*LiveLs, func(), tfdiags.Diagnostics) {
 		))
 	}
 
-	closer, viewDiags := ls.ViewOptions.Parse()
-	diags = diags.Append(viewDiags)
+	ls.View.ViewType = ViewHuman
+	if jsonFlag {
+		ls.View.ViewType = ViewJSON
+	}
 
-	return ls, closer, diags
+	return ls, func() {}, diags
 }
