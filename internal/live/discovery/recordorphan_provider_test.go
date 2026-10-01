@@ -217,3 +217,74 @@ func TestRecordOrphanSinglePassIgnoresTheRecordedProvider(t *testing.T) {
 	}
 	assertOneRemovalThrough(t, merged, providerOf, awsDefaultProv)
 }
+
+// TestRecordOrphanServedByNoPassIsRefused is the schema half of the same
+// silence, found by #1729's worker: a helm + kubernetes + random root whose
+// kubernetes provider block was removed along with a ConfigMap's block.
+// Three passes remain (helm, random, aws), none serves
+// kubernetes_config_map, so #1715's schema skip fires in every one and the
+// removal used to vanish with no word. Whether the record names the
+// kubernetes configuration or nothing at all, the plan must refuse, once.
+func TestRecordOrphanServedByNoPassIsRefused(t *testing.T) {
+	kubeProv := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("kubernetes")}
+	for name, recordedBy := range map[string]addrs.AbsProviderConfig{
+		"no recorded provider":                 {},
+		"records the kubernetes configuration": kubeProv,
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			const estate = "quickpizza"
+			raw, err := staterecord.NewLocalStore(t.TempDir())
+			if err != nil {
+				t.Fatalf("NewLocalStore: %s", err)
+			}
+			store := projection.NewRecordEnvelopeStore(raw, projection.RecordKeyPrefix(estate))
+			hashed := mustAddr(t, "kubernetes_config_map.hashed")
+			if _, err := projection.SeedLocatedForInstance(ctx, store, hashed, recordedBy, projection.LocatedRecord{ImportID: "quickpizza/cfg-b"}); err != nil {
+				t.Fatalf("seeding the record: %s", err)
+			}
+
+			var passes []Pass
+			for _, pv := range []struct {
+				prov  addrs.AbsProviderConfig
+				types map[string]providers.Schema
+			}{
+				{addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("helm")}, map[string]providers.Schema{"helm_release": helmReleaseSchema()}},
+				{addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("random")}, map[string]providers.Schema{"random_id": helmReleaseSchema()}},
+				{awsDefaultProv, map[string]providers.Schema{"aws_lb_target_group_attachment": {Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{"id": {Type: cty.String, Computed: true}}}}}},
+			} {
+				schemas, sd := listclient.ListSchemas(ctx, schemaOnlyProvider{types: pv.types})
+				if sd.HasErrors() {
+					t.Fatalf("schemas: %s", sd.Err())
+				}
+				res := &Result{Estate: estate}
+				req := Request{Estate: estate, HintStore: raw, ScopeProvider: pv.prov, VouchProvider: pv.prov, Sweep: true}
+				if d := recordOrphanReadSweep(ctx, req, schemas, res); d.HasErrors() {
+					t.Fatalf("record leg through %s: %s", pv.prov, d.Err())
+				}
+				passes = append(passes, Pass{Provider: pv.prov, Result: res})
+			}
+			merged, _, diags := Merge(estate, passes, false)
+			for _, r := range merged.Resolutions {
+				if r.Undeclared {
+					t.Errorf("%s is proposed for removal through a provider that has no schema for its type", r.Addr)
+				}
+			}
+			var refusals []string
+			for _, d := range diags {
+				if d.Severity() == tfdiags.Error {
+					refusals = append(refusals, d.Description().Summary+": "+d.Description().Detail)
+					t.Log(refusals[len(refusals)-1])
+				}
+			}
+			if len(refusals) != 1 {
+				t.Fatalf("the merge raised %d errors, want exactly 1 refusal naming %s (one record, three passes)", len(refusals), hashed)
+			}
+			for _, want := range []string{hashed.String(), "kubernetes_config_map"} {
+				if !strings.Contains(refusals[0], want) {
+					t.Errorf("the refusal does not name %q:\n%s", want, refusals[0])
+				}
+			}
+		})
+	}
+}
