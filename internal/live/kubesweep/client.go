@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/metadata"
 	restclient "k8s.io/client-go/rest"
 )
 
@@ -113,6 +114,9 @@ type Skipped struct {
 	// Held are the ones whose holder can be named, in listing order: today
 	// the objects a Helm release holds ([HelmRelease]; GitHub issue #1607).
 	Held []HeldObject
+	// Unlisted are the objects annotated with a Helm release that is
+	// live but whose manifest does not list them (GitHub issue #1738).
+	Unlisted []HeldObject
 }
 
 // HeldObject is one live object carrying the estate's label that a
@@ -198,6 +202,11 @@ func New(cfg *restclient.Config) (*Client, error) {
 // NewWith is [New] over already-built clients, for tests.
 func NewWith(disc discovery.DiscoveryInterface, dyn dynamic.Interface) *Client {
 	return &Client{disc: disc, dyn: dyn}
+}
+
+// NewWithMetadata is [NewWith] plus the metadata client [New] builds.
+func NewWithMetadata(disc discovery.DiscoveryInterface, dyn dynamic.Interface, meta metadata.Interface) *Client {
+	return NewWith(disc, dyn)
 }
 
 // Kinds implements [Sweeper]: every group's preferred version of every
