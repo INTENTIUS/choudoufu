@@ -1,6 +1,6 @@
 # choudoufu releases
 
-choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both numbers appear in `choudoufu version` and in every release's notes: the fork tag, and the OpenTofu release the tree is built from. This section is the fork's changelog; upstream's own, for that OpenTofu version, follows below under "OpenTofu" and is left in upstream's shape.
+choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both numbers appear in `choudoufu version` and in every release's notes: the fork tag, and the OpenTofu version the tree is built from: the fork point's `version/VERSION` verbatim, so a base taken from upstream main reads `-dev` (#1778). This section is the fork's changelog; upstream's own, for that OpenTofu version, follows below under "OpenTofu" and is left in upstream's shape.
 
 **Fork work is recorded here, not in upstream's section.** An entry filed under upstream's `1.13.0 (Unreleased)` heading says "unreleased" about something that shipped, which is how four tagged releases came to have no changelog entry naming any of them. To cut a release: date the `(Unreleased)` heading below, open an empty one above it, and take the board movement from `go run ./tools/gauntlet notes live/history/<previous>.json live/history/<new>.json` against the snapshot `go run ./tools/gauntlet snapshot <version>` writes, rather than retyping a count by hand.
 
@@ -58,7 +58,7 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.20.0 (2026-09-27)
 
-Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.20.0.json`](live/history/v0.20.0.json).
+Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). Board snapshot: [`live/history/v0.20.0.json`](live/history/v0.20.0.json).
 
 BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.19.0.json live/history/v0.20.0.json`):
 
@@ -141,7 +141,7 @@ Everywhere:
 
 ## choudoufu v0.19.0 (2026-09-23)
 
-Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.19.0.json`](live/history/v0.19.0.json).
+Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). Board snapshot: [`live/history/v0.19.0.json`](live/history/v0.19.0.json).
 
 BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.18.0.json live/history/v0.19.0.json`):
 
@@ -357,7 +357,7 @@ FORK WORK:
 
 ## choudoufu v0.18.0 (2026-09-19)
 
-Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.18.0.json`](live/history/v0.18.0.json).
+Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). Board snapshot: [`live/history/v0.18.0.json`](live/history/v0.18.0.json).
 
 BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.17.0.json live/history/v0.18.0.json`):
 
@@ -605,7 +605,7 @@ Tooling and CI:
 
 ## choudoufu v0.17.0 (2026-09-09)
 
-Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.17.0.json`](live/history/v0.17.0.json).
+Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). Board snapshot: [`live/history/v0.17.0.json`](live/history/v0.17.0.json).
 
 BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.16.0.json live/history/v0.17.0.json`):
 
@@ -673,7 +673,7 @@ FORK WORK:
 
 ## choudoufu v0.16.0 (2026-09-09)
 
-Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.16.0.json`](live/history/v0.16.0.json).
+Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). Board snapshot: [`live/history/v0.16.0.json`](live/history/v0.16.0.json).
 
 BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.15.0.json live/history/v0.16.0.json`):
 
@@ -802,7 +802,7 @@ FORK WORK:
 
 ## choudoufu v0.15.0 (2026-09-08)
 
-Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.15.0.json`](live/history/v0.15.0.json).
+Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). Board snapshot: [`live/history/v0.15.0.json`](live/history/v0.15.0.json).
 
 BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.14.0.json live/history/v0.15.0.json`):
 
@@ -879,7 +879,7 @@ FORK WORK:
 
 ## choudoufu v0.14.0 (2026-09-07)
 
-Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.14.0.json`](live/history/v0.14.0.json).
+Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). Board snapshot: [`live/history/v0.14.0.json`](live/history/v0.14.0.json).
 
 BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.13.0.json live/history/v0.14.0.json`):
 
@@ -1449,7 +1449,7 @@ FORK WORK:
 
 ## choudoufu v0.13.0 (2026-09-06)
 
-Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.13.0.json`](live/history/v0.13.0.json).
+Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). Board snapshot: [`live/history/v0.13.0.json`](live/history/v0.13.0.json).
 
 BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.12.0.json live/history/v0.13.0.json`):
 
@@ -1609,7 +1609,7 @@ FORK WORK:
 
 ## choudoufu v0.12.0 (2026-09-04)
 
-Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.12.0.json`](live/history/v0.12.0.json).
+Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). Board snapshot: [`live/history/v0.12.0.json`](live/history/v0.12.0.json).
 
 BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.11.0.json live/history/v0.12.0.json`):
 
@@ -1666,7 +1666,7 @@ FORK WORK:
 
 ## choudoufu v0.11.0 (2026-09-03)
 
-Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.11.0.json`](live/history/v0.11.0.json).
+Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). Board snapshot: [`live/history/v0.11.0.json`](live/history/v0.11.0.json).
 
 BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.10.1.json live/history/v0.11.0.json`):
 
@@ -1745,7 +1745,7 @@ FORK WORK:
 
 ## choudoufu v0.10.1 (2026-09-03)
 
-Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.10.1.json`](live/history/v0.10.1.json).
+Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). Board snapshot: [`live/history/v0.10.1.json`](live/history/v0.10.1.json).
 
 BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.10.0.json live/history/v0.10.1.json`):
 
@@ -1782,7 +1782,7 @@ FORK WORK:
 
 ## choudoufu v0.10.0 (2026-09-03)
 
-Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.10.0.json`](live/history/v0.10.0.json).
+Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). Board snapshot: [`live/history/v0.10.0.json`](live/history/v0.10.0.json).
 
 BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.9.0.json live/history/v0.10.0.json`):
 
@@ -1860,7 +1860,7 @@ FORK WORK:
 
 ## choudoufu v0.9.0 (2026-09-02)
 
-Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.9.0.json`](live/history/v0.9.0.json).
+Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). Board snapshot: [`live/history/v0.9.0.json`](live/history/v0.9.0.json).
 
 BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.8.0.json live/history/v0.9.0.json`):
 
@@ -1940,7 +1940,7 @@ FORK WORK:
 
 ## choudoufu v0.8.0 (2026-09-01)
 
-Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.8.0.json`](live/history/v0.8.0.json).
+Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). Board snapshot: [`live/history/v0.8.0.json`](live/history/v0.8.0.json).
 
 BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.7.0.json live/history/v0.8.0.json`):
 
@@ -1976,7 +1976,7 @@ FORK WORK:
 
 ## choudoufu v0.7.0 (2026-09-01)
 
-Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.7.0.json`](live/history/v0.7.0.json).
+Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). Board snapshot: [`live/history/v0.7.0.json`](live/history/v0.7.0.json).
 
 BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.6.0.json live/history/v0.7.0.json`):
 
@@ -2024,7 +2024,7 @@ FORK WORK:
 
 ## choudoufu v0.6.0 (2026-09-01)
 
-Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.6.0.json`](live/history/v0.6.0.json).
+Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). Board snapshot: [`live/history/v0.6.0.json`](live/history/v0.6.0.json).
 
 BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.5.0.json live/history/v0.6.0.json`):
 
@@ -2085,7 +2085,7 @@ FORK WORK:
 
 ## choudoufu v0.5.0 (2026-08-31)
 
-Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.5.0.json`](live/history/v0.5.0.json).
+Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). Board snapshot: [`live/history/v0.5.0.json`](live/history/v0.5.0.json).
 
 BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.4.0.json live/history/v0.5.0.json`):
 
@@ -2122,7 +2122,7 @@ DOCUMENTATION:
 
 ## choudoufu v0.4.0 (2026-08-26)
 
-[Release, notes and binaries](https://github.com/INTENTIUS/choudoufu/releases/tag/v0.4.0). Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.4.0.json`](live/history/v0.4.0.json).
+[Release, notes and binaries](https://github.com/INTENTIUS/choudoufu/releases/tag/v0.4.0). Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). Board snapshot: [`live/history/v0.4.0.json`](live/history/v0.4.0.json).
 
 BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.3.0.json live/history/v0.4.0.json`):
 
@@ -2144,7 +2144,7 @@ BUG FIXES:
 
 ## choudoufu v0.3.0 (2026-08-24)
 
-[Release, notes and binaries](https://github.com/INTENTIUS/choudoufu/releases/tag/v0.3.0). Built on OpenTofu 1.13.0. Board snapshot: [`live/history/v0.3.0.json`](live/history/v0.3.0.json), taken at commit `9520a21de6` against emulator `ghcr.io/lex00/floci@sha256:a9dc5342c8f1ade656cd1c0cbd258dcadffda953fd1e33ecd345f1217085c79d`. There is no `v0.2.0.json` to diff it against, so the board figures below are the release's own, not a generated delta: 20 of 25 core estates clear, 21 of 26 overall, up from 16 of 24 core at v0.2.0's close.
+[Release, notes and binaries](https://github.com/INTENTIUS/choudoufu/releases/tag/v0.3.0). Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). Board snapshot: [`live/history/v0.3.0.json`](live/history/v0.3.0.json), taken at commit `9520a21de6` against emulator `ghcr.io/lex00/floci@sha256:a9dc5342c8f1ade656cd1c0cbd258dcadffda953fd1e33ecd345f1217085c79d`. There is no `v0.2.0.json` to diff it against, so the board figures below are the release's own, not a generated delta: 20 of 25 core estates clear, 21 of 26 overall, up from 16 of 24 core at v0.2.0's close.
 
 ENHANCEMENTS:
 
@@ -2160,7 +2160,7 @@ ENHANCEMENTS:
 
 ## choudoufu v0.2.0 (2026-08-12)
 
-[Release, notes and binaries](https://github.com/INTENTIUS/choudoufu/releases/tag/v0.2.0). Built on OpenTofu 1.13.0. No board snapshot: the gauntlet did not exist yet. macOS and Linux binaries, amd64 and arm64.
+[Release, notes and binaries](https://github.com/INTENTIUS/choudoufu/releases/tag/v0.2.0). Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). No board snapshot: the gauntlet did not exist yet. macOS and Linux binaries, amd64 and arm64.
 
 UPGRADE NOTES:
 
@@ -2175,7 +2175,7 @@ ENHANCEMENTS:
 
 ## choudoufu v0.1.0 (2026-08-12)
 
-[Release and binaries](https://github.com/INTENTIUS/choudoufu/releases/tag/v0.1.0). Built on OpenTofu 1.13.0. The first tagged build of the fork; macOS and Linux, amd64 and arm64. Its GitHub release carries no notes, so this entry is written from the tree at the tag.
+[Release and binaries](https://github.com/INTENTIUS/choudoufu/releases/tag/v0.1.0). Built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`). The first tagged build of the fork; macOS and Linux, amd64 and arm64. Its GitHub release carries no notes, so this entry is written from the tree at the tag.
 
 UPGRADE NOTES:
 
