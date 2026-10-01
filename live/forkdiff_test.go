@@ -110,7 +110,6 @@ var otherAllowlist = []otherAllowEntry{
 	{"Makefile", "build targets renamed or added for the fork (the choudoufu binary, floci/gauntlet targets); stock's own targets are unchanged where they still apply"},
 	{".goreleaser.yaml", "release artifact naming (choudoufu, not tofu) and the Fork version ldflag from version/version.go"},
 	{".gitignore", "fork-specific build/output and .claude/ scratch paths added"},
-	{".gitmodules", "new: site/themes/hugo-book, the docs site's Hugo theme submodule"},
 	{".tfdev", "the dev-mode version_var/prerelease_var paths, renamed the same way scripts/build.sh's LD_FLAGS is"},
 	{".sc.png", "new: an image asset the fork's own docs reference"},
 	{"go.mod", "the module path rename (github.com/opentofu/opentofu -> github.com/intentius/choudoufu) plus the dependencies live/ code needs"},

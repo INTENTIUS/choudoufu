@@ -120,3 +120,26 @@ func TestLineMultisetEqual(t *testing.T) {
 		})
 	}
 }
+
+// TestParseBaseOpenTofuVersionKeepsThePrerelease is #1778's unit half: the
+// base is the fork point's version/VERSION verbatim, so a -dev tree is
+// never reported as the release it precedes.
+func TestParseBaseOpenTofuVersionKeepsThePrerelease(t *testing.T) {
+	cases := []struct {
+		raw     string
+		want    string
+		wantErr bool
+	}{
+		{"1.13.0-dev\n", "1.13.0-dev", false},
+		{"1.13.0\n", "1.13.0", false},
+		{"  1.14.0-alpha1  \n", "1.14.0-alpha1", false},
+		{"\n", "", true},
+		{"1.13.0\n1.14.0\n", "", true},
+	}
+	for _, c := range cases {
+		got, err := parseBaseOpenTofuVersion(c.raw)
+		if (err != nil) != c.wantErr || got != c.want {
+			t.Errorf("parseBaseOpenTofuVersion(%q) = %q, %v; want %q, error %v", c.raw, got, err, c.want, c.wantErr)
+		}
+	}
+}
