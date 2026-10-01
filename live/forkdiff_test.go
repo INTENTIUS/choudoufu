@@ -126,6 +126,8 @@ var otherAllowlist = []otherAllowEntry{
 	// per file, the same way internal/command/'s entry above does for a
 	// fork-owned subtree sitting inside a stock-owned root.
 	{"examples/", "docs-adjacent demo projects: examples/live-mv-workbench (uv/Python, package tlmig) drives the terralith-migration demo and the live-mv workbench over a real or floci-emulated account - wholly new, no stock counterpart"},
+	{".gitattributes", "stock's four eol rules kept; appended: `*.sh text eol=lf diff` so `git grep` reads shell scripts in full (#1294), and the gauntlet-rendered merge driver for the four files tools/gauntlet render writes (#1308)"},
+	{"CONTRIBUTING.RELEASE.md", "upstream's release manual kept whole, with one prepended warning pointing a choudoufu release at CHANGELOG.md's \"Cutting a release\" paragraph instead"},
 }
 
 // forkSurfaceFile mirrors tools/forkdiff-gen's fileChange.
