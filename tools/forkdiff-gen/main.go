@@ -7,9 +7,9 @@
 // the claim every release repeats and nothing had measured: "everything
 // outside live resource markers is stock OpenTofu."
 //
-// It diffs HEAD against the fork point - commit 03743ce6e8, "RFC: Speed up
-// tofu show <planfile> by embedding schemas into the planfile (#4239)", the
-// commit this checkout diverged from github.com/opentofu/opentofu at - and
+// It diffs HEAD against the fork point - upstream commit 2b6193043d, the
+// OpenTofu v1.13.0 tag, the upstream tree this checkout last merged from
+// github.com/opentofu/opentofu (#1778) - and
 // groups every changed path (added, modified, deleted) by top-level root:
 // internal/live/, tools/, live/, site/, .github/, and a catch-all
 // "other" for anything not under one of those. live/forkdiff_test.go (issue
@@ -42,11 +42,19 @@
 // The fork point is the fixed commit above, named by hash, not re-derived
 // from git ancestry. It cannot be: this checkout's history was purged and
 // re-rooted on 2026-08-14 (HANDOFF.md's "choudoufu history rewrite" note),
-// and 03743ce6e8 is consequently not an ancestor of HEAD by git's own
-// reckoning - `git merge-base --is-ancestor` says no. What this tool runs is
-// a content diff between two fixed commits (`git diff 03743ce6e8 HEAD`),
-// which is exactly as valid a comparison as it was the day the fork was cut,
-// and is unaffected by how the history in between is shaped. But it also
+// so upstream's own commits are not ancestors of HEAD by git's own
+// reckoning - `git merge-base --is-ancestor` says no. Upstream trees enter
+// this history as grafts instead (#1778, ruling 5): v1.13.0's tree was
+// committed as 2958e54f45 with the re-rooted original fork point
+// (46ee2e77a3, a copy of upstream 03743ce6e8) as its parent, and merged.
+// The graft's tree is byte-identical to 2b6193043d's (53f60e3359), so
+// diffing against either gives the same surface. This tool names
+// 2b6193043d because it is the hash a reader can look up in
+// opentofu/opentofu; live/ci_coverage_test.go's upstreamBaseCommit names
+// the graft because a CI guard needs a commit on HEAD's ancestry. What this
+// tool runs is a content diff between two fixed commits
+// (`git diff 2b6193043d HEAD`), which needs no ancestry at all and is
+// unaffected by how the history in between is shaped. But it also
 // means the fork point never advances by itself. If choudoufu ever
 // backports an upstream commit into internal/ outside internal/live/, that
 // backport is real fork-owned history from this artifact's point of view -
@@ -98,10 +106,11 @@ const (
 	// relative to the repository root.
 	forkSurfaceJSONRel = "live/fork-surface.json"
 
-	// forkPointCommit is the fixed commit this fork diverged from
-	// opentofu/opentofu at. See the package doc for why it is a literal
-	// hash rather than something derived from ancestry.
-	forkPointCommit = "03743ce6e8"
+	// forkPointCommit is the upstream opentofu/opentofu commit whose tree
+	// this fork last merged: the v1.13.0 tag (#1778). Until that merge it
+	// was 03743ce6e8, upstream main at 1.13.0-dev. See the package doc for
+	// why it is a literal hash rather than something derived from ancestry.
+	forkPointCommit = "2b6193043d"
 
 	// modulePathOld and modulePathNew are the two ends of the module-path
 	// rename the mechanical-change filter recognizes, quoted-import-only

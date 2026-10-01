@@ -1,18 +1,18 @@
 {
   "generated_by": "tools/forkdiff-gen (go run ./tools/forkdiff-gen)",
-  "fork_point": "03743ce6e8ddbc18c72a4fddb4d1a2ff8e765df5",
-  "fork_point_short": "03743ce6e8",
-  "fork_point_subject": "RFC: Speed up tofu show \u003cplanfile\u003e by embedding schemas into the planfile (#4239)",
-  "measured_at_head": "1a793063998a0d14723135603dc0650a6985746d",
-  "generated_at": "2026-10-01T19:01:21Z",
-  "base_opentofu_version": "1.13.0-dev",
+  "fork_point": "2b6193043d500dcfef1f3b4f4819b938b667099f",
+  "fork_point_short": "2b6193043d",
+  "fork_point_subject": "Bump version v1.13.0",
+  "measured_at_head": "d990c24d0906be59711f566b3dc89918b061da47",
+  "generated_at": "2026-10-01T19:56:20Z",
+  "base_opentofu_version": "1.13.0",
   "counts": {
     ".github/": 35,
     "internal/live/": 1608,
     "live/": 529,
-    "other": 1239,
+    "other": 1256,
     "site/": 155,
-    "tools/": 472
+    "tools/": 474
   },
   "files": {
     ".github/": [
@@ -8815,15 +8815,23 @@
         "status": "M"
       },
       {
+        "path": "cmd/choudoufu/command_main.go",
+        "status": "A"
+      },
+      {
         "path": "cmd/choudoufu/commands.go",
         "status": "A"
       },
       {
-        "path": "cmd/choudoufu/experiments.go",
+        "path": "cmd/choudoufu/help.go",
         "status": "A"
       },
       {
-        "path": "cmd/choudoufu/help.go",
+        "path": "cmd/choudoufu/legacy_main.go",
+        "status": "A"
+      },
+      {
+        "path": "cmd/choudoufu/live_commands_test.go",
         "status": "A"
       },
       {
@@ -8895,15 +8903,19 @@
         "status": "A"
       },
       {
+        "path": "cmd/tofu/command_main.go",
+        "status": "D"
+      },
+      {
         "path": "cmd/tofu/commands.go",
         "status": "D"
       },
       {
-        "path": "cmd/tofu/experiments.go",
+        "path": "cmd/tofu/help.go",
         "status": "D"
       },
       {
-        "path": "cmd/tofu/help.go",
+        "path": "cmd/tofu/legacy_main.go",
         "status": "D"
       },
       {
@@ -9911,6 +9923,10 @@
         "status": "A"
       },
       {
+        "path": "internal/command/arguments/live_check.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/arguments/live_cluster.go",
         "status": "A"
       },
@@ -9971,15 +9987,15 @@
         "status": "A"
       },
       {
+        "path": "internal/command/command.go",
+        "status": "M"
+      },
+      {
         "path": "internal/command/command_test.go",
         "status": "M"
       },
       {
         "path": "internal/command/console.go",
-        "status": "M"
-      },
-      {
-        "path": "internal/command/e2etest/automation_test.go",
         "status": "M"
       },
       {
@@ -10095,6 +10111,10 @@
         "status": "A"
       },
       {
+        "path": "internal/command/live_cli_dispatch_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/live_cluster.go",
         "status": "A"
       },
@@ -10116,6 +10136,10 @@
       },
       {
         "path": "internal/command/live_command_guard.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_commanders.go",
         "status": "A"
       },
       {
@@ -10528,10 +10552,6 @@
       },
       {
         "path": "internal/command/providers_schema.go",
-        "status": "M"
-      },
-      {
-        "path": "internal/command/providers_test.go",
         "status": "M"
       },
       {
@@ -11095,6 +11115,14 @@
         "status": "A"
       },
       {
+        "path": "internal/configs/static_symbols_refusal_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/symlib/compiler_test.go",
+        "status": "M"
+      },
+      {
         "path": "internal/configs/test_file_test.go",
         "status": "M"
       },
@@ -11551,10 +11579,6 @@
         "status": "A"
       },
       {
-        "path": "internal/tofu/context_temp_runtime.go",
-        "status": "M"
-      },
-      {
         "path": "internal/tofu/context_test.go",
         "status": "M"
       },
@@ -11823,6 +11847,18 @@
         "status": "D"
       },
       {
+        "path": "rfc/20260803-convert-function.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20260807-use-urfave-instead-of-cobra.md",
+        "status": "D"
+      },
+      {
+        "path": "rfc/20260808-ignore-provider-meta.md",
+        "status": "D"
+      },
+      {
         "path": "rfc/README.md",
         "status": "D"
       },
@@ -11869,6 +11905,10 @@
       {
         "path": "scripts/warm-plugin-cache.sh",
         "status": "A"
+      },
+      {
+        "path": "version/official.go",
+        "status": "M"
       },
       {
         "path": "version/version.go",
@@ -12156,6 +12196,22 @@
       },
       {
         "path": "website/docs/cli/commands/test/examples/override_resource/main.tftest.hcl",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/override_resource_instance/main.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/override_resource_instance/main.tftest.hcl",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/override_resource_provider/main.tf",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/cli/commands/test/examples/override_resource_provider/main.tftest.hcl",
         "status": "D"
       },
       {
@@ -12663,10 +12719,6 @@
         "status": "D"
       },
       {
-        "path": "website/docs/intro/whats-new.mdx",
-        "status": "D"
-      },
-      {
         "path": "website/docs/language/attr-as-blocks.mdx",
         "status": "D"
       },
@@ -12771,6 +12823,10 @@
         "status": "D"
       },
       {
+        "path": "website/docs/language/functions/assume_family.mdx",
+        "status": "D"
+      },
+      {
         "path": "website/docs/language/functions/base64decode.mdx",
         "status": "D"
       },
@@ -12856,6 +12912,10 @@
       },
       {
         "path": "website/docs/language/functions/contains.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/functions/convert.mdx",
         "status": "D"
       },
       {
@@ -13259,6 +13319,10 @@
         "status": "D"
       },
       {
+        "path": "website/docs/language/linting/index.mdx",
+        "status": "D"
+      },
+      {
         "path": "website/docs/language/meta-arguments/_category_.json",
         "status": "D"
       },
@@ -13620,6 +13684,10 @@
       },
       {
         "path": "website/docs/language/state/workspaces.mdx",
+        "status": "D"
+      },
+      {
+        "path": "website/docs/language/symbol-libraries/index.mdx",
         "status": "D"
       },
       {
@@ -14784,6 +14852,14 @@
       },
       {
         "path": "tools/gauntlet/day2replacekindreason_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/engine.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gauntlet/engine_test.go",
         "status": "A"
       },
       {
@@ -16181,7 +16257,7 @@
     ]
   },
   "mechanical_module_rename": {
-    "excluded_count": 1133,
+    "excluded_count": 1180,
     "scope": "internal/**/*.go files (M-status) that would otherwise land in the other bucket",
     "note": "excluded because every changed line, order-independently, is the quoted Go import path moving from github.com/opentofu/opentofu to github.com/intentius/choudoufu - see the package doc's Limits section"
   },
