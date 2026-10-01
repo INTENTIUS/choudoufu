@@ -123,9 +123,16 @@ type Artifact struct {
 	// `gauntlet run` will use - never evidence of what a past run used
 	// (see LastRun's own AWSProviderVersion/KubernetesProviderVersion,
 	// stamped at run time, for that half).
-	Providers ProviderVersions      `json:"providers"`
-	Stages    []Stage               `json:"stages"`
-	Sets      map[string]SetSummary `json:"sets"`
+	Providers ProviderVersions `json:"providers"`
+	// UpstreamVersion is the engine pin (#1778 ruling 6): the OpenTofu
+	// base this tree's engine is built on, read from version/VERSION
+	// (EngineVersionPin) on every Rebuild. CONFIGURATION, exactly as
+	// Emulator and Providers are - the base the NEXT `gauntlet run` will
+	// build. LastRun.UpstreamVersion is the evidence half, recorded per
+	// row from the binary the run used (probeEngine, engine.go).
+	UpstreamVersion string                `json:"upstream_version,omitempty"`
+	Stages          []Stage               `json:"stages"`
+	Sets            map[string]SetSummary `json:"sets"`
 	// Lanes is one summary per lane the manifest carries (#1067), the
 	// same shape as Sets. The kubernetes lane's is the Kubernetes bar: its
 	// estates run on a kind cluster and are in neither AWS set above, so
@@ -417,9 +424,17 @@ type LastRun struct {
 	// this field existed, or a legacy-protocol run that recorded no
 	// provenance. Never treat nil as "must match the current pin" for the
 	// same reason IsStale never treats an empty Emulator that way.
-	Oracle   *OracleVersions   `json:"oracle,omitempty"`
-	ExitCode int               `json:"exit_code"`
-	Detail   map[string]string `json:"detail,omitempty"`
+	Oracle *OracleVersions `json:"oracle,omitempty"`
+	// UpstreamVersion is the OpenTofu base of the choudoufu binary this
+	// run actually ran (#1778 ruling 6), read from that binary's
+	// `version -json` by probeEngine (engine.go) once per RunEstates
+	// call - evidence, the counterpart to Artifact.UpstreamVersion's
+	// configuration. Empty means a row from before this field existed,
+	// or a run whose binary could not be asked; IsEngineStale says how
+	// each reads.
+	UpstreamVersion string            `json:"upstream_version,omitempty"`
+	ExitCode        int               `json:"exit_code"`
+	Detail          map[string]string `json:"detail,omitempty"`
 	// DurationS is the whole run's wall-clock seconds: measured in Go around
 	// the script's process (runOne, run.go), from just before cmd.Run() to
 	// just after it returns. Recorded for every protocol, gauntlet or
@@ -552,7 +567,10 @@ func loadArtifactFile(path string) (*Artifact, error) {
 // the hashicorp/aws and hashicorp/kubernetes pins - see ProviderVersions's
 // own doc comment for why, unlike oracle, there is no probed evidence to
 // contrast it with.
-func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, oracle OracleVersions, providers ProviderVersions) {
+//
+// engine is a.UpstreamVersion's fresh value (#1778 ruling 6), the engine
+// base read from version/VERSION (engineVersion, engine.go).
+func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, oracle OracleVersions, providers ProviderVersions, engine string) {
 	prev := map[string]EstateResult{}
 	for _, r := range a.Estates {
 		prev[r.Name] = r
@@ -561,6 +579,7 @@ func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, orac
 	a.Emulator = emulator
 	a.Oracle = oracle
 	a.Providers = providers
+	a.UpstreamVersion = engine
 	a.Stages = Stages()
 	a.BehaviorsProven, a.BehaviorsTotal = BehaviorsProven(bi)
 

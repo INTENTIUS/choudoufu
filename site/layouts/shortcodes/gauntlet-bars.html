@@ -180,5 +180,12 @@
       {{- end -}}. The current pin is {{ $data.emulator }}; a row not measured against it is stale evidence, not a failure.
     {{- end -}}
   </p>
+  {{- /* The engine base (#1778 ruling 6): computed by engineBanner
+         (tools/gauntlet/engine.go) with the same IsEngineStale rule
+         `gauntlet next` enqueues by, so it is read from the board rather
+         than re-derived here. */ -}}
+  {{- with hugo.Data.gauntlet_board.engine_banner -}}
+  <p class="gauntlet-meta">{{ . | markdownify }}</p>
+  {{- end -}}
 </div>
 {{- end -}}

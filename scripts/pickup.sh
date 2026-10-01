@@ -221,6 +221,20 @@ stale=[e['name'] for e in g['estates'] if e.get('last_run') and e['last_run'].ge
 if stale:
     shown=', '.join(stale[:8]) + ('...' if len(stale) > 8 else '')
     print(f"stale evidence: {len(stale)} estate(s) last verified against a different (or unrecorded) emulator pin: {shown}")
+# The engine base, #1778 ruling 6: the same rule as IsEngineStale
+# (tools/gauntlet/engine.go). A row with no last_run.upstream_version
+# predates the field and was measured on 1.13.0-dev, so it is stale only
+# once g['upstream_version'] (version/VERSION) has moved off that.
+base=g.get('upstream_version','')
+def engine_stale(lr):
+    got=lr.get('upstream_version','')
+    if got == '':
+        return base != '' and base != '1.13.0-dev'
+    return got != base
+estale=[e['name'] for e in g['estates'] if e.get('last_run') and engine_stale(e['last_run'])]
+if estale:
+    shown=', '.join(estale[:8]) + ('...' if len(estale) > 8 else '')
+    print(f"stale evidence: {len(estale)} estate(s) last verified on a different (or unrecorded) OpenTofu engine base than {base}: {shown}")
 # Issue #509/#511: last_run.commit is an "as of this commit" provenance
 # pointer baked into the artifact at run time. A rebase - or, as #523 found,
 # a squash merge - can orphan it with NO textual conflict and no test
