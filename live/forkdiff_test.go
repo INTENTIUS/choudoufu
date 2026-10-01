@@ -110,7 +110,6 @@ var otherAllowlist = []otherAllowEntry{
 	{"Makefile", "build targets renamed or added for the fork (the choudoufu binary, floci/gauntlet targets); stock's own targets are unchanged where they still apply"},
 	{".goreleaser.yaml", "release artifact naming (choudoufu, not tofu) and the Fork version ldflag from version/version.go"},
 	{".gitignore", "fork-specific build/output and .claude/ scratch paths added"},
-	{".gitmodules", "new: site/themes/hugo-book, the docs site's Hugo theme submodule"},
 	{".tfdev", "the dev-mode version_var/prerelease_var paths, renamed the same way scripts/build.sh's LD_FLAGS is"},
 	{".sc.png", "new: an image asset the fork's own docs reference"},
 	{"go.mod", "the module path rename (github.com/opentofu/opentofu -> github.com/intentius/choudoufu) plus the dependencies live/ code needs"},
@@ -126,6 +125,8 @@ var otherAllowlist = []otherAllowEntry{
 	// per file, the same way internal/command/'s entry above does for a
 	// fork-owned subtree sitting inside a stock-owned root.
 	{"examples/", "docs-adjacent demo projects: examples/live-mv-workbench (uv/Python, package tlmig) drives the terralith-migration demo and the live-mv workbench over a real or floci-emulated account - wholly new, no stock counterpart"},
+	{".gitattributes", "stock's four eol rules kept; appended: `*.sh text eol=lf diff` so `git grep` reads shell scripts in full (#1294), and the gauntlet-rendered merge driver for the four files tools/gauntlet render writes (#1308)"},
+	{"CONTRIBUTING.RELEASE.md", "upstream's release manual kept whole, with one prepended warning pointing a choudoufu release at CHANGELOG.md's \"Cutting a release\" paragraph instead"},
 }
 
 // forkSurfaceFile mirrors tools/forkdiff-gen's fileChange.

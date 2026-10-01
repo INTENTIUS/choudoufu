@@ -196,7 +196,7 @@ func run() error {
 		return err
 	}
 
-	baseVersion, err := readBaseOpenTofuVersion(root)
+	baseVersion, err := readBaseOpenTofuVersion(g)
 	if err != nil {
 		return err
 	}
@@ -272,30 +272,35 @@ type forkSurface struct {
 // baseOpenTofuVersionFile is version/VERSION, the same file
 // version/version.go embeds at build time (`//go:embed VERSION`) to compute
 // the binary's own reported version. Issue #424's positioning page quotes
-// this fork's base OpenTofu release ("N files diverge from OpenTofu 1.13.0
-// at ...") and that number has to come from a committed source rather than
-// be hand-typed, the same as every other number on that page - this is the
-// one committed file that already carries it.
+// this fork's base OpenTofu version and that has to come from a committed
+// source rather than be hand-typed. It is read from the fork point's tree,
+// not HEAD's, because the fork point is what the base names.
 const baseOpenTofuVersionFile = "version/VERSION"
 
-// readBaseOpenTofuVersion reads version/VERSION and returns its release
-// core: the part before any "-dev" or other prerelease suffix, the same
-// trim version/version.go's own init() performs by calling go-version's
-// Core(). Plain string splitting here rather than importing
-// hashicorp/go-version as a second dependency: the file's grammar (a bare
-// semver, optionally followed by "-" and a prerelease tag) is fixed and
-// simple enough not to need it.
-func readBaseOpenTofuVersion(root string) (string, error) {
-	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(baseOpenTofuVersionFile))) //nolint:gosec // a fixed path in the checkout
+// readBaseOpenTofuVersion returns the fork point's version/VERSION verbatim,
+// trimmed of surrounding whitespace only. The prerelease suffix stays: a
+// "-dev" tree is unreleased upstream main, and naming it by its release
+// core is what had every release note claim "OpenTofu 1.13.0" for a base
+// at 1.13.0-dev (#1778). live/upstream_base_label_test.go holds the
+// artifact to this.
+func readBaseOpenTofuVersion(g *git) (string, error) {
+	raw, err := g.output("show", forkPointCommit+":"+baseOpenTofuVersionFile)
 	if err != nil {
-		return "", fmt.Errorf("reading %s: %w", baseOpenTofuVersionFile, err)
+		return "", fmt.Errorf("reading the fork point's %s: %w", baseOpenTofuVersionFile, err)
 	}
-	raw := strings.TrimSpace(string(data))
-	core, _, _ := strings.Cut(raw, "-")
-	if core == "" {
-		return "", fmt.Errorf("%s is empty after trimming", baseOpenTofuVersionFile)
+	return parseBaseOpenTofuVersion(raw)
+}
+
+// parseBaseOpenTofuVersion is readBaseOpenTofuVersion's pure half.
+func parseBaseOpenTofuVersion(raw string) (string, error) {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return "", fmt.Errorf("the fork point's %s is empty", baseOpenTofuVersionFile)
 	}
-	return core, nil
+	if strings.ContainsAny(v, " \t\n") {
+		return "", fmt.Errorf("the fork point's %s holds more than one token: %q", baseOpenTofuVersionFile, v)
+	}
+	return v, nil
 }
 
 const limitsNote = "The fork point is the fixed commit named in fork_point, not re-derived from git ancestry (this checkout's history was purged and re-rooted 2026-08-14, so the fork point is not an ancestor of HEAD; the comparison is a content diff, not a merge-base walk). A future upstream backport into internal/ outside internal/live/ shows up here as growth in the other bucket - there is no named root for stock-owned internal/ packages - and live/forkdiff_test.go's allowlist is where such an entry gets named and justified; the fork point itself only moves by deliberate, separate action. mechanical_module_rename excludes only the quoted Go-import half of the module-path rename under internal/; every other path, including internal/**/*.go files with any other change on top of the rename, is counted and, if it falls outside the six named roots, must be allowlisted."
