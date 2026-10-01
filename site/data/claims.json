@@ -1131,6 +1131,29 @@
           "note": "Claim 27's own step 5 already proves the Kubernetes analogue, automatically and with no estate configuration: a key the configuration never declared - the API server's own kubernetes.io/metadata.name, a controller's annotation - stays the server's and churns nothing, because kubernetes_manifest's computed_fields reads the prior manifest to decide what to keep. There is no distinct Kubernetes form of this claim to state; it would restate claim 27's own proof."
         }
       }
+    },
+    {
+      "id": 46,
+      "slug": "k8s-a-deleted-namespace-is-gone",
+      "title": "A namespace deleted under a converged estate takes its objects with it and the plan reads them as gone: nothing in it is listed as present or swept as an orphan, the plan proposes exactly the creates stock's plan proposes from the same position, the namespace's own create first when the estate declares it, and one apply converges to an empty plan; a deleted record-store namespace is refused by name on the plan and on the apply, and nothing is written",
+      "theme": "operate",
+      "substrate": [
+        "kubernetes"
+      ],
+      "providers": {
+        "aws": {
+          "status": "n/a",
+          "note": "Fault 5 of #1110 is a Kubernetes fault: a namespace is a container whose delete takes every object inside it, whoever owns them, in one out-of-band call. AWS has no resource whose deletion removes another estate's resources with it - a VPC, a resource group or an account refuses or cascades through calls the estate's own plan would read one by one - so there is no AWS form of this claim to state."
+        },
+        "kubernetes": {
+          "status": "proven",
+          "scenario": "live/smoke/scenarios/k8s-a-deleted-namespace-is-gone.sh",
+          "command": "just smoke k8s-a-deleted-namespace-is-gone",
+          "minutes": 5,
+          "break_mode": "BREAK=1 runs the identical namespace delete and then asserts what a sweep that never saw it would plan, \"No changes.\", over the real plan; that assertion must fail, and the control passes only when the plan instead proposes the three creates, because without it the creates of step 4 would read the same if the plan proposed them whatever the cluster held",
+          "note": "Filed as #1765, fault 5 of #1110, as a claim rather than a gauntlet stage: a stage would have to be n/a on every floci estate and re-measure the four kubernetes-lane estates for a fault no estate's shape changes the answer to. Every plan in the scenario is compared with stock's plan from the same position on the same cluster, measured rather than quoted. Step 6 measures #1765's item 4, a namespace still terminating because a finalizer holds an object in it (claim 25's shape), and reports it: the plan reads the terminating namespace and the held object as present, as stock's refresh does, and proposes the one object the delete already took."
+        }
+      }
     }
   ]
 }
