@@ -2157,6 +2157,14 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		}}
 	}
 
+	if refusal, ok := b.unservedRemoval(ctx, addr, typeName, w.undeclared, providerAddr, entry); ok {
+		return readPrep{terminal: &readTerminal{
+			diags:  refusal,
+			reason: ReasonFailed,
+			detail: refusal[0].Description().Detail,
+			cause:  omitFailedCause,
+		}}
+	}
 	schema, schemaDiags := entry.resourceSchema(providerAddr, typeName)
 	if schemaDiags.HasErrors() {
 		return readPrep{terminal: &readTerminal{
@@ -2836,6 +2844,11 @@ func (b *builder) materializeRecord(ctx context.Context, addr addrs.AbsResourceI
 			"Building the projection entry for %s needs provider %s, which could not be used: %s.", addr, providerAddr, detail,
 		)))
 		b.omitFailed(addr, detail)
+		return
+	}
+	if refusal, ok := b.unservedRemoval(ctx, addr, typeName, rc == nil, providerAddr, entry); ok {
+		b.diags = b.diags.Append(refusal)
+		b.omitFailed(addr, refusal[0].Description().Detail)
 		return
 	}
 	schema, schemaDiags := entry.resourceSchema(providerAddr, typeName)
