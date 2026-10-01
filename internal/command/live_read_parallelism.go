@@ -44,11 +44,11 @@ import (
 // The same reason [sweepParallelismEnvVar] is one, and it applies harder here.
 // A configuration carrying a live block runs the live pipeline under plain
 // "choudoufu plan" and "choudoufu apply", and live-plan itself delegates such a
-// configuration to PlanCommand (LivePlanCommand.Run's alias), handing it the
-// ORIGINAL argument slice to parse with the stock plan flag set. A flag
-// registered on live-plan's own flag set - [arguments.ParseLivePlan]'s hook,
-// where -estate lives - would therefore parse in live-plan and then die as
-// "flag provided but not defined" in the delegate, on exactly the
+// configuration to PlanCommand (LivePlanCommand.Execute's alias), and plain
+// "choudoufu plan" is parsed with the stock plan option set. A flag
+// registered on live-plan's own option set - [arguments.BindLivePlan], where
+// -estate lives - would therefore be accepted by live-plan and refused as
+// "flag provided but not defined" by plain plan, on exactly the
 // configurations that read the most, since a live-block configuration is the
 // one whose read pass runs from live_mode.go's PriorState.
 //

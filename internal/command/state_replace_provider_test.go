@@ -398,3 +398,18 @@ azurerm_virtual_machine.gamma:
   provider = provider["registry.opentofu.org/-/azurerm"]
   baz = value
 `
+
+// TestStateReplaceProvider_docs is the fork's: the legacy CLI's help for this
+// command names the binary it is, and upstream v1.13.0 deleted the test that
+// kept it so when the new CLI took over the help text for its own tree.
+func TestStateReplaceProvider_docs(t *testing.T) {
+	c := &StateReplaceProviderCommand{}
+
+	if got, want := c.Help(), "Usage: choudoufu [global options] state replace-provider"; !strings.Contains(got, want) {
+		t.Fatalf("unexpected help text\nwant: %s\nfull output:\n%s", want, got)
+	}
+
+	if got, want := c.Synopsis(), "Replace provider in the state"; got != want {
+		t.Fatalf("unexpected synopsis\nwant: %s\nfull output:\n%s", want, got)
+	}
+}

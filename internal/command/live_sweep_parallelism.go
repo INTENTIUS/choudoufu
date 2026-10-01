@@ -41,12 +41,12 @@ import (
 // Because the code path that sweeps would have rejected the flag. A
 // configuration carrying a live block runs the live pipeline under plain
 // "choudoufu plan" and "choudoufu apply", and live-plan itself delegates to
-// PlanCommand for such a configuration (LivePlanCommand.Run's alias), handing
-// it the ORIGINAL argument slice to parse with the stock plan flag set. A
-// flag registered where -estate is registered - [arguments.ParseLivePlan]'s
-// hook, which is live-plan's own flag set and nothing else - would therefore
-// parse in live-plan and then die as "flag provided but not defined" in the
-// delegate, on exactly the configurations that sweep the most.
+// PlanCommand for such a configuration (LivePlanCommand.Execute's alias), and
+// plain "choudoufu plan" is parsed with the stock plan option set. A flag
+// registered where -estate is registered - [arguments.BindLivePlan], which
+// is live-plan's own option set and nothing else - would therefore be
+// accepted by live-plan and refused as "flag provided but not defined" by
+// plain plan, on exactly the configurations that sweep the most.
 //
 // The alternative is registering it on [arguments.Plan] and
 // [arguments.Apply], where -adoption-only lives for that same delegation

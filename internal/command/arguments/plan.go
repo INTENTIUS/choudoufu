@@ -54,7 +54,7 @@ type Plan struct {
 	//
 	// It sits on Plan for -verbose's reason and not for -estate's. It has to
 	// reach plain "choudoufu plan", because under a live block that is the
-	// live-markers pipeline (LivePlanCommand.Run delegates to PlanCommand),
+	// live-markers pipeline (LivePlanCommand.Execute delegates to PlanCommand),
 	// and only [ParsePlan] parses that command's flags; -estate needs the
 	// opposite, since a live block naming the estate is precisely when -estate
 	// must be refused. Unlike -verbose it does name a stateless-only concept,

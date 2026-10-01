@@ -2940,7 +2940,7 @@ func statelessOmissions(res *projection.Result) []views.StatelessOmission {
 // what either one needs. A record source needs a live block's own
 // record_store, and the "-estate" form by definition has no live block at
 // all (a configuration that has one is delegated to PlanCommand - see this
-// file's own doc comment on LivePlanCommand.Run's alias); a cache source
+// file's own doc comment on LivePlanCommand.Execute's alias); a cache source
 // needs [projection.Options.StateCache], which livePlan's own BuildWith
 // call above never sets, on purpose (this diagnostic command "neither
 // reads nor writes the #685 state cache", this file's top-of-file doc

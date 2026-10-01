@@ -260,7 +260,7 @@ func CommandUsage(namespace string, cmd Command, w io.Writer) {
 				fmt.Fprintf(&positionalArgs, " <%s>", name)
 			}
 		}
-		printHeader(fmt.Sprintf("Usage: tofu [global options] %s [options]%s\n", namespace+cmd.Name, positionalArgs.String()))
+		printHeader(fmt.Sprintf("Usage: choudoufu [global options] %s [options]%s\n", namespace+cmd.Name, positionalArgs.String()))
 	}
 
 	if cmd.Long != "" {
@@ -410,7 +410,7 @@ func RootCommander(help *bool, ver *bool, chdir *string) Command {
 		Groups: []Group{MainCommandGroup, OtherCommandGroup},
 
 		UsageOverride: UsageOverride{
-			Usage:       "tofu [global options] <subcommand> [args]",
+			Usage:       "choudoufu [global options] <subcommand> [args]",
 			SingleSpace: true,
 		},
 	}
