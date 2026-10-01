@@ -138,10 +138,26 @@ release's namespace, as a Secret or, under `HELM_DRIVER=configmap`, a
 ConfigMap, and that the latest one is not `status=uninstalled`, which is
 what `helm uninstall --keep-history` leaves
 ([#1625](https://github.com/INTENTIUS/choudoufu/issues/1625),
-[#1738](https://github.com/INTENTIUS/choudoufu/issues/1738)). The sweep's
-credential therefore needs `list` on Secrets and ConfigMaps in the
-namespaces your releases live in; a refused list is reported as a denied
-gap for the kind being swept, and nothing in it is proposed.
+[#1738](https://github.com/INTENTIUS/choudoufu/issues/1738)). Held
+means listed: the sweep reads the release's manifest from its latest
+record and its last `deployed` one, and holds an object only if one of
+them lists it, matched on kind, namespace and name (group and version are
+not compared, and a document with no namespace is the release's). An
+object annotated with a live release that its manifest does not list,
+such as one a chart dropped under `helm.sh/resource-policy: keep` or a
+copy of a Helm object's YAML, is not held and not destroyed either: the
+plan warns `Annotated with a live Helm release, not in its manifest`,
+naming it and the release, and `live-ls` lists it with `annotated with
+live Helm release NAMESPACE/NAME, not in its manifest`
+(`not_in_release_manifest` in `-json`). Remove its
+`meta.helm.sh/release-name` annotation to let the sweep propose destroying
+it. A record that cannot be read or decoded holds every object annotated
+with its release. The sweep's credential therefore needs `list` on
+Secrets and ConfigMaps in the namespaces your releases live in, and `get`
+to read the manifest; the list is metadata-only, and only the one or two
+records needed are fetched, once per release per run. A refused list is
+reported as a denied gap for the kind being swept, and nothing in it is
+proposed; a refused `get` holds, as the annotation alone did before.
 Moving an object off Helm without re-creating it - adopting it into a
 `kubernetes_manifest` block by import, then removing the release's
 bookkeeping - leaves the annotation in place, because server-side apply

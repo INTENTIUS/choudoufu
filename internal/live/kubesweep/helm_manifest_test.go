@@ -16,6 +16,7 @@ import (
 	"strings"
 	"testing"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -443,5 +444,29 @@ func TestHelmReleaseReadsAreMetadataThenOneGet(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestHelmRecordGetRefusedHolds: a role that may list the release's
+// records but not get one (the grant before #1738 item 4 asked for list
+// alone) cannot read the manifest, and holds, as the annotation alone did
+// before: a missing grant never turns a release's object into an orphan
+// or a finding.
+func TestHelmRecordGetRefusedHolds(t *testing.T) {
+	for _, driver := range drivers {
+		t.Run(driver, func(t *testing.T) {
+			c, dyn, _ := manifestClient(t,
+				helmObject("v1", "Service", "web", "web-svc", "web", "web"),
+				helmObject("v1", "Service", "web", "web-old", "web", "web"),
+				helmStored(t, driver, "web", "web", 1, "deployed", manifest(svcDoc("web-svc", ""))),
+			)
+			dyn.PrependReactor("get", "*", func(action clienttesting.Action) (bool, runtime.Object, error) {
+				return true, nil, apierrors.NewForbidden(schema.GroupResource{Resource: action.GetResource().Resource}, "sh.helm.release.v1.web.v1", fmt.Errorf("RBAC: get not granted"))
+			})
+			got, skipped := sweepServices(t, c)
+			if len(got) != 0 || len(skipped.Unlisted) != 0 || !eq(heldNames(skipped.Held), "web/web-old", "web/web-svc") {
+				t.Errorf("orphans %v held %v unlisted %v, want both held: an unread manifest holds", importIDs(got), heldNames(skipped.Held), heldNames(skipped.Unlisted))
+			}
+		})
 	}
 }

@@ -149,6 +149,12 @@ func TestEveryRegisteredRefusalHasAStatedSeverity(t *testing.T) {
 			if SeverityForRefusal(r.Summary) != SeverityWarning {
 				t.Errorf("%q must be a warning, SeverityForRefusal says %v", r.Summary, SeverityForRefusal(r.Summary))
 			}
+		case r.Summary == SummaryHelmNotInManifest:
+			// GitHub issue #1738 item 4: a finding the sweep reports and
+			// acts on by proposing nothing, so the plan stands.
+			if SeverityForRefusal(r.Summary) != SeverityWarning {
+				t.Errorf("%q must be a warning, SeverityForRefusal says %v", r.Summary, SeverityForRefusal(r.Summary))
+			}
 		case fatal[r.Summary]:
 			if SeverityForRefusal(r.Summary) != SeverityError {
 				t.Errorf("%q is listed as fatal but SeverityForRefusal says %v",

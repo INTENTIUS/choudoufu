@@ -66,6 +66,10 @@ var refusals = []Refusal{
 		Doc:     `live/LIMITATIONS.md, "overlong-address"`,
 	},
 	{
+		Summary: "Annotated with a live Helm release, not in its manifest",
+		What:    "The Kubernetes sweep found an object carrying the estate's label and Helm's meta.helm.sh/release-name annotation, naming a release that still exists, whose manifest does not list it (GitHub issue #1738 item 4, ruled 2026-09-30). The release's latest record and its last deployed one are read metadata-first and decoded the way Helm's storage driver wrote them, and the object is matched on kind, namespace (the release's, for a document that gives none) and name. Unmatched, it is not the release's, so it is not reported as controller-held; it is not proposed for destroy either, so a wrong match can only ever raise this warning. A chart that dropped the object under helm.sh/resource-policy: keep, or a copy of a Helm object's YAML applied by hand, leaves it in this state. A record that cannot be read or decoded holds the object instead. A warning: the plan is unchanged by it.",
+	},
+	{
 		Summary: "Cannot list the record store",
 		What:    "The record-orphan-read leg (issue #364 ruling item 1) could not list the estate's record store to find untaggable resources whose configuration block was removed - an unreachable store, or a permissions problem underneath it.",
 	},
@@ -280,7 +284,7 @@ func SeverityForRefusal(summary string) Severity {
 	if kind, ok := problemKindForSummary(summary); ok {
 		return kind.Severity()
 	}
-	if summary == SummaryIncompleteSweep || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesSweepDenied || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable || summary == SummaryKubernetesDeleteHeld {
+	if summary == SummaryIncompleteSweep || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesSweepDenied || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable || summary == SummaryKubernetesDeleteHeld || summary == SummaryHelmNotInManifest {
 		// A gap in coverage, never a wrong plan: the run in front of the
 		// operator is correct and simply did not see everything. The held
 		// delete (GitHub issue #1184) is the same severity for a different

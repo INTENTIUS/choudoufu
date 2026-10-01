@@ -2616,6 +2616,7 @@ refused, and each says so in its own entry.
 | - | - | dataread | Data source provider manages no live object here | error | `internal/live/dataread` | "Data source provider manages no live object here" |
 | 0 | 0 | dataread | Data source read failed | error | `internal/live/dataread` | "Data source read failed" |
 | - | - | discovery | Address too long to carry an ownership marker | error | `internal/live/discovery` | "overlong-address" |
+| - | - | discovery | Annotated with a live Helm release, not in its manifest | warning | `internal/live/discovery` | "Annotated with a live Helm release, not in its manifest" |
 | - | - | discovery | Cannot list the record store | error | `internal/live/discovery` | "Cannot list the record store" |
 | - | - | discovery | Cloud Control identifier could not be composed | error | `internal/live/discovery` | "Cloud Control identifier could not be composed" |
 | - | - | discovery | Content match found more than one live candidate | error | `internal/live/discovery` | "Content match found more than one live candidate" |
@@ -2836,7 +2837,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**252 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**253 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -3065,6 +3066,14 @@ reserved for the limits wing's fixture directories, and
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
 **Full entry.** `live/LIMITATIONS.md`, "overlong-address" - hand-written, and the authority on this refusal.
+
+#### Annotated with a live Helm release, not in its manifest
+
+**What.** The Kubernetes sweep found an object carrying the estate's label and Helm's meta.helm.sh/release-name annotation, naming a release that still exists, whose manifest does not list it (GitHub issue #1738 item 4, ruled 2026-09-30). The release's latest record and its last deployed one are read metadata-first and decoded the way Helm's storage driver wrote them, and the object is matched on kind, namespace (the release's, for a document that gives none) and name. Unmatched, it is not the release's, so it is not reported as controller-held; it is not proposed for destroy either, so a wrong match can only ever raise this warning. A chart that dropped the object under helm.sh/resource-policy: keep, or a copy of a Helm object's YAML applied by hand, leaves it in this state. A record that cannot be read or decoded holds the object instead. A warning: the plan is unchanged by it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
 
 #### Cannot list the record store
 

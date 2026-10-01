@@ -1100,6 +1100,29 @@ func liveLsKubernetesList(ctx context.Context, estate string, sweeper kubesweep.
 			}
 			items = append(items, item)
 		}
+		// An object annotated with a live Helm release whose manifest does
+		// not list it (GitHub issue #1738 item 4) is listed with that
+		// release named: neither held nor an orphan, and the sweep
+		// proposes nothing for it. Like a held object it is never offered
+		// to the address-binding join.
+		for _, h := range skipped.Unlisted {
+			key := kubesweep.NaturalKey(h.Namespace, h.Name)
+			item := views.LiveLsItem{
+				ID:            key,
+				Type:          typeName,
+				Kind:          k.Kind,
+				APIVersion:    k.APIVersion,
+				Source:        "kubernetes",
+				Tags:          h.Labels,
+				NotInManifest: h.HeldBy,
+			}
+			if addr, ok := declared.Declares(k.Kind, key); ok {
+				item.Address = addr.String()
+				item.Declared = true
+				item.Type = addr.Resource.Resource.Type
+			}
+			items = append(items, item)
+		}
 	}
 
 	// Decided once every kind is listed, because whether the address

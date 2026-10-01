@@ -87,3 +87,33 @@ func TestLiveLsJSON_ControllerHeldCarriesHeldBy(t *testing.T) {
 		t.Errorf("an ordinary item carries held_by: %v", doc.Items[1])
 	}
 }
+
+// GitHub issue #1738 item 4: an object annotated with a live Helm release
+// whose manifest does not list it is listed with the release named, and
+// is not rendered as held.
+func TestLiveLs_HelmNotInManifest(t *testing.T) {
+	item := LiveLsItem{
+		ID: "web/web-old", Type: "kubernetes_config_map_v1", Kind: "ConfigMap", APIVersion: "v1",
+		Source: "kubernetes", Tags: map[string]string{"tofu-estate": "smoke-k8s"},
+		NotInManifest: "Helm release web/web",
+	}
+	streams, done := terminal.StreamsForTesting(t)
+	(&LiveLsHuman{view: NewView(streams)}).Report(LiveLsReport{Estate: "smoke-k8s", Items: []LiveLsItem{item}})
+	out := done(t).Stdout()
+	if !strings.Contains(out, "  annotated with live Helm release web/web, not in its manifest (not swept)\n") || strings.Contains(out, "held by:") {
+		t.Errorf("human output:\n%s", out)
+	}
+	js := renderLiveLsJSON(t, LiveLsReport{Estate: "smoke-k8s", Items: []LiveLsItem{item}})
+	var doc struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(js), &doc); err != nil {
+		t.Fatalf("not JSON: %s\n%s", err, js)
+	}
+	if doc.Items[0]["not_in_release_manifest"] != "Helm release web/web" {
+		t.Errorf("item = %v, want not_in_release_manifest", doc.Items[0])
+	}
+	if _, present := doc.Items[0]["held_by"]; present {
+		t.Errorf("an unlisted item carries held_by: %v", doc.Items[0])
+	}
+}

@@ -571,7 +571,7 @@ func TestControllerMadeHelmRelease(t *testing.T) {
 }
 
 // releaseSecret builds one Helm release history Secret: the object
-// [Client.helmReleaseExists] looks for, named and labelled the way Helm 3
+// [Client.helmReleaseContents] looks for, named and labelled the way Helm 3
 // writes it.
 func releaseSecret(ns, name string, revision int) *unstructured.Unstructured {
 	u := &unstructured.Unstructured{}
