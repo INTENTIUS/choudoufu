@@ -337,6 +337,10 @@ var refusals = []Refusal{
 		Summary: "Unsupported resource type for the provider",
 		What:    "A resource's type is not one the configured provider serves.",
 	},
+	{
+		Summary: SummaryRemovalProviderNotConfigured,
+		What:    "GitHub issue #1729: a resource this estate owns has no resource block left, and the provider the run would read it through does not serve its type, usually because the provider and its resources were removed in one edit. The refusal names the address, the type and the provider the record store holds it under; adding that provider's configuration back lets the removal be planned. A skip would drop the removal silently.",
+	},
 	// GitHub issue #1371: the cross-estate output read (estateoutputs.go).
 	{
 		Summary: SummaryEstateOutputsDenied,
