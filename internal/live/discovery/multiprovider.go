@@ -245,6 +245,7 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 	sweepGapSeen := make(map[string]bool)
 	sweepCoveredSeen := make(map[string]bool)
 	addressBound := make(map[string]bool)
+	deposedSeen := make(map[string]bool)
 
 	// recordRemoval is where each record-orphan removal already sits in
 	// res.Resolutions, keyed by address (GitHub issue #1721). A record whose
@@ -276,6 +277,24 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 		res.CacheVouchSightings = res.CacheVouchSightings.Union(p.Result.CacheVouchSightings)
 		res.DeclaredSightings = append(res.DeclaredSightings, p.Result.DeclaredSightings...)
 		res.Orphans = append(res.Orphans, p.Result.Orphans...)
+		// GitHub issue #1780: a deposed object a pass settled (the AWS
+		// collision's #361 recovery, or the Kubernetes leg's #1683) is
+		// marked handled in that pass - neither bound nor an orphan - and
+		// reaches the projection only through this field. Dropping it here
+		// left the object handled by nobody on every estate with two
+		// provider configurations: no deposed destroy, no orphan, no
+		// collision, and a plan reading "No changes." over a live object
+		// carrying the block's address. One entry per address and deposed
+		// key: only the pass owning the block settles it, but two passes
+		// handing in the same object must not fold it in twice.
+		for _, db := range p.Result.DeposedBindings {
+			key := db.Addr.String() + "\x00" + string(db.DeposedKey)
+			if deposedSeen[key] {
+				continue
+			}
+			deposedSeen[key] = true
+			res.DeposedBindings = append(res.DeposedBindings, db)
+		}
 		for _, g := range p.Result.SweepGaps {
 			key := g.TypeName + "\x00" + string(g.Reason)
 			if sweepGapSeen[key] {
