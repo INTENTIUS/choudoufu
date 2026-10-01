@@ -191,3 +191,44 @@ func TestKubernetesAddressBindingsAgreesOnADeposedRecord(t *testing.T) {
 		t.Fatalf("live-ls binds %v, want index 1 (ns/cfg-b) alone at %s", got, cfg)
 	}
 }
+
+// TestMergeCarriesAKubernetesDeposedBinding is GitHub issue #1780: the
+// deposed record settles the collision in the Kubernetes pass, and the
+// estate has a second provider configuration (corpus-quickpizza's helm
+// provider, beside its kubernetes one), so discovery runs one pass per
+// configuration and [Merge] combines them. The settled pass marks the
+// deposed object handled - it is neither bound nor an orphan - and hands
+// the object over only through [Result.DeposedBindings]. A merge that
+// drops that field leaves the object handled by nobody: no deposed
+// destroy, no orphan, no collision, and the plan reads "No changes."
+func TestMergeCarriesAKubernetesDeposedBinding(t *testing.T) {
+	cfg := k8sInstance(t, "kubernetes_config_map", "crash_rename_read")
+	res, diags := k8sDeposedSweep(t, cfg, []kubesweep.Object{
+		labelled("ConfigMap", "ns", "cfg-a", cfg.String()),
+		labelled("ConfigMap", "ns", "cfg-b", cfg.String()),
+	}, nil, map[string]bool{cfg.String(): true}, map[string]map[string]projection.DeposedRecord{cfg.String(): deposedCfgA("ns/cfg-a")})
+	if hasCollision(diags) || len(res.DeposedBindings) != 1 {
+		t.Fatalf("the pass itself did not settle the collision (deposed %+v): %v", res.DeposedBindings, diags.ErrWithWarnings())
+	}
+
+	kube := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("kubernetes")}
+	helm := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("helm")}
+	for _, order := range []struct {
+		name   string
+		passes []Pass
+	}{
+		{"kubernetes first", []Pass{{Provider: kube, Result: res}, {Provider: helm, Result: &Result{}}}},
+		{"helm first", []Pass{{Provider: helm, Result: &Result{}}, {Provider: kube, Result: res}}},
+	} {
+		t.Run(order.name, func(t *testing.T) {
+			merged, _, mergeDiags := Merge("m1116", order.passes, false)
+			assertNoErrors(t, mergeDiags)
+			if len(merged.DeposedBindings) != 1 || merged.DeposedBindings[0].ImportID != "ns/cfg-a" || merged.DeposedBindings[0].Addr.String() != cfg.String() {
+				t.Fatalf("merged deposed bindings = %+v, want exactly ns/cfg-a at %s: the pass settled ns/cfg-a as the address's deposed object, and without it nothing proposes destroying it", merged.DeposedBindings, cfg)
+			}
+			if len(merged.Orphans) != 0 || len(merged.ProblemsOfKind(ProblemCollision)) != 0 {
+				t.Errorf("orphans %v, collisions %v; the record settled the collision", merged.Orphans, merged.ProblemsOfKind(ProblemCollision))
+			}
+		})
+	}
+}
