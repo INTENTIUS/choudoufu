@@ -1,14 +1,15 @@
 # Proof
 
-Eight scenarios run on a real cluster. Three are the Kubernetes proofs of
+Nine scenarios run on a real cluster. Three are the Kubernetes proofs of
 promises first proven on AWS: the marker itself (claim 7), the sweep that
 finds a deleted block's object by it (claim 1), and the admission policy
 that fences a write by it (claim 13, and claim 12's carve through it).
-Five are Kubernetes promises of their own: a custom resource bound by the
+Six are Kubernetes promises of their own: a custom resource bound by the
 natural key inside its manifest, carrying the label and swept by it, a delete the platform has accepted and
 not finished, admission getting the last word over a plan, a label edit as
-an ordinary change, and records kept in the cluster (whose steps also
-prove six of the bucket store's promises on Kubernetes). A claim is a
+an ordinary change, records kept in the cluster (whose steps also
+prove six of the bucket store's promises on Kubernetes), and a deleted
+namespace read as gone. A claim is a
 promise and proof is per provider
 ([#1112](https://github.com/INTENTIUS/choudoufu/issues/1112)), so every
 other Kubernetes cell is stated in the claims data rather than left
@@ -21,7 +22,7 @@ https://intentius.io/choudoufu/kubernetes/proof/.
 
 ## In CI
 
-The eight Kubernetes scenarios run on a kind cluster in GitHub Actions
+The nine Kubernetes scenarios run on a kind cluster in GitHub Actions
 nightly, each with its `BREAK=1` control, and the Gauntlet workflow
 re-measures the kubernetes lane's estates whenever it re-measures the AWS
 rows

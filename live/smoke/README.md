@@ -41,6 +41,7 @@ just smoke k8s-custom-resource # a kubernetes_manifest block binds by the natura
 just smoke k8s-a-held-delete-is-not-gone # a finalizer holds a delete: the run says destroyed, the object stays, and every plan proposes it again until it is gone (#1110)
 just smoke k8s-the-server-gets-the-last-word # admission after the plan: a fail-closed webhook refuses an approved write, a mutating policy rewrites a declared field, and one that strips tofu-estate leaves an object the estate cannot claim (#1110)
 just smoke k8s-a-label-is-a-change # a label or annotation edited in the configuration plans and applies like any other change, a key the configuration never declared stays the server's, and a second directory removes the same label over records shared as Secrets and as bucket objects (#1177, #1394; the bucket half needs Docker and the AWS CLI as well as kind)
+just smoke k8s-a-deleted-namespace-is-gone # fault 5 of #1110: kubectl delete namespace under a converged estate; the plan reads its objects as gone and proposes stock's creates, and a deleted record-store namespace is refused by name (#1765)
 just smoke a-held-delete-is-not-gone # claim 25 on AWS: a secret deleted with a recovery window stays in the account, and the plans after it read it as the provider does, empty (#1599)
 just smoke the-server-gets-the-last-word # claim 26 on AWS: a Deny landing after approval refuses the approved apply in AWS's words, and the same plan file applies once it lifts (#1599)
 just smoke full           # the comprehensive 15-step harness (~6 minutes)
