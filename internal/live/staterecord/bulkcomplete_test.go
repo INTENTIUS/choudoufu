@@ -486,6 +486,9 @@ func TestKubernetesBulkReadIsNeverShort(t *testing.T) {
 		{name: "key annotation rewritten to a key outside the listed prefix", wantErr: true, mutate: func(s *corev1.Secret) {
 			s.Annotations[KubernetesRecordKeyAnnotation] = "tofu-outputs/prod/elsewhere"
 		}},
+		{name: "estate label changed to another estate's", wantErr: true, mutate: func(s *corev1.Secret) {
+			s.Labels[KubernetesEstateLabel] = "staging"
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -504,4 +507,49 @@ func TestKubernetesBulkReadIsNeverShort(t *testing.T) {
 			assertNoShortSnapshot(t, store, bulkNS, keys)
 		})
 	}
+}
+
+// TestKubernetesRecordRelabelledToAnotherEstateIsRefusedByBothReads is the
+// shape the per-store matrix above left for a ruling: a record of this estate
+// whose tofu-estate label was changed to another estate's name, with the
+// managed-by label kept. The listing skipped it as the other estate's record
+// while Get, which finds a record by name and checks only the annotation,
+// served it - so a RunCache answered "no record" for it with no error.
+//
+// Ruled 2026-09-30: both reads refuse it by name. A foreign object whose key
+// is outside the listed prefix is still skipped, which is what keeps a shared
+// namespace working (TestKubernetesListIgnoresForeignSecrets).
+func TestKubernetesRecordRelabelledToAnotherEstateIsRefusedByBothReads(t *testing.T) {
+	ctx := context.Background()
+	secrets := fakeSecrets(t)
+	store, err := NewKubernetesStore(KubernetesConfig{Secrets: secrets, Namespace: fakeRecordNamespace, Estate: "prod"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := []string{bulkNS + "terraform_data/a", bulkNS + "terraform_data/b"}
+	for _, key := range keys {
+		if _, err := store.PutIfAbsent(ctx, key, []byte(key)); err != nil {
+			t.Fatalf("seeding %q: %v", key, err)
+		}
+	}
+	relabelled := keys[1]
+	secret, err := secrets.Get(ctx, store.SecretName(relabelled), metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret.Labels[KubernetesEstateLabel] = "staging"
+	if _, err := secrets.Update(ctx, secret, metav1.UpdateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	if got, err := store.GetAll(ctx, bulkNS); err == nil {
+		t.Errorf("GetAll returned %d records and no error with %q labelled as another estate's", len(got), relabelled)
+	}
+	if keys, err := store.List(ctx, bulkNS); err == nil {
+		t.Errorf("List returned %v and no error with %q labelled as another estate's", keys, relabelled)
+	}
+	if _, _, exists, err := store.Get(ctx, relabelled); err == nil {
+		t.Errorf("Get of %q answered exists=%v with no error, though its Secret is labelled as another estate's", relabelled, exists)
+	}
+	assertNoShortSnapshot(t, store, bulkNS, keys)
 }
