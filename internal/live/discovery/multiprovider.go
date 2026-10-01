@@ -135,7 +135,10 @@ func (p Pass) label() string {
 // see the ScopeProvider reasoning above for why only one pass could ever
 // have bound it. An address with no resource block (Undeclared true) has
 // no such owner to deduplicate against and is unique to the pass that
-// found it, subject to the collision handling below.
+// found it, subject to the collision handling below - except a removal read
+// from the record store ([identity.Resolution.RecordRooted]) whose record
+// names no managing configuration, which every pass serving the type
+// proposes and which is kept once (GitHub issue #1721).
 //
 // Orphans are the one field that is not simply concatenated, because an
 // orphan carries no configuration to say which provider it "belongs" to -
@@ -242,6 +245,17 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 	sweepCoveredSeen := make(map[string]bool)
 	addressBound := make(map[string]bool)
 
+	// recordRemoval is where each record-orphan removal already sits in
+	// res.Resolutions, keyed by address (GitHub issue #1721). A record whose
+	// envelope names its managing configuration is proposed by that pass
+	// alone ([recordOrphanReadSweep]), but one older than #389 names none,
+	// and every pass whose provider serves the type proposes it: two aws
+	// configurations both did, and the merge used to keep both removals
+	// and read the object through whichever pass sorted last. The
+	// projection then materialized one and reported the other as a
+	// relocated instance it was not.
+	recordRemoval := make(map[string]int)
+
 	for pi, p := range passes {
 		p.Result.AttributeOrphans(p.Provider)
 		res.Bindings = append(res.Bindings, p.Result.Bindings...)
@@ -331,9 +345,25 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 				// destroy it is held back.
 				continue
 			}
-			// Undeclared resolutions (orphan removals, parent-read
-			// removals) have no config-declared owner to deduplicate
-			// against: each one is unique to the pass that found it.
+			if r.RecordRooted {
+				key := r.Addr.String()
+				if at, dup := recordRemoval[key]; dup && res.Resolutions[at].ImportID == r.ImportID {
+					// The same record read by a second pass: one removal,
+					// read through the default configuration when one of
+					// the proposing passes is it (nothing in the record
+					// says which one managed it), else the first.
+					if isDefaultConfig(p.Provider) && !isDefaultConfig(providerOf[key]) {
+						res.Resolutions[at] = r
+						providerOf[key] = p.Provider
+					}
+					continue
+				}
+				recordRemoval[key] = len(res.Resolutions)
+			}
+			// Every other undeclared resolution (a tag-found orphan, a
+			// parent-read removal) has no config-declared owner to
+			// deduplicate against: each one is unique to the pass that
+			// found it.
 			res.Resolutions = append(res.Resolutions, r)
 			providerOf[r.Addr.String()] = p.Provider
 		}
@@ -580,4 +610,11 @@ func (r *Result) AttributeOrphans(provider addrs.AbsProviderConfig) {
 			r.Orphans[i].Provider = provider
 		}
 	}
+}
+
+// isDefaultConfig reports whether p is a provider's default configuration:
+// unaliased and declared in the root module, the one a resource block with
+// no provider argument uses.
+func isDefaultConfig(p addrs.AbsProviderConfig) bool {
+	return p.Alias == "" && p.Module.IsRoot()
 }

@@ -295,7 +295,7 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			continue
 		}
 
-		rec, _, keyExists, identityFound, err := store.GetIdentity(ctx, addr)
+		rec, recordedProvider, keyExists, identityFound, err := store.GetIdentityWithProvider(ctx, addr)
 		if err != nil {
 			diags = diags.Append(problemDiag(res, Problem{
 				Kind:     ProblemLocatedRecordUnreadable,
@@ -309,6 +309,21 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			// Not a kind=identity record at all - a kind=object record is
 			// [builder.discoverOrphanedRecords]'s own population, and a key
 			// this store cannot decode is not this leg's to guess at.
+			continue
+		}
+		if req.ScopeProvider.Provider.Type != "" && recordedProvider != "" && recordedProvider != req.ScopeProvider.String() {
+			// GitHub issue #1721: the record names the provider
+			// configuration that managed the object at its last write
+			// (#389), and it is not this pass's. Two configurations of one
+			// provider (aws and aws.west) both serve the type, so the
+			// schema check above lets both passes through; the record is
+			// what tells them apart, and only the pass it names may read
+			// and destroy the object. A record naming a configuration no
+			// pass runs for (an alias renamed or removed) is proposed by
+			// no pass: reading its identity through another region or
+			// account could find a different object of the same name.
+			// An empty Provider (an envelope older than #389) falls back
+			// to the schema check alone, and [Merge] keeps one removal.
 			continue
 		}
 		importID := rec.ImportID

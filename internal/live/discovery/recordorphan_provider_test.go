@@ -139,3 +139,49 @@ func TestRecordOrphanWithNoRecordedProviderProposesOnce(t *testing.T) {
 	merged, providerOf := twoAWSPassMerge(t, addrs.AbsProviderConfig{})
 	assertOneRemovalThrough(t, merged, providerOf, awsDefaultProv)
 }
+
+// TestRecordOrphanNamingNoRunningConfigIsProposedByNoPass pins the case the
+// issue left for decision: the record names aws.east, an alias since
+// removed, so no pass is the one it names. Nothing is proposed: reading its
+// identity through aws or aws.west could reach a different object of the
+// same name in another region or account, and a missed removal is
+// recoverable where a wrong destroy is not.
+func TestRecordOrphanNamingNoRunningConfigIsProposedByNoPass(t *testing.T) {
+	east := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("aws"), Alias: "east"}
+	merged, _ := twoAWSPassMerge(t, east)
+	for _, r := range merged.Resolutions {
+		if r.Undeclared {
+			t.Errorf("%s is proposed for removal although the record names %s, which no pass reads through", r.Addr, east)
+		}
+	}
+}
+
+// TestRecordOrphanSinglePassIgnoresTheRecordedProvider is the single-pass
+// control: an unscoped pass (one provider configuration, the path every
+// caller took before #69) proposes the record whatever configuration it
+// names, as it did before #1721.
+func TestRecordOrphanSinglePassIgnoresTheRecordedProvider(t *testing.T) {
+	ctx := context.Background()
+	const estate = "alb"
+	raw, err := staterecord.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewLocalStore: %s", err)
+	}
+	store := projection.NewRecordEnvelopeStore(raw, projection.RecordKeyPrefix(estate))
+	addr := mustAddr(t, "aws_lb_target_group_attachment.other")
+	if _, err := projection.SeedLocatedForInstance(ctx, store, addr, awsWestProv, projection.LocatedRecord{
+		Components: map[string]string{"target_group_arn": tgaARN, "target_id": tgaTID, "port": "80"},
+	}); err != nil {
+		t.Fatalf("seeding the record: %s", err)
+	}
+	res := &Result{Estate: estate}
+	req := Request{Estate: estate, HintStore: raw, VouchProvider: awsDefaultProv, Sweep: true}
+	if d := recordOrphanReadSweep(ctx, req, targetGroupAttachmentSchemas(t), res); d.HasErrors() {
+		t.Fatalf("record leg: %s", d.Err())
+	}
+	merged, providerOf, mdiags := Merge(estate, []Pass{{Provider: awsDefaultProv, Result: res}}, false)
+	if mdiags.HasErrors() {
+		t.Fatalf("Merge: %s", mdiags.Err())
+	}
+	assertOneRemovalThrough(t, merged, providerOf, awsDefaultProv)
+}
