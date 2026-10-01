@@ -255,8 +255,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: SummaryNoPostCreateWrite,
-		Warning: true,
-		What:    "GitHub issue #1742: the instance's provider family says its create call cannot carry the ownership marker, so the node writer would withhold it from the create, and the family's answers name nothing that would write it afterwards - its surface's post-create write is never-needed or unanswered, or the family carries the block address outside the marker map such a write sets. A warning at plan, before anything is created, naming the instance and the answer that disagrees; the apply then creates the object and fails with \"Created object is not marked\", because it carries no marker naming the estate. No AWS or Kubernetes type reaches it; it guards a family whose answers disagree.",
+		What:    "GitHub issue #1742: the instance's provider family says its create call cannot carry the ownership marker, so the node writer would withhold it from the create, and the family's answers name nothing that would write it afterwards - its surface's post-create write is never-needed or unanswered, or the family carries the block address outside the marker map such a write sets. An error at plan, before anything is created, naming the instance and the answer that disagrees: creating the object would leave it carrying no marker naming the estate, and nothing is created silently. No AWS or Kubernetes type reaches it; it guards a family whose answers disagree.",
 	},
 	{
 		Summary: "Ownership marker is not a legal label value",

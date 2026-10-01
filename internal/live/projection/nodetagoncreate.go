@@ -97,9 +97,9 @@ import (
 // raises.
 const SummaryMarkerNotWritten = "Created object is not marked"
 
-// SummaryNoPostCreateWrite is the create-side warning of GitHub issue
-// #1742: the family withholds the marker from the create and has no write
-// to put it back.
+// SummaryNoPostCreateWrite is the create-side refusal of GitHub issue
+// #1742: the family would withhold the marker from the create and has no
+// write to put it back.
 const SummaryNoPostCreateWrite = "Object would be created without its marker"
 
 // CreatedInstance is what a post-create marker write addresses (GitHub
@@ -445,14 +445,11 @@ func markedOnPath(pvm []cty.PathValueMarks, path cty.Path) bool {
 // instance is not being created.
 //
 // A create whose family would withhold the markers with nothing to write
-// them afterwards (GitHub issue #1742) is still withheld - the family's
-// own answer is that its create call cannot carry them - and is warned
-// about here, at plan, before any object exists. The write side
-// ([NodeResolver.WriteAppliedMarkers]) then fails the apply naming the
-// created object, as a failed post-create write always has. A plan-time
-// error instead is a ruling this unit did not take: it would refuse the
-// instance outright, and TestNodeResolver_AdjustCreateConfigValue_withholdsLabelsWhenTheFamilySays
-// pins that a withholding family's create plans without an error.
+// them afterwards (GitHub issue #1742) is refused here, at plan, before any
+// object exists: creating it would leave an object carrying no marker, and
+// nothing is created or dropped silently. The write side
+// ([NodeResolver.WriteAppliedMarkers]) still fails the apply naming the
+// object, for a create this refusal did not see.
 func (n *NodeResolver) withholdsAtCreate(addr addrs.AbsResourceInstance, surface markers.Surface, creating bool) (bool, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	if !creating {
@@ -460,8 +457,8 @@ func (n *NodeResolver) withholdsAtCreate(addr addrs.AbsResourceInstance, surface
 	}
 	why, _, needed, err := n.postCreateNeeded(substrate.Created{Addr: addr}, surface)
 	if needed && err != nil {
-		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryNoPostCreateWrite,
-			fmt.Sprintf("%s will be created without its ownership markers: %s, so this run withholds them from the create, and %s. The apply will fail once the object exists, naming it; it will carry no marker naming estate %q, and the next plan will not find it at this address.",
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryNoPostCreateWrite,
+			fmt.Sprintf("%s cannot be created marked: %s, so this run would withhold the ownership markers from the create, and %s. Creating it would leave an object carrying no marker naming estate %q, which the next plan would not find at this address, so it is not created.",
 				addr, why, err, n.Estate)))
 	}
 	return needed, diags

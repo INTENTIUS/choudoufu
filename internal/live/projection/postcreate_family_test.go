@@ -64,19 +64,19 @@ func (silentFamily) PostCreateNeeded(surface markers.Surface, created substrate.
 	return "", false
 }
 
-// TestPostCreate_aWithheldCreateWithNoWriterIsWarnedBeforeTheCreate: a
+// TestPostCreate_aWithheldCreateWithNoWriterIsRefusedBeforeTheCreate: a
 // family that withholds the marker from the create and names no write to
 // put it there afterwards would create an object nobody owns. The create
-// side says so at plan rather than withholding silently.
-func TestPostCreate_aWithheldCreateWithNoWriterIsWarnedBeforeTheCreate(t *testing.T) {
+// side refuses at plan, an error, rather than withholding silently.
+func TestPostCreate_aWithheldCreateWithNoWriterIsRefusedBeforeTheCreate(t *testing.T) {
 	withFamilyFirst(t, silentFamily{substrate.AWS})
 
 	n := &NodeResolver{Estate: "prod"}
 	thing := locatedTestAddr(t, "silent_thing", "x")
 	got, diags := n.AdjustCreateConfigValue(context.Background(), thing, tocConfig(cty.NullVal(cty.Map(cty.String))), tocSchema())
 	t.Logf("create withheld: tags null = %v, diags=%d", got.GetAttr("tags").IsNull(), len(diags))
-	if len(diags) != 1 || diags[0].Severity() != tfdiags.Warning || diags[0].Description().Summary != "Object would be created without its marker" {
-		t.Fatalf("the create withheld its markers with no post-create write to replace them, and nothing said so: %v", diags)
+	if len(diags) != 1 || diags[0].Severity() != tfdiags.Error || diags[0].Description().Summary != "Object would be created without its marker" {
+		t.Fatalf("the create withheld its markers with no post-create write to replace them, and nothing refused at plan: %v", diags)
 	}
 	detail := diags[0].Description().Detail
 	for _, want := range []string{"silent_thing.x", "silent_thing cannot take its marker in the create call (silent rules)", `"never-needed"`, "silent"} {

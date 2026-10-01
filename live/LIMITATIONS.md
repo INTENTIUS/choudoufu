@@ -2812,7 +2812,7 @@ refused, and each says so in its own entry.
 | - | - | projection | No provider for an undeclared resource | error | `internal/live/projection` | "No provider for an undeclared resource" |
 | - | - | projection | No source for this instance's identity | error | `internal/live/projection` | "No source for this instance's identity" |
 | - | - | projection | No state returned by the provider | error | `internal/live/projection` | "No state returned by the provider" |
-| - | - | projection | Object would be created without its marker | warning | `internal/live/projection` | "Object would be created without its marker" |
+| - | - | projection | Object would be created without its marker | error | `internal/live/projection` | "Object would be created without its marker" |
 | - | - | projection | Ownership marker conflict | error | `internal/live/projection` | "Ownership marker conflict" |
 | - | - | projection | Ownership marker is not a legal label value | error | `internal/live/projection` | "Ownership marker is not a legal label value" |
 | - | - | projection | Ownership marker was not stored | error | `internal/live/projection` | "Ownership marker was not stored" |
@@ -4470,7 +4470,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Object would be created without its marker
 
-**What.** GitHub issue #1742: the instance's provider family says its create call cannot carry the ownership marker, so the node writer would withhold it from the create, and the family's answers name nothing that would write it afterwards - its surface's post-create write is never-needed or unanswered, or the family carries the block address outside the marker map such a write sets. A warning at plan, before anything is created, naming the instance and the answer that disagrees; the apply then creates the object and fails with "Created object is not marked", because it carries no marker naming the estate. No AWS or Kubernetes type reaches it; it guards a family whose answers disagree.
+**What.** GitHub issue #1742: the instance's provider family says its create call cannot carry the ownership marker, so the node writer would withhold it from the create, and the family's answers name nothing that would write it afterwards - its surface's post-create write is never-needed or unanswered, or the family carries the block address outside the marker map such a write sets. An error at plan, before anything is created, naming the instance and the answer that disagrees: creating the object would leave it carrying no marker naming the estate, and nothing is created silently. No AWS or Kubernetes type reaches it; it guards a family whose answers disagree.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
