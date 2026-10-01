@@ -51,7 +51,8 @@ type LiveMv struct {
 
 // BindLiveMv registers live-mv's options and its two addresses on cli.
 //
-// Options come before the two addresses, the way every other command's do.
+// Options may sit before or after the two addresses under the new CLI;
+// the legacy CLI's stdlib parser still stops at the first address.
 // The addresses are left unparsed here; the command parses them as resource
 // instance addresses, which is where the diagnostic about a malformed one
 // belongs. See [BindLiveBucket] for why -json is the command's own.
@@ -82,7 +83,7 @@ func BindLiveMv(cli *CommandLine) *LiveMv {
 				tfdiags.Error,
 				"Two resource addresses are required",
 				fmt.Sprintf(
-					"A rename names the address the live resource carries now and the one to write onto it, in that order. Got %d argument(s); options come before the addresses.",
+					"A rename names the address the live resource carries now and the one to write onto it, in that order. Got %d argument(s).",
 					len(rest)),
 			))
 		}

@@ -453,22 +453,24 @@ resource "aws_security_group" "renamed" {
 // required, and both have to parse.
 //
 // The exit code splits the two kinds of bad command line, the way every other
-// command in this package splits them. A command line the flag parser could
-// not make sense of returns cli.RunResultHelp, which prints the usage text
-// after the diagnostic; anything the parser accepted and a later check
-// rejected - an address that will not parse, two addresses that name the same
-// resource - is an ordinary failure, and printing the usage text at it would
-// be answering a question nobody asked.
+// command in this package splits them since OpenTofu v1.13.0's CLI. A command
+// line the flag parser could not make sense of returns cli.RunResultHelp,
+// which prints the usage text after the diagnostic. Anything the parser
+// accepted and a later check rejected is an ordinary failure, exit 1, with
+// RunCli's one-line pointer to -help rather than the whole usage text: the
+// address count (arguments.BindLiveMv's pre-hook, the same stage every
+// Bind* validation runs at), an address that will not parse, two addresses
+// that name the same resource.
 func TestLiveMv_badArguments(t *testing.T) {
 	for name, tc := range map[string]struct {
 		args     []string
 		want     string
 		wantCode int
 	}{
-		"no addresses":  {[]string{}, "Two resource addresses are required", cli.RunResultHelp},
-		"one address":   {[]string{"aws_vpc.main"}, "Two resource addresses are required", cli.RunResultHelp},
-		"three":         {[]string{"a.b", "c.d", "e.f"}, "Two resource addresses are required", cli.RunResultHelp},
-		"unknown flag":  {[]string{"-nope", "aws_vpc.main", "aws_vpc.other"}, "Invalid option", cli.RunResultHelp},
+		"no addresses":  {[]string{}, "Two resource addresses are required", 1},
+		"one address":   {[]string{"aws_vpc.main"}, "Two resource addresses are required", 1},
+		"three":         {[]string{"a.b", "c.d", "e.f"}, "Two resource addresses are required", 1},
+		"unknown flag":  {[]string{"-nope", "aws_vpc.main", "aws_vpc.other"}, "flag provided but not defined: -nope", cli.RunResultHelp},
 		"unparseable":   {[]string{"aws_vpc", "aws_vpc.main"}, "Invalid address", 1},
 		"same address":  {[]string{"aws_vpc.main", "aws_vpc.main"}, "Identical source and destination addresses", 1},
 		"data resource": {[]string{"data.aws_vpc.a", "data.aws_vpc.b"}, "Unsupported address for a rename", 1},
