@@ -65,6 +65,7 @@ jobs:
           - { runson: ubuntu-latest, goos: linux, goarch: "arm" }
           - { runson: macos-latest, goos: darwin, goarch: "arm64" }
           - { runson: windows-latest, goos: windows, goarch: "amd64" }
+          - { runson: windows-11-arm, goos: windows, goarch: "arm64" }
       fail-fast: false
     steps:
       # 👇🏾 GH actions supports only "AMD64 arch", so we are using this action
@@ -104,7 +105,7 @@ jobs:
       # it for select packages.
       - name: "Race detector"
         run: |
-          go test -race ./internal/tofu ./internal/command ./internal/states ./internal/providercache ./internal/addrs
+          go test -race ./internal/tofu ./internal/command ./internal/states ./internal/providercache ./internal/addrs ./internal/tfdiags
 
   e2e-tests:
     # This is an intentionally-limited form of our E2E test run which only

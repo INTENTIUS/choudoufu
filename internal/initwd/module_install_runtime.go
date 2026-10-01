@@ -40,10 +40,10 @@ func (i *ModuleInstaller) installDescendentModulesNewRuntime(ctx context.Context
 			mod, version, diags := installWalker.LoadModule(ctx, req)
 			instDiags = instDiags.Extend(diags)
 			return mod, version, diags
-		})
+		}, i.loader.LoadSymbolFilesInDir)
 	}
 
-	root, hclDiags := i.loader.LoadConfigDirUneval(rootDir, configs.SelectiveLoadAll)
+	root, hclDiags := i.loader.LoadConfigDir(rootDir)
 	diags = diags.Append(hclDiags)
 	if diags.HasErrors() {
 		return nil, diags

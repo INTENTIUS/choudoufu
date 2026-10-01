@@ -92,6 +92,14 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// RunCommander handles simulating the arg handling that is typically available
+// through the cli package
+func RunCommander(t *testing.T, cmd Command, meta Meta, args []string) int {
+	diags := cmd.CommandLine.ParseDirect(t.Context(), args)
+	return RunCli("testing", cmd, meta, diags)
+
+}
+
 // tempWorkingDir constructs a workdir.Dir object referring to a newly-created
 // temporary directory. The temporary directory is automatically removed when
 // the test and all its subtests complete.
@@ -708,7 +716,7 @@ func testBackendState(t *testing.T, s *states.State, c int) (*clistate.CLIState,
 	backendConfig := &configs.Backend{
 		Type:   "http",
 		Config: configs.SynthBody("<testBackendState>", map[string]cty.Value{}),
-		Eval:   configs.NewStaticEvaluator(nil, configs.RootModuleCallForTesting()),
+		Eval:   configs.NewStaticEvaluator(nil, nil, configs.RootModuleCallForTesting()),
 	}
 	httpBackendInit, _ := backendInit.Backend("http")
 	b := httpBackendInit(encryption.StateEncryptionDisabled())
@@ -934,14 +942,6 @@ func normalizeJSON(t *testing.T, src []byte) string {
 		t.Fatalf("error normalizing JSON: %s", err)
 	}
 	return buf.String()
-}
-
-func mustResourceAddr(s string) addrs.ConfigResource {
-	addr, diags := addrs.ParseAbsResourceStr(s)
-	if diags.HasErrors() {
-		panic(diags.Err())
-	}
-	return addr.Config()
 }
 
 // This map from provider type name to namespace is used by the fake registry
@@ -1243,11 +1243,9 @@ func TestVarsParsing(t *testing.T) {
 		t.Cleanup(testStdinPipe(t, strings.NewReader("var.foo\nvar.snack\n")))
 		streams, done := terminal.StreamsForTesting(t)
 		c := &ConsoleCommand{
-			Meta: Meta{
-				WorkingDir:       workdir.NewDir("."),
-				testingOverrides: metaOverridesForProvider(p),
-				View:             views.NewView(streams),
-			},
+			WorkingDir:       workdir.NewDir("."),
+			testingOverrides: metaOverridesForProvider(p),
+			View:             views.NewView(streams),
 		}
 
 		args := append([]string{"-no-color", "-lock=false"}, varArgs...)

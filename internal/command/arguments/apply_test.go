@@ -10,11 +10,11 @@ import (
 	"testing"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/opentofu/opentofu/internal/command/flags"
+	"github.com/opentofu/opentofu/internal/collections"
+	"github.com/opentofu/opentofu/internal/linting"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/plans"
 )
@@ -28,9 +28,12 @@ func TestParseApply_basicValid(t *testing.T) {
 			nil,
 			&Apply{
 				AutoApprove: false,
-				ViewOptions: ViewOptions{
-					InputEnabled: true,
-					ViewType:     ViewHuman,
+				View: &View{
+					ConsolidateWarnings: true,
+					InputEnabled:        true,
+					ViewType:            ViewHuman,
+					LintInclude:         make(collections.Set[linting.RuleAddr]),
+					LintExclude:         make(collections.Set[linting.RuleAddr]),
 				},
 				PlanPath: "",
 				State:    &State{Lock: true},
@@ -46,9 +49,12 @@ func TestParseApply_basicValid(t *testing.T) {
 			[]string{"-auto-approve", "-input=false", "saved.tfplan"},
 			&Apply{
 				AutoApprove: true,
-				ViewOptions: ViewOptions{
-					InputEnabled: false,
-					ViewType:     ViewHuman,
+				View: &View{
+					ConsolidateWarnings: true,
+					InputEnabled:        false,
+					ViewType:            ViewHuman,
+					LintInclude:         make(collections.Set[linting.RuleAddr]),
+					LintExclude:         make(collections.Set[linting.RuleAddr]),
 				},
 				PlanPath: "saved.tfplan",
 				State:    &State{Lock: true},
@@ -64,9 +70,54 @@ func TestParseApply_basicValid(t *testing.T) {
 			[]string{"-destroy"},
 			&Apply{
 				AutoApprove: false,
-				ViewOptions: ViewOptions{
-					InputEnabled: true,
-					ViewType:     ViewHuman,
+				View: &View{
+					ConsolidateWarnings: true,
+					InputEnabled:        true,
+					ViewType:            ViewHuman,
+					LintInclude:         make(collections.Set[linting.RuleAddr]),
+					LintExclude:         make(collections.Set[linting.RuleAddr]),
+				},
+				PlanPath: "",
+				State:    &State{Lock: true},
+				Vars:     &Vars{},
+				Operation: &Operation{
+					PlanMode:    plans.DestroyMode,
+					Parallelism: 10,
+					Refresh:     true,
+				},
+			},
+		},
+		"linting parsed correctly": {
+			[]string{"-lint=all"},
+			&Apply{
+				AutoApprove: false,
+				View: &View{
+					ConsolidateWarnings: true,
+					InputEnabled:        true,
+					ViewType:            ViewHuman,
+					LintInclude:         collections.NewSet(linting.AllRulesGroupID),
+					LintExclude:         make(collections.Set[linting.RuleAddr]),
+				},
+				PlanPath: "",
+				State:    &State{Lock: true},
+				Vars:     &Vars{},
+				Operation: &Operation{
+					PlanMode:    plans.NormalMode,
+					Parallelism: 10,
+					Refresh:     true,
+				},
+			},
+		},
+		"linting with destroy disables linting": {
+			[]string{"-lint=core:all", "-destroy"},
+			&Apply{
+				AutoApprove: false,
+				View: &View{
+					ConsolidateWarnings: true,
+					InputEnabled:        true,
+					ViewType:            ViewHuman,
+					LintInclude:         make(collections.Set[linting.RuleAddr]), // <- this is expected to be empty
+					LintExclude:         make(collections.Set[linting.RuleAddr]),
 				},
 				PlanPath: "",
 				State:    &State{Lock: true},
@@ -82,9 +133,12 @@ func TestParseApply_basicValid(t *testing.T) {
 			[]string{"-json", "-auto-approve"},
 			&Apply{
 				AutoApprove: true,
-				ViewOptions: ViewOptions{
-					InputEnabled: false,
-					ViewType:     ViewJSON,
+				View: &View{
+					ConsolidateWarnings: true,
+					InputEnabled:        false,
+					ViewType:            ViewJSON,
+					LintInclude:         make(collections.Set[linting.RuleAddr]),
+					LintExclude:         make(collections.Set[linting.RuleAddr]),
 				},
 				PlanPath: "",
 				State:    &State{Lock: true},
@@ -98,15 +152,13 @@ func TestParseApply_basicValid(t *testing.T) {
 		},
 	}
 
-	cmpOpts := cmpopts.IgnoreUnexported(Operation{}, Vars{}, State{}, ViewOptions{})
-
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			got, _, diags := ParseApply(tc.args)
 			if len(diags) > 0 {
 				t.Fatalf("unexpected diags: %v", diags)
 			}
-			if diff := cmp.Diff(tc.want, got, cmpOpts); diff != "" {
+			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("unexpected result\n%s", diff)
 			}
 		})
@@ -146,8 +198,8 @@ func TestParseApply_json(t *testing.T) {
 				}
 			}
 
-			if got.ViewOptions.ViewType != ViewJSON {
-				t.Errorf("unexpected view type. got: %#v, want: %#v", got.ViewOptions.ViewType, ViewJSON)
+			if got.View.ViewType != ViewJSON {
+				t.Errorf("unexpected view type. got: %#v, want: %#v", got.View.ViewType, ViewJSON)
 			}
 		})
 	}
@@ -161,8 +213,8 @@ func TestParseApply_invalid(t *testing.T) {
 	if got, want := diags.Err().Error(), "flag provided but not defined"; !strings.Contains(got, want) {
 		t.Fatalf("wrong diags\n got: %s\nwant: %s", got, want)
 	}
-	if got.ViewOptions.ViewType != ViewHuman {
-		t.Fatalf("wrong view type, got %#v, want %#v", got.ViewOptions.ViewType, ViewHuman)
+	if got.View.ViewType != ViewHuman {
+		t.Fatalf("wrong view type, got %#v, want %#v", got.View.ViewType, ViewHuman)
 	}
 }
 
@@ -174,8 +226,8 @@ func TestParseApply_tooManyArguments(t *testing.T) {
 	if got, want := diags.Err().Error(), "Too many command line arguments"; !strings.Contains(got, want) {
 		t.Fatalf("wrong diags\n got: %s\nwant: %s", got, want)
 	}
-	if got.ViewOptions.ViewType != ViewHuman {
-		t.Fatalf("wrong view type, got %#v, want %#v", got.ViewOptions.ViewType, ViewHuman)
+	if got.View.ViewType != ViewHuman {
+		t.Fatalf("wrong view type, got %#v, want %#v", got.View.ViewType, ViewHuman)
 	}
 }
 
@@ -713,21 +765,21 @@ func TestParseApply_replace(t *testing.T) {
 func TestParseApply_vars(t *testing.T) {
 	testCases := map[string]struct {
 		args []string
-		want []flags.RawFlag
+		want Vars
 	}{
 		"no var flags by default": {
 			args: nil,
-			want: nil,
+			want: Vars{},
 		},
 		"one var": {
 			args: []string{"-var", "foo=bar"},
-			want: []flags.RawFlag{
+			want: Vars{
 				{Name: "-var", Value: "foo=bar"},
 			},
 		},
 		"one var-file": {
 			args: []string{"-var-file", "cool.tfvars"},
-			want: []flags.RawFlag{
+			want: Vars{
 				{Name: "-var-file", Value: "cool.tfvars"},
 			},
 		},
@@ -737,7 +789,7 @@ func TestParseApply_vars(t *testing.T) {
 				"-var-file", "cool.tfvars",
 				"-var", "boop=beep",
 			},
-			want: []flags.RawFlag{
+			want: Vars{
 				{Name: "-var", Value: "foo=bar"},
 				{Name: "-var-file", Value: "cool.tfvars"},
 				{Name: "-var", Value: "boop=beep"},
@@ -770,9 +822,12 @@ func TestParseApplyDestroy_basicValid(t *testing.T) {
 			nil,
 			&Apply{
 				AutoApprove: false,
-				ViewOptions: ViewOptions{
-					InputEnabled: true,
-					ViewType:     ViewHuman,
+				View: &View{
+					ConsolidateWarnings: true,
+					InputEnabled:        true,
+					ViewType:            ViewHuman,
+					LintInclude:         make(collections.Set[linting.RuleAddr]),
+					LintExclude:         make(collections.Set[linting.RuleAddr]),
 				},
 				State: &State{Lock: true},
 				Vars:  &Vars{},
@@ -787,9 +842,12 @@ func TestParseApplyDestroy_basicValid(t *testing.T) {
 			[]string{"-auto-approve", "-input=false"},
 			&Apply{
 				AutoApprove: true,
-				ViewOptions: ViewOptions{
-					InputEnabled: false,
-					ViewType:     ViewHuman,
+				View: &View{
+					ConsolidateWarnings: true,
+					InputEnabled:        false,
+					ViewType:            ViewHuman,
+					LintInclude:         make(collections.Set[linting.RuleAddr]),
+					LintExclude:         make(collections.Set[linting.RuleAddr]),
 				},
 				State: &State{Lock: true},
 				Vars:  &Vars{},
@@ -802,15 +860,13 @@ func TestParseApplyDestroy_basicValid(t *testing.T) {
 		},
 	}
 
-	cmpOpts := cmpopts.IgnoreUnexported(Operation{}, Vars{}, State{}, ViewOptions{})
-
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			got, _, diags := ParseApplyDestroy(tc.args)
 			if len(diags) > 0 {
 				t.Fatalf("unexpected diags: %v", diags)
 			}
-			if diff := cmp.Diff(tc.want, got, cmpOpts); diff != "" {
+			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("unexpected result\n%s", diff)
 			}
 		})
@@ -826,8 +882,20 @@ func TestParseApplyDestroy_invalid(t *testing.T) {
 		if got, want := diags.Err().Error(), "Invalid mode option:"; !strings.Contains(got, want) {
 			t.Fatalf("wrong diags\n got: %s\nwant: %s", got, want)
 		}
-		if got.ViewOptions.ViewType != ViewHuman {
-			t.Fatalf("wrong view type, got %#v, want %#v", got.ViewOptions.ViewType, ViewHuman)
+		if got.View.ViewType != ViewHuman {
+			t.Fatalf("wrong view type, got %#v, want %#v", got.View.ViewType, ViewHuman)
+		}
+	})
+	t.Run("linting flag not recorded for destroy", func(t *testing.T) {
+		got, _, diags := ParseApplyDestroy([]string{"-lint=core:all"})
+		if len(diags) == 0 {
+			t.Fatal("expected diags but got none")
+		}
+		if got, want := diags.Err().Error(), "Failed to parse command-line options: flag provided but not defined: -lint"; !strings.Contains(got, want) {
+			t.Fatalf("wrong diags\n got: %s\nwant: %s", got, want)
+		}
+		if got.View.ViewType != ViewHuman {
+			t.Fatalf("wrong view type, got %#v, want %#v", got.View.ViewType, ViewHuman)
 		}
 	})
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/configs/configschema"
+	"github.com/opentofu/opentofu/internal/configs/symlib"
 	"github.com/opentofu/opentofu/internal/didyoumean"
 	"github.com/opentofu/opentofu/internal/instances"
 	"github.com/opentofu/opentofu/internal/lang"
@@ -69,10 +70,6 @@ type Evaluator struct {
 	// ensures they can be safely accessed and modified concurrently.
 	Changes *plans.ChangesSync
 
-	// InstanceExpander tracks the expansion of modules and resources, which
-	// is used to determine the set of instance keys for count and for_each.
-	InstanceExpander *instances.Expander
-
 	PlanTimestamp time.Time
 }
 
@@ -82,7 +79,7 @@ type Evaluator struct {
 // If the "self" argument is nil then the "self" object is not available
 // in evaluated expressions. Otherwise, it behaves as an alias for the given
 // address.
-func (e *Evaluator) Scope(data lang.Data, self addrs.Referenceable, source addrs.Referenceable, functions lang.ProviderFunction) *lang.Scope {
+func (e *Evaluator) Scope(data lang.Data, self addrs.Referenceable, source addrs.Referenceable, functions lang.ProviderFunction, table symlib.Table) *lang.Scope {
 	return &lang.Scope{
 		Data:              data,
 		ParseRef:          addrs.ParseRef,
@@ -92,6 +89,7 @@ func (e *Evaluator) Scope(data lang.Data, self addrs.Referenceable, source addrs
 		BaseDir:           ".", // Always current working directory for now.
 		PlanTimestamp:     e.PlanTimestamp,
 		ProviderFunctions: functions,
+		SymbolTable:       table,
 	}
 }
 
@@ -444,25 +442,6 @@ func (d *evaluationStateData) GetModule(_ context.Context, addr addrs.ModuleCall
 	// Build up all the module objects, creating a map of values for each
 	// module instance.
 	moduleInstances := map[addrs.InstanceKey]map[string]cty.Value{}
-
-	// Pre-populate moduleInstances using InstanceExpander to handle modules with no outputs.
-	// This ensures that expressions like length(module.foo) work correctly even when a module
-	// has no output values defined, by consulting the expansion state to determine which
-	// module instances exist based on count/for_each.
-	// We only do this during non-validation operations (plan, apply, etc.) because during
-	// validation, the InstanceExpander may not be fully populated yet.
-	if d.Evaluator.InstanceExpander != nil && d.Evaluator.Operation != walkValidate {
-		childModuleAddr := d.ModulePath.Module().Child(addr.Name)
-		moduleInstanceAddrs := d.Evaluator.InstanceExpander.ExpandModule(childModuleAddr)
-
-		for _, moduleInstanceAddr := range moduleInstanceAddrs {
-			_, callInstance := moduleInstanceAddr.CallInstance()
-			key := callInstance.Key
-			if _, exists := moduleInstances[key]; !exists {
-				moduleInstances[key] = map[string]cty.Value{}
-			}
-		}
-	}
 
 	// create a dummy object type for validation below
 	unknownMap := map[string]cty.Type{}

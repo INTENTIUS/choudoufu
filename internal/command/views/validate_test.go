@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/linting"
 	"github.com/opentofu/opentofu/internal/terminal"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
@@ -50,7 +51,7 @@ func TestValidateHuman(t *testing.T) {
 			streams, done := terminal.StreamsForTesting(t)
 			view := NewView(streams)
 			view.Configure(&arguments.View{NoColor: true})
-			v := NewValidate(arguments.ViewOptions{ViewType: arguments.ViewHuman}, view)
+			v := NewValidate(&arguments.View{ViewType: arguments.ViewHuman}, view)
 
 			var diags tfdiags.Diagnostics
 
@@ -102,13 +103,17 @@ func TestValidateJSON(t *testing.T) {
 			),
 			false,
 		},
+		"lint": {
+			tfdiags.LintMessage(linting.MustParseRuleAddr("foo"), nil, "summary", "detail", nil, nil),
+			true,
+		},
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			streams, done := terminal.StreamsForTesting(t)
 			view := NewView(streams)
 			view.Configure(&arguments.View{NoColor: true})
-			v := NewValidate(arguments.ViewOptions{ViewType: arguments.ViewJSON}, view)
+			v := NewValidate(&arguments.View{ViewType: arguments.ViewJSON}, view)
 
 			var diags tfdiags.Diagnostics
 

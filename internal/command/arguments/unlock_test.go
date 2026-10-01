@@ -10,7 +10,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/opentofu/opentofu/internal/collections"
+	"github.com/opentofu/opentofu/internal/linting"
 )
 
 func TestParseUnlock_basicValidation(t *testing.T) {
@@ -22,13 +23,14 @@ func TestParseUnlock_basicValidation(t *testing.T) {
 		"without arguments": {
 			args:        nil,
 			want:        unlockArgsWithDefaults(nil),
-			wantErrText: "Wrong number of arguments: Expected a single argument: LOCK_ID",
+			wantErrText: "Expected a single argument: LOCK_ID",
 		},
 		"too many arguments": {
 			args: []string{"lockid1", "lockid2"},
 			want: unlockArgsWithDefaults(func(a *Unlock) {
+				a.LockID = "lockid1"
 			}),
-			wantErrText: "Wrong number of arguments: Expected a single argument: LOCK_ID",
+			wantErrText: "Expected a single argument: LOCK_ID",
 		},
 		"with force": {
 			args: []string{"-force", "lockid"},
@@ -39,12 +41,10 @@ func TestParseUnlock_basicValidation(t *testing.T) {
 		},
 		"invalid flag": {
 			args:        []string{"-invalid", "lockid"},
-			want:        unlockArgsWithDefaults(func(a *Unlock) {}),
-			wantErrText: "Failed to parse command-line flags: flag provided but not defined: -invalid",
+			want:        unlockArgsWithDefaults(nil),
+			wantErrText: "flag provided but not defined: -invalid",
 		},
 	}
-
-	cmpOpts := cmpopts.IgnoreUnexported(Vars{}, ViewOptions{})
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
@@ -61,7 +61,7 @@ func TestParseUnlock_basicValidation(t *testing.T) {
 					t.Errorf("the returned diagnostics does not contain the expected error message.\ndiags:\n%s\nwanted: %s\n", errStr, tc.wantErrText)
 				}
 			}
-			if diff := cmp.Diff(tc.want, got, cmpOpts); diff != "" {
+			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("unexpected result\n%s", diff)
 			}
 		})
@@ -118,9 +118,12 @@ func unlockArgsWithDefaults(mutate func(a *Unlock)) *Unlock {
 	ret := &Unlock{
 		LockID: "",
 		Force:  false,
-		ViewOptions: ViewOptions{
-			ViewType:     ViewHuman,
-			InputEnabled: false,
+		View: &View{
+			ConsolidateWarnings: true,
+			ViewType:            ViewHuman,
+			InputEnabled:        false,
+			LintInclude:         make(collections.Set[linting.RuleAddr]),
+			LintExclude:         make(collections.Set[linting.RuleAddr]),
 		},
 		Vars: &Vars{},
 	}

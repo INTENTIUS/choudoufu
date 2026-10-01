@@ -11,13 +11,11 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/opentofu/opentofu/internal/command/flags"
-	"github.com/opentofu/opentofu/internal/command/workdir"
+	"github.com/opentofu/opentofu/internal/collections"
+	"github.com/opentofu/opentofu/internal/linting"
 )
 
 func TestParseImport_basicValidation(t *testing.T) {
-	wd := workdir.NewDir(".")
 	testCases := map[string]struct {
 		args        []string
 		want        *Import
@@ -79,6 +77,7 @@ func TestParseImport_basicValidation(t *testing.T) {
 			want: importArgsWithDefaults(func(imp *Import) {
 				imp.ResourceAddress = "addr"
 				imp.ResourceID = "id"
+				imp.Vars = &Vars{{Name: "-var", Value: "foo=bar"}, {Name: "-var-file", Value: "vars.tfvars"}}
 			}),
 		},
 		"input flag": {
@@ -86,7 +85,7 @@ func TestParseImport_basicValidation(t *testing.T) {
 			want: importArgsWithDefaults(func(imp *Import) {
 				imp.ResourceAddress = "addr"
 				imp.ResourceID = "id"
-				imp.ViewOptions.InputEnabled = false
+				imp.View.InputEnabled = false
 			}),
 		},
 		"json flag": {
@@ -94,32 +93,35 @@ func TestParseImport_basicValidation(t *testing.T) {
 			want: importArgsWithDefaults(func(imp *Import) {
 				imp.ResourceAddress = "addr"
 				imp.ResourceID = "id"
-				imp.ViewOptions.ViewType = ViewJSON
-				imp.ViewOptions.InputEnabled = false
+				imp.View.ViewType = ViewJSON
+				imp.View.InputEnabled = false
 			}),
 		},
 		"no arguments": {
 			args:        []string{},
 			want:        importArgsWithDefaults(nil),
-			wantErrText: "Invalid number of arguments: The import command expects two arguments",
+			wantErrText: "The import command expects two arguments",
 		},
 		"one argument": {
-			args:        []string{"addr"},
-			want:        importArgsWithDefaults(nil),
-			wantErrText: "Invalid number of arguments: The import command expects two arguments",
+			args: []string{"addr"},
+			want: importArgsWithDefaults(func(imp *Import) {
+				imp.ResourceAddress = "addr"
+			}),
+			wantErrText: "The import command expects two arguments",
 		},
 		"too many arguments": {
-			args:        []string{"addr", "id", "extra"},
-			want:        importArgsWithDefaults(nil),
-			wantErrText: "Invalid number of arguments: The import command expects two arguments",
+			args: []string{"addr", "id", "extra"},
+			want: importArgsWithDefaults(func(imp *Import) {
+				imp.ResourceAddress = "addr"
+				imp.ResourceID = "id"
+			}),
+			wantErrText: "The import command expects two arguments",
 		},
 	}
 
-	cmpOpts := cmpopts.IgnoreUnexported(Vars{}, ViewOptions{})
-
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			got, closer, diags := ParseImport(tc.args, wd)
+			got, closer, diags := ParseImport(tc.args)
 			defer closer()
 
 			if tc.wantErrText != "" && len(diags) == 0 {
@@ -132,7 +134,7 @@ func TestParseImport_basicValidation(t *testing.T) {
 					t.Errorf("the returned diagnostics does not contain the expected error message.\ndiags:\n%s\nwanted: %s\n", errStr, tc.wantErrText)
 				}
 			}
-			if diff := cmp.Diff(tc.want, got, cmpOpts); diff != "" {
+			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("unexpected result\n%s", diff)
 			}
 		})
@@ -140,7 +142,6 @@ func TestParseImport_basicValidation(t *testing.T) {
 }
 
 func TestParseImport_vars(t *testing.T) {
-	wd := workdir.NewDir(".")
 	testCases := map[string]struct {
 		args      []string
 		wantCount int
@@ -170,7 +171,7 @@ func TestParseImport_vars(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			got, closer, diags := ParseImport(tc.args, wd)
+			got, closer, diags := ParseImport(tc.args)
 			defer closer()
 
 			if len(diags) > 0 {
@@ -187,21 +188,19 @@ func TestParseImport_vars(t *testing.T) {
 }
 
 func importArgsWithDefaults(mutate func(imp *Import)) *Import {
-	v := flags.NewRawFlags("-var")
-	vf := flags.NewRawFlags("-var-file")
 	ret := &Import{
 		ResourceAddress: "",
 		ResourceID:      "",
-		ConfigPath:      ".",
+		ConfigPath:      "",
 		Parallelism:     DefaultParallelism,
-		ViewOptions: ViewOptions{
-			ViewType:     ViewHuman,
-			InputEnabled: true,
+		View: &View{
+			ConsolidateWarnings: true,
+			ViewType:            ViewHuman,
+			InputEnabled:        true,
+			LintInclude:         make(collections.Set[linting.RuleAddr]),
+			LintExclude:         make(collections.Set[linting.RuleAddr]),
 		},
-		Vars: &Vars{
-			vars:     &v,
-			varFiles: &vf,
-		},
+		Vars: &Vars{},
 		State: &State{
 			Lock:      true,
 			StatePath: "",

@@ -101,12 +101,10 @@ func TestLogin(t *testing.T) {
 			})
 
 			c := &LoginCommand{
-				Meta: Meta{
-					WorkingDir:      workdir.NewDir("."),
-					View:            loginView,
-					BrowserLauncher: browserLauncher,
-					Services:        svcs,
-				},
+				WorkingDir:      workdir.NewDir("."),
+				View:            loginView,
+				BrowserLauncher: browserLauncher,
+				Services:        svcs,
 			}
 
 			test(t, c, loginDone)
@@ -159,9 +157,6 @@ func TestLogin(t *testing.T) {
 		// color codes entirely when running in no-color mode, as we are here).
 		if got, want := loginOutput.Stdout(), "Welcome to the cloud backend!␀"; !strings.Contains(got, want) {
 			t.Errorf("expected output to contain %q, but was:\n%s", want, got)
-		}
-		if !c.Meta.stateArgs.Lock {
-			t.Errorf("stateLock always expected to be true for the login command")
 		}
 	}, true))
 
@@ -421,13 +416,11 @@ func TestLoginOAuthCallbackRace(t *testing.T) {
 
 			abortCh := make(chan struct{})
 			c := &LoginCommand{
-				Meta: Meta{
-					WorkingDir:      workdir.NewDir("."),
-					View:            loginView,
-					BrowserLauncher: webbrowser.NewMockLauncher(ctx),
-					Services:        svcs,
-					ShutdownCh:      abortCh,
-				},
+				WorkingDir:      workdir.NewDir("."),
+				View:            loginView,
+				BrowserLauncher: webbrowser.NewMockLauncher(ctx),
+				Services:        svcs,
+				ShutdownCh:      abortCh,
 			}
 
 			defer testInputMap(t, map[string]string{
@@ -498,12 +491,10 @@ func TestLoginOAuthCallbackNoPanicOnAbort(t *testing.T) {
 			// is the only way to unblock the command.
 			abortCh := make(chan struct{})
 			c := &LoginCommand{
-				Meta: Meta{
-					WorkingDir: workdir.NewDir("."),
-					View:       loginView,
-					Services:   svcs,
-					ShutdownCh: abortCh,
-				},
+				WorkingDir: workdir.NewDir("."),
+				View:       loginView,
+				Services:   svcs,
+				ShutdownCh: abortCh,
 			}
 
 			defer testInputMap(t, map[string]string{

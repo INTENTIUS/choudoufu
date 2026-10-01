@@ -8,15 +8,20 @@ package tofu
 import (
 	"context"
 	"fmt"
+	"iter"
 	"log"
+	"maps"
 	"sort"
 
 	"github.com/hashicorp/hcl/v2"
-
 	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/collections"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/configs/configschema"
 	"github.com/opentofu/opentofu/internal/dag"
 	"github.com/opentofu/opentofu/internal/lang"
+	"github.com/opentofu/opentofu/internal/linting/corelinting"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
 // GraphNodeReferenceable must be implemented by any node that represents
@@ -113,11 +118,25 @@ type GraphNodeReferenceOutside interface {
 	ReferenceOutside() (selfPath, referencePath addrs.Module)
 }
 
+// graphNodeLocalConfig is implemented by the nodes that can returns a configs.Local.
+//
+// This is used to reliably detect all the nodes in the graph that can provide the aforementioned configs type.
+type graphNodeLocalConfig interface {
+	LocalValueConfig() *configs.Local
+}
+
+// graphNodeVariableConfig is implemented by the nodes that can returns a configs.Variable.
+//
+// This is used to reliably detect all the nodes in the graph that can provide the aforementioned configs type.
+type graphNodeVariableConfig interface {
+	VariableConfig() *configs.Variable
+}
+
 // ReferenceTransformer is a GraphTransformer that connects all the
 // nodes that reference each other in order to form the proper ordering.
 type ReferenceTransformer struct{}
 
-func (t *ReferenceTransformer) Transform(_ context.Context, g *Graph) error {
+func (t *ReferenceTransformer) Transform(ctx context.Context, g *Graph) error {
 	// Build a reference map so we can efficiently look up the references
 	vs := g.Vertices()
 	m := NewReferenceMap(vs)
@@ -153,7 +172,13 @@ func (t *ReferenceTransformer) Transform(_ context.Context, g *Graph) error {
 			continue
 		}
 	}
-
+	var diags tfdiags.Diagnostics
+	diags = diags.Append(corelinting.UnusedVariables(ctx, unusedVariables(vs, m)))
+	diags = diags.Append(corelinting.UnusedLocal(ctx, unusedLocals(vs, m)))
+	diags = diags.Append(corelinting.CountInsteadEnabled(ctx, resourceConfigsWithCount(g)))
+	if len(diags) > 0 {
+		return tfdiags.NonFatalError{Diagnostics: diags}
+	}
 	return nil
 }
 
@@ -286,10 +311,20 @@ func isDependableResource(v dag.Vertex) bool {
 	return false
 }
 
+type dependsOnCacheEntry struct {
+	set       dag.Set
+	dependsOn bool
+}
+
 // ReferenceMap is a structure that can be used to efficiently check
 // for references on a graph, mapping internal reference keys (as produced by
 // the mapKey method) to one or more vertices that are identified by each key.
-type ReferenceMap map[string][]dag.Vertex
+type ReferenceMap struct {
+	refMap map[string][]dag.Vertex
+
+	dependsOnCache       map[dag.Vertex]dependsOnCacheEntry
+	parentDependsOnCache map[dag.Vertex]dependsOnCacheEntry
+}
 
 // References returns the set of vertices that the given vertex refers to,
 // and any referenced addresses that do not have corresponding vertices.
@@ -332,7 +367,7 @@ func (m ReferenceMap) addReference(path addrs.Module, current dag.Vertex, ref *a
 	subject := ref.Subject
 
 	key := m.mapKey(path, subject)
-	if _, exists := m[key]; !exists {
+	if _, exists := m.refMap[key]; !exists {
 		// If what we were looking for was a ResourceInstance then we
 		// might be in a resource-oriented graph rather than an
 		// instance-oriented graph, and so we'll see if we have the
@@ -354,7 +389,7 @@ func (m ReferenceMap) addReference(path addrs.Module, current dag.Vertex, ref *a
 		}
 		key = m.mapKey(path, subject)
 	}
-	vertices := m[key]
+	vertices := m.refMap[key]
 	for _, rv := range vertices {
 		// don't include self-references
 		if rv == current {
@@ -368,8 +403,12 @@ func (m ReferenceMap) addReference(path addrs.Module, current dag.Vertex, ref *a
 // dependsOn returns the set of vertices that the given vertex refers to from
 // the configured depends_on. The bool return value indicates if depends_on was
 // found in a parent module configuration.
-func (m ReferenceMap) dependsOn(g *Graph, depender graphNodeDependsOn) ([]dag.Vertex, bool) {
-	var res []dag.Vertex
+func (m ReferenceMap) dependsOn(g *Graph, depender graphNodeDependsOn) (dag.Set, bool) {
+	if cached, ok := m.dependsOnCache[depender]; ok {
+		return cached.set, cached.dependsOn
+	}
+
+	res := dag.Set{}
 	fromModule := false
 
 	refs := depender.DependsOn()
@@ -386,7 +425,7 @@ func (m ReferenceMap) dependsOn(g *Graph, depender graphNodeDependsOn) ([]dag.Ve
 		subject := ref.Subject
 
 		key := m.referenceMapKey(depender, subject)
-		vertices, ok := m[key]
+		vertices, ok := m.refMap[key]
 		if !ok {
 			// the ReferenceMap generates all possible keys, so any warning
 			// here is probably not useful for this implementation.
@@ -397,7 +436,7 @@ func (m ReferenceMap) dependsOn(g *Graph, depender graphNodeDependsOn) ([]dag.Ve
 			if rv == depender {
 				continue
 			}
-			res = append(res, rv)
+			res.Add(rv)
 
 			// Check any ancestors for transitive dependencies when we're
 			// not pointed directly at a resource. We can't be much more
@@ -410,7 +449,7 @@ func (m ReferenceMap) dependsOn(g *Graph, depender graphNodeDependsOn) ([]dag.Ve
 				ans, _ := g.Ancestors(rv)
 				for _, v := range ans {
 					if isDependableResource(v) {
-						res = append(res, v)
+						res.Add(v)
 					}
 				}
 			}
@@ -418,9 +457,14 @@ func (m ReferenceMap) dependsOn(g *Graph, depender graphNodeDependsOn) ([]dag.Ve
 	}
 
 	parentDeps, fromParentModule := m.parentModuleDependsOn(g, depender)
-	res = append(res, parentDeps...)
+	maps.Copy(res, parentDeps)
 
-	return res, fromModule || fromParentModule
+	cached := dependsOnCacheEntry{
+		set:       res,
+		dependsOn: fromModule || fromParentModule,
+	}
+	m.dependsOnCache[depender] = cached
+	return cached.set, cached.dependsOn
 }
 
 // Return extra depends_on references if "depender" is a data source or an ephemeral resource.
@@ -467,8 +511,12 @@ func (m ReferenceMap) nodeDependencies(depender graphNodeDependsOn) []*addrs.Ref
 // parentModuleDependsOn returns the state of vertices that a data sources parent
 // module references through the module call's depends_on. The bool return
 // value indicates if depends_on was found in a parent module configuration.
-func (m ReferenceMap) parentModuleDependsOn(g *Graph, depender graphNodeDependsOn) ([]dag.Vertex, bool) {
-	var res []dag.Vertex
+func (m ReferenceMap) parentModuleDependsOn(g *Graph, depender graphNodeDependsOn) (dag.Set, bool) {
+	if cached, ok := m.parentDependsOnCache[depender]; ok {
+		return cached.set, cached.dependsOn
+	}
+
+	res := dag.Set{}
 	fromModule := false
 
 	// Look for containing modules with DependsOn.
@@ -484,20 +532,25 @@ func (m ReferenceMap) parentModuleDependsOn(g *Graph, depender graphNodeDependsO
 		deps, fromParentModule := m.dependsOn(g, mod)
 		for _, dep := range deps {
 			// add the dependency
-			res = append(res, dep)
+			res.Add(dep)
 
 			// and check any transitive resource dependencies for more resources
 			ans, _ := g.Ancestors(dep)
 			for _, v := range ans {
 				if isDependableResource(v) {
-					res = append(res, v)
+					res.Add(v)
 				}
 			}
 		}
 		fromModule = fromModule || fromParentModule
 	}
 
-	return res, fromModule
+	cached := dependsOnCacheEntry{
+		set:       res,
+		dependsOn: fromModule,
+	}
+	m.parentDependsOnCache[depender] = cached
+	return cached.set, cached.dependsOn
 }
 
 func (m *ReferenceMap) mapKey(path addrs.Module, addr addrs.Referenceable) string {
@@ -570,7 +623,12 @@ func (m *ReferenceMap) referenceMapKey(referrer dag.Vertex, addr addrs.Reference
 // given set of vertices.
 func NewReferenceMap(vs []dag.Vertex) ReferenceMap {
 	// Build the lookup table
-	m := make(ReferenceMap)
+	m := ReferenceMap{
+		refMap: map[string][]dag.Vertex{},
+
+		dependsOnCache:       map[dag.Vertex]dependsOnCacheEntry{},
+		parentDependsOnCache: map[dag.Vertex]dependsOnCacheEntry{},
+	}
 	for _, v := range vs {
 		// We're only looking for referenceable nodes
 		rn, ok := v.(GraphNodeReferenceable)
@@ -583,7 +641,7 @@ func NewReferenceMap(vs []dag.Vertex) ReferenceMap {
 		// Go through and cache them
 		for _, addr := range rn.ReferenceableAddrs() {
 			key := m.mapKey(path, addr)
-			m[key] = append(m[key], v)
+			m.refMap[key] = append(m.refMap[key], v)
 		}
 	}
 
@@ -598,4 +656,130 @@ func ReferencesFromConfig(body hcl.Body, schema *configschema.Block) []*addrs.Re
 	}
 	refs, _ := lang.ReferencesInBlock(addrs.ParseRef, body, schema)
 	return refs
+}
+
+// resourceConfigsWithCount returns a iter.Seq that will provide all the configs.Resource objects for the
+// nodes that represent a resource.
+// The objects returned are only for the root module.
+// By returning iter.Seq, the analysis is postponed and can be skipped in case the linting rule that
+// needs this data is not enabled by the user.
+func resourceConfigsWithCount(g *Graph) iter.Seq[*configs.Resource] {
+	return func(yield func(*configs.Resource) bool) {
+		for _, v := range g.Vertices() {
+			switch n := v.(type) {
+			case GraphNodeAttachResourceConfig:
+				c := n.ResourceConfig()
+				if c == nil {
+					continue
+				}
+				if !n.ResourceAddr().Module.IsRoot() {
+					continue
+				}
+				if !yield(c) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// unusedVariables returns a iter.Seq that will provide all the configs.Variable objects for the
+// variables that are detected as being unused.
+// The objects returned are only for the root module.
+// By returning iter.Seq, the analysis is postponed and can be skipped in case the linting rule that
+// needs this data is not enabled by the user.
+func unusedVariables(vertices []dag.Vertex, g ReferenceMap) iter.Seq[*configs.Variable] {
+	addrConverter := func(ref addrs.Referenceable) (addrs.InputVariable, bool) {
+		la, ok := ref.(addrs.InputVariable)
+		return la, ok
+	}
+	config := func(ref addrs.Referenceable, refNode GraphNodeReferenceable) (*configs.Variable, addrs.InputVariable, bool) {
+		switch la := ref.(type) {
+		case addrs.InputVariable:
+			ln, ok := refNode.(graphNodeVariableConfig)
+			if !ok {
+				return nil, la, false
+			}
+			return ln.VariableConfig(), la, true
+		}
+		return nil, addrs.InputVariable{}, false
+	}
+	return unusedSequencer[addrs.InputVariable, *configs.Variable](vertices, g, addrConverter, config)
+}
+
+// unusedLocals returns a iter.Seq that will provide all the configs.Local objects for the
+// local values that are detected as being unused.
+// The objects returned are only for the root module.
+// By returning iter.Seq, the analysis is postponed and can be skipped in case the linting rule that
+// needs this data is not enabled by the user.
+func unusedLocals(vertices []dag.Vertex, g ReferenceMap) iter.Seq[*configs.Local] {
+	addrConverter := func(ref addrs.Referenceable) (addrs.LocalValue, bool) {
+		la, ok := ref.(addrs.LocalValue)
+		return la, ok
+	}
+	config := func(ref addrs.Referenceable, refNode GraphNodeReferenceable) (*configs.Local, addrs.LocalValue, bool) {
+		switch la := ref.(type) {
+		case addrs.LocalValue:
+			ln, ok := refNode.(graphNodeLocalConfig)
+			if !ok {
+				return nil, la, false
+			}
+			return ln.LocalValueConfig(), la, true
+		}
+		return nil, addrs.LocalValue{}, false
+	}
+	return unusedSequencer[addrs.LocalValue, *configs.Local](vertices, g, addrConverter, config)
+}
+
+// unusedSequencer is a generic function that checks the given vertices by using the rest of the arguments for
+// unused given types.
+// This is used to detect things like unused locals and variables for linting purposes.
+func unusedSequencer[T comparable, R any](vertices []dag.Vertex, g ReferenceMap, typeConverter func(addrs.Referenceable) (T, bool), config func(addrs.Referenceable, GraphNodeReferenceable) (R, T, bool)) iter.Seq[R] {
+	return func(yield func(R) bool) {
+		used := collections.NewSet[T]()
+		declared := map[T]R{}
+		registerUsed := func(v dag.Vertex) {
+			for _, ref := range g.References(v) {
+				switch rr := ref.(type) {
+				case GraphNodeReferenceable:
+					if !rr.ModulePath().IsRoot() {
+						continue
+					}
+					for _, addr := range rr.ReferenceableAddrs() {
+						typ, ok := typeConverter(addr)
+						if ok {
+							used[typ] = struct{}{}
+						}
+					}
+				}
+			}
+		}
+		registerDeclared := func(n GraphNodeReferenceable) {
+			if !n.ModulePath().IsRoot() {
+				return
+			}
+			for _, ref := range n.ReferenceableAddrs() {
+				if c, add, ok := config(ref, n); ok {
+					declared[add] = c
+				}
+			}
+		}
+		for _, v := range vertices {
+			switch n := v.(type) {
+			case GraphNodeReferencer:
+				registerUsed(n)
+				if rr, ok := n.(GraphNodeReferenceable); ok {
+					registerDeclared(rr)
+				}
+			}
+		}
+		for k, v := range declared {
+			if used.Has(k) {
+				continue
+			}
+			if !yield(v) {
+				return
+			}
+		}
+	}
 }

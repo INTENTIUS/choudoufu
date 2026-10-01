@@ -11,6 +11,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/opentofu/opentofu/internal/collections"
+	"github.com/opentofu/opentofu/internal/linting"
 )
 
 func TestParseStateList_basicValidation(t *testing.T) {
@@ -56,15 +58,16 @@ func TestParseStateList_basicValidation(t *testing.T) {
 			}),
 		},
 		"invalid flags": {
-			args:        []string{"-unknown"},
-			want:        stateListArgsWithDefaults(nil),
-			wantErrText: "Failed to parse command-line flags: flag provided but not defined: -unknown",
+			args: []string{"-unknown"},
+			want: stateListArgsWithDefaults(func(stateList *StateList) {
+				stateList.InstancesRawAddr = nil
+			}),
+			wantErrText: "flag provided but not defined: -unknown",
 		},
 	}
 
 	cmpOpts := cmp.Options{
-		cmpopts.IgnoreUnexported(Vars{}, ViewOptions{}),
-		cmpopts.IgnoreFields(ViewOptions{}, "JSONInto"), // We ignore JSONInto because it contains a file which is not really diffable
+		cmpopts.IgnoreFields(View{}, "JSONInto"), // We ignore JSONInto because it contains a file which is not really diffable
 	}
 
 	for name, tc := range testCases {
@@ -140,9 +143,12 @@ func stateListArgsWithDefaults(mutate func(stateList *StateList)) *StateList {
 		State:            &State{},
 		LookupId:         "",
 		InstancesRawAddr: []string{},
-		ViewOptions: ViewOptions{
-			ViewType:     ViewHuman,
-			InputEnabled: false,
+		View: &View{
+			ConsolidateWarnings: true,
+			ViewType:            ViewHuman,
+			InputEnabled:        false,
+			LintInclude:         make(collections.Set[linting.RuleAddr]),
+			LintExclude:         make(collections.Set[linting.RuleAddr]),
 		},
 		Vars: &Vars{},
 	}

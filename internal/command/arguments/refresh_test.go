@@ -12,7 +12,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/command/flags"
+	"github.com/opentofu/opentofu/internal/collections"
+	"github.com/opentofu/opentofu/internal/linting"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
@@ -24,27 +25,62 @@ func TestParseRefresh_basicValid(t *testing.T) {
 		"defaults": {
 			nil,
 			&Refresh{
-				ViewOptions: ViewOptions{
-					InputEnabled: true,
-					ViewType:     ViewHuman,
+				View: &View{
+					ConsolidateWarnings: true,
+					InputEnabled:        true,
+					ViewType:            ViewHuman,
+					LintInclude:         make(collections.Set[linting.RuleAddr]),
+					LintExclude:         make(collections.Set[linting.RuleAddr]),
 				},
 			},
 		},
 		"input=false": {
 			[]string{"-input=false"},
 			&Refresh{
-				ViewOptions: ViewOptions{
-					InputEnabled: false,
-					ViewType:     ViewHuman,
+				View: &View{
+					ConsolidateWarnings: true,
+					InputEnabled:        false,
+					ViewType:            ViewHuman,
+					LintInclude:         make(collections.Set[linting.RuleAddr]),
+					LintExclude:         make(collections.Set[linting.RuleAddr]),
 				},
+			},
+		},
+		"linting flag correctly parsed": {
+			[]string{"-lint=core:all"},
+			&Refresh{
+				View: &View{
+					ConsolidateWarnings: true,
+					InputEnabled:        true,
+					ViewType:            ViewHuman,
+					LintInclude:         collections.NewSet[linting.RuleAddr](linting.MustParseRuleAddr("core:all")),
+					LintExclude:         make(collections.Set[linting.RuleAddr]),
+				},
+			},
+		},
+		"linting with destroy disables linting": {
+			[]string{"-lint=core:all", "-destroy"},
+			&Refresh{
+				View: &View{
+					ConsolidateWarnings: true,
+					InputEnabled:        true,
+					ViewType:            ViewHuman,
+					LintInclude:         make(collections.Set[linting.RuleAddr]), // <- this is expected to be empty
+					LintExclude:         make(collections.Set[linting.RuleAddr]),
+				},
+				// Since the LintInclude is empty, there is no need to check operation since that being empty means
+				// that the operation.planMode == destroy
 			},
 		},
 		"JSON view disables input": {
 			[]string{"-json"},
 			&Refresh{
-				ViewOptions: ViewOptions{
-					InputEnabled: false,
-					ViewType:     ViewJSON,
+				View: &View{
+					ConsolidateWarnings: true,
+					InputEnabled:        false,
+					ViewType:            ViewJSON,
+					LintInclude:         make(collections.Set[linting.RuleAddr]),
+					LintExclude:         make(collections.Set[linting.RuleAddr]),
 				},
 			},
 		},
@@ -56,29 +92,30 @@ func TestParseRefresh_basicValid(t *testing.T) {
 			if len(diags) > 0 {
 				t.Fatalf("unexpected diags: %v", diags)
 			}
-			// Ignore the extended arguments for simplicity
+			// Ignore the extended arguments for simplicity but not operation
 			got.State = nil
 			got.Operation = nil
 			got.Vars = nil
-			got.ViewOptions.jsonFlag = tc.want.ViewOptions.jsonFlag
-			if *got != *tc.want {
-				t.Fatalf("unexpected result\n got: %#v\nwant: %#v", got, tc.want)
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("unexpected result\n%s", diff)
 			}
 		})
 	}
 }
 
 func TestParseRefresh_invalid(t *testing.T) {
-	got, _, diags := ParseRefresh([]string{"-frob"})
-	if len(diags) == 0 {
-		t.Fatal("expected diags but got none")
-	}
-	if got, want := diags.Err().Error(), "flag provided but not defined"; !strings.Contains(got, want) {
-		t.Fatalf("wrong diags\n got: %s\nwant: %s", got, want)
-	}
-	if got.ViewOptions.ViewType != ViewHuman {
-		t.Fatalf("wrong view type, got %#v, want %#v", got.ViewOptions.ViewType, ViewHuman)
-	}
+	t.Run("invalid flag provided", func(t *testing.T) {
+		got, _, diags := ParseRefresh([]string{"-frob"})
+		if len(diags) == 0 {
+			t.Fatal("expected diags but got none")
+		}
+		if got, want := diags.Err().Error(), "flag provided but not defined"; !strings.Contains(got, want) {
+			t.Fatalf("wrong diags\n got: %s\nwant: %s", got, want)
+		}
+		if got.View.ViewType != ViewHuman {
+			t.Fatalf("wrong view type, got %#v, want %#v", got.View.ViewType, ViewHuman)
+		}
+	})
 }
 
 func TestParseRefresh_tooManyArguments(t *testing.T) {
@@ -89,8 +126,8 @@ func TestParseRefresh_tooManyArguments(t *testing.T) {
 	if got, want := diags.Err().Error(), "Too many command line arguments"; !strings.Contains(got, want) {
 		t.Fatalf("wrong diags\n got: %s\nwant: %s", got, want)
 	}
-	if got.ViewOptions.ViewType != ViewHuman {
-		t.Fatalf("wrong view type, got %#v, want %#v", got.ViewOptions.ViewType, ViewHuman)
+	if got.View.ViewType != ViewHuman {
+		t.Fatalf("wrong view type, got %#v, want %#v", got.View.ViewType, ViewHuman)
 	}
 }
 
@@ -441,21 +478,21 @@ func TestParseRefresh_excludeAndTarget(t *testing.T) {
 func TestParseRefresh_vars(t *testing.T) {
 	testCases := map[string]struct {
 		args []string
-		want []flags.RawFlag
+		want Vars
 	}{
 		"no var flags by default": {
 			args: nil,
-			want: nil,
+			want: Vars{},
 		},
 		"one var": {
 			args: []string{"-var", "foo=bar"},
-			want: []flags.RawFlag{
+			want: Vars{
 				{Name: "-var", Value: "foo=bar"},
 			},
 		},
 		"one var-file": {
 			args: []string{"-var-file", "cool.tfvars"},
-			want: []flags.RawFlag{
+			want: Vars{
 				{Name: "-var-file", Value: "cool.tfvars"},
 			},
 		},
@@ -465,7 +502,7 @@ func TestParseRefresh_vars(t *testing.T) {
 				"-var-file", "cool.tfvars",
 				"-var", "boop=beep",
 			},
-			want: []flags.RawFlag{
+			want: Vars{
 				{Name: "-var", Value: "foo=bar"},
 				{Name: "-var-file", Value: "cool.tfvars"},
 				{Name: "-var", Value: "boop=beep"},

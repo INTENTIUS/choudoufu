@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/opentofu/opentofu/internal/command/flags"
+	"github.com/opentofu/opentofu/internal/collections"
+	"github.com/opentofu/opentofu/internal/linting"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/plans"
@@ -28,9 +28,12 @@ func TestParsePlan_basicValid(t *testing.T) {
 			nil,
 			&Plan{
 				DetailedExitCode: false,
-				ViewOptions: ViewOptions{
-					InputEnabled: true,
-					ViewType:     ViewHuman,
+				View: &View{
+					ConsolidateWarnings: true,
+					InputEnabled:        true,
+					ViewType:            ViewHuman,
+					LintInclude:         make(collections.Set[linting.RuleAddr]),
+					LintExclude:         make(collections.Set[linting.RuleAddr]),
 				},
 				OutPath: "",
 				State:   &State{Lock: true},
@@ -46,11 +49,56 @@ func TestParsePlan_basicValid(t *testing.T) {
 			[]string{"-destroy", "-detailed-exitcode", "-input=false", "-out=saved.tfplan"},
 			&Plan{
 				DetailedExitCode: true,
-				ViewOptions: ViewOptions{
-					InputEnabled: false,
-					ViewType:     ViewHuman,
+				View: &View{
+					ConsolidateWarnings: true,
+					InputEnabled:        false,
+					ViewType:            ViewHuman,
+					LintInclude:         make(collections.Set[linting.RuleAddr]),
+					LintExclude:         make(collections.Set[linting.RuleAddr]),
 				},
 				OutPath: "saved.tfplan",
+				State:   &State{Lock: true},
+				Vars:    &Vars{},
+				Operation: &Operation{
+					PlanMode:    plans.DestroyMode,
+					Parallelism: 10,
+					Refresh:     true,
+				},
+			},
+		},
+		"linting flag correctly parsed": {
+			[]string{"-lint=core:all"},
+			&Plan{
+				DetailedExitCode: false,
+				View: &View{
+					ConsolidateWarnings: true,
+					InputEnabled:        true,
+					ViewType:            ViewHuman,
+					LintInclude:         collections.NewSet[linting.RuleAddr](linting.MustParseRuleAddr("core:all")),
+					LintExclude:         make(collections.Set[linting.RuleAddr]),
+				},
+				OutPath: "",
+				State:   &State{Lock: true},
+				Vars:    &Vars{},
+				Operation: &Operation{
+					PlanMode:    plans.NormalMode,
+					Parallelism: 10,
+					Refresh:     true,
+				},
+			},
+		},
+		"linting with destroy disables linting": {
+			[]string{"-lint=core:all", "-destroy"},
+			&Plan{
+				DetailedExitCode: false,
+				View: &View{
+					ConsolidateWarnings: true,
+					InputEnabled:        true,
+					ViewType:            ViewHuman,
+					LintInclude:         make(collections.Set[linting.RuleAddr]), // <- this is expected to be empty
+					LintExclude:         make(collections.Set[linting.RuleAddr]),
+				},
+				OutPath: "",
 				State:   &State{Lock: true},
 				Vars:    &Vars{},
 				Operation: &Operation{
@@ -64,9 +112,12 @@ func TestParsePlan_basicValid(t *testing.T) {
 			[]string{"-json"},
 			&Plan{
 				DetailedExitCode: false,
-				ViewOptions: ViewOptions{
-					InputEnabled: false,
-					ViewType:     ViewJSON,
+				View: &View{
+					ConsolidateWarnings: true,
+					InputEnabled:        false,
+					ViewType:            ViewJSON,
+					LintInclude:         make(collections.Set[linting.RuleAddr]),
+					LintExclude:         make(collections.Set[linting.RuleAddr]),
 				},
 				OutPath: "",
 				State:   &State{Lock: true},
@@ -80,15 +131,13 @@ func TestParsePlan_basicValid(t *testing.T) {
 		},
 	}
 
-	cmpOpts := cmpopts.IgnoreUnexported(Operation{}, Vars{}, State{}, ViewOptions{})
-
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			got, _, diags := ParsePlan(tc.args)
 			if len(diags) > 0 {
 				t.Fatalf("unexpected diags: %v", diags)
 			}
-			if diff := cmp.Diff(tc.want, got, cmpOpts); diff != "" {
+			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("unexpected result\n%s", diff)
 			}
 		})
@@ -103,8 +152,8 @@ func TestParsePlan_invalid(t *testing.T) {
 	if got, want := diags.Err().Error(), "flag provided but not defined"; !strings.Contains(got, want) {
 		t.Fatalf("wrong diags\n got: %s\nwant: %s", got, want)
 	}
-	if got.ViewOptions.ViewType != ViewHuman {
-		t.Fatalf("wrong view type, got %#v, want %#v", got.ViewOptions.ViewType, ViewHuman)
+	if got.View.ViewType != ViewHuman {
+		t.Fatalf("wrong view type, got %#v, want %#v", got.View.ViewType, ViewHuman)
 	}
 }
 
@@ -116,8 +165,8 @@ func TestParsePlan_tooManyArguments(t *testing.T) {
 	if got, want := diags.Err().Error(), "Too many command line arguments"; !strings.Contains(got, want) {
 		t.Fatalf("wrong diags\n got: %s\nwant: %s", got, want)
 	}
-	if got.ViewOptions.ViewType != ViewHuman {
-		t.Fatalf("wrong view type, got %#v, want %#v", got.ViewOptions.ViewType, ViewHuman)
+	if got.View.ViewType != ViewHuman {
+		t.Fatalf("wrong view type, got %#v, want %#v", got.View.ViewType, ViewHuman)
 	}
 }
 
@@ -612,21 +661,21 @@ func TestParsePlan_excludeAndTarget(t *testing.T) {
 func TestParsePlan_vars(t *testing.T) {
 	testCases := map[string]struct {
 		args []string
-		want []flags.RawFlag
+		want Vars
 	}{
 		"no var flags by default": {
 			args: nil,
-			want: nil,
+			want: Vars{},
 		},
 		"one var": {
 			args: []string{"-var", "foo=bar"},
-			want: []flags.RawFlag{
+			want: Vars{
 				{Name: "-var", Value: "foo=bar"},
 			},
 		},
 		"one var-file": {
 			args: []string{"-var-file", "cool.tfvars"},
-			want: []flags.RawFlag{
+			want: Vars{
 				{Name: "-var-file", Value: "cool.tfvars"},
 			},
 		},
@@ -636,7 +685,7 @@ func TestParsePlan_vars(t *testing.T) {
 				"-var-file", "cool.tfvars",
 				"-var", "boop=beep",
 			},
-			want: []flags.RawFlag{
+			want: Vars{
 				{Name: "-var", Value: "foo=bar"},
 				{Name: "-var-file", Value: "cool.tfvars"},
 				{Name: "-var", Value: "boop=beep"},

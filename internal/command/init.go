@@ -10,12 +10,11 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/mitchellh/cli"
-	"github.com/opentofu/opentofu/internal/command/flags"
 	"github.com/opentofu/svchost"
 	"github.com/posener/complete"
 	"github.com/zclconf/go-cty/cty"
@@ -25,10 +24,12 @@ import (
 	backendInit "github.com/opentofu/opentofu/internal/backend/init"
 	"github.com/opentofu/opentofu/internal/cloud"
 	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/command/flags"
 	"github.com/opentofu/opentofu/internal/command/views"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/configs/configschema"
 	"github.com/opentofu/opentofu/internal/encryption"
+	"github.com/opentofu/opentofu/internal/experiments"
 	"github.com/opentofu/opentofu/internal/getproviders"
 	"github.com/opentofu/opentofu/internal/providercache"
 	"github.com/opentofu/opentofu/internal/states"
@@ -39,6 +40,31 @@ import (
 	tfversion "github.com/opentofu/opentofu/version"
 )
 
+func InitCommander() Command {
+	cmd := Command{
+		Name:  "init",
+		Short: "Prepare your working directory for other commands",
+		Long: `Initialize a new or existing OpenTofu working directory by creating initial files, loading any remote state, downloading modules, etc.
+
+This is the first command that should be run for any new or existing OpenTofu configuration per machine. This sets up all the local data necessary to run OpenTofu that is typically not committed to version control.
+
+This command is always safe to run multiple times. Though subsequent runs may give errors, this command will never delete your configuration or state. Even so, if you have important information, please back it up prior to running this command, just in case.`,
+		GroupID: MainCommandGroup.ID,
+
+		DiagsWithNewline: true,
+	}
+
+	args := arguments.BindInit(&cmd.CommandLine)
+	cmd.Run = func(meta Meta) int {
+		c := InitCommand{meta}
+		view := views.NewInit(args.View, meta.View)
+		view.Diagnostics(c.platformSupportWarnings())
+		return c.Execute(args, view)
+	}
+
+	return cmd
+}
+
 // InitCommand is a Command implementation that takes a Terraform
 // module and clones it to the working directory.
 type InitCommand struct {
@@ -46,44 +72,18 @@ type InitCommand struct {
 }
 
 func (c *InitCommand) Run(rawArgs []string) int {
+	return RunCommand(InitCommander(), c.Meta, rawArgs)
+}
+func (c InitCommand) Execute(args *arguments.Init, view views.Init) int {
+	var diags tfdiags.Diagnostics
+
 	ctx := c.CommandContext()
 	ctx, span := tracing.Tracer().Start(ctx, "Init")
 	defer span.End()
 
-	// new view
-	common, rawArgs := arguments.ParseView(rawArgs)
-	c.View.Configure(common)
-	// Because the legacy UI was using println to show diagnostics and the new view is using, by default, print,
-	// in order to keep functional parity, we setup the view to add a new line after each diagnostic.
-	c.View.DiagsWithNewline()
-
-	// Parse and validate flags
-	args, closer, diags := arguments.ParseInit(rawArgs)
-	defer closer()
-
-	// Instantiate the view, even if there are flag errors, so that we render
-	// diagnostics according to the desired view
-	view := views.NewInit(args.ViewOptions, c.View)
-
-	if diags.HasErrors() {
-		view.Diagnostics(diags)
-		if args.ViewOptions.ViewType == arguments.ViewJSON {
-			return 1
-		}
-		return cli.RunResultHelp
-	}
-
-	// FIXME: the -input flag value is needed to initialize the backend and the
-	// operation, but there is no clear path to pass this value down, so we
-	// continue to mutate the Meta object state for now.
-	c.Meta.input = args.ViewOptions.InputEnabled
-
 	if len(args.FlagPluginPath) > 0 {
 		c.pluginPath = args.FlagPluginPath
 	}
-	c.Meta.variableArgs = args.Vars.All()
-	c.Meta.stateArgs = *args.State
-	c.Meta.backendArgs = *args.Backend
 
 	// This gets the current directory as full path.
 	path := c.WorkingDir.NormalizePath(c.WorkingDir.RootModuleDir())
@@ -165,12 +165,36 @@ To initialize the configuration already in this working directory, omit the
 		return 1
 	}
 	if empty {
+		view.Diagnostics(diags) // just in case there are warnings
 		view.InitialisedFromEmptyDir()
 		return 0
 	}
 
+	// Check for experiment that requires alternate load order
+	rootModCheckExperiments, checkExperimentsDiags := c.configLoader().LoadConfigDirWithTests(path, args.TestsDirectory)
+	symbolLibrariesEnabled := rootModCheckExperiments != nil && rootModCheckExperiments.LanguageExperiments.Has(experiments.SymbolLibraries)
+	if symbolLibrariesEnabled && args.FlagGet {
+		if checkExperimentsDiags.HasErrors() {
+			view.ConfigError()
+			diags = diags.Append(checkExperimentsDiags)
+			view.Diagnostics(diags)
+			return 1
+		}
+		modsOutput, modsAbort, modsDiags := c.getModules(ctx, path, args.TestsDirectory, rootModCheckExperiments, args.FlagUpgrade, view)
+		diags = diags.Append(modsDiags)
+		if modsAbort || modsDiags.HasErrors() {
+			tracing.SetSpanError(span, modsDiags)
+			view.Diagnostics(diags)
+			return 1
+		}
+		if modsOutput {
+			header = true
+		}
+	}
+
 	// Load just the root module to begin backend and module initialization
 	rootModEarly, earlyConfDiags := c.loadSingleModuleWithTests(ctx, path, args.TestsDirectory)
+	earlyConfDiags = earlyConfDiags.StrictDeduplicateMerge(tfdiags.New(checkExperimentsDiags)) // Merge these because of the lazy config loader
 	if earlyConfDiags.HasErrors() {
 		// Historical note: prior to OpenTofu v1.12, we took some extraordinary
 		// effort here to return any backend-related errors in preference to
@@ -267,7 +291,7 @@ To initialize the configuration already in this working directory, omit the
 		state = sMgr.State()
 	}
 
-	if args.FlagGet {
+	if !symbolLibrariesEnabled && args.FlagGet {
 		modsOutput, modsAbort, modsDiags := c.getModules(ctx, path, args.TestsDirectory, rootModEarly, args.FlagUpgrade, view)
 		diags = diags.Append(modsDiags)
 		if modsAbort || modsDiags.HasErrors() {
@@ -377,7 +401,7 @@ func (c *InitCommand) getModules(ctx context.Context, path, testsDir string, ear
 		}
 	}
 
-	if len(earlyRoot.ModuleCalls) == 0 && !testModules {
+	if len(earlyRoot.ModuleCalls) == 0 && len(earlyRoot.SymbolCalls) == 0 && !testModules {
 		// Nothing to do
 		return false, false, nil
 	}
@@ -1172,6 +1196,27 @@ func (c *InitCommand) backendConfigOverrideBody(flags flags.RawFlags, schema *co
 
 func (c *InitCommand) AutocompleteArgs() complete.Predictor {
 	return complete.PredictDirs("")
+}
+
+func (c *InitCommand) platformSupportWarnings() tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if !tfversion.IsOfficialBuild() {
+		// platform support warnings are irrelevant for third-party builds,
+		// because they can produce release packages for whatever targets
+		// they are willing to maintain support for.
+		return diags
+	}
+	if runtime.GOARCH == "386" || runtime.GOARCH == "arm" {
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Warning,
+			"Support for 32-bit CPU architectures is ending soon",
+			fmt.Sprintf(
+				"OpenTofu v1.13 is the last release series that will include official release packages for 32-bit CPU architectures.\n\nWe recommend planning to migrate to a 64-bit CPU architecture instead. Alternatively, you could build OpenTofu for %s from source code yourself, and we'll consider pull requests to fix any regressions for this platform as long as they wouldn't make OpenTofu considerably harder to maintain.",
+				getproviders.CurrentPlatform,
+			),
+		))
+	}
+	return diags
 }
 
 func (c *InitCommand) AutocompleteFlags() complete.Flags {

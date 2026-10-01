@@ -12,6 +12,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/opentofu/opentofu/internal/collections"
+	"github.com/opentofu/opentofu/internal/linting"
 )
 
 func TestParseStateRm_basicValidation(t *testing.T) {
@@ -85,7 +87,7 @@ func TestParseStateRm_basicValidation(t *testing.T) {
 				stateRm.State.LockTimeout = 15 * time.Second
 				stateRm.State.Lock = true
 				stateRm.TargetAddrs = []string{"resource.foo", "resource.bar"}
-				// Vars would be updated, but we ignore it in cmp
+				stateRm.Vars = &Vars{{Name: "-var", Value: "key=value"}}
 			}),
 		},
 		"no arguments": {
@@ -96,8 +98,7 @@ func TestParseStateRm_basicValidation(t *testing.T) {
 	}
 
 	cmpOpts := cmp.Options{
-		cmpopts.IgnoreUnexported(Vars{}, ViewOptions{}, State{}),
-		cmpopts.IgnoreFields(ViewOptions{}, "JSONInto"), // We ignore JSONInto because it contains a file which is not really diffable
+		cmpopts.IgnoreFields(View{}, "JSONInto"), // We ignore JSONInto because it contains a file which is not really diffable
 	}
 
 	for name, tc := range testCases {
@@ -124,10 +125,14 @@ func TestParseStateRm_basicValidation(t *testing.T) {
 
 func stateRmArgsWithDefaults(mutate func(stateRm *StateRm)) *StateRm {
 	ret := &StateRm{
-		DryRun: false,
-		ViewOptions: ViewOptions{
-			ViewType:     ViewHuman,
-			InputEnabled: false,
+		TargetAddrs: []string{},
+		DryRun:      false,
+		View: &View{
+			ConsolidateWarnings: true,
+			ViewType:            ViewHuman,
+			InputEnabled:        false,
+			LintInclude:         make(collections.Set[linting.RuleAddr]),
+			LintExclude:         make(collections.Set[linting.RuleAddr]),
 		},
 		Backend: &Backend{
 			IgnoreRemoteVersion: false,

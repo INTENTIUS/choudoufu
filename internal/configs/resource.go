@@ -55,10 +55,12 @@ type Resource struct {
 	// IsOverridden indicates if the resource is being overridden. It's used in
 	// testing framework to not call the underlying provider.
 	IsOverridden bool
-	// OverrideValues are only valid if IsOverridden is set to true. The values
+	// Overrides are only valid if IsOverridden is set to true. The resources
 	// should be used to compose mock provider response. It is possible to have
-	// zero-length OverrideValues even if IsOverridden is set to true.
-	OverrideValues map[string]cty.Value
+	// an empty Overrides even if IsOverridden is set to true. This map
+	// is keyed for particular instances, with addrs.NoKey being the default, and all
+	// associated modules being added to the list.
+	Overrides *addrs.OverrideTrie[map[string]cty.Value]
 
 	DeclRange hcl.Range
 	TypeRange hcl.Range
@@ -811,7 +813,10 @@ func decodeReplaceTriggeredBy(expr hcl.Expression) ([]hcl.Expression, hcl.Diagno
 		refs, refDiags := lang.ReferencesInExpr(addrs.ParseRef, expr)
 		for _, diag := range refDiags {
 			severity := hcl.DiagError
-			if diag.Severity() == tfdiags.Warning {
+			// Changed the condition to be sure that the newly added linting type will be worse case shown as a warning message.
+			// At the point of doing this change, there should be no problem because the lang package generates no linting
+			// diagnostics, but wanted to be sure that if in the future it will, this will be handled properly  here
+			if diag.Severity() != tfdiags.Error {
 				severity = hcl.DiagWarning
 			}
 

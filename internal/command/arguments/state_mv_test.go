@@ -12,6 +12,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/opentofu/opentofu/internal/collections"
+	"github.com/opentofu/opentofu/internal/linting"
 )
 
 func TestParseStateMv_basicValidation(t *testing.T) {
@@ -109,29 +111,33 @@ func TestParseStateMv_basicValidation(t *testing.T) {
 				stateMv.RawSrcAddr = "source"
 				stateMv.RawDestAddr = "dest"
 				stateMv.Backend.IgnoreRemoteVersion = true
-				// Vars would be updated, but we ignore it in cmp
+				stateMv.Vars = &Vars{{Name: "-var", Value: "key=value"}}
 			}),
 		},
 		"no arguments": {
 			args:        []string{},
 			want:        stateMvArgsWithDefaults(nil),
-			wantErrText: "Invalid number of arguments",
+			wantErrText: "Expected exactly two positional arguments",
 		},
 		"only one argument": {
-			args:        []string{"source"},
-			want:        stateMvArgsWithDefaults(nil),
-			wantErrText: "Invalid number of arguments",
+			args: []string{"source"},
+			want: stateMvArgsWithDefaults(func(stateMv *StateMv) {
+				stateMv.RawSrcAddr = "source"
+			}),
+			wantErrText: "Expected exactly two positional arguments",
 		},
 		"too many arguments": {
-			args:        []string{"source", "dest", "extra"},
-			want:        stateMvArgsWithDefaults(nil),
-			wantErrText: "Invalid number of arguments",
+			args: []string{"source", "dest", "extra"},
+			want: stateMvArgsWithDefaults(func(stateMv *StateMv) {
+				stateMv.RawSrcAddr = "source"
+				stateMv.RawDestAddr = "dest"
+			}),
+			wantErrText: "Expected exactly two positional arguments.",
 		},
 	}
 
 	cmpOpts := cmp.Options{
-		cmpopts.IgnoreUnexported(Vars{}, ViewOptions{}, State{}),
-		cmpopts.IgnoreFields(ViewOptions{}, "JSONInto"), // We ignore JSONInto because it contains a file which is not really diffable
+		cmpopts.IgnoreFields(View{}, "JSONInto"), // We ignore JSONInto because it contains a file which is not really diffable
 	}
 
 	for name, tc := range testCases {
@@ -160,9 +166,12 @@ func stateMvArgsWithDefaults(mutate func(stateMv *StateMv)) *StateMv {
 	ret := &StateMv{
 		DryRun:        false,
 		BackupPathOut: "-",
-		ViewOptions: ViewOptions{
-			ViewType:     ViewHuman,
-			InputEnabled: false,
+		View: &View{
+			ConsolidateWarnings: true,
+			ViewType:            ViewHuman,
+			InputEnabled:        false,
+			LintInclude:         make(collections.Set[linting.RuleAddr]),
+			LintExclude:         make(collections.Set[linting.RuleAddr]),
 		},
 		Backend: &Backend{
 			IgnoreRemoteVersion: false,

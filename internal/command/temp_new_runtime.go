@@ -21,11 +21,12 @@ import (
 	"github.com/opentofu/opentofu/internal/lang/eval"
 	"github.com/opentofu/opentofu/internal/lang/exprs"
 	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/opentofu/opentofu/version"
 	"github.com/zclconf/go-cty/cty"
 )
 
 func (m *Meta) NewRuntimeEnabled() bool {
-	if !m.SystemCfg.AllowExperimentalFeatures {
+	if !version.IsNightly() && !version.IsDev() {
 		return false
 	}
 	optIn := os.Getenv("TOFU_X_EXPERIMENTAL_RUNTIME")
@@ -166,7 +167,7 @@ func (n *newRuntimeModules) ModuleConfig(ctx context.Context, source addrs.Modul
 	log.Printf("[TRACE] backend/local: Loading module from %q from local path %q", source, sourceDir)
 
 	n.mu.Lock()
-	mod, hclDiags := n.loader.LoadConfigDirUneval(sourceDir, configs.SelectiveLoadAll)
+	mod, hclDiags := n.loader.LoadConfigDir(sourceDir)
 	n.mu.Unlock()
 	diags = diags.Append(hclDiags)
 	if hclDiags.HasErrors() {
