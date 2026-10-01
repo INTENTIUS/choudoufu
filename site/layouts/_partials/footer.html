@@ -1,3 +1,4 @@
+{{- $fs := hugo.Data.fork_surface -}}
 <footer class="site-footer">
-  <p>Built on OpenTofu from fork point <a href="https://github.com/opentofu/opentofu/commit/03743ce6e8"><code>03743ce6e8</code></a>. choudoufu is an independent fork, not affiliated with or endorsed by OpenTofu or the Linux Foundation. OpenTofu is a registered trademark of the Linux Foundation. Code is MPL-2.0; stock docs live at <a href="https://opentofu.org/docs/">opentofu.org/docs</a>. Every measured figure on this site describes {{ site.Params.choudoufuVersion }}.</p>
+  <p>Built on OpenTofu {{ $fs.base_opentofu_version }} from fork point <a href="{{ $fs.fork_point_url }}"><code>{{ $fs.fork_point_short }}</code></a>. choudoufu is an independent fork, not affiliated with or endorsed by OpenTofu or the Linux Foundation. OpenTofu is a registered trademark of the Linux Foundation. Code is MPL-2.0; stock docs live at <a href="https://opentofu.org/docs/">opentofu.org/docs</a>. Every measured figure on this site describes {{ site.Params.choudoufuVersion }}.</p>
 </footer>

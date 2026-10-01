@@ -39,6 +39,52 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.21.0 (Unreleased)
 
+Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Earlier releases were built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`); the upgrade is #1778, and upstream's own 1.13.0 notes follow below under "OpenTofu".
+
+- The base moves from upstream main at 1.13.0-dev to the OpenTofu v1.13.0
+  release. `choudoufu version` prints `based on OpenTofu v1.13.0`, `version
+  -json` reports `"terraform_version": "1.13.0"`, and so does a live-plan
+  document's `upstream_version` (#1778).
+- Security fixes that come with v1.13.0's dependencies. govulncheck on
+  v0.20.0's tree reported 13 advisories in code choudoufu calls; on this
+  tree it reports one, the same one it reports on stock v1.13.0
+  (GO-2026-6443 in gRPC, fixed in v1.83.2, which v1.13.0 does not carry
+  yet). Cleared: `golang.org/x/crypto` v0.54.0 to v0.56.0 for GO-2026-6355
+  (CVE-2026-56855) and GO-2026-6354 (CVE-2026-78662), two SSH channel
+  deadlocks; `google.golang.org/grpc` v1.83.0 to v1.83.1 for GO-2026-6348
+  (CVE-2026-84304); Go 1.26.5 to 1.27.1 for seven standard-library
+  advisories; the AWS SDK EventStream decoder panic (GO-2026-5764); and the
+  OpenTelemetry log exporter's TLS bypass (GO-2026-6508). Advisories in
+  imported packages that choudoufu does not call also clear, among them
+  GO-2026-6303 (CVE-2026-56854, x/crypto/ssh) and GO-2026-6441
+  (CVE-2026-84303, gRPC xDS).
+- A plan file saved by an earlier choudoufu is refused by this one. The
+  plan reader refuses any plan whose recorded version differs from the
+  binary's, and that version moves from `1.13.0-dev` to `1.13.0`. Re-run
+  `plan` after upgrading; this holds for any upgrade, including stock's.
+- The CLI runs on v1.13.0's new command tree (urfave/cli v3), stock's
+  default. The seven live-* commands are registered in it, and
+  `-verbose`, `-adoption-only`, `-filter` and `-estate`, plus the
+  live-markers guards on `force-unlock` and `state list|pull|push|rm|show|
+  replace-provider`, move with it. What changes for a user: live-* flags
+  may now follow positional arguments; a bad flag is reported in
+  urfave's words (`flag provided but not defined: -x`) followed by the
+  usage text; `live-mv` with the wrong number of addresses exits 1 with a
+  pointer to `-help` rather than printing the usage text; and live-*
+  `-help` prints the command's own help text without the generated options
+  list. `TOFU_EXPERIMENTAL_CLI_ENABLED=false` still selects the legacy CLI
+  for the 1.13.x line, as in stock.
+- A symbol-library function (`symbols(...)`, experimental in v1.13.0) used
+  where configuration must evaluate statically is refused by name, "Symbol
+  library function in static context", rather than admitted (#1778
+  ruling 8).
+- Everything else upstream changed between the two bases is stock and
+  listed in upstream's 1.13.0 notes below. Two behaviour changes a
+  configuration can see: `base64gzip` returns different bytes for the same
+  input (Go 1.27's DEFLATE), so an argument fed by it plans an update; and
+  the length of a module instance with no resources or outputs is back to
+  its pre-#3469 value (opentofu#4019).
+
 - The Helm release check behind a controller-held object reads both of
   Helm's storage drivers, Secrets and ConfigMaps (`HELM_DRIVER=configmap`),
   so a ConfigMap-driver release's objects are no longer proposed for
