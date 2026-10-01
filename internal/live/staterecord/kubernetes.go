@@ -350,9 +350,10 @@ func (e *UnlabelledRecordError) Error() string {
 		labels = append(labels, name)
 	}
 	return fmt.Sprintf(
-		"staterecord: kubernetes: Secret %q in namespace %q holds the record for key %q and does not carry %s, so it is a record of this estate that no label selector can find; put the labels back with `kubectl -n %s label secret %s --overwrite %s`, or, if that object is another estate's record, label it with that estate's name and this listing will skip it",
+		"staterecord: kubernetes: Secret %q in namespace %q holds the record for key %q and does not carry %s, so it is a record of this estate that no label selector can find; put the labels back with `kubectl -n %s label secret %s --overwrite %s`. Its key is this estate's whatever its labels say, so labelling it as another estate's does not move it out of this listing (that is refused too); if it is not this estate's record, delete it with `kubectl -n %s delete secret %s`",
 		e.SecretName, e.Namespace, e.Key, strings.Join(labels, " and "),
-		e.Namespace, e.SecretName, strings.Join(e.Missing, " "))
+		e.Namespace, e.SecretName, strings.Join(e.Missing, " "),
+		e.Namespace, e.SecretName)
 }
 
 // MisnamedRecordError reports a Secret whose record-key annotation says it
@@ -374,6 +375,34 @@ func (e *MisnamedRecordError) Error() string {
 	return fmt.Sprintf(
 		"staterecord: kubernetes: Secret %q in namespace %q claims the record for key %q in its %s annotation, and that key hashes to Secret %q; the name is what a read looks up, so this object is in every listing and no read, write or delete of that key can reach it. If it is a copy, delete it with `kubectl -n %s delete secret %s`. If it is the record, live/STORAGE.md has the command that moves it to the name its key hashes to.",
 		e.SecretName, e.Namespace, e.Key, KubernetesRecordKeyAnnotation, e.WantName,
+		e.Namespace, e.SecretName)
+}
+
+// ForeignEstateRecordError reports a Secret that holds a key of this store's
+// and is labelled as another estate's: its name is the hash of the key, its
+// annotation carries the key, and its tofu-estate label is not this store's
+// estate.
+//
+// A listing used to skip it as the other estate's record while a Get of the
+// key served it, so a bulk read came back short by that record with no error
+// and a [RunCache] answered "no record" for it. GitHub issue #1355, ruled
+// 2026-09-30: both reads refuse it, by name. A relabel by hand
+// (`kubectl label --overwrite tofu-estate=...`) or a copy made for another
+// estate under this one's key is what produces it.
+type ForeignEstateRecordError struct {
+	Namespace  string
+	SecretName string
+	Key        string
+	// Estate is this store's estate; Labelled is the one the label names.
+	Estate   string
+	Labelled string
+}
+
+func (e *ForeignEstateRecordError) Error() string {
+	return fmt.Sprintf(
+		"staterecord: kubernetes: Secret %q in namespace %q holds the record for key %q, which is estate %q's key, and is labelled %s=%s; a read of the key reaches it by name and a listing would skip it as estate %q's, so the two would disagree about whether the record exists. If it is estate %q's record, put the label back with `kubectl -n %s label secret %s --overwrite %s=%s`; if it is a copy, delete it with `kubectl -n %s delete secret %s`",
+		e.SecretName, e.Namespace, e.Key, e.Estate, KubernetesEstateLabel, e.Labelled, e.Labelled,
+		e.Estate, e.Namespace, e.SecretName, KubernetesEstateLabel, e.Estate,
 		e.Namespace, e.SecretName)
 }
 
@@ -668,6 +697,19 @@ func (s *KubernetesStore) Get(ctx context.Context, key string) ([]byte, string, 
 	if err != nil {
 		return nil, "", false, err
 	}
+	// The object holds this key and is labelled as another estate's. The
+	// listing refuses it ([KubernetesStore.attributeRecord]), and a read
+	// that served it would disagree with that listing about whether the
+	// record exists. GitHub issue #1355.
+	if estate := secret.Labels[KubernetesEstateLabel]; estate != "" && estate != s.estate {
+		return nil, "", false, &ForeignEstateRecordError{
+			Namespace:  s.namespace,
+			SecretName: secret.Name,
+			Key:        s.storeKey(key),
+			Estate:     s.estate,
+			Labelled:   estate,
+		}
+	}
 	return payload, secret.ResourceVersion, true, nil
 }
 
@@ -903,7 +945,7 @@ func (s *KubernetesStore) list(ctx context.Context, keyPrefix string, withPayloa
 		}
 		for i := range page.Items {
 			secret := &page.Items[i]
-			key, mine, err := s.attributeRecord(secret, prefix)
+			key, mine, err := s.attributeRecord(secret, prefix, keyPrefix != "")
 			if err != nil {
 				unlabelled = append(unlabelled, err)
 				continue
@@ -979,7 +1021,19 @@ func (s *KubernetesStore) list(ctx context.Context, keyPrefix string, withPayloa
 // record that kept its labels is found and refused ([MisnamedRecordError]);
 // an unlabelled one that kept its name is too; one that lost both is a Secret
 // this store has no way to tell from someone else's.
-func (s *KubernetesStore) attributeRecord(secret *corev1.Secret, prefix string) (key string, mine bool, err error) {
+//
+// # Another estate's label on a key this listing covers
+//
+// scoped is whether the caller listed under a prefix of its own rather than
+// the whole keyspace. Under one, a correctly named object whose key is under
+// that prefix and whose tofu-estate label names another estate is refused
+// ([ForeignEstateRecordError]): [KubernetesStore.Get] reaches it by name, so
+// skipping it made a bulk read short by that record with no error, which a
+// [RunCache] then answered "no record" for (GitHub issue #1355, ruled
+// 2026-09-30). An unscoped listing of a shared namespace still skips other
+// estates' records, because there every key is under the prefix and the label
+// is the only thing that says whose a record is.
+func (s *KubernetesStore) attributeRecord(secret *corev1.Secret, prefix string, scoped bool) (key string, mine bool, err error) {
 	storeKey, annotated := secret.Annotations[KubernetesRecordKeyAnnotation]
 	if !annotated || !strings.HasPrefix(storeKey, prefix) {
 		// Not a record under this prefix by its annotation. Whether a read
@@ -1003,7 +1057,18 @@ func (s *KubernetesStore) attributeRecord(secret *corev1.Secret, prefix string) 
 		default:
 			// Another estate's record, labelled the way this store labels its
 			// own. A namespace may be shared by configuration, and one
-			// estate's listing has never carried another's.
+			// estate's listing has never carried another's - unless the key
+			// is one this listing covers and the name is the one a Get of
+			// that key reads: see this function's doc comment.
+			if scoped && secret.Name == secretNameForStoreKey(storeKey) {
+				return "", false, &ForeignEstateRecordError{
+					Namespace:  s.namespace,
+					SecretName: secret.Name,
+					Key:        storeKey,
+					Estate:     s.estate,
+					Labelled:   estate,
+				}
+			}
 			return "", false, nil
 		}
 	}

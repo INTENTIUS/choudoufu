@@ -7,6 +7,7 @@ package staterecord
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -542,14 +543,44 @@ func TestKubernetesRecordRelabelledToAnotherEstateIsRefusedByBothReads(t *testin
 		t.Fatal(err)
 	}
 
-	if got, err := store.GetAll(ctx, bulkNS); err == nil {
-		t.Errorf("GetAll returned %d records and no error with %q labelled as another estate's", len(got), relabelled)
+	// Every read refuses it by name, with the same fields, so the operator
+	// is told the Secret, the key and both estates whichever read hit it.
+	want := ForeignEstateRecordError{
+		Namespace:  fakeRecordNamespace,
+		SecretName: store.SecretName(relabelled),
+		Key:        relabelled,
+		Estate:     "prod",
+		Labelled:   "staging",
 	}
-	if keys, err := store.List(ctx, bulkNS); err == nil {
-		t.Errorf("List returned %v and no error with %q labelled as another estate's", keys, relabelled)
+	check := func(read string, err error) {
+		t.Helper()
+		var foreign *ForeignEstateRecordError
+		if !errors.As(err, &foreign) {
+			t.Errorf("%s with %q labelled as another estate's: got %v (%T), want *ForeignEstateRecordError", read, relabelled, err, err)
+			return
+		}
+		if *foreign != want {
+			t.Errorf("%s refused with %+v, want %+v", read, *foreign, want)
+		}
+		for _, part := range []string{want.SecretName, want.Namespace, want.Key, `"prod"`, "staging", "label secret", "delete secret"} {
+			if !strings.Contains(err.Error(), part) {
+				t.Errorf("%s's refusal does not mention %q: %v", read, part, err)
+			}
+		}
 	}
-	if _, _, exists, err := store.Get(ctx, relabelled); err == nil {
-		t.Errorf("Get of %q answered exists=%v with no error, though its Secret is labelled as another estate's", relabelled, exists)
+	got, err := store.GetAll(ctx, bulkNS)
+	if got != nil {
+		t.Errorf("GetAll returned a map of %d records beside its refusal", len(got))
+	}
+	check("GetAll", err)
+	_, err = store.List(ctx, bulkNS)
+	check("List", err)
+	_, _, _, err = store.Get(ctx, relabelled)
+	check("Get", err)
+
+	// The other record is untouched and still served.
+	if _, _, exists, err := store.Get(ctx, keys[0]); err != nil || !exists {
+		t.Errorf("Get of the untouched record %q: exists=%v err=%v", keys[0], exists, err)
 	}
 	assertNoShortSnapshot(t, store, bulkNS, keys)
 }
