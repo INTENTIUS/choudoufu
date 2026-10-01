@@ -267,6 +267,12 @@ type Report struct {
 	// this pass trusts to remove rather than only report.
 	ParentReads []ParentReadFinding
 
+	// RecordedElsewhere is every undeclared record this scoped pass left
+	// alone because its envelope names another provider configuration
+	// (GitHub issue #1721). [Merge] refuses, once per record, for each one
+	// whose configuration no pass ran for: nothing else would remove it.
+	RecordedElsewhere []RecordedElsewhere
+
 	// Guided is true when this pass actually consumed a hint:
 	// Request.Guided was set, a record store was configured, and a fresh,
 	// well-formed hint was read from it. False whenever Request.Guided
@@ -1464,7 +1470,25 @@ const (
 	// unavailability was wrong, and HANDOFF's safety rule prefers the loud,
 	// reversible refusal over that.
 	ProblemDirectReadUnresolved ProblemKind = "DIRECT_READ_UNRESOLVED"
+
+	// ProblemRecordedProviderAbsent is GitHub issue #1721's refusal: a
+	// removed block's record names the provider configuration that
+	// managed it, and no pass of this run reads through that
+	// configuration (an alias renamed or removed). Reading the identity
+	// through another one could reach a different object of the same
+	// name, and dropping the record would leave the object live with
+	// nobody told, so the plan refuses.
+	ProblemRecordedProviderAbsent ProblemKind = "RECORDED_PROVIDER_ABSENT"
 )
+
+// RecordedElsewhere is one undeclared record a scoped pass did not
+// propose, because its envelope names another provider configuration.
+type RecordedElsewhere struct {
+	Addr     addrs.AbsResourceInstance
+	TypeName string
+	// Provider is the record's own [addrs.AbsProviderConfig.String].
+	Provider string
+}
 
 // Severity is the diagnostic severity a problem of this kind carries.
 // Everything that could make a plan act on the wrong resource is an error;

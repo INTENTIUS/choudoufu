@@ -322,8 +322,10 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			// pass runs for (an alias renamed or removed) is proposed by
 			// no pass: reading its identity through another region or
 			// account could find a different object of the same name.
+			// [Merge] refuses for it instead (ProblemRecordedProviderAbsent).
 			// An empty Provider (an envelope older than #389) falls back
 			// to the schema check alone, and [Merge] keeps one removal.
+			res.RecordedElsewhere = append(res.RecordedElsewhere, RecordedElsewhere{Addr: resolvedAddr, TypeName: typeName, Provider: recordedProvider})
 			continue
 		}
 		importID := rec.ImportID

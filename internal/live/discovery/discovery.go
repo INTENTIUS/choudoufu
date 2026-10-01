@@ -4887,4 +4887,5 @@ var problemSummaries = map[ProblemKind]string{
 	ProblemUnreadableMarker:          "Unbound instance with unreadable live markers of its type",
 	ProblemAmbiguousContentMatch:     "Content match found more than one live candidate",
 	ProblemDirectReadUnresolved:      "Direct read could not settle a tag-index-lagged instance",
+	ProblemRecordedProviderAbsent:    "Removed resource's provider configuration is gone",
 }

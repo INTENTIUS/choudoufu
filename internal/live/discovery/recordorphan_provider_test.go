@@ -7,6 +7,7 @@ package discovery
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
@@ -17,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // GitHub issue #1721, found fixing #1715: in a root with two configurations
@@ -56,11 +58,11 @@ func targetGroupAttachmentSchemas(t *testing.T) listclient.Schemas {
 	return schemas
 }
 
-// twoAWSPassMerge seeds one record for a removed attachment block, written
+// twoAWSPassMergeDiags seeds one record for a removed attachment block, written
 // through recordedBy (the zero value writes no Provider, the shape of every
 // envelope older than #389), runs the record leg once per aws configuration
 // and merges the two passes the way live-plan does.
-func twoAWSPassMerge(t *testing.T, recordedBy addrs.AbsProviderConfig) (*Result, map[string]addrs.AbsProviderConfig) {
+func twoAWSPassMergeDiags(t *testing.T, recordedBy addrs.AbsProviderConfig) (*Result, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
 	t.Helper()
 	ctx := context.Background()
 	const estate = "alb"
@@ -87,7 +89,12 @@ func twoAWSPassMerge(t *testing.T, recordedBy addrs.AbsProviderConfig) (*Result,
 		}
 		passes = append(passes, Pass{Provider: prov, Result: res})
 	}
-	merged, providerOf, mdiags := Merge(estate, passes, false)
+	return Merge(estate, passes, false)
+}
+
+func twoAWSPassMerge(t *testing.T, recordedBy addrs.AbsProviderConfig) (*Result, map[string]addrs.AbsProviderConfig) {
+	t.Helper()
+	merged, providerOf, mdiags := twoAWSPassMergeDiags(t, recordedBy)
 	if mdiags.HasErrors() {
 		t.Fatalf("Merge: %s", mdiags.Err())
 	}
@@ -142,17 +149,42 @@ func TestRecordOrphanWithNoRecordedProviderProposesOnce(t *testing.T) {
 
 // TestRecordOrphanNamingNoRunningConfigIsProposedByNoPass pins the case the
 // issue left for decision: the record names aws.east, an alias since
-// removed, so no pass is the one it names. Nothing is proposed: reading its
-// identity through aws or aws.west could reach a different object of the
-// same name in another region or account, and a missed removal is
-// recoverable where a wrong destroy is not.
+// removed, so no pass is the one it names. No pass proposes it, because
+// reading its identity through aws or aws.west could reach a different
+// object of the same name in another region or account. The plan refuses
+// instead, once for the record rather than once per pass, so the missed
+// removal is never silent.
 func TestRecordOrphanNamingNoRunningConfigIsProposedByNoPass(t *testing.T) {
 	east := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("aws"), Alias: "east"}
-	merged, _ := twoAWSPassMerge(t, east)
+	merged, _, diags := twoAWSPassMergeDiags(t, east)
 	for _, r := range merged.Resolutions {
 		if r.Undeclared {
 			t.Errorf("%s is proposed for removal although the record names %s, which no pass reads through", r.Addr, east)
 		}
+	}
+	var refusals []string
+	for _, d := range diags {
+		if d.Severity() == tfdiags.Error && d.Description().Summary == problemSummaries[ProblemRecordedProviderAbsent] {
+			refusals = append(refusals, d.Description().Detail)
+			t.Logf("%s: %s", d.Description().Summary, d.Description().Detail)
+		}
+	}
+	if len(refusals) != 1 {
+		t.Fatalf("the merge raised %d refusals naming the absent configuration, want exactly 1 (one record, two passes): %v", len(refusals), diags.Err())
+	}
+	for _, want := range []string{"aws_lb_target_group_attachment.other", east.String()} {
+		if !strings.Contains(refusals[0], want) {
+			t.Errorf("the refusal does not name %q:\n%s", want, refusals[0])
+		}
+	}
+	var problems int
+	for _, p := range merged.Problems {
+		if p.Kind == ProblemRecordedProviderAbsent {
+			problems++
+		}
+	}
+	if problems != 1 {
+		t.Errorf("the merged result records %d %s problems, want 1", problems, ProblemRecordedProviderAbsent)
 	}
 }
 

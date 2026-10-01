@@ -203,6 +203,10 @@ var refusals = []Refusal{
 		What:    "Some instances of a count-expanded resource carry tofu-slot markers and some do not, so the set cannot be read either as slotted or as positional.",
 	},
 	{
+		Summary: "Removed resource's provider configuration is gone",
+		What:    "A resource block was removed, and the record its instance left (the record-orphan-read leg, issue #364) names the provider configuration that managed it, which no pass of this run reads through - an alias renamed or removed in a root with several configurations of one provider (GitHub issue #1721). Its removal is read only through that configuration, because reading the identity through another region or account could reach a different object of the same name. Declaring the configuration again lets the plan destroy it.",
+	},
+	{
 		Summary: "Resolved resource missing from the configuration",
 		What:    "Discovery was asked to find a resource the configuration it was given does not declare. The resolutions and the configuration came from different runs; a bug in whatever assembled them, not in the configuration.",
 	},

@@ -187,6 +187,7 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 		// rebuilt field by field so a single-provider caller gets exactly
 		// what a direct call to Discover would have given it.
 		p := passes[0]
+		refuseRecordedProviderAbsent(passes, p.Result, &diags)
 		p.Result.AttributeOrphans(p.Provider)
 		for _, r := range p.Result.Resolutions {
 			if r.Undeclared {
@@ -372,6 +373,8 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 	for _, key := range baseOrder {
 		res.Resolutions = append(res.Resolutions, base[key])
 	}
+
+	refuseRecordedProviderAbsent(passes, res, &diags)
 
 	res.sortEverything()
 	return res, providerOf, diags
@@ -617,4 +620,34 @@ func (r *Result) AttributeOrphans(provider addrs.AbsProviderConfig) {
 // no provider argument uses.
 func isDefaultConfig(p addrs.AbsProviderConfig) bool {
 	return p.Alias == "" && p.Module.IsRoot()
+}
+
+// refuseRecordedProviderAbsent raises [ProblemRecordedProviderAbsent] once
+// per record that a scoped pass left to another provider configuration
+// ([Result.RecordedElsewhere]) when no pass ran through that configuration:
+// every pass skipped it, so without this the removal would be missed with
+// nobody told (GitHub issue #1721).
+func refuseRecordedProviderAbsent(passes []Pass, res *Result, diags *tfdiags.Diagnostics) {
+	ran := make(map[string]bool, len(passes))
+	for _, p := range passes {
+		ran[p.Provider.String()] = true
+	}
+	raised := make(map[string]bool)
+	for _, p := range passes {
+		for _, e := range p.Result.RecordedElsewhere {
+			key := e.Addr.String()
+			if ran[e.Provider] || raised[key] {
+				continue
+			}
+			raised[key] = true
+			*diags = diags.Append(problemDiag(res, Problem{
+				Kind:     ProblemRecordedProviderAbsent,
+				TypeName: e.TypeName,
+				Addr:     e.Addr,
+				Detail: fmt.Sprintf(
+					"%s is no longer declared, and its record names provider configuration %s, which this configuration no longer has. Its removal is read only through the configuration that managed it, so it cannot be proposed, and the object would stay live. Declare %s again so the plan can destroy %s, then remove it.",
+					e.Addr, e.Provider, e.Provider, e.Addr),
+			}))
+		}
+	}
 }
