@@ -13,7 +13,7 @@ plan). This note records the answer for all five and what is left.
 | 3 | A server-side apply conflict | claim | blocked on #1191 (deferred) | nothing; see below |
 | 4a | A kill mid-apply | stage | done, `day2_crash` on kind (#1189) | the gauntlet's crash stage sends SIGTERM between two objects' creates |
 | 4b | A kill mid-move | unit test | injector landed, fault is red today | `crashBetweenMarkerWrites` in `internal/live/mv/fault_move_crash_test.go` |
-| 5 | The namespace is deleted under the estate | stage | not started | nothing yet; see below |
+| 5 | The namespace is deleted under the estate | claim | done, claim 46 (#1765) | `k8s-a-deleted-namespace-is-gone.sh` runs `kubectl delete namespace` under two estates and their stock twins; `BREAK=1` asserts an empty plan after the delete, which must fail |
 
 ## 1 and 2: done
 
@@ -77,13 +77,31 @@ already-stamped branch in front of the same `PatchMarkers` call
 (`internal/live/liveimport/manifest.go`) and is expected to behave the
 same way; that is read from the code, not measured.
 
-## 5: namespace delete, not started
+## 5: namespace delete, done as a claim
 
-Stage-shaped: deleting the namespace is a fault injected between two
-steps the lane already runs (an apply, then a plan). The questions are
-#1110's: after `kubectl delete namespace` under a converged estate, do the
-sweep and the plan agree on what is gone, and does the plan propose
-exactly the creates, with stock's plan from the same position as the
-oracle. A second variant deletes the record store's namespace
-(`tofu-records-<estate>`), which `OPERATE.md` says is refused by name.
-This is its own unit.
+#1110 put this down as stage-shaped, a fault between an apply and a plan
+the lane already runs. #1765 took the fallback the issue allowed and made
+it claim 46, `live/smoke/scenarios/k8s-a-deleted-namespace-is-gone.sh`. A
+stage is one more headline column: it would have had to read n/a on every
+floci estate and re-measure the four kubernetes-lane estates, when what
+the fault measures does not depend on an estate's shape beyond whether it
+declares its namespace. The claim carries both variants and its own stock
+oracle, so nothing was given up for the smaller shape.
+
+What it found, on kind, against stock's plan from the same position:
+
+- Declared namespace: `live-ls` lists nothing, the plan is stock's three
+  creates with no orphan and nothing read as present, the namespace is
+  created first, and one apply converges to `No changes.`.
+- Undeclared namespace: the plan is stock's two creates, and both tools'
+  applies fail with `namespaces "<ns>" not found`, once per object. Once
+  the namespace is back, one apply converges.
+- Still terminating (a finalizer on an object inside it, fault 1's shape):
+  the plan reads the namespace and the held object as present and proposes
+  only the object the delete already took, as stock's does.
+- The record store's namespace deleted: the plan and the apply are both
+  refused with `Cannot open the record store`, naming the namespace and
+  the `kubectl create namespace` line, and the refused apply creates
+  nothing.
+
+No defect turned up.
