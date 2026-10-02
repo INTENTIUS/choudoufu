@@ -121,15 +121,14 @@ https://intentius.io/choudoufu/kubernetes/proof/.
 
 The `kubernetes` lane ([#1067](https://github.com/INTENTIUS/choudoufu/issues/1067))
 runs the same fourteen stages as the AWS lanes against a kind cluster
-created for the run, and counts toward its own bar. Two stages do not
-apply on Kubernetes and read `n/a`: a replacement under
-`create_before_destroy`, and the crash between its create and its destroy.
-A Kubernetes name is unique within its namespace, so nothing can be
-created before the object it replaces is gone.
+created for the run, and counts toward its own bar. A Kubernetes name is
+unique within its namespace, so a replacement under `create_before_destroy`
+is a rename there (#1541); `day2_replace` runs on kind since #1641, and
+`day2_crash` interrupts that rename's window since #1768.
 [`live/GAUNTLET.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/GAUNTLET.md)
 says how every other stage reads on the kind substrate.
 
-Three estates run in the lane. `reference-k8s` is a hand-written shape kept
+Four estates run in the lane. `reference-k8s` is a hand-written shape kept
 in this repository. `corpus-quickpizza` is Grafana Labs' own published
 deployment root for their QuickPizza demo application at a pinned tag: 26
 objects over eight kinds, real images, no cloud provider. It is crossed
@@ -141,17 +140,21 @@ for the Grafana Cloud token the run does not have.
 also hand-written, because
 [#1107](https://github.com/INTENTIUS/choudoufu/issues/1107)'s search found
 no published stateful root that cleared the bar. It is 14 objects over
-eight kinds around two StatefulSets with `volume_claim_template` blocks,
-and it is the lane's first red row.
+eight kinds around two StatefulSets with `volume_claim_template` blocks.
+`reference-k8s-cert-manager` (#1174) is the fourth: cert-manager's own
+install bundle converted to `kubernetes_manifest` blocks, 50 objects over
+13 kinds, six of them CRDs.
 
 The PersistentVolumeClaims those templates produce are declared by nothing
-and held in no state file. On kind they carry neither `ownerReferences` nor
-`managedFields`, the two signals the estate sweep tests to tell a
-controller's copies from what somebody declared. Removing only the
-StatefulSet's block leaves them `Bound`, labelled and unowned, and a label
-on one of them is enough for the sweep to propose destroying it. The
-estate's own teardown passes, because the Namespace is in the root and its
-deletion cascades.
+and held in no state file, and they carry no `ownerReferences`: the default
+`persistentVolumeClaimRetentionPolicy` is Retain. That made the lane's
+first red row, until #1179 judged a controller's copies by who wrote their
+content: `kube-controller-manager` alone wrote each PVC's spec, which
+`metadata.managedFields` records (`kubectl get` hides it without
+`--show-managed-fields`, which is how the PVCs were first recorded as
+carrying none). Removing only the StatefulSet's block leaves them `Bound`,
+and a label put on one with kubectl no longer makes the sweep propose
+destroying it.
 
 ## What it would cost
 

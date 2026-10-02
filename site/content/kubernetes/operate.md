@@ -48,9 +48,9 @@ kind cluster fails the last two, so a demo adds
 ## Remove
 
 An object carrying your estate's label that no block declares is proposed for
-deletion. Two kinds are excluded first: anything with an owner reference, and
-anything only the control plane wrote. A controller copies labels from a pod
-template onto Pods nobody declared, and those are never yours to delete.
+deletion. Excluded first: owner-referenced objects, anything only the control plane
+wrote, and a live Helm release's objects. A controller copies a pod
+template's labels onto Pods nobody declared; those are never yours to delete.
 
 ## Scale
 

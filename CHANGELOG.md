@@ -117,10 +117,14 @@ This release is epic #1579: AWS and Kubernetes on one approach in code, tests
 and docs, before any third substrate. Its final report is on #1579.
 
 What the evidence behind the board is. The four kubernetes-lane estates were
-re-measured on the release tree: `reference-k8s`, `reference-k8s-stateful`,
-`reference-k8s-cert-manager` and `corpus-quickpizza`, each 14/14 on kind,
-including `day2_replace`, which runs on kind for the first time in this
-release (#1641). The AWS rows were not re-measured. They carry v0.19.0's
+re-measured on main the day of the release, each 14/14 on kind, including
+`day2_replace`, which runs on kind for the first time in this release
+(#1641): `reference-k8s` and `reference-k8s-stateful` at `12059459de`
+(#1725), `reference-k8s-cert-manager` and `corpus-quickpizza` at
+`aa39998530` (#1724). Neither is the release tree `9e19aeff31`; from
+`aa39998530` to it only the gauntlet harness (`tools/gauntlet`), example
+version pins and release bookkeeping changed. (Corrected in v0.21.0, #1744:
+this paragraph first said all four ran on the release tree.) The AWS rows were not re-measured. They carry v0.19.0's
 evidence, which was measured against the same pinned floci image, so nothing
 they were measured on has moved. They predate the per-row provider versions
 this release records (#1253), so `gauntlet next` lists them as re-measure work.

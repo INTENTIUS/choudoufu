@@ -113,13 +113,18 @@ objects claiming one address.
 
 An object carrying this estate's marker that no block declares is
 proposed for deletion under the default policy, on Kubernetes as on AWS
-([claim 1 on Kubernetes](../smoke/claims/no-silent-orphans.md#on-kubernetes)). Two
-exclusions run before anything reaches a delete quadrant, and either is
-sufficient. One is an object with a non-empty `metadata.ownerReferences`,
-such as a ReplicaSet's from its Deployment or a PVC's from its
-StatefulSet. The other is an object whose every `metadata.managedFields`
-manager is the control plane, such as the legacy `Endpoints` the endpoints
-controller mirrors a Service's labels onto. A controller copies template
+([claim 1 on Kubernetes](../smoke/claims/no-silent-orphans.md#on-kubernetes)). Four
+exclusions run before anything reaches a delete quadrant, any one
+sufficient (`kubesweep.ControllerMade`). An object carrying Helm's
+`meta.helm.sh/release-name` annotation is excluded while that release's
+history record still lists it. An object with a non-empty
+`metadata.ownerReferences` is excluded, such as a ReplicaSet's from its
+Deployment. An object whose content (`f:spec`, `f:data`) only control-plane
+managers wrote is excluded, such as a PVC a StatefulSet's
+volumeClaimTemplate made, which carries no owner reference. Failing that,
+an object whose every `metadata.managedFields` manager is the control plane
+is excluded, such as the legacy `Endpoints` the endpoints controller
+mirrors a Service's labels onto. A controller copies template
 labels, so an estate label in a pod template lands on objects nobody
 declared, and the exclusions keep those out.
 
