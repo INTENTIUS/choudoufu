@@ -1783,60 +1783,62 @@
       },
       "stage_runs": {
         "cold_deploy": {
-          "commit": "bfbebd754acae07dcbdc806c313e501bbd225e97",
-          "date": "2026-09-23T20:15:34Z"
+          "commit": "87aad13cb9b8b7c41c38853c8eac303d79284f5a",
+          "date": "2026-10-02T20:28:46Z"
         },
         "day2_count": {
-          "commit": "bfbebd754acae07dcbdc806c313e501bbd225e97",
-          "date": "2026-09-23T20:15:34Z"
+          "commit": "87aad13cb9b8b7c41c38853c8eac303d79284f5a",
+          "date": "2026-10-02T20:28:46Z"
         },
         "day2_remove": {
-          "commit": "bfbebd754acae07dcbdc806c313e501bbd225e97",
-          "date": "2026-09-23T20:15:34Z"
+          "commit": "87aad13cb9b8b7c41c38853c8eac303d79284f5a",
+          "date": "2026-10-02T20:28:46Z"
         },
         "day2_rename": {
-          "commit": "bfbebd754acae07dcbdc806c313e501bbd225e97",
-          "date": "2026-09-23T20:15:34Z"
+          "commit": "87aad13cb9b8b7c41c38853c8eac303d79284f5a",
+          "date": "2026-10-02T20:28:46Z"
         },
         "day2_replace": {
-          "commit": "bfbebd754acae07dcbdc806c313e501bbd225e97",
-          "date": "2026-09-23T20:15:34Z"
+          "commit": "87aad13cb9b8b7c41c38853c8eac303d79284f5a",
+          "date": "2026-10-02T20:28:46Z"
         },
         "drift_reconverge": {
-          "commit": "bfbebd754acae07dcbdc806c313e501bbd225e97",
-          "date": "2026-09-23T20:15:34Z"
+          "commit": "87aad13cb9b8b7c41c38853c8eac303d79284f5a",
+          "date": "2026-10-02T20:28:46Z"
         },
         "greenfield": {
-          "commit": "bfbebd754acae07dcbdc806c313e501bbd225e97",
-          "date": "2026-09-23T20:15:34Z"
+          "commit": "87aad13cb9b8b7c41c38853c8eac303d79284f5a",
+          "date": "2026-10-02T20:28:46Z"
         },
         "migrate": {
-          "commit": "bfbebd754acae07dcbdc806c313e501bbd225e97",
-          "date": "2026-09-23T20:15:34Z"
+          "commit": "87aad13cb9b8b7c41c38853c8eac303d79284f5a",
+          "date": "2026-10-02T20:28:46Z"
         },
         "plan_approval": {
-          "commit": "bfbebd754acae07dcbdc806c313e501bbd225e97",
-          "date": "2026-09-23T20:15:34Z"
+          "commit": "87aad13cb9b8b7c41c38853c8eac303d79284f5a",
+          "date": "2026-10-02T20:28:46Z"
         },
         "test_apply": {
-          "commit": "bfbebd754acae07dcbdc806c313e501bbd225e97",
-          "date": "2026-09-23T20:15:34Z"
+          "commit": "87aad13cb9b8b7c41c38853c8eac303d79284f5a",
+          "date": "2026-10-02T20:28:46Z"
         },
         "test_plan": {
-          "commit": "bfbebd754acae07dcbdc806c313e501bbd225e97",
-          "date": "2026-09-23T20:15:34Z"
+          "commit": "87aad13cb9b8b7c41c38853c8eac303d79284f5a",
+          "date": "2026-10-02T20:28:46Z"
         }
       },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "bfbebd754acae07dcbdc806c313e501bbd225e97",
-        "date": "2026-09-23T20:15:34Z",
+        "commit": "87aad13cb9b8b7c41c38853c8eac303d79284f5a",
+        "date": "2026-10-02T20:28:46Z",
         "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
+        "aws_provider_version": "6.63.0",
         "oracle": {
-          "terraform": "1.16.1",
-          "tofu": "1.12.6"
+          "terraform": "1.15.8",
+          "tofu": "1.12.5"
         },
+        "upstream_version": "1.13.0",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "4 resources added, 0 objects carry tofu-estate=hongbomiao-labelbox-crossing before migration",
@@ -1847,23 +1849,23 @@
           "drift_reconverge": "bucket tag drifted; exactly module.amazon_s3_bucket_hm_labelbox.aws_s3_bucket.main proposed, applied (1 changed), reconverged to hongbomiao",
           "greenfield": "4 resources from nothing (bucket, CORS config, role, untaggable inline role policy), markers verified via the AWS CLI, 4 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared; the 2 taggable objects counted through GetResources (1) AND IAM's own list-role-tags (1), deduplicated by ARN, because the tagging API does not index this estate's IAM role in us-west-2 (#1549)",
           "migrate": "2 of 4 stamped (2 skipped, untaggable), 0 failed; markers read back via the AWS CLI",
-          "plan_approval": "one argument edited (labelbox_iam_role's common_tags gain Reviewed=yes), \"plan -out=approved.tfplan\" wrote a 9989-byte stock-format plan file whose whole change set is one update on module.labelbox_iam_role.aws_iam_role.labelbox_iam_role; the world then moved out of band (hongbomiao-labelbox-crossing-hm-labelbox's hm_team tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.amazon_s3_bucket_hm_labelbox.aws_s3_bucket.main and the live hongbomiao-labelbox-crossing-hm-labelbox it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - LabelboxRole-hm-labelbox still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and LabelboxRole-hm-labelbox read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails",
+          "plan_approval": "one argument edited (labelbox_iam_role's common_tags gain Reviewed=yes), \"plan -out=approved.tfplan\" wrote a 14711-byte stock-format plan file whose whole change set is one update on module.labelbox_iam_role.aws_iam_role.labelbox_iam_role; the world then moved out of band (hongbomiao-labelbox-crossing-hm-labelbox's hm_team tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.amazon_s3_bucket_hm_labelbox.aws_s3_bucket.main and the live hongbomiao-labelbox-crossing-hm-labelbox it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - LabelboxRole-hm-labelbox still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and LabelboxRole-hm-labelbox read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at 1, no state file",
           "test_plan": "no resource change proposed; bucket and role tofu-address unchanged, CORS origins and inline policy resource match config"
         },
-        "duration_s": 271,
+        "duration_s": 128,
         "stage_seconds": {
-          "cold_deploy": 26,
-          "day2_count": 51,
-          "day2_remove": 17,
-          "day2_rename": 21,
-          "day2_replace": 17,
-          "drift_reconverge": 13,
-          "greenfield": 45,
-          "migrate": 35,
-          "plan_approval": 31,
-          "test_apply": 8,
-          "test_plan": 7
+          "cold_deploy": 14,
+          "day2_count": 21,
+          "day2_remove": 7,
+          "day2_rename": 9,
+          "day2_replace": 7,
+          "drift_reconverge": 5,
+          "greenfield": 34,
+          "migrate": 14,
+          "plan_approval": 12,
+          "test_apply": 2,
+          "test_plan": 3
         }
       },
       "notes": "Landed 2026-08-18 as the second estate in the OpenTofu-native lane and the first to clear all five stages there. Stronger OpenTofu-native evidence than corpus-sumaform-aws (which only describes itself as OpenTofu-native but ships plain .tf once its .example template is copied in): every file under infrastructure/opentofu/ genuinely uses the .tofu extension, its own justfile drives init/plan/apply/refresh/destroy exclusively via `tofu`, and common_tags carries \"hm_managed_by\" = \"opentofu\" - proven rather than asserted, since the crossing script's own stock terraform init against this estate reports \"The directory has no Terraform configuration files.\" Scoped to the self-contained \"Labelbox\" slice (S3 bucket, its CORS configuration, an IAM role with an inline S3-read policy - three real leaf modules copied byte-identical from the pinned commit, diffed programmatically in the script) out of a much larger monorepo (AWS+Nebius+Cloudflare+Snowflake+EKS, cross-wired via terraform_remote_state) too large to stand up in one sitting - the same scoping convention corpus-sumaform-aws's module.base stand-in uses. All five stages verified for real: cold_deploy (tofu apply, 4 resources, confirmed unmarked via resourcegroupstaggingapi), migrate (live-import: \"2 of 4 resource instance(s) are eligible for stamping\" - 2 correctly UNTAGGABLE, the CORS config via provider-schema fallback and the inline policy via the generated table's composite ROLENAME:POLICYNAME identity; -approve stamped both taggable resources, markers verified directly via aws s3api get-bucket-tagging / aws iam list-role-tags), test_plan (state deleted, live-plan \"No changes\", identities re-checked against the AWS CLI including the two untaggable resources' own content - CORS AllowedOrigins, inline policy's Resource ARN - since they carry no tag to re-read), test_apply (genuine no-op, 2 tagged objects before and after), and drift_reconverge (the bucket's hm_team tag tampered out of band, plan proposed fixing exactly that object, apply reconverged it; BREAK=1 verified load-bearing for both stage 2's identity check and stage 5's single-object assertion, tested in isolation for stage 5 per the corpus-vpc-complete convention since the shared BREAK var fails fast at stage 2 otherwise). Two non-blocking findings documented in the script's own header rather than routed around: aws_s3_bucket/aws_iam_role report DRIFTED during verification from AWS's own deprecated cors_rule/inline_policy shadow attributes reflecting a sibling resource created after the state snapshot (harmless, resolves by plan time), and the schema-admitted aws_s3_bucket_cors_configuration triggers the already-documented \"Resource type has no orphan recovery\" warning (live/LIMITATIONS.md, not a new gap). No choudoufu or floci gaps found - nothing filed. Merged to local main as c7fb650f4c (fix itself: 30577f6a56); justfile gained recipe demo-corpus-hongbomiao-labelbox; live/corpus-manifest.json gained the pin (reproducibility only, same convention as the sumaform entry - contributes nothing to a corpus-gen number)."

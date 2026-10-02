@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
-  "banner": "Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, recorded between 2026-09-23T20:13:04Z and 2026-10-02T18:23:20Z. Each row below carries its own `last_run` date; they are not all the same run.",
-  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 4h58m45.5s, but not from one sweep: 3m42.5s across 1 estate(s) at commit `39eeb6d7c6`; 10m29.1s across 1 estate(s) at commit `58d3e89ec3`; 13m29.6s across 1 estate(s) at commit `6b043d9c35`; 15m1.6s across 1 estate(s) at commit `9bf25ff69f`; 45m14.8s across 1 estate(s) at commit `a61480bd60`; 10m39.6s across 1 estate(s) at commit `b2691b72ae`; 3h20m8.3s across 25 estate(s) at commit `bfbebd754a`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
-  "script_banner": "**26 of 31 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 16 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, terralith-scale.",
+  "banner": "Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, recorded between 2026-09-23T20:13:04Z and 2026-10-02T20:28:46Z. Each row below carries its own `last_run` date; they are not all the same run.",
+  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 4h56m22.5s, but not from one sweep: 3m42.5s across 1 estate(s) at commit `39eeb6d7c6`; 10m29.1s across 1 estate(s) at commit `58d3e89ec3`; 13m29.6s across 1 estate(s) at commit `6b043d9c35`; 2m8s across 1 estate(s) at commit `87aad13cb9`; 15m1.6s across 1 estate(s) at commit `9bf25ff69f`; 45m14.8s across 1 estate(s) at commit `a61480bd60`; 10m39.6s across 1 estate(s) at commit `b2691b72ae`; 3h15m37.3s across 24 estate(s) at commit `bfbebd754a`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "script_banner": "**25 of 31 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 15 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, terralith-scale.",
   "upstream_version": "1.13.0",
-  "engine_banner": "The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 31 estates measured so far, 2 recorded running on it; 29 are engine-stale: measured on a different base, or predating `last_run.upstream_version` and so measured on `1.13.0-dev` - stale evidence, not a failure, and `go run ./tools/gauntlet next` surfaces it as work.",
+  "engine_banner": "The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 31 estates measured so far, 3 recorded running on it; 28 are engine-stale: measured on a different base, or predating `last_run.upstream_version` and so measured on `1.13.0-dev` - stale evidence, not a failure, and `go run ./tools/gauntlet next` surfaces it as work.",
   "stage_count": 14,
   "stages": [
     {
@@ -1361,75 +1361,74 @@
         "pass",
         "not run"
       ],
-      "runtime_total": "4m31s",
-      "runtime_cells": "cold_deploy 26s, migrate 35s, test_plan 7s, test_apply 8s, drift_reconverge 13s, day2_rename 21s, day2_remove 17s, day2_count 51s, day2_replace 17s, plan_approval 31s, greenfield 45s",
-      "last_run_note": "Last run at commit `bfbebd754a` on 2026-09-23T20:15:34Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 4m31s.",
-      "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.12.6`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
-      "engine_note": "Engine: OpenTofu base not recorded (the run predates `last_run.upstream_version`, so it was on `1.13.0-dev`). **Stale**: the current base is `1.13.0`.",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "runtime_total": "2m8s",
+      "runtime_cells": "cold_deploy 14s, migrate 14s, test_plan 3s, test_apply 2s, drift_reconverge 5s, day2_rename 9s, day2_remove 7s, day2_count 21s, day2_replace 7s, plan_approval 12s, greenfield 34s",
+      "last_run_note": "Last run at commit `87aad13cb9` on 2026-10-02T20:28:46Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 2m8s.",
+      "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
+      "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
+      "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "26s",
+          "duration": "14s",
           "detail": "4 resources added, 0 objects carry tofu-estate=hongbomiao-labelbox-crossing before migration"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "35s",
+          "duration": "14s",
           "detail": "2 of 4 stamped (2 skipped, untaggable), 0 failed; markers read back via the AWS CLI"
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "7s",
+          "duration": "3s",
           "detail": "no resource change proposed; bucket and role tofu-address unchanged, CORS origins and inline policy resource match config"
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "8s",
+          "duration": "2s",
           "detail": "no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at 1, no state file"
         },
         {
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
           "verdict": "pass",
-          "duration": "13s",
+          "duration": "5s",
           "detail": "bucket tag drifted; exactly module.amazon_s3_bucket_hm_labelbox.aws_s3_bucket.main proposed, applied (1 changed), reconverged to hongbomiao"
         },
         {
           "id": "day2_rename",
           "title": "Rename",
           "verdict": "pass",
-          "duration": "21s",
+          "duration": "9s",
           "detail": "moved block: module.amazon_s3_bucket_hm_labelbox renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.labelbox_iam_role renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
         },
         {
           "id": "day2_remove",
           "title": "Remove a block",
           "verdict": "pass",
-          "duration": "17s",
+          "duration": "7s",
           "detail": "choudoufu: deleting module.labelbox_iam_role_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy - the untaggable inline policy and its taggable parent role), applied cleanly (0 added, 0 changed, 2 destroyed) in an order IAM accepted, the role is genuinely gone from the live account (iam get-role on the old name now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly two destroys for the same objects"
         },
         {
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "51s",
+          "duration": "21s",
           "detail": "choudoufu: scaling aws_iam_policy.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live PolicyId and tofu-address/tofu-slot markers unchanged, and tombstoning count_test[1]'s own record in place (has tombstone, no identity - the #398-guard shape, not file absence); scaling back from 1 to 2 created exactly count_test[1] under the SAME ARN (deterministic from name+path) but a NEW PolicyId (0 add, 0 change -\u003e 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout, and its record regained a live identity alongside its kept tombstone; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied fresh in the idle greenfield account, shows the identical shape: destroy the higher index only, create the higher index back under the same ARN but a new PolicyId, the lower index's PolicyId unchanged both times; BREAK_COUNT=1 confirms the wrong-instance assertion above is load-bearing"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
           "verdict": "pass",
-          "duration": "17s",
+          "duration": "7s",
           "detail": "choudoufu: changing labelbox_service_account_name proposed exactly one role replace at module.labelbox_iam_role_renamed's declared address, cascading into its untaggable inline policy (also replaced, role and name are both ForceNew there) - 2 to add, 0 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old role is confirmed terminated (NoSuchEntity) and the new role carries the marker, both via the AWS CLI; the local record store's records at the same addresses now name the new role's import_id and the new role:name pair, not the destroyed ones (role LabelboxRole-hm-labelbox -\u003e LabelboxRole-hm-labelbox-v2; policy LabelboxRole-hm-labelbox:LabelboxRoleS3Policy-hm-labelbox -\u003e LabelboxRole-hm-labelbox-v2:LabelboxRoleS3Policy-hm-labelbox-v2) - the same untaggable-identity path this estate's greenfield fix resolves for a from-nothing apply, now proven under a real replace; the next plan proposes no resource action. Scope notes: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names (module lifecycle blocks are rejected by OpenTofu core, and the vendored module stays byte-identical to the pinned commit throughout - see this section's own header); and a manufactured live-object collision (this stage's own Break text) goes undetected by an ordinary plan for this resource shape, confirmed by instrumenting discovery.bind() directly - a fully record-backed type's declared population is excluded from that function's per-type claimant sweep, a real finding this unit records rather than fixes (identity-path change, HANDOFF's stop-and-report territory); BREAK_REPLACE instead proves this section's own plan-shape assertion is load-bearing."
         },
         {
@@ -1446,14 +1445,14 @@
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "31s",
-          "detail": "one argument edited (labelbox_iam_role's common_tags gain Reviewed=yes), \"plan -out=approved.tfplan\" wrote a 9989-byte stock-format plan file whose whole change set is one update on module.labelbox_iam_role.aws_iam_role.labelbox_iam_role; the world then moved out of band (hongbomiao-labelbox-crossing-hm-labelbox's hm_team tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.amazon_s3_bucket_hm_labelbox.aws_s3_bucket.main and the live hongbomiao-labelbox-crossing-hm-labelbox it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - LabelboxRole-hm-labelbox still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and LabelboxRole-hm-labelbox read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+          "duration": "12s",
+          "detail": "one argument edited (labelbox_iam_role's common_tags gain Reviewed=yes), \"plan -out=approved.tfplan\" wrote a 14711-byte stock-format plan file whose whole change set is one update on module.labelbox_iam_role.aws_iam_role.labelbox_iam_role; the world then moved out of band (hongbomiao-labelbox-crossing-hm-labelbox's hm_team tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.amazon_s3_bucket_hm_labelbox.aws_s3_bucket.main and the live hongbomiao-labelbox-crossing-hm-labelbox it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - LabelboxRole-hm-labelbox still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and LabelboxRole-hm-labelbox read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "45s",
+          "duration": "34s",
           "detail": "4 resources from nothing (bucket, CORS config, role, untaggable inline role policy), markers verified via the AWS CLI, 4 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared; the 2 taggable objects counted through GetResources (1) AND IAM's own list-role-tags (1), deduplicated by ARN, because the tagging API does not index this estate's IAM role in us-west-2 (#1549)"
         },
         {
