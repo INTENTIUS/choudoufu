@@ -26,6 +26,7 @@ import (
 	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/lang/evalchecks"
 	"github.com/intentius/choudoufu/internal/lang/marks"
+	"github.com/intentius/choudoufu/internal/live/absent"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -1035,6 +1036,15 @@ func (n *NodeAbstractResourceInstance) refresh(ctx context.Context, evalCtx Eval
 	}
 
 	resp := provider.ReadResource(ctx, providerReq)
+	if resp.Diagnostics.HasErrors() && absent.RemovedWithoutIdentity(providerReq.PriorIdentity, resp.NewState, resp.Diagnostics) {
+		// choudoufu: the provider removed the object and the plugin
+		// framework then complained that the removed object had no
+		// identity. That is "no object exists", the null state below, and
+		// an import goes on to say so in its own words. See
+		// absent.RemovedWithoutIdentity.
+		log.Printf("[DEBUG] refresh: %s: %q over a null state with no prior identity; treating the read as finding no object", n.Addr, absent.FrameworkMissingIdentityAfterRead)
+		resp.Diagnostics = absent.WithoutErrors(resp.Diagnostics)
+	}
 	if n.Config != nil {
 		resp.Diagnostics = resp.Diagnostics.InConfigBody(n.Config.Config, n.Addr.String())
 	}

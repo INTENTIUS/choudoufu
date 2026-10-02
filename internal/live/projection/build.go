@@ -4036,13 +4036,13 @@ func readImported(ctx context.Context, provider providers.Interface, schema prov
 		PriorIdentity: obj.Identity,
 	})
 	if readResp.Diagnostics.HasErrors() {
-		if removedWithoutIdentity(readResp) {
+		if absent.RemovedWithoutIdentity(obj.Identity, readResp.NewState, readResp.Diagnostics) {
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Warning,
 				SummaryRemovedWithoutIdentity,
 				fmt.Sprintf(
 					"Reading the %s imported with identity %q returned no object, and the provider's plugin framework then reported %q over that empty answer. A read that removes the object leaves no identity to return, so the complaint is about absence, not a failure. Treating it as an ordinary absence.",
-					typeName, importID, frameworkMissingIdentityAfterRead,
+					typeName, importID, absent.FrameworkMissingIdentityAfterRead,
 				),
 			))
 			return nil, cty.NilVal, statusAbsent, diags
@@ -4164,45 +4164,9 @@ func readImported(ctx context.Context, provider providers.Interface, schema prov
 	}, importStub, statusMaterialized, diags
 }
 
-// frameworkMissingIdentityAfterRead is the error summary
-// terraform-plugin-framework's fwserver attaches to a ReadResource whose
-// provider code finished without error but left the identity null.
-const frameworkMissingIdentityAfterRead = "Missing Resource Identity After Read"
-
-// SummaryRemovedWithoutIdentity is the warning [removedWithoutIdentity]'s
-// absence carries.
+// SummaryRemovedWithoutIdentity is the warning a read carries when
+// [absent.RemovedWithoutIdentity] turns its failure into an absence.
 const SummaryRemovedWithoutIdentity = "Read reported absence as an identity error"
-
-// removedWithoutIdentity reports whether a failed read is really the
-// provider answering "absent": a null new state, and no error but the
-// framework's identity complaint.
-//
-// The framework (v1.16.1, fwserver/server_readresource.go) runs that check
-// only after the provider's own Read returned no error, and it does not
-// exempt a resource the Read removed. A provider that imports by ID with
-// resource.ImportStatePassthroughWithIdentity starts the read with a null
-// identity, so a missing object always produces this pair. Stock tofu
-// fails an import block the same way; a projection imports on every plan,
-// which made every greenfield create of such a type unplannable
-// (hashicorp/kubernetes 3.3.0's kubernetes_namespace_v1, corpus-quickpizza,
-// 2026-10-02). The same complaint over a non-null state is a provider
-// returning an object with no identity, and stays a failure.
-func removedWithoutIdentity(resp providers.ReadResourceResponse) bool {
-	if resp.NewState == cty.NilVal || !resp.NewState.IsKnown() || !resp.NewState.IsNull() {
-		return false
-	}
-	saw := false
-	for _, d := range resp.Diagnostics {
-		if d.Severity() != tfdiags.Error {
-			continue
-		}
-		if d.Description().Summary != frameworkMissingIdentityAfterRead {
-			return false
-		}
-		saw = true
-	}
-	return saw
-}
 
 // pickImported selects the imported object that belongs at the address
 // being materialized, and reports the type names of any others. The import
