@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/projection"
 )
 
@@ -128,5 +129,82 @@ func TestRemovedParentAndChildProposeTheRecordedChildAddress(t *testing.T) {
 	}
 	if len(childAddrs) != 1 || childAddrs[0] != recordedChild.String() {
 		t.Errorf("aws_iam_role_policy resolutions = %v, want exactly [%s] - the address the estate's own record names, not a label minted from the live policy name:\n%s", childAddrs, recordedChild, res)
+	}
+}
+
+// TestRemovedParentAndChildUnderAnAliasProposeTheRecordedChildAddressOnce is
+// the same shape in a root with two configurations of one provider, which is
+// corpus-hongbomiao-labelbox's own: the role's module call passes
+// aws.production, and another module uses the default aws. GitHub issue
+// #1721 made a scoped pass propose a record only when the record names that
+// pass's own configuration, so the default pass left the policy's record to
+// the alias pass - and then its own parent-list leg, listing the orphan role
+// it swept (IAM is account-global, so both passes see it), found the policy
+// unaccounted for and minted it a second removal at a label taken from the
+// live policy's name. The merged plan proposed
+//
+//	module.labelbox_iam_role_renamed.aws_iam_role_policy.LabelboxRoleS3Policy-hm-labelbox-v2
+//
+// again (2026-10-02 whole-set gauntlet, day2_remove), the #875 defect back
+// through the other pass. A record this pass leaves to another configuration
+// is still accounted for: the parent-read legs must not mint it.
+func TestRemovedParentAndChildUnderAnAliasProposeTheRecordedChildAddressOnce(t *testing.T) {
+	cfg := loadConfig(t, recordFirstFixture(t))
+	resolutions := resolveOrFail(t, cfg).All()
+
+	cloud := newFakeCloud()
+	cloud.listable("aws_iam_role")
+	cloud.own("aws_iam_role", "nr-role", "aws_iam_role.r")
+	cloud.listableUntagged("aws_iam_role_policy")
+	cloud.withListAttr("aws_iam_role_policy", "role")
+	cloud.withRequiredAttr("aws_iam_role_policy", "role")
+	cloud.withRequiredAttr("aws_iam_role_policy", "name")
+	cloud.withIdentitySchema("aws_iam_role_policy", "role", "name")
+	cloud.objWithIdentity("aws_iam_role_policy", "nr-role:nr-inline", map[string]string{"role": "nr-role", "name": "nr-inline"})
+
+	defaultProv := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("aws")}
+	aliasProv := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("aws"), Alias: "production"}
+
+	rawStore, seedStore := recordOrphanHintStore(t)
+	recordedChild := mustAddr(t, "aws_iam_role_policy.r_inline")
+	if _, err := projection.SeedLocatedForInstance(t.Context(), seedStore, recordedChild, aliasProv, projection.LocatedRecord{
+		Components: map[string]string{"role": "nr-role", "name": "nr-inline"},
+	}); err != nil {
+		t.Fatalf("seeding the child's record: %s", err)
+	}
+
+	var passes []Pass
+	for _, prov := range []addrs.AbsProviderConfig{defaultProv, aliasProv} {
+		res, diags := Discover(t.Context(), Request{
+			Estate:        estateName,
+			Config:        cfg,
+			Resolutions:   resolutions,
+			Provider:      cloud,
+			Sweep:         true,
+			HintStore:     rawStore,
+			ScopeProvider: prov,
+			VouchProvider: prov,
+		})
+		assertNoErrors(t, diags)
+		passes = append(passes, Pass{Provider: prov, Result: res})
+	}
+	merged, providerOf, diags := Merge(estateName, passes, false)
+	assertNoErrors(t, diags)
+
+	var childAddrs []string
+	for _, r := range merged.Resolutions {
+		if r.Type() != "aws_iam_role_policy" {
+			continue
+		}
+		childAddrs = append(childAddrs, r.Addr.String())
+		if r.Addr.String() != recordedChild.String() {
+			t.Errorf("the merge proposes the inline policy's removal at %s via %s: a label minted from the live policy name, where the estate's own record names %s", r.Addr, providerOf[r.Addr.String()], recordedChild)
+		}
+	}
+	if len(childAddrs) != 1 {
+		t.Errorf("aws_iam_role_policy resolutions = %v, want exactly one removal of the one live inline policy (#1721):\n%s", childAddrs, merged)
+	}
+	if got := providerOf[recordedChild.String()]; got.String() != aliasProv.String() {
+		t.Errorf("the recorded removal is read through %s, want %s, the configuration its record names", got, aliasProv)
 	}
 }

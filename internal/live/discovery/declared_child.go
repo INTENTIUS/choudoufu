@@ -74,6 +74,15 @@ func declaredChildImportIDs(typeName string, res *Result) map[string]bool {
 			out[id] = true
 		}
 	}
+	// A record this pass left to the configuration it names (GitHub issue
+	// #1721) is accounted for too: that configuration's pass proposes its
+	// removal at the address the record keys, so a child listed off a
+	// parent this pass also swept is not a second, differently-named one.
+	for _, e := range res.RecordedElsewhere {
+		if e.TypeName == typeName && e.ImportID != "" {
+			out[e.ImportID] = true
+		}
+	}
 	return out
 }
 
