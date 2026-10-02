@@ -20,6 +20,12 @@
     "cold_deploy state on the pinned emulator: 1.16.0 gave 11 clean plans",
     "and 9 cycles, 1.16.1 gave 20 clean plans and 0 cycles. See #947.",
     "",
+    "tofu_version was 1.12.6 and is 1.13.0 so the oracle matches the",
+    "engine's own base: PR #1787 moved choudoufu onto OpenTofu v1.13.0, and",
+    "#1778 ruling 3 moves the stock tofu oracle to the same release in the",
+    "PR right after, so a tofu-lane verdict compares like with like.",
+    "Measured on reference-ec2-vpc against the pinned emulator before landing.",
+    "",
     "A human maintains this file deliberately: hand-edit, then run",
     "`just oracle-bump` for the movement report before landing it.",
     "",
@@ -55,7 +61,7 @@
     "no row records the value yet (the aws field's #1253 gap, one lane over)."
   ],
   "terraform_version": "1.16.1",
-  "tofu_version": "1.12.6",
+  "tofu_version": "1.13.0",
   "aws_provider_version": "6.63.0",
   "kubernetes_provider_version": "3.2.1"
 }
