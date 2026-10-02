@@ -1500,6 +1500,12 @@ type RecordedElsewhere struct {
 	// Unserved is true when this pass's provider has no schema for the
 	// type at all, rather than serving it under another configuration.
 	Unserved bool
+	// ImportID is the record's identity in the parent-read legs' composed
+	// form ([declaredChildImportIDs]), "" when it was not read (Unserved)
+	// or would not compose. The object is the named configuration's pass
+	// to remove, so this pass's parent-read legs must not mint it a
+	// removal of their own.
+	ImportID string
 }
 
 // Severity is the diagnostic severity a problem of this kind carries.
