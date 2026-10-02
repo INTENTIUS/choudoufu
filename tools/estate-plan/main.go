@@ -134,6 +134,8 @@ var blockerAction = map[string]struct {
 	// ---- identity layer: the value is in the config, we cannot see it ----
 	"Non-static count expression": {ActionDerive,
 		"count is set from something the static evaluator will not fold. The instance keys are determined at plan time and the address is knowable; the analysis is what falls short."},
+	"Sensitive count expression": {ActionDerive,
+		"the count reads a sensitive value. Stock unmarks a sensitive count, because instance keys 0..n-1 disclose nothing, and refuses only an ephemeral one; refusing the sensitive case is analysis falling short, not a rule (1792)."},
 	"Non-static for_each expression": {ActionDerive,
 		"same shape as count, one dimension wider: the key SET is the thing we cannot fold, and a wrong key set is a wrong marker rather than a missing one."},
 	"Non-static identity argument": {ActionDerive,
