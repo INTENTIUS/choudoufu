@@ -37,9 +37,48 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
    `generated-from.json` alongside the pin. Skipping this step for more than
    one release cycle is what `TestCIPipelinePinIsTiedToRelease` turns red for.
 
-## choudoufu v0.21.0 (Unreleased)
+## choudoufu v0.22.0 (Unreleased)
 
-Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Earlier releases were built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`); the upgrade is #1778, and upstream's own 1.13.0 notes follow below under "OpenTofu".
+## choudoufu v0.21.0 (2026-10-02)
+
+Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Earlier releases were built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`); the upgrade is #1778, and upstream's own 1.13.0 notes follow below under "OpenTofu". Board snapshot: [`live/history/v0.21.0.json`](live/history/v0.21.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.20.0.json live/history/v0.21.0.json`):
+
+- Core estates: 26/26 clear -> 26/26 clear (0)
+- All estates: 27/27 clear -> 27/27 clear (0)
+- Newly cleared: none
+- Regressed: none
+
+What the evidence behind the board is. Every one of the 31 rows was measured
+on the v1.13.0 engine against the new stock oracle (tofu 1.13.0, terraform
+1.16.1), so none reads engine-stale or oracle-stale. 29 come from one
+whole-set run, [37052508781](https://github.com/INTENTIUS/choudoufu/actions/runs/37052508781)
+(`set=all`, main `f707182267`). That run found two regressions, both fixed
+before this release and each re-measured on its merged tree:
+`corpus-hongbomiao-labelbox` at `88c9810780` (#1795) and `corpus-quickpizza`
+at `0b620164db` (#1796). Between those trees and the release tree, only
+release bookkeeping and those two fixes changed.
+
+- The stock oracle moves from tofu 1.12.6 to tofu 1.13.0, the engine's own
+  base (#1789). Every gauntlet row records the engine's upstream version it
+  was measured on, and a row measured on a different base reads stale (#1786).
+- Fixed: in a root with two configurations of one provider, a removed
+  module's inline child (an IAM role's inline policy) was proposed for
+  destroy at a label minted from the live object, beside the record's own
+  address, a regression from #1777 (#1795).
+- Fixed: hashicorp/kubernetes 3.3.0 moved `kubernetes_namespace_v1` to the
+  plugin framework. Its metadata block no longer declares `max_items = 1`, so
+  the type read as unadmitted and live-import skipped stamping it. A
+  framework resource removed out of band also reported its absence as a
+  "Missing Resource Identity After Read" error. Both are fixed generically:
+  object metadata is recognised by its name/uid shape, and that identity
+  error on a read with no prior identity is absence (#1796).
+- The corpus scoreboard is regenerated on the 1.13.0 tree (#1793). The engine
+  moved no refusal; the totals changed only because six weeks of corpus drift
+  had gone unmeasured.
+- Docs and release text that contradicted main are corrected, including the
+  four signals `ControllerMade` uses and the v0.20.0 evidence note (#1744).
 
 - The base moves from upstream main at 1.13.0-dev to the OpenTofu v1.13.0
   release. `choudoufu version` prints `based on OpenTofu v1.13.0`, `version
