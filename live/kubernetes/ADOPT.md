@@ -110,10 +110,13 @@ unknowable before the create. That is the one shape that would drag the
 whole address-in-label machinery back in, so it is refused, the same way a
 missing namespace is.
 
-Controller-created objects, ReplicaSets and Pods from a Deployment, PVCs
-from a volumeClaimTemplate, Jobs from a CronJob, are excluded by a non-empty
-`metadata.ownerReferences` before anything reaches a delete. The author
-chose neither the name nor the object.
+Controller-created objects are excluded before anything reaches a delete.
+ReplicaSets and Pods from a Deployment, and Jobs from a CronJob, carry a
+non-empty `metadata.ownerReferences`. PVCs from a volumeClaimTemplate carry
+none, and are excluded because `metadata.managedFields` says only the
+control plane wrote their spec. Objects a live Helm release installed are
+excluded by its release annotation. The author chose neither the name nor
+the object.
 
 ## What Kubernetes does better
 

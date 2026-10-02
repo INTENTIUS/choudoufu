@@ -98,14 +98,18 @@ The `BREAK=1` run strips the label from the orphaned ConfigMap after step
 and a plan that still destroyed it would be acting on something other
 than the marker.
 
-What is excluded, and why: an object with a non-empty
-`metadata.ownerReferences` was made by a controller from a template, and
-an object whose every `metadata.managedFields` manager is the control
-plane was made by a controller too - the legacy `Endpoints` the endpoints
-controller mirrors a Service's labels onto is the case that has no owner
-reference. Neither is ever an orphan. A kind the provider has no built-in type for,
+What is excluded, and why (`kubesweep.ControllerMade`, four signals, any
+one sufficient): an object with a non-empty `metadata.ownerReferences` was
+made by a controller from a template; an object whose content only
+control-plane managers wrote was too - a StatefulSet's volumeClaimTemplate
+PVC, which carries no owner reference; failing that, so was an object
+whose every `metadata.managedFields` manager is the control plane, such as
+the legacy `Endpoints` the endpoints controller mirrors a Service's labels
+onto; and an object a live Helm release installed is the release's. None
+is ever an orphan. A kind the provider has no built-in type for,
 every custom resource, is listed too, under `kubernetes_manifest`; [claim
 24](k8s-custom-resource.md) removes one that
 way. What fences a write on the label is the admission
 policy of [claim 13 on Kubernetes](the-tag-is-the-boundary.md#on-kubernetes),
-which excludes a controller's objects by the same owner-reference rule.
+which since #1449 lets an owned object's updates through without a grant
+only while its `tofu-estate` label stays unchanged.

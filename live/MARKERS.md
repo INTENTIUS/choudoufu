@@ -289,12 +289,16 @@ kind, since the label carries no address. A block and a listed object
 meet on the kind and the natural key whichever type either is filed
 under, so a ConfigMap declared through `kubernetes_manifest` is not an
 orphan of `kubernetes_config_map_v1`.
-Two exclusions run first, either sufficient: an object with a non-empty
-`metadata.ownerReferences` (a ReplicaSet's from its Deployment, a Pod's
-from its ReplicaSet, an EndpointSlice's from its Service) and an object
-whose every `metadata.managedFields` manager is the control plane (the
-legacy `Endpoints` the endpoints controller mirrors a Service's labels
-onto). Both were made by a controller, not declared, and are never orphans
+Four exclusions run first, any one sufficient (`kubesweep.ControllerMade`):
+a live Helm release's object, held as described above; an object with a
+non-empty `metadata.ownerReferences` (a ReplicaSet's from its Deployment, a
+Pod's from its ReplicaSet, an EndpointSlice's from its Service); an object
+whose content only control-plane managers wrote (a volumeClaimTemplate
+PVC, which carries no owner reference, its `f:spec` written by
+`kube-controller-manager`); and, failing that, an object whose every
+`metadata.managedFields` manager is the control plane (the legacy
+`Endpoints` the endpoints controller mirrors a Service's labels onto). All
+were made by something other than a declaration, and are never orphans
 - which is what makes an estate label copied through a pod template safe.
 
 ### What the record store holds on Kubernetes
