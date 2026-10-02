@@ -47,12 +47,11 @@ Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Earlier releases w
   document's `upstream_version` (#1778).
 - Security fixes that come with v1.13.0's dependencies. govulncheck on
   v0.20.0's tree reported 13 advisories in code choudoufu calls; on this
-  tree it reports one, the same one it reports on stock v1.13.0
-  (GO-2026-6443 in gRPC, fixed in v1.83.2, which v1.13.0 does not carry
-  yet). Cleared: `golang.org/x/crypto` v0.54.0 to v0.56.0 for GO-2026-6355
+  tree it reports none. Cleared: `golang.org/x/crypto` v0.54.0 to v0.56.0 for GO-2026-6355
   (CVE-2026-56855) and GO-2026-6354 (CVE-2026-78662), two SSH channel
-  deadlocks; `google.golang.org/grpc` v1.83.0 to v1.83.1 for GO-2026-6348
-  (CVE-2026-84304); Go 1.26.5 to 1.27.1 for seven standard-library
+  deadlocks; `google.golang.org/grpc` v1.83.0 to v1.83.2 for GO-2026-6348
+  (CVE-2026-84304) and GO-2026-6443 (v1.83.2 is one patch ahead of stock
+  v1.13.0, which carries v1.83.1); Go 1.26.5 to 1.27.1 for seven standard-library
   advisories; the AWS SDK EventStream decoder panic (GO-2026-5764); and the
   OpenTelemetry log exporter's TLS bypass (GO-2026-6508). Advisories in
   imported packages that choudoufu does not call also clear, among them
