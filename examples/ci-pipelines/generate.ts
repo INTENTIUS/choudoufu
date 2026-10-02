@@ -53,8 +53,8 @@ const outDir = resolve(process.env.CHANT_PIPELINE_OUT_DIR ?? projectDir);
  * the release that made `live-plan -json` reachable on a configuration
  * declaring its own estate - the shape every chant live root has.
  */
-export const CHOUDOUFU_VERSION = "v0.20.0";
-export const CHOUDOUFU_SHA256 = "b5cd4e033a5d7cb8d45dbbcb49aed3b1a94efbb7d3de9e2bda437ba44755779b";
+export const CHOUDOUFU_VERSION = "v0.21.0";
+export const CHOUDOUFU_SHA256 = "fd7577de72d737564fde3439dd77a5e85c662b985c386cc2ba17a2b20ec05abc";
 const CHOUDOUFU_ASSET = `choudoufu_${CHOUDOUFU_VERSION}_linux_amd64.tar.gz`;
 const INSTALL_CHOUDOUFU =
   `curl -fsSL -o /tmp/${CHOUDOUFU_ASSET} ` +
