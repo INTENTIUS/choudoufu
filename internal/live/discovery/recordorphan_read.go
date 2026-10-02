@@ -322,23 +322,7 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			res.RecordedElsewhere = append(res.RecordedElsewhere, RecordedElsewhere{Addr: resolvedAddr, TypeName: typeName, Provider: recordedProvider, Unserved: true})
 			continue
 		}
-		if req.ScopeProvider.Provider.Type != "" && recordedProvider != "" && recordedProvider != req.ScopeProvider.String() {
-			// GitHub issue #1721: the record names the provider
-			// configuration that managed the object at its last write
-			// (#389), and it is not this pass's. Two configurations of one
-			// provider (aws and aws.west) both serve the type, so the
-			// schema check above lets both passes through; the record is
-			// what tells them apart, and only the pass it names may read
-			// and destroy the object. A record naming a configuration no
-			// pass runs for (an alias renamed or removed) is proposed by
-			// no pass: reading its identity through another region or
-			// account could find a different object of the same name.
-			// [Merge] refuses for it instead (ProblemRecordedProviderAbsent).
-			// An empty Provider (an envelope older than #389) falls back
-			// to the schema check alone, and [Merge] keeps one removal.
-			res.RecordedElsewhere = append(res.RecordedElsewhere, RecordedElsewhere{Addr: resolvedAddr, TypeName: typeName, Provider: recordedProvider})
-			continue
-		}
+		elsewhere := req.ScopeProvider.Provider.Type != "" && recordedProvider != "" && recordedProvider != req.ScopeProvider.String()
 		importID := rec.ImportID
 		if importID == "" {
 			// A composite identity from the provider's own wire identity
@@ -354,7 +338,7 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			// on the SAME provider version.
 			var ok bool
 			importID, ok = composeImportIDFromComponents(typeName, rec.Components)
-			if !ok {
+			if !ok && !elsewhere {
 				// A component this composer does not know how to resolve (a
 				// nested Block, a Default substitute, an OmitIfAbsent
 				// segment) or an attribute the record's Components map does
@@ -364,6 +348,34 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 				// composite records.
 				continue
 			}
+		}
+
+		if elsewhere {
+			// GitHub issue #1721: the record names the provider
+			// configuration that managed the object at its last write
+			// (#389), and it is not this pass's. Two configurations of one
+			// provider (aws and aws.west) both serve the type, so the
+			// schema check above lets both passes through; the record is
+			// what tells them apart, and only the pass it names may read
+			// and destroy the object. A record naming a configuration no
+			// pass runs for (an alias renamed or removed) is proposed by
+			// no pass: reading its identity through another region or
+			// account could find a different object of the same name.
+			// [Merge] refuses for it instead (ProblemRecordedProviderAbsent).
+			// An empty Provider (an envelope older than #389) falls back
+			// to the schema check alone, and [Merge] keeps one removal.
+			//
+			// The identity still goes with the entry: the object is
+			// accounted for, by the record, through another pass. The
+			// parent-read legs that run after this one read it
+			// ([declaredChildImportIDs]) and so do not list the same live
+			// child off a parent this pass also swept and mint it a second
+			// removal under a label taken from its live name - which is
+			// what corpus-hongbomiao-labelbox's day2_remove proposed once
+			// this pass stopped proposing the record itself (the #875
+			// address, back through the default configuration's pass).
+			res.RecordedElsewhere = append(res.RecordedElsewhere, RecordedElsewhere{Addr: resolvedAddr, TypeName: typeName, Provider: recordedProvider, ImportID: importID})
+			continue
 		}
 
 		// The live tag decides (maintainer ruling 2026-09-03, found by the
