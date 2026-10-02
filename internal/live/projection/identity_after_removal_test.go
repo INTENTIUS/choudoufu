@@ -87,12 +87,12 @@ func TestIdentityCheckAfterRemovalIsAbsence(t *testing.T) {
 	}
 	warned := false
 	for _, d := range diags {
-		if d.Severity() == tfdiags.Warning && d.Description().Summary == "Read reported absence as an identity error" {
+		if d.Severity() == tfdiags.Warning && d.Description().Summary == SummaryRemovedWithoutIdentity {
 			warned = true
 		}
 	}
 	if !warned {
-		t.Errorf("absence was taken silently; want a %q warning naming what was set aside", "Read reported absence as an identity error")
+		t.Errorf("absence was taken silently; want a %q warning naming what was set aside", SummaryRemovedWithoutIdentity)
 	}
 }
 

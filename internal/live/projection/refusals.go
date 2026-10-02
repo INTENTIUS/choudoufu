@@ -194,6 +194,10 @@ var refusals = []Refusal{
 		What:    "An import returned more than one object where one was expected; the extra objects are dropped and this says so rather than choosing silently.",
 	},
 	{
+		Summary: SummaryRemovedWithoutIdentity,
+		What:    "A projection's ReadResource came back with a null object and one error, terraform-plugin-framework's \"Missing Resource Identity After Read\": the provider's own Read removed the object (it does not exist) and the framework then complained that the removed object had no identity. Treated as an ordinary absence, the same as a null read result. The same complaint over a non-null object stays a failure. Reached by an import-by-ID of a framework resource with an identity schema, hashicorp/kubernetes 3.3.0's kubernetes_namespace_v1 the founding case.",
+	},
+	{
 		Summary: "Import reported absence as an error",
 		What:    "The provider's ImportResourceState call for a resource failed with a diagnostic shaped like a generic not-found response (terraform-plugin-sdk's retry.NotFoundError default message, or the raw AWS ResourceNotFoundException code) rather than an empty ImportedResources list. Treated as an ordinary absence, the same as an empty list or a null read result, not a provider failure.",
 	},
