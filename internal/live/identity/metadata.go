@@ -34,7 +34,10 @@ import (
 // # What the shape is
 //
 // Kubernetes ObjectMeta, as the provider renders it: a "metadata" nested
-// block of list nesting with at most one item, holding a settable "name",
+// block of list nesting with at most one item (declared by max_items, or
+// undeclared the way a plugin-framework schema leaves it, see
+// markers.UndeclaredSingleObjectMetadata),
+// holding a settable "name",
 // a computed "uid", a settable "labels" map, and - for a namespaced kind -
 // a settable "namespace". The uid and labels are required by the
 // predicate so that an unrelated provider's "metadata" block cannot match;

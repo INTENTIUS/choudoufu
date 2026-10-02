@@ -76,7 +76,8 @@ const (
 
 // LabelSurface reports whether a resource type carries its marker as a
 // Kubernetes label: a "metadata" nested block of list nesting with exactly
-// one item, holding a settable "labels" map of strings. That is the shape
+// one item (declared, or by [UndeclaredSingleObjectMetadata]), holding a
+// settable "labels" map of strings. That is the shape
 // every hashicorp/kubernetes resource with object metadata shares (75 of
 // the provider's 82 types at 3.2.1; kubernetes_manifest, which takes a
 // whole manifest as one dynamic attribute, is not one of them), and it is
@@ -101,7 +102,10 @@ func LabelSurface(block *configschema.Block) (*configschema.Attribute, bool) {
 	if !ok || nested == nil {
 		return nil, false
 	}
-	if nested.Nesting != configschema.NestingList || nested.MinItems != 1 || nested.MaxItems != 1 {
+	if nested.Nesting != configschema.NestingList {
+		return nil, false
+	}
+	if (nested.MinItems != 1 || nested.MaxItems != 1) && !UndeclaredSingleObjectMetadata(nested) {
 		return nil, false
 	}
 	attr, ok := nested.Block.Attributes[LabelSurfaceAttr]
@@ -118,6 +122,39 @@ func LabelSurface(block *configschema.Block) (*configschema.Attribute, bool) {
 		return nil, false
 	}
 	return attr, true
+}
+
+// UndeclaredSingleObjectMetadata reports whether nested is a "metadata"
+// list block whose size the wire schema leaves undeclared (min_items and
+// max_items both 0) but whose own fields say it describes exactly one
+// object: a settable string "name" and a server-minted string "uid".
+//
+// That is how a plugin-framework provider renders Kubernetes object
+// metadata. A framework list block cannot declare its bounds in the
+// schema; the limit is a validator the wire protocol does not carry.
+// hashicorp/kubernetes 3.3.0 moved kubernetes_namespace_v1 to the
+// framework, and its metadata block went from min_items = max_items = 1
+// to undeclared, with "Exactly one metadata block is required" in its
+// description instead (corpus-quickpizza, 2026-10-02). An object has one
+// name and one uid, so a block carrying both is one block per object
+// whatever its declared bounds say; a declared lower bound with no upper
+// one (min 1, max 0) is a list that chose to be unbounded and is not
+// this.
+//
+// It is the bounds half of [LabelSurface] and of the Kubernetes
+// substrate's object-metadata shape, so the two cannot disagree about
+// which blocks are singletons.
+func UndeclaredSingleObjectMetadata(nested *configschema.NestedBlock) bool {
+	if nested == nil || nested.Nesting != configschema.NestingList || nested.MinItems != 0 || nested.MaxItems != 0 {
+		return false
+	}
+	attrs := nested.Block.Attributes
+	name, ok := attrs["name"]
+	if !ok || name == nil || name.Type != cty.String || (!name.Optional && !name.Required) {
+		return false
+	}
+	uid, ok := attrs["uid"]
+	return ok && uid != nil && uid.Type == cty.String && uid.Computed && !uid.Optional && !uid.Required
 }
 
 // LabelSurfacePath is the cty.Path of one label key on a label-surface

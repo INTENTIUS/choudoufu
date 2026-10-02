@@ -93,7 +93,9 @@ func (kubernetes) SynthesizeIdentity(_ string, schema providers.Schema) (Synthes
 // never from a type-name list, for the same reason markers.Taggable is.
 //
 // It is the shape internal/live/identity's metadata.go documents: a
-// "metadata" nested block of list nesting with at most one item, holding a
+// "metadata" nested block of list nesting with at most one item (declared
+// by max_items, or by [markers.UndeclaredSingleObjectMetadata] where a
+// plugin-framework schema cannot declare it), holding a
 // settable "name", a computed "uid", a settable "labels" map, and - for a
 // namespaced kind - a settable "namespace".
 func ObjectMetaShape(block *configschema.Block) (namespaced bool, ok bool) {
@@ -104,7 +106,7 @@ func ObjectMetaShape(block *configschema.Block) (namespaced bool, ok bool) {
 	if !has || nested == nil {
 		return false, false
 	}
-	if nested.Nesting != configschema.NestingList || nested.MaxItems != 1 {
+	if nested.Nesting != configschema.NestingList || (nested.MaxItems != 1 && !markers.UndeclaredSingleObjectMetadata(nested)) {
 		return false, false
 	}
 	attrs := nested.Block.Attributes
