@@ -57,7 +57,8 @@ func (n *NodeResolver) stampedMetadata(addr addrs.AbsResourceInstance, metaVal c
 	switch {
 	case metaVal.IsNull():
 		// A metadata block is required by every label-surface schema
-		// (MinItems 1), so a null here is a configuration the provider
+		// (MinItems 1, or a plugin-framework validator where the bounds
+		// are undeclared), so a null here is a configuration the provider
 		// itself will refuse; nothing for this pass to do.
 		return metaVal.WithMarks(metaMarks), diags
 	case !metaVal.IsKnown():
