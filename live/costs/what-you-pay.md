@@ -79,7 +79,7 @@ three runs each, no variance in any column:
 The 79-instance column was re-run at `b20a144ab0` for this page; the
 301-instance column is the ruling's and has not been re-run since.
 Both oracles are behind the current pin, which `live/oracle-versions.json` puts
-at terraform `1.16.0` and tofu `1.12.6`. Nothing in this table has been re-run
+at terraform `1.16.1` and tofu `1.13.0`. Nothing in this table has been re-run
 against those.
 
 OpenTofu is in that table because choudoufu is an OpenTofu fork and Terraform
