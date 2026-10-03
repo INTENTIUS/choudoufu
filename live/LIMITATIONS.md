@@ -2775,6 +2775,7 @@ refused, and each says so in its own entry.
 | - | - | projection | An estate cannot read its own outputs this way | error | `internal/live/projection` | "An estate cannot read its own outputs this way" |
 | - | - | projection | Another estate has not recorded this output | error | `internal/live/projection` | "Another estate has not recorded this output" |
 | - | - | projection | Argument values could not be recorded | error | `internal/live/projection` | "Argument values could not be recorded" |
+| - | - | projection | Cannot confirm the destroy removed every record | error | `internal/live/projection` | "Cannot confirm the destroy removed every record" |
 | - | - | projection | Cannot decode a persisted record | error | `internal/live/projection` | "Cannot decode a persisted record" |
 | - | - | projection | Cannot encode a deposed object | error | `internal/live/projection` | "Cannot encode a deposed object" |
 | - | - | projection | Cannot encode a projected object | error | `internal/live/projection` | "Cannot encode a projected object" |
@@ -2842,6 +2843,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Residue record could not be read | error | `internal/live/projection` | "Residue record could not be read" |
 | - | - | projection | Resolved instance missing from the configuration | error | `internal/live/projection` | "Resolved instance missing from the configuration" |
 | - | - | projection | Resource type has no classic Importer | error | `internal/live/projection` | "Resource type has no classic Importer" |
+| - | - | projection | The destroy left record-backed instances behind | error | `internal/live/projection` | "The destroy left record-backed instances behind" |
 | - | - | projection | The estate boundary policy refused this run's record write | error | `internal/live/projection` | "The estate boundary policy refused this run's record write" |
 | - | - | projection | The record store contradicts itself about a record | error | `internal/live/projection` | "The record store contradicts itself about a record" |
 | - | - | projection | This estate may not read another estate's outputs | error | `internal/live/projection` | "This estate may not read another estate's outputs" |
@@ -2851,7 +2853,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**267 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**269 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -4185,6 +4187,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Cannot confirm the destroy removed every record
+
+**What.** GitHub issue #1355: after a destroy of the whole estate, listing or reading the record store back to confirm no record-backed instance survived failed. Nothing is known to be wrong, but the destroy is not reported complete until the check succeeds.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Cannot decode a persisted record
 
 **What.** A record read from the record store could not be decoded into the type it describes - a record written by a different version of this tool, or one edited by hand.
@@ -4716,6 +4726,14 @@ reserved for the limits wing's fixture directories, and
 #### Resource type has no classic Importer
 
 **What.** A resource type projection needed to read back has no ImportResourceState implementation at all - a fixed property of the provider's own code (GitHub issue #331), not a transient failure. Admitted for naming and reference purposes only; refused here rather than risk proposing a create for an object this run cannot verify.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### The destroy left record-backed instances behind
+
+**What.** GitHub issue #1355: a destroy of the whole estate finished, and the record store still holds a record-backed instance's record that the destroy's plan never listed. For a record-backed resource the record is the instance, so it was not destroyed, and the run fails rather than report a complete destroy.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
