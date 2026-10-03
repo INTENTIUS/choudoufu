@@ -157,11 +157,11 @@ func TestEngineVersionReadsThePin(t *testing.T) {
 func TestRebuildSetsArtifactUpstreamVersion(t *testing.T) {
 	m := &Manifest{Estates: []Estate{{Name: "a", Source: "s", Lane: "reference", Set: SetCore, Reason: "r"}}}
 	a := &Artifact{}
-	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "1.13.0-dev")
+	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "1.13.0-dev", "")
 	if a.UpstreamVersion != "1.13.0-dev" {
 		t.Errorf("a.UpstreamVersion = %q after Rebuild, want the passed-in value", a.UpstreamVersion)
 	}
-	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "1.13.0")
+	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "1.13.0", "")
 	if a.UpstreamVersion != "1.13.0" {
 		t.Errorf("a.UpstreamVersion = %q after a second Rebuild, want the refreshed value", a.UpstreamVersion)
 	}
@@ -180,7 +180,7 @@ func TestNextSurfacesEngineStaleEstates(t *testing.T) {
 	}}
 	build := func(base string) []string {
 		a := &Artifact{}
-		a.Rebuild(m, nil, "pin", OracleVersions{}, ProviderVersions{AWS: "6.63.0"}, base)
+		a.Rebuild(m, nil, "pin", OracleVersions{}, ProviderVersions{AWS: "6.63.0"}, base, "")
 		for _, e := range m.Estates {
 			r, _ := a.Result(e.Name)
 			for _, s := range active {
@@ -195,7 +195,7 @@ func TestNextSurfacesEngineStaleEstates(t *testing.T) {
 			}
 			a.SetResult(r)
 		}
-		a.Rebuild(m, nil, "pin", OracleVersions{}, ProviderVersions{AWS: "6.63.0"}, base)
+		a.Rebuild(m, nil, "pin", OracleVersions{}, ProviderVersions{AWS: "6.63.0"}, base, "")
 		var ids []string
 		for _, u := range NextUnits(a, "all", "") {
 			ids = append(ids, u.ID)

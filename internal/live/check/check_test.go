@@ -114,6 +114,7 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"foreign":    true, // classification of unclaimed resources, inside discovery's stage
 		"harness":    true, // the burndown and assumptions registries; measures the instrument, is not part of it
 		"lifecycle":  true,
+		"largeset":   true, // issue #1750's multi-estate fixture generator and its baseline record
 		"listclient": true, // a client
 		"liveimport": true, // the bulk migration command's engine
 		"markerkey":  true,

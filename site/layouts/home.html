@@ -60,7 +60,7 @@
   <h2>What stands behind it</h2>
   <ul class="stats">
     {{ with $g }}
-    <li><a href="{{ "docs/progress/" | relURL }}"><strong>{{ .sets.core.clear }} of {{ .sets.core.estates }}</strong> core estates clear every headline stage against the pinned emulator</a></li>
+    <li><a href="{{ "docs/progress/" | relURL }}"><strong>{{ .sets.core.clear }} of {{ .sets.core.estates }}</strong> core estates clear every headline stage{{ if isset .sets.core "verified" }}, {{ .sets.core.verified }} of them measured on the current pins{{ end }}</a></li>
     <li><a href="{{ "docs/progress/" | relURL }}"><strong>{{ len .stages }}</strong> stages, each a comparison with stock OpenTofu on the same configuration</a></li>
     {{ end }}
     <li><a href="{{ "docs/claims/" | relURL }}"><strong>{{ with hugo.Data.claims }}{{ len .claims }}{{ end }}</strong> claims you can run on your own machine, each shipped with its failure demonstrated</a></li>

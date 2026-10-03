@@ -76,7 +76,7 @@ func TestCarriedPassDoesNotCountTowardClear(t *testing.T) {
 		}
 	}
 	a := &Artifact{Schema: 1, Estates: []EstateResult{current}}
-	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "")
+	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "", "")
 	got, _ := a.Result("x")
 	if !got.Clear {
 		t.Fatalf("control row (every headline stage measured by the recorded run) is not clear; the fixture, not the fix, is wrong: %v", got.Stages)
@@ -92,7 +92,7 @@ func TestCarriedPassDoesNotCountTowardClear(t *testing.T) {
 	}
 	carried.StageRuns[carriedID] = StageRun{Commit: "oldercommit", Date: "2026-09-01T00:00:00Z"}
 	b := &Artifact{Schema: 1, Estates: []EstateResult{carried}}
-	b.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "")
+	b.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "", "")
 	got, _ = b.Result("x")
 	if got.Clear {
 		t.Errorf("row is clear although headline stage %q reads pass from commit oldercommit, not from the run the row records (runcommit) - a carried verdict must not clear a stage (#1069)", carriedID)
@@ -121,7 +121,7 @@ func TestUnknownProvenanceIsNotStale(t *testing.T) {
 		Name: "x", Protocol: ProtocolGauntlet, Stages: allHeadlinePass(),
 		LastRun: &LastRun{Commit: "runcommit", Date: "2026-09-14T00:00:00Z"},
 	}}}
-	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "")
+	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "", "")
 	got, _ := a.Result("x")
 	if !got.Clear {
 		t.Errorf("a row with no stage_runs at all lost its clear flag; unknown provenance must read as unknown, not as stale (#1069)")
@@ -593,7 +593,7 @@ func TestCarriedVerdictTalliesAsStaleNotPass(t *testing.T) {
 		t.Skipf("%s is not in the stage registry", carriedID)
 	}
 	a := &Artifact{Schema: 1, Estates: []EstateResult{row("measured", ""), row("carried", carriedID)}}
-	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "")
+	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "", "")
 
 	sum := a.Sets["core"]
 	got := sum.Stages[carriedID]
@@ -628,7 +628,7 @@ func TestUnknownProvenanceTalliesAsItAlwaysDid(t *testing.T) {
 		Name: "x", Protocol: ProtocolGauntlet, Stages: allHeadlinePass(),
 		LastRun: &LastRun{Commit: "runcommit", Date: "2026-09-14T00:00:00Z"},
 	}}}
-	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "")
+	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "", "")
 	sum := a.Sets["core"]
 	for _, s := range HeadlineStages() {
 		if g := sum.Stages[s.ID]; g != (Tally{Pass: 1}) {

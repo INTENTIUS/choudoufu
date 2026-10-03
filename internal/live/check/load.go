@@ -7,6 +7,7 @@ package check
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -216,6 +217,28 @@ func (r *LoadResult) resolveModuleDir(rootDir string, manifest modsdir.Manifest,
 	// earlier "tofu init" wrote is the only record of where, and its keys
 	// are the same dotted module addresses used above.
 	if record, ok := manifest[path]; ok && record.Dir != "" {
+		// The manifest records what an EARLIER init installed, which is not
+		// necessarily what the configuration names now: a pin bump
+		// (?tag=1.0.0 -> ?tag=1.1.0) or a moved version argument leaves the
+		// old package in place until the next init. Stock's loader refuses
+		// that (configload's "Module source has changed" and "Module version
+		// requirements have changed"); reading the old package here reported
+		// the previous version's resources as the current estate's, with
+		// nothing to say so (#1750). Same three checks, as an unread module.
+		if src := req.SourceAddr.String(); src != record.SourceAddr {
+			r.unresolved(path, src, fmt.Sprintf("installed from %s, and the configuration now names %s; run \"tofu init\" to install it", record.SourceAddr, src))
+			return "", false
+		}
+		if req.VersionConstraint.HasRequirements() {
+			if record.Version == nil || !req.VersionConstraint.Check(record.Version) {
+				installed := "an unversioned package"
+				if record.Version != nil {
+					installed = "version " + record.Version.String()
+				}
+				r.unresolved(path, req.SourceAddr.String(), fmt.Sprintf("installed at %s, which the configuration's version = %q no longer accepts; run \"tofu init\" to install it", installed, req.VersionConstraint.String()))
+				return "", false
+			}
+		}
 		dir := record.Dir
 		if !filepath.IsAbs(dir) {
 			dir = filepath.Join(rootDir, dir)
