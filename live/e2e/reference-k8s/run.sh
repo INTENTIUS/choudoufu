@@ -372,6 +372,46 @@ PY
 }
 exists_a() { kca get "$1" "$2" -n "$NS" >/dev/null 2>&1; }
 
+# migrate_no_label_verdict <summary-line> < <live-import -approve output>
+#
+# #1248: this branch fires on ANY deviation from the one expected summary -
+# 5 stamped instead of 7, 2 failed, a different error entirely - and it used
+# to assert #1073's label-surface mechanism whatever the output said, with
+# nothing checking that UNTAGGABLE was printed at all. The mechanism is
+# named only when its own line - ratify.go's "<type> has no tags argument in
+# the provider's schema" detail on a kubernetes_* instance - is in the
+# output, with how many times; otherwise the verdict quotes the summary and
+# the first Error: line and names nothing.
+migrate_no_label_verdict() {
+  local summary="$1" out untaggable err
+  out="$(cat)"
+  untaggable="$(grep -cE "kubernetes_[a-z0-9_]+ has no tags argument in the provider's schema" <<< "$out" || true)"
+  if [ "$untaggable" -gt 0 ]; then
+    printf '%s' "live-import -approve wrote no label: ${summary:-no summary line}. It classed $untaggable kubernetes_* instance(s) UNTAGGABLE (\"has no tags argument in the provider's schema\") because ratify.go's carrier is the AWS tags surface and does not know the label surface markers.LabelSurface added in #1061; a Kubernetes object binds by namespace and name, and the next plan proposes writing the label itself (marker repair), so adoption here is one apply away rather than one live-import away (#1073)"
+    return 0
+  fi
+  err="$(gauntlet_first_error_line <<< "$out")"
+  printf '%s' "live-import -approve did not report 7 newly stamped with 0 failed and 0 skipped: ${summary:-it printed no summary line at all}. No kubernetes_* instance was classed UNTAGGABLE (0 \"has no tags argument in the provider's schema\" lines), so #1073's label-surface gap is not the cause and is not named; first Error: line: \"${err:-none}\". Read the live-import output above this verdict"
+}
+
+# test_plan_verdict <ids-ok> <ids-missing> < <plan output>
+#
+# #1248: the fail branch is "the plan is not empty OR an identity is
+# missing", and it used to say "is not empty: No changes" on the identity
+# path and blame the unwritten label either way. The sentence now carries
+# both halves the way reference-k8s-cert-manager's test_plan does, and
+# names the tofu-estate label only when the plan's own diff lines change it.
+test_plan_verdict() {
+  local ids_ok="$1" missing="$2" out line labels
+  out="$(cat)"
+  line="$(gauntlet_plan_line <<< "$out")"
+  labels="$(grep -cE '^[[:space:]]*[+~-][[:space:]]+"tofu-estate"' <<< "$out" || true)"
+  printf '%s' "the plan with no state file is not empty (${line:-no plan line}) or an identity is missing (identities confirmed: $ids_ok;${missing:- none missing})"
+  if [ "$labels" -gt 0 ]; then
+    printf '%s' "; $labels diff line(s) write the tofu-estate label, which live-import did not (see migrate)"
+  fi
+}
+
 # ── 1. cold_deploy: stock stands the estate up on A (and B, the oracle) ──
 gauntlet_begin_stage cold_deploy
 log "=== 1. cold_deploy: two kind clusters, stock terraform applies the shape on each ==="
@@ -418,7 +458,7 @@ if grep -qF "7 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0
     gauntlet_stage migrate fail "live-import reported 7 stamped but only $LABELLED object(s) carry tofu-estate=$ESTATE on the cluster"
   fi
 else
-  gauntlet_stage migrate fail "live-import -approve wrote no label: ${SUMMARY_LINE:-no summary line}. It classes every kubernetes_* type as UNTAGGABLE (\"has no tags argument in the provider's schema\") because ratify.go's carrier is the AWS tags surface and does not know the label surface markers.LabelSurface added in #1061; a Kubernetes object binds by namespace and name, and the next plan proposes writing the label itself (marker repair), so adoption here is one apply away rather than one live-import away (#1073)"
+  gauntlet_stage migrate fail "$(migrate_no_label_verdict "$SUMMARY_LINE" <<< "$APPROVE_OUT")"
 fi
 
 # ── 3. test_plan: replan from nothing ────────────────────────────────────
@@ -426,16 +466,16 @@ gauntlet_begin_stage test_plan
 log "=== 3. test_plan: choudoufu plan with no state file, identities read with kubectl ==="
 PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$PLAN_OUT" | tail -20; fail "the post-migration plan failed"; }
 IDS_OK=1
+IDS_MISSING=""
 for spec in "namespace $NS" "configmap app-config" "serviceaccount app" "service app" "deployment web" "configmap shard-0" "configmap shard-1"; do
   read -r kind name <<< "$spec"
-  if [ "$kind" = "namespace" ]; then kca get namespace "$name" >/dev/null 2>&1 || IDS_OK=0
-  else exists_a "$kind" "$name" || IDS_OK=0; fi
+  if [ "$kind" = "namespace" ]; then kca get namespace "$name" >/dev/null 2>&1 || { IDS_OK=0; IDS_MISSING="$IDS_MISSING namespace/$name"; }
+  else exists_a "$kind" "$name" || { IDS_OK=0; IDS_MISSING="$IDS_MISSING $NS/$kind/$name"; }; fi
 done
 if grep -q "No changes." <<< "$PLAN_OUT" && [ "$IDS_OK" = "1" ]; then
   gauntlet_stage test_plan pass "the plan with no state file is empty; all 7 identities (NAMESPACE/NAME) confirmed present with kubectl"
 else
-  PLAN_LINE="$(grep -E '^Plan:|No changes' <<< "$PLAN_OUT" | head -1 | sed 's/\.$//')"
-  gauntlet_stage test_plan fail "the plan with no state file is not empty: ${PLAN_LINE:-no plan line}. Every object bound by namespace and name (identities confirmed with kubectl: $IDS_OK), and the changes are the tofu-estate label live-import never wrote (see migrate)"
+  gauntlet_stage test_plan fail "$(test_plan_verdict "$IDS_OK" "$IDS_MISSING" <<< "$PLAN_OUT")"
   log "  adopting through choudoufu's own apply so the day-2 stages below run on a labelled estate"
   ADOPT_OUT="$(cd "$ADOPTED" && "$TOFU" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$ADOPT_OUT" | tail -20; fail "the adopting apply failed"; }
   REPLAN="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)" || fail "the replan after the adopting apply failed"

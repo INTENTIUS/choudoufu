@@ -628,7 +628,7 @@ GREEN_PLAN_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan
 if ! grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT"; then
   NONEMPTY_ITEMS="$(grep -E '^  # .+ will be' <<< "$GREEN_PLAN_OUT" | sed 's/^  # //' | tr '\n' '; ')"
   log "  the replan is NOT empty: $NONEMPTY_ITEMS"
-  gauntlet_stage greenfield fail "the greenfield replan proposes real resource action on objects the SAME apply just created (no other run touched this namespace in between): $NONEMPTY_ITEMS. A create proposed for something that already exists is the wrong-marker-shaped failure HANDOFF ranks above a missing one, not a safe fallback; not fixed in this script-only pass. 35 objects were created and the instance's own marker verified fine (see the earlier PART GREENFIELD steps in the same run), so this is narrower than a total apply failure - the specific objects named above are the gap."
+  gauntlet_stage greenfield fail "$(gauntlet_replan_actions_verdict "35 objects were created and the instance's own marker verified fine (see the earlier PART GREENFIELD steps in the same run), so this is narrower than a total apply failure" <<< "$GREEN_PLAN_OUT")"
   gauntlet_end_stage
   gauntlet_floci_teardown "$FLOCI_GREEN_NAME"
   SKIP_GREENFIELD_REST=1
@@ -2022,7 +2022,7 @@ EOF
     # sweep (live/LIMITATIONS.md, "Resource type has no orphan recovery").
     printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'
     log "  choudoufu proposes $CHOUDOUFU_REMOVE_N of the oracle's 10 destroys under module.ec2_complete - a real gap, not this stage's own load-bearing check failing"
-    gauntlet_stage day2_remove fail "choudoufu's remove plan destroys only $CHOUDOUFU_REMOVE_N of module.ec2_complete's 10 resources; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) proposes all 10 for the same module (0 add, 0 change, 10 destroy). choudoufu has strictly less destroy coverage than stock here - the missing address(es) are left live and orphaned, most likely a type admitted by the provider's identity schema rather than the generated admission table (live/LIMITATIONS.md, \"Resource type has no orphan recovery\"), the same class corpus-dynamodb-table-basic (aws_dynamodb_resource_policy) and corpus-autoscaling-complete (most likely aws_autoscaling_group) already hit. Not fixed in this script-only pass; see live/gauntlet/logs/corpus-ec2-instance-complete.log for the exact plan diff"
+    gauntlet_stage day2_remove fail "$(gauntlet_destroy_gap_verdict 'module\.ec2_complete\.' "module.ec2_complete" "$REMOVE_ORACLE_PLAN_OUT" <<< "$REMOVE_PLAN_OUT"). The missing object(s) are left live and orphaned; see live/gauntlet/logs/corpus-ec2-instance-complete.log for the exact plan diff"
   else
     grep -qF 'Plan: 0 to add, 0 to change, 10 to destroy.' <<< "$REMOVE_PLAN_OUT" \
       || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -10; fail "choudoufu's remove plan touches something other than module.ec2_complete's own 10 resources"; }

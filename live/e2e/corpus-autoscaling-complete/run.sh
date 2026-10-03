@@ -235,6 +235,35 @@ fail() {
   exit 1
 }
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
+
+# remove_apply_failure_verdict <rc> <oracle-destroys> < <apply output>
+#
+# #1248: day2_remove's failed-apply arm used to name a destroy-order gap
+# between the launch template and the ASG on an exit code alone, with
+# "no 'Error:' line found" standing in for the evidence. The ordering is
+# named only when the output shows it - the launch template's
+# "Destruction complete" printed, the ASG's not, and an Error: line - and
+# otherwise the verdict reports what was destroyed and the first error.
+remove_apply_failure_verdict() {
+  local rc="$1" want="$2" out err destroyed n lt asg
+  out="$(cat)"
+  err="$(gauntlet_first_error_line <<< "$out")"
+  destroyed="$({ grep -E ': Destruction complete' <<< "$out" || true; } | sed -E 's/: Destruction complete.*//' | tr '\n' ';' | sed -E 's/;$//; s/;/; /g')"
+  n="$(grep -c ': Destruction complete' <<< "$out" || true)"
+  lt="$(grep -cE 'aws_launch_template\.[^:]*: Destruction complete' <<< "$out" || true)"
+  asg="$(grep -cE 'aws_autoscaling_group\.[^:]*: Destruction complete' <<< "$out" || true)"
+  printf '%s' "the day2_remove apply exited $rc after a plan that matched the stock oracle's destroy count ($want); $n object(s) reported Destruction complete (${destroyed:-none})"
+  if [ -z "$err" ]; then
+    printf '%s' ", and it printed no Error: line at all, so no cause is named here; the last 40 lines of its output are above this verdict"
+    return 0
+  fi
+  printf '%s' "; first Error: line: \"$err\""
+  if [ "$lt" -gt 0 ] && [ "$asg" -eq 0 ]; then
+    printf '%s' ". module.default's launch template was destroyed and its ASG, which references it, was not: a destroy-order gap between two sibling undeclared orphans with no HCL left to derive the ASG-references-LT edge from"
+  else
+    printf '%s' ". The launch-template-before-ASG ordering this branch was written for is not what the output shows ($lt launch template and $asg ASG destruction(s) completed), so it is not named; that error is where this failure has to be read from"
+  fi
+}
 gauntlet_begin
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
@@ -1695,7 +1724,7 @@ HCL
     # independently-confirmed mechanism (the `tag` nested-block shape).
     printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'
     log "  choudoufu proposes $CHOUDOUFU_REMOVE_N of the oracle's $ORACLE_REMOVE_N destroys under module.default - a real gap, not this stage's own load-bearing check failing"
-    gauntlet_stage day2_remove fail "choudoufu's remove plan destroys only $CHOUDOUFU_REMOVE_N of module.default's resources; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) proposes $ORACLE_REMOVE_N destroys for the same module (0 add, 0 change, $ORACLE_REMOVE_N destroy). choudoufu has strictly less destroy coverage than stock here - the missing address(es) are left live and orphaned, most likely module.default's own aws_autoscaling_group: it carries no ownership marker at all (the \`tag\` nested-block shape, not the top-level tags map internal/live/markers.TagSurface requires) and may also be admitted by the provider's identity schema rather than the generated admission table (live/LIMITATIONS.md, \"Resource type has no orphan recovery\", the same class corpus-dynamodb-table-basic's day2_remove hits on aws_dynamodb_resource_policy). Not fixed in this script-only pass; see live/gauntlet/logs/corpus-autoscaling-complete.log for the exact plan diff"
+    gauntlet_stage day2_remove fail "$(gauntlet_destroy_gap_verdict 'module\.default\.' "module.default" "$REMOVE_ORACLE_PLAN_OUT" aws_autoscaling_group "it carries no ownership marker at all (the \`tag\` nested-block shape, not the top-level tags map internal/live/markers.TagSurface requires) and may also be admitted by the provider's identity schema rather than the generated admission table (live/LIMITATIONS.md, \"Resource type has no orphan recovery\", the same class corpus-dynamodb-table-basic's day2_remove hits on aws_dynamodb_resource_policy)" <<< "$REMOVE_PLAN_OUT"). The missing object(s) are left live and orphaned; see live/gauntlet/logs/corpus-autoscaling-complete.log for the exact plan diff"
   else
     grep -qF "Plan: 0 to add, 0 to change, $ORACLE_REMOVE_N to destroy." <<< "$REMOVE_PLAN_OUT" \
       || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -10; fail "choudoufu's remove plan touches something other than module.default's own $ORACLE_REMOVE_N resources"; }
@@ -1724,8 +1753,7 @@ HCL
       # out: a same-level (sibling) reference between two undeclared orphans,
       # not a parent/child one - NOT fixed in this re-verification pass; the
       # actual AWS diagnostic is captured below for whoever picks this up.
-      REMOVE_APPLY_ERR="$(grep -E '^Error: ' <<< "$REMOVE_APPLY_OUT" | head -1)"
-      fail "the day2_remove apply exited $REMOVE_APPLY_RC - ${REMOVE_APPLY_ERR:-no 'Error:' line found}; plan matched the stock oracle's destroy count ($ORACLE_REMOVE_N) but the apply itself failed destroying module.default's undeclared orphan pair (its launch template and its ASG), most likely a destroy-order gap between two sibling undeclared orphans with no HCL left to derive the ASG-references-LT edge from - see live/gauntlet/logs/corpus-autoscaling-complete.log"
+      fail "$(remove_apply_failure_verdict "$REMOVE_APPLY_RC" "$ORACLE_REMOVE_N" <<< "$REMOVE_APPLY_OUT") - see live/gauntlet/logs/corpus-autoscaling-complete.log"
     fi
     grep -qE "Resources: 0 added, 0 changed, $ORACLE_REMOVE_N destroyed" <<< "$REMOVE_APPLY_OUT" \
       || { grep -E 'Apply complete' <<< "$REMOVE_APPLY_OUT"; fail "the day2_remove apply was not exactly $ORACLE_REMOVE_N destroys"; }
@@ -1869,7 +1897,7 @@ if ! grep -qF "No changes. Your infrastructure matches the configuration." <<< "
     # not this script's to do.
     EMULATOR_NOTE=" Confirmed floci emulator gap, fixed and pushed to origin, not yet repinned: lex00/floci#137 / PR lex00/floci#138 (CreateCapacityReservation drops inline tags sent as the plural TagSpecifications.N.*, which is what a real terraform-aws-provider apply sends for this one action)."
   fi
-  gauntlet_stage greenfield fail "the greenfield replan proposes real resource action on objects the SAME apply just created (no other run touched this namespace in between): $NONEMPTY_ITEMS. A create proposed for something that already exists is the wrong-marker-shaped failure HANDOFF ranks above a missing one, not a safe fallback; not fixed in this script-only pass. $GREEN_N/$STOCK_N objects match by count and the sqs queue's own marker verified fine (see the earlier PART GREENFIELD steps in the same run), so this is narrower than a total apply failure - the specific objects named above are the gap.$EMULATOR_NOTE"
+  gauntlet_stage greenfield fail "$(gauntlet_replan_actions_verdict "$GREEN_N/$STOCK_N objects match by count and the sqs queue's own marker verified fine (see the earlier PART GREENFIELD steps in the same run), so this is narrower than a total apply failure" <<< "$GREEN_PLAN_OUT")$EMULATOR_NOTE"
   gauntlet_end_stage
   gauntlet_floci_teardown "$FLOCI_GREEN_NAME"
   SKIP_GREENFIELD_REST=1

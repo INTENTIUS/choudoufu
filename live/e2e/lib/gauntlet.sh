@@ -1380,6 +1380,122 @@ gauntlet_stage_from_exit() {
   fi
 }
 
+# ── verdicts that name a cause only when they saw it (#1248) ─────────────
+#
+# #1204 and #1248: a fail verdict that names a cause whose evidence is a
+# count of zero is worse than a bare failure. It sends the next reader to
+# the wrong place, and it goes on saying the same thing however the
+# behaviour changes, because the sentence never depended on the count. The
+# helpers below are the shared shape for the two families #1248 found in
+# more than one script: a greenfield replan that is not empty, and a remove
+# plan that destroys less than stock's oracle. Each one counts first, and
+# words a cause only when the count behind it is nonzero; at zero it says
+# what was seen - the plan line, the first Error: line - and nominates
+# nothing. tools/gauntlet/zerocount_test.go drives each one with a real
+# sighting and with a zero.
+
+# gauntlet_first_error_line - the first "Error: ..." line on stdin, with the
+# diagnostic renderer's "│ " gutter stripped; empty when there is none.
+gauntlet_first_error_line() {
+  { grep -m1 -E '^[[:space:]]*(│[[:space:]]*)?Error: ' || true; } | sed -E 's/^[[:space:]]*│?[[:space:]]*//'
+}
+
+# gauntlet_plan_line - the plan's own "Plan: ..." or "No changes." summary
+# line on stdin, without its trailing period; empty when there is none.
+gauntlet_plan_line() {
+  { grep -m1 -E '^(Plan:|No changes)' || true; } | sed 's/\.$//'
+}
+
+# gauntlet_replan_actions_verdict <context> < <plan output>
+#
+# The verdict for a greenfield replan that did not print "No changes.".
+# corpus-alb-complete, corpus-ec2-instance-complete and
+# corpus-autoscaling-complete each carried a copy of the old sentence, which
+# listed the "# ... will be" headers it found - possibly none - and then
+# diagnosed a CREATE of something that already exists whatever the headers
+# said. Here the headers are counted by verb: the wrong-marker diagnosis is
+# attached only when a create or a replace is among them, the list is
+# printed only when it has entries, and an empty list says so and quotes
+# the plan line and the first Error: line instead. <context> is the
+# estate's own sentence about what the earlier greenfield steps verified;
+# it is appended as given.
+gauntlet_replan_actions_verdict() {
+  local context="$1" out headers n creates replaces updates destroys reads items plan err
+  out="$(cat)"
+  headers="$({ grep -E '^[[:space:]]*# .+ (will be (created|updated in-place|destroyed|read during apply)|must be replaced)' <<< "$out" || true; } | sed -E 's/^[[:space:]]*# //')"
+  n="$(grep -c . <<< "$headers" || true)"
+  if [ "$n" -eq 0 ]; then
+    plan="$(gauntlet_plan_line <<< "$out")"
+    err="$(gauntlet_first_error_line <<< "$out")"
+    printf '%s' "the greenfield replan did not print \"No changes.\", but it names no object either: 0 \"# ... will be\" or \"must be replaced\" headers, so no object is the gap and no mechanism is named here. What it did print: plan line \"${plan:-none}\", first Error: line \"${err:-none}\"; read the replan output above this verdict. $context"
+    return 0
+  fi
+  creates="$(grep -c ' will be created$' <<< "$headers" || true)"
+  replaces="$(grep -c ' must be replaced$' <<< "$headers" || true)"
+  updates="$(grep -c ' will be updated in-place$' <<< "$headers" || true)"
+  destroys="$(grep -c ' will be destroyed$' <<< "$headers" || true)"
+  reads="$(grep -c ' will be read during apply$' <<< "$headers" || true)"
+  items="$(tr '\n' ';' <<< "$headers" | sed -E 's/;$//; s/;/; /g')"
+  printf '%s' "the greenfield replan proposes action on objects the SAME apply just created (no other run touched this namespace in between): $n header(s) - $creates create, $replaces replace, $updates update in-place, $destroys destroy, $reads read: $items."
+  if [ $((creates + replaces)) -gt 0 ]; then
+    printf '%s' " A create proposed for something that already exists is the wrong-marker-shaped failure HANDOFF ranks above a missing one, not a safe fallback."
+  else
+    printf '%s' " None of them is a create or a replace, so this is not the wrong-marker shape (a create of something that exists); it is the listed objects not converging."
+  fi
+  printf '%s' " $context; the objects named above are the gap."
+}
+
+# gauntlet_destroy_gap_verdict <address-ERE> <scope> <oracle-plan> [suspect-type] [suspect-reason] < <choudoufu plan>
+#
+# The verdict for a remove plan whose destroys fall short of (or exceed)
+# stock's oracle on cold_deploy's own state. Both plans' "# <address> will
+# be destroyed" headers under <address-ERE> (an ERE prefix, e.g.
+# 'module\.default\.'; empty for every address) are counted BY RESOURCE
+# TYPE, which survives a rename between the two roots, and the verdict
+# names the types stock destroys that choudoufu does not, with counts.
+#
+# At zero destroys it names no type: nothing under the scope was swept at
+# all, which is a whole-sweep failure, not one type falling out of it - the
+# three scripts this replaces each nominated a single culprit type there.
+# A [suspect-type] (an estate's prior diagnosis) is worded as the cause
+# only when it is among the missing types this run measured; otherwise the
+# verdict says the suspect is not the gap.
+gauntlet_destroy_gap_verdict() {
+  local re="$1" scope="$2" oracle="$3" suspect="${4:-}" reason="${5:-}" out ours theirs n m missing extra plan err
+  out="$(cat)"
+  # Strip every leading module.NAME[KEY]. hop, then keep the part before the
+  # first dot: the resource type.
+  _gauntlet_destroy_types() {
+    { grep -E "^[[:space:]]*# ${1}.+ will be destroyed\$" || true; } | sed -E 's/^[[:space:]]*# //; s/ will be destroyed$//' \
+      | sed -E 's/^(module\.[A-Za-z0-9_-]+(\[[^]]*\])?\.)+//; s/\..*$//' | sort
+  }
+  ours="$(_gauntlet_destroy_types "$re" <<< "$out")"
+  theirs="$(_gauntlet_destroy_types "$re" <<< "$oracle")"
+  n="$(grep -c . <<< "$ours" || true)"
+  m="$(grep -c . <<< "$theirs" || true)"
+  printf '%s' "choudoufu's remove plan destroys $n of the $m object(s) stock's oracle on cold_deploy's own state (D-REMOVE-ORACLE) destroys for $scope"
+  if [ "$n" -eq 0 ]; then
+    plan="$(gauntlet_plan_line <<< "$out")"
+    err="$(gauntlet_first_error_line <<< "$out")"
+    printf '%s' ". It proposes no destroy under $scope at all, so no single type fell out of the sweep and none is named here: the removal went unseen as a whole. Its plan line: \"${plan:-none}\"; first Error: line: \"${err:-none}\"; read the plan output above this verdict"
+    return 0
+  fi
+  # Per-type count differences, both directions.
+  missing="$(join -a1 -e0 -o 0,1.2,2.2 <(uniq -c <<< "$theirs" | awk '{print $2, $1}') <(uniq -c <<< "$ours" | awk '{print $2, $1}') \
+    | awk '$2 > $3 {printf "%s%s x%d", sep, $1, $2 - $3; sep="; "}')"
+  extra="$(join -a1 -e0 -o 0,1.2,2.2 <(uniq -c <<< "$ours" | awk '{print $2, $1}') <(uniq -c <<< "$theirs" | awk '{print $2, $1}') \
+    | awk '$2 > $3 {printf "%s%s x%d", sep, $1, $2 - $3; sep="; "}')"
+  printf '%s' ". Stock destroys and choudoufu does not, by type: ${missing:-nothing}"
+  [ -z "$extra" ] || printf '%s' "; choudoufu destroys and stock does not: $extra"
+  if [ -n "$suspect" ]; then
+    if grep -qE "(^|; )${suspect} x[0-9]+" <<< "$missing"; then
+      printf '%s' ". $suspect is among the missing types: $reason"
+    else
+      printf '%s' ". $suspect, this estate's earlier suspect, is NOT among the missing types, so it is not this gap and is not named as one"
+    fi
+  fi
+}
+
 # gauntlet_print_evidence <text>
 #
 # Prints <text> whole. Issue #1158: a failure branch that greps a summary

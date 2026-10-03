@@ -2429,7 +2429,7 @@ EOF
     # schema-derived limitation of the current discovery mechanism, not a
     # per-type gap. Not fixed in this script-only unit.
     [ "$REMOVE_N" = "$REMOVE_ORACLE_N" ] \
-      || { printf 'choudoufu destroys (%s):\n%s\nstock destroys (%s):\n%s\n' "$REMOVE_N" "$REMOVE_DESTROY_ADDRS" "$REMOVE_ORACLE_N" "$REMOVE_ORACLE_DESTROY_ADDRS"; fail "choudoufu proposes $REMOVE_N destroys under module.ecs_task_definition, stock's oracle proposed $REMOVE_ORACLE_N for the same block removal - see the comment immediately above this assertion for the named, generic root cause (a composed-of-arguments untaggable type left orphaned with no configuration, marker or record left to derive its identity from)"; }
+      || { printf 'choudoufu destroys (%s):\n%s\nstock destroys (%s):\n%s\n' "$REMOVE_N" "$REMOVE_DESTROY_ADDRS" "$REMOVE_ORACLE_N" "$REMOVE_ORACLE_DESTROY_ADDRS"; fail "$(gauntlet_destroy_gap_verdict 'module\.ecs_task_definition\.' "module.ecs_task_definition" "$REMOVE_ORACLE_PLAN_OUT" aws_iam_role_policy_attachment "a composed-of-arguments untaggable type left orphaned with no configuration, marker or record left to derive its identity from - see the comment immediately above this assertion" <<< "$REMOVE_PLAN_OUT")"; }
     [ "$REMOVE_DESTROY_ADDRS" = "$REMOVE_ORACLE_DESTROY_ADDRS" ] \
       || { printf 'choudoufu:\n%s\nstock:\n%s\n' "$REMOVE_DESTROY_ADDRS" "$REMOVE_ORACLE_DESTROY_ADDRS"; fail "choudoufu's destroy address set differs from stock's oracle"; }
     log "  choudoufu: exactly $REMOVE_N destroys under module.ecs_task_definition, address-for-address identical to stock's oracle on cold_deploy's own state, nothing else"
