@@ -132,6 +132,25 @@ type BaselineRecord struct {
 	Date      string           `json:"date"`
 	Repeats   int              `json:"repeats"`
 	Estates   []EstateBaseline `json:"estates"`
+	// Summary is the grouped summary of the bump (#1753), taken from the
+	// same run's plans. Absent from a record written before it existed.
+	Summary *SummaryReading `json:"summary,omitempty"`
+}
+
+// SummaryReading is what `choudoufu live-summary` made of the bump's plans
+// (GitHub issue #1753): one `live-plan -out` per estate after the bump's
+// readings, each `show -json`ed and wrapped into a set document.
+type SummaryReading struct {
+	// Groups is each group's size, largest first.
+	Groups []int `json:"groups"`
+	// Outliers names, by estate, every estate outside the largest group.
+	Outliers []string `json:"outliers"`
+	// SummaryLines is the text summary's line count; PlanLines is the sum
+	// of every estate's bump output_lines, what a reviewer reads without
+	// the summary. MarkdownChars is the merge-request note's size.
+	SummaryLines  int `json:"summary_lines"`
+	PlanLines     int `json:"plan_lines"`
+	MarkdownChars int `json:"markdown_chars"`
 }
 
 // GateBaseline decides whether a measurement may be written, and returns the
@@ -182,6 +201,45 @@ func GateBaseline(rec BaselineRecord) error {
 	}
 	if len(rec.Estates) > 1 && len(groups) < 2 {
 		return fmt.Errorf("every estate's plan for the bump has the same totals: the fixture's outlier did not show, and a grouped summary measured against this would have nothing to find")
+	}
+	if rec.Summary != nil {
+		return gateSummary(rec, groups)
+	}
+	return nil
+}
+
+// gateSummary refuses a summary reading that is not the fixture's answer:
+// the estates it names as outliers must be exactly the estates whose bump
+// totals differ from the most common totals, and its plan-line figure must
+// be the record's own. A summary that grouped the outlier in, or split the
+// group, is a wrong summary and not a measurement of one.
+func gateSummary(rec BaselineRecord, totals map[string]int) error {
+	s := rec.Summary
+	majority, best := "", 0
+	for k, n := range totals {
+		if n > best || n == best && k < majority {
+			majority, best = k, n
+		}
+	}
+	var want []string
+	planLines := 0
+	for _, e := range rec.Estates {
+		planLines += e.Bump.OutputLines
+		if fmt.Sprintf("%d/%d/%d", e.Bump.Add, e.Bump.Change, e.Bump.Destroy) != majority {
+			want = append(want, e.Estate)
+		}
+	}
+	got := append([]string(nil), s.Outliers...)
+	sort.Strings(want)
+	sort.Strings(got)
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		return fmt.Errorf("the summary names %v as outliers and the plans' totals single out %v: the summary grouped what the plans tell apart, or split what they agree on", got, want)
+	}
+	if len(s.Groups) == 0 || s.Groups[0] != best {
+		return fmt.Errorf("the summary's largest group is %v and %d estates share the most common totals", s.Groups, best)
+	}
+	if s.SummaryLines <= 0 || s.PlanLines != planLines {
+		return fmt.Errorf("summary lines %d against plan lines %d, and the record's bump output_lines sum to %d: a ratio needs both, from this run", s.SummaryLines, s.PlanLines, planLines)
 	}
 	return nil
 }

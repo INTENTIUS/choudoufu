@@ -39,6 +39,14 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.22.0 (Unreleased)
 
+- `choudoufu live-summary FILE` groups many plans by identical change
+  (#1753, part of #1749): the set plan's `-json` document, one group per
+  set of roots that change the same way, or one plan's JSON, one group per
+  set of instances of one `for_each`/`count` expansion. Every destroy and
+  replace is listed by address and a failed root is a line of its own.
+  `-markdown` fits a GitLab merge-request note (1,000,000 characters),
+  cutting whole groups and naming what it cut. `-help` says what
+  "identical" means.
 - `choudoufu live-affected RANGE` names the estate roots a git range
   touches and why (#1751, part of #1749; takes over #1106 section 4). It
   reads each root's module graph at both ends of the range from git, with

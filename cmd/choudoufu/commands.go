@@ -341,6 +341,15 @@ func initCommands(meta command.Meta) {
 			}, nil
 		},
 
+		// GitHub issue #1753: the grouped plan summary over the set plan's
+		// document or one plan. It reads JSON and prints; public from the
+		// start for live-check's reason above.
+		"live-summary": func() (cli.Command, error) {
+			return &command.LiveSummaryCommand{
+				Meta: meta,
+			}, nil
+		},
+
 		// GitHub issue #1751: which estate roots a git range touches. It
 		// reads configuration from git and prints; public from the start
 		// for live-check's reason above.
