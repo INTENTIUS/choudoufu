@@ -109,7 +109,7 @@ KINDS="namespaces configmaps secrets serviceaccounts services deployments"
 WORK="$(mktemp -d)"
 STOCK="$WORK/stock"; ADOPTED="$WORK/adopted"; ORACLE="$WORK/oracle"; GREEN="$WORK/green"
 KCA="$WORK/a.kubeconfig"; KCB="$WORK/b.kubeconfig"
-CLUSTER_A="chdf-refk8s-a-$$"; CLUSTER_B="chdf-refk8s-b-$$"
+CLUSTER_A="${GAUNTLET_KIND_PREFIX:-chdf}-refk8s-a-$$"; CLUSTER_B="${GAUNTLET_KIND_PREFIX:-chdf}-refk8s-b-$$"  # GAUNTLET_KIND_PREFIX: lets concurrent workers name their own clusters
 export TF_IN_AUTOMATION=1
 log() { printf '%s\n' "$*"; }
 
