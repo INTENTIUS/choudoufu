@@ -255,6 +255,12 @@ func Compute(ctx context.Context, o Options) (*Result, error) {
 		}
 	}
 
+	for _, d := range selected {
+		if !snaps[0].moduleDirs[d] && !snaps[1].moduleDirs[d] {
+			return nil, fmt.Errorf("-root %s holds no configuration at %s or at %s", d, short(base), short(head))
+		}
+	}
+
 	res := attribute(snaps[0], snaps[1], changes, o.Ignore)
 	res.Range = Range{Spec: o.Spec, Base: base, Head: head}
 	return res, nil
@@ -267,6 +273,11 @@ func selectedRoots(repo, wd string, roots []string) ([]string, error) {
 	realRepo, err := filepath.EvalSymlinks(repo)
 	if err != nil {
 		return nil, err
+	}
+	// The working directory resolved once, so a -root that does not exist
+	// is still compared in the same spelling as the repository.
+	if real, err := filepath.EvalSymlinks(wd); err == nil {
+		wd = real
 	}
 	for _, r := range roots {
 		abs := r

@@ -264,6 +264,14 @@ var rows = []row{
 		want: []string{"estates/e02: changed", "estates/e03: reads ls-e02", "outcome determinate"},
 	},
 	{
+		name: "a producer's estate rename names what read the old name",
+		base: localFixture,
+		head: func(t *testing.T, dir string) {
+			replaceIn(t, dir, "estates/e01/estate.chdf.hcl", `estate = "ls-e01"`, `estate = "ls-e01b"`)
+		},
+		want: cat([]string{"estates/e01: changed"}, chain, []string{"outcome determinate"}),
+	},
+	{
 		name: "the shared local module names every estate that uses it",
 		base: localFixture,
 		head: writeModuleB,
@@ -460,6 +468,9 @@ func TestRootSelection(t *testing.T) {
 	}
 	if res.RootsTotal != 2 {
 		t.Errorf("roots_total %d, want 2", res.RootsTotal)
+	}
+	if _, err := Compute(context.Background(), Options{RepoDir: dir, Spec: base + ".." + head, Roots: []string{"estates/e09"}, TempDir: t.TempDir()}); err == nil || !strings.Contains(err.Error(), "-root estates/e09 holds no configuration") {
+		t.Errorf("a -root naming nothing was accepted: %v", err)
 	}
 }
 

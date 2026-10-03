@@ -305,19 +305,25 @@ func (at *attribution) dependents() {
 			continue
 		}
 		done[d] = true
-		estate := at.roots[d].Estate
-		if estate == "" {
-			continue
-		}
-		rs := readers[estate]
-		sort.Slice(rs, func(i, j int) bool { return rs[i].Dir < rs[j].Dir })
-		for _, g := range rs {
-			if g.Dir == d {
-				continue
+		// The estate a root owns at either end: a reader of the name it
+		// had before a rename is affected by the rename.
+		var estates []string
+		for _, s := range []*snapshot{at.a, at.b} {
+			if g, ok := s.roots[d]; ok && g.Estate != "" && (len(estates) == 0 || estates[0] != g.Estate) {
+				estates = append(estates, g.Estate)
 			}
-			at.add(at.b, g, Reason{Kind: KindReads, Estate: estate, Text: KindReads + " " + estate})
-			if !done[g.Dir] {
-				queue = append(queue, g.Dir)
+		}
+		for _, estate := range estates {
+			rs := readers[estate]
+			sort.Slice(rs, func(i, j int) bool { return rs[i].Dir < rs[j].Dir })
+			for _, g := range rs {
+				if g.Dir == d {
+					continue
+				}
+				at.add(at.b, g, Reason{Kind: KindReads, Estate: estate, Text: KindReads + " " + estate})
+				if !done[g.Dir] {
+					queue = append(queue, g.Dir)
+				}
 			}
 		}
 	}
