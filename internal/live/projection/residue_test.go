@@ -2058,7 +2058,7 @@ func TestResidueLandsUnderTheMergedNamespaceOnRealDisk(t *testing.T) {
 	applied := lambdaApplied()
 	addr := locatedTestAddr(t, "aws_lambda_function", "check-links")
 
-	recorded, err := RecordResidueForInstance(ctx, store, addr, addrs.AbsProviderConfig{}, schema, applied, strict.DefaultSecrets, sdkv2LikeRead, cty.NilVal, nil)
+	recorded, err := RecordResidueForInstance(ctx, store, addr, addrs.AbsProviderConfig{}, schema, applied, strict.DefaultSecrets, sdkv2LikeRead, cty.NilVal, nil, nil)
 	if err != nil {
 		t.Fatalf("RecordResidueForInstance: %s", err)
 	}

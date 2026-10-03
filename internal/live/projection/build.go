@@ -2453,6 +2453,13 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 		return true
 	}
 
+	// GitHub issue #1239: the part of the provider's private that only an
+	// apply knows, put back from the record the last apply (or migration)
+	// wrote. Before the timeouts write below, which owns the one SDKv2 key
+	// this never records, so the two cannot disagree over a key. See
+	// privatestate.go.
+	b.restoreProviderPrivate(ctx, w, obj)
+
 	// GitHub issue #1185: the configured `timeouts` block, put back into
 	// the private blob a destroy reads its deadline from. The read handed
 	// back the provider's own declared defaults, because that is all

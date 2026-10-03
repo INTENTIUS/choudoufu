@@ -1163,10 +1163,15 @@ func residueMarkRecoverable(attr *configschema.Attribute, v cty.Value) bool {
 // and returning early on an unclassified instance is exactly how #1391's
 // defect survived #327.
 //
+// private is GitHub issue #1239: the provider private the caller's read
+// returned for this instance, which at migration is the state file's own
+// private handed through ReadResource. Only its [applyTimePrivate] part is
+// recorded, and only under [recordsProviderPrivate]; nil records nothing.
+//
 // Every failure is closed the same way [writeBackResidue] closes one: the
 // caller is expected to turn a non-nil error into a warning, never into a
 // reason to fail the migration over a residue nicety.
-func RecordResidueForInstance(ctx context.Context, store *RecordStore, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, schema providers.Schema, applied cty.Value, secrets strict.Secrets, read func(prior cty.Value) (cty.Value, error), identityObj cty.Value, manifestKeys map[string][]string) (recorded bool, err error) {
+func RecordResidueForInstance(ctx context.Context, store *RecordStore, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, schema providers.Schema, applied cty.Value, secrets strict.Secrets, read func(prior cty.Value) (cty.Value, error), identityObj cty.Value, manifestKeys map[string][]string, private []byte) (recorded bool, err error) {
 	if store == nil || schema.Block == nil || applied == cty.NilVal || applied.IsNull() {
 		return false, nil
 	}
@@ -1182,6 +1187,19 @@ func RecordResidueForInstance(ctx context.Context, store *RecordStore, addr addr
 			rf = &residueFields{}
 		}
 		rf.ManifestMetadataKeys = manifestKeys
+	}
+	// GitHub issue #1239: the migrated state file's private, the one the
+	// last stock apply wrote, less what an import and read rebuild on
+	// their own. Recorded here for manifestKeys' reason - it is owed even
+	// when nothing classifies as residue, and aws_transfer_host_key, the
+	// founding member, has no residue attribute at all.
+	if recordsProviderPrivate(secrets) {
+		if p := applyTimePrivate(private); len(p) > 0 {
+			if rf == nil {
+				rf = &residueFields{}
+			}
+			rf.ProviderPrivate = p
+		}
 	}
 	if rf == nil {
 		return false, nil
