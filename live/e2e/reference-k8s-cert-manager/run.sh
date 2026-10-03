@@ -115,7 +115,7 @@ TOTAL_N=$((BUNDLE_N + CUSTOM_N))
 WORK="$(mktemp -d)"
 STOCK="$WORK/stock"; ADOPTED="$WORK/adopted"; ORACLE="$WORK/oracle"; GREEN="$WORK/green"
 KCA="$WORK/a.kubeconfig"; KCB="$WORK/b.kubeconfig"
-CLUSTER_A="chdf-refcm-a-$$"; CLUSTER_B="chdf-refcm-b-$$"
+CLUSTER_A="${GAUNTLET_KIND_PREFIX:-chdf}-refcm-a-$$"; CLUSTER_B="${GAUNTLET_KIND_PREFIX:-chdf}-refcm-b-$$"  # GAUNTLET_KIND_PREFIX: lets concurrent workers name their own clusters
 export TF_IN_AUTOMATION=1
 log() { printf '%s\n' "$*"; }
 
@@ -419,6 +419,40 @@ stock_a() { ( cd "$STOCK"  && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" terrafor
 stock_b() { ( cd "$ORACLE" && KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB" terraform "$@" ); }
 count_a() { KUBECONFIG="$KCA" gauntlet_kind_count "$ESTATE" $KINDS; }
 exists_a() { kca get "$1" "$2" -n "$NS" >/dev/null 2>&1; }
+
+# count_replan_verdict <rc> <namespace> <total-instances> < <replan output>
+#
+# #1248: day2_count's regression arm used to tell #1178's whole story - a
+# create proposed again, a server-side dry run rejecting it, the sweep
+# calling the same objects orphans - on the strength of "no rejection
+# line" and "0 line(s) naming one", for a replan that was non-empty or
+# failed for any reason at all. Each half is now worded only when its own
+# evidence is in the output, and when none is, the verdict says #1178's
+# signatures did not appear and quotes what did.
+count_replan_verdict() {
+  local rc="$1" ns="$2" total="$3" out line err creates reject orphaned others
+  out="$(cat)"
+  line="$(gauntlet_plan_line <<< "$out")"
+  err="$(gauntlet_first_error_line <<< "$out")"
+  creates="$(grep -cE '^[[:space:]]*# kubernetes_manifest\.issuer_shard\[[0-9]+\] will be created' <<< "$out" || true)"
+  reject="$({ grep -m1 'refused the create' <<< "$out" || true; } | sed 's/^ *//')"
+  orphaned="$(grep -c 'orphan_issuer_'"$ns"'_shard-' <<< "$out" || true)"
+  others="$({ grep -E '^[[:space:]]*# .+ (will be|must be)' <<< "$out" || true; } | { grep -vE 'issuer_shard\[|orphan_issuer_' || true; } | sed -E 's/^[[:space:]]*# //' | tr '\n' ';' | sed -E 's/;$//; s/;/; /g')"
+  printf '%s' "replanning the unchanged root choudoufu itself had just applied is not empty (exit $rc, plan line \"${line:-none}\")"
+  if [ "$creates" -eq 0 ] && [ -z "$reject" ] && [ "$orphaned" -eq 0 ]; then
+    printf '%s' ". None of #1178's signatures appeared - 0 creates of kubernetes_manifest.issuer_shard, no \"refused the create\" line, 0 orphan_issuer_${ns}_shard- lines - so that regression is not the cause and is not named. First Error: line: \"${err:-none}\"; other actions: ${others:-none}. Read the replan output above this verdict"
+    return 0
+  fi
+  [ "$creates" -eq 0 ] || printf '%s' ". It proposes CREATING $creates counted instance(s) again, objects choudoufu applied itself one command earlier, so they never bound to what they created"
+  [ -z "$reject" ] || printf '%s' ". The server-side dry run rejects the create: \"$reject\""
+  [ "$orphaned" -eq 0 ] || printf '%s' ". The estate sweep reports the same live objects as undeclared orphans at kubernetes_manifest.orphan_issuer_${ns}_shard-N ($orphaned line(s) naming one)"
+  if [ -z "$others" ]; then
+    printf '%s' ". Nothing outside the counted Issuer changes - none of the other $total kubernetes_manifest instances appears in the plan - so it is count on kubernetes_manifest specifically"
+  else
+    printf '%s' ". Actions outside the counted Issuer too: $others"
+  fi
+  printf '%s' ". Stock's own 2 -> 1 scale-down on the oracle cluster destroys exactly kubernetes_manifest.issuer_shard[1]"
+}
 
 # webhook_admits <kubeconfig>: one server-side dry run of an Issuer. It is
 # the only honest readiness test for a failurePolicy: Fail webhook - the
@@ -802,9 +836,7 @@ else
   # question, it is the counted instance never binding to its own object.
   A_RE="$(tofu_a plan -input=false -no-color 2>&1)"; A_RE_RC=$?
   if [ "$A_RE_RC" -ne 0 ] || ! grep -q "No changes." <<< "$A_RE"; then
-    REJECT="$(grep -m1 'refused the create' <<< "$A_RE" | sed 's/^ *//')"
-    ORPHANED="$(grep -c 'orphan_issuer_'"$NS"'_shard-' <<< "$A_RE")"
-    COUNT_VERDICT="replanning the unchanged root choudoufu itself had just applied is not empty. The two counted instances never bind to the objects they created: the plan proposes CREATING them again and the server-side dry run rejects it - \"${REJECT:-no rejection line}\" - while the estate sweep reports the same live objects as undeclared orphans at kubernetes_manifest.orphan_issuer_${NS}_shard-N ($ORPHANED line(s) naming one). Neither half is adoption: choudoufu applied these objects itself one command earlier. Every other kubernetes_manifest instance in this root - all $TOTAL_N of them, including the un-counted ClusterIssuer, Issuer and Certificate - re-plans empty, so it is count on kubernetes_manifest specifically. Stock replans the identical root clean, and its own 2 -> 1 scale-down on the oracle cluster destroys exactly kubernetes_manifest.issuer_shard[1]"
+    COUNT_VERDICT="$(count_replan_verdict "$A_RE_RC" "$NS" "$TOTAL_N" <<< "$A_RE")"
   fi
 fi
 

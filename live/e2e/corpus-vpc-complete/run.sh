@@ -341,6 +341,31 @@ fail() {
   exit 1
 }
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
+
+# nonempty_plan_verdict < <live-plan output>
+#
+# #1248: test_plan's not-empty arm used to say "What is left is
+# module.vpc_endpoints.aws_vpc_endpoint.this[\"ecs\"]" whatever the count -
+# at five changed objects it still named one as the whole remainder. It
+# now lists the changed headers it counted, and tells lex00/floci#99's
+# story only about the ecs endpoint and only when that endpoint is among
+# them with its network_interface_ids in the diff.
+nonempty_plan_verdict() {
+  local out headers n ecs eni list
+  out="$(cat)"
+  headers="$({ grep -E '^  # .+ (will be (created|updated|destroyed)|must be replaced)' <<< "$out" || true; } | sed -E 's/^  # //')"
+  n="$(grep -c . <<< "$headers" || true)"
+  ecs="$(grep -cF 'module.vpc_endpoints.aws_vpc_endpoint.this["ecs"]' <<< "$headers" || true)"
+  eni="$(grep -c 'network_interface_ids' <<< "$out" || true)"
+  list="$(tr '\n' ';' <<< "$headers" | sed -E 's/;$//; s/;/; /g')"
+  printf '%s' "the plan is not empty: $n object(s) change, and no tofu-slot is among them (choudoufu #372, which used to account for 28 of the 29 objects here, is fixed for this estate: live-import writes the slot for a slotless count set of a server-assigned type, asserted by value on the VPC in stage 2): ${list:-no header named}"
+  if [ "$ecs" -gt 0 ] && [ "$eni" -gt 0 ]; then
+    printf '%s' ". module.vpc_endpoints.aws_vpc_endpoint.this[\"ecs\"] is among them with network_interface_ids in the diff: the floci EC2 read-fidelity gap in the vpc-endpoint family (CreateVpcEndpoint never parsed SubnetConfiguration.N.Ipv4/.SubnetId/.Ipv6, so the requested address was silently dropped and floci synthesized its own), confirmed against the AWS API docs (API_SubnetConfiguration.html), FIXED 2026-08-22 in lex00/floci#99 - it recurs only against a floci image older than that fix (see live/floci-image). Not choudoufu's, and a for_each resource, so never a tofu-slot candidate (internal/live/stamp/doc.go)"
+    [ "$n" -le 1 ] || printf '%s' "; the other $((n - 1)) object(s) are not explained by it and no cause is named for them"
+  else
+    printf '%s' ". No cause is named for them here; their plan bodies are above this verdict"
+  fi
+}
 gauntlet_begin
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
@@ -830,7 +855,7 @@ if [ -n "$CHANGED_HEADERS" ]; then
   grep -qE '^[[:space:]]*[+~-][[:space:]]+"tofu-slot"' <<< "$PLAN_OUT" \
     && { grep -B 6 -A 2 -E '^[[:space:]]*[+~-][[:space:]]+"tofu-slot"' <<< "$PLAN_OUT"
          fail "the plan proposes a tofu-slot change on $N_CHANGED object(s). choudoufu #372 settles the slot at migrate time for every count-expanded instance of a server-assigned type, and every count instance in this estate is one, so no tofu-slot may appear in this plan at all - not as an addition and not as a removal."; }
-  fail "the plan is not empty: $N_CHANGED object(s) change, and no tofu-slot is among them (choudoufu #372, which used to account for 28 of the 29 objects here, is fixed for this estate: live-import writes the slot for a slotless count set of a server-assigned type, asserted by value on the VPC in stage 2). What is left is module.vpc_endpoints.aws_vpc_endpoint.this[\"ecs\"], which proposes replacing network_interface_ids/subnet_configuration wholesale (three ENI ids to \"known after apply\", all three subnet_configuration blocks' ipv4 addresses swapped) - a floci EC2 read-fidelity gap in the vpc-endpoint family (CreateVpcEndpoint never parsed SubnetConfiguration.N.Ipv4/.SubnetId/.Ipv6, so the requested address was silently dropped and floci synthesized its own), confirmed against the AWS API docs (API_SubnetConfiguration.html: Ipv4 is the address assigned to the endpoint ENI at creation, and the example requests cidrhost(v.cidr_block, 10) for every interface endpoint - the other three (ecr_api, ecr_dkr, rds) read that back cleanly, only this one does not), a different shape than the now-largely-fixed lex00/floci#97. FIXED 2026-08-22 in lex00/floci#99 (image ghcr.io/lex00/floci@sha256:dcd57a44da855e65e0c910f81e3a9e87b3b2a5d701f4d95945351ca7ea2ca9b9); this fail() only fires against a floci image older than that fix - see live/floci-image and this script's header. Not choudoufu's, and it is a for_each resource, so it was never a tofu-slot candidate either (internal/live/stamp/doc.go, \"nothing is ever stamped for for_each\")"
+  fail "$(nonempty_plan_verdict <<< "$PLAN_OUT")"
 fi
 log "  no resource change proposed, with zero local memory of the migration that stamped it"
 

@@ -912,7 +912,7 @@ GREEN_PLAN_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" 
 if ! grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT"; then
   NONEMPTY_ITEMS="$(grep -E '^  # .+ will be' <<< "$GREEN_PLAN_OUT" | sed 's/^  # //' | tr '\n' '; ')"
   log "  the replan is NOT empty: $NONEMPTY_ITEMS"
-  gauntlet_stage greenfield fail "the greenfield replan proposes real resource action on objects the SAME apply just created (no other run touched this namespace in between): $NONEMPTY_ITEMS. A create proposed for something that already exists is the wrong-marker-shaped failure HANDOFF ranks above a missing one, not a safe fallback; not fixed in this script-only pass. $INSTANCES objects were created and the ALB's own marker verified fine (see the earlier PART GREENFIELD steps in the same run), so this is narrower than a total apply failure - the specific objects named above are the gap."
+  gauntlet_stage greenfield fail "$(gauntlet_replan_actions_verdict "$INSTANCES objects were created and the ALB's own marker verified fine (see the earlier PART GREENFIELD steps in the same run), so this is narrower than a total apply failure" <<< "$GREEN_PLAN_OUT")"
   gauntlet_end_stage
   gauntlet_floci_teardown "$FLOCI_GREEN_NAME"
   SKIP_GREENFIELD_REST=1
@@ -2229,7 +2229,7 @@ EOF
       # inside a heavily-wrapped module call, is the prime candidate here.
       printf '%s\n' "$REMOVE_PLAN_OUT" | grep -E '^  # .+ will be'
       log "  choudoufu proposes $CHOUDOUFU_REMOVE_N of the oracle's 2 destroys - a real gap, not this stage's own load-bearing check failing"
-      gauntlet_stage day2_remove fail "choudoufu's remove plan destroys only $CHOUDOUFU_REMOVE_N of the 2 objects aws_instance.other_renamed's block removal should destroy; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) proposes both (0 add, 0 change, 2 destroy: the instance and its target-group attachment). choudoufu has strictly less destroy coverage than stock here - the missing address is left live and orphaned, most likely the target-group attachment: a type admitted by the provider's identity schema rather than the generated admission table (live/LIMITATIONS.md, \"Resource type has no orphan recovery\"), the same class three other estates already hit. Not fixed in this script-only pass; see live/gauntlet/logs/corpus-alb-complete.log for the exact plan diff"
+      gauntlet_stage day2_remove fail "$(gauntlet_destroy_gap_verdict '' "aws_instance.other_renamed's block removal (the instance and its target-group attachment)" "$REMOVE_ORACLE_PLAN_OUT" aws_lb_target_group_attachment "a type admitted by the provider's identity schema rather than the generated admission table (live/LIMITATIONS.md, \"Resource type has no orphan recovery\"), the same class three other estates already hit" <<< "$REMOVE_PLAN_OUT"). The missing object(s) are left live and orphaned; see live/gauntlet/logs/corpus-alb-complete.log for the exact plan diff"
     else
       grep -qF 'Plan: 0 to add, 0 to change, 2 to destroy.' <<< "$REMOVE_PLAN_OUT" \
         || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -10; fail "choudoufu's remove plan proposes something other than exactly two destroys"; }
