@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
-  "banner": "Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, recorded between 2026-10-02T19:19:40Z and 2026-10-03T02:38:41Z. Each row below carries its own `last_run` date; they are not all the same run.",
-  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 5h13m59.5s, but not from one sweep: 13m1.3s across 1 estate(s) at commit `0b620164db`; 3m20.9s across 1 estate(s) at commit `88c9810780`; 21m43.7s across 2 estate(s) at commit `afeaea901b`; 4h35m53.6s across 27 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "banner": "Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, recorded between 2026-10-02T19:19:39Z and 2026-10-03T02:12:10Z. Each row below carries its own `last_run` date; they are not all the same run.",
+  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 5h8m8.5s, but not from one sweep: 13m1.3s across 1 estate(s) at commit `0b620164db`; 12m18.9s across 2 estate(s) at commit `66a25ed700`; 4h42m48.3s across 28 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
   "script_banner": "Every row below was measured against the estate files and the shared protocol library that are in the tree now.",
   "provider_banner": "Estates were last measured against different hashicorp/aws versions: 22 against `6.63.0` (current pin), 1 against `5.100.0`, 1 against `6.59.0`. The current pin is `6.63.0`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work. Estates were last measured against different hashicorp/kubernetes versions: 3 against `3.2.1` (current pin), 1 against `3.3.0`. The current pin is `3.2.1`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
   "upstream_version": "1.13.0",
@@ -1223,9 +1223,9 @@
         "pass",
         "not run"
       ],
-      "runtime_total": "4m39.4s",
-      "runtime_cells": "cold_deploy 29s, migrate 13s, test_plan 5s, test_apply 6s, drift_reconverge 10s, day2_rename 18s, day2_remove 13s, day2_count 1m17s, day2_replace 13s, plan_approval 25s, greenfield 1m10s",
-      "last_run_note": "Last run at commit `f707182267` on 2026-10-02T19:22:23Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 4m39.4s.",
+      "runtime_total": "6m15.9s",
+      "runtime_cells": "cold_deploy 23s, migrate 25s, test_plan 7s, test_apply 15s, drift_reconverge 11s, day2_rename 19s, day2_remove 16s, day2_count 1m37s, day2_replace 16s, plan_approval 28s, greenfield 1m58s",
+      "last_run_note": "Last run at commit `66a25ed700` on 2026-10-03T02:05:57Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 6m15.9s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
@@ -1234,63 +1234,63 @@
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "29s",
+          "duration": "23s",
           "detail": "Apply complete! Resources: 3 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=hongbomiao-harbor-crossing before migration"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "13s",
+          "duration": "25s",
           "detail": "2 of 3 stamped (bucket, user), 1 UNTAGGABLE (inline policy); bucket hongbomiao-harbor-crossing-hm-harbor -\u003e tofu-address=module.s3_bucket_hm_harbor.aws_s3_bucket.main, user hongbomiao-harbor-crossing-hm-harbor-user -\u003e tofu-address=module.harbor_iam_user.aws_iam_user.hm_harbor_iam_user"
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "5s",
+          "duration": "7s",
           "detail": "empty plan; identity re-check: bucket and user tofu-address unchanged, inline policy's resource ARN still matches the configuration"
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "6s",
-          "detail": "genuine no-op: 1 objects before, 1 after, no state file either time"
+          "duration": "15s",
+          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); the same 2 ARNs carry tofu-estate=hongbomiao-harbor-crossing before and after (the bucket and the user) - GetResources 1 + IAM's own list-user-tags 1, 0 by both, deduplicated by ARN, because the tagging API does not index this estate's IAM user in us-west-2 (#1552); no state file"
         },
         {
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
           "verdict": "pass",
-          "duration": "10s",
+          "duration": "11s",
           "detail": "the plan proposed fixing 1 object(s) after the out-of-band tag mutation: module.s3_bucket_hm_harbor.aws_s3_bucket.main"
         },
         {
           "id": "day2_rename",
           "title": "Rename",
           "verdict": "pass",
-          "duration": "18s",
+          "duration": "19s",
           "detail": "moved block: module.s3_bucket_hm_harbor renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.harbor_iam_user renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
         },
         {
           "id": "day2_remove",
           "title": "Remove a block",
           "verdict": "pass",
-          "duration": "13s",
+          "duration": "16s",
           "detail": "choudoufu: deleting module.harbor_iam_user_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy - the untaggable inline policy and its taggable parent user), applied cleanly (0 added, 0 changed, 2 destroyed) in an order IAM accepted, the user is genuinely gone from the live account (iam get-user on the old name now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly two destroys for the same objects"
         },
         {
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "1m17s",
+          "duration": "1m37s",
           "detail": "choudoufu: scaling aws_iam_user.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live UserId and tofu-address marker unchanged; scaling back from 1 to 2 created exactly count_test[1] under the SAME ARN (deterministic from name+path) but a NEW UserId (0 add, 0 change -\u003e 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied for real in the idle greenfield account, shows the identical shape: destroy the higher index only, create the higher index back under the same ARN but a new UserId, the lower index's UserId unchanged both times"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
           "verdict": "pass",
-          "duration": "13s",
+          "duration": "16s",
           "detail": "choudoufu: changing the s3_bucket_name argument feeding module.harbor_iam_user_renamed's inline policy proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly, with the user itself completely untouched; the old inline policy (S3ReadWritePolicy-hongbomiao-harbor-crossing-hm-harbor) is confirmed gone from hongbomiao-harbor-crossing-hm-harbor-user and the new one (S3ReadWritePolicy-hongbomiao-harbor-crossing-hm-harbor-policy-v2) exists in its place, both via the AWS CLI; the local record store's record at the same address now names the new composite identity, not the destroyed one (hongbomiao-harbor-crossing-hm-harbor-user:S3ReadWritePolicy-hongbomiao-harbor-crossing-hm-harbor -\u003e hongbomiao-harbor-crossing-hm-harbor-user:S3ReadWritePolicy-hongbomiao-harbor-crossing-hm-harbor-policy-v2); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) confirms both that aws_iam_user's own name argument is NOT ForceNew (updated in-place, not replaced - the reason this section targets the inline policy instead of the user) and that the inline policy itself IS force-replaced the same way. Scope notes: (1) this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see corpus-sqs-basic's own PART F; (2) BREAK=replace's marker-collision control is not exercised here - aws_iam_user_policy is untaggable and resolved structurally, with no marker to plant a collision on, so that control's load-bearing-ness is proven instead by corpus-evoteum-modules and corpus-giantswarm-crossplane's own PART F sections against the taggable shape."
         },
         {
@@ -1307,14 +1307,14 @@
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "25s",
-          "detail": "one argument edited (harbor_iam_user's common_tags gain Reviewed=yes), \"plan -out=approved.tfplan\" wrote a 13181-byte stock-format plan file whose whole change set is one update on module.harbor_iam_user.aws_iam_user.hm_harbor_iam_user; the world then moved out of band (hongbomiao-harbor-crossing-hm-harbor's hm_team tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.s3_bucket_hm_harbor.aws_s3_bucket.main and the live hongbomiao-harbor-crossing-hm-harbor it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - hongbomiao-harbor-crossing-hm-harbor-user still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and hongbomiao-harbor-crossing-hm-harbor-user read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+          "duration": "28s",
+          "detail": "one argument edited (harbor_iam_user's common_tags gain Reviewed=yes), \"plan -out=approved.tfplan\" wrote a 13193-byte stock-format plan file whose whole change set is one update on module.harbor_iam_user.aws_iam_user.hm_harbor_iam_user; the world then moved out of band (hongbomiao-harbor-crossing-hm-harbor's hm_team tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.s3_bucket_hm_harbor.aws_s3_bucket.main and the live hongbomiao-harbor-crossing-hm-harbor it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - hongbomiao-harbor-crossing-hm-harbor-user still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and hongbomiao-harbor-crossing-hm-harbor-user read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "1m10s",
+          "duration": "1m58s",
           "detail": "3 resources from nothing (bucket, user, untaggable inline policy), markers verified via the AWS CLI, 3 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared; the 2 taggable objects counted through GetResources (1) AND IAM's own list-user-tags (1), deduplicated by ARN, because the tagging API does not index this estate's IAM user in us-west-2 (#1549)"
         },
         {
@@ -1352,9 +1352,9 @@
         "pass",
         "not run"
       ],
-      "runtime_total": "3m20.9s",
-      "runtime_cells": "cold_deploy 17s, migrate 31s, test_plan 8s, test_apply 6s, drift_reconverge 12s, day2_rename 16s, day2_remove 12s, day2_count 21s, day2_replace 14s, plan_approval 26s, greenfield 38s",
-      "last_run_note": "Last run at commit `88c9810780` on 2026-10-02T20:45:15Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 3m20.9s.",
+      "runtime_total": "6m3s",
+      "runtime_cells": "cold_deploy 12s, migrate 56s, test_plan 10s, test_apply 18s, drift_reconverge 14s, day2_rename 22s, day2_remove 32s, day2_count 1m21s, day2_replace 17s, plan_approval 30s, greenfield 1m11s",
+      "last_run_note": "Last run at commit `66a25ed700` on 2026-10-03T02:12:10Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 6m3s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
@@ -1363,63 +1363,63 @@
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "17s",
+          "duration": "12s",
           "detail": "4 resources added, 0 objects carry tofu-estate=hongbomiao-labelbox-crossing before migration"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "31s",
+          "duration": "56s",
           "detail": "2 of 4 stamped (2 skipped, untaggable), 0 failed; markers read back via the AWS CLI"
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "8s",
+          "duration": "10s",
           "detail": "no resource change proposed; bucket and role tofu-address unchanged, CORS origins and inline policy resource match config"
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "6s",
-          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at 1, no state file"
+          "duration": "18s",
+          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); the same 2 ARNs carry tofu-estate=hongbomiao-labelbox-crossing before and after (the bucket and the role) - GetResources 1 + IAM's own list-role-tags 1, 0 by both, deduplicated by ARN, because the tagging API does not index this estate's IAM role in us-west-2 (#1552); no state file"
         },
         {
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
           "verdict": "pass",
-          "duration": "12s",
+          "duration": "14s",
           "detail": "bucket tag drifted; exactly module.amazon_s3_bucket_hm_labelbox.aws_s3_bucket.main proposed, applied (1 changed), reconverged to hongbomiao"
         },
         {
           "id": "day2_rename",
           "title": "Rename",
           "verdict": "pass",
-          "duration": "16s",
+          "duration": "22s",
           "detail": "moved block: module.amazon_s3_bucket_hm_labelbox renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.labelbox_iam_role renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
         },
         {
           "id": "day2_remove",
           "title": "Remove a block",
           "verdict": "pass",
-          "duration": "12s",
+          "duration": "32s",
           "detail": "choudoufu: deleting module.labelbox_iam_role_renamed's block proposed exactly two destroys (0 add, 0 change, 2 destroy - the untaggable inline policy and its taggable parent role), applied cleanly (0 added, 0 changed, 2 destroyed) in an order IAM accepted, the role is genuinely gone from the live account (iam get-role on the old name now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; stock oracle on cold_deploy's own state (E-ORACLE) also proposes exactly two destroys for the same objects"
         },
         {
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "21s",
+          "duration": "1m21s",
           "detail": "choudoufu: scaling aws_iam_policy.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live PolicyId and tofu-address/tofu-slot markers unchanged, and tombstoning count_test[1]'s own record in place (has tombstone, no identity - the #398-guard shape, not file absence); scaling back from 1 to 2 created exactly count_test[1] under the SAME ARN (deterministic from name+path) but a NEW PolicyId (0 add, 0 change -\u003e 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout, and its record regained a live identity alongside its kept tombstone; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied fresh in the idle greenfield account, shows the identical shape: destroy the higher index only, create the higher index back under the same ARN but a new PolicyId, the lower index's PolicyId unchanged both times; BREAK_COUNT=1 confirms the wrong-instance assertion above is load-bearing"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
           "verdict": "pass",
-          "duration": "14s",
+          "duration": "17s",
           "detail": "choudoufu: changing labelbox_service_account_name proposed exactly one role replace at module.labelbox_iam_role_renamed's declared address, cascading into its untaggable inline policy (also replaced, role and name are both ForceNew there) - 2 to add, 0 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old role is confirmed terminated (NoSuchEntity) and the new role carries the marker, both via the AWS CLI; the local record store's records at the same addresses now name the new role's import_id and the new role:name pair, not the destroyed ones (role LabelboxRole-hm-labelbox -\u003e LabelboxRole-hm-labelbox-v2; policy LabelboxRole-hm-labelbox:LabelboxRoleS3Policy-hm-labelbox -\u003e LabelboxRole-hm-labelbox-v2:LabelboxRoleS3Policy-hm-labelbox-v2) - the same untaggable-identity path this estate's greenfield fix resolves for a from-nothing apply, now proven under a real replace; the next plan proposes no resource action. Scope notes: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names (module lifecycle blocks are rejected by OpenTofu core, and the vendored module stays byte-identical to the pinned commit throughout - see this section's own header); and a manufactured live-object collision (this stage's own Break text) goes undetected by an ordinary plan for this resource shape, confirmed by instrumenting discovery.bind() directly - a fully record-backed type's declared population is excluded from that function's per-type claimant sweep, a real finding this unit records rather than fixes (identity-path change, HANDOFF's stop-and-report territory); BREAK_REPLACE instead proves this section's own plan-shape assertion is load-bearing."
         },
         {
@@ -1436,14 +1436,14 @@
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "26s",
-          "detail": "one argument edited (labelbox_iam_role's common_tags gain Reviewed=yes), \"plan -out=approved.tfplan\" wrote a 14720-byte stock-format plan file whose whole change set is one update on module.labelbox_iam_role.aws_iam_role.labelbox_iam_role; the world then moved out of band (hongbomiao-labelbox-crossing-hm-labelbox's hm_team tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.amazon_s3_bucket_hm_labelbox.aws_s3_bucket.main and the live hongbomiao-labelbox-crossing-hm-labelbox it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - LabelboxRole-hm-labelbox still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and LabelboxRole-hm-labelbox read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+          "duration": "30s",
+          "detail": "one argument edited (labelbox_iam_role's common_tags gain Reviewed=yes), \"plan -out=approved.tfplan\" wrote a 14712-byte stock-format plan file whose whole change set is one update on module.labelbox_iam_role.aws_iam_role.labelbox_iam_role; the world then moved out of band (hongbomiao-labelbox-crossing-hm-labelbox's hm_team tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.amazon_s3_bucket_hm_labelbox.aws_s3_bucket.main and the live hongbomiao-labelbox-crossing-hm-labelbox it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - LabelboxRole-hm-labelbox still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and LabelboxRole-hm-labelbox read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "38s",
+          "duration": "1m11s",
           "detail": "4 resources from nothing (bucket, CORS config, role, untaggable inline role policy), markers verified via the AWS CLI, 4 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared; the 2 taggable objects counted through GetResources (1) AND IAM's own list-role-tags (1), deduplicated by ARN, because the tagging API does not index this estate's IAM role in us-west-2 (#1549)"
         },
         {
@@ -1739,9 +1739,9 @@
         "pass",
         "not run"
       ],
-      "runtime_total": "5m40s",
-      "runtime_cells": "cold_deploy 18s, migrate 1m1s, test_plan 7s, test_apply 36s, drift_reconverge 19s, day2_rename 34s, day2_remove 21s, day2_count 50s, day2_replace 19s, plan_approval 44s, greenfield 31s",
-      "last_run_note": "Last run at commit `afeaea901b` on 2026-10-03T02:22:28Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 5m40s.",
+      "runtime_total": "2m57.9s",
+      "runtime_cells": "cold_deploy 22s, migrate 36s, test_plan 3s, test_apply 4s, drift_reconverge 7s, day2_rename 13s, day2_remove 9s, day2_count 29s, day2_replace 10s, plan_approval 26s, greenfield 19s",
+      "last_run_note": "Last run at commit `f707182267` on 2026-10-02T19:19:39Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 2m57.9s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
@@ -1750,64 +1750,64 @@
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "18s",
-          "detail": "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=iam-read-only-policy-crossing before migration, counted through GetResources AND IAM's own list-policy-tags (#1275 - GetResources does not return this eu-west-1 estate's IAM policy on this pin, so the GetResources-only count this line used to carry read 0 whether or not anything was marked)"
+          "duration": "22s",
+          "detail": "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=iam-read-only-policy-crossing before migration"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "1m1s",
+          "duration": "36s",
           "detail": "1 of 1 stamped, carrying tofu-slot=0 read back through IAM (choudoufu #372); Apply complete! Resources: 0 added, 0 changed, 0 destroyed. - nothing left to converge"
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "7s",
+          "duration": "3s",
           "detail": "no resource change proposed, nothing foreign; identity re-check (via the AWS CLI) unchanged"
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "36s",
-          "detail": "genuine no-op: 1 objects before, 1 after, no state file either time - counted through GetResources (0 of them) AND IAM's own list-policy-tags (1), deduplicated by ARN, because GetResources does not return this eu-west-1 estate's IAM policy on this pin and the GetResources-only count this stage used to carry read 0 on both sides (#1275)"
+          "duration": "4s",
+          "detail": "genuine no-op: 0 objects before, 0 after, no state file either time"
         },
         {
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
           "verdict": "pass",
-          "duration": "19s",
-          "detail": "one object tampered (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-54894751c3e7b4d28d6c646c52's Example tag), plan proposed fixing exactly module.read_only_iam_policy.aws_iam_policy.policy[0], apply changed 1 and reconverged the tag"
+          "duration": "7s",
+          "detail": "one object tampered (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-65b51676916e36c9997f855785's Example tag), plan proposed fixing exactly module.read_only_iam_policy.aws_iam_policy.policy[0], apply changed 1 and reconverged the tag"
         },
         {
           "id": "day2_rename",
           "title": "Rename",
           "verdict": "pass",
-          "duration": "34s",
+          "duration": "13s",
           "detail": "moved block: module.read_only_iam_policy renamed to module.read_only_iam_policy_moved with zero churn (0 add, 1 change, 0 destroy), tofu-address marker rewritten in place; live-mv: module.read_only_iam_policy_moved renamed to module.read_only_iam_policy_final with zero churn, marker rewritten in place; stock oracle over the identical net rename on cold_deploy's own state also shows a true no-op (0 add, 0 change, 0 destroy, outputs unchanged in value); the live policy ARN unchanged throughout, read via the AWS CLI"
         },
         {
           "id": "day2_remove",
           "title": "Remove a block",
           "verdict": "pass",
-          "duration": "21s",
+          "duration": "9s",
           "detail": "choudoufu: deleting module.read_only_iam_policy_final's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (iam get-policy on the old ARN now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; classifyOrphans did not withhold the destroy because no other aws_iam_policy.policy block anywhere in this config ever declares a real instance (count=0 on both remaining module calls)"
         },
         {
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "50s",
+          "duration": "29s",
           "detail": "choudoufu: scaling aws_iam_policy.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live PolicyId and tofu-address marker unchanged; scaling back from 1 to 2 created exactly count_test[1] under the SAME ARN (deterministic from name+path) but a NEW PolicyId (0 add, 0 change -\u003e 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied fresh in the idle greenfield-oracle account, shows the identical shape: destroy the higher index only, create the higher index back under the same ARN but a new PolicyId, the lower index's PolicyId unchanged both times"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
           "verdict": "pass",
-          "duration": "19s",
-          "detail": "choudoufu: changing module.read_only_iam_policy_final's ForceNew description argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-54894751c3e7b4d28d6c646c52) is confirmed gone and the new object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-7453d9afda7ebd19ebc53b0667) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-54894751c3e7b4d28d6c646c52 -\u003e arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-7453d9afda7ebd19ebc53b0667); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
+          "duration": "10s",
+          "detail": "choudoufu: changing module.read_only_iam_policy_final's ForceNew description argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-65b51676916e36c9997f855785) is confirmed gone and the new object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-0c40422a6a006b227bd7935277) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-65b51676916e36c9997f855785 -\u003e arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-0c40422a6a006b227bd7935277); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
         },
         {
           "id": "day2_crash",
@@ -1823,14 +1823,14 @@
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "44s",
-          "detail": "one argument edited (aws_iam_policy.approval_probe's Reviewed tag, no -\u003e yes), \"plan -out=approved.tfplan\" wrote a 30643-byte stock-format plan file whose whole change set is one update on aws_iam_policy.approval_probe; the world then moved out of band (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-54894751c3e7b4d28d6c646c52's Example tag, this estate's own STAGE 5 mutation lifted, through the AWS CLI and never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.read_only_iam_policy.aws_iam_policy.policy[0] and the live arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-54894751c3e7b4d28d6c646c52 it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - arn:aws:iam::000000000000:policy/example/iam-ro-approval-probe still read Reviewed=no through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and arn:aws:iam::000000000000:policy/example/iam-ro-approval-probe read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The reviewed object is a self-contained synthetic aws_iam_policy.approval_probe (sanctioned fallback per live/GAUNTLET.md #8, same discipline as PART G's count_test) because this estate has exactly ONE real object and the leg needs two disjoint rows; it is created in P0 and destroyed in P5, and the module policy's ARN and Example tag are read back unchanged so PART D starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+          "duration": "26s",
+          "detail": "one argument edited (aws_iam_policy.approval_probe's Reviewed tag, no -\u003e yes), \"plan -out=approved.tfplan\" wrote a 30628-byte stock-format plan file whose whole change set is one update on aws_iam_policy.approval_probe; the world then moved out of band (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-65b51676916e36c9997f855785's Example tag, this estate's own STAGE 5 mutation lifted, through the AWS CLI and never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.read_only_iam_policy.aws_iam_policy.policy[0] and the live arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-65b51676916e36c9997f855785 it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - arn:aws:iam::000000000000:policy/example/iam-ro-approval-probe still read Reviewed=no through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and arn:aws:iam::000000000000:policy/example/iam-ro-approval-probe read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The reviewed object is a self-contained synthetic aws_iam_policy.approval_probe (sanctioned fallback per live/GAUNTLET.md #8, same discipline as PART G's count_test) because this estate has exactly ONE real object and the leg needs two disjoint rows; it is created in P0 and destroyed in P5, and the module policy's ARN and Example tag are read back unchanged so PART D starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "31s",
+          "duration": "19s",
           "detail": "1 resource from nothing, marker verified via the AWS CLI, 1 record in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (path, description, policy document)"
         },
         {
@@ -3413,9 +3413,9 @@
         "pass",
         "not run"
       ],
-      "runtime_total": "16m3.7s",
-      "runtime_cells": "cold_deploy 2m43s, migrate 1m28s, test_plan 25s, test_apply 28s, drift_reconverge 1m51s, day2_rename 54s, day2_remove 24s, day2_count 46s, day2_replace 31s, plan_approval 1m19s, greenfield 5m15s, strict -",
-      "last_run_note": "Last run at commit `afeaea901b` on 2026-10-03T02:38:41Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 16m3.7s.",
+      "runtime_total": "8m36.2s",
+      "runtime_cells": "cold_deploy 2m33s, migrate 39s, test_plan 11s, test_apply 16s, drift_reconverge 47s, day2_rename 31s, day2_remove 18s, day2_count 35s, day2_replace 22s, plan_approval 32s, greenfield 1m52s, strict -",
+      "last_run_note": "Last run at commit `f707182267` on 2026-10-02T19:25:32Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 8m36.2s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.59.0`. **Stale**: the current pin is `6.63.0`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
@@ -3424,63 +3424,63 @@
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "2m43s",
+          "duration": "2m33s",
           "detail": "stock terraform applied 79 resources at scale=1 from unmodified terralith-gen output into BOTH accounts (COLD keeps its terraform.tfstate for migrate to adopt from and is confirmed carrying no tofu-address tag; GREEN was enumerated at 34 objects, proved non-vacuous by a deliberately-added role, then destroyed back to an enumerated-empty account - issue #564's own proof, unchanged)"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "1m28s",
+          "duration": "39s",
           "detail": "live-import ratified 38 of 79 instances as eligible and stamped all 38 with 0 failed and 41 skipped (untaggable, identity composed from an already-stamped parent); every one of the 79 addresses in stock's own `terraform state list` - this stage's oracle - is accounted for by name in the report"
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "25s",
+          "duration": "11s",
           "detail": "post-migration plan is empty; six rendered identities asserted BY VALUE against the AWS CLI across four separate tagging surfaces (Route 53, IAM, ECS, EC2), including the count-indexed aws_iam_role.count_team[1] and the module-nested, double-indexed module.team_pod[\"pod-a\"].aws_iam_role.pod_role[0]"
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "28s",
-          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); the estate is enumerated object by object before and after - 34 objects across IAM/Route53/ECS/EC2, byte-identical listings, never a bare count - and the tofu-estate-tagged count GetResources indexes is unchanged at 27 (it omits IAM roles on this pin, #1275; the enumeration is the oracle)"
+          "duration": "16s",
+          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); the estate is enumerated object by object before and after - 34 objects across IAM/Route53/ECS/EC2, byte-identical listings, never a bare count - and the tofu-estate-tagged count is unchanged at 27"
         },
         {
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
           "verdict": "pass",
-          "duration": "1m51s",
+          "duration": "47s",
           "detail": "one live object mutated out of band through the AWS CLI; choudoufu's next plan proposed fixing exactly aws_vpc.main and nothing else (0 add, 1 change, 0 destroy), matching stock's own plan for the identical mutation on cold_deploy's own state (B4, taken before any marker existed); the apply changed exactly 1 resource, the Name tag reads back as configured and the tofu-address marker is unchanged"
         },
         {
           "id": "day2_rename",
           "title": "Rename",
           "verdict": "pass",
-          "duration": "54s",
+          "duration": "31s",
           "detail": "moved block: aws_iam_instance_profile.team_0000_profile renamed with zero churn (0 add, 1 change, 0 destroy) and the plan itself showed the tofu-address marker being rewritten in place; live-mv: team_0001_profile renamed with no moved block at all, reported as a real cloud write; both live instance-profile ids unchanged and both markers read back at the NEW address via the AWS CLI; stock's own oracle over the identical two renames on cold_deploy's state (B1) is also zero churn (No changes., both moves reported); the plan after both renames is empty"
         },
         {
           "id": "day2_remove",
           "title": "Remove a block",
           "verdict": "pass",
-          "duration": "24s",
+          "duration": "18s",
           "detail": "deleting two blocks - the taggable, marked aws_iam_instance_profile.team_0002_profile and the UNTAGGABLE aws_iam_role_policy.team_0002_inline, whose parent role stays declared - proposed exactly two destroys (0 add, 0 change, 2 destroy) in an order the cloud accepted, matching stock's own plan for the same two removals on cold_deploy's state (B2); the apply destroyed exactly two, both objects are confirmed gone and the parent role confirmed still live via the AWS CLI, and the next plan is empty"
         },
         {
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "46s",
+          "duration": "35s",
           "detail": "the estate's OWN count block - six declarations across four resource types, two of them untaggable - scaled 2 to 1 and back: exactly six index-[1] destroys then exactly six index-[1] creates, no index-[0] instance touched in either plan, matching stock's own applied cycle over the identical six-block shape in a separate account (G1); across the whole cycle count_team[0]'s live role id was unchanged and its marker still reads aws_iam_role.count_team[0], count_team_profile[0]'s still reads aws_iam_instance_profile.count_team_profile[0], the recreated count_team[1] carries aws_iam_role.count_team[1], and the plan afterwards is empty"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
           "verdict": "pass",
-          "duration": "31s",
+          "duration": "22s",
           "detail": "changing aws_iam_instance_profile.team_0004_profile's ForceNew name under create_before_destroy proposed exactly one isolated replace at the same declared address (1 to add, 0 to change, 1 to destroy), matching stock's own plan for the identical change on cold_deploy's state (B3); the apply created the new object and destroyed the old one, the old name no longer resolves and the new one carries the declared address's marker (both read via the AWS CLI), and the next plan is empty with no collision"
         },
         {
@@ -3497,14 +3497,14 @@
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "1m19s",
-          "detail": "one argument edited through the generator's own render_config path (the reviewp case: aws_subnet.main's tags gain Reviewed=yes - the one shared, singular, taggable resource no later part renames, removes, scales or replaces, and a tags-only update that is not ForceNew, so the subnet id ecs.tf reads is untouched), \"plan -out=approved.tfplan\" wrote a 38579-byte stock-format plan file whose whole change set is one update on aws_subnet.main (Plan: 0 to add, 1 to change, 0 to destroy); the world then moved out of band (vpc-a32a2093's Name tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both aws_vpc.main and the live vpc-a32a2093 it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - subnet-db84794b still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and subnet-db84794b read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The estate re-renders to the pristine generator output, replans empty and the VPC's tofu-address marker still reads aws_vpc.main. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+          "duration": "32s",
+          "detail": "one argument edited through the generator's own render_config path (the reviewp case: aws_subnet.main's tags gain Reviewed=yes - the one shared, singular, taggable resource no later part renames, removes, scales or replaces, and a tags-only update that is not ForceNew, so the subnet id ecs.tf reads is untouched), \"plan -out=approved.tfplan\" wrote a 39844-byte stock-format plan file whose whole change set is one update on aws_subnet.main (Plan: 0 to add, 1 to change, 0 to destroy); the world then moved out of band (vpc-2bdc872d's Name tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both aws_vpc.main and the live vpc-2bdc872d it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - subnet-a1d0a48b still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and subnet-a1d0a48b read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The estate re-renders to the pristine generator output, replans empty and the VPC's tofu-address marker still reads aws_vpc.main. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "5m15s",
+          "duration": "1m52s",
           "detail": "choudoufu applied 79 resources into an account a stock destroy had left enumerated empty (A2), and its cloud matches stock's cold deploy across 79 structural facts compared object by object with marker tags never read on either side - the oracle this stage names. Also, beyond the oracle: the six representative identities are correct by value via the AWS CLI across Route 53/IAM/ECS/EC2; the apply persisted 79 records, matching stock's own instance list type for type with no gap - #671 closed the last one (aws_ecs_task_definition), which used to get no record and now does; the next plan is empty; and with the local record store deleted outright every one of the 79 objects is still found - nothing created, destroyed or replaced, 41 of them untaggable and composing from a stamped parent - with the only movement being 1 residue-held aws_ecs_service update(s), which is what deleting the residue store (issue #275) means rather than a divergence"
         },
         {
