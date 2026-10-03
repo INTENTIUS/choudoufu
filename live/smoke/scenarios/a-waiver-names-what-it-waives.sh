@@ -1,5 +1,8 @@
 # a-waiver-names-what-it-waives
-# CLAIM 30 (aws) - A bucket waiver waives only the assertion it names, and says so on every run. ~2 min.
+# CLAIM 29 (aws) - The record store refuses what it can't trust. ~2 min.
+#
+# This proof: A bucket waiver waives only the assertion it names, and says
+# so on every run.
 
 SMOKE_WORK="$SMOKE_WORKROOT/waiver"
 BUCKET="smoke-waived-records"

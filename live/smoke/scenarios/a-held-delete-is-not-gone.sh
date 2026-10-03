@@ -1,5 +1,12 @@
 # a-held-delete-is-not-gone
-# CLAIM 25 (aws) - A delete the platform accepted but has not finished is neither forgotten nor repeated: the plan after it reads the object the way the provider does - an object the provider still reads as present keeps its marker, the sweep finds it, and every plan proposes the same one destroy until it is really gone; an object the provider reads as gone plans nothing, as stock's plan does, with no second delete and no refusal. ~3 min.
+# CLAIM 1 (aws) - Owned resources never fall out of a plan. ~3 min.
+#
+# This proof: A delete the platform accepted but has not finished is neither
+# forgotten nor repeated: the plan after it reads the object the way the
+# provider does - an object the provider still reads as present keeps its
+# marker, the sweep finds it, and every plan proposes the same one destroy
+# until it is really gone; an object the provider reads as gone plans
+# nothing, as stock's plan does, with no second delete and no refusal.
 #
 # GitHub issue #1599. The AWS form of a held delete is a scheduled one:
 # Secrets Manager's DeleteSecret with a recovery window, like KMS's

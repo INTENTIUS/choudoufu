@@ -1,5 +1,12 @@
 # k8s-greenfield
-# CLAIM 7 (kubernetes) - The marker is a label on a real cluster, with the block address in an annotation beside it: both ride the create, any kubectl reads them back, live-ls lists the estate by the label alone, the annotation binds an object whose name is read at plan time, a stripped label takes the object out of the estate and the next plan refuses it by name, and the estate lives its whole life without a state file. ~2 min.
+# CLAIM 7 (kubernetes) - Identity is a tag you can read, move and carve by. ~2 min.
+#
+# This proof: The marker is a label on a real cluster, with the block
+# address in an annotation beside it: both ride the create, any kubectl
+# reads them back, live-ls lists the estate by the label alone, the
+# annotation binds an object whose name is read at plan time, a stripped
+# label takes the object out of the estate and the next plan refuses it by
+# name, and the estate lives its whole life without a state file.
 #
 # The first Kubernetes claim (#1061, under #1016's ruling of an estate-only
 # label; #1057's harness made it a demo first). The marker is ONE label,

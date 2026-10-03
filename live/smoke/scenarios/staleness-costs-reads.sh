@@ -1,5 +1,8 @@
 # staleness-costs-reads
-# CLAIM 3 (aws) - Staleness costs reads, never results: any cache state yields the same plan; only the work differs. ~3 min.
+# CLAIM 3 (aws) - The cache never changes an answer. ~3 min.
+#
+# This proof: Staleness costs reads, never results: any cache state yields
+# the same plan; only the work differs.
 
 SMOKE_WORK="$SMOKE_WORKROOT/staleness"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

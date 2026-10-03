@@ -1,5 +1,8 @@
 # two-estates-at-once
-# CLAIM 43 (aws) - Two estates in one account apply at the same moment and both finish clean: the estate boundary is what keeps them apart, not a queue. ~2 min.
+# CLAIM 13 (aws) - The tag is the boundary. ~2 min.
+#
+# This proof: Two estates in one account apply at the same moment and both
+# finish clean: the estate boundary is what keeps them apart, not a queue.
 
 SMOKE_WORK="$SMOKE_WORKROOT/twoestates"
 mkdir -p "$SMOKE_WORK/a" "$SMOKE_WORK/b"; export SMOKE_WORK

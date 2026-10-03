@@ -1,5 +1,8 @@
 # identity-is-a-tag
-# CLAIM 7 (aws) - Identity is a tag you can read and move: estates isolate by tag, any AWS tool answers ownership, and a rename is a retag. ~3 min.
+# CLAIM 7 (aws) - Identity is a tag you can read, move and carve by. ~3 min.
+#
+# This proof: Identity is a tag you can read and move: estates isolate by
+# tag, any AWS tool answers ownership, and a rename is a retag.
 
 SMOKE_WORK="$SMOKE_WORKROOT/idtag"
 mkdir -p "$SMOKE_WORK/a" "$SMOKE_WORK/b"

@@ -1,5 +1,13 @@
 # k8s-a-deleted-namespace-is-gone
-# CLAIM 46 (kubernetes) - A namespace deleted under a converged estate takes its objects with it and the plan reads them as gone: nothing in it is listed as present or swept as an orphan, the plan proposes exactly the creates stock's plan proposes from the same position, the namespace's own create first when the estate declares it, and one apply converges to an empty plan; a deleted record-store namespace is refused by name on the plan and on the apply, and nothing is written. ~5 min.
+# CLAIM 1 (kubernetes) - Owned resources never fall out of a plan. ~5 min.
+#
+# This proof: A namespace deleted under a converged estate takes its objects
+# with it and the plan reads them as gone: nothing in it is listed as
+# present or swept as an orphan, the plan proposes exactly the creates
+# stock's plan proposes from the same position, the namespace's own create
+# first when the estate declares it, and one apply converges to an empty
+# plan; a deleted record-store namespace is refused by name on the plan and
+# on the apply, and nothing is written.
 #
 # Fault 5 of #1110 (#1765), the last of the five. `kubectl delete
 # namespace` is the bluntest out-of-band write a cluster has: the API

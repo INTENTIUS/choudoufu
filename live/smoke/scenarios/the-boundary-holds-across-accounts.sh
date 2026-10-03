@@ -1,5 +1,9 @@
 # the-boundary-holds-across-accounts
-# CLAIM 19 (aws) - The boundary holds across accounts: two AWS accounts under one estate, one client-chosen name in both, and every answer names the account it is about. ~2 min.
+# CLAIM 13 (aws) - The tag is the boundary. ~2 min.
+#
+# This proof: The boundary holds across accounts: two AWS accounts under one
+# estate, one client-chosen name in both, and every answer names the account
+# it is about.
 
 SMOKE_WORK="$SMOKE_WORKROOT/twoaccounts"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

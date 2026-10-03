@@ -1,5 +1,9 @@
 # apply-what-was-approved
-# CLAIM 15 (aws) - Apply exactly what was approved: a saved plan crosses the approval gate, and the apply that consumes it still reads the live system - matching down to the planned values, or refusing by name. ~4 min.
+# CLAIM 15 (aws) - Apply exactly what was approved. ~4 min.
+#
+# This proof: Apply exactly what was approved: a saved plan crosses the
+# approval gate, and the apply that consumes it still reads the live system
+# - matching down to the planned values, or refusing by name.
 
 SMOKE_WORK="$SMOKE_WORKROOT/approval"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

@@ -1,5 +1,16 @@
 # the-server-gets-the-last-word
-# CLAIM 26 (aws) - The server gets the last word: the platform decides, after the plan, what it accepts and what it stores - a write the plan approved and the platform refuses is reported in the platform's own words with nothing changed and the approved plan file still applying unchanged once the refusal lifts, a rewrite of a declared field reads as the same perpetual drift stock reads while the estate keeps its marker, and a rewrite that strips the marker on the way in is named by the run that made it - the create warns that the marker it sent is not on the object the platform stored, and the adopting update that follows fails rather than reporting a change nothing kept. ~4 min.
+# CLAIM 15 (aws) - Apply exactly what was approved. ~4 min.
+#
+# This proof: The server gets the last word: the platform decides, after the
+# plan, what it accepts and what it stores - a write the plan approved and
+# the platform refuses is reported in the platform's own words with nothing
+# changed and the approved plan file still applying unchanged once the
+# refusal lifts, a rewrite of a declared field reads as the same perpetual
+# drift stock reads while the estate keeps its marker, and a rewrite that
+# strips the marker on the way in is named by the run that made it - the
+# create warns that the marker it sent is not on the object the platform
+# stored, and the adopting update that follows fails rather than reporting a
+# change nothing kept.
 #
 # GitHub issue #1599. The AWS form of the first part: a refusal that arrives
 # after approval. A plan is saved and approved under a role that may do

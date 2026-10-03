@@ -1,5 +1,10 @@
 # an-ignored-tag-is-not-drift
-# CLAIM 45 (aws) - A tag another account's automation or an AWS service adds to a resource out of band does not churn the plan once the estate tells its provider to ignore that key, the same knob stock gives every AWS user for exactly this, and an edit to a tag the estate DOES declare still plans. ~3 min.
+# CLAIM 45 (aws) - Drift you ignore isn't drift. ~3 min.
+#
+# This proof: A tag another account's automation or an AWS service adds to a
+# resource out of band does not churn the plan once the estate tells its
+# provider to ignore that key, the same knob stock gives every AWS user for
+# exactly this, and an edit to a tag the estate DOES declare still plans.
 #
 # GitHub issue #1624. Claim 27's own AWS cell (#1597, then #1598) names this
 # the genuinely open question and files it separately rather than restating

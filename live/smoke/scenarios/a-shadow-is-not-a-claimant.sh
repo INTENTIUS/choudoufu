@@ -1,5 +1,8 @@
 # a-shadow-is-not-a-claimant
-# CLAIM 18 (aws) - A replaced object's shadow is not a second claimant: the tombstone prunes it, a genuine live duplicate still refuses. ~3 min.
+# CLAIM 1 (aws) - Owned resources never fall out of a plan. ~3 min.
+#
+# This proof: A replaced object's shadow is not a second claimant: the
+# tombstone prunes it, a genuine live duplicate still refuses.
 
 SMOKE_WORK="$SMOKE_WORKROOT/shadow"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

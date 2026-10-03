@@ -1,5 +1,9 @@
 # carve-by-retag
-# CLAIM 12 (aws) - Carve by retag: a stock terralith is adopted with one command, then carved into estates by tag writes, and every side plans clean with nothing rebuilt. Needs Go. ~6 min.
+# CLAIM 7 (aws) - Identity is a tag you can read, move and carve by. ~6 min.
+#
+# This proof: Carve by retag: a stock terralith is adopted with one command,
+# then carved into estates by tag writes, and every side plans clean with
+# nothing rebuilt.
 #
 # The estate is the blog's own fixture: tools/terralith-gen at -scale 1, one
 # stock state file, 79 resources across IAM, ECS, Route 53 and EC2, with

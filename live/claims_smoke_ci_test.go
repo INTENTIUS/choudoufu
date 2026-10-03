@@ -69,7 +69,7 @@ func awsEmulatorClaimCells(t *testing.T) []smokeScenarioCell {
 		if c.Provider != "aws" {
 			continue
 		}
-		if !cellRunsItsOwnScenario(c.Cell) || c.Cell.RealService {
+		if !cellRunsItsOwnScenario(c) || c.Cell.RealService {
 			continue
 		}
 		if inBucket[c.Name] {

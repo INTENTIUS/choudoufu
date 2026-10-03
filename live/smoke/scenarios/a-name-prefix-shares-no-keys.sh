@@ -1,5 +1,8 @@
 # a-name-prefix-shares-no-keys
-# CLAIM 28 (aws) - Two estates whose names prefix one another share a bucket and none of each other's keys. ~1 min.
+# CLAIM 28 (aws) - An estate reaches only its own records. ~1 min.
+#
+# This proof: Two estates whose names prefix one another share a bucket and
+# none of each other's keys.
 
 SMOKE_WORK="$SMOKE_WORKROOT/nameprefix"
 BUCKET="smoke-shared-records"

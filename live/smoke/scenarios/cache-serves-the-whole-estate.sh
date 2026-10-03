@@ -1,5 +1,10 @@
 # cache-serves-the-whole-estate
-# CLAIM 10 (aws) - The cache serves the whole estate: on -refresh=false every converged instance is served from cache, needs-discovery resources included, so one estate of a terralith plans without re-reading the cloud - while a default plan still refreshes and a deletion is still caught. ~2 min.
+# CLAIM 9 (aws) - Unchanged is free. ~2 min.
+#
+# This proof: The cache serves the whole estate: on -refresh=false every
+# converged instance is served from cache, needs-discovery resources
+# included, so one estate of a terralith plans without re-reading the cloud
+# - while a default plan still refreshes and a deletion is still caught.
 
 SMOKE_WORK="$SMOKE_WORKROOT/refserve"; export SMOKE_WORK
 mkdir -p "$SMOKE_WORK"

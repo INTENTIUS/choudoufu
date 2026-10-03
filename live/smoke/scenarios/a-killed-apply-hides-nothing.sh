@@ -1,5 +1,11 @@
 # a-killed-apply-hides-nothing
-# CLAIM 42 (aws) - A killed apply hides nothing it marked: after a SIGKILL mid-apply every marked object is named by the next plan and bound by the re-run with no duplicate, and the two windows in which something can still be hidden - the marker write that follows a tag_on_create=false create, and the record written after the walk - are measured here rather than assumed. ~4 min.
+# CLAIM 5 (aws) - A crash is fixed by re-running. ~4 min.
+#
+# This proof: A killed apply hides nothing it marked: after a SIGKILL mid-
+# apply every marked object is named by the next plan and bound by the re-
+# run with no duplicate, and the two windows in which something can still be
+# hidden - the marker write that follows a tag_on_create=false create, and
+# the record written after the walk - are measured here rather than assumed.
 
 SMOKE_WORK="$SMOKE_WORKROOT/killed"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -148,9 +154,9 @@ record_paths() {
 
 step "the claim"
 explain \
-  "Claims 1 and 5 cover the crash shape, but both manufacture it with the" \
-  "AWS CLI: a resource created and tagged by hand, standing in for one a" \
-  "dead apply left behind. Nothing kills a real apply. This does, with" \
+  "A crash is easy to fake with the AWS CLI: a resource created and" \
+  "tagged by hand, standing in for one a dead apply left behind. That" \
+  "kills no real apply. This does, with" \
   "SIGKILL, mid-walk, at a point pinned by a count read off the account." \
   "" \
   "Three things are created before the kill and each answers a different" \
@@ -357,7 +363,25 @@ grep -E 'No changes.' <<< "$P2" | head -1 | evidence
 grep -q 'No changes.' <<< "$P2" || fail "killed" "the estate did not converge: $P2"
 proof "the estate converged, from markers and records alone: the state cache the killed run never wrote was never needed."
 
-step "7. teardown"
+step "7. now lose every local file"
+explain \
+  "The other disaster is the lost laptop. Everything stock would call the" \
+  "state - the cache this re-run wrote, the lock file, the whole" \
+  ".terraform directory - is deleted. Init afterwards re-downloads tools;" \
+  "it recovers no knowledge, because the knowledge was never local: the" \
+  "markers are on the resources and the records are in the record store," \
+  "which for a team is a bucket and here is the implied local one."
+cmd "rm -rf .terraform .terraform.lock.hcl terraform.tfstate* ; choudoufu init ; choudoufu plan"
+[ -f "$CACHE" ] || fail "killed" "expected the re-run to have written the state cache before the wipe"
+rm -rf "$SMOKE_WORK"/.terraform "$SMOKE_WORK"/.terraform.lock.hcl "$SMOKE_WORK"/terraform.tfstate*
+echo "everything left on disk: $(ls -A "$SMOKE_WORK" | tr '\n' ' ')" | evidence
+logged a-killed-apply-hides-nothing-reinit "killed" "re-init after the wipe failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
+P3="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" || fail "killed" "the plan after the wipe failed: $P3"
+grep -E 'No changes.' <<< "$P3" | head -1 | evidence
+grep -q 'No changes.' <<< "$P3" || fail "killed" "losing the local files changed the answer: $P3"
+proof "a plan from the .tf files, the records and the cloud alone: nothing that was deleted was a record of anything."
+
+step "8. teardown"
 cmd "choudoufu apply -destroy -auto-approve"
 DOUT="$(cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "killed" "teardown failed: $DOUT"
 destroyed_exactly "killed" 4 "$DOUT"
@@ -374,4 +398,5 @@ echo "  types whose create call cannot carry a tag - was killed before its"
 echo "  marker landed, so nothing could claim it and the re-run built a"
 echo "  second one. That window is the one thing here that a re-run does not"
 echo "  fix, it is bounded to those ten types, and it is measured above"
-echo "  rather than left for a reader to find."
+echo "  rather than left for a reader to find. Then every local file went,"
+echo "  and the next plan came back clean from the markers and the records."

@@ -94,28 +94,30 @@ scenario_bound_secs() {
   if [ -n "${SMOKE_TIMEOUT_SECS:-}" ]; then echo "$SMOKE_TIMEOUT_SECS"; return 0; fi
   python3 - "$HERE/claims.json" "$SCENARIO" <<'PY'
 import json, sys
-# A scenario is one provider's proof of one claim (#1112), so its minutes
-# sit on that provider's cell, not on the row.
-minutes = [cell.get("minutes", 0)
-           for c in json.load(open(sys.argv[1]))["claims"]
-           for cell in c["providers"].values()
-           if cell.get("scenario", "").endswith("/" + sys.argv[2] + ".sh")]
+# A scenario is one proof in one provider's cell of one claim (#1112, #1817),
+# or a demo, so its minutes sit on that proof, not on the row.
+d = json.load(open(sys.argv[1]))
+proofs = [p for c in d["claims"] for cell in c["providers"].values()
+          for p in cell.get("proofs", [])] + d.get("demos", [])
+minutes = [proof.get("minutes", 0) for proof in proofs
+           if proof.get("scenario", "").endswith("/" + sys.argv[2] + ".sh")]
 print(max(600, 2 * 60 * max(minutes + [0])))
 PY
 }
 
-# scenario_is_real_aws prints 1 when this scenario's claims.json cell(s) are
-# marked real_service (#1598), the one carve-out from the bound below (#1593). It reads
+# scenario_is_real_aws prints 1 when this scenario's claims.json proof (or
+# demo) is marked real_service (#1598), the one carve-out from the bound below (#1593). It reads
 # the flag off the claim, not a slug prefix: most bounded scenarios carry no
 # k8s- prefix at all, since they run against the floci emulator rather than
 # a kind cluster, and stall exactly the same way a k8s-* one does.
 scenario_is_real_aws() {
   python3 - "$HERE/claims.json" "$SCENARIO" <<'PY'
 import json, sys
-found = any(cell.get("real_service", False)
-            for c in json.load(open(sys.argv[1]))["claims"]
-            for cell in c["providers"].values()
-            if cell.get("scenario", "").endswith("/" + sys.argv[2] + ".sh"))
+d = json.load(open(sys.argv[1]))
+proofs = [p for c in d["claims"] for cell in c["providers"].values()
+          for p in cell.get("proofs", [])] + d.get("demos", [])
+found = any(proof.get("real_service", False) for proof in proofs
+            if proof.get("scenario", "").endswith("/" + sys.argv[2] + ".sh"))
 print("1" if found else "0")
 PY
 }

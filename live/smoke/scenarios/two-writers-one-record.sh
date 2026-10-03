@@ -1,5 +1,8 @@
 # two-writers-one-record
-# CLAIM 32 (aws) - Two writers, one record: the loser is named, nothing is clobbered, and nothing is held. ~3 min.
+# CLAIM 2 (aws) - Nothing is held. ~3 min.
+#
+# This proof: Two writers, one record: the loser is named, nothing is
+# clobbered, and nothing is held.
 
 SMOKE_WORK="$SMOKE_WORKROOT/writerace"
 BUCKET="smoke-writerace-records"

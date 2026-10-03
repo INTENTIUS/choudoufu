@@ -1,5 +1,9 @@
 # unchanged-is-free
-# CLAIM 9 (aws) - Unchanged is free: re-planning what did not change costs no reads where a vouch stands in, the estate can refuse with one argument, and for record-backed resources the record itself is the attestation. ~3 min.
+# CLAIM 9 (aws) - Unchanged is free. ~3 min.
+#
+# This proof: Unchanged is free: re-planning what did not change costs no
+# reads where a vouch stands in, the estate can refuse with one argument,
+# and for record-backed resources the record itself is the attestation.
 
 SMOKE_WORK="$SMOKE_WORKROOT/unchanged"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

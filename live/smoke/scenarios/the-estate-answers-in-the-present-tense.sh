@@ -1,5 +1,9 @@
 # the-estate-answers-in-the-present-tense
-# CLAIM 41 (aws) - The estate answers in the present tense: after a change made out of band, its own tags and a live describe give the answer as it is now, and the state cache gives it as of the last apply. ~2 min.
+# CLAIM 3 (aws) - The cache never changes an answer. ~2 min.
+#
+# This proof: The estate answers in the present tense: after a change made
+# out of band, its own tags and a live describe give the answer as it is
+# now, and the state cache gives it as of the last apply.
 
 SMOKE_WORK="$SMOKE_WORKROOT/present"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
