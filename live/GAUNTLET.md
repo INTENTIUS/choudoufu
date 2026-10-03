@@ -31,7 +31,7 @@ change that lowers the bars until estates catch up; a non-headline stage
 moving either bar.
 
 A headline stage marked "tier-1 gated" below (#999) activates on tier-1
-fixture evidence (`live/behaviors.json`, #522's ruling) rather than on 31
+fixture evidence (`live/behaviors.json`, #522's ruling) rather than on 32
 hand-written per-estate sections: an estate that has never been asked to
 run it reads `not_run` and stays clear, while a genuine `fail` on it still
 breaks clear, exactly as any other headline stage.
