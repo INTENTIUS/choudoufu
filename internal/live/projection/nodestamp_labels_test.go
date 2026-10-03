@@ -221,7 +221,7 @@ func (alwaysWithholdLabels) Writes(surface markers.Surface) substrate.Writes {
 	}
 	return w
 }
-func (alwaysWithholdLabels) MarkerWriter(addrs.AbsProviderConfig) substrate.Write {
+func (alwaysWithholdLabels) MarkerWriter() substrate.Write {
 	return "fake-label-write"
 }
 func (alwaysWithholdLabels) CarriesAddress() bool { return false }

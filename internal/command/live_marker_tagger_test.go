@@ -77,4 +77,4 @@ func (bindingFamily) Name() string { return "graph" }
 func (bindingFamily) Writes(markers.Surface) substrate.Writes {
 	return substrate.Writes{Create: substrate.WriteInCreate, PostCreate: "graph-binding"}
 }
-func (bindingFamily) MarkerWriter(addrs.AbsProviderConfig) substrate.Write { return "graph-binding" }
+func (bindingFamily) MarkerWriter() substrate.Write { return "graph-binding" }

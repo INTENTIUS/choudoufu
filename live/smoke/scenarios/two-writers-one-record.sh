@@ -103,8 +103,8 @@ awsl s3api put-bucket-lifecycle-configuration --bucket "$BUCKET" --lifecycle-con
 awsl s3api put-public-access-block --bucket "$BUCKET" --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true >/dev/null
 write_config "$SMOKE_WORK/a" seed
 write_config "$SMOKE_WORK/b" seed
-( cd "$SMOKE_WORK/a" && "$RUN_BIN" init -input=false -no-color >/dev/null 2>&1 ) || fail "writerace" "init failed in a"
-( cd "$SMOKE_WORK/b" && "$RUN_BIN" init -input=false -no-color >/dev/null 2>&1 ) || fail "writerace" "init failed in b"
+logged two-writers-one-record-a-init "writerace" "init failed in a" -- in_dir "$SMOKE_WORK/a" "$RUN_BIN" init -input=false -no-color
+logged two-writers-one-record-b-init "writerace" "init failed in b" -- in_dir "$SMOKE_WORK/b" "$RUN_BIN" init -input=false -no-color
 cmd "choudoufu apply -auto-approve   # in checkout a"
 OUT="$(cd "$SMOKE_WORK/a" && "$RUN_BIN" apply -auto-approve -input=false -no-color 2>&1)" || fail "writerace" "the seeding apply failed: $OUT"
 [ "$(record_input)" = "seed" ] || fail "writerace" "the seeded record does not hold the seed value: $(record_input)"

@@ -30,7 +30,7 @@ explain \
 step "1. two estates stand up in one account"
 cmd "choudoufu apply -auto-approve   # in estate a, then estate b"
 for c in a b; do
-  ( cd "$SMOKE_WORK/$c" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "idtag" "estate $c init failed"
+  logged "identity-is-a-tag-$c-init" "idtag" "estate $c init failed" -- in_dir "$SMOKE_WORK/$c" chdf init -input=false -no-color
   ( cd "$SMOKE_WORK/$c" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "idtag" "estate $c apply failed"
 done
 proof "two estates, one account, one emulator. Nothing separates them but their tags."

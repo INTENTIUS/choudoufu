@@ -73,8 +73,8 @@ explain \
 
 write_estate "$SMOKE_WORK/a" "$ESTATE_A" "smoke-concurrent-a-role"
 write_estate "$SMOKE_WORK/b" "$ESTATE_B" "smoke-concurrent-b-role"
-( cd "$SMOKE_WORK/a" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "twoestates" "init failed in a"
-( cd "$SMOKE_WORK/b" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "twoestates" "init failed in b"
+logged two-estates-at-once-a-init "twoestates" "init failed in a" -- in_dir "$SMOKE_WORK/a" chdf init -input=false -no-color
+logged two-estates-at-once-b-init "twoestates" "init failed in b" -- in_dir "$SMOKE_WORK/b" chdf init -input=false -no-color
 
 step "1. both estates apply at the same moment"
 cmd "(apply in a &) ; (apply in b &) ; wait"

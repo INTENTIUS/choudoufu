@@ -63,7 +63,7 @@ explain \
 
 step "1. stand up one estate, and plan it alone"
 cmd "choudoufu apply (demo-net: 4 resources) ; choudoufu plan"
-( cd "$WORK/net" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "plancost" "net init failed"
+logged plan-cost-tracks-the-estate-work-net-init "plancost" "net init failed" -- in_dir "$WORK/net" chdf init -input=false -no-color
 ( cd "$WORK/net" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "plancost" "net apply failed"
 NET_ALONE="$(planplan net net-alone)"
 [ "$NET_ALONE" -gt 0 ] 2>/dev/null || fail "plancost" "the net plan made no measurable calls: $NET_ALONE"
@@ -77,7 +77,7 @@ explain \
   "larger. Replan demo-net, unchanged. If cost tracked the account, this" \
   "number would climb. If it tracks the estate, it does not move."
 cmd "choudoufu apply (demo-data: 8 resources) ; choudoufu plan (demo-net again)"
-( cd "$WORK/data" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "plancost" "data init failed"
+logged plan-cost-tracks-the-estate-work-data-init "plancost" "data init failed" -- in_dir "$WORK/data" chdf init -input=false -no-color
 ( cd "$WORK/data" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "plancost" "data apply failed"
 NET_WITHDATA="$(planplan net net-withdata)"
 echo "demo-net plan, account now holds demo-net AND demo-data: $NET_WITHDATA calls" | evidence

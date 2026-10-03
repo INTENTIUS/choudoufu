@@ -48,7 +48,7 @@ type silentFamily struct{ substrate.Substrate }
 
 func (silentFamily) Name() string                { return "silent" }
 func (silentFamily) Surfaces() []markers.Surface { return []markers.Surface{markers.SurfaceTags} }
-func (silentFamily) MarkerWriter(addrs.AbsProviderConfig) substrate.Write {
+func (silentFamily) MarkerWriter() substrate.Write {
 	return substrate.WriteNeverNeeded
 }
 func (silentFamily) Writes(surface markers.Surface) substrate.Writes {
@@ -129,11 +129,11 @@ const bareSurface markers.Surface = "bare-labels-surface"
 // to nothing here and must not be written.
 type bareFamily struct{ substrate.Substrate }
 
-func (bareFamily) Name() string                                         { return "bare" }
-func (bareFamily) Surfaces() []markers.Surface                          { return []markers.Surface{bareSurface} }
-func (bareFamily) CarriesAddress() bool                                 { return false }
-func (bareFamily) AddressInMarkers() bool                               { return false }
-func (bareFamily) MarkerWriter(addrs.AbsProviderConfig) substrate.Write { return "bare-write" }
+func (bareFamily) Name() string                  { return "bare" }
+func (bareFamily) Surfaces() []markers.Surface   { return []markers.Surface{bareSurface} }
+func (bareFamily) CarriesAddress() bool          { return false }
+func (bareFamily) AddressInMarkers() bool        { return false }
+func (bareFamily) MarkerWriter() substrate.Write { return "bare-write" }
 func (bareFamily) SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
 	if _, ok := block.Attributes["labels"]; ok {
 		return bareSurface, true
@@ -283,9 +283,8 @@ func TestPostCreate_theThreeAnswersAgree(t *testing.T) {
 func postCreateDisagreements(t *testing.T, families []substrate.Substrate, types []string, facts substrate.Facts) []string {
 	t.Helper()
 	var bad []string
-	provider := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("x")}
 	for _, f := range families {
-		writer := f.MarkerWriter(provider)
+		writer := f.MarkerWriter()
 		anyWrite := false
 		for _, surface := range f.Surfaces() {
 			post := f.Writes(surface).PostCreate

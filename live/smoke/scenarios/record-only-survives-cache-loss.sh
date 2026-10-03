@@ -85,7 +85,7 @@ explain \
 
 step "1. stand the estate up, and read the record - the only carrier"
 cmd "choudoufu apply -auto-approve"
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "recordonly" "init failed"
+logged record-only-survives-cache-loss-init "recordonly" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 AOUT="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "recordonly" "apply failed: $AOUT"
 [ -f "$REC" ] || fail "recordonly" "no identity record appeared for aws_iam_group_policy.app at the expected key: $REC"
@@ -105,7 +105,7 @@ explain \
   "the record held in step 1, not by a passing count alone."
 cmd "rm -rf .terraform* ; choudoufu init ; choudoufu plan"
 rm -rf "$SMOKE_WORK"/.terraform "$SMOKE_WORK"/.terraform.lock.hcl "$SMOKE_WORK"/terraform.tfstate*
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "recordonly" "re-init after the cache wipe failed"
+logged record-only-survives-cache-loss-reinit-after-wipe "recordonly" "re-init after the cache wipe failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 DLOG="$SMOKE_WORKROOT/recordonly-recover.log"
 P1="$(cd "$SMOKE_WORK" && TF_LOG=debug TF_LOG_PATH="$DLOG" chdf plan -input=false -no-color 2>&1)" \
   || fail "recordonly" "the post-wipe plan failed: $P1"
@@ -144,7 +144,7 @@ else
   cmd "rm -rf .terraform* ; choudoufu init ; choudoufu plan"
 fi
 rm -rf "$SMOKE_WORK"/.terraform "$SMOKE_WORK"/.terraform.lock.hcl "$SMOKE_WORK"/terraform.tfstate*
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "recordonly" "re-init before the break plan failed"
+logged record-only-survives-cache-loss-reinit-before-break "recordonly" "re-init before the break plan failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 P2="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" \
   || fail "recordonly" "the plan itself failed rather than proposing a create: $P2"
 if [ "${BREAK:-0}" = "1" ]; then

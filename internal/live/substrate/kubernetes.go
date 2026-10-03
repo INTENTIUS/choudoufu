@@ -10,7 +10,6 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
@@ -89,6 +88,11 @@ func (kubernetes) AddressCarrier(surface markers.Surface) (key, noun string) {
 }
 
 func (kubernetes) Sweep() Sweep { return SweepLabelList }
+
+// SweepFindsUnadmitted is true: the label-list leg lists every kind the
+// cluster serves and joins the result against the estate's objects
+// (GitHub issue #1581, [Sweeps]).
+func (kubernetes) SweepFindsUnadmitted() bool { return true }
 
 // NewSweeper is the cluster client the provider block's own connection
 // arguments build ([KubernetesSweepAttrs] mirrors hashicorp/kubernetes'
@@ -365,7 +369,7 @@ func (k kubernetes) NotACarrier(_ *configschema.Block, typeName string) string {
 
 // MarkerWriter is [WriteNeverNeeded]: the label rides the create call on
 // both surfaces, so there is nothing to write after it.
-func (kubernetes) MarkerWriter(addrs.AbsProviderConfig) Write { return WriteNeverNeeded }
+func (kubernetes) MarkerWriter() Write { return WriteNeverNeeded }
 
 // ---- GitHub issue #1642: whether a create needs the post-create write ----
 

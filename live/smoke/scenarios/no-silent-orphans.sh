@@ -22,7 +22,7 @@ explain \
 
 step "1. stand the estate up"
 cmd "choudoufu init && choudoufu apply -auto-approve"
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null ) || fail "orphans" "init failed"
+logged no-silent-orphans-init "orphans" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 APPLY_OUT="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "orphans" "apply failed: $APPLY_OUT"
 grep -E 'Apply complete!' <<< "$APPLY_OUT" | evidence
@@ -168,7 +168,7 @@ resource "terraform_data" "forgotten" {
 }
 TFEOF
 cmd "choudoufu apply ; delete the forgotten block ; choudoufu plan"
-( cd "$R" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "orphans" "record init failed"
+logged no-silent-orphans-r-init "orphans" "record init failed" -- in_dir "$R" chdf init -input=false -no-color
 ROUT="$(cd "$R" && chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "orphans" "record apply failed: $ROUT"
 cat > "$R/main.tf" <<'TFEOF'
 terraform {

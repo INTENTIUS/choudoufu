@@ -40,8 +40,8 @@ explain \
   "point, and the next step measures it."
 cmd "choudoufu apply -auto-approve   # no live block anywhere"
 use_versions stock
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "parity" "choudoufu init failed"
-stock init -input=false -no-color >/dev/null 2>&1 || fail "parity" "oracle init failed"
+logged stock-when-you-need-it-init "parity" "choudoufu init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
+logged stock-when-you-need-it-stock-init "parity" "oracle init failed" -- stock init -input=false -no-color
 ( cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "parity" "stock-mode apply failed"
 [ -f "$SMOKE_WORK/terraform.tfstate" ] || fail "parity" "no terraform.tfstate - stock mode is supposed to write one"
 proof "a plain state-backed estate, built by the fork behaving as stock."
@@ -61,7 +61,7 @@ if [ "${BREAK:-0}" = "1" ]; then
     "plan text and request count still match stock, the parity check" \
     "compares nothing."
   use_versions live
-  ( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "parity" "BREAK re-init failed"
+  logged stock-when-you-need-it-break-reinit "parity" "BREAK re-init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 fi
 ( cd "$SMOKE_WORK" && TF_LOG=debug TF_LOG_PATH="$LOGDIR/chdf.log" "$TOFU" plan -input=false -no-color > "$LOGDIR/chdf-plan.txt" 2>&1 ) \
   || { [ "${BREAK:-0}" = "1" ] || fail "parity" "choudoufu plan failed: $(cat "$LOGDIR/chdf-plan.txt")"; }
@@ -102,7 +102,7 @@ cmd "apply (live) ; plan ; create 20 foreign log groups ; plan again"
 ( cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "parity" "stock estate teardown failed"
 rm -f "$SMOKE_WORK/terraform.tfstate"
 use_versions live
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "parity" "live init failed"
+logged stock-when-you-need-it-live-init "parity" "live init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 ( cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "parity" "live apply failed"
 ( cd "$SMOKE_WORK" && TF_LOG=debug TF_LOG_PATH="$LOGDIR/quiet.log" "$TOFU" plan -input=false -no-color >/dev/null 2>&1 ) \
   || fail "parity" "live plan (quiet account) failed"

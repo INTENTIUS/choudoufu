@@ -19,7 +19,7 @@ explain \
   "ownership tags onto each resource AS IT IS CREATED, and keeps only a" \
   "disposable cache. Watch the apply: it reads like stock."
 cmd "choudoufu init && choudoufu apply -auto-approve"
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null ) || fail "greenfield" "init failed"
+logged greenfield-init "greenfield" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 APPLY_OUT="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "greenfield" "apply failed: $APPLY_OUT"
 grep -E 'Apply complete!' <<< "$APPLY_OUT" | evidence

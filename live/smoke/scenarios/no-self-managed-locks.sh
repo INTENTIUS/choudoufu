@@ -56,8 +56,8 @@ explain \
   "NOT appear: neither run ever prints 'Acquiring state lock'. The cloud" \
   "itself referees the create."
 cmd "(apply in a &) ; (apply in b &) ; wait"
-( cd "$SMOKE_WORK/a" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "locks" "choudoufu init failed in a"
-( cd "$SMOKE_WORK/b" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "locks" "choudoufu init failed in b"
+logged no-self-managed-locks-a-init "locks" "choudoufu init failed in a" -- in_dir "$SMOKE_WORK/a" chdf init -input=false -no-color
+logged no-self-managed-locks-b-init "locks" "choudoufu init failed in b" -- in_dir "$SMOKE_WORK/b" chdf init -input=false -no-color
 # rc=$?, never a bare `cmd; echo $? > file`: under this script's inherited
 # set -e, a losing apply's own nonzero exit would abort the subshell right
 # there and the `echo` after it would never run - exactly the failure mode

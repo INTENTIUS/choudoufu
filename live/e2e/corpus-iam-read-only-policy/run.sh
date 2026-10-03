@@ -135,6 +135,18 @@ set -uo pipefail
 #                and the only one of them under which PART P runs at all -
 #                the others deliberately leave the estate somewhere PART P
 #                does not describe, and it reports no verdict there.
+#   BREAK_UNMARKED
+#                set to 1 to run cold_deploy's count control (#1275): plant
+#                tofu-estate on plain terraform's own policy before the
+#                "nothing is marked yet" count, which must then fail.
+#   BREAK_BEFORE set to 1 to run test_apply's BEFORE-count control (#1275):
+#                strip the policy's tofu-estate for the length of the
+#                pre-apply count (restored before the apply); the count
+#                reads 0 and test_apply_count_verdict must fail on it.
+#   BREAK_NOOP   set to 1 to run test_apply's AFTER-count control (#1275):
+#                strip the policy's tofu-estate after the no-op apply; the
+#                before/after comparison must fail.
+#                All three move the ACTUAL number, not the expected one.
 #
 # Exit codes: 0 on a real pass of all stages, non-zero on a real failure.
 # Every assertion reads command output, an exit code, or the emulator's own
@@ -191,6 +203,44 @@ fail() {
   exit 1
 }
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
+
+# test_apply_count_verdict <before> <after> <want>: test_apply's verdict over
+# the estate's marked-object count on either side of the no-op apply. Prints
+# the sentence the stage reports and returns 0 for a pass, 1 for a fail.
+#
+# Issue #1275: this stage used to pass on "0 objects before, 0 after",
+# because the count it was handed could not see the estate's one object. A
+# zero on the BEFORE side is therefore a failure that says what it did not
+# see, never an observation spoken as a no-op - migrate stamped <want>
+# objects and the count has to find them before an equality means anything.
+# A count that is not a number (a read that never ran) fails the same way.
+# Driven directly with every arm by tools/gauntlet/iamreadonly_counts_test.go.
+test_apply_count_verdict() {
+  local before="$1" after="$2" want="$3"
+  case "$before" in
+    '' | *[!0-9]*)
+      printf 'the pre-apply count is not a number ("%s") - the inventory read did not run, so there is nothing to compare' "$before"
+      return 1 ;;
+  esac
+  case "$after" in
+    '' | *[!0-9]*)
+      printf 'the post-apply count is not a number ("%s") - the inventory read did not run, so there is nothing to compare' "$after"
+      return 1 ;;
+  esac
+  if [ "$before" -eq 0 ]; then
+    printf 'counted 0 objects carrying the estate marker BEFORE the no-op apply, where migrate stamped %s - an equality between two zeros proves nothing about what the apply did, so this is no no-op verdict (#1275)' "$want"
+    return 1
+  fi
+  if [ "$before" != "$want" ]; then
+    printf 'expected %s objects carrying the estate marker before the no-op apply (what migrate stamped), counted %s' "$want" "$before"
+    return 1
+  fi
+  if [ "$after" != "$before" ]; then
+    printf 'object count changed across a no-op apply: %s -> %s' "$before" "$after"
+    return 1
+  fi
+  printf 'genuine no-op: %s objects before, %s after' "$before" "$after"
+}
 gauntlet_begin
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
@@ -272,17 +322,40 @@ POLICY_ARN="$(awsl iam list-policies --path-prefix /example/ \
   || fail "could not find a policy named with prefix $NAME_PREFIX through the AWS CLI"
 log "  the policy lives: $POLICY_ARN"
 
-UNMARKED="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  2>/dev/null || echo 0)"
-[ "$UNMARKED" = "0" ] || fail "plain terraform's own objects already carry tofu-estate=$ESTATE before migration - this crossing proves nothing"
-log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE before migration"
+# gauntlet_estate_objects, not `gauntlet_tagged_count ...
+# resourcegroupstaggingapi get-resources` (issue #1275, the same defect as
+# #1271). This estate's one object is an aws_iam_policy in eu-west-1, and on
+# this pin GetResources answers for IAM policies only when asked in
+# us-east-1 - measured against the current image while fixing this, with no
+# terraform in the loop: a policy tagged tofu-estate=X is returned by
+# `get-resources --region us-east-1` and not by `--region eu-west-1`. So the
+# call this line used to make read 0 whether or not the policy was marked.
+# gauntlet_estate_objects also reads IAM's own list-policy-tags, so a 0 here
+# now means 0. The trailing `2>/dev/null || echo 0` is gone with it: it
+# turned an unreachable endpoint into "nothing is marked, good".
+gauntlet_estate_objects "$ESTATE" awsl \
+  || fail "could not read the account's tofu-estate=$ESTATE inventory before migration"
+UNMARKED="$GAUNTLET_ESTATE_N"
+if [ "${BREAK_UNMARKED:-}" = "1" ]; then
+  # The negative control for THIS count: it moves the ACTUAL number, by
+  # stamping plain terraform's own policy with the estate marker, and the
+  # assertion below must catch it. Against the old GetResources-only call it
+  # did not - that is #1275.
+  awsl iam tag-policy --policy-arn "$POLICY_ARN" --tags "Key=tofu-estate,Value=$ESTATE" >/dev/null \
+    || fail "BREAK_UNMARKED=1: could not plant the marker on $POLICY_ARN"
+  gauntlet_estate_objects "$ESTATE" awsl \
+    || fail "could not re-read the inventory after BREAK_UNMARKED planted a marker"
+  UNMARKED="$GAUNTLET_ESTATE_N"
+  log "  BREAK_UNMARKED=1: planted tofu-estate=$ESTATE on $POLICY_ARN before migration - the assertion below must now fail, and reads $UNMARKED"
+fi
+[ "$UNMARKED" = "0" ] || fail "plain terraform's own objects already carry tofu-estate=$ESTATE before migration - this crossing proves nothing. Marked ($UNMARKED): $(tr '\n' ' ' <<< "$GAUNTLET_ESTATE_ARNS")"
+log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE before migration (GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own tag APIs $GAUNTLET_ESTATE_IAM_N, deduplicated)"
 
 cp "$EST/terraform.tfstate" "$WORK/cold.tfstate"
 
 log ""
 log "STAGE 1 (cold deploy): PASS"
-gauntlet_stage cold_deploy pass "$(grep -E 'Apply complete' <<< "$COLD_OUT"); 0 objects carry tofu-estate=$ESTATE before migration"
+gauntlet_stage cold_deploy pass "$(grep -E 'Apply complete' <<< "$COLD_OUT"); 0 objects carry tofu-estate=$ESTATE before migration, counted through GetResources AND IAM's own list-policy-tags (#1275 - GetResources does not return this eu-west-1 estate's IAM policy on this pin, so the GetResources-only count this line used to carry read 0 whether or not anything was marked)"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -781,25 +854,65 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
-BEFORE_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  2>/dev/null || echo 0)"
+# gauntlet_estate_objects on both sides, not `gauntlet_tagged_count ...
+# resourcegroupstaggingapi get-resources` (issue #1275). Both numbers used
+# to be structurally 0 - GetResources does not return this estate's one
+# eu-west-1 aws_iam_policy on this pin - so "$AFTER_N" = "$BEFORE_N" held
+# for any behaviour at all, including an apply that destroyed the policy,
+# and the committed row read "genuine no-op: 0 objects before, 0 after".
+# The verdict now goes through test_apply_count_verdict (defined at the
+# top, tested in tools/gauntlet/iamreadonly_counts_test.go), which refuses
+# a zero BEFORE count outright: an equality between two zeros is not
+# evidence of a no-op.
+gauntlet_estate_objects "$ESTATE" awsl \
+  || fail "could not read the estate's tofu-estate=$ESTATE inventory before the no-op apply"
+BEFORE_N="$GAUNTLET_ESTATE_N"
+BEFORE_RGTA_N="$GAUNTLET_ESTATE_RGTA_N"
+BEFORE_IAM_N="$GAUNTLET_ESTATE_IAM_N"
+BEFORE_ARNS="$GAUNTLET_ESTATE_ARNS"
+if [ "${BREAK_BEFORE:-}" = "1" ]; then
+  # The negative control for the BEFORE count: it moves the ACTUAL number by
+  # taking the marker off the estate's one policy for the length of the
+  # count, then puts it back so the apply below runs against the estate
+  # migrate left. The count reads 0 and the verdict must fail on it - which
+  # the old check could not, since it read 0 every time.
+  awsl iam untag-policy --policy-arn "$POLICY_ARN" --tag-keys tofu-estate >/dev/null \
+    || fail "BREAK_BEFORE=1: could not strip the marker from $POLICY_ARN"
+  gauntlet_estate_objects "$ESTATE" awsl \
+    || fail "could not re-read the inventory after BREAK_BEFORE stripped the marker"
+  BEFORE_N="$GAUNTLET_ESTATE_N"; BEFORE_RGTA_N="$GAUNTLET_ESTATE_RGTA_N"
+  BEFORE_IAM_N="$GAUNTLET_ESTATE_IAM_N"; BEFORE_ARNS="$GAUNTLET_ESTATE_ARNS"
+  awsl iam tag-policy --policy-arn "$POLICY_ARN" --tags "Key=tofu-estate,Value=$ESTATE" >/dev/null \
+    || fail "BREAK_BEFORE=1: could not put the marker back on $POLICY_ARN"
+  log "  BREAK_BEFORE=1: counted with tofu-estate stripped from $POLICY_ARN (reads $BEFORE_N), marker restored - the verdict below must fail"
+fi
+log "  before: $BEFORE_N objects (GetResources $BEFORE_RGTA_N + IAM's own tag APIs $BEFORE_IAM_N)"
 
 APPLY2_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
 [ "$APPLY2_RC" -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -40; fail "the post-migration apply failed"; }
 grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
   || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the post-migration apply was not a no-op"; }
 
-AFTER_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
-  2>/dev/null || echo 0)"
-[ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
+if [ "${BREAK_NOOP:-}" = "1" ]; then
+  # The negative control for the AFTER count: removing the one object's
+  # marker is the cheapest thing a broken apply could do that the old,
+  # always-0 comparison was blind to. The actual AFTER number moves to 0.
+  awsl iam untag-policy --policy-arn "$POLICY_ARN" --tag-keys tofu-estate >/dev/null \
+    || fail "BREAK_NOOP=1: could not strip the marker from $POLICY_ARN"
+  log "  BREAK_NOOP=1: removed tofu-estate from $POLICY_ARN after the apply - the count comparison below must fail"
+fi
+
+gauntlet_estate_objects "$ESTATE" awsl \
+  || fail "could not read the estate's tofu-estate=$ESTATE inventory after the no-op apply"
+AFTER_N="$GAUNTLET_ESTATE_N"
+TA_VERDICT="$(test_apply_count_verdict "$BEFORE_N" "$AFTER_N" 1)" \
+  || fail "$TA_VERDICT. Before: $(tr "\n" " " <<< "${BEFORE_ARNS:-(none)}"); after: $(tr "\n" " " <<< "${GAUNTLET_ESTATE_ARNS:-(none)}")"
 [ ! -f "$EST/terraform.tfstate" ] || fail "a state file exists after the apply"
-log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
+log "  $TA_VERDICT, no state file either time"
 
 log ""
 log "STAGE 4 (test apply): PASS"
-gauntlet_stage test_apply pass "genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
+gauntlet_stage test_apply pass "$TA_VERDICT, no state file either time - counted through GetResources ($BEFORE_RGTA_N of them) AND IAM's own list-policy-tags ($BEFORE_IAM_N), deduplicated by ARN, because GetResources does not return this eu-west-1 estate's IAM policy on this pin and the GetResources-only count this stage used to carry read 0 on both sides (#1275)"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -901,7 +1014,8 @@ log ""
 # the estate is deliberately left somewhere this part does not describe, so
 # it reports no verdict at all and the runner records the stage as not_run,
 # never as a pass.
-if [ -z "${BREAK:-}" ] && [ -z "${BREAK_REMOVE:-}" ] && [ -z "${BREAK_COUNT:-}" ]; then
+if [ -z "${BREAK:-}" ] && [ -z "${BREAK_REMOVE:-}" ] && [ -z "${BREAK_COUNT:-}" ] \
+   && [ -z "${BREAK_UNMARKED:-}" ] && [ -z "${BREAK_BEFORE:-}" ] && [ -z "${BREAK_NOOP:-}" ]; then
   gauntlet_begin_stage plan_approval
   log "=== PART P: plan, review, apply (the approval gate, live/GAUNTLET.md #12) ==="
 

@@ -449,8 +449,7 @@ shared_store_step() {
 
   cmd "choudoufu apply -auto-approve   # directory A: tier=one and squad=blue, estate $SH_ESTATE"
   shared_config "$A" yes
-  sh_run "$A" init -input=false -no-color >/dev/null 2>&1 \
-    || fail "$SCEN" "init failed in directory A"
+  logged k8s-a-label-is-a-change-a-init "$SCEN" "init failed in directory A" -- sh_run "$A" init -input=false -no-color
   SH_APPLY_A="$(sh_run "$A" apply -auto-approve -input=false -no-color 2>&1)" \
     || fail "$SCEN" "directory A could not apply: $(tail -20 <<< "$SH_APPLY_A")"
   { grep -E 'Apply complete!' <<< "$SH_APPLY_A" || true; } | evidence
@@ -523,8 +522,7 @@ shared_store_step() {
 
   cmd "choudoufu init && choudoufu plan   # directory B, the IDENTICAL configuration"
   shared_config "$B" yes
-  sh_run "$B" init -input=false -no-color >/dev/null 2>&1 \
-    || fail "$SCEN" "init failed in directory B"
+  logged k8s-a-label-is-a-change-b-init "$SCEN" "init failed in directory B" -- sh_run "$B" init -input=false -no-color
   [ ! -e "$B/.terraform/choudoufu-cache.tfstate" ] \
     || fail "$SCEN" "directory B has a state cache before it has planned, so it is not the fresh directory this step claims"
   SH_PLAN_B0="$(sh_run "$B" plan -input=false -no-color 2>&1)" \
@@ -705,8 +703,7 @@ explain \
   "at manifest.metadata.labels, beside the tier label the configuration" \
   "itself writes. Everything after this step edits that map."
 cmd "choudoufu init && choudoufu apply -auto-approve"
-( cd "$SMOKE_WORK/live" && chdf init -input=false -no-color >/dev/null 2>&1 ) \
-  || fail "$SCEN" "init failed"
+logged k8s-a-label-is-a-change-live-init "$SCEN" "init failed" -- in_dir "$SMOKE_WORK/live" chdf init -input=false -no-color
 APPLY1="$(cd "$SMOKE_WORK/live" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "$SCEN" "the first apply failed: $(tail -20 <<< "$APPLY1")"
 { grep -E 'Apply complete!' <<< "$APPLY1" || true; } | evidence
@@ -795,8 +792,7 @@ resource "kubernetes_manifest" "cm" {
 }
 TF
 cmd "terraform apply -auto-approve   # plain stock, a real terraform.tfstate"
-( cd "$SMOKE_WORK/stock" && terraform init -input=false -no-color >/dev/null 2>&1 ) \
-  || fail "$SCEN" "stock init failed"
+logged k8s-a-label-is-a-change-stock-init "$SCEN" "stock init failed" -- in_dir "$SMOKE_WORK/stock" terraform init -input=false -no-color
 STOCK_APPLY="$(cd "$SMOKE_WORK/stock" && terraform apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "$SCEN" "stock apply failed: $(tail -10 <<< "$STOCK_APPLY")"
 grep -qF "Apply complete! Resources: 1 added" <<< "$STOCK_APPLY" \

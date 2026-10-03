@@ -292,7 +292,7 @@ explain \
   "says the object is this estate's."
 cmd "kubectl create namespace $NS && choudoufu init && choudoufu apply -auto-approve"
 kc create namespace "$NS" >/dev/null || fail "$SCEN" "could not create the namespace"
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null ) || fail "$SCEN" "init failed"
+logged k8s-the-server-gets-the-last-word-init "$SCEN" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 APPLY1="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "$SCEN" "apply failed: $APPLY1"
 grep -E 'Apply complete!' <<< "$APPLY1" | evidence
@@ -445,8 +445,7 @@ resource "kubernetes_config_map" "s" {
 }
 TF
 cmd "terraform apply -auto-approve && terraform plan   # plain stock, its own state file"
-( cd "$SMOKE_WORK/stock" && terraform init -input=false -no-color >/dev/null 2>&1 ) \
-  || fail "$SCEN" "stock init failed"
+logged k8s-the-server-gets-the-last-word-stock-init "$SCEN" "stock init failed" -- in_dir "$SMOKE_WORK/stock" terraform init -input=false -no-color
 STOCK_APPLY="$(cd "$SMOKE_WORK/stock" && terraform apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "$SCEN" "stock apply failed: $(tail -5 <<< "$STOCK_APPLY")"
 grep -E 'Apply complete!' <<< "$STOCK_APPLY" | evidence

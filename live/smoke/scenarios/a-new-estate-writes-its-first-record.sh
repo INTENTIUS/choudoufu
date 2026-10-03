@@ -56,7 +56,7 @@ step "1. a brand-new estate, an empty prefix, and the published policy"
 role_with_policy "$ESTATE_ROLE" "$POLICY" "$BUCKET" || fail "firstwrite" "could not create the estate's role"
 jq -c '.Statement[] | select(.Sid == "WriteOnlyObjectsTaggedAsThisEstate") | {Action, Condition}' <<< "$POLICY" | evidence
 write_bucket_estate "$SMOKE_WORK/est" smoke-new "$BUCKET" v1
-( cd "$SMOKE_WORK/est" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "firstwrite" "init failed"
+logged a-new-estate-writes-its-first-record-est-init "firstwrite" "init failed" -- in_dir "$SMOKE_WORK/est" chdf init -input=false -no-color
 EMPTY="$(awsl s3api list-objects-v2 --bucket "$BUCKET" --prefix tofu-records/smoke-new/ --query 'length(Contents || `[]`)' --output text)"
 [ "$EMPTY" = "0" ] || fail "firstwrite" "the prefix is not empty ($EMPTY objects), so this is not a first write"
 cmd "choudoufu apply -auto-approve   # as the estate's role, into a prefix holding nothing"

@@ -109,7 +109,7 @@ explain \
 
 step "1. the estate applies"
 cmd "choudoufu init && choudoufu apply -auto-approve"
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "$SCEN" "init failed"
+logged a-held-delete-is-not-gone-init "$SCEN" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 APPLY1="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "$SCEN" "apply failed: $APPLY1"
 grep -E 'Apply complete!' <<< "$APPLY1" | evidence
 grep -qE 'Apply complete! Resources: 2 added' <<< "$APPLY1" || fail "$SCEN" "the first apply did not report two added: $APPLY1"

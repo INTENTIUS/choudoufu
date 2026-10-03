@@ -153,7 +153,7 @@ resource "aws_iam_access_key" "deploy" {
 TFEOF
 } > "$GEN/main.tf"
 cmd "choudoufu init && choudoufu plan   # strict { secrets = \"refuse\" }"
-( cd "$GEN" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "secrets" "init of the generating estate failed"
+logged no-secret-survives-in-what-the-tool-keeps-gen-init "secrets" "init of the generating estate failed" -- in_dir "$GEN" chdf init -input=false -no-color
 GCODE=0
 GOUT="$(cd "$GEN" && chdf plan -input=false -no-color 2>&1)" || GCODE=$?
 [ "$GCODE" != "0" ] || fail "secrets" "the plan went through with a random_password and an aws_iam_access_key under secrets = \"refuse\": $GOUT"
@@ -187,7 +187,7 @@ write_db_estate "$REFUSE" "smoke-secrets-refuse" '    strict {
       secrets = "refuse"
     }'
 cmd "choudoufu init && choudoufu apply -auto-approve   # TF_VAR_db_password set"
-( cd "$REFUSE" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "secrets" "init of the refuse estate failed"
+logged no-secret-survives-in-what-the-tool-keeps-refuse-init "secrets" "init of the refuse estate failed" -- in_dir "$REFUSE" chdf init -input=false -no-color
 RAPPLY="$(cd "$REFUSE" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "secrets" "apply under refuse failed: $RAPPLY"
 { grep -E 'Apply complete!' <<< "$RAPPLY" || true; } | evidence
@@ -232,7 +232,7 @@ if [ "${BREAK:-0}" = "1" ]; then
       secrets = "store"
     }'
   cmd "choudoufu apply -auto-approve   # strict { secrets = \"store\" } ; then the same grep"
-  ( cd "$BSTORE" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "secrets" "BREAK: init of the store estate failed"
+  logged no-secret-survives-in-what-the-tool-keeps-bstore-init "secrets" "BREAK: init of the store estate failed" -- in_dir "$BSTORE" chdf init -input=false -no-color
   BAPPLY="$(cd "$BSTORE" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
     || fail "secrets" "BREAK: apply under store failed: $BAPPLY"
   BHITS="$(scan_kept "$BSTORE")"
@@ -259,7 +259,7 @@ write_db_estate "$FLAGS" "smoke-secrets-flags" '    strict {
       secrets = "refuse"
     }'
 cmd "choudoufu plan -out=change.tfplan && TF_LOG=debug TF_LOG_PATH=apply-debug.log choudoufu apply change.tfplan"
-( cd "$FLAGS" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "secrets" "init of the flags estate failed"
+logged no-secret-survives-in-what-the-tool-keeps-flags-init "secrets" "init of the flags estate failed" -- in_dir "$FLAGS" chdf init -input=false -no-color
 FPLAN="$(cd "$FLAGS" && chdf plan -input=false -no-color -out=change.tfplan 2>&1)" || fail "secrets" "plan -out under refuse failed: $FPLAN"
 grep -qF -- "$SECRET" <<< "$FPLAN" && fail "secrets" "the plan printed the password"
 FAPPLY="$(cd "$FLAGS" && TF_LOG=debug TF_LOG_PATH="$FLAGS/apply-debug.log" "$TOFU" apply -input=false -no-color change.tfplan 2>&1)" \
@@ -342,7 +342,7 @@ explain \
 STORE="$SMOKE_WORK/store"
 write_db_estate "$STORE" "smoke-secrets-store" ""
 cmd "choudoufu apply -auto-approve   # no strict block ; grep ; rm the cache ; choudoufu plan"
-( cd "$STORE" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "secrets" "init of the store estate failed"
+logged no-secret-survives-in-what-the-tool-keeps-store-init "secrets" "init of the store estate failed" -- in_dir "$STORE" chdf init -input=false -no-color
 SAPPLY="$(cd "$STORE" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "secrets" "apply under store failed: $SAPPLY"
 grep -q 'Resources: 1 added' <<< "$SAPPLY" || fail "secrets" "the store apply did not add exactly the database: $SAPPLY"
