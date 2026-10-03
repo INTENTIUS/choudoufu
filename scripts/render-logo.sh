@@ -58,3 +58,11 @@ for f in choudoufu-favicon-16.png choudoufu-favicon-32.png \
   cp "$out/$f" "$repo_root/site/static/$f"
   echo "copied $f to site/static/"
 done
+
+# site/assets/ carries two more copies (the header and home templates read
+# choudoufu-inline-64.png through resources.Get, which resolves there);
+# live/derived_copies_test.go holds them to the originals (#1222)
+for f in choudoufu-hero.png choudoufu-inline-64.png; do
+  cp "$out/$f" "$repo_root/site/assets/$f"
+  echo "copied $f to site/assets/"
+done
