@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
-  "banner": "Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, recorded between 2026-10-02T19:19:39Z and 2026-10-03T04:28:12Z. Each row below carries its own `last_run` date; they are not all the same run.",
-  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 5h2m49.4s, but not from one sweep: 13m1.3s across 1 estate(s) at commit `0b620164db`; 11m23s across 1 estate(s) at commit `14ba7612ad`; 12m18.9s across 2 estate(s) at commit `66a25ed700`; 9m4.4s across 1 estate(s) at commit `7e96d33b12`; 9m58.3s across 1 estate(s) at commit `a65938087e`; 47m56.7s across 1 estate(s) at commit `a778ea0041`; 12m23.6s across 1 estate(s) at commit `e4466f3d42`; 2h57m6.3s across 22 estate(s) at commit `f707182267`; 9m36.9s across 1 estate(s) at commit `f7295671cb`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
-  "script_banner": "**25 of 31 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 24 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-dynamodb-table-basic, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-k8s-stateful, terralith-scale.",
+  "banner": "Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, recorded between 2026-10-02T19:19:39Z and 2026-10-03T04:36:14Z. Each row below carries its own `last_run` date; they are not all the same run.",
+  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 5h3m54.2s, but not from one sweep: 13m1.3s across 1 estate(s) at commit `0b620164db`; 11m23s across 1 estate(s) at commit `14ba7612ad`; 12m18.9s across 2 estate(s) at commit `66a25ed700`; 9m4.4s across 1 estate(s) at commit `7e96d33b12`; 9m58.3s across 1 estate(s) at commit `a65938087e`; 47m56.7s across 1 estate(s) at commit `a778ea0041`; 7m44.5s across 1 estate(s) at commit `c134a6edeb`; 12m23.6s across 1 estate(s) at commit `e4466f3d42`; 2h50m26.6s across 21 estate(s) at commit `f707182267`; 9m36.9s across 1 estate(s) at commit `f7295671cb`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "script_banner": "**24 of 31 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 24 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-dynamodb-table-basic, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-xancloud-iac, reference-ec2-vpc, reference-k8s-stateful, terralith-scale.",
   "provider_banner": "Estates were last measured against different hashicorp/aws versions: 22 against `6.63.0` (current pin), 1 against `5.100.0`, 1 against `6.59.0`. The current pin is `6.63.0`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work. Estates were last measured against different hashicorp/kubernetes versions: 3 against `3.2.1` (current pin), 1 against `3.3.0`. The current pin is `3.2.1`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
   "upstream_version": "1.13.0",
   "engine_banner": "The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 31 estates measured so far, 31 recorded running on it.",
@@ -3063,27 +3063,25 @@
         "pass",
         "not run"
       ],
-      "runtime_total": "6m39.7s",
-      "runtime_cells": "cold_deploy 40s, migrate 1m32s, test_plan 8s, test_apply 7s, drift_reconverge 19s, day2_rename 24s, day2_remove 29s, day2_count 1m58s, day2_replace 28s, plan_approval 33s, greenfield 58s",
-      "last_run_note": "Last run at commit `f707182267` on 2026-10-02T19:38:43Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 6m39.7s.",
+      "runtime_total": "7m44.5s",
+      "runtime_cells": "cold_deploy 35s, migrate 2m21s, test_plan 8s, test_apply 7s, drift_reconverge 16s, day2_rename 26s, day2_remove 29s, day2_count 2m17s, day2_replace 29s, plan_approval 36s, greenfield 1m18s",
+      "last_run_note": "Last run at commit `c134a6edeb` on 2026-10-03T04:36:14Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 7m44.5s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-vpc-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "40s",
+          "duration": "35s",
           "detail": "Apply complete! Resources: 62 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=vpc-complete-crossing before migration"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "1m32s",
+          "duration": "2m21s",
           "detail": "40 stamped, 22 skipped, 0 recorded, 0 failed; 39 objects carry tofu-estate=vpc-complete-crossing; the VPC's tofu-slot reads 0 off EC2, written by the migration itself (choudoufu #372)"
         },
         {
@@ -3104,14 +3102,14 @@
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
           "verdict": "pass",
-          "duration": "19s",
+          "duration": "16s",
           "detail": "one subnet tampered (Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag to ex-complete"
         },
         {
           "id": "day2_rename",
           "title": "Rename",
           "verdict": "pass",
-          "duration": "24s",
+          "duration": "26s",
           "detail": "moved block: module.vpc_endpoints renamed with zero churn (0 add, 7 change, 0 destroy), marker rewritten in place across its taggable objects; live-mv: aws_security_group.rds renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
         },
         {
@@ -3125,15 +3123,15 @@
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "1m58s",
-          "detail": "choudoufu: scaling aws_customer_gateway.count_test from 2 to 1 destroyed exactly count_test[1], the higher index (0 add, 0 change, 1 destroy), and cgw-87eb436e249c25484 is confirmed gone from the live account while count_test[0] (cgw-f5f44b808e635df77) kept its server-minted id, its tofu-address marker and its tofu-slot; scaling back from 1 to 2 created exactly count_test[1] (1 add, 0 change, 0 destroy) as a genuinely NEW object (cgw-8fca20f0d657f3c0d, not the destroyed cgw-87eb436e249c25484), with count_test[0] untouched throughout; the next plan is empty. Every identity above was read off EC2 through the AWS CLI, by the tofu-address marker, never from choudoufu's own report. Stock oracle (G-ORACLE): the identical count block stood up by terraform in its own floci account and scaled 2-\u003e1-\u003e2 for real shows the identical shape - destroy count_test[1] only, recreate it under a new id, count_test[0]'s id unchanged both times. THE BLOCK IS SYNTHETIC, deliberately: every real count knob in this estate is a subnet list that drives an untaggable aws_route_table_association count block in lockstep (a question about orphaned derived children, not about count-slot binding), and the one real zero-cascade knob, module.vpc's customer_gateways, is a for_each map with no index slots and is already day2_replace's target - so the block uses aws_customer_gateway, a type this estate really does exercise three of. Building it found and fixed a real defect (five-row row 2): the scale-down proposed NO destroy at all, because the removal sweep read live/mapping.json's via=\"former2\" provenance - a Cloud Control ENUMERABILITY filter - to answer the identity question \"which TF type is this ARN\", and classified aws_customer_gateway TYPE_NOT_LISTABLE against live/registry.json's own handlers.list=true."
+          "duration": "2m17s",
+          "detail": "choudoufu: scaling aws_customer_gateway.count_test from 2 to 1 destroyed exactly count_test[1], the higher index (0 add, 0 change, 1 destroy), and cgw-4cf834893d835f1ad is confirmed gone from the live account while count_test[0] (cgw-a1ecf7815d6344a49) kept its server-minted id, its tofu-address marker and its tofu-slot; scaling back from 1 to 2 created exactly count_test[1] (1 add, 0 change, 0 destroy) as a genuinely NEW object (cgw-ab989723a3b2706c2, not the destroyed cgw-4cf834893d835f1ad), with count_test[0] untouched throughout; the next plan is empty. Every identity above was read off EC2 through the AWS CLI, by the tofu-address marker, never from choudoufu's own report. Stock oracle (G-ORACLE): the identical count block stood up by terraform in its own floci account and scaled 2-\u003e1-\u003e2 for real shows the identical shape - destroy count_test[1] only, recreate it under a new id, count_test[0]'s id unchanged both times. THE BLOCK IS SYNTHETIC, deliberately: every real count knob in this estate is a subnet list that drives an untaggable aws_route_table_association count block in lockstep (a question about orphaned derived children, not about count-slot binding), and the one real zero-cascade knob, module.vpc's customer_gateways, is a for_each map with no index slots and is already day2_replace's target - so the block uses aws_customer_gateway, a type this estate really does exercise three of. Building it found and fixed a real defect (five-row row 2): the scale-down proposed NO destroy at all, because the removal sweep read live/mapping.json's via=\"former2\" provenance - a Cloud Control ENUMERABILITY filter - to answer the identity question \"which TF type is this ARN\", and classified aws_customer_gateway TYPE_NOT_LISTABLE against live/registry.json's own handlers.list=true."
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
           "verdict": "pass",
-          "duration": "28s",
-          "detail": "choudoufu: changing customer_gateways[\"IP1\"]'s ForceNew ip_address argument proposed exactly one isolated replace at the same declared for_each key (1 to add, 1 to destroy, nothing else), matching F-ORACLE's own plan shape; applied cleanly; the old gateway (cgw-7e504e06a4790136b) is confirmed gone/deleted and the new gateway (cgw-060b97f8f09db5dc2) carries the marker, both via the AWS CLI; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here)."
+          "duration": "29s",
+          "detail": "choudoufu: changing customer_gateways[\"IP1\"]'s ForceNew ip_address argument proposed exactly one isolated replace at the same declared for_each key (1 to add, 1 to destroy, nothing else), matching F-ORACLE's own plan shape; applied cleanly; the old gateway (cgw-8441bb9b6f6bd45ba) is confirmed gone/deleted and the new gateway (cgw-9c0a00ec88bfc0278) carries the marker, both via the AWS CLI; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here)."
         },
         {
           "id": "day2_crash",
@@ -3149,14 +3147,14 @@
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "33s",
-          "detail": "one argument edited (aws_security_group.rds's tags gain Reviewed=yes, a tags-only update that is not ForceNew and leaves sg-7ba46064f06814f3e's id alone for PART D's later rename), \"plan -out=approved.tfplan\" wrote a 69819-byte stock-format plan file whose whole change set is one update on aws_security_group.rds; the world then moved out of band (subnet-c5f30b1a's Example tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.vpc.aws_subnet.private[0] and the live subnet-c5f30b1a it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - sg-7ba46064f06814f3e still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and sg-7ba46064f06814f3e read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+          "duration": "36s",
+          "detail": "one argument edited (aws_security_group.rds's tags gain Reviewed=yes, a tags-only update that is not ForceNew and leaves sg-3587abcfa5a1fd6d4's id alone for PART D's later rename), \"plan -out=approved.tfplan\" wrote a 69785-byte stock-format plan file whose whole change set is one update on aws_security_group.rds; the world then moved out of band (subnet-5b21427a's Example tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.vpc.aws_subnet.private[0] and the live subnet-5b21427a it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - sg-3587abcfa5a1fd6d4 still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and sg-3587abcfa5a1fd6d4 read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "58s",
+          "duration": "1m18s",
           "detail": "62 resources from nothing (40 tag-stamped, 22 untaggable/derived), replan empty, stock oracle in its own namespace matches on vpc cidr, subnet count (18) and the s3 endpoint's presence"
         },
         {
