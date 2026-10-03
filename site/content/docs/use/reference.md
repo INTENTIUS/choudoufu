@@ -98,6 +98,7 @@ estate has a store; a `live` block naming none gets the local one.
 | `bucket_owner` | `s3` | The twelve-digit AWS account that must own the bucket. Every S3 call carries it as `ExpectedBucketOwner`, so a same-named bucket in another account is refused. |
 | `namespace` | `kubernetes` | Namespace holding this estate's record Secrets. Defaults to `tofu-records-<estate>`. The store does not create it. |
 | connection | `kubernetes` | How to reach the cluster: `host`, `token`, `config_path`, `config_context` and the rest, plus an `exec` block, spelled as stock's `kubernetes` backend spells them. `insecure = true` fails `tls_verification`. |
+| `control_plane` | `kubernetes` | A block labelled `"eks"`, `"gke"` or `"aks"` naming the managed control plane the cluster runs on: `name` and `region` (EKS, region optional), `name`, `project` and `location` (GKE), `name`, `resource_group` and `subscription_id` (AKS). `encryption_at_rest` is then read from that provider's API rather than reported `NOT CHECKED`. An EKS connection through `aws eks get-token --cluster-name` needs no block. |
 | `allow_insecure` | `s3`, `kubernetes` | A list naming the assertions this estate proceeds without. On `s3`: `"versioning"`, `"lifecycle"`, `"public_access_block"`; on `kubernetes`: `"tls_verification"`, `"namespace_access"`, `"read_isolation"`, `"encryption_at_rest"`, `"estate_boundary"`. Never a boolean. Each waiver is announced on every run with what it costs. [The three settings]({{< relref "/docs/use/bucket" >}}) has the bucket's. |
 
 ### `policy` block

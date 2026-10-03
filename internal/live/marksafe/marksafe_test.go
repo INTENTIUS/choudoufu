@@ -92,6 +92,11 @@ var guardedPackages = []string{
 	// unstructured objects and strings, never a cty.Value, so it is held
 	// to zero rather than deferred.
 	"kubesweep",
+	// GitHub issue #1524's managed control plane readers: one HTTP GET per
+	// provider, decoded into Go structs and strings. It imports no cty at
+	// all, so it is held to zero rather than deferred: it has nothing to
+	// defer.
+	"managedk8s",
 	"mdspan",
 	"moved",
 	// Places a resolved identity's own already-computed string values onto
