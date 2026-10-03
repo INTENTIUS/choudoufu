@@ -2142,55 +2142,55 @@
       },
       "stage_runs": {
         "cold_deploy": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:19:39Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:03:45Z"
         },
         "day2_count": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:19:39Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:03:45Z"
         },
         "day2_remove": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:19:39Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:03:45Z"
         },
         "day2_rename": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:19:39Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:03:45Z"
         },
         "day2_replace": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:19:39Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:03:45Z"
         },
         "drift_reconverge": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:19:39Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:03:45Z"
         },
         "greenfield": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:19:39Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:03:45Z"
         },
         "migrate": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:19:39Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:03:45Z"
         },
         "plan_approval": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:19:39Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:03:45Z"
         },
         "test_apply": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:19:39Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:03:45Z"
         },
         "test_plan": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:19:39Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:03:45Z"
         }
       },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-        "date": "2026-10-02T19:19:39Z",
+        "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+        "date": "2026-10-03T02:03:45Z",
         "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
         "aws_provider_version": "6.63.0",
         "oracle": {
@@ -2200,31 +2200,31 @@
         "upstream_version": "1.13.0",
         "exit_code": 0,
         "detail": {
-          "cold_deploy": "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=iam-read-only-policy-crossing before migration",
+          "cold_deploy": "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=iam-read-only-policy-crossing before migration, counted through GetResources AND IAM's own list-policy-tags (#1275 - GetResources does not return this eu-west-1 estate's IAM policy on this pin, so the GetResources-only count this line used to carry read 0 whether or not anything was marked)",
           "day2_count": "choudoufu: scaling aws_iam_policy.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live PolicyId and tofu-address marker unchanged; scaling back from 1 to 2 created exactly count_test[1] under the SAME ARN (deterministic from name+path) but a NEW PolicyId (0 add, 0 change -> 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied fresh in the idle greenfield-oracle account, shows the identical shape: destroy the higher index only, create the higher index back under the same ARN but a new PolicyId, the lower index's PolicyId unchanged both times",
           "day2_remove": "choudoufu: deleting module.read_only_iam_policy_final's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (iam get-policy on the old ARN now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; classifyOrphans did not withhold the destroy because no other aws_iam_policy.policy block anywhere in this config ever declares a real instance (count=0 on both remaining module calls)",
           "day2_rename": "moved block: module.read_only_iam_policy renamed to module.read_only_iam_policy_moved with zero churn (0 add, 1 change, 0 destroy), tofu-address marker rewritten in place; live-mv: module.read_only_iam_policy_moved renamed to module.read_only_iam_policy_final with zero churn, marker rewritten in place; stock oracle over the identical net rename on cold_deploy's own state also shows a true no-op (0 add, 0 change, 0 destroy, outputs unchanged in value); the live policy ARN unchanged throughout, read via the AWS CLI",
-          "day2_replace": "choudoufu: changing module.read_only_iam_policy_final's ForceNew description argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-65b51676916e36c9997f855785) is confirmed gone and the new object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-0c40422a6a006b227bd7935277) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-65b51676916e36c9997f855785 -> arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-0c40422a6a006b227bd7935277); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
-          "drift_reconverge": "one object tampered (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-65b51676916e36c9997f855785's Example tag), plan proposed fixing exactly module.read_only_iam_policy.aws_iam_policy.policy[0], apply changed 1 and reconverged the tag",
+          "day2_replace": "choudoufu: changing module.read_only_iam_policy_final's ForceNew description argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-1486f43dfdd67a634adcc6ebc1) is confirmed gone and the new object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-63cecbde0739a6a41ce3f97fd0) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-1486f43dfdd67a634adcc6ebc1 -> arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-63cecbde0739a6a41ce3f97fd0); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment.",
+          "drift_reconverge": "one object tampered (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-1486f43dfdd67a634adcc6ebc1's Example tag), plan proposed fixing exactly module.read_only_iam_policy.aws_iam_policy.policy[0], apply changed 1 and reconverged the tag",
           "greenfield": "1 resource from nothing, marker verified via the AWS CLI, 1 record in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (path, description, policy document)",
           "migrate": "1 of 1 stamped, carrying tofu-slot=0 read back through IAM (choudoufu #372); Apply complete! Resources: 0 added, 0 changed, 0 destroyed. - nothing left to converge",
-          "plan_approval": "one argument edited (aws_iam_policy.approval_probe's Reviewed tag, no -> yes), \"plan -out=approved.tfplan\" wrote a 30628-byte stock-format plan file whose whole change set is one update on aws_iam_policy.approval_probe; the world then moved out of band (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-65b51676916e36c9997f855785's Example tag, this estate's own STAGE 5 mutation lifted, through the AWS CLI and never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.read_only_iam_policy.aws_iam_policy.policy[0] and the live arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-65b51676916e36c9997f855785 it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - arn:aws:iam::000000000000:policy/example/iam-ro-approval-probe still read Reviewed=no through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and arn:aws:iam::000000000000:policy/example/iam-ro-approval-probe read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The reviewed object is a self-contained synthetic aws_iam_policy.approval_probe (sanctioned fallback per live/GAUNTLET.md #8, same discipline as PART G's count_test) because this estate has exactly ONE real object and the leg needs two disjoint rows; it is created in P0 and destroyed in P5, and the module policy's ARN and Example tag are read back unchanged so PART D starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails",
-          "test_apply": "genuine no-op: 0 objects before, 0 after, no state file either time",
+          "plan_approval": "one argument edited (aws_iam_policy.approval_probe's Reviewed tag, no -> yes), \"plan -out=approved.tfplan\" wrote a 30624-byte stock-format plan file whose whole change set is one update on aws_iam_policy.approval_probe; the world then moved out of band (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-1486f43dfdd67a634adcc6ebc1's Example tag, this estate's own STAGE 5 mutation lifted, through the AWS CLI and never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.read_only_iam_policy.aws_iam_policy.policy[0] and the live arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-1486f43dfdd67a634adcc6ebc1 it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - arn:aws:iam::000000000000:policy/example/iam-ro-approval-probe still read Reviewed=no through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and arn:aws:iam::000000000000:policy/example/iam-ro-approval-probe read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The reviewed object is a self-contained synthetic aws_iam_policy.approval_probe (sanctioned fallback per live/GAUNTLET.md #8, same discipline as PART G's count_test) because this estate has exactly ONE real object and the leg needs two disjoint rows; it is created in P0 and destroyed in P5, and the module policy's ARN and Example tag are read back unchanged so PART D starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails",
+          "test_apply": "genuine no-op: 1 objects before, 1 after, no state file either time - counted through GetResources (0 of them) AND IAM's own list-policy-tags (1), deduplicated by ARN, because GetResources does not return this eu-west-1 estate's IAM policy on this pin and the GetResources-only count this stage used to carry read 0 on both sides (#1275)",
           "test_plan": "no resource change proposed, nothing foreign; identity re-check (via the AWS CLI) unchanged"
         },
-        "duration_s": 177.9,
+        "duration_s": 258.9,
         "stage_seconds": {
-          "cold_deploy": 22,
-          "day2_count": 29,
-          "day2_remove": 9,
-          "day2_rename": 13,
-          "day2_replace": 10,
-          "drift_reconverge": 7,
-          "greenfield": 19,
-          "migrate": 36,
-          "plan_approval": 26,
-          "test_apply": 4,
-          "test_plan": 3
+          "cold_deploy": 13,
+          "day2_count": 45,
+          "day2_remove": 14,
+          "day2_rename": 21,
+          "day2_replace": 16,
+          "drift_reconverge": 11,
+          "greenfield": 27,
+          "migrate": 54,
+          "plan_approval": 39,
+          "test_apply": 15,
+          "test_plan": 4
         }
       },
       "notes": "Upgraded from a real but pre-#274-pipeline predecessor script (choudoufu apply from a live block present from the start, delete state, replan empty twice) to the current five-stage shape, same upgrade as corpus-iam-policy and following the same corpus-vpc-complete/corpus-lambda-simple structure. Verified for real in a fresh isolated worktree off local main (ff106e63a7), Docker/floci/AWS CLI throughout. All five stages pass cleanly: cold_deploy (plain terraform apply, \"Apply complete! Resources: 1 added\" - only the first of this module's three instantiations contributes a resource, confirmed 0 objects tagged before migration), migrate (live-import dry run verifies \"1 of 1 resource instance(s) are eligible for stamping\", -approve reports \"1 resource(s) newly stamped, 0 already stamped, 0 failed, 0 skipped\", tofu-address=module.read_only_iam_policy.aws_iam_policy.policy:0 read directly through the AWS CLI against the real, server-assigned name IAM minted), test_plan (live-plan genuinely empty, identity re-read unchanged after the state file's only copy was deleted), test_apply (\"0 added, 0 changed, 0 destroyed\", object count unchanged at 1), and drift_reconverge (the one policy's Example tag tampered directly against floci, live-plan proposes fixing exactly that object by address, apply reconverges to \"0 added, 1 changed, 0 destroyed\"). Same tofu-slot finding as corpus-iam-policy (see that entry) applies identically here - the module's aws_iam_policy also declares count = var.create && var.create_policy ? 1 : 0 - and is folded into stage 2 the same way (\"0 added, 1 changed, 0 destroyed\" before stage 3 is attempted). Genuine constraint found here that corpus-iam-policy does not share: this estate creates exactly ONE real object (the other two module calls contribute nothing), so stage 5's BREAK=1 cannot prove non-vacuousness by tampering a second object the way corpus-iam-policy's or corpus-vpc-complete's can - there isn't one. Used the address-corruption technique instead (the same shape and resource type, naming a module that in fact creates nothing) and verified it independently at both sites it appears: run as committed it fails stage 3's identity check; run separately with stage 3's corruption disabled, it correctly fails stage 5's exact-address assertion instead. That second, isolated verification also caught a real bug in this script's first draft: the exact-equality comparison against a live-plan diff header's address (bracket form, \"policy[0]\") was written against the escaped tag-value form (\"policy:0\") and could never have matched even on the correct object - fixed by keeping both address forms as separate variables, and the fix was re-verified with a full clean pass afterward."
@@ -4261,59 +4261,59 @@
       },
       "stage_runs": {
         "cold_deploy": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:25:32Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:15:34Z"
         },
         "day2_count": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:25:32Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:15:34Z"
         },
         "day2_remove": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:25:32Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:15:34Z"
         },
         "day2_rename": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:25:32Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:15:34Z"
         },
         "day2_replace": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:25:32Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:15:34Z"
         },
         "drift_reconverge": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:25:32Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:15:34Z"
         },
         "greenfield": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:25:32Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:15:34Z"
         },
         "migrate": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:25:32Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:15:34Z"
         },
         "plan_approval": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:25:32Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:15:34Z"
         },
         "strict": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:25:32Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:15:34Z"
         },
         "test_apply": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:25:32Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:15:34Z"
         },
         "test_plan": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:25:32Z"
+          "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+          "date": "2026-10-03T02:15:34Z"
         }
       },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-        "date": "2026-10-02T19:25:32Z",
+        "commit": "9e6e1a65acf483e1decb35921b84a8d7334fed63",
+        "date": "2026-10-03T02:15:34Z",
         "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
         "aws_provider_version": "6.59.0",
         "oracle": {
@@ -4331,25 +4331,25 @@
           "drift_reconverge": "one live object mutated out of band through the AWS CLI; choudoufu's next plan proposed fixing exactly aws_vpc.main and nothing else (0 add, 1 change, 0 destroy), matching stock's own plan for the identical mutation on cold_deploy's own state (B4, taken before any marker existed); the apply changed exactly 1 resource, the Name tag reads back as configured and the tofu-address marker is unchanged",
           "greenfield": "choudoufu applied 79 resources into an account a stock destroy had left enumerated empty (A2), and its cloud matches stock's cold deploy across 79 structural facts compared object by object with marker tags never read on either side - the oracle this stage names. Also, beyond the oracle: the six representative identities are correct by value via the AWS CLI across Route 53/IAM/ECS/EC2; the apply persisted 79 records, matching stock's own instance list type for type with no gap - #671 closed the last one (aws_ecs_task_definition), which used to get no record and now does; the next plan is empty; and with the local record store deleted outright every one of the 79 objects is still found - nothing created, destroyed or replaced, 41 of them untaggable and composing from a stamped parent - with the only movement being 1 residue-held aws_ecs_service update(s), which is what deleting the residue store (issue #275) means rather than a divergence",
           "migrate": "live-import ratified 38 of 79 instances as eligible and stamped all 38 with 0 failed and 41 skipped (untaggable, identity composed from an already-stamped parent); every one of the 79 addresses in stock's own `terraform state list` - this stage's oracle - is accounted for by name in the report",
-          "plan_approval": "one argument edited through the generator's own render_config path (the reviewp case: aws_subnet.main's tags gain Reviewed=yes - the one shared, singular, taggable resource no later part renames, removes, scales or replaces, and a tags-only update that is not ForceNew, so the subnet id ecs.tf reads is untouched), \"plan -out=approved.tfplan\" wrote a 39844-byte stock-format plan file whose whole change set is one update on aws_subnet.main (Plan: 0 to add, 1 to change, 0 to destroy); the world then moved out of band (vpc-2bdc872d's Name tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both aws_vpc.main and the live vpc-2bdc872d it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - subnet-a1d0a48b still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and subnet-a1d0a48b read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The estate re-renders to the pristine generator output, replans empty and the VPC's tofu-address marker still reads aws_vpc.main. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails",
+          "plan_approval": "one argument edited through the generator's own render_config path (the reviewp case: aws_subnet.main's tags gain Reviewed=yes - the one shared, singular, taggable resource no later part renames, removes, scales or replaces, and a tags-only update that is not ForceNew, so the subnet id ecs.tf reads is untouched), \"plan -out=approved.tfplan\" wrote a 38692-byte stock-format plan file whose whole change set is one update on aws_subnet.main (Plan: 0 to add, 1 to change, 0 to destroy); the world then moved out of band (vpc-a17343a6's Name tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both aws_vpc.main and the live vpc-a17343a6 it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - subnet-1c5a738c still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and subnet-1c5a738c read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The estate re-renders to the pristine generator output, replans empty and the VPC's tofu-address marker still reads aws_vpc.main. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails",
           "strict": "this crossing script does not exercise the strict toggles: strict is Headline:false in tools/gauntlet/stages.go so it moves neither bar, and a toggle-by-toggle refusal fixture is a separate unit from the crossing this script exists to be. live/e2e/reference-ec2-vpc/run.sh's PART G is the pattern for the estate that does carry one",
-          "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); the estate is enumerated object by object before and after - 34 objects across IAM/Route53/ECS/EC2, byte-identical listings, never a bare count - and the tofu-estate-tagged count is unchanged at 27",
+          "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); the estate is enumerated object by object before and after - 34 objects across IAM/Route53/ECS/EC2, byte-identical listings, never a bare count - and the tofu-estate-tagged count GetResources indexes is unchanged at 27 (it omits IAM roles on this pin, #1275; the enumeration is the oracle)",
           "test_plan": "post-migration plan is empty; six rendered identities asserted BY VALUE against the AWS CLI across four separate tagging surfaces (Route 53, IAM, ECS, EC2), including the count-indexed aws_iam_role.count_team[1] and the module-nested, double-indexed module.team_pod[\"pod-a\"].aws_iam_role.pod_role[0]"
         },
-        "duration_s": 516.2,
+        "duration_s": 702.9,
         "stage_seconds": {
-          "cold_deploy": 153,
-          "day2_count": 35,
-          "day2_remove": 18,
-          "day2_rename": 31,
-          "day2_replace": 22,
-          "drift_reconverge": 47,
-          "greenfield": 112,
-          "migrate": 39,
-          "plan_approval": 32,
+          "cold_deploy": 142,
+          "day2_count": 54,
+          "day2_remove": 37,
+          "day2_rename": 65,
+          "day2_replace": 28,
+          "drift_reconverge": 69,
+          "greenfield": 155,
+          "migrate": 64,
+          "plan_approval": 51,
           "strict": 0,
-          "test_apply": 16,
-          "test_plan": 11
+          "test_apply": 23,
+          "test_plan": 15
         }
       }
     }
