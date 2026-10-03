@@ -10,7 +10,7 @@ header.
 |---|---|
 | `apply.sh` | Applies every root of a generated fixture at A against a scratch floci (`cdfa-largeset-floci`, port 4880 by default) in the fixture's apply order and leaves them applied. One verdict line, `LARGESET-APPLY: green|red - ...`. |
 | `oci.sh` | The OCI variant: a local registry (`cdfa-oci-registry`, :4890), the module published at 1.0.0 and 1.1.0, every root pinned at 1.0.0 and applied, then a pin bump across a subset of roots. One verdict line, `LARGESET-OCI: ...`. Removes its containers on exit. |
-| `baseline-n5.json` | The gated baseline record at N=5: per estate, `live-plan` at A after its own apply (the steady-state control, which must be empty) and `live-plan` of the bump, each with API calls through the counting proxy, wall clock and plan summary. Written by `TestLargeSetBaselineAgainstFloci`, never by hand; read it with `largeset.ReadBaseline`, which refuses an unknown schema. |
+| `baseline-n5.json` | The gated baseline record at N=5: per estate, `live-plan` at A after its own apply (the steady-state control, which must be empty) and `live-plan` of the bump, each with API calls through the counting proxy, wall clock and plan summary. Since #1753 it also carries `summary`: `live-summary`'s groups and outliers for the bump, and its text line count against the plans' summed `output_lines`; the gate refuses outliers the plans' own totals do not single out. Written by `TestLargeSetBaselineAgainstFloci`, never by hand; read it with `largeset.ReadBaseline`, which refuses an unknown schema. |
 
 Regenerate the record (about six minutes):
 

@@ -6,6 +6,7 @@
 package largeset
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/intentius/choudoufu/internal/live/flocitest"
+	"github.com/intentius/choudoufu/internal/live/plansummary"
 )
 
 // TestLargeSetBaselineAgainstFloci is #1750's baseline: generate the fixture
@@ -37,6 +39,8 @@ import (
 //	LARGESET_RECORD   where to write the record; unset, the gate runs and
 //	                  nothing is written
 //	LARGESET_COMMIT   the commit the record names (default git HEAD)
+//	LARGESET_SUMMARY_DOC  where to write the bump's set document (#1753),
+//	                  the input the record's summary figures were read from
 func TestLargeSetBaselineAgainstFloci(t *testing.T) {
 	if os.Getenv("LARGESET_BASELINE") == "" {
 		t.Skip("the large-set baseline runs on dispatch only: set LARGESET_BASELINE=1 (needs docker, bash, go and the pinned floci image)")
@@ -104,6 +108,8 @@ func TestLargeSetBaselineAgainstFloci(t *testing.T) {
 		rec.Estates[i].Bump = measurePlan(t, proxy, bin, filepath.Join(dir, d), repeats)
 	}
 
+	rec.Summary = summarizeBump(t, bin, dir, m, rec)
+
 	t.Logf("LARGESET BASELINE N=%d repeats=%d emulator=%s", n, repeats, rec.Emulator)
 	t.Logf("%-4s %-9s %-12s %-12s %-10s %-10s %s", "est", "role", "steady-calls", "bump-calls", "steady-s", "bump-s", "bump plan")
 	for _, e := range rec.Estates {
@@ -123,6 +129,69 @@ func TestLargeSetBaselineAgainstFloci(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("baseline written: %s", path)
+}
+
+// summarizeBump is #1753's reading: after the bump's measured plans, one
+// more live-plan per estate with -out, show -json of each, wrapped into the
+// set document #1752 emits, and summarized. The figures go into the record;
+// its gate checks the outliers against the plans' own totals.
+func summarizeBump(t *testing.T, bin, dir string, m Manifest, rec BaselineRecord) *SummaryReading {
+	t.Helper()
+	byDir := map[string]Estate{}
+	for _, e := range m.Estates {
+		byDir[e.Dir] = e
+	}
+	doc := plansummary.SetDocument{}
+	nameByDir := map[string]string{}
+	for _, d := range m.ApplyOrder {
+		root := filepath.Join(dir, d)
+		plan := exec.Command(bin, "live-plan", "-no-color", "-input=false", "-out=bump.tfplan") //nolint:gosec // the binary this test built
+		plan.Dir = root
+		if out, err := plan.CombinedOutput(); err != nil {
+			t.Fatalf("live-plan -out in %s failed: %v\n%s", root, err, out)
+		}
+		show := exec.Command(bin, "show", "-json", "bump.tfplan") //nolint:gosec // the binary this test built
+		show.Dir = root
+		out, err := show.Output()
+		if err != nil {
+			t.Fatalf("show -json in %s failed: %v", root, err)
+		}
+		var p plansummary.Plan
+		if err := json.Unmarshal(out, &p); err != nil {
+			t.Fatalf("show -json in %s is not a plan: %v", root, err)
+		}
+		doc.Roots = append(doc.Roots, plansummary.SetRoot{Root: d, Estate: byDir[d].Estate, Status: "planned", Plan: &p})
+		nameByDir[d] = byDir[d].Name
+	}
+	if path := os.Getenv("LARGESET_SUMMARY_DOC"); path != "" {
+		b, err := json.MarshalIndent(doc, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, append(b, '\n'), 0o644); err != nil { //nolint:gosec // a fixture document
+			t.Fatal(err)
+		}
+	}
+
+	s := plansummary.Summarize(plansummary.Input{Set: &doc})
+	r := &SummaryReading{Outliers: []string{}}
+	for i, g := range s.Groups {
+		r.Groups = append(r.Groups, len(g.Members))
+		if i == 0 {
+			continue
+		}
+		for _, mem := range g.Members {
+			r.Outliers = append(r.Outliers, nameByDir[mem])
+		}
+	}
+	text := s.Text()
+	r.SummaryLines = strings.Count(text, "\n")
+	for _, e := range rec.Estates {
+		r.PlanLines += e.Bump.OutputLines
+	}
+	r.MarkdownChars = len([]rune(s.Markdown(plansummary.GitLabNoteLimit)))
+	t.Logf("LARGESET SUMMARY groups=%v outliers=%v summary_lines=%d plan_lines=%d\n%s", r.Groups, r.Outliers, r.SummaryLines, r.PlanLines, text)
+	return r
 }
 
 // measurePlan runs live-plan in dir repeats times and reads each run's cost

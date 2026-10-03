@@ -364,7 +364,7 @@ func TestLoadBehaviorIndexMissingFileIsEmpty(t *testing.T) {
 //
 // destroy-teardown -> day2_teardown (#804, following #557's already-built,
 // already-passing fixture and #522's ruling that activation is gated on
-// tier-1 fixtures rather than 26 hand-written estate sections): one
+// tier-1 fixtures rather than one hand-written section per estate): one
 // fixture alone covers all three mandatory shapes (count, for_each,
 // module-nested - aws_vpc.pool, aws_subnet.edge, module.extra's
 // aws_vpc.inner), but only one identity kind (server-minted). day2_teardown

@@ -173,7 +173,7 @@ func readJSON(root, rel string, v any) error {
 }
 
 // renderContractCount is the admission table's size, the same figure
-// SURVEY.md's wired-count span renders (render.go's renderWiredCount).
+// SURVEY.md's status-vocabulary span quotes (render.go's renderWiredCount).
 func renderContractCount() string {
 	return fmt.Sprintf("%d", len(identity.AdmittedTypes()))
 }

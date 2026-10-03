@@ -105,6 +105,10 @@ var guardedPackages = []string{
 	// release. It imports no cty at all, so like "onboard" it is held to
 	// zero rather than deferred: it has nothing to defer.
 	"plugincache",
+	// GitHub issue #1753's grouped plan summary: decoded plan JSON, maps
+	// and strings end to end. It imports markers for two constants and
+	// touches no cty.Value, so it is held to zero: it has nothing to defer.
+	"plansummary",
 	"pluginschema",
 	"policy",
 	// GitHub issues #1196 and #1148's retry vocabulary: two settings, their
