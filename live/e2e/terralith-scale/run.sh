@@ -874,7 +874,24 @@ log "=== E1. test_apply: applying the empty plan changes nothing ==="
 INV_BEFORE="$(inventory "$ENDPOINT")"
 INV_BEFORE_N="$(grep -c . <<< "$INV_BEFORE" || true)"
 [ "$INV_BEFORE_N" -gt 0 ] || fail "the pre-apply inventory is empty - this comparison would be vacuous"
-TAGGED_BEFORE="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" 2>/dev/null || echo unknown)"
+# The tofu-estate count below is GetResources' own, and it is a display
+# detail, not this stage's oracle - the object-by-object inventory above is.
+# On this pin GetResources omits every aws_iam_role, so the number undercounts
+# the estate's marked objects (#1275). It is kept on GetResources rather than
+# moved to gauntlet_estate_objects because that helper makes one
+# list-*-tags call per IAM object in the account: measured on the pinned
+# image at ~1.15s per AWS CLI call, 47s for one count over 36 IAM objects,
+# and this estate holds 31 IAM objects at SCALE=1 (34 enumerated, 3 not IAM),
+# a number that grows with SCALE, so two counts would
+# add ~80s at SCALE=1 and grow linearly from there, to buy a number the
+# inventory already makes redundant. What it may NOT do is pass on a read
+# that never ran: the old `|| echo unknown` tail made "unknown" = "unknown"
+# a pass on an unreachable endpoint, and a 0 would mean the counter sees
+# nothing at all in an estate migrate just stamped.
+TAGGED_BEFORE="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE")" \
+  || fail "could not count the tofu-estate=$ESTATE objects GetResources indexes before the no-op apply"
+[ "$TAGGED_BEFORE" -gt 0 ] 2>/dev/null \
+  || fail "GetResources counted \"$TAGGED_BEFORE\" tofu-estate=$ESTATE objects before the no-op apply - migrate stamped ${TAGGABLE}, so a count of nothing makes the comparison below vacuous"
 NOOP_OUT="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; NOOP_RC=$?
 [ "$NOOP_RC" -eq 0 ] || { printf '%s\n' "$NOOP_OUT" | tail -30; fail "the no-op apply exited $NOOP_RC"; }
 grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$NOOP_OUT" \
@@ -895,11 +912,12 @@ ${PREFIX}-an-object-that-was-never-there"
 fi
 [ "$INV_BEFORE" = "$INV_AFTER" ] \
   || { diff <(printf '%s\n' "$INV_BEFORE") <(printf '%s\n' "$INV_AFTER") || true; fail "the enumerated estate changed across a no-op apply"; }
-TAGGED_AFTER="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" 2>/dev/null || echo unknown)"
+TAGGED_AFTER="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE")" \
+  || fail "could not count the tofu-estate=$ESTATE objects GetResources indexes after the no-op apply"
 [ "$TAGGED_BEFORE" = "$TAGGED_AFTER" ] \
   || fail "the tofu-estate-tagged object count changed across a no-op apply: $TAGGED_BEFORE -> $TAGGED_AFTER"
-log "  genuine no-op: $INV_BEFORE_N objects enumerated identically before and after, and the tofu-estate-tagged count is unchanged at $TAGGED_AFTER"
-gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); the estate is enumerated object by object before and after - $INV_BEFORE_N objects across IAM/Route53/ECS/EC2, byte-identical listings, never a bare count - and the tofu-estate-tagged count is unchanged at $TAGGED_AFTER"
+log "  genuine no-op: $INV_BEFORE_N objects enumerated identically before and after, and the tofu-estate-tagged count GetResources indexes is unchanged at $TAGGED_AFTER"
+gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); the estate is enumerated object by object before and after - $INV_BEFORE_N objects across IAM/Route53/ECS/EC2, byte-identical listings, never a bare count - and the tofu-estate-tagged count GetResources indexes is unchanged at $TAGGED_AFTER (it omits IAM roles on this pin, #1275; the enumeration is the oracle)"
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART F: GREENFIELD

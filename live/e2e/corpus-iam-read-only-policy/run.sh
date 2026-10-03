@@ -906,7 +906,7 @@ gauntlet_estate_objects "$ESTATE" awsl \
   || fail "could not read the estate's tofu-estate=$ESTATE inventory after the no-op apply"
 AFTER_N="$GAUNTLET_ESTATE_N"
 TA_VERDICT="$(test_apply_count_verdict "$BEFORE_N" "$AFTER_N" 1)" \
-  || fail "$TA_VERDICT. Before: $(tr '\n' ' ' <<< "$BEFORE_ARNS"); after: $(tr '\n' ' ' <<< "$GAUNTLET_ESTATE_ARNS")"
+  || fail "$TA_VERDICT. Before: $(tr "\n" " " <<< "${BEFORE_ARNS:-(none)}"); after: $(tr "\n" " " <<< "${GAUNTLET_ESTATE_ARNS:-(none)}")"
 [ ! -f "$EST/terraform.tfstate" ] || fail "a state file exists after the apply"
 log "  $TA_VERDICT, no state file either time"
 
