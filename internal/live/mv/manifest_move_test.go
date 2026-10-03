@@ -73,9 +73,13 @@ func TestMove_ManifestSurfaceMoveRewritesTheLabel(t *testing.T) {
 		t.Errorf("the spec moved: %v", got)
 	}
 	// labelTestConfig declares no field_manager, so the provider applies
-	// the block under its default, and the patch must go there too.
+	// the block under its default, and the patch must go there too. The
+	// mover passes "" for an undeclared manager (identity.ManifestFieldManager)
+	// and kubesweep.Client defaults "" to DefaultFieldManager on the wire;
+	// TestMove_ManifestSurfaceMoveUnderTheBlocksFieldManager checks the wire.
+	// Here any other name is the defect.
 	for _, m := range cluster.managers {
-		if m != kubesweep.DefaultFieldManager {
+		if m != "" && m != kubesweep.DefaultFieldManager {
 			t.Errorf("a patch went under field manager %q, want %q", m, kubesweep.DefaultFieldManager)
 		}
 	}
