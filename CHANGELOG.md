@@ -39,6 +39,13 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.22.0 (Unreleased)
 
+- New: `choudoufu live-plan-set ROOT...` plans a set of estate roots in one
+  invocation, `-parallel-estates` at a time, with one provider cache shared
+  across them so a provider release is installed once rather than once per
+  root. Each root gets its own plan file under `-out-dir`, named by its path;
+  a root that fails is reported and never stops the others; `-json` prints
+  one document holding every root's stock machine-readable plan. Exit 0 when
+  no root has changes, 2 when any has, 4 when any root failed (#1752).
 - `choudoufu live-summary FILE` groups many plans by identical change
   (#1753, part of #1749): the set plan's `-json` document, one group per
   set of roots that change the same way, or one plan's JSON, one group per

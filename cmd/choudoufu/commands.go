@@ -322,6 +322,14 @@ func initCommands(meta command.Meta) {
 			}, nil
 		},
 
+		// GitHub issue #1752: plan a set of estate roots in one
+		// invocation, sharing one provider install across them.
+		"live-plan-set": func() (cli.Command, error) {
+			return &command.LivePlanSetCommand{
+				Meta: meta,
+			}, nil
+		},
+
 		// GitHub issue #1341: the bucket's true state, whatever the
 		// configuration waives. It is what the runnable bucket project's
 		// `just verify` calls, so the project and the tool share one

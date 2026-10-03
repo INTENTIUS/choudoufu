@@ -1,0 +1,72 @@
+{
+  "format_version": "1",
+  "roots": [
+    {
+      "root": "estates/e01",
+      "estate": "est-e01",
+      "status": "planned",
+      "error": "",
+      "changes": true,
+      "plan_file": "out/estates/e01.tfplan",
+      "log_file": "out/estates/e01.log",
+      "duration_ms": 0,
+      "plan": {
+        "format_version": "1.2",
+        "resource_changes": [
+          {
+            "address": "terraform_data.x",
+            "change": {
+              "actions": [
+                "create"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "root": "estates/e02",
+      "estate": "est-e02",
+      "status": "planned",
+      "error": "",
+      "changes": false,
+      "plan_file": "out/estates/e02.tfplan",
+      "log_file": "out/estates/e02.log",
+      "duration_ms": 0,
+      "plan": {
+        "format_version": "1.2",
+        "resource_changes": [
+          {
+            "address": "terraform_data.x",
+            "change": {
+              "actions": [
+                "no-op"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "root": "estates/e03",
+      "estate": "est-e03",
+      "status": "failed",
+      "error": "e03 broke at init on purpose",
+      "stage": "init",
+      "changes": false,
+      "plan_file": "",
+      "log_file": "out/estates/e03.log",
+      "duration_ms": 0,
+      "plan": null
+    }
+  ],
+  "summary": {
+    "roots": 3,
+    "planned": 2,
+    "changed": 1,
+    "failed": 1
+  },
+  "exit_code": 4,
+  "plugin_cache_dir": "/shared/plugin-cache",
+  "parallel_estates": 2
+}
