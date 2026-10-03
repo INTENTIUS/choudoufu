@@ -50,6 +50,11 @@ func TestGateBaselineAcceptsAValidMeasurement(t *testing.T) {
 	if err := GateBaseline(validBaseline()); err != nil {
 		t.Fatalf("a valid measurement was refused: %s", err)
 	}
+	rec := validBaseline()
+	rec.Summary = &SummaryReading{Groups: []int{4, 1}, Outliers: []string{"e04"}, SummaryLines: 9, PlanLines: 0}
+	if err := GateBaseline(rec); err != nil {
+		t.Fatalf("a valid measurement with its summary was refused: %s", err)
+	}
 }
 
 func TestGateBaselineRefuses(t *testing.T) {
@@ -75,6 +80,15 @@ func TestGateBaselineRefuses(t *testing.T) {
 		}, "changes between identical runs"},
 		"calls without seconds": {func(r *BaselineRecord) { r.Estates[0].Bump.Seconds = nil }, "a percentage on calls is not a percentage on time"},
 		"proxy saw nothing":     {func(r *BaselineRecord) { r.Estates[3].Bump.Calls[0] = 0 }, "did not go through it"},
+		"summary grouped the outlier in": {func(r *BaselineRecord) {
+			r.Summary = &SummaryReading{Groups: []int{5}, Outliers: []string{}, SummaryLines: 9, PlanLines: 0}
+		}, "the summary grouped what the plans tell apart"},
+		"summary split the group": {func(r *BaselineRecord) {
+			r.Summary = &SummaryReading{Groups: []int{3, 1, 1}, Outliers: []string{"e04", "e05"}, SummaryLines: 9, PlanLines: 0}
+		}, "the summary grouped what the plans tell apart"},
+		"summary plan lines not this run's": {func(r *BaselineRecord) {
+			r.Summary = &SummaryReading{Groups: []int{4, 1}, Outliers: []string{"e04"}, SummaryLines: 9, PlanLines: 1234}
+		}, "a ratio needs both, from this run"},
 		"outlier vanished": {func(r *BaselineRecord) {
 			r.Estates[3].Bump = reading(60, "Plan: 1 to add, 3 to change, 0 to destroy.", 1, 3, 0)
 		}, "outlier did not show"},

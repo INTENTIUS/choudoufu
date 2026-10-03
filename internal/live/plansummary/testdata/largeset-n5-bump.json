@@ -1,0 +1,2071 @@
+{
+  "roots": [
+    {
+      "root": "estates/e01",
+      "estate": "ls-e01",
+      "status": "planned",
+      "plan": {
+        "format_version": "1.2",
+        "errored": false,
+        "resource_changes": [
+          {
+            "address": "aws_vpc.network",
+            "change": {
+              "actions": [
+                "no-op"
+              ],
+              "before": {
+                "arn": "arn:aws:ec2:us-east-1:000000000000:vpc/vpc-2ea65131",
+                "assign_generated_ipv6_cidr_block": false,
+                "cidr_block": "10.100.0.0/16",
+                "default_network_acl_id": "acl-323a9ab8afeae1849",
+                "default_route_table_id": "rtb-fdaf1f8e9dae20b60",
+                "default_security_group_id": "sg-26e90bfb32eb29792",
+                "dhcp_options_id": "dopt-default",
+                "enable_dns_hostnames": false,
+                "enable_dns_support": true,
+                "enable_network_address_usage_metrics": false,
+                "id": "vpc-2ea65131",
+                "instance_tenancy": "default",
+                "ipv4_ipam_pool_id": null,
+                "ipv4_netmask_length": null,
+                "ipv6_association_id": "",
+                "ipv6_cidr_block": "",
+                "ipv6_cidr_block_network_border_group": "",
+                "ipv6_ipam_pool_id": null,
+                "ipv6_netmask_length": 0,
+                "main_route_table_id": "rtb-fdaf1f8e9dae20b60",
+                "owner_id": "000000000000",
+                "region": "us-east-1",
+                "tags": {
+                  "tofu-address": "aws_vpc.network",
+                  "tofu-estate": "ls-e01"
+                },
+                "tags_all": {
+                  "tofu-address": "aws_vpc.network",
+                  "tofu-estate": "ls-e01"
+                }
+              },
+              "after": {
+                "arn": "arn:aws:ec2:us-east-1:000000000000:vpc/vpc-2ea65131",
+                "assign_generated_ipv6_cidr_block": false,
+                "cidr_block": "10.100.0.0/16",
+                "default_network_acl_id": "acl-323a9ab8afeae1849",
+                "default_route_table_id": "rtb-fdaf1f8e9dae20b60",
+                "default_security_group_id": "sg-26e90bfb32eb29792",
+                "dhcp_options_id": "dopt-default",
+                "enable_dns_hostnames": false,
+                "enable_dns_support": true,
+                "enable_network_address_usage_metrics": false,
+                "id": "vpc-2ea65131",
+                "instance_tenancy": "default",
+                "ipv4_ipam_pool_id": null,
+                "ipv4_netmask_length": null,
+                "ipv6_association_id": "",
+                "ipv6_cidr_block": "",
+                "ipv6_cidr_block_network_border_group": "",
+                "ipv6_ipam_pool_id": null,
+                "ipv6_netmask_length": 0,
+                "main_route_table_id": "rtb-fdaf1f8e9dae20b60",
+                "owner_id": "000000000000",
+                "region": "us-east-1",
+                "tags": {
+                  "tofu-address": "aws_vpc.network",
+                  "tofu-estate": "ls-e01"
+                },
+                "tags_all": {
+                  "tofu-address": "aws_vpc.network",
+                  "tofu-estate": "ls-e01"
+                }
+              },
+              "after_unknown": {}
+            }
+          },
+          {
+            "address": "module.shared.aws_iam_role.app",
+            "change": {
+              "actions": [
+                "update"
+              ],
+              "before": {
+                "arn": "arn:aws:iam::000000000000:role/ls-e01-app",
+                "assume_role_policy": "{\"Statement\":[{\"Action\":\"sts:AssumeRole\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"}}],\"Version\":\"2012-10-17\"}",
+                "create_date": "2026-10-03T02:02:19Z",
+                "description": null,
+                "force_detach_policies": false,
+                "id": "ls-e01-app",
+                "inline_policy": [],
+                "managed_policy_arns": [],
+                "max_session_duration": 3600,
+                "name": "ls-e01-app",
+                "name_prefix": "",
+                "path": "/",
+                "permissions_boundary": null,
+                "tags": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e01"
+                },
+                "tags_all": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e01"
+                },
+                "unique_id": "AROA0AOSNXR1IRHL79VT"
+              },
+              "after": {
+                "arn": "arn:aws:iam::000000000000:role/ls-e01-app",
+                "assume_role_policy": "{\"Statement\":[{\"Action\":\"sts:AssumeRole\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"}}],\"Version\":\"2012-10-17\"}",
+                "create_date": "2026-10-03T02:02:19Z",
+                "description": null,
+                "force_detach_policies": false,
+                "id": "ls-e01-app",
+                "inline_policy": [],
+                "managed_policy_arns": [],
+                "max_session_duration": 3600,
+                "name": "ls-e01-app",
+                "name_prefix": "",
+                "path": "/",
+                "permissions_boundary": null,
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e01"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e01"
+                },
+                "unique_id": "AROA0AOSNXR1IRHL79VT"
+              },
+              "after_unknown": {}
+            }
+          },
+          {
+            "address": "module.shared.aws_s3_bucket.data",
+            "change": {
+              "actions": [
+                "update"
+              ],
+              "before": {
+                "acceleration_status": "",
+                "acl": null,
+                "arn": "arn:aws:s3:::ls-e01-data",
+                "bucket": "ls-e01-data",
+                "bucket_domain_name": "ls-e01-data.s3.amazonaws.com",
+                "bucket_namespace": "global",
+                "bucket_prefix": "",
+                "bucket_region": "us-east-1",
+                "bucket_regional_domain_name": "ls-e01-data.s3.us-east-1.amazonaws.com",
+                "cors_rule": [],
+                "force_destroy": false,
+                "grant": [
+                  {
+                    "id": "000000000000",
+                    "permissions": [
+                      "FULL_CONTROL"
+                    ],
+                    "type": "CanonicalUser",
+                    "uri": ""
+                  }
+                ],
+                "hosted_zone_id": "Z3AQBSTGFYJSTF",
+                "id": "ls-e01-data",
+                "lifecycle_rule": [],
+                "logging": [],
+                "object_lock_configuration": [],
+                "object_lock_enabled": false,
+                "policy": "",
+                "region": "us-east-1",
+                "replication_configuration": [
+                  {
+                    "role": null,
+                    "rules": []
+                  }
+                ],
+                "request_payer": "BucketOwner",
+                "server_side_encryption_configuration": [
+                  {
+                    "rule": [
+                      {
+                        "apply_server_side_encryption_by_default": [
+                          {
+                            "kms_master_key_id": "",
+                            "sse_algorithm": "AES256"
+                          }
+                        ],
+                        "bucket_key_enabled": false
+                      }
+                    ]
+                  }
+                ],
+                "tags": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e01"
+                },
+                "tags_all": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e01"
+                },
+                "timeouts": null,
+                "versioning": [
+                  {
+                    "enabled": false,
+                    "mfa_delete": false
+                  }
+                ],
+                "website": [],
+                "website_domain": null,
+                "website_endpoint": null
+              },
+              "after": {
+                "acceleration_status": "",
+                "acl": null,
+                "arn": "arn:aws:s3:::ls-e01-data",
+                "bucket": "ls-e01-data",
+                "bucket_domain_name": "ls-e01-data.s3.amazonaws.com",
+                "bucket_namespace": "global",
+                "bucket_prefix": "",
+                "bucket_region": "us-east-1",
+                "bucket_regional_domain_name": "ls-e01-data.s3.us-east-1.amazonaws.com",
+                "cors_rule": [],
+                "force_destroy": false,
+                "grant": [
+                  {
+                    "id": "000000000000",
+                    "permissions": [
+                      "FULL_CONTROL"
+                    ],
+                    "type": "CanonicalUser",
+                    "uri": ""
+                  }
+                ],
+                "hosted_zone_id": "Z3AQBSTGFYJSTF",
+                "id": "ls-e01-data",
+                "lifecycle_rule": [],
+                "logging": [],
+                "object_lock_configuration": [],
+                "object_lock_enabled": false,
+                "policy": "",
+                "region": "us-east-1",
+                "replication_configuration": [
+                  {
+                    "role": "",
+                    "rules": []
+                  }
+                ],
+                "request_payer": "BucketOwner",
+                "server_side_encryption_configuration": [
+                  {
+                    "rule": [
+                      {
+                        "apply_server_side_encryption_by_default": [
+                          {
+                            "kms_master_key_id": "",
+                            "sse_algorithm": "AES256"
+                          }
+                        ],
+                        "bucket_key_enabled": false
+                      }
+                    ]
+                  }
+                ],
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e01"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e01"
+                },
+                "timeouts": null,
+                "versioning": [
+                  {
+                    "enabled": false,
+                    "mfa_delete": false
+                  }
+                ],
+                "website": [],
+                "website_domain": null,
+                "website_endpoint": null
+              },
+              "after_unknown": {}
+            }
+          },
+          {
+            "address": "module.shared.aws_sqs_queue.events",
+            "change": {
+              "actions": [
+                "create"
+              ],
+              "before": null,
+              "after": {
+                "content_based_deduplication": false,
+                "delay_seconds": 0,
+                "fifo_queue": false,
+                "kms_master_key_id": null,
+                "max_message_size": 262144,
+                "message_retention_seconds": 345600,
+                "name": "ls-e01-events",
+                "receive_wait_time_seconds": 0,
+                "region": "us-east-1",
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.events",
+                  "tofu-estate": "ls-e01"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.events",
+                  "tofu-estate": "ls-e01"
+                },
+                "timeouts": null,
+                "visibility_timeout_seconds": 30
+              },
+              "after_unknown": {
+                "arn": true,
+                "deduplication_scope": true,
+                "fifo_throughput_limit": true,
+                "id": true,
+                "kms_data_key_reuse_period_seconds": true,
+                "name_prefix": true,
+                "policy": true,
+                "redrive_allow_policy": true,
+                "redrive_policy": true,
+                "sqs_managed_sse_enabled": true,
+                "tags": {},
+                "tags_all": {},
+                "url": true
+              }
+            }
+          },
+          {
+            "address": "module.shared.aws_sqs_queue.work",
+            "change": {
+              "actions": [
+                "update"
+              ],
+              "before": {
+                "arn": "arn:aws:sqs:us-east-1:000000000000:ls-e01-work",
+                "content_based_deduplication": false,
+                "deduplication_scope": "",
+                "delay_seconds": 0,
+                "fifo_queue": false,
+                "fifo_throughput_limit": "",
+                "id": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e01-work",
+                "kms_data_key_reuse_period_seconds": 300,
+                "kms_master_key_id": null,
+                "max_message_size": 262144,
+                "message_retention_seconds": 345600,
+                "name": "ls-e01-work",
+                "name_prefix": "",
+                "policy": "",
+                "receive_wait_time_seconds": 0,
+                "redrive_allow_policy": "",
+                "redrive_policy": "",
+                "region": "us-east-1",
+                "sqs_managed_sse_enabled": false,
+                "tags": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e01"
+                },
+                "tags_all": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e01"
+                },
+                "timeouts": null,
+                "url": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e01-work",
+                "visibility_timeout_seconds": 30
+              },
+              "after": {
+                "arn": "arn:aws:sqs:us-east-1:000000000000:ls-e01-work",
+                "content_based_deduplication": false,
+                "deduplication_scope": "",
+                "delay_seconds": 0,
+                "fifo_queue": false,
+                "fifo_throughput_limit": "",
+                "id": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e01-work",
+                "kms_data_key_reuse_period_seconds": 300,
+                "kms_master_key_id": null,
+                "max_message_size": 262144,
+                "message_retention_seconds": 345600,
+                "name": "ls-e01-work",
+                "name_prefix": "",
+                "policy": "",
+                "receive_wait_time_seconds": 0,
+                "redrive_allow_policy": "",
+                "redrive_policy": "",
+                "region": "us-east-1",
+                "sqs_managed_sse_enabled": false,
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e01"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e01"
+                },
+                "timeouts": null,
+                "url": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e01-work",
+                "visibility_timeout_seconds": 60
+              },
+              "after_unknown": {}
+            }
+          }
+        ]
+      }
+    },
+    {
+      "root": "estates/e02",
+      "estate": "ls-e02",
+      "status": "planned",
+      "plan": {
+        "format_version": "1.2",
+        "errored": false,
+        "resource_changes": [
+          {
+            "address": "aws_subnet.app",
+            "change": {
+              "actions": [
+                "no-op"
+              ],
+              "before": {
+                "arn": "arn:aws:ec2:us-east-1:000000000000:subnet/subnet-9a85bb28",
+                "assign_ipv6_address_on_creation": false,
+                "availability_zone": "us-east-1a",
+                "availability_zone_id": "us-east-1-az1",
+                "cidr_block": "10.100.1.0/24",
+                "customer_owned_ipv4_pool": null,
+                "enable_dns64": false,
+                "enable_lni_at_device_index": 0,
+                "enable_resource_name_dns_a_record_on_launch": false,
+                "enable_resource_name_dns_aaaa_record_on_launch": false,
+                "id": "subnet-9a85bb28",
+                "ipv4_ipam_pool_id": null,
+                "ipv4_netmask_length": null,
+                "ipv6_cidr_block": "",
+                "ipv6_cidr_block_association_id": "",
+                "ipv6_ipam_pool_id": null,
+                "ipv6_native": false,
+                "ipv6_netmask_length": null,
+                "map_customer_owned_ip_on_launch": false,
+                "map_public_ip_on_launch": false,
+                "outpost_arn": null,
+                "owner_id": "000000000000",
+                "private_dns_hostname_type_on_launch": "",
+                "region": "us-east-1",
+                "tags": {
+                  "tofu-address": "aws_subnet.app",
+                  "tofu-estate": "ls-e02"
+                },
+                "tags_all": {
+                  "tofu-address": "aws_subnet.app",
+                  "tofu-estate": "ls-e02"
+                },
+                "timeouts": null,
+                "vpc_id": "vpc-2ea65131"
+              },
+              "after": {
+                "arn": "arn:aws:ec2:us-east-1:000000000000:subnet/subnet-9a85bb28",
+                "assign_ipv6_address_on_creation": false,
+                "availability_zone": "us-east-1a",
+                "availability_zone_id": "us-east-1-az1",
+                "cidr_block": "10.100.1.0/24",
+                "customer_owned_ipv4_pool": null,
+                "enable_dns64": false,
+                "enable_lni_at_device_index": 0,
+                "enable_resource_name_dns_a_record_on_launch": false,
+                "enable_resource_name_dns_aaaa_record_on_launch": false,
+                "id": "subnet-9a85bb28",
+                "ipv4_ipam_pool_id": null,
+                "ipv4_netmask_length": null,
+                "ipv6_cidr_block": "",
+                "ipv6_cidr_block_association_id": "",
+                "ipv6_ipam_pool_id": null,
+                "ipv6_native": false,
+                "ipv6_netmask_length": null,
+                "map_customer_owned_ip_on_launch": false,
+                "map_public_ip_on_launch": false,
+                "outpost_arn": null,
+                "owner_id": "000000000000",
+                "private_dns_hostname_type_on_launch": "",
+                "region": "us-east-1",
+                "tags": {
+                  "tofu-address": "aws_subnet.app",
+                  "tofu-estate": "ls-e02"
+                },
+                "tags_all": {
+                  "tofu-address": "aws_subnet.app",
+                  "tofu-estate": "ls-e02"
+                },
+                "timeouts": null,
+                "vpc_id": "vpc-2ea65131"
+              },
+              "after_unknown": {}
+            }
+          },
+          {
+            "address": "module.shared.aws_iam_role.app",
+            "change": {
+              "actions": [
+                "update"
+              ],
+              "before": {
+                "arn": "arn:aws:iam::000000000000:role/ls-e02-app",
+                "assume_role_policy": "{\"Statement\":[{\"Action\":\"sts:AssumeRole\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"}}],\"Version\":\"2012-10-17\"}",
+                "create_date": "2026-10-03T02:02:50Z",
+                "description": null,
+                "force_detach_policies": false,
+                "id": "ls-e02-app",
+                "inline_policy": [],
+                "managed_policy_arns": [],
+                "max_session_duration": 3600,
+                "name": "ls-e02-app",
+                "name_prefix": "",
+                "path": "/",
+                "permissions_boundary": null,
+                "tags": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e02"
+                },
+                "tags_all": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e02"
+                },
+                "unique_id": "AROA5Q1YTWAD8ATELN5Z"
+              },
+              "after": {
+                "arn": "arn:aws:iam::000000000000:role/ls-e02-app",
+                "assume_role_policy": "{\"Statement\":[{\"Action\":\"sts:AssumeRole\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"}}],\"Version\":\"2012-10-17\"}",
+                "create_date": "2026-10-03T02:02:50Z",
+                "description": null,
+                "force_detach_policies": false,
+                "id": "ls-e02-app",
+                "inline_policy": [],
+                "managed_policy_arns": [],
+                "max_session_duration": 3600,
+                "name": "ls-e02-app",
+                "name_prefix": "",
+                "path": "/",
+                "permissions_boundary": null,
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e02"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e02"
+                },
+                "unique_id": "AROA5Q1YTWAD8ATELN5Z"
+              },
+              "after_unknown": {}
+            }
+          },
+          {
+            "address": "module.shared.aws_s3_bucket.data",
+            "change": {
+              "actions": [
+                "update"
+              ],
+              "before": {
+                "acceleration_status": "",
+                "acl": null,
+                "arn": "arn:aws:s3:::ls-e02-data",
+                "bucket": "ls-e02-data",
+                "bucket_domain_name": "ls-e02-data.s3.amazonaws.com",
+                "bucket_namespace": "global",
+                "bucket_prefix": "",
+                "bucket_region": "us-east-1",
+                "bucket_regional_domain_name": "ls-e02-data.s3.us-east-1.amazonaws.com",
+                "cors_rule": [],
+                "force_destroy": false,
+                "grant": [
+                  {
+                    "id": "000000000000",
+                    "permissions": [
+                      "FULL_CONTROL"
+                    ],
+                    "type": "CanonicalUser",
+                    "uri": ""
+                  }
+                ],
+                "hosted_zone_id": "Z3AQBSTGFYJSTF",
+                "id": "ls-e02-data",
+                "lifecycle_rule": [],
+                "logging": [],
+                "object_lock_configuration": [],
+                "object_lock_enabled": false,
+                "policy": "",
+                "region": "us-east-1",
+                "replication_configuration": [
+                  {
+                    "role": null,
+                    "rules": []
+                  }
+                ],
+                "request_payer": "BucketOwner",
+                "server_side_encryption_configuration": [
+                  {
+                    "rule": [
+                      {
+                        "apply_server_side_encryption_by_default": [
+                          {
+                            "kms_master_key_id": "",
+                            "sse_algorithm": "AES256"
+                          }
+                        ],
+                        "bucket_key_enabled": false
+                      }
+                    ]
+                  }
+                ],
+                "tags": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e02"
+                },
+                "tags_all": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e02"
+                },
+                "timeouts": null,
+                "versioning": [
+                  {
+                    "enabled": false,
+                    "mfa_delete": false
+                  }
+                ],
+                "website": [],
+                "website_domain": null,
+                "website_endpoint": null
+              },
+              "after": {
+                "acceleration_status": "",
+                "acl": null,
+                "arn": "arn:aws:s3:::ls-e02-data",
+                "bucket": "ls-e02-data",
+                "bucket_domain_name": "ls-e02-data.s3.amazonaws.com",
+                "bucket_namespace": "global",
+                "bucket_prefix": "",
+                "bucket_region": "us-east-1",
+                "bucket_regional_domain_name": "ls-e02-data.s3.us-east-1.amazonaws.com",
+                "cors_rule": [],
+                "force_destroy": false,
+                "grant": [
+                  {
+                    "id": "000000000000",
+                    "permissions": [
+                      "FULL_CONTROL"
+                    ],
+                    "type": "CanonicalUser",
+                    "uri": ""
+                  }
+                ],
+                "hosted_zone_id": "Z3AQBSTGFYJSTF",
+                "id": "ls-e02-data",
+                "lifecycle_rule": [],
+                "logging": [],
+                "object_lock_configuration": [],
+                "object_lock_enabled": false,
+                "policy": "",
+                "region": "us-east-1",
+                "replication_configuration": [
+                  {
+                    "role": "",
+                    "rules": []
+                  }
+                ],
+                "request_payer": "BucketOwner",
+                "server_side_encryption_configuration": [
+                  {
+                    "rule": [
+                      {
+                        "apply_server_side_encryption_by_default": [
+                          {
+                            "kms_master_key_id": "",
+                            "sse_algorithm": "AES256"
+                          }
+                        ],
+                        "bucket_key_enabled": false
+                      }
+                    ]
+                  }
+                ],
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e02"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e02"
+                },
+                "timeouts": null,
+                "versioning": [
+                  {
+                    "enabled": false,
+                    "mfa_delete": false
+                  }
+                ],
+                "website": [],
+                "website_domain": null,
+                "website_endpoint": null
+              },
+              "after_unknown": {}
+            }
+          },
+          {
+            "address": "module.shared.aws_sqs_queue.events",
+            "change": {
+              "actions": [
+                "create"
+              ],
+              "before": null,
+              "after": {
+                "content_based_deduplication": false,
+                "delay_seconds": 0,
+                "fifo_queue": false,
+                "kms_master_key_id": null,
+                "max_message_size": 262144,
+                "message_retention_seconds": 345600,
+                "name": "ls-e02-events",
+                "receive_wait_time_seconds": 0,
+                "region": "us-east-1",
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.events",
+                  "tofu-estate": "ls-e02"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.events",
+                  "tofu-estate": "ls-e02"
+                },
+                "timeouts": null,
+                "visibility_timeout_seconds": 30
+              },
+              "after_unknown": {
+                "arn": true,
+                "deduplication_scope": true,
+                "fifo_throughput_limit": true,
+                "id": true,
+                "kms_data_key_reuse_period_seconds": true,
+                "name_prefix": true,
+                "policy": true,
+                "redrive_allow_policy": true,
+                "redrive_policy": true,
+                "sqs_managed_sse_enabled": true,
+                "tags": {},
+                "tags_all": {},
+                "url": true
+              }
+            }
+          },
+          {
+            "address": "module.shared.aws_sqs_queue.work",
+            "change": {
+              "actions": [
+                "update"
+              ],
+              "before": {
+                "arn": "arn:aws:sqs:us-east-1:000000000000:ls-e02-work",
+                "content_based_deduplication": false,
+                "deduplication_scope": "",
+                "delay_seconds": 0,
+                "fifo_queue": false,
+                "fifo_throughput_limit": "",
+                "id": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e02-work",
+                "kms_data_key_reuse_period_seconds": 300,
+                "kms_master_key_id": null,
+                "max_message_size": 262144,
+                "message_retention_seconds": 345600,
+                "name": "ls-e02-work",
+                "name_prefix": "",
+                "policy": "",
+                "receive_wait_time_seconds": 0,
+                "redrive_allow_policy": "",
+                "redrive_policy": "",
+                "region": "us-east-1",
+                "sqs_managed_sse_enabled": false,
+                "tags": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e02"
+                },
+                "tags_all": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e02"
+                },
+                "timeouts": null,
+                "url": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e02-work",
+                "visibility_timeout_seconds": 30
+              },
+              "after": {
+                "arn": "arn:aws:sqs:us-east-1:000000000000:ls-e02-work",
+                "content_based_deduplication": false,
+                "deduplication_scope": "",
+                "delay_seconds": 0,
+                "fifo_queue": false,
+                "fifo_throughput_limit": "",
+                "id": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e02-work",
+                "kms_data_key_reuse_period_seconds": 300,
+                "kms_master_key_id": null,
+                "max_message_size": 262144,
+                "message_retention_seconds": 345600,
+                "name": "ls-e02-work",
+                "name_prefix": "",
+                "policy": "",
+                "receive_wait_time_seconds": 0,
+                "redrive_allow_policy": "",
+                "redrive_policy": "",
+                "region": "us-east-1",
+                "sqs_managed_sse_enabled": false,
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e02"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e02"
+                },
+                "timeouts": null,
+                "url": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e02-work",
+                "visibility_timeout_seconds": 60
+              },
+              "after_unknown": {}
+            }
+          }
+        ]
+      }
+    },
+    {
+      "root": "estates/e03",
+      "estate": "ls-e03",
+      "status": "planned",
+      "plan": {
+        "format_version": "1.2",
+        "errored": false,
+        "resource_changes": [
+          {
+            "address": "aws_sqs_queue.downstream",
+            "change": {
+              "actions": [
+                "no-op"
+              ],
+              "before": {
+                "arn": "arn:aws:sqs:us-east-1:000000000000:ls-e03-downstream",
+                "content_based_deduplication": false,
+                "deduplication_scope": "",
+                "delay_seconds": 0,
+                "fifo_queue": false,
+                "fifo_throughput_limit": "",
+                "id": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e03-downstream",
+                "kms_data_key_reuse_period_seconds": 300,
+                "kms_master_key_id": "",
+                "max_message_size": 262144,
+                "message_retention_seconds": 345600,
+                "name": "ls-e03-downstream",
+                "name_prefix": "",
+                "policy": "",
+                "receive_wait_time_seconds": 0,
+                "redrive_allow_policy": "",
+                "redrive_policy": "",
+                "region": "us-east-1",
+                "sqs_managed_sse_enabled": false,
+                "tags": {
+                  "tofu-address": "aws_sqs_queue.downstream",
+                  "tofu-estate": "ls-e03",
+                  "upstream-subnet": "subnet-9a85bb28"
+                },
+                "tags_all": {
+                  "tofu-address": "aws_sqs_queue.downstream",
+                  "tofu-estate": "ls-e03",
+                  "upstream-subnet": "subnet-9a85bb28"
+                },
+                "timeouts": null,
+                "url": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e03-downstream",
+                "visibility_timeout_seconds": 30
+              },
+              "after": {
+                "arn": "arn:aws:sqs:us-east-1:000000000000:ls-e03-downstream",
+                "content_based_deduplication": false,
+                "deduplication_scope": "",
+                "delay_seconds": 0,
+                "fifo_queue": false,
+                "fifo_throughput_limit": "",
+                "id": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e03-downstream",
+                "kms_data_key_reuse_period_seconds": 300,
+                "kms_master_key_id": "",
+                "max_message_size": 262144,
+                "message_retention_seconds": 345600,
+                "name": "ls-e03-downstream",
+                "name_prefix": "",
+                "policy": "",
+                "receive_wait_time_seconds": 0,
+                "redrive_allow_policy": "",
+                "redrive_policy": "",
+                "region": "us-east-1",
+                "sqs_managed_sse_enabled": false,
+                "tags": {
+                  "tofu-address": "aws_sqs_queue.downstream",
+                  "tofu-estate": "ls-e03",
+                  "upstream-subnet": "subnet-9a85bb28"
+                },
+                "tags_all": {
+                  "tofu-address": "aws_sqs_queue.downstream",
+                  "tofu-estate": "ls-e03",
+                  "upstream-subnet": "subnet-9a85bb28"
+                },
+                "timeouts": null,
+                "url": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e03-downstream",
+                "visibility_timeout_seconds": 30
+              },
+              "after_unknown": {}
+            }
+          },
+          {
+            "address": "module.shared.aws_iam_role.app",
+            "change": {
+              "actions": [
+                "update"
+              ],
+              "before": {
+                "arn": "arn:aws:iam::000000000000:role/ls-e03-app",
+                "assume_role_policy": "{\"Statement\":[{\"Action\":\"sts:AssumeRole\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"}}],\"Version\":\"2012-10-17\"}",
+                "create_date": "2026-10-03T02:03:21Z",
+                "description": null,
+                "force_detach_policies": false,
+                "id": "ls-e03-app",
+                "inline_policy": [],
+                "managed_policy_arns": [],
+                "max_session_duration": 3600,
+                "name": "ls-e03-app",
+                "name_prefix": "",
+                "path": "/",
+                "permissions_boundary": null,
+                "tags": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e03"
+                },
+                "tags_all": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e03"
+                },
+                "unique_id": "AROA8I7P65O8YX11UKMW"
+              },
+              "after": {
+                "arn": "arn:aws:iam::000000000000:role/ls-e03-app",
+                "assume_role_policy": "{\"Statement\":[{\"Action\":\"sts:AssumeRole\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"}}],\"Version\":\"2012-10-17\"}",
+                "create_date": "2026-10-03T02:03:21Z",
+                "description": null,
+                "force_detach_policies": false,
+                "id": "ls-e03-app",
+                "inline_policy": [],
+                "managed_policy_arns": [],
+                "max_session_duration": 3600,
+                "name": "ls-e03-app",
+                "name_prefix": "",
+                "path": "/",
+                "permissions_boundary": null,
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e03"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e03"
+                },
+                "unique_id": "AROA8I7P65O8YX11UKMW"
+              },
+              "after_unknown": {}
+            }
+          },
+          {
+            "address": "module.shared.aws_s3_bucket.data",
+            "change": {
+              "actions": [
+                "update"
+              ],
+              "before": {
+                "acceleration_status": "",
+                "acl": null,
+                "arn": "arn:aws:s3:::ls-e03-data",
+                "bucket": "ls-e03-data",
+                "bucket_domain_name": "ls-e03-data.s3.amazonaws.com",
+                "bucket_namespace": "global",
+                "bucket_prefix": "",
+                "bucket_region": "us-east-1",
+                "bucket_regional_domain_name": "ls-e03-data.s3.us-east-1.amazonaws.com",
+                "cors_rule": [],
+                "force_destroy": false,
+                "grant": [
+                  {
+                    "id": "000000000000",
+                    "permissions": [
+                      "FULL_CONTROL"
+                    ],
+                    "type": "CanonicalUser",
+                    "uri": ""
+                  }
+                ],
+                "hosted_zone_id": "Z3AQBSTGFYJSTF",
+                "id": "ls-e03-data",
+                "lifecycle_rule": [],
+                "logging": [],
+                "object_lock_configuration": [],
+                "object_lock_enabled": false,
+                "policy": "",
+                "region": "us-east-1",
+                "replication_configuration": [
+                  {
+                    "role": null,
+                    "rules": []
+                  }
+                ],
+                "request_payer": "BucketOwner",
+                "server_side_encryption_configuration": [
+                  {
+                    "rule": [
+                      {
+                        "apply_server_side_encryption_by_default": [
+                          {
+                            "kms_master_key_id": "",
+                            "sse_algorithm": "AES256"
+                          }
+                        ],
+                        "bucket_key_enabled": false
+                      }
+                    ]
+                  }
+                ],
+                "tags": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e03"
+                },
+                "tags_all": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e03"
+                },
+                "timeouts": null,
+                "versioning": [
+                  {
+                    "enabled": false,
+                    "mfa_delete": false
+                  }
+                ],
+                "website": [],
+                "website_domain": null,
+                "website_endpoint": null
+              },
+              "after": {
+                "acceleration_status": "",
+                "acl": null,
+                "arn": "arn:aws:s3:::ls-e03-data",
+                "bucket": "ls-e03-data",
+                "bucket_domain_name": "ls-e03-data.s3.amazonaws.com",
+                "bucket_namespace": "global",
+                "bucket_prefix": "",
+                "bucket_region": "us-east-1",
+                "bucket_regional_domain_name": "ls-e03-data.s3.us-east-1.amazonaws.com",
+                "cors_rule": [],
+                "force_destroy": false,
+                "grant": [
+                  {
+                    "id": "000000000000",
+                    "permissions": [
+                      "FULL_CONTROL"
+                    ],
+                    "type": "CanonicalUser",
+                    "uri": ""
+                  }
+                ],
+                "hosted_zone_id": "Z3AQBSTGFYJSTF",
+                "id": "ls-e03-data",
+                "lifecycle_rule": [],
+                "logging": [],
+                "object_lock_configuration": [],
+                "object_lock_enabled": false,
+                "policy": "",
+                "region": "us-east-1",
+                "replication_configuration": [
+                  {
+                    "role": "",
+                    "rules": []
+                  }
+                ],
+                "request_payer": "BucketOwner",
+                "server_side_encryption_configuration": [
+                  {
+                    "rule": [
+                      {
+                        "apply_server_side_encryption_by_default": [
+                          {
+                            "kms_master_key_id": "",
+                            "sse_algorithm": "AES256"
+                          }
+                        ],
+                        "bucket_key_enabled": false
+                      }
+                    ]
+                  }
+                ],
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e03"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e03"
+                },
+                "timeouts": null,
+                "versioning": [
+                  {
+                    "enabled": false,
+                    "mfa_delete": false
+                  }
+                ],
+                "website": [],
+                "website_domain": null,
+                "website_endpoint": null
+              },
+              "after_unknown": {}
+            }
+          },
+          {
+            "address": "module.shared.aws_sqs_queue.events",
+            "change": {
+              "actions": [
+                "create"
+              ],
+              "before": null,
+              "after": {
+                "content_based_deduplication": false,
+                "delay_seconds": 0,
+                "fifo_queue": false,
+                "kms_master_key_id": null,
+                "max_message_size": 262144,
+                "message_retention_seconds": 345600,
+                "name": "ls-e03-events",
+                "receive_wait_time_seconds": 0,
+                "region": "us-east-1",
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.events",
+                  "tofu-estate": "ls-e03"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.events",
+                  "tofu-estate": "ls-e03"
+                },
+                "timeouts": null,
+                "visibility_timeout_seconds": 30
+              },
+              "after_unknown": {
+                "arn": true,
+                "deduplication_scope": true,
+                "fifo_throughput_limit": true,
+                "id": true,
+                "kms_data_key_reuse_period_seconds": true,
+                "name_prefix": true,
+                "policy": true,
+                "redrive_allow_policy": true,
+                "redrive_policy": true,
+                "sqs_managed_sse_enabled": true,
+                "tags": {},
+                "tags_all": {},
+                "url": true
+              }
+            }
+          },
+          {
+            "address": "module.shared.aws_sqs_queue.work",
+            "change": {
+              "actions": [
+                "update"
+              ],
+              "before": {
+                "arn": "arn:aws:sqs:us-east-1:000000000000:ls-e03-work",
+                "content_based_deduplication": false,
+                "deduplication_scope": "",
+                "delay_seconds": 0,
+                "fifo_queue": false,
+                "fifo_throughput_limit": "",
+                "id": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e03-work",
+                "kms_data_key_reuse_period_seconds": 300,
+                "kms_master_key_id": null,
+                "max_message_size": 262144,
+                "message_retention_seconds": 345600,
+                "name": "ls-e03-work",
+                "name_prefix": "",
+                "policy": "",
+                "receive_wait_time_seconds": 0,
+                "redrive_allow_policy": "",
+                "redrive_policy": "",
+                "region": "us-east-1",
+                "sqs_managed_sse_enabled": false,
+                "tags": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e03"
+                },
+                "tags_all": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e03"
+                },
+                "timeouts": null,
+                "url": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e03-work",
+                "visibility_timeout_seconds": 30
+              },
+              "after": {
+                "arn": "arn:aws:sqs:us-east-1:000000000000:ls-e03-work",
+                "content_based_deduplication": false,
+                "deduplication_scope": "",
+                "delay_seconds": 0,
+                "fifo_queue": false,
+                "fifo_throughput_limit": "",
+                "id": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e03-work",
+                "kms_data_key_reuse_period_seconds": 300,
+                "kms_master_key_id": null,
+                "max_message_size": 262144,
+                "message_retention_seconds": 345600,
+                "name": "ls-e03-work",
+                "name_prefix": "",
+                "policy": "",
+                "receive_wait_time_seconds": 0,
+                "redrive_allow_policy": "",
+                "redrive_policy": "",
+                "region": "us-east-1",
+                "sqs_managed_sse_enabled": false,
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e03"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e03"
+                },
+                "timeouts": null,
+                "url": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e03-work",
+                "visibility_timeout_seconds": 60
+              },
+              "after_unknown": {}
+            }
+          }
+        ]
+      }
+    },
+    {
+      "root": "estates/e04",
+      "estate": "ls-e04",
+      "status": "planned",
+      "plan": {
+        "format_version": "1.2",
+        "errored": false,
+        "resource_changes": [
+          {
+            "address": "module.shared.aws_iam_role.app",
+            "change": {
+              "actions": [
+                "update"
+              ],
+              "before": {
+                "arn": "arn:aws:iam::000000000000:role/ls-e04-app",
+                "assume_role_policy": "{\"Statement\":[{\"Action\":\"sts:AssumeRole\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"}}],\"Version\":\"2012-10-17\"}",
+                "create_date": "2026-10-03T02:03:52Z",
+                "description": null,
+                "force_detach_policies": false,
+                "id": "ls-e04-app",
+                "inline_policy": [],
+                "managed_policy_arns": [],
+                "max_session_duration": 3600,
+                "name": "ls-e04-app",
+                "name_prefix": "",
+                "path": "/",
+                "permissions_boundary": null,
+                "tags": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e04"
+                },
+                "tags_all": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e04"
+                },
+                "unique_id": "AROALAA9BSQ8CWH69TRA"
+              },
+              "after": {
+                "arn": "arn:aws:iam::000000000000:role/ls-e04-app",
+                "assume_role_policy": "{\"Statement\":[{\"Action\":\"sts:AssumeRole\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"}}],\"Version\":\"2012-10-17\"}",
+                "create_date": "2026-10-03T02:03:52Z",
+                "description": null,
+                "force_detach_policies": false,
+                "id": "ls-e04-app",
+                "inline_policy": [],
+                "managed_policy_arns": [],
+                "max_session_duration": 3600,
+                "name": "ls-e04-app",
+                "name_prefix": "",
+                "path": "/",
+                "permissions_boundary": null,
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e04"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e04"
+                },
+                "unique_id": "AROALAA9BSQ8CWH69TRA"
+              },
+              "after_unknown": {}
+            }
+          },
+          {
+            "address": "module.shared.aws_s3_bucket.data",
+            "change": {
+              "actions": [
+                "update"
+              ],
+              "before": {
+                "acceleration_status": "",
+                "acl": null,
+                "arn": "arn:aws:s3:::ls-e04-data",
+                "bucket": "ls-e04-data",
+                "bucket_domain_name": "ls-e04-data.s3.amazonaws.com",
+                "bucket_namespace": "global",
+                "bucket_prefix": "",
+                "bucket_region": "us-east-1",
+                "bucket_regional_domain_name": "ls-e04-data.s3.us-east-1.amazonaws.com",
+                "cors_rule": [],
+                "force_destroy": false,
+                "grant": [
+                  {
+                    "id": "000000000000",
+                    "permissions": [
+                      "FULL_CONTROL"
+                    ],
+                    "type": "CanonicalUser",
+                    "uri": ""
+                  }
+                ],
+                "hosted_zone_id": "Z3AQBSTGFYJSTF",
+                "id": "ls-e04-data",
+                "lifecycle_rule": [],
+                "logging": [],
+                "object_lock_configuration": [],
+                "object_lock_enabled": false,
+                "policy": "",
+                "region": "us-east-1",
+                "replication_configuration": [
+                  {
+                    "role": null,
+                    "rules": []
+                  }
+                ],
+                "request_payer": "BucketOwner",
+                "server_side_encryption_configuration": [
+                  {
+                    "rule": [
+                      {
+                        "apply_server_side_encryption_by_default": [
+                          {
+                            "kms_master_key_id": "",
+                            "sse_algorithm": "AES256"
+                          }
+                        ],
+                        "bucket_key_enabled": false
+                      }
+                    ]
+                  }
+                ],
+                "tags": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e04"
+                },
+                "tags_all": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e04"
+                },
+                "timeouts": null,
+                "versioning": [
+                  {
+                    "enabled": false,
+                    "mfa_delete": false
+                  }
+                ],
+                "website": [],
+                "website_domain": null,
+                "website_endpoint": null
+              },
+              "after": {
+                "acceleration_status": "",
+                "acl": null,
+                "arn": "arn:aws:s3:::ls-e04-data",
+                "bucket": "ls-e04-data",
+                "bucket_domain_name": "ls-e04-data.s3.amazonaws.com",
+                "bucket_namespace": "global",
+                "bucket_prefix": "",
+                "bucket_region": "us-east-1",
+                "bucket_regional_domain_name": "ls-e04-data.s3.us-east-1.amazonaws.com",
+                "cors_rule": [],
+                "force_destroy": false,
+                "grant": [
+                  {
+                    "id": "000000000000",
+                    "permissions": [
+                      "FULL_CONTROL"
+                    ],
+                    "type": "CanonicalUser",
+                    "uri": ""
+                  }
+                ],
+                "hosted_zone_id": "Z3AQBSTGFYJSTF",
+                "id": "ls-e04-data",
+                "lifecycle_rule": [],
+                "logging": [],
+                "object_lock_configuration": [],
+                "object_lock_enabled": false,
+                "policy": "",
+                "region": "us-east-1",
+                "replication_configuration": [
+                  {
+                    "role": "",
+                    "rules": []
+                  }
+                ],
+                "request_payer": "BucketOwner",
+                "server_side_encryption_configuration": [
+                  {
+                    "rule": [
+                      {
+                        "apply_server_side_encryption_by_default": [
+                          {
+                            "kms_master_key_id": "",
+                            "sse_algorithm": "AES256"
+                          }
+                        ],
+                        "bucket_key_enabled": false
+                      }
+                    ]
+                  }
+                ],
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e04"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e04"
+                },
+                "timeouts": null,
+                "versioning": [
+                  {
+                    "enabled": false,
+                    "mfa_delete": false
+                  }
+                ],
+                "website": [],
+                "website_domain": null,
+                "website_endpoint": null
+              },
+              "after_unknown": {}
+            }
+          },
+          {
+            "address": "module.shared.aws_sqs_queue.events",
+            "change": {
+              "actions": [
+                "create"
+              ],
+              "before": null,
+              "after": {
+                "content_based_deduplication": false,
+                "delay_seconds": 0,
+                "fifo_queue": false,
+                "kms_master_key_id": null,
+                "max_message_size": 262144,
+                "message_retention_seconds": 345600,
+                "name": "ls-e04-events",
+                "receive_wait_time_seconds": 0,
+                "region": "us-east-1",
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.events",
+                  "tofu-estate": "ls-e04"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.events",
+                  "tofu-estate": "ls-e04"
+                },
+                "timeouts": null,
+                "visibility_timeout_seconds": 30
+              },
+              "after_unknown": {
+                "arn": true,
+                "deduplication_scope": true,
+                "fifo_throughput_limit": true,
+                "id": true,
+                "kms_data_key_reuse_period_seconds": true,
+                "name_prefix": true,
+                "policy": true,
+                "redrive_allow_policy": true,
+                "redrive_policy": true,
+                "sqs_managed_sse_enabled": true,
+                "tags": {},
+                "tags_all": {},
+                "url": true
+              }
+            }
+          },
+          {
+            "address": "module.shared.aws_sqs_queue.extra[0]",
+            "change": {
+              "actions": [
+                "update"
+              ],
+              "before": {
+                "arn": "arn:aws:sqs:us-east-1:000000000000:ls-e04-extra",
+                "content_based_deduplication": false,
+                "deduplication_scope": "",
+                "delay_seconds": 0,
+                "fifo_queue": false,
+                "fifo_throughput_limit": "",
+                "id": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e04-extra",
+                "kms_data_key_reuse_period_seconds": 300,
+                "kms_master_key_id": null,
+                "max_message_size": 262144,
+                "message_retention_seconds": 345600,
+                "name": "ls-e04-extra",
+                "name_prefix": "",
+                "policy": "",
+                "receive_wait_time_seconds": 0,
+                "redrive_allow_policy": "",
+                "redrive_policy": "",
+                "region": "us-east-1",
+                "sqs_managed_sse_enabled": false,
+                "tags": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_sqs_queue.extra:0",
+                  "tofu-estate": "ls-e04",
+                  "tofu-slot": "0"
+                },
+                "tags_all": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_sqs_queue.extra:0",
+                  "tofu-estate": "ls-e04",
+                  "tofu-slot": "0"
+                },
+                "timeouts": null,
+                "url": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e04-extra",
+                "visibility_timeout_seconds": 30
+              },
+              "after": {
+                "arn": "arn:aws:sqs:us-east-1:000000000000:ls-e04-extra",
+                "content_based_deduplication": false,
+                "deduplication_scope": "",
+                "delay_seconds": 0,
+                "fifo_queue": false,
+                "fifo_throughput_limit": "",
+                "id": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e04-extra",
+                "kms_data_key_reuse_period_seconds": 300,
+                "kms_master_key_id": null,
+                "max_message_size": 262144,
+                "message_retention_seconds": 345600,
+                "name": "ls-e04-extra",
+                "name_prefix": "",
+                "policy": "",
+                "receive_wait_time_seconds": 0,
+                "redrive_allow_policy": "",
+                "redrive_policy": "",
+                "region": "us-east-1",
+                "sqs_managed_sse_enabled": false,
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.extra:0",
+                  "tofu-estate": "ls-e04",
+                  "tofu-slot": "0"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.extra:0",
+                  "tofu-estate": "ls-e04",
+                  "tofu-slot": "0"
+                },
+                "timeouts": null,
+                "url": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e04-extra",
+                "visibility_timeout_seconds": 30
+              },
+              "after_unknown": {}
+            }
+          },
+          {
+            "address": "module.shared.aws_sqs_queue.work",
+            "change": {
+              "actions": [
+                "update"
+              ],
+              "before": {
+                "arn": "arn:aws:sqs:us-east-1:000000000000:ls-e04-work",
+                "content_based_deduplication": false,
+                "deduplication_scope": "",
+                "delay_seconds": 0,
+                "fifo_queue": false,
+                "fifo_throughput_limit": "",
+                "id": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e04-work",
+                "kms_data_key_reuse_period_seconds": 300,
+                "kms_master_key_id": null,
+                "max_message_size": 262144,
+                "message_retention_seconds": 345600,
+                "name": "ls-e04-work",
+                "name_prefix": "",
+                "policy": "",
+                "receive_wait_time_seconds": 0,
+                "redrive_allow_policy": "",
+                "redrive_policy": "",
+                "region": "us-east-1",
+                "sqs_managed_sse_enabled": false,
+                "tags": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e04"
+                },
+                "tags_all": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e04"
+                },
+                "timeouts": null,
+                "url": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e04-work",
+                "visibility_timeout_seconds": 30
+              },
+              "after": {
+                "arn": "arn:aws:sqs:us-east-1:000000000000:ls-e04-work",
+                "content_based_deduplication": false,
+                "deduplication_scope": "",
+                "delay_seconds": 0,
+                "fifo_queue": false,
+                "fifo_throughput_limit": "",
+                "id": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e04-work",
+                "kms_data_key_reuse_period_seconds": 300,
+                "kms_master_key_id": null,
+                "max_message_size": 262144,
+                "message_retention_seconds": 345600,
+                "name": "ls-e04-work",
+                "name_prefix": "",
+                "policy": "",
+                "receive_wait_time_seconds": 0,
+                "redrive_allow_policy": "",
+                "redrive_policy": "",
+                "region": "us-east-1",
+                "sqs_managed_sse_enabled": false,
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e04"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e04"
+                },
+                "timeouts": null,
+                "url": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e04-work",
+                "visibility_timeout_seconds": 60
+              },
+              "after_unknown": {}
+            }
+          }
+        ]
+      }
+    },
+    {
+      "root": "estates/e05",
+      "estate": "ls-e05",
+      "status": "planned",
+      "plan": {
+        "format_version": "1.2",
+        "errored": false,
+        "resource_changes": [
+          {
+            "address": "module.shared.aws_iam_role.app",
+            "change": {
+              "actions": [
+                "update"
+              ],
+              "before": {
+                "arn": "arn:aws:iam::000000000000:role/ls-e05-app",
+                "assume_role_policy": "{\"Statement\":[{\"Action\":\"sts:AssumeRole\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"}}],\"Version\":\"2012-10-17\"}",
+                "create_date": "2026-10-03T02:04:23Z",
+                "description": null,
+                "force_detach_policies": false,
+                "id": "ls-e05-app",
+                "inline_policy": [],
+                "managed_policy_arns": [],
+                "max_session_duration": 3600,
+                "name": "ls-e05-app",
+                "name_prefix": "",
+                "path": "/",
+                "permissions_boundary": null,
+                "tags": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e05"
+                },
+                "tags_all": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e05"
+                },
+                "unique_id": "AROAI8ZPB1SPNO7072JN"
+              },
+              "after": {
+                "arn": "arn:aws:iam::000000000000:role/ls-e05-app",
+                "assume_role_policy": "{\"Statement\":[{\"Action\":\"sts:AssumeRole\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"}}],\"Version\":\"2012-10-17\"}",
+                "create_date": "2026-10-03T02:04:23Z",
+                "description": null,
+                "force_detach_policies": false,
+                "id": "ls-e05-app",
+                "inline_policy": [],
+                "managed_policy_arns": [],
+                "max_session_duration": 3600,
+                "name": "ls-e05-app",
+                "name_prefix": "",
+                "path": "/",
+                "permissions_boundary": null,
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e05"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_iam_role.app",
+                  "tofu-estate": "ls-e05"
+                },
+                "unique_id": "AROAI8ZPB1SPNO7072JN"
+              },
+              "after_unknown": {}
+            }
+          },
+          {
+            "address": "module.shared.aws_s3_bucket.data",
+            "change": {
+              "actions": [
+                "update"
+              ],
+              "before": {
+                "acceleration_status": "",
+                "acl": null,
+                "arn": "arn:aws:s3:::ls-e05-data",
+                "bucket": "ls-e05-data",
+                "bucket_domain_name": "ls-e05-data.s3.amazonaws.com",
+                "bucket_namespace": "global",
+                "bucket_prefix": "",
+                "bucket_region": "us-east-1",
+                "bucket_regional_domain_name": "ls-e05-data.s3.us-east-1.amazonaws.com",
+                "cors_rule": [],
+                "force_destroy": false,
+                "grant": [
+                  {
+                    "id": "000000000000",
+                    "permissions": [
+                      "FULL_CONTROL"
+                    ],
+                    "type": "CanonicalUser",
+                    "uri": ""
+                  }
+                ],
+                "hosted_zone_id": "Z3AQBSTGFYJSTF",
+                "id": "ls-e05-data",
+                "lifecycle_rule": [],
+                "logging": [],
+                "object_lock_configuration": [],
+                "object_lock_enabled": false,
+                "policy": "",
+                "region": "us-east-1",
+                "replication_configuration": [
+                  {
+                    "role": null,
+                    "rules": []
+                  }
+                ],
+                "request_payer": "BucketOwner",
+                "server_side_encryption_configuration": [
+                  {
+                    "rule": [
+                      {
+                        "apply_server_side_encryption_by_default": [
+                          {
+                            "kms_master_key_id": "",
+                            "sse_algorithm": "AES256"
+                          }
+                        ],
+                        "bucket_key_enabled": false
+                      }
+                    ]
+                  }
+                ],
+                "tags": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e05"
+                },
+                "tags_all": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e05"
+                },
+                "timeouts": null,
+                "versioning": [
+                  {
+                    "enabled": false,
+                    "mfa_delete": false
+                  }
+                ],
+                "website": [],
+                "website_domain": null,
+                "website_endpoint": null
+              },
+              "after": {
+                "acceleration_status": "",
+                "acl": null,
+                "arn": "arn:aws:s3:::ls-e05-data",
+                "bucket": "ls-e05-data",
+                "bucket_domain_name": "ls-e05-data.s3.amazonaws.com",
+                "bucket_namespace": "global",
+                "bucket_prefix": "",
+                "bucket_region": "us-east-1",
+                "bucket_regional_domain_name": "ls-e05-data.s3.us-east-1.amazonaws.com",
+                "cors_rule": [],
+                "force_destroy": false,
+                "grant": [
+                  {
+                    "id": "000000000000",
+                    "permissions": [
+                      "FULL_CONTROL"
+                    ],
+                    "type": "CanonicalUser",
+                    "uri": ""
+                  }
+                ],
+                "hosted_zone_id": "Z3AQBSTGFYJSTF",
+                "id": "ls-e05-data",
+                "lifecycle_rule": [],
+                "logging": [],
+                "object_lock_configuration": [],
+                "object_lock_enabled": false,
+                "policy": "",
+                "region": "us-east-1",
+                "replication_configuration": [
+                  {
+                    "role": "",
+                    "rules": []
+                  }
+                ],
+                "request_payer": "BucketOwner",
+                "server_side_encryption_configuration": [
+                  {
+                    "rule": [
+                      {
+                        "apply_server_side_encryption_by_default": [
+                          {
+                            "kms_master_key_id": "",
+                            "sse_algorithm": "AES256"
+                          }
+                        ],
+                        "bucket_key_enabled": false
+                      }
+                    ]
+                  }
+                ],
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e05"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_s3_bucket.data",
+                  "tofu-estate": "ls-e05"
+                },
+                "timeouts": null,
+                "versioning": [
+                  {
+                    "enabled": false,
+                    "mfa_delete": false
+                  }
+                ],
+                "website": [],
+                "website_domain": null,
+                "website_endpoint": null
+              },
+              "after_unknown": {}
+            }
+          },
+          {
+            "address": "module.shared.aws_sqs_queue.events",
+            "change": {
+              "actions": [
+                "create"
+              ],
+              "before": null,
+              "after": {
+                "content_based_deduplication": false,
+                "delay_seconds": 0,
+                "fifo_queue": false,
+                "kms_master_key_id": null,
+                "max_message_size": 262144,
+                "message_retention_seconds": 345600,
+                "name": "ls-e05-events",
+                "receive_wait_time_seconds": 0,
+                "region": "us-east-1",
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.events",
+                  "tofu-estate": "ls-e05"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.events",
+                  "tofu-estate": "ls-e05"
+                },
+                "timeouts": null,
+                "visibility_timeout_seconds": 30
+              },
+              "after_unknown": {
+                "arn": true,
+                "deduplication_scope": true,
+                "fifo_throughput_limit": true,
+                "id": true,
+                "kms_data_key_reuse_period_seconds": true,
+                "name_prefix": true,
+                "policy": true,
+                "redrive_allow_policy": true,
+                "redrive_policy": true,
+                "sqs_managed_sse_enabled": true,
+                "tags": {},
+                "tags_all": {},
+                "url": true
+              }
+            }
+          },
+          {
+            "address": "module.shared.aws_sqs_queue.work",
+            "change": {
+              "actions": [
+                "update"
+              ],
+              "before": {
+                "arn": "arn:aws:sqs:us-east-1:000000000000:ls-e05-work",
+                "content_based_deduplication": false,
+                "deduplication_scope": "",
+                "delay_seconds": 0,
+                "fifo_queue": false,
+                "fifo_throughput_limit": "",
+                "id": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e05-work",
+                "kms_data_key_reuse_period_seconds": 300,
+                "kms_master_key_id": null,
+                "max_message_size": 262144,
+                "message_retention_seconds": 345600,
+                "name": "ls-e05-work",
+                "name_prefix": "",
+                "policy": "",
+                "receive_wait_time_seconds": 0,
+                "redrive_allow_policy": "",
+                "redrive_policy": "",
+                "region": "us-east-1",
+                "sqs_managed_sse_enabled": false,
+                "tags": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e05"
+                },
+                "tags_all": {
+                  "largeset-module": "A",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e05"
+                },
+                "timeouts": null,
+                "url": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e05-work",
+                "visibility_timeout_seconds": 30
+              },
+              "after": {
+                "arn": "arn:aws:sqs:us-east-1:000000000000:ls-e05-work",
+                "content_based_deduplication": false,
+                "deduplication_scope": "",
+                "delay_seconds": 0,
+                "fifo_queue": false,
+                "fifo_throughput_limit": "",
+                "id": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e05-work",
+                "kms_data_key_reuse_period_seconds": 300,
+                "kms_master_key_id": null,
+                "max_message_size": 262144,
+                "message_retention_seconds": 345600,
+                "name": "ls-e05-work",
+                "name_prefix": "",
+                "policy": "",
+                "receive_wait_time_seconds": 0,
+                "redrive_allow_policy": "",
+                "redrive_policy": "",
+                "region": "us-east-1",
+                "sqs_managed_sse_enabled": false,
+                "tags": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e05"
+                },
+                "tags_all": {
+                  "largeset-module": "B",
+                  "tofu-address": "module.shared.aws_sqs_queue.work",
+                  "tofu-estate": "ls-e05"
+                },
+                "timeouts": null,
+                "url": "https://sqs.us-east-1.amazonaws.com/000000000000/ls-e05-work",
+                "visibility_timeout_seconds": 60
+              },
+              "after_unknown": {}
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
