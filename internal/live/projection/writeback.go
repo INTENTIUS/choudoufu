@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sort"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -269,6 +271,9 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 	}
 
 	seen := make(map[string]bool, len(req.PriorVersions))
+	// deleteFailed is every address whose delete below already raised its
+	// own diagnostic, so GitHub issue #1355's guard does not name it twice.
+	deleteFailed := map[string]bool{}
 
 	// Issue #938's plan-derived deposed-destroy signal, indexed once per
 	// pass the way issue #854's replace set is - see
@@ -360,10 +365,123 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 		// exactly the delete this replaced.
 		if err := req.Store.tombstone(ctx, rv.Addr, rv.Version, deposedDestroyed[rv.Addr.String()]); err != nil {
 			diags = diags.Append(writeBackConflictDiag(rv.Addr, "Deleting", err, req.Backend, req.Retry))
+			deleteFailed[rv.Addr.String()] = true
 		}
 	}
 
+	// GitHub issue #1355: a whole destroy re-reads the store and fails if a
+	// record-backed instance's record outlived it.
+	if req.WholeDestroy {
+		diags = diags.Append(verifyWholeDestroyLeftNoObjectRecord(ctx, req, deleteFailed))
+	}
+
 	return diags
+}
+
+// verifyWholeDestroyLeftNoObjectRecord is GitHub issue #1355's guard. After
+// a destroy of the whole estate, every record-backed instance the estate
+// held must be gone, and for a record-backed type the kind=object record IS
+// the instance: a record that survives is an instance that survives.
+//
+// The issue: on real AWS, one `apply -destroy` of a two-instance
+// record-backed estate printed "1 destroyed" and exited 0, and the second
+// instance's record was still in the store afterwards. A destroy plan is
+// built from prior state, prior state for a record-backed instance is one
+// read in builder.materializeRecord, and an instance that read reported
+// absent never entered the plan or [WriteBackRequest.PriorVersions], so the
+// delete loop in [WriteBack] never visited its key either. Every step agreed
+// with every other, and the run reported success. Why the read said absent
+// on real S3 was never reproduced (4,704 emulator iterations and 11,000
+// in-process ones, all clean; see the issue's comments), and #1429 and
+// #1775 closed every read-side shape found that could produce it. This
+// guard does not depend on knowing the cause: whatever made the plan miss
+// an instance, the store's own listing after the destroy still names it,
+// and that is a question this function can ask directly.
+//
+// It reads uncached ([staterecord.Fresh]) on purpose. [staterecord.RunCache]
+// can answer List from the plan-phase snapshot, which is the very read under
+// suspicion, so asking it again would only repeat the plan's answer.
+//
+// What it flags: a key under this estate's prefix that decodes to an
+// instance address ([RecordAddr]), is not still current in the final state
+// (an instance whose destroy failed keeps its record correctly, and the
+// apply has already failed on its account), was not one whose delete in
+// [WriteBack] already failed with its own diagnostic, and still holds a
+// kind=object envelope with an Object in it. A tombstone-only envelope
+// carries no Object ([RecordStore.tombstone] clears it) and a kind=identity
+// envelope was never the instance itself, so neither is flagged.
+//
+// It is an error, not a warning: "the destroy succeeded" is exactly the
+// claim the issue's run made falsely, and an exit status of 0 over a live
+// instance is what an operator's automation acts on.
+func verifyWholeDestroyLeftNoObjectRecord(ctx context.Context, req WriteBackRequest, deleteFailed map[string]bool) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if req.Store == nil {
+		return diags
+	}
+
+	keys, err := staterecord.Fresh(req.Store.store).List(ctx, req.Store.prefix)
+	if err != nil {
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot confirm the destroy removed every record",
+			fmt.Sprintf(
+				"This apply destroyed the whole estate, and listing the record store afterwards to confirm no record-backed instance survived failed: %s. "+
+					"Nothing is known to be wrong, but the destroy cannot be reported complete until that listing succeeds; run the destroy again (GitHub issue #1355).",
+				err,
+			),
+		))
+		return diags
+	}
+
+	var survivors []string
+	for _, key := range keys {
+		addr, ok := RecordAddr(req.Store.prefix, key)
+		if !ok {
+			// The sentinel, or anything else that is not one instance's
+			// record.
+			continue
+		}
+		if deleteFailed[addr.String()] || stillCurrent(req.FinalState, addr) {
+			continue
+		}
+		env, _, exists, err := req.Store.getRawFresh(ctx, addr)
+		if err != nil {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot confirm the destroy removed every record",
+				fmt.Sprintf(
+					"This apply destroyed the whole estate, but reading the record for %s back afterwards failed: %s. "+
+						"If it still holds the instance, that instance was not destroyed; run the destroy again (GitHub issue #1355).",
+					addr, err,
+				),
+			))
+			continue
+		}
+		if !exists || env.Kind != recordKindObject || env.Object == nil {
+			continue
+		}
+		survivors = append(survivors, addr.String())
+	}
+
+	if len(survivors) > 0 {
+		sort.Strings(survivors)
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "The destroy left record-backed instances behind",
+			fmt.Sprintf(
+				"This apply destroyed the whole estate, but the record store still holds a record for %d record-backed instance(s) the destroy did not remove: %s. "+
+					"For a record-backed resource the record is the instance, so these were not destroyed and the destroy is not complete. "+
+					"This run's plan did not list them, which means its read of the record store reported them absent while they were there. "+
+					"Run the destroy again and check that its plan lists each of them; if it does not, report it on GitHub issue #1355 with this message.",
+				len(survivors), strings.Join(survivors, ", "),
+			),
+		))
+	}
+	return diags
+}
+
+// stillCurrent reports whether addr has a current object in state.
+func stillCurrent(state *states.State, addr addrs.AbsResourceInstance) bool {
+	if state == nil {
+		return false
+	}
+	ri := state.ResourceInstance(addr)
+	return ri != nil && ri.Current != nil
 }
 
 // diffDeposedForWrite is GitHub issue #361's crash-window recovery,
