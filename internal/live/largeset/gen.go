@@ -31,15 +31,16 @@
 //	                      filtered on its tofu-estate/tofu-address markers
 //	                      (live/OUTPUTS.md, the #561 shape), declares a subnet
 //	position 3  leaf      reads position 2's subnet the same way and writes
-//	                      its ID into an SSM parameter: a chain of depth 2
+//	                      its ID onto a queue's tag: a chain of depth 2
 //	position 4  outlier   calls the shared module with with_queue = true, so
 //	                      it owns one more resource and its plan for the bump
 //	                      has one more change than every other estate's
 //	position 5  plain     calls the shared module and nothing else
 //
 // Every estate calls the shared module. Version B of the module changes the
-// SSM parameter's value, adds a tag to every resource the module owns, and
-// adds one queue, so the bump moves every estate and moves the outlier more.
+// work queue's visibility timeout, changes the version tag on every resource
+// the module owns, and adds one queue, so the bump moves every estate and
+// moves the outlier more.
 //
 // # Two sources for one module
 //
@@ -473,10 +474,11 @@ data "aws_subnet" "upstream" {
   }
 }
 
-resource "aws_ssm_parameter" "upstream_subnet" {
-  name  = "/%s/%s/upstream-subnet"
-  type  = "String"
-  value = data.aws_subnet.upstream.id
+resource "aws_sqs_queue" "downstream" {
+  name = "%s-%s-downstream"
+  tags = {
+    "upstream-subnet" = data.aws_subnet.upstream.id
+  }
 }
 `, up, up, o.Prefix, e.Name)
 	}
@@ -517,11 +519,10 @@ resource "aws_s3_bucket" "data" {
   tags   = local.tags
 }
 
-resource "aws_ssm_parameter" "config" {
-  name  = "/${var.prefix}/${var.name}/config"
-  type  = "String"
-  value = "module-${local.module_version}"
-  tags  = local.tags
+resource "aws_sqs_queue" "work" {
+  name                       = "${var.prefix}-${var.name}-work"
+  visibility_timeout_seconds = %d
+  tags                       = local.tags
 }
 
 resource "aws_iam_role" "app" {
@@ -542,7 +543,7 @@ resource "aws_sqs_queue" "extra" {
   name  = "${var.prefix}-${var.name}-extra"
   tags  = local.tags
 }
-`, v, string(v))
+`, v, string(v), visibilityTimeout(v))
 	if v == VersionB {
 		b.WriteString(`
 # New in B: one more queue per estate.
@@ -553,6 +554,14 @@ resource "aws_sqs_queue" "events" {
 `)
 	}
 	return map[string][]byte{"main.tf": []byte(b.String())}
+}
+
+// visibilityTimeout is the one argument B changes in place.
+func visibilityTimeout(v Version) int {
+	if v == VersionB {
+		return 60
+	}
+	return 30
 }
 
 // Digest is a stable hash over a rendering: every path and its bytes, in path
