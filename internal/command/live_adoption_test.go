@@ -86,7 +86,7 @@ func TestStatelessAdoptionReport_taggabilityIsMarkersTaggable(t *testing.T) {
 		},
 	}
 
-	out := renderAdoption(t, statelessAdoptionReport(res, views.StatelessForeign{}, nil, adoptionSchemas(), "dev", true))
+	out := renderAdoption(t, statelessAdoptionReport(res, views.StatelessForeign{}, nil, adoptionSchemas(), nil, "dev", true))
 
 	if !strings.Contains(out, "Identity by declaration: 2 of 3 instances") {
 		t.Errorf("the declaration half does not hold both untaggable types; a vocabulary-namespaced tags map is not a marker surface (markers.TagSurface's VocabularyRefusal clause):\n%s", out)
@@ -125,7 +125,7 @@ func TestStatelessAdoptionReport_readsTheUnownedSectionsOwnVerdict(t *testing.T)
 	}
 	unowned := statelessUnownedReport(res, "dev")
 
-	out := renderAdoption(t, statelessAdoptionReport(res, views.StatelessForeign{}, unowned, adoptionSchemas(), "dev", true))
+	out := renderAdoption(t, statelessAdoptionReport(res, views.StatelessForeign{}, unowned, adoptionSchemas(), nil, "dev", true))
 
 	if !strings.Contains(out, "Adoptable now: 1 resource instance") {
 		t.Errorf("the unmarked resource is not offered for adoption:\n%s", out)
@@ -169,7 +169,7 @@ func TestStatelessAdoptionReport_contentMatchWins(t *testing.T) {
 		}},
 	}
 
-	out := renderAdoption(t, statelessAdoptionReport(res, foreignRep, nil, adoptionSchemas(), "dev", true))
+	out := renderAdoption(t, statelessAdoptionReport(res, foreignRep, nil, adoptionSchemas(), nil, "dev", true))
 
 	for _, want := range []string{
 		"Adoptable now: 1 resource instance",
@@ -211,7 +211,7 @@ func TestStatelessAdoptionReport_needsDiscoveryIsItsOwnAnswer(t *testing.T) {
 		},
 	}
 
-	out := renderAdoption(t, statelessAdoptionReport(res, views.StatelessForeign{}, nil, adoptionSchemas(), "dev", true))
+	out := renderAdoption(t, statelessAdoptionReport(res, views.StatelessForeign{}, nil, adoptionSchemas(), nil, "dev", true))
 
 	if !strings.Contains(out, "No adoption path: 1 resource instance") {
 		t.Errorf("a server-assigned identity with nothing to point at is not reported as having no adoption path:\n%s", out)
@@ -252,7 +252,7 @@ func TestStatelessAdoptionReport_countsTheWholePopulation(t *testing.T) {
 		},
 	}
 
-	rep := statelessAdoptionReport(res, views.StatelessForeign{}, nil, adoptionSchemas(), "dev", true)
+	rep := statelessAdoptionReport(res, views.StatelessForeign{}, nil, adoptionSchemas(), nil, "dev", true)
 	if got, want := len(rep.Rows), len(res.Materialized)+len(res.Omitted); got != want {
 		t.Fatalf("the ledger holds %d rows for %d attempted instances", got, want)
 	}
@@ -322,7 +322,7 @@ func TestStatelessAdoptionReport_everySurfaceCarriesAMarker(t *testing.T) {
 		},
 	}
 
-	out := renderAdoption(t, statelessAdoptionReport(res, views.StatelessForeign{}, nil, schemas, "dev", true))
+	out := renderAdoption(t, statelessAdoptionReport(res, views.StatelessForeign{}, nil, schemas, nil, "dev", true))
 
 	if !strings.Contains(out, "Identity by marker: 3 of 4 instances") {
 		t.Errorf("the marker half does not hold the tags map, the label and the manifest label:\n%s", out)

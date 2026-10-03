@@ -8,6 +8,8 @@ package check
 import (
 	"sort"
 
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -121,7 +123,7 @@ type Instance struct {
 // Resolution for an instance or raises an error diagnostic about it, never
 // both - but the dedupe guards it structurally rather than trusting that
 // invariant to hold forever.
-func buildRoster(schemas map[string]providers.Schema, identities []identity.Resolution, findings []Finding) []Instance {
+func buildRoster(cfg *configs.Config, schemas map[string]providers.Schema, identities []identity.Resolution, findings []Finding) []Instance {
 	seen := make(map[string]bool, len(identities))
 	var out []Instance
 
@@ -135,7 +137,7 @@ func buildRoster(schemas map[string]providers.Schema, identities []identity.Reso
 		out = append(out, Instance{
 			Address: addr,
 			Type:    resType,
-			Rung:    rungForType(schemas, resType),
+			Rung:    rungForType(schemas, identity.ProviderTypeOf(cfg, res.Addr), resType),
 		})
 	}
 
@@ -152,7 +154,7 @@ func buildRoster(schemas map[string]providers.Schema, identities []identity.Reso
 			out = append(out, Instance{
 				Address: site.Address,
 				Type:    site.Type,
-				Rung:    rungForType(schemas, site.Type),
+				Rung:    rungForType(schemas, siteProviderType(cfg, site.Address), site.Type),
 				Refused: true,
 				Rule:    f.ID,
 				Reason:  reason,
@@ -194,7 +196,11 @@ func buildRoster(schemas map[string]providers.Schema, identities []identity.Reso
 // this package takes: it costs precision, never a wrong claim of the
 // stronger recovery path. resourceType == "" (a site with no recovered
 // type - see [Site.Type]) returns "" rather than guessing either.
-func rungForType(schemas map[string]providers.Schema, resourceType string) InstanceRung {
+//
+// providerType is the provider the instance's block is configured under,
+// so the surface is asked of that provider's family (GitHub issue #1742);
+// "" asks every family, as for a provider no family claims.
+func rungForType(schemas map[string]providers.Schema, providerType, resourceType string) InstanceRung {
 	if resourceType == "" {
 		return ""
 	}
@@ -206,9 +212,19 @@ func rungForType(schemas map[string]providers.Schema, resourceType string) Insta
 		// substrate's own - the AWS tags map, the Kubernetes estate label,
 		// the manifest's label - so the rung asks the substrate, not
 		// markers.Taggable alone.
-		if _, carries := substrate.SurfaceOf(schema.Block); carries {
+		if _, carries := substrate.SurfaceOf(providerType, schema.Block); carries {
 			return RungTagGovernable
 		}
 	}
 	return RungDeclarationCarried
+}
+
+// siteProviderType is [identity.ProviderTypeOf] for a refusal site, which
+// carries its address as a string; "" when it does not parse.
+func siteProviderType(cfg *configs.Config, address string) string {
+	addr, diags := addrs.ParseAbsResourceInstanceStr(address)
+	if diags.HasErrors() {
+		return ""
+	}
+	return identity.ProviderTypeOf(cfg, addr)
 }

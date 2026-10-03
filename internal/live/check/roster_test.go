@@ -59,14 +59,14 @@ func anyMarkerlessType(t *testing.T) string {
 
 func TestRungForType_TagGovernableComesFromTheSchema(t *testing.T) {
 	schemas := map[string]providers.Schema{"test_bucket": taggableSchema()}
-	if got := rungForType(schemas, "test_bucket"); got != RungTagGovernable {
+	if got := rungForType(schemas, "", "test_bucket"); got != RungTagGovernable {
 		t.Errorf("rungForType(taggable) = %q, want %q", got, RungTagGovernable)
 	}
 }
 
 func TestRungForType_DeclarationCarriedIsTheUntaggableDefault(t *testing.T) {
 	schemas := map[string]providers.Schema{"test_named": untaggableSchema()}
-	if got := rungForType(schemas, "test_named"); got != RungDeclarationCarried {
+	if got := rungForType(schemas, "", "test_named"); got != RungDeclarationCarried {
 		t.Errorf("rungForType(untaggable, admitted) = %q, want %q", got, RungDeclarationCarried)
 	}
 }
@@ -76,7 +76,7 @@ func TestRungForType_DeclarationCarriedIsTheUntaggableDefault(t *testing.T) {
 // proven taggable, so it must not be claimed tag-governable - the same
 // direction every other schema-less degradation in this package takes.
 func TestRungForType_NoSchemaCostsPrecisionNeverAWrongClaim(t *testing.T) {
-	if got := rungForType(nil, "test_unknown_to_this_run"); got != RungDeclarationCarried {
+	if got := rungForType(nil, "", "test_unknown_to_this_run"); got != RungDeclarationCarried {
 		t.Errorf("rungForType(no schema) = %q, want %q (never %q with nothing to prove it)", got, RungDeclarationCarried, RungTagGovernable)
 	}
 }
@@ -86,13 +86,13 @@ func TestRungForType_RecordOnlyComesFromMarkerlessTypes(t *testing.T) {
 	// No schema at all supplied: MarkerlessTypes decides this one outright,
 	// with no schema check needed - it is generated specifically for types
 	// that have neither a tags argument nor a client-suppliable identity.
-	if got := rungForType(nil, markerless); got != RungRecordOnly {
+	if got := rungForType(nil, "", markerless); got != RungRecordOnly {
 		t.Errorf("rungForType(%s) = %q, want %q", markerless, got, RungRecordOnly)
 	}
 }
 
 func TestRungForType_EmptyTypeIsNeverGuessed(t *testing.T) {
-	if got := rungForType(map[string]providers.Schema{"anything": taggableSchema()}, ""); got != "" {
+	if got := rungForType(map[string]providers.Schema{"anything": taggableSchema()}, "", ""); got != "" {
 		t.Errorf("rungForType(\"\") = %q, want empty - a site with no recovered type must not get a guessed rung", got)
 	}
 }
@@ -118,7 +118,7 @@ func TestBuildRoster_ResolvedInstancesCarryTheirRung(t *testing.T) {
 		{Addr: mustInstance(t, "test_named.attach"), Class: identity.ClassConcrete, ImportID: "attach"},
 	}
 
-	roster := buildRoster(schemas, identities, nil)
+	roster := buildRoster(nil, schemas, identities, nil)
 	if len(roster) != 2 {
 		t.Fatalf("got %d roster entries, want 2: %+v", len(roster), roster)
 	}
@@ -145,7 +145,7 @@ func TestBuildRoster_RefusedSiteCarriesRuleAndReason(t *testing.T) {
 		},
 	}
 
-	roster := buildRoster(nil, nil, []Finding{f})
+	roster := buildRoster(nil, nil, nil, []Finding{f})
 	if len(roster) != 1 {
 		t.Fatalf("got %d roster entries, want 1: %+v", len(roster), roster)
 	}
@@ -174,7 +174,7 @@ func TestBuildRoster_SkipsSitesWithNoAddress(t *testing.T) {
 		Refusal: Refusal{Layer: LayerProjection, ID: "Empty import identity", Title: "Empty import identity"},
 		Sites:   []Site{{}},
 	}
-	roster := buildRoster(nil, nil, []Finding{f})
+	roster := buildRoster(nil, nil, nil, []Finding{f})
 	if len(roster) != 0 {
 		t.Errorf("got %d roster entries for a sourceless site, want 0: %+v", len(roster), roster)
 	}
@@ -193,7 +193,7 @@ func TestBuildRoster_DedupesAnAddressSeenTwice(t *testing.T) {
 		Sites:   []Site{{Address: "test_named.dup", Type: "test_named", Detail: "would-be refusal"}},
 	}
 
-	roster := buildRoster(nil, identities, []Finding{f})
+	roster := buildRoster(nil, nil, identities, []Finding{f})
 	if len(roster) != 1 {
 		t.Fatalf("got %d roster entries for one address seen twice, want 1: %+v", len(roster), roster)
 	}
@@ -211,7 +211,7 @@ func TestBuildRoster_DedupesAnAddressSeenTwice(t *testing.T) {
 func TestRungForType_TheMarkerIsTheSubstratesOwn(t *testing.T) {
 	schemas := kubernetesNeedsDiscoverySchemas()
 	for _, typeName := range []string{"kubernetes_config_map_v1", "kubernetes_manifest"} {
-		if got := rungForType(schemas, typeName); got != RungTagGovernable {
+		if got := rungForType(schemas, "", typeName); got != RungTagGovernable {
 			t.Errorf("rungForType(%s) = %q, want %q", typeName, got, RungTagGovernable)
 		}
 	}

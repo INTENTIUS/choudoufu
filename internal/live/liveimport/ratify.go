@@ -748,7 +748,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	// is one the completeness guard (internal/live/markers/seams_test.go)
 	// reports rather than one a migration silently leaves unmarked.
 	var labelled, manifested bool
-	surface, _ := substrate.SurfaceOf(schema.Block)
+	surface, _ := substrate.SurfaceOf(providerAddr.Provider.Type, schema.Block)
 	switch surface {
 	case markers.SurfaceTags:
 	case markers.SurfaceLabels:
