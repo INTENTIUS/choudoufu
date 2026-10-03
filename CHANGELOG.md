@@ -39,6 +39,14 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.22.0 (Unreleased)
 
+- New: `choudoufu live-plan-set ROOT...` plans a set of estate roots in one
+  invocation, `-parallel-estates` at a time, with one provider cache shared
+  across them so a provider release is installed once rather than once per
+  root. Each root gets its own plan file under `-out-dir`, named by its path;
+  a root that fails is reported and never stops the others; `-json` prints
+  one document holding every root's stock machine-readable plan. Exit 0 when
+  no root has changes, 2 when any has, 4 when any root failed (#1752).
+
 ## choudoufu v0.21.0 (2026-10-02)
 
 Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Earlier releases were built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`); the upgrade is #1778, and upstream's own 1.13.0 notes follow below under "OpenTofu". Board snapshot: [`live/history/v0.21.0.json`](live/history/v0.21.0.json).
