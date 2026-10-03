@@ -341,6 +341,15 @@ func initCommands(meta command.Meta) {
 			}, nil
 		},
 
+		// GitHub issue #1753: the grouped plan summary over the set plan's
+		// document or one plan. It reads JSON and prints; public from the
+		// start for live-check's reason above.
+		"live-summary": func() (cli.Command, error) {
+			return &command.LiveSummaryCommand{
+				Meta: meta,
+			}, nil
+		},
+
 		"providers lock": func() (cli.Command, error) {
 			return &command.ProvidersLockCommand{
 				Meta: meta,
