@@ -168,7 +168,7 @@ ID_OTHER="$(awsa "$OTHER_ACCT" sts get-caller-identity --query Account --output 
 [ "$ID_OTHER" = "$OTHER_ACCT" ] || fail "accounts" "aws.other_account's credential does not answer for account $OTHER_ACCT: got [$ID_OTHER] - this emulator cannot present two account ids and nothing below would mean anything"
 { echo "aws.home          sts:GetCallerIdentity -> $ID_HOME"; echo "aws.other_account sts:GetCallerIdentity -> $ID_OTHER"; } | evidence
 
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "accounts" "init failed"
+logged the-boundary-holds-across-accounts-init "accounts" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 A1="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "accounts" "apply failed: $A1"
 ADDED="$(grep -oE 'Resources: [0-9]+ added' <<< "$A1" | grep -oE '[0-9]+')"
 [ "$ADDED" = "4" ] || fail "accounts" "the apply built $ADDED resources, not the fixture's 4: $A1"

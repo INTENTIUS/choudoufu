@@ -169,7 +169,7 @@ explain \
   "both regions. Then a -refresh=false plan, with the work attributed by" \
   "the region each request was signed for."
 cmd "choudoufu apply -auto-approve ; aws logs describe-log-groups (each region)"
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "regions" "init failed"
+logged the-boundary-holds-across-regions-init "regions" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 A1="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "regions" "apply failed: $A1"
 ADDED="$(grep -oE 'Resources: [0-9]+ added' <<< "$A1" | grep -oE '[0-9]+')"
 [ "$ADDED" = "5" ] || fail "regions" "the apply built $ADDED resources, not the fixture's 5: $A1"

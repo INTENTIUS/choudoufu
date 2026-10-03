@@ -135,7 +135,7 @@ explain \
 step "1. stand the estate up"
 cmd "choudoufu init && choudoufu apply -auto-approve"
 write_estate a
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null ) || fail "shadow" "init failed"
+logged a-shadow-is-not-a-claimant-init "shadow" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 A1="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "shadow" "apply failed: $A1"
 grep -E 'Apply complete!' <<< "$A1" | evidence

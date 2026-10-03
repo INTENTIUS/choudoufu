@@ -209,12 +209,12 @@ kc create namespace "$STORE_NS" >/dev/null || fail "$SCEN" "could not create the
 kc create namespace "$NSU" >/dev/null || fail "$SCEN" "could not create $NSU"
 kc create namespace "$STOCK_NSU" >/dev/null || fail "$SCEN" "could not create $STOCK_NSU"
 for d in nsd nsu; do
-  run_chdf "$d" init >/dev/null || fail "$SCEN" "choudoufu init failed in $d"
+  logged "k8s-a-deleted-namespace-is-gone-$d-init" "$SCEN" "choudoufu init failed in $d" -- run_chdf "$d" init
   A="$(run_chdf "$d" apply -auto-approve)" || fail "$SCEN" "choudoufu apply failed in $d: $(tail -15 <<< "$A")"
   grep -E 'Apply complete!' <<< "$A" | sed "s/^/$d: /" | evidence
 done
 for d in stock-nsd stock-nsu; do
-  run_stock "$d" init >/dev/null || fail "$SCEN" "stock init failed in $d"
+  logged "k8s-a-deleted-namespace-is-gone-$d-init" "$SCEN" "stock init failed in $d" -- run_stock "$d" init
   A="$(run_stock "$d" apply -auto-approve)" || fail "$SCEN" "stock apply failed in $d: $(tail -15 <<< "$A")"
   grep -E 'Apply complete!' <<< "$A" | sed "s/^/$d: /" | evidence
 done

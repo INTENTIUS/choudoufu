@@ -83,7 +83,7 @@ explain \
 
 step "1. stand up a pool of three"
 cmd "choudoufu apply -auto-approve"
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "count" "init failed"
+logged count-is-a-fungible-set-init "count" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 ( cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "count" "apply failed"
 pool | evidence
 [ "$(pool | grep -c .)" = "3" ] || fail "count" "expected three members"
@@ -107,7 +107,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   cmd "rm -rf .terraform* terraform.tfstate* .tofu-records ; choudoufu init ; aws ec2 delete-tags --tags Key=tofu-slot ; choudoufu plan"
   [ -d "$SMOKE_WORK/.tofu-records" ] || fail "count" "BREAK: expected the record store beside the module before the wipe"
   rm -rf "$SMOKE_WORK"/.terraform "$SMOKE_WORK"/.terraform.lock.hcl "$SMOKE_WORK"/terraform.tfstate* "$SMOKE_WORK"/.tofu-records
-  ( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "count" "BREAK: init after the wipe failed"
+  logged count-is-a-fungible-set-break-reinit "count" "BREAK: init after the wipe failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
   VICTIM="$(pool | awk 'NR==2{print $1}')"; VSLOT="$(pool | awk 'NR==2{print $2}')"
   awsl ec2 delete-tags --resources "$VICTIM" --tags Key=tofu-slot >/dev/null 2>&1 || fail "count" "BREAK: could not strip a slot"
   # settle: the sweep reads the tagging index, which lags a raw delete-tags

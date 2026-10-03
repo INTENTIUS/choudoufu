@@ -243,7 +243,7 @@ resource "terraform_data" "effect" {
 }
 TF
 cmd "env -u AWS_... AWS_CONFIG_FILE=/dev/null AWS_EC2_METADATA_DISABLED=true choudoufu apply -auto-approve"
-( cd "$APP" && no_aws chdf init -input=false -no-color >/dev/null ) || fail "k8srec" "init failed"
+logged k8s-records-in-the-cluster-app-init "k8srec" "init failed" -- in_dir "$APP" no_aws chdf init -input=false -no-color
 A_OUT="$( cd "$APP" && no_aws chdf apply -auto-approve -input=false -no-color 2>&1 )" \
   || fail "k8srec" "the apply with no AWS credentials failed: $A_OUT"
 { grep -E 'Apply complete!' <<< "$A_OUT" || true; } | evidence
@@ -399,7 +399,7 @@ resource "terraform_data" "bobs_secret_value" {
   input = "bob-only"
 }
 TF
-( cd "$BOB" && no_aws chdf init -input=false -no-color >/dev/null ) || fail "k8srec" "Bob's init failed"
+logged k8s-records-in-the-cluster-bob-init "k8srec" "Bob's init failed" -- in_dir "$BOB" no_aws chdf init -input=false -no-color
 B_OUT="$( cd "$BOB" && no_aws chdf apply -auto-approve -input=false -no-color 2>&1 )" \
   || fail "k8srec" "Bob's apply failed: $B_OUT"
 grep -qE 'Apply complete! Resources: 1 added' <<< "$B_OUT" || fail "k8srec" "Bob's apply: $B_OUT"
@@ -624,7 +624,7 @@ resource "terraform_data" "carols_value" {
   input = "carol-only"
 }
 TF
-( cd "$CAROL" && as_identity "$CAROL_KC" chdf init -input=false -no-color >/dev/null ) || fail "k8srec" "Carol's init failed"
+logged k8s-records-in-the-cluster-carol-init "k8srec" "Carol's init failed" -- in_dir "$CAROL" as_identity "$CAROL_KC" chdf init -input=false -no-color
 cmd "choudoufu apply   # as a ServiceAccount with secrets in one namespace and nothing else"
 BEFORE="$(ssar_count)"
 C_OUT="$( cd "$CAROL" && as_identity "$CAROL_KC" chdf apply -auto-approve -input=false -no-color 2>&1 )" \
@@ -735,7 +735,7 @@ mkdir -p "$DAN"
 scoped_identity dan "$DAN_NS" k8srec-dan "$DAN_KC" get,list,create,delete
 sed -e "s/k8srec-carol/k8srec-dan/g" -e "s|$CAROL_NS|$DAN_NS|g" "$CAROL/versions.tf" > "$DAN/versions.tf"
 cp "$CAROL/main.tf" "$DAN/main.tf"
-( cd "$DAN" && as_identity "$DAN_KC" chdf init -input=false -no-color >/dev/null ) || fail "k8srec" "Dan's init failed"
+logged k8s-records-in-the-cluster-dan-init "k8srec" "Dan's init failed" -- in_dir "$DAN" as_identity "$DAN_KC" chdf init -input=false -no-color
 # refused_short_one_verb <kubeconfig> <dir> is step 8's first check: the
 # apply is refused before it starts, naming the assertion and the verb.
 # left_nothing_behind <kubeconfig> <namespace> is its second: the refusal
@@ -1003,7 +1003,7 @@ waived_named() {
     || fail "k8srec" "[$label] the run names $n waived assertion(s) and the configuration waives three: $2"
   echo "$label: 3 waived assertions named, each with its cost" | evidence
 }
-( cd "$WAIVED" && no_aws chdf init -input=false -no-color >/dev/null ) || fail "k8srec" "the waived estate's init failed"
+logged k8s-records-in-the-cluster-waived-init "k8srec" "the waived estate's init failed" -- in_dir "$WAIVED" no_aws chdf init -input=false -no-color
 cmd "choudoufu apply -auto-approve   # allow_insecure = [read_isolation, encryption_at_rest, estate_boundary]; first contact"
 WV1="$( cd "$WAIVED" && no_aws chdf apply -auto-approve -input=false -no-color 2>&1 )" \
   || fail "k8srec" "the first apply under the waiver was refused, although every assertion this cluster fails is waived: $WV1"
@@ -1096,7 +1096,7 @@ resource "terraform_data" "effect" {
   input    = each.key
 }
 TF
-( cd "$PAGED" && no_aws chdf init -input=false -no-color >/dev/null ) || fail "k8srec" "the paged estate's init failed"
+logged k8s-records-in-the-cluster-paged-init "k8srec" "the paged estate's init failed" -- in_dir "$PAGED" no_aws chdf init -input=false -no-color
 cmd "choudoufu apply -auto-approve   # six record-backed resources, straight to the cluster"
 PG_OUT="$( cd "$PAGED" && no_aws chdf apply -auto-approve -input=false -no-color 2>&1 )" \
   || fail "k8srec" "the paged estate's apply failed: $PG_OUT"
@@ -1346,8 +1346,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   grep -q "namespace = \"$BROKE_NS\"" "$BROKE/versions.tf" \
     || fail "k8srec" "BREAK: the widened estate's fixture does not name $BROKE_NS: $(cat "$BROKE/versions.tf")"
   cp "$CAROL/main.tf" "$BROKE/main.tf"
-  ( cd "$BROKE" && as_identity "$CAROL_KC" chdf init -input=false -no-color >/dev/null ) \
-    || fail "k8srec" "BREAK: the widened identity's init failed"
+  logged k8s-records-in-the-cluster-broke-init "k8srec" "BREAK: the widened identity's init failed" -- in_dir "$BROKE" as_identity "$CAROL_KC" chdf init -input=false -no-color
   cmd "choudoufu apply   # first contact, identity now reading secrets cluster-wide"
   if BR="$( cd "$BROKE" && as_identity "$CAROL_KC" chdf apply -auto-approve -input=false -no-color 2>&1 )"; then
     fail "k8srec" "BREAK: an identity that can read every estate's records in this cluster was allowed to open a new store, so step 6's pass was not read_isolation holding: $BR"
@@ -1557,8 +1556,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   mkdir -p "$QUIET"
   versions k8srec-quiet "$QUIET_NS" "$QUIET"
   cp "$WAIVED/main.tf" "$QUIET/main.tf"
-  ( cd "$QUIET" && no_aws "$W/break30/choudoufu" init -input=false -no-color >/dev/null ) \
-    || fail "k8srec" "BREAK: the quiet estate's init failed"
+  logged k8s-records-in-the-cluster-quiet-init "k8srec" "BREAK: the quiet estate's init failed" -- in_dir "$QUIET" no_aws "$W/break30/choudoufu" init -input=false -no-color
   cmd "choudoufu apply -auto-approve   # the broken binary's first run: no cache yet, so it still warns"
   BQ1="$( cd "$QUIET" && no_aws "$W/break30/choudoufu" apply -auto-approve -input=false -no-color 2>&1 )" \
     || fail "k8srec" "BREAK: the broken binary's first apply failed: $BQ1"

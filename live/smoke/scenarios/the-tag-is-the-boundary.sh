@@ -162,7 +162,7 @@ explain \
   "module. The account stands it up; the markers it stamps are what the" \
   "policies below will condition on."
 cmd "choudoufu apply -auto-approve   # in app/, as the account"
-( cd "$APP" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "boundary" "init failed in app"
+logged the-tag-is-the-boundary-app-init "boundary" "init failed in app" -- in_dir "$APP" chdf init -input=false -no-color
 ( cd "$APP" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "boundary" "apply failed in app"
 settle app "module.data.aws_instance.database"
 TAGS="$(tags_of "module.net.aws_instance.gateway"; tags_of "module.data.aws_instance.database")" || fail "boundary" "could not read the instances' tags"
@@ -334,7 +334,7 @@ if blk not in s:
 open(a, 'w').write(s.replace(blk, '').rstrip() + '\n')
 open(d, 'w').write(blk)
 PYEOF
-( cd "$DATA" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "boundary" "init failed in data"
+logged the-tag-is-the-boundary-data-init "boundary" "init failed in data" -- in_dir "$DATA" chdf init -input=false -no-color
 OUT="$(cd "$DATA" && as_role bob chdf live-mv -from-estate=app module.data.aws_instance.database module.data.aws_instance.database 2>&1 || true)"
 printf '%s\n' "$OUT" > "$LOGS/bob-denied.mv"
 denied "$OUT" || fail "boundary" "Bob's retag into data was not refused by the platform (full output in $LOGS/bob-denied.mv): $(grep -E 'Error|rewrote|Moved' <<< "$OUT" | head -3)"

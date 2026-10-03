@@ -183,7 +183,7 @@ awsl s3api create-bucket --bucket "$BUCKET" >/dev/null || fail "bulkread" "could
 awsl s3api put-bucket-versioning --bucket "$BUCKET" --versioning-configuration Status=Enabled >/dev/null
 awsl s3api put-bucket-lifecycle-configuration --bucket "$BUCKET" --lifecycle-configuration '{"Rules":[{"ID":"expire-noncurrent","Status":"Enabled","Filter":{"Prefix":""},"NoncurrentVersionExpiration":{"NoncurrentDays":30}}]}' >/dev/null
 awsl s3api put-public-access-block --bucket "$BUCKET" --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true >/dev/null
-run init -input=false -no-color >/dev/null 2>&1 || fail "bulkread" "init failed"
+logged a-bulk-read-is-complete-or-it-fails-init "bulkread" "init failed" -- run init -input=false -no-color
 cmd "choudoufu apply -auto-approve"
 OUT="$(run apply -auto-approve -input=false -no-color 2>&1)" || fail "bulkread" "apply failed: $OUT"
 grep -q "Resources: $N added" <<< "$OUT" || fail "bulkread" "expected $N resources: $OUT"
@@ -364,7 +364,7 @@ fault_seen() {
 }
 
 cmd "choudoufu apply -auto-approve   # two instances, through the proxy, nothing failing"
-pair init -input=false -no-color >/dev/null 2>&1 || fail "bulkread" "init of the two-instance estate failed"
+logged a-bulk-read-is-complete-or-it-fails-pair-init "bulkread" "init of the two-instance estate failed" -- pair init -input=false -no-color
 A_OUT="$(pair apply -auto-approve -input=false -no-color 2>&1)" || fail "bulkread" "the two-instance apply failed: $A_OUT"
 grep -q "Resources: 2 added" <<< "$A_OUT" || fail "bulkread" "expected 2 resources: $A_OUT"
 MISSED_KEY="$PAIR_PREFIX$(python3 -c 'import base64,sys; print(base64.urlsafe_b64encode(sys.argv[1].encode()).decode().rstrip("="))' "$MISSED_ADDR")"

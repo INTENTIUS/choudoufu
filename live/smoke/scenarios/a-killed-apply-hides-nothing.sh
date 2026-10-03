@@ -164,7 +164,7 @@ explain \
 
 step "1. init, and start the apply that is going to be killed"
 cmd "choudoufu init && choudoufu apply -auto-approve   # to be killed"
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "killed" "init failed"
+logged a-killed-apply-hides-nothing-init "killed" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 [ "$(zones_named)" = "0" ] || fail "killed" "the account already holds a zone named $ZONE before anything ran"
 ( cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color > "$SMOKE_WORK/apply-1.log" 2>&1 ) &
 APPLY_PID=$!
