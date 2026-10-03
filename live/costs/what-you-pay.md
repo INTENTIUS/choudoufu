@@ -62,6 +62,21 @@ An earlier `plan_calls`
 ([#1053](https://github.com/INTENTIUS/choudoufu/issues/1053)) carried the
 sweep, and a downstream reader published it as choudoufu's plan cost.
 
+A stage's timing comes in two fields, and they answer different questions
+([#1083](https://github.com/INTENTIUS/choudoufu/issues/1083)). `seconds` is
+the stage's own wall time, the runner's `duration_s`, and it is the only
+per-stage figure that adds up to a run's `total_seconds`. `operation_seconds`
+is the time the stage's inner operation reported for itself: "3705 resources
+from stock terraform ... in 2023s" is the stock apply alone, without the
+generator and `init` around it. Both names are stable, and a consumer may rely
+on either. The real-AWS rows at 79, 301, 745 and 3,705 resources were
+recovered from prose, so they carry `operation_seconds` and no `seconds`. A
+reader that shows a stage time reads `seconds` and shows nothing when it is
+absent. If it wants to show `operation_seconds`, it labels it as the
+operation's time and never as the stage's. Copying one field into the other
+would publish an apply's timer as a stage duration, which is the
+conflation #1051 removed.
+
 ## With no live block, nothing at all
 
 A configuration with no `live` block and no `estate.chdf.hcl` sidecar runs as
