@@ -597,7 +597,7 @@ export TF_VAR_iam_baseline_enable_imdsv2_default=false
 gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (plain tofu apply, the real unmodified blueprint) ==="
 ( cd "$PLAIN/blueprints/landing-zone-basic" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -40 ); fail "stage 1 init failed"; }
+  ( cd "$PLAIN/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -40; exit "${PIPESTATUS[0]}" ) || fail "stage 1 init failed"; }
 gauntlet_report_lock "$PLAIN/blueprints/landing-zone-basic"  # the versions stage 1 resolved, for the row (#1739)
 COLD_OUT="$(cd "$PLAIN/blueprints/landing-zone-basic" && tofu apply -input=false -auto-approve -no-color 2>&1)"; COLD_RC=$?
 [ "$COLD_RC" -eq 0 ] || { printf '%s\n' "$COLD_OUT" | tail -80; fail "stage 1 (cold deploy) failed"; }
@@ -652,7 +652,7 @@ awsg() { aws --endpoint-url "$GREEN_ENDPOINT" --region "$REGION" "$@"; }
 
 log "=== PART F: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
 ( cd "$GREEN/blueprints/landing-zone-basic" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$GREEN/blueprints/landing-zone-basic" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+  ( cd "$GREEN/blueprints/landing-zone-basic" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the greenfield init failed"; }
 GREEN_APPLY_OUT="$(cd "$GREEN/blueprints/landing-zone-basic" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$GREEN_APPLY_OUT" | tail -60; fail "the greenfield apply failed"; }
 grep -qE 'Apply complete! Resources: 28 added' <<< "$GREEN_APPLY_OUT" \
@@ -774,7 +774,7 @@ moved {
 }
 EOF
 ( cd "$PLAIN_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+  ( cd "$PLAIN_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_rename stock oracle's reinit failed"; }
 ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE/blueprints/landing-zone-basic" && tofu plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
 grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
@@ -802,7 +802,7 @@ PLAIN_REMOVE_ORACLE="$WORK/plain-remove-oracle"
 cp -r "$PLAIN" "$PLAIN_REMOVE_ORACLE"
 remove_vpc_endpoint_s3_block "$PLAIN_REMOVE_ORACLE/modules/networking/vpc/main.tf"
 ( cd "$PLAIN_REMOVE_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_REMOVE_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
+  ( cd "$PLAIN_REMOVE_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_remove stock oracle's reinit failed"; }
 log "=== E-ORACLE: stock tofu, the same block removed, on cold_deploy's own state ==="
 REMOVE_ORACLE_PLAN_OUT="$(cd "$PLAIN_REMOVE_ORACLE/blueprints/landing-zone-basic" && tofu plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
 [ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
@@ -857,7 +857,7 @@ PLAIN_COUNT_ORACLE="$WORK/plain-count-oracle"
 cp -r "$PLAIN" "$PLAIN_COUNT_ORACLE"
 log "=== F-ORACLE: stock tofu, dropping then restoring \"logs\" from var.vpcs.main.vpc_endpoints, on cold_deploy's own state (plan-only - see header) ==="
 ( cd "$PLAIN_COUNT_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_COUNT_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's reinit failed"; }
+  ( cd "$PLAIN_COUNT_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_count stock oracle's reinit failed"; }
 
 ORACLE_COUNT_DOWN_PLAN_OUT="$(cd "$PLAIN_COUNT_ORACLE/blueprints/landing-zone-basic" && TF_VAR_vpcs="$VPCS_JSON_DOWN" tofu plan -input=false -no-color 2>&1)"; ORACLE_COUNT_DOWN_PLAN_RC=$?
 [ "$ORACLE_COUNT_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_DOWN_PLAN_OUT" | tail -40; fail "the day2_count stock oracle's scale-down plan exited $ORACLE_COUNT_DOWN_PLAN_RC"; }
@@ -872,7 +872,7 @@ log "  stock (plan-only): exactly one destroy proposed (main-logs), every other 
 PLAIN_COUNT_ORACLE_UP="$WORK/plain-count-oracle-up"
 cp -r "$PLAIN" "$PLAIN_COUNT_ORACLE_UP"
 ( cd "$PLAIN_COUNT_ORACLE_UP/blueprints/landing-zone-basic" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_COUNT_ORACLE_UP/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock up-oracle's reinit failed"; }
+  ( cd "$PLAIN_COUNT_ORACLE_UP/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_count stock up-oracle's reinit failed"; }
 STATE_RM_OUT="$(cd "$PLAIN_COUNT_ORACLE_UP/blueprints/landing-zone-basic" && tofu state rm 'module.vpc.aws_vpc_endpoint.interface["main-logs"]' 2>&1)"; STATE_RM_RC=$?
 [ "$STATE_RM_RC" -eq 0 ] || { printf '%s\n' "$STATE_RM_OUT" | tail -30; fail "the day2_count stock up-oracle's state rm failed"; }
 ORACLE_COUNT_UP_PLAN_OUT="$(cd "$PLAIN_COUNT_ORACLE_UP/blueprints/landing-zone-basic" && TF_VAR_vpcs="$VPCS_JSON_UP" tofu plan -input=false -no-color 2>&1)"; ORACLE_COUNT_UP_PLAN_RC=$?
@@ -910,7 +910,7 @@ rm -f "$REPLACE_ORACLE_VPC_MAIN.bak"
 [ "$(grep -c 'flow-logs-role-v2' "$REPLACE_ORACLE_VPC_MAIN")" = "2" ] \
   || fail "changing aws_iam_role.flow_logs's name argument in the replace-oracle copy did not match exactly (name + tags.Name) - the corpus pin has moved"
 ( cd "$PLAIN_REPLACE_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_REPLACE_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+  ( cd "$PLAIN_REPLACE_ORACLE/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_replace stock oracle's reinit failed"; }
 REPLACE_ORACLE_PLAN_OUT="$(cd "$PLAIN_REPLACE_ORACLE/blueprints/landing-zone-basic" && tofu plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
 [ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
 grep -qE '^  # module\.vpc\.aws_iam_role\.flow_logs\["main"\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
@@ -927,7 +927,7 @@ gauntlet_begin_stage migrate
 # ══════════════════════════════════════════════════════════════════════════
 log "=== STAGE 2: choudoufu live-import ==="
 ( cd "$ESTATE/blueprints/landing-zone-basic" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ESTATE/blueprints/landing-zone-basic" && "$TOFU" init -input=false -no-color 2>&1 | tail -40 ); fail "estate init failed"; }
+  ( cd "$ESTATE/blueprints/landing-zone-basic" && "$TOFU" init -input=false -no-color 2>&1 | tail -40; exit "${PIPESTATUS[0]}" ) || fail "estate init failed"; }
 
 log "--- 2a: live-import, read-only first ---"
 IMPORT_OUT="$(cd "$ESTATE/blueprints/landing-zone-basic" && "$TOFU" live-import -state="$PLAIN/blueprints/landing-zone-basic/terraform.tfstate" -estate="$ESTATE_NAME" -no-color 2>&1)"; IMPORT_RC=$?
