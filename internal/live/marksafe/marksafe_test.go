@@ -28,6 +28,11 @@ const liveRoot = ".."
 // from it. That is the population issue #240's eight panics came from.
 var guardedPackages = []string{
 	"acceptance",
+	// GitHub issue #1751's live-affected reads module calls, provider
+	// constraints and cross-estate filters from configuration it builds
+	// statically; it takes strings off the config structs and evaluates no
+	// expression of its own, so it is held to zero.
+	"affected",
 	// GitHub issue #878's approval gate. It reads PLAN values, which is
 	// deferredPackages' population, and it is held to zero anyway because
 	// every collection it walks is unmarked at the site that walks it -

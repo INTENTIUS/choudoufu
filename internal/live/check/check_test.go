@@ -221,6 +221,11 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// generated artifact, and the stage that would act on that signal
 		// does not exist yet.
 		"uniquename": true,
+		// GitHub issue #1751's live-affected: which roots a git range
+		// touches, read from configuration at two revisions before any
+		// stage runs. It refuses nothing; what it cannot attribute it
+		// answers as indeterminate, worded by its own command.
+		"affected": true,
 	}
 
 	classified := map[string]bool{}
