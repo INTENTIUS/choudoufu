@@ -29,7 +29,7 @@ to "where was the last session":
 | `ACTIVE?` | files in that worktree were written in the last 15 minutes; an Agent-tool worker shows no process of its own, so this is the only liveness signal | leave it alone; `.claude/scripts/agent-progress.sh` or wait |
 | `UNCOMMITTED` | changed paths in the worktree and no recent write: a worker stopped before committing | read the diff, commit it on that branch with the unit ID, then treat as `COMMITS, NO PR` |
 | `MERGED/EMPTY` | the branch is an ancestor of `main` with nothing ahead, nothing uncommitted, no recent write: landed, or a worker that never committed | delete the branch and its worktree |
-| `PR OPEN #N` | a worker finished and reported | the orchestrator verifies (reads `ci.rc`, the `GAUNTLET` lines, the artifact diff) and merges on green |
+| `PR OPEN #N` | a worker finished and reported | the orchestrator verifies (reads GitHub CI on the PR, the `GAUNTLET` lines, the artifact diff) and merges on green |
 | `COMMITS, NO PR` | a worker was mid-unit when its session ended | resume in that worktree from the last commit; never start the unit over in a new branch |
 | Agent-tool worktree, ahead > 0 | an agent's unreported work | read the commits before pruning |
 | `dirty` paths in the primary checkout | someone worked in the main tree | read them first; the main tree is never where work happens |
@@ -214,7 +214,8 @@ a regression; the estate usually got better and the script did not.
    the wrong fix; find the property and derive the rule, then say how many
    other types it reached.
 4. `go run ./tools/gauntlet render`; commit the script, the artifact and the
-   site's board data (`site/data/gauntlet_board.json`) together. `just ci` must be green.
+   site's board data (`site/data/gauntlet_board.json`) together. Build and run the
+   touched packages' tests; GitHub CI green on the PR is the merge gate.
    Run `just merge-drivers` once per clone: the rendered files conflict on
    every merge that moved a verdict, and resolving them hunk by hunk is how
    you get a board whose headline contradicts its own rows (#1308). The
@@ -336,8 +337,12 @@ and every dispatch waits for the `corpus` environment approval.
   `next` prints; commit early with the unit ID in the message.
 - `env -u PWD` on every go command; read exit codes from a file; never
   `git stash`; never prune a worktree by whether its branch merged.
-- `just ci` is the gate; a full-module `go test ./...` is a periodic
-  checkpoint, not a reflex.
+- GitHub CI green on the PR is the merge gate; no local gate per PR. Docs,
+  data and refactor changes: build plus the touched packages' tests.
+  Behaviour changes: one proof, a test or one local scenario run, not both a
+  local run and a dispatched smoke. The full gate (`scripts/ci-gate.sh run`,
+  then `check`) runs on main once per batch of merges. Red-first is for a
+  new guard, not every table row.
 - Regenerate artifacts, never hand-edit them; a generator run twice and
   diffed proves determinism, not correctness.
 - A brief is a lead, not a fact: re-verify against the code before fixing.

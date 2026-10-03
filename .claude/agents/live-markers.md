@@ -7,9 +7,9 @@ You are working on choudoufu. Read this before your first tool call. If you
 are the session's first agent, or picking up after another session, run
 `bash scripts/pickup.sh` first and read `HANDOFF.md` "Pick up here" for what
 its output means; a worker spawned into a named worktree may skip that and
-read its branch's last commits, `ci.rc`, `ci.meta` and `ci.out` instead -
-run `scripts/ci-gate.sh check` before trusting any `ci.rc` you find there
-(#519: it refuses a gate that is missing, incomplete, or written for a
+read its branch's last commits instead (if a `ci.rc` is there, run
+`scripts/ci-gate.sh check` before trusting it
+; #519: it refuses a gate that is missing, incomplete, or written for a
 commit that is no longer HEAD).
 
 ## What the product is
@@ -191,9 +191,11 @@ grep FAIL` reports grep's exit status, not the recipe's, and a visible
 pushed a red main this way. Redirect to a file, echo `$?`, then read the
 file.
 
-**`just ci` is the check to run, and it must be read from a file.** It
-mirrors the workflow step for step, and `TestJustCIMirrorsTheWorkflow` keeps
-the two lists identical so a local pass means what it says.
+**When a gate is run, read it from a file.** GitHub CI green on the PR is the
+merge gate and there is no local gate per PR; the full `just ci` runs on main
+once per batch of merges. It mirrors the workflow step for step, and
+`TestJustCIMirrorsTheWorkflow` keeps the two lists identical so a pass means
+what it says.
 
 **Build artifacts land in the repo root.** `go build ./tools/<name>` with no
 `-o` writes an executable named `<name>` beside the source tree. `.gitignore`
@@ -259,10 +261,9 @@ must build concurrently work in isolated worktrees.
 - Name branches so `scripts/pickup.sh` can read them: `gauntlet/<estate>-<stage>`
   for a unit, `live/<topic>` for anything else. Commit early with the unit
   ID; a branch with commits is resumed, a branch with none is deleted.
-- Leave `ci.rc`, `ci.meta` and `ci.out` in the worktree, written by
-  `scripts/ci-gate.sh run` (not typed by hand - #519). They are the gate the
-  orchestrator reads via `scripts/ci-gate.sh check`, and what a successor
-  reads after a crash.
+- If you ran a gate, leave `ci.rc`, `ci.meta` and `ci.out` in the worktree, written by
+  `scripts/ci-gate.sh run` (not typed by hand - #519) on the rare run of one.
+  A successor reads them after a crash; they are not a per-PR requirement.
 
 ## Run an adversarial audit after each substantial change
 
@@ -380,9 +381,9 @@ one to three times. Two of those were buying nothing, so:
   ladder for your base. Assert the base itself with `git log --oneline -1`.
   The baseline run never proved the number, only that your tree was the tree
   the orchestrator thought it was, and one git command does that.
-- **Do not run `just ci` before committing.** Run `env -u PWD go build ./...`
-  and the tests for the packages you touched. The orchestrator runs full CI
-  after every merge, so a pre-commit run moves no gate; `internal/command`
+- **Do not run `just ci` or `ci-gate.sh` for a PR.** Run `env -u PWD go build ./...`
+  and the tests for the packages you touched. GitHub CI is the merge gate and
+  the full gate runs on main once per batch, so a per-PR run moves no gate; `internal/command`
   alone costs 61 seconds and most agents never touch it.
 - **Do not run `just corpus` either.** This reverses an earlier version of
   this section, on evidence. Six agents stalled on it in one session, every
