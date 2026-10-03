@@ -1,73 +1,30 @@
-# The AWS claim cells that no workflow ran (issue #1590, part of #1579).
+# The AWS claim proofs on the pinned floci emulator (issue #1590, part of
+# #1579; regrouped by #1817).
 #
-# live/smoke/claims.json states 23 proven, non-real-AWS AWS claim cells
-# that, as of origin/main f2b7f012a2, no file under .github/workflows/
-# executed: claims 1, 2, 3, 5-20, 40, 41, 42, 43. The claims table said
-# "proven" on the strength of a hand run; this is the workflow that
-# actually re-checks it, one job per scenario with its BREAK=1 control,
-# the same shape k8s-smoke.yml and bucket-smoke.yml already run their own
-# lanes with. Claims 4 and 33-38 are real_aws and stay maintainer-run
-# (CLAUDE.md); claims 21-27 and 39 are Kubernetes-only and live in
-# k8s-smoke.yml; claims 28-32 and 44 already run in bucket-smoke.yml and
-# are not duplicated here.
+# Every AWS proof in live/smoke/claims.json that runs on the emulator, and
+# that bucket-smoke.yml does not already run, is a matrix entry here: one
+# job per scenario, with its BREAK=1 control. #1817 folded the claims into
+# 16 promises without deleting proofs, so an entry is a scenario, not a
+# claim number; the scenario's header names the claim it proves. Real-AWS
+# proofs (real_service) stay maintainer-run (CLAUDE.md), Kubernetes proofs
+# run in k8s-smoke.yml, and the record-store bucket proofs run in
+# bucket-smoke.yml. live/claims_smoke_ci_test.go derives the list from
+# claims.json and holds both matrices to it.
 #
-# Claim 45 (#1624) joined this matrix later, proven and never excluded: a
-# single small resource and no Go build, so it runs in the smoke job with
-# the rest rather than in smoke-nightly. Not yet measured against the
-# emulator in CI (written and left for the orchestrator's smoke pass); if
-# it turns out to sit over budget, move it to smoke-nightly rather than
-# re-deriving the number here.
+# #1817 removed two entries: recovery-is-a-rerun, whose lost-files step
+# moved into a-killed-apply-hides-nothing, and plan-cost-tracks-the-estate,
+# whose steps plan-cost-under-foreign-load runs with the scale as a
+# parameter.
 #
 # Budget: 10 minutes per scenario, both arms combined (2026-09-26 ruling
-# on #1590: "same rule as the kubernetes lane" - every PR that touches the
-# code runs the matrix, except scenarios over the budget, which run
-# nightly and are watched by nightly-watch). The budget was set by
-# measuring every candidate scenario locally against the pinned floci
-# emulator, one at a time, synchronously (`bash live/smoke/smoke.sh
-# <slug>` then `BREAK=1 bash live/smoke/smoke.sh <slug>`), not from
-# claims.json's own `minutes` field: that field is a CI-timeout input
-# (live/smoke/smoke.sh's scenario_bound_secs, which doubles it), not a
-# runtime estimate, and every scenario here ran in well under a third of
-# its claims.json minutes. The slowest of the 21 scenarios in the `smoke`
-# job below was carve-by-retag at 3m14s + 2m12s = 5m26s combined; every
-# other one finished faster, including claim 13 (the-tag-is-the-boundary)
-# at 1m38s + 56s = 2m34s combined. no-secret-survives-in-what-the-tool-keeps
-# measured 9m21s + 6m18s = 15m39s combined - three times the next
-# heaviest scenario - and runs nightly only, in the `smoke-nightly` job.
+# on #1590: "same rule as the kubernetes lane"); scenarios over it run in
+# smoke-nightly. The budget was set by measuring every candidate locally
+# against the pinned emulator, both arms, not from claims.json's minutes,
+# which is a CI-timeout input (smoke.sh's scenario_bound_secs doubles it)
+# rather than a runtime estimate. The slowest entry in `smoke` measured
+# 5m26s combined (carve-by-retag); no-secret-survives-in-what-the-tool-keeps
+# measured 15m39s and runs in smoke-nightly.
 #
-# One claim measured here is excluded rather than added red:
-#   - claim 17, record-only-survives-cache-loss: fails at its first apply,
-#     both arms, on issue #950's node-path unmarked-apply refusal, which
-#     fires unconditionally on a first apply of an untaggable,
-#     record-recoverable resource because no record can exist yet for it
-#     to be exempted by. Filed as #1637.
-# It is a substrate-parity / lane:proof-ci finding against #1579, not a
-# regression this unit introduced or can fix; re-add it here once resolved.
-#
-# Claim 13, the-tag-is-the-boundary, was excluded here for the same reason
-# until #1636 fixed it: its BREAK control's own `denied()` check greps the
-# whole apply transcript for "AccessDenied", which also matched two
-# unrelated, harmless sweep-gap reports (`aws_iam_policy`/`iam:ListPolicies`
-# 403, quoted verbatim in both live_plan.go's pre-diff coverage report and
-# the post-apply "Incomplete sweep" warning), reading Bob's successful
-# cross-half write as still refused. live/smoke/lib.sh's
-# strip_incomplete_sweep_warning now scopes the check past both.
-#   - claim 13, the-tag-is-the-boundary: its BREAK control's own `denied()`
-#     check greps the whole apply transcript for "AccessDenied", which
-#     also matches an unrelated, harmless sweep warning
-#     (`aws_iam_policy`/`iam:ListPolicies` 403) quoted in choudoufu's own
-#     output, so it reads Bob's successful cross-half write as still
-#     refused. Filed as #1636.
-# It is a substrate-parity / lane:proof-ci finding against #1579, not a
-# regression this unit introduced or can fix; re-add it here once
-# resolved.
-#
-# Claim 17, record-only-survives-cache-loss, was excluded the same way
-# until #1637: #950's unmarked-apply refusal stopped its first apply. The
-# refusal now steps aside when the run's record store is writable, and the
-# claim runs in the smoke job below. Measured locally against the pinned
-# emulator on 2026-09-26 before the no-smoke-runs rule: 1m40s + 1m27s =
-# 3m07s combined.
 # The provider plugin cache (PR #1646's first CI run). Three of 23 jobs
 # came back red the first time this workflow ran for real: carve-by-retag
 # and roundtrip both failed a host-side `chdf init` with no output (its
@@ -104,15 +61,10 @@
 # code), verified with three back-to-back local runs that each hit the
 # loser branch and each still passed.
 #
-# Claims 25 and 26 on AWS (#1599) joined the smoke job with cells that read
-# "restated", not "proven": each scenario proves the part of its promise the
-# emulator can produce, and the cell's note says which part. A restated cell
-# that carries its own scenario is held to a matrix the same as a proven one
-# (live/proven_cell_ci_test.go's cellRunsItsOwnScenario). Both were written
-# without a local run against the emulator (the maintainer's 2026-09-27 no-
-# smoke-runs rule), so neither has a measured duration yet; their claims.json
-# minutes (3 and 4) put them well inside the 10-minute budget if they run
-# like their neighbours, and the first run of this job is their measurement.
+# a-held-delete-is-not-gone and the-server-gets-the-last-word (#1599) prove
+# the part of their promise the emulator can produce, and each proof's note
+# in claims.json says which part; since #1817 they are proofs of claims 1
+# and 15.
 #
 # Verdict lines, not exit codes (#1439). Every run goes through
 # live/smoke/ci-run.sh, which writes the run's output to a file as it goes
@@ -158,7 +110,6 @@ jobs:
           - no-silent-orphans
           - no-self-managed-locks
           - staleness-costs-reads
-          - recovery-is-a-rerun
           - roundtrip
           - identity-is-a-tag
           - stock-when-you-need-it
@@ -166,7 +117,6 @@ jobs:
           - cache-serves-the-whole-estate
           - count-is-a-fungible-set
           - carve-by-retag
-          - plan-cost-tracks-the-estate
           - apply-what-was-approved
           - the-boundary-holds-across-regions
           - a-shadow-is-not-a-claimant

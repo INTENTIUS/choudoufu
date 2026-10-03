@@ -5,6 +5,8 @@ claim: stock-when-you-need-it
 
 # Claim 8: Stock when you need it
 
+## On AWS
+
 Stock behavior is not a mode you leave behind - it is the fallback,
 whole and exact, one deleted live block away. The scenario measures
 that rather than promising it: choudoufu and the pinned stock oracle

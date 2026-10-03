@@ -41,18 +41,14 @@ import (
 // provenCellCIAllowlist is the cells #1590 measured but could not wire into
 // claims-smoke.yml's matrix: each fails against the pinned emulator for a
 // reason that is its own finding, not #1590's to fix. Every other cell
-// #1591 found unwired (claims 1, 2, 3, 5-20, 40, 41, 42, 43) now runs in
-// claims-smoke.yml (see that file's header) and is out of this list.  This
+// #1591 found unwired now runs in claims-smoke.yml (see that file's
+// header) and is out of this list. This
 // list may only shrink - TestProvenCellAllowlistOnlyShrinks fails the
 // moment a listed scenario reaches a workflow matrix, so a name can be
 // deleted here but never re-added once its finding is fixed and it lands.
 var provenCellCIAllowlist = map[string]string{
-	// #1637: claim 17 fails at the first apply, both arms, on #950's
-	// node-path unmarked-apply refusal, which fires before any record can
-	// exist for this claim's untaggable, record-recoverable resource to
-	// be exempted by.
-	// #1636: claim 13's BREAK control false-positives on an unrelated
-	// sweep warning that happens to contain "AccessDenied".
+	// Empty since #1636 and #1637 fixed the-tag-is-the-boundary and
+	// record-only-survives-cache-loss, the two scenarios #1590 left here.
 }
 
 // provenCellIssueRef matches a GitHub issue reference (#1590, #1636, ...),

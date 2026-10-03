@@ -17,14 +17,14 @@ import (
 
 // The rest of the AWS claims' CI story (GitHub issue #1590, part of
 // #1579). live/smoke/claims.json stated 23 proven, non-real-AWS AWS cells
-// that no workflow ran: claims 1, 2, 3, 5-20, 40, 41, 42, 43. Claim 4 and
-// 33-38 are real_service and stay maintainer-run; claims 21-27 and 39 are
-// Kubernetes-only and run in k8s-smoke.yml; claims 28-32 and 44 already run
-// in bucket-smoke.yml and are not duplicated here. This file holds
-// claims-smoke.yml's two matrices - smoke and smoke-nightly (the scenarios
-// over budget, kept apart for their own budget; both run nightly) - to the claim set that is left, so a claim added
-// later lands with a matrix entry, a nightly-only entry, or a filed finding,
-// never a silent "proven" nobody re-checks.
+// that no workflow ran. This file holds claims-smoke.yml's two matrices -
+// smoke and smoke-nightly (the scenarios over budget, kept apart for their
+// own budget; both run nightly) - to every AWS proof in claims.json that
+// runs on the emulator and is not a real-AWS proof or one bucket-smoke.yml
+// already runs, so a proof added later lands with a matrix entry, a
+// nightly-only entry, or a filed finding, never a silent "proven" nobody
+// re-checks. Since #1817 a cell carries a list of proofs, and every one of
+// them is held here, not only the first.
 //
 // Proving it red: add a proven, non-real-AWS AWS claim scenario with no
 // matrix entry and no exclusion entry, move a scenario from one matrix to

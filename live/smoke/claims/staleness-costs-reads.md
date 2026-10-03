@@ -1,50 +1,63 @@
 ---
-title: "Claim 3: Staleness costs reads, never results"
+title: "Claim 3: The cache never changes an answer"
 claim: staleness-costs-reads
 ---
 
-# Claim 3: Staleness costs reads, never results
+# Claim 3: The cache never changes an answer
 
-A stale state file is the classic failure: the file is the record, so
-its lies become your plans. Here the file is a cache, never consulted for
-ownership; live reads win every disagreement.
-Losing or corrupting it costs a slower run and nothing else.
+A stale state file is the classic failure: the file is the record, so its
+lies become your plans. Here the state file is a cache, never consulted
+for ownership, and live reads win every disagreement. A fresh cache, an
+ancient one and none at all give the same plan; what differs is how much
+reading the run does. Where a record is the only copy of an identity,
+losing the cache costs nothing and losing the record is named, never
+guessed.
 
-```text
-Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
-(docker info) and the AWS CLI is installed. If Go is not installed,
-export CHOUDOUFU_VERSION=<latest tag from
-https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
+Each scenario runs from the repository root and ends on a `PASS` line; its
+`BREAK=1` run breaks the thing the proof rests on and must print a
+`caught` line. [The README](README.md) says what each needs installed.
 
-  just smoke staleness-costs-reads
+## On AWS
 
-Explain each step's verdict line to me as it prints. Then run
-BREAK=1 just smoke staleness-costs-reads and report the "caught" line:
-it moves the live world mid-comparison and the equality check must
-notice.
-```
+### staleness-costs-reads
 
-In print order:
+    just smoke staleness-costs-reads
+    BREAK=1 just smoke staleness-costs-reads
 
-1. `manufacture a genuinely ancient cache` - apply, save the cache
-   aside, destroy the whole estate, apply again. The saved cache now
-   remembers only dead ids; the run proves the old and new VPC ids
-   differ.
-2. `three cache states, one answer` - the same plan runs against the
-   fresh cache, then the ancient one, then no cache file at all. The
-   outputs are byte-identical.
-3. `the world moves and the fresh cache does not hide it` - a setting
-   is changed behind the tool's back with the AWS CLI; the next plan
-   shows the drift straight through a fresh cache, and the apply
-   reconverges it.
-4. `the one opt-in, and where the cost actually lives` -
-   `-refresh=false` is the single path that serves reads from cache,
-   and only for instances the sweep has already verified. The run
-   measures its cache hits, then reruns with the cache gone to show
-   none. The two outputs prove equal and both request counts print side
-   by side. The price of staleness is paid in work, never in answers.
-5. `the same answer where values live in the record store` - the same
-   ancient-cache trick against the record store, plus a phantom: the
-   cache remembers a resource that no longer exists anywhere. The plan
-   neither destroys the phantom nor misses the survivor.
-6. `teardown`.
+The run manufactures a genuinely ancient cache (apply, save it, destroy,
+apply again, so it remembers only dead ids), then plans against the fresh
+cache, the ancient one and no cache: the outputs are byte-identical. A
+setting changed out of band shows through a fresh cache as drift.
+`-refresh=false` is the one path that serves reads from cache, only for
+instances the sweep has verified, and the run prints its request count
+beside the uncached one with equal outputs. The same holds for values in
+the record store, including a phantom the cache remembers and nothing else
+does. `BREAK=1` moves the live world mid-comparison, and the equality
+check must notice.
+
+### record-only-survives-cache-loss (claim 17 until #1817)
+
+    just smoke record-only-survives-cache-loss
+    BREAK=1 just smoke record-only-survives-cache-loss
+
+`aws_iam_group_policy` with its `name` left to the provider has no tag and
+no listing, so the record this apply writes is the only copy of its
+identity. Deleting the cache and the whole `.terraform` directory still
+replans `No changes.`, with the identity read from the record. `BREAK=1`
+deletes the record too, and the plan must name a duplicate create for that
+instance rather than bind silently or report no changes. [Recover an
+estate](https://intentius.io/choudoufu/docs/use/recover-an-estate/) says
+what to do from there.
+
+### the-estate-answers-in-the-present-tense (claim 41 until #1817)
+
+    just smoke the-estate-answers-in-the-present-tense
+    BREAK=1 just smoke the-estate-answers-in-the-present-tense
+
+One question, "which of this estate's security groups are attached to
+nothing", asked two ways after an instance is moved from one group to
+another with the AWS CLI. The live answer (the tagging API and a describe)
+is the new one; the cache answers as of the last apply. The next plan
+reads the present and proposes the one update that moves it back. This is
+the estate's own resources, not account-wide gap analysis. `BREAK=1`
+skips the out-of-band move, and the two answers must then agree.

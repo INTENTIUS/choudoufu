@@ -1,11 +1,15 @@
 ---
-title: "Claim 37: The recommended secure configuration works end to end, including recovering a deleted record"
-claim: the-recommended-secure-configuration
+title: "The recommended secure configuration (a demo; claim 37 until #1817)"
+retired: 37
 ---
 
-# Claim 37: The recommended secure configuration works end to end, including recovering a deleted record
+# The recommended secure configuration
 
-**This claim runs against real AWS and is maintainer-run.** It is about
+This was claim 37 until #1817. It is now a demo beside `full`, proving no
+claim: it runs the recommended stack end to end on real AWS with
+`SMOKE_REAL_AWS=1 just smoke the-recommended-secure-configuration`.
+
+**This demo runs against real AWS and is maintainer-run.** It is about
 a customer managed key's policy, a CloudFormation stack and IAM, all
 evaluated together, and the pinned emulator evaluates none of them the
 way AWS does.

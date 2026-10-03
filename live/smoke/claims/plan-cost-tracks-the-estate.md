@@ -1,46 +1,36 @@
 ---
-title: "Claim 14: A plan costs its estate, not its account"
+title: "Claim 14: A plan costs its estate"
 claim: plan-cost-tracks-the-estate
 ---
 
-# Claim 14: A plan costs its estate, not its account
+# Claim 14: A plan costs its estate
 
-A bound state file makes a terralith's plan pay for the whole account:
-every resource anyone owns sits in the one file every plan reads end to
-end. Here ownership is a tag, not a file, so a plan of one estate reads
-only that estate's resources - and stays that cheap no matter how large
-the rest of the account grows around it.
+A bound state file makes every plan pay for everything in it. Here
+ownership is a tag, so a plan of one estate reads that estate's
+resources, and the cost stays put however much else the account
+holds.
 
-```text
-Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
-(docker info) and the AWS CLI is installed. From the repo root run:
+Each scenario runs from the repository root and ends on a `PASS` line; its
+`BREAK=1` run breaks the thing the proof rests on and must print a
+`caught` line. [The README](README.md) says what each needs installed.
 
-  just smoke plan-cost-tracks-the-estate
+## On AWS
 
-Explain each step's verdict line to me as it prints. Then run
-BREAK=1 just smoke plan-cost-tracks-the-estate and report the "caught"
-line: it replans the same estate account-wide instead of scoped to its
-own tag, and the cost must jump to the account-wide shape.
-```
+### plan-cost-under-foreign-load (claim 20 until #1817)
 
-The steps as they print:
+    just smoke plan-cost-under-foreign-load
+    BREAK=1 just smoke plan-cost-under-foreign-load
 
-1. `stand up one estate, and plan it alone` - a four-resource network
-   estate (a VPC, two subnets, a security group) applies, then plans.
-   Its request count is recorded.
-2. `grow the account with another estate, and replan the first` - an
-   eight-resource estate joins the account under a different tag. The
-   first estate replans to the same request count as step 1, whether or
-   not the second estate exists.
-3. `what reading the whole terralith would cost` - an account-wide,
-   adoption-only scan of the same account costs measurably more than
-   the estate-scoped plan - the shape a bound state file would force on
-   every plan, regardless of which estate you actually meant to touch.
-4. `teardown` - both estates destroyed.
-
-The `BREAK=1` run makes the same request the account-wide scan in step 3
-made, against the same estate step 1 and 2 scoped for free. If the cost
-did not climb to that account-wide shape - more than triple what scoping
-cost, the threshold the scenario checks - something other than the
-estate scoping was keeping the plan cheap, and the claim would prove
-nothing.
+The estate is held still while a second terralith, under another
+estate's marker, is applied around it. `FOREIGN_SCALE=1` (the default)
+puts 79 foreign resources there in about five minutes; `FOREIGN_SCALE=50`
+puts 3,705, the row in `live/gauntlet-scale.json`; `OWNED_SCALE` sizes the
+estate. The replan must grow by less than half a call per foreign
+resource (a state file pays at least one), and the legs that read the
+account rather than the estate are named from the run's own log: Cloud
+Control lists stay flat, and the unfiltered IAM policy list is where the
+growth comes from. Needs Go. `BREAK=1` asks the account-wide question
+(`-adoption-only`), and the cost must explode past three times the scoped
+plan. #1817 folded `plan-cost-tracks-the-estate.sh`, the same steps
+against eight hand-written log groups, into this one; the measured tables
+are in [what a plan costs](https://intentius.io/choudoufu/docs/model/plan-cost/).

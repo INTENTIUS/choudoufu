@@ -1,9 +1,11 @@
 ---
-title: "Claim 40: No secret survives in what the tool keeps"
+title: "Claim 40: No secret survives unless you let it"
 claim: no-secret-survives-in-what-the-tool-keeps
 ---
 
-# Claim 40: No secret survives in what the tool keeps
+# Claim 40: No secret survives unless you let it
+
+## On AWS
 
 HANDOFF's first principle is that the tool stores no secrets, and it is a
 toggle: `strict { secrets = "refuse" }` in the live block. Under it, a type

@@ -1,9 +1,11 @@
 ---
-title: "Claim 6: The roundtrip: one command in, one file out"
+title: "Claim 6: One command in, one file out"
 claim: roundtrip
 ---
 
-# Claim 6: The roundtrip: one command in, one file out
+# Claim 6: One command in, one file out
+
+## On AWS
 
 Migrating to a new state tool is usually a trapdoor: once your estate
 is in, the only way back is another migration project. Here the door in

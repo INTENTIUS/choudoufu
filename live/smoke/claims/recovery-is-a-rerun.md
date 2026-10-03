@@ -1,51 +1,61 @@
 ---
-title: "Claim 5: Recovery is a re-run, never surgery"
+title: "Claim 5: A crash is fixed by re-running"
 claim: recovery-is-a-rerun
 ---
 
-# Claim 5: Recovery is a re-run, never surgery
+# Claim 5: A crash is fixed by re-running
 
-Two disasters end an estate's day under stock. An apply that crashes
-after a create call leaves a resource no state file knows about;
-re-applying creates a duplicate and the original leaks. A lost state
-file is worse, because the file was the record of everything you own.
-Both end the same way here: run it again.
+Two disasters end an estate's day under stock. An apply that dies after a
+create call leaves a resource no state file knows about, and re-applying
+builds a duplicate while the original leaks. A lost state file is worse,
+because the file was the record of everything you own. Here both end the
+same way: run it again. What a dead apply marked is bound by the re-run,
+and losing every local file loses no knowledge, because the markers are on
+the resources and the records are in the record store.
 
-```text
-Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
-(docker info) and the AWS CLI is installed. If Go is not installed,
-export CHOUDOUFU_VERSION=<latest tag from
-https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
+Each scenario runs from the repository root and ends on a `PASS` line; its
+`BREAK=1` run breaks the thing the proof rests on and must print a
+`caught` line. [The README](README.md) says what each needs installed.
 
-  just smoke recovery-is-a-rerun
+## On AWS
 
-Explain each step's verdict line to me as it prints. Then run
-BREAK=1 just smoke recovery-is-a-rerun and report the "caught" line: it
-withholds the crashed resource's markers and the bind check must fail
-rather than claim an unmarked resource.
-```
+### a-killed-apply-hides-nothing (claim 42 until #1817)
 
-The steps as they print:
+    just smoke a-killed-apply-hides-nothing
+    BREAK=1 just smoke a-killed-apply-hides-nothing
 
-1. `the crash - an apply dies after its first create` - the VPC is made
-   with the AWS CLI and stamped with the estate's markers, exactly what
-   the dead apply would have written before crashing. The configuration
-   still declares it.
-2. `re-run the apply - it binds, completes, duplicates nothing` - the
-   whole recovery is the same apply again: it finds `aws_vpc.main`
-   already owned and builds the rest around it; the vpc keeps its id
-   and the follow-up plan is clean.
-3. `now lose every local file` - the cache and the whole `.terraform`
-   directory are deleted; after an init, the next plan is `No changes.`
-   The narration also says what the deleted cache held, and why that
-   disposable file is the one place allowed to hold it.
-4. `teardown` - the crashed vpc is destroyed with the rest of the
-   estate. It was a full citizen from the moment it was bound.
+A real apply is killed with SIGKILL at a point pinned by a resource count
+read off the account, not a timer, and the next plan is measured for each
+thing it left:
 
-The `BREAK=1` run withholds the markers. The estate must refuse to bind
-an unmarked resource, so the re-run builds a second vpc - stock's crash
-behavior, demonstrated as the exact boundary of the claim.
+- A VPC is marked in its own create request, so there is no window: the
+  next plan proposes nothing for it and the re-run binds it.
+- A hosted zone is one of the ten `tag_on_create: false` types (#1084):
+  `CreateHostedZone` takes no tags, so the markers land when the provider's
+  whole create step returns, 15.0s later on the pinned emulator. A kill
+  inside that window leaves a zone nothing can claim; the re-run builds a
+  second one, and removing the first by hand is the one piece of surgery
+  in the run.
+- A `terraform_data` with a provisioner keeps its record, which is written
+  after the whole walk, so a killed walk writes none. The next plan names
+  it as a create and the effect runs twice: at-least-once, said by the
+  run.
 
-This scenario is the demonstration. [Recover an
-estate](https://intentius.io/choudoufu/docs/use/recover-an-estate/) is the procedure it
-implies, with the inventory of what a re-run does not bring back.
+Then every local file goes (the cache, the lock file, `.terraform`), and
+the plan from a fresh init is still `No changes.`; this step was
+`recovery-is-a-rerun.sh`'s, which #1817 folded in here. `BREAK=1` strips
+the markers from everything the killed apply created, and the re-run must
+then propose and build a second VPC, which is stock's behaviour.
+
+The window is real, bounded to those ten types, and measured on the
+emulator; its width on real AWS has not been measured. [Recover an
+estate](https://intentius.io/choudoufu/docs/use/recover-an-estate/) is the
+procedure this implies.
+
+## On Kubernetes
+
+Open. `live/GAUNTLET.md` stage 10 (day2_crash) kills an apply between one
+object's create and the next on kind, and the next plan must bind the
+created object by its label, namespace and name; it passes on every
+kind-lane gauntlet estate. That proof is the gauntlet's, with its own
+oracle and control, not a scenario here.
