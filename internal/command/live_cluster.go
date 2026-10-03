@@ -325,9 +325,12 @@ Usage: choudoufu [global options] live-cluster [options]
 
   Two of the four cannot be read on every distribution. Encryption at rest
   is an API server flag, readable only where the API server's own Pod is
-  (kind, kubeadm) and never on a managed control plane; the estate boundary
-  policy needs cluster-scoped get. Either one unanswered is reported
-  NOT_CHECKED, which is not a pass and makes the verdict NOT correct.
+  (kind, kubeadm); on a managed control plane it is read from the
+  provider's API (EKS, GKE, AKS) when the record_store block's
+  control_plane block names the cluster, or an EKS exec plugin does. The
+  estate boundary policy needs cluster-scoped get. Either one unanswered is
+  reported NOT_CHECKED, which is not a pass and makes the verdict NOT
+  correct.
 
   Nothing is written. The access questions go to the API server as
   SelfSubjectAccessReviews, which change nothing, never as an attempted
