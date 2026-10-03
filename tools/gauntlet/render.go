@@ -174,6 +174,14 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("case the estate's cell reads `n/a` and is neutral for clear; nothing is")
 	w("skipped silently.")
 	w("")
+	w("An AWS-lane estate whose configuration also manages the cluster its own")
+	w("`aws_eks_cluster` creates declares `\"substrate\": \"%s\"` in the manifest", SubstrateFlociEKS)
+	w("(#1113). floci's EKS real mode starts a k3s container for that cluster and")
+	w("the estate's provider \"kubernetes\" block reaches it as written. Such an")
+	w("estate counts toward both bars above, is judged against both the")
+	w("hashicorp/aws and the hashicorp/kubernetes pins, and every stage says")
+	w("under its entry below how it reads with both legs.")
+	w("")
 	w("## Stages")
 	w("")
 	w("Each stage states what a pass proves, what stock's answer to the same question")
@@ -759,7 +767,7 @@ type emulatorGroup struct {
 func emulatorGroups(a *Artifact) []emulatorGroup {
 	counts := map[string]int{}
 	for _, r := range a.Estates {
-		if r.LastRun == nil || r.Substrate != "" {
+		if r.LastRun == nil || !RunsOnFloci(r.Substrate) {
 			continue
 		}
 		counts[r.LastRun.Emulator]++
@@ -880,7 +888,7 @@ func providerBanner(a *Artifact) string {
 		lines = append(lines, l)
 	}
 	if l := providerLaneBanner(a, "hashicorp/kubernetes", a.Providers.Kubernetes, func(r EstateResult) (string, bool) {
-		if r.Substrate != SubstrateKind || r.LastRun == nil || r.LastRun.KubernetesProviderVersion == "" {
+		if !UsesKubernetesProvider(r.Substrate) || r.LastRun == nil || r.LastRun.KubernetesProviderVersion == "" {
 			return "", false
 		}
 		return r.LastRun.KubernetesProviderVersion, true

@@ -291,6 +291,12 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 		} else {
 			r.LastRun.Emulator = emulator
 			r.LastRun.AWSProviderVersion = res.Resolved.Version(ProviderAWS)
+			// A floci-eks estate (#1113) also configures hashicorp/kubernetes
+			// against the cluster floci started, and its row is judged
+			// against that pin too (ProviderStaleReasons).
+			if UsesKubernetesProvider(e.Substrate()) {
+				r.LastRun.KubernetesProviderVersion = res.Resolved.Version(ProviderKubernetes)
+			}
 		}
 		for _, c := range res.Resolved.Conflicts {
 			fmt.Fprintf(opts.Stdout, "%s: records no provider version for a type whose lock files disagree: %s\n", e.Name, c)

@@ -370,24 +370,31 @@ func providerNote(r EstateResult, a *Artifact) string {
 	if r.LastRun == nil {
 		return ""
 	}
-	if r.Substrate == SubstrateKind {
-		got := r.LastRun.KubernetesProviderVersion
-		if got == "" {
-			return ""
+	var notes []string
+	if RunsOnFloci(r.Substrate) {
+		if n := providerPinNote("hashicorp/aws", r.LastRun.AWSProviderVersion, a.Providers.AWS); n != "" {
+			notes = append(notes, n)
 		}
-		if got == a.Providers.Kubernetes {
-			return fmt.Sprintf("Provider: hashicorp/kubernetes `%s` (matches the current pin).", got)
-		}
-		return fmt.Sprintf("Provider: hashicorp/kubernetes `%s`. **Stale**: the current pin is `%s`.", got, a.Providers.Kubernetes)
 	}
-	got := r.LastRun.AWSProviderVersion
+	// A floci-eks row (#1113) configures hashicorp/kubernetes as well, and
+	// gets both notes.
+	if UsesKubernetesProvider(r.Substrate) {
+		if n := providerPinNote("hashicorp/kubernetes", r.LastRun.KubernetesProviderVersion, a.Providers.Kubernetes); n != "" {
+			notes = append(notes, n)
+		}
+	}
+	return strings.Join(notes, " ")
+}
+
+// providerPinNote is one provider's half of providerNote.
+func providerPinNote(name, got, pin string) string {
 	if got == "" {
 		return ""
 	}
-	if got == a.Providers.AWS {
-		return fmt.Sprintf("Provider: hashicorp/aws `%s` (matches the current pin).", got)
+	if got == pin {
+		return fmt.Sprintf("Provider: %s `%s` (matches the current pin).", name, got)
 	}
-	return fmt.Sprintf("Provider: hashicorp/aws `%s`. **Stale**: the current pin is `%s`.", got, a.Providers.AWS)
+	return fmt.Sprintf("Provider: %s `%s`. **Stale**: the current pin is `%s`.", name, got, pin)
 }
 
 // Canonical is the board's on-disk form: two-space indented, trailing
