@@ -144,7 +144,7 @@ func TestSurfaceOf(t *testing.T) {
 		"no surface":         {&configschema.Block{}, ""},
 	}
 	for name, tc := range cases {
-		got, ok := SurfaceOf(tc.block)
+		got, ok := SurfaceOf("", tc.block)
 		if got != tc.surface || ok != (tc.surface != "") {
 			t.Errorf("%s: SurfaceOf = %q, %v; want %q", name, got, ok, tc.surface)
 		}

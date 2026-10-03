@@ -103,7 +103,7 @@ func TestKindLaneClearRowIsNeverEmulatorStale(t *testing.T) {
 	a := &Artifact{Estates: []EstateResult{
 		{Name: "k8s-clear", Protocol: ProtocolGauntlet, Stages: passEverything(), LastRun: &LastRun{Commit: "c", Date: "2026-01-01T00:00:00Z", SubstrateImage: kindPin}},
 	}}
-	a.Rebuild(m, &BehaviorIndex{}, "ghcr.io/lex00/floci@sha256:current", OracleVersions{}, ProviderVersions{}, "")
+	a.Rebuild(m, &BehaviorIndex{}, "ghcr.io/lex00/floci@sha256:current", OracleVersions{}, ProviderVersions{}, "", "")
 
 	for _, r := range a.Estates {
 		if r.Name == "k8s-clear" && !r.Clear {
@@ -137,7 +137,7 @@ func TestKindLaneClearRowGoesStaleOnANodeImageBump(t *testing.T) {
 		{Name: "k8s-old", Protocol: ProtocolGauntlet, Stages: passEverything(), LastRun: &LastRun{Commit: "c", Date: "2026-01-01T00:00:00Z", SubstrateImage: oldImage}},
 		{Name: "k8s-new", Protocol: ProtocolGauntlet, Stages: passEverything(), LastRun: &LastRun{Commit: "c", Date: "2026-01-01T00:00:00Z", SubstrateImage: newImage}},
 	}}
-	a.Rebuild(m, &BehaviorIndex{}, "ghcr.io/lex00/floci@sha256:current", OracleVersions{}, ProviderVersions{}, "")
+	a.Rebuild(m, &BehaviorIndex{}, "ghcr.io/lex00/floci@sha256:current", OracleVersions{}, ProviderVersions{}, "", "")
 
 	var got *Unit
 	for _, u := range NextUnits(a, "all", newImage) {

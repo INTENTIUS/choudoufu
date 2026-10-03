@@ -97,6 +97,7 @@ site/public/
 /forkdiff-gen
 /harness-gen
 /iamref-gen
+/largeset-gen
 /importdocs-gen
 /importer-probe
 /limits-gen

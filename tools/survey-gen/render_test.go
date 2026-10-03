@@ -9,13 +9,14 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
 // TestSurveyMDRenderedSpans holds SURVEY.md's four rendered spans - the
 // raw-signals sentence, the Summary path-count table, the Provider-wide
-// paragraph (issue #679), and the Status table's wired-count cell (issue
-// #54) - byte-for-byte to what the renderer produces from the committed
+// paragraph (issue #679), and the Status vocabulary table (issues #54 and
+// #1249) - byte-for-byte to what the renderer produces from the committed
 // live/survey.json, live/survey-full.json, the doc's own per-type table,
 // and the compiled admission table. No provider, so it is not gated; drift
 // between the artifacts and the doc fails here with the command that fixes
@@ -61,6 +62,7 @@ func TestSurveyMDRenderedSpans(t *testing.T) {
 		{spanRawSignals, renderRawSignals(survey.Counts)},
 		{spanSummary, renderSummary(rows)},
 		{spanProviderWide, renderProviderWide(full)},
+		{spanStatusVocabulary, renderStatusVocabulary(rows)},
 	} {
 		got, err := spanContent(surveyMDRel, md, span.name)
 		if err != nil {
@@ -71,15 +73,6 @@ func TestSurveyMDRenderedSpans(t *testing.T) {
 			t.Errorf("%s's %q span is stale; run `go run ./tools/survey-gen -render` and commit the result.\n--- committed ---\n%s--- rendered ---\n%s",
 				surveyMDRel, span.name, got, span.want)
 		}
-	}
-
-	// wired-count is inline (a single Markdown table cell), so it is
-	// checked with the inline-marker reader rather than spanContent.
-	if got, err := spanContentInline(surveyMDRel, md, spanWiredCount); err != nil {
-		t.Errorf("%v", err)
-	} else if want := renderWiredCount(); got != want {
-		t.Errorf("%s's %q span is stale; run `go run ./tools/survey-gen -render` and commit the result.\n--- committed ---\n%s--- rendered ---\n%s",
-			surveyMDRel, spanWiredCount, got, want)
 	}
 
 	// The whole-file check catches what the per-span one cannot: a marker
@@ -105,5 +98,36 @@ func TestSurveyMDRenderedSpans(t *testing.T) {
 		case r.Path == o.counted:
 			t.Errorf("stale summary override for %s: the table already says %q; remove it", typeName, o.counted)
 		}
+	}
+}
+
+// TestReadRosterRefusesAStatusOutsideTheVocabulary is the red arm of the
+// Status closure (#1249): a per-type row carrying a token with no
+// statusVocabulary entry must stop the render, not be tallied into nothing.
+func TestReadRosterRefusesAStatusOutsideTheVocabulary(t *testing.T) {
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	md, err := os.ReadFile(filepath.Join(root, surveyMDRel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const real = "| aws_sns_topic_subscription | parent-derived | markerless |"
+	if strings.Count(string(md), real) != 1 {
+		t.Fatalf("expected exactly one %q to plant into", real)
+	}
+	planted := filepath.Join(t.TempDir(), "SURVEY.md")
+	mutated := strings.Replace(string(md), real, "| aws_sns_topic_subscription | parent-derived | deferred |", 1)
+	if err := os.WriteFile(planted, []byte(mutated), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readRoster(planted); err == nil {
+		t.Fatal("readRoster accepted a Status outside the vocabulary")
+	} else {
+		t.Logf("refused as required: %v", err)
+	}
+	if _, err := readRoster(filepath.Join(root, surveyMDRel)); err != nil {
+		t.Fatalf("the committed table fails its own vocabulary: %v", err)
 	}
 }

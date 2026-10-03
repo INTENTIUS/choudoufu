@@ -322,6 +322,14 @@ func initCommands(meta command.Meta) {
 			}, nil
 		},
 
+		// GitHub issue #1752: plan a set of estate roots in one
+		// invocation, sharing one provider install across them.
+		"live-plan-set": func() (cli.Command, error) {
+			return &command.LivePlanSetCommand{
+				Meta: meta,
+			}, nil
+		},
+
 		// GitHub issue #1341: the bucket's true state, whatever the
 		// configuration waives. It is what the runnable bucket project's
 		// `just verify` calls, so the project and the tool share one
@@ -346,6 +354,24 @@ func initCommands(meta command.Meta) {
 		// live-check's reason above.
 		"live-waves": func() (cli.Command, error) {
 			return &command.LiveWavesCommand{
+				Meta: meta,
+			}, nil
+		},
+
+		// GitHub issue #1753: the grouped plan summary over the set plan's
+		// document or one plan. It reads JSON and prints; public from the
+		// start for live-check's reason above.
+		"live-summary": func() (cli.Command, error) {
+			return &command.LiveSummaryCommand{
+				Meta: meta,
+			}, nil
+		},
+
+		// GitHub issue #1751: which estate roots a git range touches. It
+		// reads configuration from git and prints; public from the start
+		// for live-check's reason above.
+		"live-affected": func() (cli.Command, error) {
+			return &command.LiveAffectedCommand{
 				Meta: meta,
 			}, nil
 		},

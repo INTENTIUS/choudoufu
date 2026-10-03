@@ -115,7 +115,7 @@ func Scan(changes []*plans.ResourceInstanceChangeSrc, schemaFor SchemaFor) []Rem
 		before, _ := change.Before.UnmarkDeep()
 		after, _ := change.After.UnmarkDeep()
 
-		surface, ok := substrate.SurfaceOf(schema.Block)
+		surface, ok := substrate.SurfaceOf(src.ProviderAddr.Provider.Type, schema.Block)
 		if !ok {
 			continue
 		}
@@ -257,7 +257,7 @@ func ScanCreates(changes []*plans.ResourceInstanceChangeSrc, schemaFor SchemaFor
 			continue
 		}
 		after, _ := change.After.UnmarkDeep()
-		surface, ok := substrate.SurfaceOf(schema.Block)
+		surface, ok := substrate.SurfaceOf(src.ProviderAddr.Provider.Type, schema.Block)
 		if !ok {
 			continue
 		}

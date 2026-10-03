@@ -4245,6 +4245,25 @@ func (b *builder) providerFor(rc *configs.Resource, modPath addrs.Module, typeNa
 	return addrs.AbsProviderConfig{Module: modPath, Provider: implied}, true
 }
 
+// providerType is the type name of the provider addr is read through
+// ([builder.providerFor]: its block's, or an undeclared instance's), for a
+// surface question asked of that provider's family ([substrate.SurfaceOf],
+// GitHub issue #1742). Empty when providerFor cannot say.
+func (b *builder) providerType(addr addrs.AbsResourceInstance, typeName string) string {
+	var rc *configs.Resource
+	if b.cfg == nil {
+		return ""
+	}
+	if modCfg, ok := identity.ConfigForModule(b.cfg, addr.Module); ok && modCfg != nil && modCfg.Module != nil {
+		rc = modCfg.Module.ResourceByAddr(addr.Resource.Resource)
+	}
+	p, ok := b.providerFor(rc, addr.Module.Module(), typeName, addr)
+	if !ok {
+		return ""
+	}
+	return p.Provider.Type
+}
+
 // impliedProviderName is the local provider name a resource type implies:
 // everything before the first underscore, which is the rule the configuration
 // loader uses for a resource block with no provider argument.

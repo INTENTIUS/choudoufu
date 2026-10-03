@@ -415,7 +415,7 @@ func nodeStampMarkerConflicts(ctx context.Context, cfg *configs.Config, result *
 		return diags
 	}
 
-	resolver := &projection.NodeResolver{Estate: estate, Selection: identity.SelectionFor(cfg)}
+	resolver := &projection.NodeResolver{Estate: estate, Selection: identity.SelectionFor(cfg), Config: cfg}
 
 	for _, r := range result.All() {
 		typeName := r.Addr.Resource.Resource.Type

@@ -144,7 +144,7 @@ func (n *NodeResolver) adjustConfigValue(_ context.Context, addr addrs.AbsResour
 	// GitHub issue #1585: the surface is the substrate's answer, the same
 	// one live-mv and live-import ask, and the write below dispatches on
 	// it by name ([NodeResolver.stampSurface]).
-	surface, ok := substrate.SurfaceOf(schema.Block)
+	surface, ok := substrate.SurfaceOf(n.providerType(addr), schema.Block)
 	if !ok {
 		return config, diags
 	}

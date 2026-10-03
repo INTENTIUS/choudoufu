@@ -225,7 +225,7 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 // a create at the declared one would not collide with it.
 func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, importID string, schema providers.Schema, obj cty.Value, declared, located, recordFirst, atDeclaredKey bool) ownershipVerdict {
 	own := b.opts.Ownership
-	surface, _ := substrate.SurfaceOf(schema.Block)
+	surface, _ := substrate.SurfaceOf(b.providerType(addr, typeName), schema.Block)
 	switch {
 	case own == nil:
 		return ownershipOK
