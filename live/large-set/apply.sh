@@ -33,8 +33,8 @@
 #
 # The floci container this script starts is LEFT RUNNING, because the
 # estates it applied live in it; the script says how to remove it. An OCI
-# fixture's roots must already have their modules installed (oci.sh does
-# that), so they are initialised with -get=false.
+# fixture's roots install their module from the registry at init, so the
+# caller exports SSL_CERT_FILE naming the registry's CA (oci.sh does).
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
@@ -104,7 +104,6 @@ if [ -z "${TF_PLUGIN_CACHE_DIR:-}" ] && [ -d "$HOME/Library/Caches/choudoufu-tes
 fi
 
 init_args=(init -input=false -no-color)
-[ "$SOURCE" = oci ] && init_args+=(-get=false)
 
 total=0
 while IFS= read -r dir; do
