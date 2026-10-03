@@ -1,0 +1,65 @@
+# The multi-estate fixture for large change sets (issue #1750, epic #1749),
+# on dispatch only. It is deliberately in no per-PR path and has no
+# schedule: #1750's acceptance says "nothing added to per-PR CI; the fixture
+# runs on dispatch", and a cron here would also have to join
+# nightly-watch.yml's list (live/nightly_watch_test.go).
+#
+#   gh workflow run large-set.yml -R INTENTIUS/choudoufu --ref <branch>
+#
+# Two jobs, both against the pinned floci image (live/floci-image) on the
+# runner itself, nothing paid:
+#
+#   baseline  N=5 at module A, applied through live/large-set/apply.sh behind
+#             the counting proxy, then live-plan of the A -> B bump per
+#             estate, written as the gated record (internal/live/largeset,
+#             record.go) and uploaded. N=20 is the maintainer's call and is
+#             not an input here.
+#   oci       live/large-set/oci.sh: the module through a pinned oci:// source
+#             from a local registry, and a pin bump across a subset of roots.
+name: large-set
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: large-set
+  cancel-in-progress: false
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Baseline at N=5
+        env:
+          LARGESET_BASELINE: "1"
+          LARGESET_RECORD: ${{ runner.temp }}/baseline-n5.json
+        run: go test ./internal/live/largeset/ -run TestLargeSetBaselineAgainstFloci -v -count=1 -timeout 50m
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: large-set-baseline
+          path: ${{ runner.temp }}/baseline-n5.json
+          if-no-files-found: warn
+
+  oci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: OCI variant and pin bump
+        run: |
+          # The verdict line is the result; the exit status is not read.
+          bash live/large-set/oci.sh > "$RUNNER_TEMP/oci.verdict" || true
+          cat "$RUNNER_TEMP/oci.verdict"
+          grep -q '^LARGESET-OCI: green' "$RUNNER_TEMP/oci.verdict"
