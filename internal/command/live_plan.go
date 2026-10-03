@@ -591,6 +591,46 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// than gating on it. See [lint.CheckResidueAttributes].
 	diags = diags.Append(lint.CheckResidueAttributes(config, lctx))
 
+	// The estate name, read from the same two sources discovery and stamping
+	// read it from. Their diagnostics about it are raised below, in their own
+	// voices; this call is for the ownership rule the projection needs, which
+	// has to know the estate before anything is materialized. Moved ahead of
+	// [statelessProviderDataReads] (it used to sit between that call and
+	// [statelessDiscover]) because that fixpoint's own record-rung read
+	// needs the record store before it, not after - see recordStoreForReads'
+	// own comment below. Moved again, ahead of [statelessDataReads], by
+	// GitHub issue #1575: an identity-bearing argument may read
+	// data "terraform_estate_outputs", which that phase now reads through
+	// the store opened here, so the store has to be open before it runs.
+	// live_mode.go's PriorState already opens it in this order.
+	estate, _, _ := statelessEstateFor(ctx, estateFlag, config)
+
+	// The estate's record store, when the live block names one - opened
+	// here originally only as guided discovery's hint source (issue #109),
+	// now also read from directly by statelessProviderDataReads. This command
+	// previews, so a store that could not be REACHED does not stop it: it
+	// goes on hintless and recordless and says so as a warning. A store that
+	// REFUSED stops it. See [openRecordStoreAsOneMoreSource] and GitHub issue
+	// #1376, before which both kinds were a log line.
+	var hintStore staterecord.Store
+	if config.Module != nil && config.Module.Live != nil {
+		store, storeDiags := openRecordStoreAsOneMoreSource(ctx, projection.NewRecordStore, config.Module.Live.RecordStore, config.Module.Live.Retry, estate, "live-plan")
+		diags = diags.Append(storeDiags)
+		if storeDiags.HasErrors() {
+			diags = diags.Append(provs.close(ctx))
+			return 1, false, diags
+		}
+		hintStore = store
+		// GitHub issue #1371: terraform_estate_outputs reads through the
+		// same store. A store this command went on without refuses every
+		// such read, naming why, rather than answering "not recorded".
+		unavailable := ""
+		if store == nil {
+			unavailable = "this live-plan could not open the record store (see the warning about it)"
+		}
+		c.liveEstateOutputs().open(store, config.Module.Live.RecordStore, estate, unavailable)
+	}
+
 	// GitHub issue #179's data-read phase, between the subset check and
 	// resolution: when an identity, a count or a for_each needs a data
 	// source's value, read it now, from the same configured provider
@@ -644,41 +684,6 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		return 1, false, diags
 	}
 
-	// The estate name, read from the same two sources discovery and stamping
-	// read it from. Their diagnostics about it are raised below, in their own
-	// voices; this call is for the ownership rule the projection needs, which
-	// has to know the estate before anything is materialized. Moved ahead of
-	// [statelessProviderDataReads] (it used to sit between that call and
-	// [statelessDiscover]) because that fixpoint's own record-rung read
-	// needs the record store before it, not after - see recordStoreForReads'
-	// own comment below.
-	estate, _, _ := statelessEstateFor(ctx, estateFlag, config)
-
-	// The estate's record store, when the live block names one - opened
-	// here originally only as guided discovery's hint source (issue #109),
-	// now also read from directly by statelessProviderDataReads. This command
-	// previews, so a store that could not be REACHED does not stop it: it
-	// goes on hintless and recordless and says so as a warning. A store that
-	// REFUSED stops it. See [openRecordStoreAsOneMoreSource] and GitHub issue
-	// #1376, before which both kinds were a log line.
-	var hintStore staterecord.Store
-	if config.Module != nil && config.Module.Live != nil {
-		store, storeDiags := openRecordStoreAsOneMoreSource(ctx, projection.NewRecordStore, config.Module.Live.RecordStore, config.Module.Live.Retry, estate, "live-plan")
-		diags = diags.Append(storeDiags)
-		if storeDiags.HasErrors() {
-			diags = diags.Append(provs.close(ctx))
-			return 1, false, diags
-		}
-		hintStore = store
-		// GitHub issue #1371: terraform_estate_outputs reads through the
-		// same store. A store this command went on without refuses every
-		// such read, naming why, rather than answering "not recorded".
-		unavailable := ""
-		if store == nil {
-			unavailable = "this live-plan could not open the record store (see the warning about it)"
-		}
-		c.liveEstateOutputs().open(store, config.Module.Live.RecordStore, estate, unavailable)
-	}
 	// recordStoreForReads is the same wrapper [statelessDiscover] gets below
 	// as recordShrinkStore, built once here and unconditionally (unlike
 	// recordShrinkStore, never gated on GitHub issue #388's migration

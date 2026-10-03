@@ -231,6 +231,13 @@ func BoundaryFor(cfg *configs.Config, analysis *Analysis, declared map[addrs.Pro
 // the boundary's actual subject. Excluding them would delete two features to
 // close nothing. The exemption is per SOURCE rather than per provider, so it
 // cannot widen to that provider's other data sources.
+//
+// GitHub issue #1575 adds a third: terraform_estate_outputs, also read
+// through the builtin terraform provider. It reads another estate's recorded
+// root outputs from this run's own record store - the store the run already
+// reads and writes - so it is a read of a system this run is already
+// reading, the boundary's own test, and it cannot run a program either. Its
+// failures are the record store's own named refusals, raised at read time.
 func (b Boundary) Allows(provider addrs.Provider, crossStack bool) bool {
 	if crossStack || b.live[provider] {
 		return true

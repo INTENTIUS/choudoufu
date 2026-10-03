@@ -423,6 +423,21 @@ func (r *reader) callRead(src *Source, provider providers.Interface, dsSchema pr
 	} else {
 		resp = provider.ReadDataSource(r.ctx, req)
 	}
+	if resp.Diagnostics.HasErrors() && src.EstateOutputs {
+		// GitHub issue #1575: the builtin provider answers this source from
+		// the record store through internal/live/projection's
+		// ReadEstateOutputs, whose refusals are already named and registered
+		// there - a missing grant names the other estate and the grant to
+		// add, an unrecorded output names the output - and the plan walk's
+		// own read of the same block raises them in exactly these words.
+		// Wrapping them in this phase's generic read failure would hide the
+		// one actionable sentence behind "the provider said", so they pass
+		// through as the store raised them. Warnings ride along only on
+		// failure; on success the plan walk raises the as-of warning itself,
+		// and raising it here too would say it twice.
+		r.diags = r.diags.Append(resp.Diagnostics)
+		return cty.NilVal, false
+	}
 	if resp.Diagnostics.HasErrors() {
 		switch {
 		case src.TfeOutputs:
