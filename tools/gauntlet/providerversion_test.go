@@ -48,11 +48,11 @@ func TestProviderVersionsMissingPinIsZeroValue(t *testing.T) {
 func TestRebuildSetsArtifactProviders(t *testing.T) {
 	m := &Manifest{Estates: []Estate{{Name: "a", Source: "s", Lane: "reference", Set: SetCore, Reason: "r"}}}
 	a := &Artifact{}
-	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{AWS: "6.63.0", Kubernetes: "3.2.1"}, "")
+	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{AWS: "6.63.0", Kubernetes: "3.2.1"}, "", "")
 	if a.Providers != (ProviderVersions{AWS: "6.63.0", Kubernetes: "3.2.1"}) {
 		t.Errorf("a.Providers = %+v after Rebuild, want the passed-in value", a.Providers)
 	}
-	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{AWS: "6.64.0", Kubernetes: "3.2.1"}, "")
+	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{AWS: "6.64.0", Kubernetes: "3.2.1"}, "", "")
 	if a.Providers != (ProviderVersions{AWS: "6.64.0", Kubernetes: "3.2.1"}) {
 		t.Errorf("a.Providers = %+v after a second Rebuild, want the refreshed value (not carried forward)", a.Providers)
 	}
@@ -108,7 +108,7 @@ func TestNextSurfacesStaleProviderPinEstates(t *testing.T) {
 		{Name: "c-stale-provider", Source: "s", Lane: "reference", Set: SetCore, Reason: "r"},
 	}}
 	a := &Artifact{}
-	a.Rebuild(m, nil, "pin", OracleVersions{}, ProviderVersions{AWS: "6.63.0"}, "")
+	a.Rebuild(m, nil, "pin", OracleVersions{}, ProviderVersions{AWS: "6.63.0"}, "", "")
 
 	allPass := map[string]string{}
 	for _, s := range active {
@@ -131,7 +131,7 @@ func TestNextSurfacesStaleProviderPinEstates(t *testing.T) {
 	}
 	setLastRun("c-fresh", "pin", "6.63.0")
 	setLastRun("c-stale-provider", "pin", "6.58.0")
-	a.Rebuild(m, nil, "pin", OracleVersions{}, ProviderVersions{AWS: "6.63.0"}, "")
+	a.Rebuild(m, nil, "pin", OracleVersions{}, ProviderVersions{AWS: "6.63.0"}, "", "")
 
 	units := NextUnits(a, "all", "")
 	var ids []string
