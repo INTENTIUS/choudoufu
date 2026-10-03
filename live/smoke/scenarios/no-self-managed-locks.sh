@@ -97,7 +97,43 @@ if [ -n "$LOSER" ]; then
   proof "the platform's own 409 was the referee - one create won and AWS itself told the loser. No lock existed anywhere in the exchange."
 elif [ "$A_RC" -eq 0 ] && [ "$B_RC" -eq 0 ]; then
   ADDS=$(( $(grep -oE 'Resources: [0-9]+ added' "$SMOKE_WORK/a.out" | grep -oE '[0-9]+') + $(grep -oE 'Resources: [0-9]+ added' "$SMOKE_WORK/b.out" | grep -oE '[0-9]+') ))
-  [ "$ADDS" -eq 1 ] || fail "locks" "both applies succeeded but created $ADDS roles between them - the platform should have allowed exactly one"
+  if [ "$ADDS" -ne 1 ]; then
+    # #1821: two "1 added" lines mean two CreateRole calls for one name both
+    # came back 200. Real IAM cannot do that; the emulator could, because
+    # floci's IamService.createRole checks for the name and then puts it with
+    # nothing holding the two together, so two requests that land inside
+    # that window both pass the check. Which side is wrong is settled by the
+    # RoleId each copy recorded from its own CreateRole response: two
+    # different ids are two roles minted for one name, which is the
+    # emulator's uniqueness constraint failing and nothing choudoufu sent or
+    # skipped; one id in both is a create one copy reported without having
+    # made it, which is choudoufu's. Either way the race was not refereed and
+    # this step has proved nothing, so both arms fail; they differ only in
+    # whom the failure names.
+    role_id_of() {
+      python3 - "$1/.terraform/choudoufu-cache.tfstate" <<'PYEOF'
+import json, sys
+try:
+    st = json.load(open(sys.argv[1]))
+except Exception:
+    sys.exit(0)
+for r in st.get("resources", []):
+    if r.get("type") == "aws_iam_role" and r.get("name") == "contender":
+        for i in r.get("instances", []):
+            print(i.get("attributes", {}).get("unique_id", ""))
+            sys.exit(0)
+PYEOF
+    }
+    ID_A="$(role_id_of "$SMOKE_WORK/a")"; ID_B="$(role_id_of "$SMOKE_WORK/b")"
+    ID_LIVE="$(awsl iam get-role --role-name smoke-locks-contender --query 'Role.RoleId' --output text 2>&1 || true)"
+    if [ -z "$ID_A" ] || [ -z "$ID_B" ]; then
+      fail "locks" "both applies succeeded but created $ADDS roles between them, and the RoleId a copy recorded could not be read back (a='$ID_A' b='$ID_B' live='$ID_LIVE'), so whether the emulator minted two roles or choudoufu reported a create it did not make is unsettled"
+    elif [ "$ID_A" != "$ID_B" ]; then
+      fail "locks" "both applies succeeded but created $ADDS roles between them: the emulator answered two CreateRole calls for smoke-locks-contender with two RoleIds (a=$ID_A b=$ID_B, live=$ID_LIVE). Real IAM refuses the second with 409 EntityAlreadyExists; this is floci's createRole check-then-put race (#1821), not choudoufu, and the evidence this step needs does not exist until the pinned image enforces the name atomically"
+    else
+      fail "locks" "both applies succeeded and reported $ADDS creates between them, but both copies recorded the same RoleId ($ID_A, live=$ID_LIVE): one copy reported a create it did not make - choudoufu swallowed the platform's refusal (#1821)"
+    fi
+  fi
   LOSER=b
   echo "both applies exited 0; exactly 1 create happened - the later run bound to the winner's role during its own plan" | evidence
   proof "the race settled even earlier: the second run read reality mid-plan and had nothing left to create."
