@@ -420,6 +420,22 @@ func (r *reader) callRead(src *Source, provider providers.Interface, dsSchema pr
 				src.Resource.String(), src.NeededBy, encDiags.Error())
 		}
 		resp = tfp.ReadDataSourceEncrypted(r.ctx, req, r.representativeInstance(src, keys), enc)
+	} else if src.EstateOutputs {
+		// GitHub issue #1575: terraform_estate_outputs is served by the same
+		// builtin provider, whose ordinary ReadDataSource panics for every
+		// type it serves; internal/tofu reaches this source through
+		// ReadDataSourceEncrypted too, which dispatches on the type name
+		// before touching the address or the encryption. Neither is used by
+		// an estate-outputs read, so this passes disabled encryption rather
+		// than building the configuration's own - a broken encryption block
+		// must not refuse a read that never decrypts anything.
+		tfp, ok := provider.(encryptedDataSourceReader)
+		if !ok {
+			return cty.NilVal, r.refuse(src, SummaryReadFailed,
+				"%s's provider does not support the builtin terraform provider's read path; this is a defect in the calling code.",
+				src.Resource.String())
+		}
+		resp = tfp.ReadDataSourceEncrypted(r.ctx, req, r.representativeInstance(src, keys), encryption.Disabled())
 	} else {
 		resp = provider.ReadDataSource(r.ctx, req)
 	}
