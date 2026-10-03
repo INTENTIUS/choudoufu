@@ -66,6 +66,10 @@ func (aws) AddressCarrier(surface markers.Surface) (key, noun string) {
 
 func (aws) Sweep() Sweep { return SweepTaggingIndex }
 
+// SweepFindsUnadmitted is false: the tagging-index sweep's universe is the
+// admission table, read a different way ([Sweeps]).
+func (aws) SweepFindsUnadmitted() bool { return false }
+
 func (aws) NewSweeper(cty.Value, bool) (Sweeper, error) { return nil, nil }
 
 // ---- GitHub issue #1584: the answers the projection's shadow enum held ----

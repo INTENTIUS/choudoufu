@@ -4601,16 +4601,18 @@ func (p *statelessProviders) labelListLeg(ctx context.Context, sub substrate.Sub
 // #1081) - whose sentence about a cluster it cannot reach is not the
 // plan's. A nil client with a nil error does not happen: err is set on
 // every path that returns no client.
-func (p *statelessProviders) kubernetesClient(ctx context.Context, addr addrs.AbsProviderConfig) (client *kubesweep.Client, types []string, manifestType string, schemaDiags tfdiags.Diagnostics, err error) {
+func (p *statelessProviders) kubernetesClient(ctx context.Context, addr addrs.AbsProviderConfig) (client kubesweep.Sweeper, types []string, manifestType string, schemaDiags tfdiags.Diagnostics, err error) {
 	sub, _ := substrate.ForProvider(addr.Provider.Type)
 	return p.labelListClient(ctx, sub, addr)
 }
 
 // labelListClient builds the cluster client through the family's own
-// [substrate.Substrate.NewSweeper] (GitHub issue #1580), which for a
-// label-listed family is a [substrate.LabelListSweeper]. sub nil, or a
-// family that builds any other client, is an error, never a nil client.
-func (p *statelessProviders) labelListClient(ctx context.Context, sub substrate.Substrate, addr addrs.AbsProviderConfig) (client *kubesweep.Client, types []string, manifestType string, schemaDiags tfdiags.Diagnostics, err error) {
+// [substrate.Substrate.NewSweeper] (GitHub issue #1580) and takes it
+// through the [substrate.Sweeper] interface (GitHub issue #1742): the
+// client must name its family's own sweep and list a cluster
+// (kubesweep.Sweeper), whatever its type. sub nil, or a client failing
+// either, is an error, never a nil client.
+func (p *statelessProviders) labelListClient(ctx context.Context, sub substrate.Substrate, addr addrs.AbsProviderConfig) (client kubesweep.Sweeper, types []string, manifestType string, schemaDiags tfdiags.Diagnostics, err error) {
 	schema, schemaDiags := p.mgr.GetProviderSchema(ctx, addr.Provider)
 	if schemaDiags.HasErrors() {
 		return nil, nil, "", schemaDiags, schemaDiags.Err()
@@ -4627,11 +4629,17 @@ func (p *statelessProviders) labelListClient(ctx context.Context, sub substrate.
 	if err != nil {
 		return nil, types, manifestType, nil, err
 	}
-	lls, isCluster := built.(substrate.LabelListSweeper)
-	if !isCluster || lls.Client == nil {
+	if built == nil {
 		return nil, types, manifestType, nil, fmt.Errorf("provider family %s built no cluster client", sub.Name())
 	}
-	return lls.Client, types, manifestType, nil, nil
+	if built.SweepKind() != sub.Sweep() {
+		return nil, types, manifestType, nil, fmt.Errorf("provider family %s built a client for the %s sweep, not its own %s sweep", sub.Name(), built.SweepKind(), sub.Sweep())
+	}
+	lister, isCluster := built.(kubesweep.Sweeper)
+	if !isCluster {
+		return nil, types, manifestType, nil, fmt.Errorf("provider family %s built a %s client that cannot list a cluster", sub.Name(), built.SweepKind())
+	}
+	return lister, types, manifestType, nil, nil
 }
 
 // kubernetesSweepAttrs is the Kubernetes substrate's reading of the
