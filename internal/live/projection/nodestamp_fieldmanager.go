@@ -105,9 +105,26 @@ func (n *NodeResolver) stampFieldManager(addr addrs.AbsResourceInstance, config 
 	return cty.ObjectVal(elems), diags
 }
 
+// fieldGranularWrittenMaps are the map attributes a field-granular type
+// writes into its object: metadata.labels, metadata.annotations, the pod
+// template's annotations, and a ConfigMap's or Secret's data. Read off
+// the schema by name, as the field-owner check in internal/command reads
+// them.
+var fieldGranularWrittenMaps = []string{"labels", "annotations", "template_annotations", "data"}
+
+// fieldGranularWrittenBlocks are the nested blocks a field-granular type
+// writes: one container's env, a node's taints.
+var fieldGranularWrittenBlocks = []string{"env", "taint"}
+
 // fieldGranularSeed puts this estate's field manager into the prior the
-// projection hands ReadResource, so the provider reads back the fields
-// this estate's manager owns. See this file's doc comment.
+// projection hands ReadResource, and takes the fields the block writes OUT
+// of it. hashicorp/kubernetes reads back the keys the manager owns plus
+// the keys the prior already names; seeded from configuration, a key some
+// other manager wrote would read back as if this estate's, and the plan
+// would show no change over a field this estate has never written. Left
+// out, the read is the manager's own fields and nothing else - this
+// estate's ownership, read off the API server. See this file's doc
+// comment.
 func fieldGranularSeed(seed map[string]cty.Value, estate string) map[string]cty.Value {
 	if estate == "" || markers.ValidFieldManagerEstate(estate) != "" {
 		return seed
@@ -116,8 +133,43 @@ func fieldGranularSeed(seed map[string]cty.Value, estate string) map[string]cty.
 	for k, v := range seed {
 		out[k] = v
 	}
+	for _, name := range fieldGranularWrittenMaps {
+		delete(out, name)
+	}
 	out[substrate.FieldManagerAttr] = cty.StringVal(markers.FieldManagerFor(estate))
 	return out
+}
+
+// fieldGranularHoldsFields reports whether a field-granular read came back
+// holding any written field: a non-empty written map, or a non-empty
+// written block. An unknown value counts as holding, so nothing is called
+// absent on a value this pass cannot see into.
+func fieldGranularHoldsFields(obj cty.Value, schema providers.Schema) bool {
+	if obj.IsNull() || !obj.IsKnown() || !obj.Type().IsObjectType() {
+		return true
+	}
+	obj, _ = obj.UnmarkDeep()
+	names := append(append([]string(nil), fieldGranularWrittenMaps...), fieldGranularWrittenBlocks...)
+	sawWritten := false
+	for _, name := range names {
+		if !obj.Type().HasAttribute(name) {
+			continue
+		}
+		sawWritten = true
+		v := obj.GetAttr(name)
+		if !v.IsKnown() {
+			return true
+		}
+		if v.IsNull() || !v.CanIterateElements() {
+			continue
+		}
+		if v.LengthInt() > 0 {
+			return true
+		}
+	}
+	// A schema none of whose attributes is a known written field is a
+	// shape this pass does not understand; it is never called absent.
+	return !sawWritten
 }
 
 // fieldGranularStub is the stub ImportResourceState would have returned for

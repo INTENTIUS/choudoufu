@@ -2239,12 +2239,6 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		// See stampManifestSeed's own doc comment.
 		attrsSeed = stampManifestSeed(addr, attrsSeed, b.opts.Ownership.Estate)
 	}
-	if b.opts.Ownership != nil && fieldGranularOwned("", schema) {
-		// GitHub issue #1191: the prior names this estate's field manager,
-		// so the provider reads back the fields that manager owns. See
-		// nodestamp_fieldmanager.go.
-		attrsSeed = fieldGranularSeed(attrsSeed, b.opts.Ownership.Estate)
-	}
 
 	// [builder.residueSeedFor] fills in whatever [configuredAttrsSeed] and
 	// [configuredTagsSeed] could not statically evaluate - a managed-
@@ -2270,6 +2264,15 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 			attrsSeed = make(map[string]cty.Value)
 		}
 		attrsSeed[name] = val
+	}
+
+	if b.opts.Ownership != nil && fieldGranularOwned("", schema) {
+		// GitHub issue #1191: the prior names this estate's field manager
+		// and none of the fields the block writes, so the provider reads
+		// back exactly the fields that manager owns. After the residue
+		// seed above, which would otherwise put the written fields back.
+		// See nodestamp_fieldmanager.go.
+		attrsSeed = fieldGranularSeed(attrsSeed, b.opts.Ownership.Estate)
 	}
 
 	// GitHub issues #1185 and #1240: one decode of the resource's own
@@ -4105,6 +4108,16 @@ func readImported(ctx context.Context, provider providers.Interface, schema prov
 	newVal := objchange.NormalizeObjectFromLegacySDK(readResp.NewState, schema.Block)
 	if !newVal.RawEquals(readResp.NewState) {
 		log.Printf("[WARN] projection: provider produced an invalid new value containing null blocks for %s %q", typeName, importID)
+	}
+
+	// GitHub issue #1191: a field-granular resource exists for this estate
+	// exactly when its field manager owns at least one field of the object
+	// it patches. The read was made under that manager with no written
+	// field in the prior (see [fieldGranularSeed]), so what came back is
+	// what the manager owns; nothing is absence, and the plan proposes the
+	// write as a create, as stock does for a block it has never applied.
+	if fieldGranularOwned("", schema) && !fieldGranularHoldsFields(newVal, schema) {
+		return nil, cty.NilVal, statusAbsent, diags
 	}
 
 	// GitHub issues #1079 and #1177: a manifest-surface prior carries the
