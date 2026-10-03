@@ -38,7 +38,9 @@ import (
 //     nothing else that could fence a read.
 //   - encryption_at_rest: whether the API server was started with an
 //     EncryptionConfiguration. Records hold secret material and a Secret is
-//     base64, not encryption.
+//     base64, not encryption. On a managed control plane named by a
+//     control_plane block, that provider's own setting (#1524, see
+//     kubernetescontrolplane.go).
 //   - estate_boundary: whether live/kubernetes/estate-boundary.yaml's policy
 //     AND its binding are installed and in force, since that is what fences
 //     writes to the record Secrets (#1392, decision 3).
@@ -182,6 +184,9 @@ func (s *KubernetesStore) CheckClusterContract(ctx context.Context, opts Cluster
 	opts.Estate = s.estate
 	opts.NamespaceKnownToExist = true
 	opts.InsecureTLS = s.insecureTLS
+	opts.ControlPlane = s.controlPlane
+	opts.ControlPlaneReader = s.controlPlaneReader
+	opts.APIServerHost = s.apiServerHost
 	return CheckClusterContract(ctx, s.clientset, opts)
 }
 
@@ -239,6 +244,24 @@ type ClusterContractOptions struct {
 	// because a clientset does not carry it, and it is a fact about the block,
 	// so it needs no request to establish. See [ClusterTLSVerification].
 	InsecureTLS bool
+
+	// ControlPlane names the managed control plane (EKS, GKE, AKS) this
+	// cluster runs on, when the record_store block's control_plane block
+	// names one or the exec credential plugin's arguments do (GitHub issue
+	// #1524). Set, encryption_at_rest is read from that provider's own API
+	// through ControlPlaneReader instead of off an API server Pod that a
+	// managed cluster does not have. Nil keeps the Pod reading.
+	ControlPlane *ManagedControlPlane
+
+	// ControlPlaneReader asks ControlPlane's provider. Required whenever
+	// ControlPlane is set; a nil one reports NOT CHECKED rather than
+	// guessing.
+	ControlPlaneReader ControlPlaneReader
+
+	// APIServerHost is the API server address cs reaches (rest.Config's
+	// Host). A provider's description of a cluster is believed only when one
+	// of its endpoints is this host; see kubernetescontrolplane.go.
+	APIServerHost string
 }
 
 // CheckClusterContract reads the four properties of the cluster cs reaches
@@ -280,7 +303,11 @@ func CheckClusterContract(ctx context.Context, cs kubernetes.Interface, opts Clu
 	}
 	findings = append(findings, isolation)
 
-	findings = append(findings, checkEncryptionAtRest(ctx, cs))
+	if opts.ControlPlane != nil {
+		findings = append(findings, checkManagedEncryption(ctx, opts))
+	} else {
+		findings = append(findings, checkEncryptionAtRest(ctx, cs))
+	}
 
 	boundary, err := checkEstateBoundary(ctx, cs, opts)
 	if err != nil {
@@ -768,7 +795,7 @@ func checkEncryptionAtRest(ctx context.Context, cs kubernetes.Interface) Finding
 	}
 	if len(servers) == 0 {
 		f.Outcome = NotChecked
-		f.Found = "not readable from here, not checked: no kube-apiserver static Pod is visible in kube-system, which is the normal case on a managed control plane (EKS, GKE, AKS), where " + encryptionProviderFlag + " is set outside the cluster and readable only through that provider's own API"
+		f.Found = "not readable from here, not checked: no kube-apiserver static Pod is visible in kube-system, which is the normal case on a managed control plane (EKS, GKE, AKS), where " + encryptionProviderFlag + " is set outside the cluster and readable only through that provider's own API; a control_plane block in the record_store \"kubernetes\" block naming the cluster makes this check ask that API"
 		if labelledOnly > 0 {
 			f.Found += fmt.Sprintf("; %d Pod(s) there carry the component=kube-apiserver label and are not the API server (no %s annotation and no Node owner), so nothing was read off them", labelledOnly, staticPodMirrorAnnotation)
 		}
