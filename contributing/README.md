@@ -41,7 +41,7 @@ under `live/`. Nothing is typed by hand, on the site or in a document.
 | `live/gauntlet.json` | `tools/gauntlet run` | How far each real estate got, stage by stage, against stock; the two bars on the site. |
 | `live/corpus-crossing-manifest.json` | the crossing runs | Superseded by `live/gauntlet.json`; kept until every script speaks the gauntlet protocol. |
 | `live/iam-reference.json` | `tools/iamref-gen` | Which AWS actions name `aws:ResourceTag`. |
-| `live/rowgen-buckets.json` | `tools/survey-gen` | The admission classifier's buckets. |
+| `live/rowgen-buckets.json` | `tools/row-gen -emit` | The row classifier's buckets, which `tools/survey-gen` renders into COVERAGE.md. |
 | `live/tag-verbs.json` | `tools/tagverbs-gen` | The tagging action per service. |
 
 Read `../HANDOFF.md` before quoting any of them. It says how to compute a

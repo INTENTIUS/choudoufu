@@ -46,7 +46,7 @@
 // raw-signal counts sentence, Summary path-count table, Provider-wide
 // substrate paragraph (issue #679, read from live/survey-full.json rather
 // than the curated 68 - so this span DOES need -all to have been run at
-// least once, unlike the other two) and wired-count cell;
+// least once, unlike the other two) and Status vocabulary table;
 // live/LIMITATIONS.md's five residue-roster spans and its
 // untaggable-admitted entry (issue #54); live/MARKERS.md's two estate-grant
 // governance spans, which say how much of the admitted table an IAM
