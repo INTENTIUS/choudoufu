@@ -35,6 +35,7 @@ func NewUiHook(view *View) *UiHook {
 		view:            view,
 		periodicUiTimer: defaultPeriodicUiTimer,
 		resources:       make(map[string]uiResourceState),
+		now:             time.Now,
 	}
 }
 
@@ -52,6 +53,10 @@ type UiHook struct {
 	view     *View
 
 	periodicUiTimer time.Duration
+
+	// now is the clock every elapsed figure is read from. Tests replace it
+	// so the figure does not depend on wall-clock time under load (#1790).
+	now func() time.Time
 
 	resourcesLock sync.Mutex
 	resources     map[string]uiResourceState
@@ -141,7 +146,7 @@ func (h *UiHook) PreApply(addr addrs.AbsResourceInstance, gen states.Generation,
 		IDKey:    idKey,
 		IDValue:  idValue,
 		Op:       op,
-		Start:    time.Now().Round(time.Second),
+		Start:    h.now().Round(time.Second),
 		DoneCh:   make(chan struct{}),
 		done:     make(chan struct{}),
 	}
@@ -193,7 +198,7 @@ func (h *UiHook) stillApplying(state uiResourceState) {
 			state.DispAddr,
 			msg,
 			idSuffix,
-			time.Now().Round(time.Second).Sub(state.Start),
+			h.now().Round(time.Second).Sub(state.Start),
 		))
 	}
 }
@@ -244,7 +249,7 @@ func (h *UiHook) PostApply(addr addrs.AbsResourceInstance, gen states.Generation
 
 	colorized := fmt.Sprintf(
 		h.view.colorize.Color("[reset][bold]%s: %s after %s%s"),
-		addrStr, msg, time.Now().Round(time.Second).Sub(state.Start), stateIdSuffix)
+		addrStr, msg, h.now().Round(time.Second).Sub(state.Start), stateIdSuffix)
 
 	h.println(colorized)
 
@@ -401,7 +406,7 @@ func (h *UiHook) preEphemeral(addr addrs.AbsResourceInstance, startMsg, stillRun
 	key := addr.String()
 	uiState := uiResourceState{
 		DispAddr: key,
-		Start:    time.Now().Round(time.Second),
+		Start:    h.now().Round(time.Second),
 		DoneCh:   make(chan struct{}),
 		done:     make(chan struct{}),
 	}
@@ -424,7 +429,7 @@ func (h *UiHook) preEphemeral(addr addrs.AbsResourceInstance, startMsg, stillRun
 				h.view.colorize.Color("[reset][bold]%s: %s [%s elapsed][reset]"),
 				uiState.DispAddr,
 				stillRunningMsg,
-				time.Now().Round(time.Second).Sub(uiState.Start),
+				h.now().Round(time.Second).Sub(uiState.Start),
 			))
 		}
 	}()
@@ -454,7 +459,7 @@ func (h *UiHook) postEphemeral(addr addrs.AbsResourceInstance, msg string) (tofu
 		h.view.colorize.Color("[reset][bold]%s: %s after %s"),
 		addrStr,
 		msg,
-		time.Now().Round(time.Second).Sub(state.Start),
+		h.now().Round(time.Second).Sub(state.Start),
 	)
 
 	h.println(colorized)
