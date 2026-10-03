@@ -261,3 +261,24 @@ func literalString(expr hcl.Expression) (string, bool) {
 	}
 	return v.AsString(), true
 }
+
+// EstatesRead is the distinct estates [ReadsOf] finds, sorted: the form
+// live-affected (GitHub issue #1751) reads, so the two commands share one
+// cross-estate reader. Its error is ReadsOf's: a read whose estate cannot be
+// told from configuration.
+func EstatesRead(cfg *configs.Config) ([]string, error) {
+	reads, err := ReadsOf(cfg)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, r := range reads {
+		if !seen[r.Estate] {
+			seen[r.Estate] = true
+			out = append(out, r.Estate)
+		}
+	}
+	sort.Strings(out)
+	return out, nil
+}

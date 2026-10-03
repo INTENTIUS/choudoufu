@@ -53,6 +53,9 @@ type rootGraph struct {
 	Reads []string
 	// LoadErr is why the graph could not be read whole, empty when it was.
 	LoadErr string
+	// ReadsErr is why the estates the root reads cannot be told (a read
+	// whose estate is not a literal), empty when they can.
+	ReadsErr string
 }
 
 // moduleCall is one module block as the graph records it.
@@ -68,7 +71,7 @@ type moduleCall struct {
 }
 
 // ReadsFunc names the estates a root's configuration reads through a
-// cross-estate reference (#561). [check.EstatesRead] is the default.
+// cross-estate reference (#561). [waves.EstatesRead] is the default.
 type ReadsFunc func(cfg *configs.Config) ([]string, error)
 
 // isConfigFile is the loader's own set of configuration file suffixes.
@@ -261,7 +264,9 @@ func loadRoot(ctx context.Context, parser *configs.Parser, tree, dir string, rea
 	if reads != nil {
 		r, err := reads(cfg)
 		if err != nil {
-			g.LoadErr = err.Error()
+			// The graph loaded; only who it reads is unknown. Attribution
+			// still runs on it, and the answer is indeterminate.
+			g.ReadsErr = err.Error()
 			return out
 		}
 		g.Reads = r
