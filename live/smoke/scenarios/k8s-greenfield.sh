@@ -36,7 +36,7 @@ explain \
   "an authoritative terraform.tfstate here; choudoufu keeps only a" \
   "disposable cache."
 cmd "choudoufu init && choudoufu apply -auto-approve"
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null ) || fail "k8s-greenfield" "init failed"
+logged k8s-greenfield-init "k8s-greenfield" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 APPLY_OUT="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "k8s-greenfield" "apply failed: $APPLY_OUT"
 grep -E 'Apply complete!' <<< "$APPLY_OUT" | evidence

@@ -227,8 +227,7 @@ resource "kubernetes_manifest" "crontab" {
 }
 TF
 cmd "terraform apply -auto-approve   # plain stock, no live block, a real terraform.tfstate"
-( cd "$SMOKE_WORK/stock" && terraform init -input=false -no-color >/dev/null 2>&1 ) \
-  || fail "k8s-custom-resource" "stock init failed"
+logged k8s-custom-resource-stock-init "k8s-custom-resource" "stock init failed" -- in_dir "$SMOKE_WORK/stock" terraform init -input=false -no-color
 STOCK_APPLY="$(cd "$SMOKE_WORK/stock" && terraform apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "k8s-custom-resource" "stock apply failed: $(tail -5 <<< "$STOCK_APPLY")"
 grep -qF "Apply complete! Resources: 2 added" <<< "$STOCK_APPLY" \
@@ -244,8 +243,7 @@ note "no tofu-estate label on the CronTab stock made (kubectl reads nothing)"
 { sed 's/^terraform {/terraform {\n\n  live {\n    estate = "smoke-crd-stock"\n  }\n/' "$SMOKE_WORK/stock/main.tf"; } > "$SMOKE_WORK/migrated/main.tf"
 cp "$SMOKE_WORK/migrated/main.tf" "$SMOKE_WORK/migrated/main.tf.full"
 sed '/^resource "kubernetes_manifest" "crontab"/,$d' "$SMOKE_WORK/migrated/main.tf.full" > "$SMOKE_WORK/migrated/main.tf.namespace-only"
-( cd "$SMOKE_WORK/migrated" && chdf init -input=false -no-color >/dev/null 2>&1 ) \
-  || fail "k8s-custom-resource" "init of the migrated root failed"
+logged k8s-custom-resource-migrated-init "k8s-custom-resource" "init of the migrated root failed" -- in_dir "$SMOKE_WORK/migrated" chdf init -input=false -no-color
 }
 
 # The two estate names step 14 and its BREAK control run under (#1396,
@@ -313,8 +311,7 @@ terraform {
 provider "kubernetes" {}
 TF
 cmd "terraform apply -auto-approve   # plain stock, no live block, two ConfigMaps in a real terraform.tfstate"
-( cd "$SMOKE_WORK/stock-cm" && terraform init -input=false -no-color >/dev/null 2>&1 ) \
-  || fail "k8s-custom-resource" "stock init of the ConfigMap root failed"
+logged k8s-custom-resource-stock-cm-init "k8s-custom-resource" "stock init of the ConfigMap root failed" -- in_dir "$SMOKE_WORK/stock-cm" terraform init -input=false -no-color
 CM_APPLY="$(cd "$SMOKE_WORK/stock-cm" && terraform apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "k8s-custom-resource" "stock apply of the two ConfigMaps failed: $(tail -5 <<< "$CM_APPLY")"
 grep -qF "Apply complete! Resources: 2 added" <<< "$CM_APPLY" \
@@ -344,8 +341,7 @@ terraform {
 
 provider "kubernetes" {}
 TF
-( cd "$SMOKE_WORK/migrated-cm" && chdf init -input=false -no-color >/dev/null 2>&1 ) \
-  || fail "k8s-custom-resource" "init of the migrated ConfigMap root failed"
+logged k8s-custom-resource-migrated-cm-init "k8s-custom-resource" "init of the migrated ConfigMap root failed" -- in_dir "$SMOKE_WORK/migrated-cm" chdf init -input=false -no-color
 }
 
 # cm_state is what "nothing on the cluster changed" is measured against:
@@ -365,7 +361,7 @@ explain \
   "that would have to be installed. Nothing is planned, nothing applied." \
   "live-check is offline and cannot ask a cluster; the plan can."
 cmd "choudoufu init && choudoufu plan   # no CRD installed yet"
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null ) || fail "k8s-custom-resource" "init failed"
+logged k8s-custom-resource-init "k8s-custom-resource" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 if kc get crd crontabs.stable.example.com >/dev/null 2>&1; then
   fail "k8s-custom-resource" "the CRD is already installed on a fresh cluster; this step measures nothing"
 fi

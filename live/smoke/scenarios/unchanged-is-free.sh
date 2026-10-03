@@ -40,7 +40,7 @@ cmd "choudoufu apply -auto-approve"
 stack_up
 export AWS_ENDPOINT_URL="$SMOKE_ENDPOINT"
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "unchanged" "init failed"
+logged unchanged-is-free-init "unchanged" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 ( cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "unchanged" "apply failed"
 proof "an estate up, a fresh cache beside it, nothing changed since."
 
@@ -83,7 +83,7 @@ explain \
   "read must refuse the run by name, because improvising values would" \
   "be planning against fiction."
 cmd "choudoufu apply ; edit the record ; choudoufu plan"
-( cd "$RECDIR" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "unchanged" "record init failed"
+logged unchanged-is-free-recdir-init "unchanged" "record init failed" -- in_dir "$RECDIR" chdf init -input=false -no-color
 ROUT="$(cd "$RECDIR" && chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "unchanged" "record apply failed: $ROUT"
 [ -f "$REC" ] || fail "unchanged" "no record file appeared at the expected key"
 if [ "${BREAK:-0}" = "1" ]; then

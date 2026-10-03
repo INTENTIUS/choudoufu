@@ -252,6 +252,13 @@ logged() {
   fail "$tag" "$msg. Its output is above, and whole in $file"
 }
 
+# in_dir runs a command from a directory, in a subshell, so the cd cannot
+# leak into the scenario: `logged <name> <tag> <msg> -- in_dir "$D" chdf
+# init ...` is `( cd "$D" && chdf init ... ) || fail` with the output kept
+# (#1717). The command may be a shell function, which `env -C` would not
+# reach.
+in_dir() { ( cd "$1" || exit 1; shift; "$@" ); }
+
 # smoke_log_tail prints the end of a kept log to stderr, fenced, so a reader
 # scrolling a job log can see where the borrowed output starts and stops.
 smoke_log_tail() { # <file> <what>

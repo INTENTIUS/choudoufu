@@ -451,8 +451,8 @@ explain \
   "object, so admission reads it and asks whether the caller holds that" \
   "estate; each does, and the writes go through."
 cmd "choudoufu apply -auto-approve   # in app/ as alice, then in net/ as bob"
-( cd "$APP" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "boundary" "init failed in app"
-( cd "$NET" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "boundary" "init failed in net"
+logged k8s-the-label-is-the-boundary-app-init "boundary" "init failed in app" -- in_dir "$APP" chdf init -input=false -no-color
+logged k8s-the-label-is-the-boundary-net-init "boundary" "init failed in net" -- in_dir "$NET" chdf init -input=false -no-color
 OUT="$(cd "$APP" && as_role alice chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "boundary" "Alice's apply of app failed: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
 grep -E 'Apply complete!' <<< "$OUT" | evidence
 grep -q 'Apply complete! Resources: 3 added' <<< "$OUT" || fail "boundary" "app did not report 3 added: $OUT"
@@ -531,7 +531,7 @@ if [ "${BREAK:-0}" = "1" ]; then
     "no here, and nothing but the policy did."
   cmd "git mv app/database.tf data/database.tf ; choudoufu live-mv -from-estate=app kubernetes_config_map.database kubernetes_config_map.database   # in data/, as alice, no grant on data, policy gone"
   sed '/depends_on/d' "$APP/database.tf" > "$DATA/database.tf" && rm "$APP/database.tf" || fail "boundary" "BREAK: the database block did not move from app to data"
-  ( cd "$DATA" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "boundary" "BREAK: init failed in data"
+  logged k8s-the-label-is-the-boundary-break-data-init "boundary" "BREAK: init failed in data" -- in_dir "$DATA" chdf init -input=false -no-color
   [ "$(can_use alice data)" = "false" ] || fail "boundary" "BREAK: alice holds data; the control would prove nothing"
   OUT="$(cd "$DATA" && as_role alice chdf live-mv -no-color -from-estate=app kubernetes_config_map.database kubernetes_config_map.database 2>&1)" || fail "boundary" "BREAK: with no policy, Alice's live-mv into an estate she does not hold was still refused: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
   denied "$OUT" && fail "boundary" "BREAK: the live-mv succeeded but the output still carries a refusal: $OUT"
@@ -1014,7 +1014,7 @@ cmd "git mv app/database.tf data/database.tf ; choudoufu live-mv -from-estate=ap
 # declared by app, not by the root the block is moving into.
 sed '/depends_on/d' "$APP/database.tf" > "$DATA/database.tf" && rm "$APP/database.tf" || fail "boundary" "the database block did not move from app to data"
 grep -q 'name      = "database"' "$DATA/database.tf" || fail "boundary" "the database block did not land in data"
-( cd "$DATA" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "boundary" "init failed in data"
+logged k8s-the-label-is-the-boundary-data-init "boundary" "init failed in data" -- in_dir "$DATA" chdf init -input=false -no-color
 OUT="$(cd "$DATA" && as_role alice chdf live-mv -no-color -from-estate=app kubernetes_config_map.database kubernetes_config_map.database 2>&1 || true)"
 printf '%s\n' "$OUT" > "$LOGS/alice-denied.live-mv"
 denied "$OUT" || fail "boundary" "Alice's live-mv into data, which she does not hold, was not refused by the policy (full output in $LOGS/alice-denied.live-mv): $(grep -E 'Error|Relabelled' <<< "$OUT" | head -3)"

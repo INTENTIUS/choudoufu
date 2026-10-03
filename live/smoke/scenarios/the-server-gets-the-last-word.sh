@@ -116,7 +116,7 @@ cmd "aws iam create-role deployer ; aws iam put-role-policy deployer allow-all ;
 awsl iam create-role --role-name deployer --assume-role-policy-document "$TRUST" >/dev/null || fail "$SCEN" "could not create the deployer role"
 awsl iam put-role-policy --role-name deployer --policy-name allow-all --policy-document "$ALLOW_ALL" || fail "$SCEN" "could not grant the deployer role"
 queue_block 30
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "$SCEN" "init failed"
+logged the-server-gets-the-last-word-init "$SCEN" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 APPLY0="$(cd "$SMOKE_WORK" && as_deployer chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "$SCEN" "the first apply failed: $APPLY0"
 grep -E 'Apply complete!' <<< "$APPLY0" | evidence

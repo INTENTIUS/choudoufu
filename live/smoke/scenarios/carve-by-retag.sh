@@ -119,7 +119,7 @@ explain \
   "generated terralith the ordinary way. Nothing here carries a marker;" \
   "identity exists only in terraform.tfstate."
 cmd "docker compose run opentofu -chdir=/work/monolith apply -auto-approve"
-stock -chdir=/work/monolith init -input=false -no-color >/dev/null 2>&1 || fail "carve" "stock init failed"
+logged carve-by-retag-stock-monolith-init "carve" "stock init failed" -- stock -chdir=/work/monolith init -input=false -no-color
 SOUT="$(stock -chdir=/work/monolith apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "carve" "stock apply failed: $(tail -20 <<< "$SOUT")"
 ADDED="$(grep -oE 'Resources: [0-9]+ added' <<< "$SOUT" | grep -oE '[0-9]+')"
@@ -139,7 +139,7 @@ explain \
   "plan reads the estate back off the tags."
 cmd "choudoufu live-import -state=terraform.tfstate -estate=$MONO_ESTATE -approve ; rm terraform.tfstate ; choudoufu plan"
 inject_live "$MONO/versions.tf" "$MONO_ESTATE"
-( cd "$MONO" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "carve" "choudoufu init failed in the monolith"
+logged carve-by-retag-mono-init "carve" "choudoufu init failed in the monolith" -- in_dir "$MONO" chdf init -input=false -no-color
 IOUT="$(cd "$MONO" && chdf live-import -state=terraform.tfstate -estate="$MONO_ESTATE" -approve -no-color 2>&1)" \
   || fail "carve" "live-import failed: $(tail -20 <<< "$IOUT")"
 pick "eligible for stamping|stamped" <<< "$IOUT" | head -2 | evidence
@@ -161,7 +161,7 @@ carve_team_config() {
            aws_iam_instance_profile:team_0001_profile; do
     move_block "$MONO/iam.tf" "${b%%:*}" "${b#*:}" "$TEAM/iam.tf"
   done
-  ( cd "$TEAM" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "carve" "choudoufu init failed in the team estate"
+  logged carve-by-retag-team-init "carve" "choudoufu init failed in the team estate" -- in_dir "$TEAM" chdf init -input=false -no-color
 }
 
 if [ "${BREAK:-0}" = "1" ]; then
@@ -295,7 +295,7 @@ s = s.replace(old, "execution_role_arn       = data.aws_iam_role.svc_0000_exec_r
 s += '\n# The execution role now lives in the tl-iam estate; read it by the name\n# both sides already know (live/OUTPUTS.md, the cross-estate pattern).\ndata "aws_iam_role" "svc_0000_exec_role" {\n  name = "tl-svc-0000-exec-role"\n}\n'
 open(p, 'w').write(s)
 PYEOF
-( cd "$IAM" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "carve" "choudoufu init failed in the iam estate"
+logged carve-by-retag-iam-init "carve" "choudoufu init failed in the iam estate" -- in_dir "$IAM" chdf init -input=false -no-color
 MV="$(cd "$IAM" && chdf live-mv -no-color -from-estate="$MONO_ESTATE" aws_iam_role.svc_0000_exec_role aws_iam_role.svc_0000_exec_role 2>&1)" \
   || fail "carve" "live-mv refused the execution role: $(tail -6 <<< "$MV")"
 EXEC_ESTATE="$(role_estate tl-svc-0000-exec-role)"

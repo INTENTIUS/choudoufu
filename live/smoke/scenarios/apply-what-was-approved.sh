@@ -25,7 +25,7 @@ explain \
 
 step "1. stand the estate up"
 cmd "choudoufu init && choudoufu apply -auto-approve"
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null ) || fail "approval" "init failed"
+logged apply-what-was-approved-init "approval" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 APPLY_OUT="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "approval" "apply failed: $APPLY_OUT"
 grep -E 'Apply complete!' <<< "$APPLY_OUT" | evidence

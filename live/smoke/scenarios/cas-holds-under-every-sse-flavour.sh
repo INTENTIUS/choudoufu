@@ -210,7 +210,7 @@ resource "terraform_data" "effect" {
 TFEOF
   }
   write_estate v1
-  ( cd "$d" && "$RUN_BIN" init -input=false -no-color >/dev/null 2>&1 ) || fail "sseflavours" "[$f] init failed"
+  logged "cas-holds-under-every-sse-flavour-$f-init" "sseflavours" "[$f] init failed" -- in_dir "$d" "$RUN_BIN" init -input=false -no-color
   A_OUT="$(cd "$d" && "$RUN_BIN" apply -auto-approve -input=false -no-color 2>&1)" && A_RC=0 || A_RC=$?
   if [ "${BREAK:-0}" = "1" ]; then
     if [ "$A_RC" = "0" ]; then

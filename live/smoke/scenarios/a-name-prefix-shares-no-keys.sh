@@ -61,7 +61,7 @@ awsl s3api put-public-access-block --bucket "$BUCKET" --public-access-block-conf
   || fail "nameprefix" "could not set the public-access block on the shared bucket"
 cmd "choudoufu apply -auto-approve   # in smoke-prod, then in smoke-prod-eu: same bucket, nothing else shared"
 for estate in prod prod-eu; do
-  ( cd "$SMOKE_WORK/$estate" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "nameprefix" "init failed in smoke-$estate"
+  logged "a-name-prefix-shares-no-keys-$estate-init" "nameprefix" "init failed in smoke-$estate" -- in_dir "$SMOKE_WORK/$estate" chdf init -input=false -no-color
   OUT="$(cd "$SMOKE_WORK/$estate" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
     || fail "nameprefix" "apply failed in smoke-$estate: $OUT"
   grep -qE 'Resources: 1 added' <<< "$OUT" || fail "nameprefix" "smoke-$estate's record-backed resource did not apply: $OUT"

@@ -142,7 +142,7 @@ explain \
 step "1. stand up the estate, and plan it alone"
 cmd "go run ./tools/terralith-gen -scale $OWNED_SCALE -prefix ow ; choudoufu apply ; choudoufu plan"
 terralith_at owned "$OWNED_SCALE" ow ow-estate | evidence
-( cd "$WORK/owned" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "foreignload" "owned init failed"
+logged plan-cost-under-foreign-load-work-owned-init "foreignload" "owned init failed" -- in_dir "$WORK/owned" chdf init -input=false -no-color
 ( cd "$WORK/owned" && chdf apply -auto-approve -input=false -no-color >"$LOGS/owned-apply.out" 2>&1 ) \
   || { tail -30 "$LOGS/owned-apply.out" >&2; fail "foreignload" "owned apply failed"; }
 grep "Apply complete" "$LOGS/owned-apply.out" | evidence
@@ -161,7 +161,7 @@ explain \
   "of somebody else's infrastructure the account now holds."
 cmd "go run ./tools/terralith-gen -scale $FOREIGN_SCALE -prefix fg ; choudoufu apply (estate fg-estate) ; choudoufu plan (ow-estate again)"
 terralith_at foreign "$FOREIGN_SCALE" fg fg-estate | evidence
-( cd "$WORK/foreign" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "foreignload" "foreign init failed"
+logged plan-cost-under-foreign-load-work-foreign-init "foreignload" "foreign init failed" -- in_dir "$WORK/foreign" chdf init -input=false -no-color
 ( cd "$WORK/foreign" && chdf apply -auto-approve -input=false -no-color >"$LOGS/foreign-apply.out" 2>&1 ) \
   || { tail -30 "$LOGS/foreign-apply.out" >&2; fail "foreignload" "foreign apply failed"; }
 grep "Apply complete" "$LOGS/foreign-apply.out" | evidence

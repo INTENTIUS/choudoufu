@@ -86,7 +86,7 @@ output "shared" {
   value = "v"
 }
 TFEOF
-( cd "$SMOKE_WORK/est" && "$RUN_BIN" init -input=false -no-color >/dev/null 2>&1 ) || fail "objecttags" "init failed"
+logged objects-carry-the-estate-tag-est-init "objecttags" "init failed" -- in_dir "$SMOKE_WORK/est" "$RUN_BIN" init -input=false -no-color
 cmd "choudoufu apply -auto-approve   # as the estate's role"
 A_OUT="$(run_as_estate apply -auto-approve -input=false -no-color 2>&1)" && A_RC=0 || A_RC=$?
 
