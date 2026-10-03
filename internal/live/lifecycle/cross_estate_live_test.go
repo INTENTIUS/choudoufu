@@ -19,8 +19,9 @@ import (
 // is a plain data source reading the producer's own live resource, not a
 // new SSM-parameter output surface built on the receipts machinery. See
 // live/OUTPUTS.md for the decision and its reasoning, and
-// internal/live/lint/lint.go's checkDataResources / live/LIMITATIONS.md's
-// "remote-state" entry for the refusal whose Detail names this pattern.
+// live/LIMITATIONS.md's remote-state staleness entry for why reading the
+// producer's live resource beats terraform_remote_state once the producer
+// has adopted markers and stopped writing its state file.
 //
 //	TF_FLOCI_TEST=1 go test ./internal/live/lifecycle/ -run TestCrossEstateDataSourceAgainstFloci -v
 //
@@ -184,8 +185,8 @@ resource "aws_vpc" "main" {
 // xeConsumerFixture is the endorsed pattern from live/OUTPUTS.md: a data
 // source of the producer's own resource type, filtered on the producer's
 // tofu-estate/tofu-address marker tags rather than a bespoke naming
-// convention or terraform_remote_state (banned,
-// internal/live/lint/lint.go's checkDataResources).
+// convention or terraform_remote_state (admitted since #179 stage 3, but
+// stale once the producer stops writing its state file).
 const xeConsumerFixture = `
 terraform {
   required_version = ">= 1.5.0"
