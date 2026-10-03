@@ -36,7 +36,7 @@ import "strings"
 //
 // Tier1Gated is a third, independent axis (#999): whether a headline
 // stage's activation evidence is a tier-1 fixture (live/behaviors.json,
-// #522's ruling) rather than 26 hand-written per-estate sections. #491 and
+// #522's ruling) rather than one hand-written section per estate. #491 and
 // #643 retired the sweep model that used to supply those sections, so an
 // estate with no section for such a stage is not evidence the estate
 // fails it - it is evidence the estate has never been asked to run it.

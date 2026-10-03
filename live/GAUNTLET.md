@@ -31,7 +31,7 @@ change that lowers the bars until estates catch up; a non-headline stage
 moving either bar.
 
 A headline stage marked "tier-1 gated" below (#999) activates on tier-1
-fixture evidence (`live/behaviors.json`, #522's ruling) rather than on 26
+fixture evidence (`live/behaviors.json`, #522's ruling) rather than on 31
 hand-written per-estate sections: an estate that has never been asked to
 run it reads `not_run` and stays clear, while a genuine `fail` on it still
 breaks clear, exactly as any other headline stage.
@@ -392,7 +392,7 @@ minimal fixture straight off the admission table, one resource block per
 type, required arguments only, and `live/cohort-acceptance.json` measures
 its round-trip identity against the emulator - the whole product claim for
 that type, at the cost of an apply and a replan rather than a full estate's
-fourteen stages on every future run. A type already in
+14 stages on every future run. A type already in
 `types_in_no_cohort` is still a cohort's job to pick up, seeding or
 extending one with `-types`, not an estate's.
 

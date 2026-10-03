@@ -811,7 +811,7 @@ func isClearFor(substrate string, stages map[string]string, current func(string)
 // to be both active and non-headline today (gauntlet_test.go).
 //
 // A stage marked Tier1Gated (#999) activates on tier-1 fixture evidence
-// rather than on 26 hand-written per-estate sections, so an estate that has
+// rather than on one hand-written section per estate, so an estate that has
 // never been asked to run it - "not_run" - is not a miss on that estate; it
 // is neutral, and the estate can still be clear. A genuine "fail" on a
 // Tier1Gated stage still breaks clear: the fixture gates activation, never
