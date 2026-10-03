@@ -40,12 +40,16 @@ const (
 	// per-type table's own Path column (modulo summaryOverrides below).
 	spanSummary = "summary"
 
-	// spanWiredCount is the Status table's `wired` row count: the admission
-	// table's global size (issue #54), not a tally of this file's own rows
-	// (identity.AdmittedTypes runs well past the curated 68, on the
-	// registry-ratified batches' account). Rendered so a batch that grows
-	// the admission table never has to hand-edit this digit.
-	spanWiredCount = "wired-count"
+	// spanStatusVocabulary is the Status vocabulary table: one row per
+	// statusVocabulary token, its meaning, and a tally of the per-type
+	// table's Status column (#1249). The `Rows below` column used to be
+	// hand-typed and had drifted on three tokens, and `markerless` was in
+	// two Status cells with no vocabulary row at all. The `wired` row's
+	// meaning also carries the admission table's global size (issue #54),
+	// which used to be an inline wired-count span in the Rows cell and
+	// made that one cell a different measurement from the rest of its
+	// column.
+	spanStatusVocabulary = "status-vocabulary"
 
 	// spanProviderWide is the "Provider-wide" paragraph: the two substrate
 	// findings and the trajectory percentages, computed from the
@@ -76,7 +80,7 @@ var summaryOverrides = map[string]struct {
 // runRender is the -render entry point: read the committed artifacts and
 // the committed docs, replace the marked spans, write the docs back. Three
 // docs are rendered this way: live/SURVEY.md (this function's original
-// scope, plus its wired-count span, issue #54), live/LIMITATIONS.md's
+// scope, plus its status-vocabulary span, issues #54 and #1249), live/LIMITATIONS.md's
 // residue-roster spans and untaggable-admitted span (issue #49 and #54,
 // renderLimitationsMD in residue_render.go and untaggable_render.go), and
 // live/COVERAGE.md's admitted-set spans (issue #54,
@@ -143,7 +147,7 @@ func renderSurveyMD(root string) error {
 	if err := os.WriteFile(mdPath, []byte(out), 0o644); err != nil { //nolint:gosec // a committed doc, not a secret
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "survey-gen: rewrote the %s, %s, %s and %s spans of %s\n", spanRawSignals, spanSummary, spanWiredCount, spanProviderWide, surveyMDRel)
+	fmt.Fprintf(os.Stderr, "survey-gen: rewrote the %s, %s, %s and %s spans of %s\n", spanRawSignals, spanSummary, spanStatusVocabulary, spanProviderWide, surveyMDRel)
 	return nil
 }
 
@@ -162,9 +166,7 @@ func renderSpans(md string, survey, full Survey, rows []HandRow) (string, error)
 	if err != nil {
 		return "", err
 	}
-	// Inline: the wired-count span sits inside a single Markdown table
-	// cell, where a literal newline would split the row.
-	return replaceSpanInline(surveyMDRel, md, spanWiredCount, renderWiredCount())
+	return replaceSpan(surveyMDRel, md, spanStatusVocabulary, renderStatusVocabulary(rows))
 }
 
 // renderProviderWide is the "Provider-wide" paragraph, computed from
@@ -222,6 +224,52 @@ func renderProviderWide(full Survey) string {
 // types this file's provider-schema survey never rostered.
 func renderWiredCount() string {
 	return fmt.Sprintf("%d", len(identity.AdmittedTypes()))
+}
+
+// statusVocabulary is SURVEY.md's Status column vocabulary, in table order.
+// readRoster refuses a per-type row whose Status is not here, so the
+// document's "nothing outside them appears in those columns" is enforced
+// rather than stated. A token stays in the vocabulary at zero rows when the
+// next survey may need it again (the document says why for
+// needs-account-derived).
+var statusVocabulary = []struct{ token, meaning string }{
+	{"wired", "in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today. The admission table holds %s types in all, most of them outside the rows below"},
+	{"ready", "admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one)"},
+	{"needs-account-derived", "classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components"},
+	{"ops", "excluded by the rule, forwarded to the lifecycle layer"},
+	{"unadmitted", "not excluded by the rule and not yet admissible: no ratified row covers the type, whether because the identity carries a server-minted component with nowhere to write the ownership marker (#233) or simply because no batch has reached it"},
+	{"blocked-emulator", "admissible, but the e2e emulator cannot serve it, so the row cannot be proven live"},
+	{"markerless", "retracted by the markerless rule (#249): the identity carries a server-assigned component and the type has no tags argument to write the marker into, so it was taken out of the admission and identity tables"},
+	{"unknown", "path not determined"},
+}
+
+func validStatus(token string) bool {
+	for _, s := range statusVocabulary {
+		if s.token == token {
+			return true
+		}
+	}
+	return false
+}
+
+// renderStatusVocabulary is the Status vocabulary table, with each token's
+// `Rows below` tallied from the per-type table.
+func renderStatusVocabulary(rows []HandRow) string {
+	counts := map[string]int{}
+	for _, r := range rows {
+		counts[r.Status]++
+	}
+	var b strings.Builder
+	b.WriteString("| Status | Meaning | Rows below |\n")
+	b.WriteString("|---|---|---|\n")
+	for _, s := range statusVocabulary {
+		meaning := s.meaning
+		if s.token == "wired" {
+			meaning = fmt.Sprintf(meaning, renderWiredCount())
+		}
+		fmt.Fprintf(&b, "| `%s` | %s | %d |\n", s.token, meaning, counts[s.token])
+	}
+	return b.String()
 }
 
 // renderRawSignals is the "Raw signals" headline sentence, in the exact

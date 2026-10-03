@@ -189,10 +189,32 @@ type ProviderVersions struct {
 
 // SetSummary is one headline bar.
 type SetSummary struct {
-	Label   string           `json:"label"`
-	Estates int              `json:"estates"`
-	Clear   int              `json:"clear"`
-	Stages  map[string]Tally `json:"stages"`
+	Label   string `json:"label"`
+	Estates int    `json:"estates"`
+	Clear   int    `json:"clear"`
+	// Verified and Carried split Clear in two (#1558, the maintainer's
+	// ruling of 2026-10-02 for its option 3): Verified counts the clear
+	// rows whose last run used the pins in force now - the substrate image
+	// (IsSubstrateStale), the stock oracle and the engine base - and
+	// Carried counts the rest, clear on evidence from an earlier pin.
+	// Verified + Carried == Clear always. A repin moves rows from Verified
+	// to Carried rather than out of Clear, so it does not read as a
+	// regression, and it still cannot pass for current evidence.
+	//
+	// The provider version is left out on purpose: an estate whose own
+	// configuration constrains hashicorp/aws below the pin records a
+	// different version on every run, so a mismatch there is not evidence
+	// the measurement moved. providerNote and providerBanner still say so.
+	Verified int              `json:"verified"`
+	Carried  int              `json:"carried"`
+	Stages   map[string]Tally `json:"stages"`
+}
+
+// ClearPhrase is a bar as one line prints it: "N of M clear (V verified,
+// C carried)". Every printed bar goes through it, so none can quote Clear
+// without the split behind it (#1558).
+func (s SetSummary) ClearPhrase() string {
+	return fmt.Sprintf("%d of %d clear (%d verified, %d carried)", s.Clear, s.Estates, s.Verified, s.Carried)
 }
 
 // Tally counts verdicts for one stage over one set.
@@ -480,6 +502,24 @@ func IsSubstrateStale(r EstateResult, emulator, kindImage string) bool {
 	return IsStale(r, emulator)
 }
 
+// pinCurrent returns the predicate SetSummary.Verified counts by (#1558):
+// r's last run used the substrate image, the stock oracle and the engine
+// base this artifact now pins. Each half reuses the rule the board already
+// shows for it (IsSubstrateStale, oracleNote's comparison, IsEngineStale),
+// so a row the board marks **Stale** is never counted as verified. A row
+// with no run, or a run that recorded no oracle, has no evidence of being
+// current and is not.
+func (a *Artifact) pinCurrent(kindImage string) func(EstateResult) bool {
+	return func(r EstateResult) bool {
+		if r.LastRun == nil || r.LastRun.Oracle == nil {
+			return false
+		}
+		return !IsSubstrateStale(r, a.Emulator, kindImage) &&
+			*r.LastRun.Oracle == a.Oracle &&
+			!IsEngineStale(r, a.UpstreamVersion)
+	}
+}
+
 // IsProviderStale mirrors IsStale for the provider-version pin issue
 // #1253 tracks: r.Substrate selects which field is the relevant one, the
 // same split LastRun's own AWSProviderVersion/KubernetesProviderVersion
@@ -570,7 +610,7 @@ func loadArtifactFile(path string) (*Artifact, error) {
 //
 // engine is a.UpstreamVersion's fresh value (#1778 ruling 6), the engine
 // base read from version/VERSION (engineVersion, engine.go).
-func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, oracle OracleVersions, providers ProviderVersions, engine string) {
+func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, oracle OracleVersions, providers ProviderVersions, engine, kindImage string) {
 	prev := map[string]EstateResult{}
 	for _, r := range a.Estates {
 		prev[r.Name] = r
@@ -654,7 +694,7 @@ func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, orac
 
 	a.Sets = map[string]SetSummary{}
 	for key, label := range SetLabels {
-		a.Sets[key] = tallyRows(label, rows, func(r EstateResult) bool {
+		a.Sets[key] = tallyRows(label, rows, a.pinCurrent(kindImage), func(r EstateResult) bool {
 			// The two headline bars are the emulator's: a kind-substrate
 			// row is counted in its lane below and nowhere else (#1067).
 			if r.Substrate != "" {
@@ -666,7 +706,7 @@ func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, orac
 	a.Lanes = map[string]SetSummary{}
 	for _, lane := range KnownLanes {
 		lane := lane
-		sum := tallyRows(lane+" lane", rows, func(r EstateResult) bool { return r.Lane == lane })
+		sum := tallyRows(lane+" lane", rows, a.pinCurrent(kindImage), func(r EstateResult) bool { return r.Lane == lane })
 		if sum.Estates > 0 {
 			a.Lanes[lane] = sum
 		}
@@ -691,7 +731,10 @@ func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, orac
 // Unknown provenance is not stale, here as everywhere else: StageCarried
 // answers false for a stage with no recorded entry, so every row written
 // before this field existed tallies exactly as it always has.
-func tallyRows(label string, rows []EstateResult, keep func(EstateResult) bool) SetSummary {
+//
+// current says whether a row was measured on the pins in force now; a clear
+// row it rejects is Carried rather than Verified (#1558).
+func tallyRows(label string, rows []EstateResult, current, keep func(EstateResult) bool) SetSummary {
 	sum := SetSummary{Label: label, Stages: map[string]Tally{}}
 	for _, r := range rows {
 		if !keep(r) {
@@ -700,6 +743,11 @@ func tallyRows(label string, rows []EstateResult, keep func(EstateResult) bool) 
 		sum.Estates++
 		if r.Clear {
 			sum.Clear++
+			if current(r) {
+				sum.Verified++
+			} else {
+				sum.Carried++
+			}
 		}
 		for _, s := range Stages() {
 			t := sum.Stages[s.ID]
@@ -763,7 +811,7 @@ func isClearFor(substrate string, stages map[string]string, current func(string)
 // to be both active and non-headline today (gauntlet_test.go).
 //
 // A stage marked Tier1Gated (#999) activates on tier-1 fixture evidence
-// rather than on 26 hand-written per-estate sections, so an estate that has
+// rather than on one hand-written section per estate, so an estate that has
 // never been asked to run it - "not_run" - is not a miss on that estate; it
 // is neutral, and the estate can still be clear. A genuine "fail" on a
 // Tier1Gated stage still breaks clear: the fixture gates activation, never

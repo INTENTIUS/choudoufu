@@ -185,22 +185,27 @@ server-generated suffix (flag F4 is that case).
 `Status` says what stands between the row and working code. Exactly one
 token per row.
 
-| Status | Meaning | Rows |
+<!-- survey-gen:begin status-vocabulary -->
+| Status | Meaning | Rows below |
 |---|---|---|
-| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | <!-- survey-gen:begin wired-count -->1049<!-- survey-gen:end wired-count --> |
-| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 1 |
+| `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today. The admission table holds 1049 types in all, most of them outside the rows below | 62 |
+| `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 0 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 0 |
 | `ops` | excluded by the rule, forwarded to the lifecycle layer | 1 |
 | `unadmitted` | not excluded by the rule and not yet admissible: no ratified row covers the type, whether because the identity carries a server-minted component with nowhere to write the ownership marker (#233) or simply because no batch has reached it | 2 |
-| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 3 |
+| `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 1 |
+| `markerless` | retracted by the markerless rule (#249): the identity carries a server-assigned component and the type has no tags argument to write the marker into, so it was taken out of the admission and identity tables | 2 |
 | `unknown` | path not determined | 0 |
+<!-- survey-gen:end status-vocabulary -->
 
-The `wired` count above is the admission table's global size
-(`identity.AdmittedTypes`, rendered from the table itself), so it covers
-more than the rows below. Most of it is rows below,
-classified and wired the way every batch before #40 was, or later
+The table above is rendered by `go run ./tools/survey-gen -render`, which
+tallies `Rows below` from the per-type table's Status column and refuses a
+Status cell outside the vocabulary. The admission-table size in the `wired`
+row is global (`identity.AdmittedTypes`, rendered from the table itself), so
+it covers far more than the rows below. Of the curated rows, the `wired`
+ones were classified and wired the way every batch before #40 was, or
 reclassified from `blocked-emulator` by a registry-ratified batch. The
-rest comes from the registry-ratified batches (#40, #44, #65). The
+rest of the admission table comes from the registry-ratified batches (#40, #44, #65). The
 first (Lambda) contributed `aws_lambda_capacity_provider`,
 `aws_lambda_code_signing_config`, `aws_lambda_event_source_mapping` and
 `aws_lambda_layer_version`, plus `aws_lambda_function`, already a row
@@ -228,9 +233,10 @@ reclassified `wired` in that batch (see
 no row in this table at all: they are outside the curated 68 this survey
 measures, reached through `live/registry.json` and `tools/row-gen` (#44),
 outside this survey's provider-schema path. The messaging batch also
-proposed `aws_sns_topic_subscription`, whose row below stays `ready`: it
-classifies cleanly but is deferred for a `live/LIMITATIONS.md` reason
-unrelated to its identity (see the same README). Extending this
+proposed `aws_sns_topic_subscription`, whose row below stayed `ready`
+then: it classified cleanly but was deferred for a `live/LIMITATIONS.md`
+reason unrelated to its identity (see the same README). The markerless
+retraction (#249) has since moved it to `markerless`. Extending this
 roster and `live/survey.json` to the full registry-backed universe was
 #54's follow-on work. A future batch's roster growth
 shows up only in the rendered count above and in
@@ -269,9 +275,9 @@ the emulator alone, and F4 turned out not to be an
 account-derivation problem at all. The token stays in the vocabulary
 because the next provider survey may find rows that need it again.
 
-`blocked-emulator` was empty in the first pass, held twenty rows at its
-2026-08-13 peak, and holds three now after the ratification batches and
-the 2026-08-14 status reconciliation,
+`blocked-emulator` was empty in the first pass and held twenty rows at its
+2026-08-13 peak; what is left after the ratification batches and the
+2026-08-14 status reconciliation is the count in the table above,
 all of them found by wiring lanes probing each candidate against floci.
 Each names its gap and its tracking issue in
 the identity column, and choudoufu#26 is the umbrella. Six of the gaps

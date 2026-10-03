@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "range": {
+    "spec": "<base>..<head>",
+    "base": "<base>",
+    "head": "<head>"
+  },
+  "outcome": "indeterminate",
+  "roots_total": 5,
+  "roots": [
+    {
+      "dir": "estates/e02",
+      "estate": "ls-e02",
+      "reasons": [
+        {
+          "kind": "pin",
+          "module": "shared",
+          "from": "1.0.0",
+          "to": "1.1.0",
+          "text": "pin shared 1.0.0 -> 1.1.0"
+        },
+        {
+          "kind": "changed",
+          "paths": [
+            "estates/e02/main.tf"
+          ],
+          "text": "changed"
+        }
+      ]
+    },
+    {
+      "dir": "estates/e03",
+      "estate": "ls-e03",
+      "reasons": [
+        {
+          "kind": "reads",
+          "estate": "ls-e02",
+          "text": "reads ls-e02"
+        }
+      ]
+    },
+    {
+      "dir": "estates/e04",
+      "estate": "ls-e04",
+      "reasons": [
+        {
+          "kind": "pin",
+          "module": "shared",
+          "from": "1.0.0",
+          "to": "1.1.0",
+          "text": "pin shared 1.0.0 -> 1.1.0"
+        },
+        {
+          "kind": "changed",
+          "paths": [
+            "estates/e04/main.tf"
+          ],
+          "text": "changed"
+        }
+      ]
+    },
+    {
+      "dir": "estates/e05",
+      "estate": "ls-e05",
+      "reasons": [
+        {
+          "kind": "changed",
+          "paths": [
+            "estates/e05/main.tf"
+          ],
+          "text": "changed"
+        }
+      ]
+    }
+  ],
+  "indeterminate": [
+    {
+      "kind": "provider-version",
+      "path": "estates/e05",
+      "text": "provider registry.opentofu.org/hashicorp/aws \"= 6.59.0\" -> \"= 6.60.0\" in estates/e05: a provider version bump can change every root's plan"
+    }
+  ],
+  "unplaced": [
+    {
+      "path": "README.md",
+      "why": "documentation",
+      "text": "documentation outside every module"
+    }
+  ]
+}

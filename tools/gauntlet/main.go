@@ -286,7 +286,7 @@ func loadAll(root string) (*Manifest, *Artifact, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root))
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), kindNodeImagePin(root))
 	return m, a, nil
 }
 
@@ -354,7 +354,7 @@ func cmdRun(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root))
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), kindNodeImagePin(root))
 
 	// The regression ratchet (issue #553): a stage this run reports as
 	// anything other than pass, for an estate/stage the committed artifact
@@ -382,7 +382,7 @@ func cmdRun(root string, args []string) error {
 		return err
 	}
 	core, all := a.Sets["core"], a.Sets["all"]
-	fmt.Printf("core %d of %d clear, all %d of %d clear, %d script(s) exited non-zero\n", core.Clear, core.Estates, all.Clear, all.Estates, failures)
+	fmt.Printf("core %s, all %s, %d script(s) exited non-zero\n", core.ClearPhrase(), all.ClearPhrase(), failures)
 	for _, v := range violations {
 		fmt.Fprintln(os.Stderr, "REGRESSION: "+v.Error())
 	}
@@ -449,7 +449,7 @@ func cmdBehaviors(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root))
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), kindNodeImagePin(root))
 	tt, err := LoadTypeIndexTotals(root)
 	if err != nil {
 		return err
@@ -850,7 +850,7 @@ func cmdMergeArtifact(root string, args []string) error {
 		return err
 	}
 	core, all := merged.Sets["core"], merged.Sets["all"]
-	fmt.Printf("merged: core %d of %d clear, all %d of %d clear\n", core.Clear, core.Estates, all.Clear, all.Estates)
+	fmt.Printf("merged: core %s, all %s\n", core.ClearPhrase(), all.ClearPhrase())
 	return nil
 }
 
@@ -954,7 +954,7 @@ func cmdImportLegacy(root string) error {
 	if err != nil {
 		return err
 	}
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root))
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), kindNodeImagePin(root))
 	tt, err := LoadTypeIndexTotals(root)
 	if err != nil {
 		return err
@@ -1027,7 +1027,7 @@ func StaleFilesReport(root string) (stale, scriptOnly []string, err error) {
 	}
 	// Same fresh emulator pin `render` itself would use - there is no
 	// stamp left to freeze for content-only comparison (#414).
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root))
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), kindNodeImagePin(root))
 	// tt is read from the real checkout root, never from tmp below: tmp is
 	// a write-only scratch directory with no live/estate-types.json of its
 	// own, the same reason m, a and bi are all loaded from root rather than
@@ -1253,9 +1253,9 @@ func cmdCombineShards(root string, args []string, out io.Writer) error {
 		}
 	}
 	core, all := combined.Sets["core"], combined.Sets["all"]
-	fmt.Fprintf(out, "combined %d shard(s) at %s: core %d of %d clear, all %d of %d clear\n", len(shards), *commit, core.Clear, core.Estates, all.Clear, all.Estates)
+	fmt.Fprintf(out, "combined %d shard(s) at %s: core %s, all %s\n", len(shards), *commit, core.ClearPhrase(), all.ClearPhrase())
 	for lane, sum := range combined.Lanes {
-		fmt.Fprintf(out, "lane %s: %d of %d clear\n", lane, sum.Clear, sum.Estates)
+		fmt.Fprintf(out, "lane %s: %s\n", lane, sum.ClearPhrase())
 	}
 	return nil
 }
