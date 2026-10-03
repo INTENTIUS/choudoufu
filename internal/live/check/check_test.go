@@ -216,6 +216,12 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// generated artifact, and the stage that would act on that signal
 		// does not exist yet.
 		"uniquename": true,
+		// GitHub issue #1754's set digest and wave planning: a hash over
+		// finished plans and an order over the roots of a set. It runs
+		// before or after every stage, never inside one; its refusals
+		// (a cycle, a canary reading a non-canary, a read it cannot
+		// order) are about the set's shape, worded by its own command.
+		"waves": true,
 	}
 
 	classified := map[string]bool{}

@@ -39,6 +39,15 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.22.0 (Unreleased)
 
+- `choudoufu live-waves [ROOT...]` splits a set of estate roots into
+  ordered waves (#1754, part of #1749): `-canary` roots form wave 1, and
+  every other root lands after each root whose estate it reads through a
+  marker-filtered data source or `terraform_estate_outputs`. A cycle, a
+  canary reading a non-canary, and a read whose estate is not a literal are
+  refused by name. `-plan-set` gives the set and each wave a set digest
+  over the roots' planned changes, `-wave=n` prints one wave's roots one per
+  line, and `-json` prints everything. It applies nothing.
+
 ## choudoufu v0.21.0 (2026-10-02)
 
 Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Earlier releases were built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`); the upgrade is #1778, and upstream's own 1.13.0 notes follow below under "OpenTofu". Board snapshot: [`live/history/v0.21.0.json`](live/history/v0.21.0.json).

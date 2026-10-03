@@ -146,6 +146,10 @@ var guardedPackages = []string{
 	// that are the credential (#1527).
 	"substrate",
 	"uniquename",
+	// GitHub issue #1754's wave planning reads literal estate names out of
+	// data-source configuration with Value(nil); every string it takes is
+	// checked unmarked first, and its digest reads plan JSON, not cty.
+	"waves",
 }
 
 // deferredPackages read CLOUD OBJECTS - a live read's response, a prior

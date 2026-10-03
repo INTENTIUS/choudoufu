@@ -341,6 +341,15 @@ func initCommands(meta command.Meta) {
 			}, nil
 		},
 
+		// GitHub issue #1754: split a set of roots into ordered waves. It
+		// reads configuration and prints; public from the start for
+		// live-check's reason above.
+		"live-waves": func() (cli.Command, error) {
+			return &command.LiveWavesCommand{
+				Meta: meta,
+			}, nil
+		},
+
 		"providers lock": func() (cli.Command, error) {
 			return &command.ProvidersLockCommand{
 				Meta: meta,
