@@ -48,8 +48,19 @@ worktree, verify the primary is clean, commit immediately.
 leaves an older run's file sitting there saying `0`. `ci-gate.sh run`
 deletes the gate files first and stamps `ci.meta` with the tested sha;
 `ci-gate.sh check` refuses a gate written for a different commit. That fix
-caught two false greens within hours of landing. Commit before gating: a
-gate run against an uncommitted tree records the parent's sha.
+caught two false greens within hours of landing. Commit before the batch
+gate on main: a gate run against an uncommitted tree records the parent's sha.
+
+## Testing is tiered by risk
+
+GitHub CI green on the PR is the merge gate. There is no local
+`scripts/ci-gate.sh` run per PR. Docs, data and refactor changes need the
+build and the tests of the touched packages. A behaviour change needs one
+proof of the behaviour, a test or one local scenario run, never both a local
+run and a dispatched smoke for the same thing. The full gate (`ci-gate.sh
+run`, then `check`) runs on main once per batch of merges. Red-first is for
+a new guard, to show it can fail, not for every row of a table. The paid and
+whole-set rule below is unchanged.
 
 ## Measured artifacts are never hand-merged
 
@@ -66,7 +77,7 @@ is why `automerge-artifact.yml` merges rather than squashes.
 
 ## A check that cannot fail is not a check
 
-Prove every guard red before trusting it green. Three checks written on
+Prove a new guard red before trusting it green. Three checks written on
 2026-08-29 printed "clean" on failure — a `$?` captured from `head` after a
 pipe rather than from the command, a shell loop whose error path still
 printed its success line, a `t.Skip` that would have left a guard
