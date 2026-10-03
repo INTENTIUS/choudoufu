@@ -2239,6 +2239,12 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		// See stampManifestSeed's own doc comment.
 		attrsSeed = stampManifestSeed(addr, attrsSeed, b.opts.Ownership.Estate)
 	}
+	if b.opts.Ownership != nil && fieldGranularOwned("", schema) {
+		// GitHub issue #1191: the prior names this estate's field manager,
+		// so the provider reads back the fields that manager owns. See
+		// nodestamp_fieldmanager.go.
+		attrsSeed = fieldGranularSeed(attrsSeed, b.opts.Ownership.Estate)
+	}
 
 	// [builder.residueSeedFor] fills in whatever [configuredAttrsSeed] and
 	// [configuredTagsSeed] could not statically evaluate - a managed-
@@ -3929,7 +3935,14 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 			// rather than risk proposing a create for an object it cannot
 			// verify one way or the other. See [noimporter.Diagnostics] for
 			// the population this reaches.
-			if stub, stubOK := noimporter.SynthesizeStub(schema, identityValues); stubOK {
+			stub, stubOK := noimporter.SynthesizeStub(schema, identityValues)
+			if fieldGranularOwned("", schema) {
+				// GitHub issue #1191: the field-granular types read the
+				// patched object's name out of a metadata block and need an
+				// id; see [fieldGranularStub].
+				stub, stubOK = fieldGranularStub(schema, identityValues, importID)
+			}
+			if stubOK {
 				log.Printf("[TRACE] projection: %s has no classic Importer; synthesizing an import stub from its own resolved identity instead of refusing", typeName)
 				obj := &states.ResourceInstanceObject{Status: states.ObjectReady, Value: stub}
 				return readImported(ctx, provider, schema, typeName, importID, obj, attrsSeed, configMarks, manifestKeys, diags)

@@ -142,6 +142,10 @@ var refusals = []Refusal{
 		What:    "The provider refused the read this projection needed to fill in a resource's current state.",
 	},
 	{
+		Summary: SummaryFieldManagerUnresolved,
+		What:    "GitHub issue #1191: a field-granular Kubernetes resource (kubernetes_labels, kubernetes_annotations, kubernetes_env, the *_v1_data types, kubernetes_node_taint) declares a field_manager whose value is not known until apply. Under a live block the field manager is the ownership marker for a resource that owns fields rather than an object, so the plan stops rather than write under a name it cannot check. Remove the argument and the run writes under choudoufu:<estate>.",
+	},
+	{
 		Summary: "Cannot set ownership markers on a marked configuration value",
 		What:    "GitHub issue #388's node-path stamp found a resource instance's whole evaluated configuration value marked as sensitive, a shape ordinary block evaluation does not produce, and declined to unmark it rather than guess; the resource's ownership markers were left for the HCL-level stamp (or an operator) to write.",
 	},
@@ -260,6 +264,10 @@ var refusals = []Refusal{
 	{
 		Summary: SummaryNoPostCreateWrite,
 		What:    "GitHub issue #1742: the instance's provider family says its create call cannot carry the ownership marker, so the node writer would withhold it from the create, and the family's answers name nothing that would write it afterwards - its surface's post-create write is never-needed or unanswered, or the family carries the block address outside the marker map such a write sets. An error at plan, before anything is created, naming the instance and the answer that disagrees: creating the object would leave it carrying no marker naming the estate, and nothing is created silently. No AWS or Kubernetes type reaches it; it guards a family whose answers disagree.",
+	},
+	{
+		Summary: SummaryFieldManagerNotCarried,
+		What:    "GitHub issue #1191: the estate name cannot be written as a server-side-apply field manager name - choudoufu:<estate> is over the API server's 128 characters - so the node-path stamp refuses to mark a field-granular Kubernetes resource with it. Rename the estate.",
 	},
 	{
 		Summary: "Ownership marker is not a legal label value",
