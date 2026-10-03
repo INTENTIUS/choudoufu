@@ -27,7 +27,7 @@
 # holds this file to the scenario directory: every k8s-* scenario under
 # live/smoke/scenarios must be in the matrix below, with its control.
 #
-# Claim 27's step 9 needs two substrates at once (#1394): a kind cluster
+# Claim 45's step 9 needs two substrates at once (#1394): a kind cluster
 # for the objects and the pinned floci emulator for the bucket its records
 # live in, which is how its label removal is measured for a second working
 # directory that shares a bucket rather than the cluster. That means Docker
@@ -193,16 +193,16 @@ jobs:
         with:
           # The stock oracle, for the three scenarios that need it: claim
           # 24's migration of a custom resource stock created and recorded
-          # in a state file this fork did not write (#1109), claim 27's
+          # in a state file this fork did not write (#1109), claim 45's
           # step 2, which measures what stock proposes for a one-label edit
-          # rather than quoting it (#1177), and claim 46's stock twins,
+          # rather than quoting it (#1177), and claim 1's stock twins,
           # whose plans after a namespace delete are the oracle (#1765). Pinned from the same file
           # gauntlet.yml pins it from, for the same reason - an unpinned
           # oracle silently changes what "what stock did" means. The other
           # scenarios never call it.
           terraform_version: ${{ steps.oracle.outputs.terraform }}
           terraform_wrapper: false
-      - name: Docker and the AWS CLI, which claim 27's step 9 needs
+      - name: Docker and the AWS CLI, which claim 45's step 9 needs
         run: |
           docker info > /dev/null
           aws --version
@@ -219,7 +219,7 @@ jobs:
           install_only: true
       # Both runs write to a file that `tail -f` copies into the job log as
       # it grows, and not through `| tee`: a process the scenario orphans
-      # (claim 39 SIGKILLs an apply on purpose) holds a file open, which
+      # (claim 29 SIGKILLs an apply on purpose) holds a file open, which
       # harms nothing, where it would hold a pipe open and keep tee and the
       # step alive after smoke.sh had exited. ci-run.sh does that and then
       # reads the file for the verdict line; the file is what the artifact

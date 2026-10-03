@@ -183,7 +183,7 @@ func TestSmokeControlsHeldToALineTheScenarioPrints(t *testing.T) {
 		}
 	}
 	if held == 0 {
-		t.Errorf("no workflow step passes --caught, and claim 31's BREAK_CROSSCHECK step is known to; this guard is looking in the wrong place")
+		t.Errorf("no workflow step passes --caught, and claim 29's BREAK_CROSSCHECK step is known to; this guard is looking in the wrong place")
 	}
 }
 

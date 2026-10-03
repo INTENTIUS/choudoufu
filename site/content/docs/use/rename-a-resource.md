@@ -43,7 +43,7 @@ destination estate may already carry it. A plan that would touch anything
 beyond tags is never applied. A resource whose type carries no tags follows
 its parent's live tag and needs no call. The source estate keeps its record for the
 resource until its next plan, which reads the live tag and leaves the
-resource alone. [Claim 12]({{< relref "/docs/claims/carve-by-retag" >}})
+resource alone. [Claim 7]({{< relref "/docs/claims/identity-is-a-tag" >}})
 walks a whole split this way.
 
 ## On Kubernetes

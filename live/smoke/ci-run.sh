@@ -19,7 +19,7 @@
 #   - when BREAK=1 or any BREAK_<NAME>=1 is in the environment, or --caught
 #     is given, a `-> caught` proof line must be there too: a control that
 #     exits 0 has only proved something if it got as far as the corruption.
-#     With --caught it must carry that text, which is how claim 31's
+#     With --caught it must carry that text, which is how claim 29's
 #     BREAK_CROSSCHECK control is held to the one line it exists to print.
 #
 # Every failure is a FAIL line naming what was missing and the log to read.

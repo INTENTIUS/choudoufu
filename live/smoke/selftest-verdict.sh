@@ -20,7 +20,7 @@ set -uo pipefail
 #   exit 0 outside a control     FAIL, exit 1
 #   BREAK=1 with no caught line  FAIL naming the missing line, exit 1
 #   BREAK=1, caught, exit 0      PASS naming the control, exit 0
-#   BREAK=1, caught, runs on     the same (claim 39's shape)
+#   BREAK=1, caught, runs on     the same (claim 29's shape)
 #   BREAK_X=1 the scenario ignores   FAIL, exit 1
 #   fail() by name               its one FAIL line, exit 1
 #   the ordinary run             PASS, exit 0

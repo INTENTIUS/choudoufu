@@ -29,7 +29,7 @@ var (
 // the arm stops with "the break patch no longer matches" and proves nothing.
 // For a scenario that runs in CI that is caught on the next run. For a
 // real-AWS scenario nothing runs the arm until somebody does it by hand:
-// claim 36's went stale when GitHub issue #1383 swapped the precedence of
+// claim 28's went stale when GitHub issue #1383 swapped the precedence of
 // base tags and context tags in S3Store.PutIfVersion, and stayed stale
 // across several merges until a maintainer's run on real AWS met it (GitHub
 // issue #1379).
@@ -91,8 +91,9 @@ func TestEveryBreakPatchStillMatchesItsSource(t *testing.T) {
 			}
 		}
 	}
-	// The scenarios that patch source today are claims 29, 31, 32, 33, 36 and
-	// 38. Fewer than that means the extraction above stopped seeing them.
+	// The scenarios that patch source today are the six
+	// bucket-store proofs of claims 2, 28 and 29 (claims 29, 31, 32, 33, 36
+	// and 38 until #1817). Fewer than that means the extraction above stopped seeing them.
 	if patched < 6 {
 		t.Errorf("only %d BREAK patch(es) were found and run; there were six when this line was last changed", patched)
 	}

@@ -116,7 +116,7 @@ func TestRecordStore_probeWritable(t *testing.T) {
 
 // TestApplyRecordsIdentity pins which types the write-back can record,
 // because #1637's exemption is only sound for those. aws_iam_group_policy
-// is claim 17's type: no tags, and a ratified group:name row the apply
+// is claim 3's type: no tags, and a ratified group:name row the apply
 // fills in. A type with no ratified row and no identity the schema can
 // record gets no record from an apply, so it must answer false.
 func TestApplyRecordsIdentity(t *testing.T) {

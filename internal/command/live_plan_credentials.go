@@ -28,7 +28,7 @@ import (
 // resolves to, the way the provider plugin itself does. GitHub issue #957:
 // the Cloud Control and Tagging clients were built with Credentials nil for
 // every configuration, so region was the only thing read out of a provider
-// block for them, and on a two-account estate (claim 19) the tag index was
+// block for them, and on a two-account estate (claim 13) the tag index was
 // fetched once per pass as the SAME principal - the process environment's
 // - and reported the same objects on both. The per-provider plugin legs
 // covered for it, so nothing was wrong on the board and the second

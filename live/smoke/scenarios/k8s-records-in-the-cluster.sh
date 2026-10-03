@@ -23,7 +23,7 @@
 # a bad idea if it were not true. Steps 1 to 5 are the store (#1392); steps
 # 6 to 9 are what it checks about the cluster before it writes a record
 # (#1393), which is the bucket contract's shape sized for a cluster; steps
-# 10 to 12 are claims 32, 30 and 31 on this store (#1441), each proven on
+# 10 to 12 are claims 2 and 29 on this store (#1441), each proven on
 # the bucket by a scenario of its own and each needing the cluster steps 1
 # to 9 already stood up, so they come last rather than beside the other
 # store steps.
@@ -34,7 +34,7 @@
 #      NO AWS credentials in the environment at all - the variables unset,
 #      the config files pointed at /dev/null, IMDS disabled - applies end to
 #      end, and the record is a Secret any kubectl can see.
-#   3. Claim 4's no-lock property on this store: an apply killed with
+#   3. Claim 2's no-lock property on this store: an apply killed with
 #      SIGKILL mid-flight, and the very next run carries on. Nothing in the
 #      namespace is a Lease or anything else lock-shaped.
 #   4. Read isolation. RBAC cannot condition on a label and admission never
@@ -57,20 +57,20 @@
 #   9. #1370 on this store: an identity with get and list on the record
 #      Secrets plans, writes nothing, and is told by name what it lacks for
 #      an apply.
-#  10. Claim 32 on this store (#1441): two writers, one record, both holding
+#  10. Claim 2 on this store (#1441): two writers, one record, both holding
 #      one resourceVersion and both parked on the wire until the other has
 #      arrived. Six update-vs-update rounds and six create-vs-create rounds,
 #      each releasing the parked requests in an order this step picks, and
 #      each requiring one winner, one VersionConflictError naming both
 #      versions, and no trace of the loser's payload in the record.
-#  11. Claim 30 on this store (#1441): a fresh estate under allow_insecure
+#  11. Claim 29 on this store (#1441): a fresh estate under allow_insecure
 #      names every waived setting, with its cost, on its first apply, on a
 #      plan and on a second apply alike, exactly three times per run; and
 #      `choudoufu live-cluster`, reading the same block, ignores the waiver
 #      - the two assertions this cluster fails stay FAIL, the verdict stays
 #      NOT correct, and the waiver is named apart from the verdict as hiding
 #      two failures.
-#  12. Claim 31 on this store (#1441): the store's bulk read is one paged
+#  12. Claim 29 on this store (#1441): the store's bulk read is one paged
 #      LIST, and a proxy (live/smoke/k8sproxy.py) answers its second page
 #      with the API server's own 410 Expired, once on the listing the store
 #      opens with and twice on the bulk read after it. Each run must fail,
@@ -95,7 +95,7 @@
 # dumps; each must fail the check by name, and the listings behind steps 3,
 # 8 and 9 are also run through a kubeconfig that reaches no server and must
 # fail rather than read as empty. Steps 11 and 12 each rebuild choudoufu
-# with go build -overlay, the way claims 30 and 31 do on the bucket: a
+# with go build -overlay, the way claim 29's waiver and bulk-read proofs do on the bucket: a
 # binary whose waiver warning goes quiet once the estate has a cache, whose
 # second run step 11's check must refuse; and a binary whose paged LIST
 # keeps its first page and drops the error, whose plan - creating every
@@ -299,7 +299,7 @@ proof "a Kubernetes-only estate applied and replanned empty with no way to reach
 
 step "3. an apply killed with SIGKILL, and the very next run carries on"
 explain \
-  "Claim 4's headline, on this store. A second resource takes a while to" \
+  "Claim 2's headline, on this store. A second resource takes a while to" \
   "create; the apply is killed with SIGKILL while it is in flight, so no" \
   "handler runs and nothing cleans up. The stock kubernetes backend takes" \
   "a coordination.k8s.io Lease per workspace, and a run that dies holding" \
@@ -349,7 +349,7 @@ grep -q "Apply complete" "$W/killed.out" && fail "k8srec" "the apply completed; 
 echo "killed with SIGKILL while terraform_data.slow was creating" | evidence
 # The slow resource stays declared and stops being slow, so the next run is
 # the ordinary "finish what was started" and not another two minutes of
-# waiting. This is claim 4's own shape: the block is not removed.
+# waiting. This is claim 2's own shape: the block is not removed.
 sed -i.bak 's/exec sleep 120/exec sleep 1/' "$APP/main.tf" && rm -f "$APP/main.tf.bak"
 grep -q 'exec sleep 1"' "$APP/main.tf" || fail "k8srec" "the slow provisioner was not shortened; the next run would wait two minutes"
 cmd "kubectl get leases,secrets -n $RECORDS_NS   # nothing lock-shaped"
@@ -876,7 +876,7 @@ proof "a plan under an identity holding get and list on the record Secrets and n
 
 step "10. two writers, one record, held at the wire"
 explain \
-  "Claim 32 on the bucket store holds two PutObjects at a proxy until" \
+  "Claim 2 on the bucket store holds two PutObjects at a proxy until" \
   "both have arrived and then requires one winner and one named conflict" \
   "every round. This is that measurement on this store. Two writers, each" \
   "with its own connection to this API server, read one record and come" \
@@ -951,7 +951,7 @@ grep -qi 'lock' <<< "$RACE_SECRETS" \
   && fail "k8srec" "an object in the race namespace is named like a lock: $RACE_SECRETS"
 proof "twelve rounds, every one of them with both requests parked on the wire at once, and every one settled by the API server's own optimistic concurrency: one write landed, the other came back as a version conflict naming the version it planned against and the version the store now holds, and the refused payload is not in the record. No Lease and nothing lock-shaped was taken to do it."
 
-### Claims 30 and 31 on this store (#1441). Each is proven on the bucket by
+### Claim 29 on this store (#1441). Each is proven on the bucket by
 ### a scenario of its own; on the cluster each is a step here, because one
 ### promise keeps one claim number and gets a proof per platform (#1112).
 
@@ -962,7 +962,7 @@ flat() { tr '\n' ' ' | sed 's/│/ /g' | tr -s ' '; }
 
 step "11. a waiver names what it waives on every run, and live-cluster ignores it"
 explain \
-  "Claim 30 on this store. Steps 2 to 5 ran under allow_insecure naming" \
+  "Claim 29 on this store. Steps 2 to 5 ran under allow_insecure naming" \
   "read_isolation, encryption_at_rest and estate_boundary, and nothing" \
   "above asserted that a run SAYS so. This does, on a fresh estate: its" \
   "first apply, a plan and a second apply must each name all three waived" \
@@ -1052,8 +1052,8 @@ proof "three runs, three warnings each: a first apply, a plan and a second apply
 
 step "12. a listing that fails after its first page fails the plan, and never reads as a short estate"
 explain \
-  "Claim 31 on this store. The bucket store's bulk read is a LIST and a" \
-  "fan-out of GETs, and claim 31 fails one GET. This store's bulk read is" \
+  "Claim 29 on this store. The bucket store's bulk read is a LIST and a" \
+  "fan-out of GETs, and claim 29 fails one GET. This store's bulk read is" \
   "one paged LIST - every Secret's payload rides along with its metadata," \
   "so there is nothing to fan out - and the page is where it can come" \
   "back short: the API server hands out a continue token per page, and a" \
@@ -1219,7 +1219,7 @@ listing_failed_whole() {
 # Three runs. A run lists the records namespace twice: when the store opens,
 # to read its sentinel back, and for the bulk read the plan is built on. With
 # no skip the 410 lands on the first; with skip 1 the proxy relays the open's
-# second page and answers the bulk read's, which is the read claim 31 is
+# second page and answers the bulk read's, which is the read claim 29 is
 # about, so those two runs must get past opening the store and be refused
 # after it.
 echo "-1" > "$PROXY_WORK/expire"
@@ -1537,7 +1537,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   proof "caught, three times. One write between the dumps is a moved resourceVersion the diff refuses, a namespace holding no record is a dump too short to diff, and a dump that never reached the server fails by name. Step 9's unchanged pair is a pair that was read."
 
   ### Steps 11 and 12 (#1441). Each rebuilds choudoufu with go build
-  ### -overlay, the way claims 30 and 31 do on the bucket, and runs the
+  ### -overlay, the way claim 29's bucket proofs do, and runs the
   ### step's own check function against what the broken binary does.
   [ -z "${CHOUDOUFU_BIN:-}${CHOUDOUFU_VERSION:-}" ] \
     || fail "k8srec" "BREAK=1 rebuilds choudoufu from this checkout for steps 11 and 12; it cannot break CHOUDOUFU_BIN or CHOUDOUFU_VERSION. Unset them and run it again with Go installed."

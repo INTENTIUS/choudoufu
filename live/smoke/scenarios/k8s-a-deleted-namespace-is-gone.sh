@@ -39,7 +39,7 @@
 #
 # Step 6 is #1765's item 4, measured and reported rather than folded in: a
 # namespace still terminating because a finalizer holds an object inside
-# it is fault 1's shape (claim 25). What the plan says in that window is
+# it is fault 1's shape (claim 1). What the plan says in that window is
 # what stock's plan says: the namespace and the held object are still
 # there, so they are not proposed, and the object the namespace's delete
 # already took is proposed as a create.
@@ -82,7 +82,7 @@ versions_tf() {
       if [ "$store" = "kubernetes" ]; then
         # kind's API server has no encryption provider and a fresh cluster
         # has no admission policy or Roles, so the three assertions it
-        # fails are waived and said so on every run (claim 30, on claim
+        # fails are waived and said so on every run (claim 29, on claim
         # 39's store). This claim is about the namespace, not the store's
         # cluster contract.
         echo '    record_store "kubernetes" {'

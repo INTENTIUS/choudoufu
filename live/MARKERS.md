@@ -185,7 +185,7 @@ projection hands the provider for a cache-less read is stamped the same
 way, or the provider - whose `computed_fields` default names
 `metadata.labels` - would plan the label as a change on every such run.
 That default also means the provider takes a label stripped out of band
-as the new truth of the field; claim 24's control measures what the plan
+as the new truth of the field; claim 7's control measures what the plan
 does about that (the projection mirrors the live object's marker into the
 prior it builds, so a stripped label plans as the update that restores
 it). The sweep lists every kind the cluster serves (#1079's third unit,
@@ -209,7 +209,7 @@ a rejection is a refusal by name in the server's words and the run stops
 with nothing applied. It reaches the manifest shape only: a built-in
 type's object shape is the provider's own and is not submitted, an object
 whose namespace this same plan creates is reported rather than submitted,
-and a server that cannot answer is a warning. Claim 24's step 4 and its
+and a server that cannot answer is a warning. Claim 7's step 4 and its
 first `BREAK=1` control measure it.
 
 `generateName` is refused rather than defaulted: the server mints the name,

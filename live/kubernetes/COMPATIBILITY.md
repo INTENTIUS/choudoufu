@@ -47,7 +47,7 @@ labels the manifest declares, so the admission policy fences it like any
 other object. The estate sweep lists every kind the cluster serves, CRDs
 included, so an object whose block is removed is found by that label and
 proposed for removal at `kubernetes_manifest.orphan_<kind>_<namespace>_<name>`
-([claim 24](../smoke/claims/k8s-custom-resource.md)).
+([claim 7](../smoke/claims/k8s-custom-resource.md)).
 
 ### Readiness tiers
 

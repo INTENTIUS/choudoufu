@@ -98,7 +98,7 @@ opened it. A bucket no run has opened is refused by name, because an unopened
 store looks exactly like an empty estate.
 [A role that plans and never applies]({{< relref "/docs/use/bucket#a-role-that-plans-and-never-applies" >}})
 renders the policy, and
-[claim 38]({{< relref "/docs/claims/a-read-only-role-can-plan" >}}) runs it on
+[claim 28]({{< relref "/docs/claims/a-name-prefix-shares-no-keys" >}}) runs it on
 real AWS.
 
 A plan reads widely. The sweep that finds resources whose block was deleted

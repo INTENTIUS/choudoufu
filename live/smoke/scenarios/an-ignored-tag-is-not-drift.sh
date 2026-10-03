@@ -6,12 +6,12 @@
 # provider to ignore that key, the same knob stock gives every AWS user for
 # exactly this, and an edit to a tag the estate DOES declare still plans.
 #
-# GitHub issue #1624. Claim 27's own AWS cell (#1597, then #1598) names this
+# GitHub issue #1624. Claim 45's own AWS cell (#1597, then #1598) names this
 # the genuinely open question and files it separately rather than restating
 # it there: "whether a tag another account's automation, or an AWS service,
 # adds to a resource out of band churns an AWS plan."
 #
-# Kubernetes' claim 27 answers its own version of this for free: a key the
+# Kubernetes' claim 45 answers its own version of this for free: a key the
 # configuration never declared - the API server's own
 # kubernetes.io/metadata.name, a controller's annotation - stays the
 # server's and churns nothing, because kubernetes_manifest's computed_fields

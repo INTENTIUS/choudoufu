@@ -202,7 +202,7 @@ cluster_up
 # configuration ever asked for them, and the adopt page's next instruction
 # is to delete it. Two rather than one so the removal below takes one of a
 # pair rather than emptying the map, which is a different shape and is
-# claim 27's to measure.
+# claim 45's to measure.
 MIGRATE_FIXTURE_UP=0
 migrate_fixture_up() {
 [ "$MIGRATE_FIXTURE_UP" = "1" ] && return 0

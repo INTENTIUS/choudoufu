@@ -62,7 +62,7 @@ if [ "${BREAK:-0}" = "1" ]; then
 import sys
 src = open(sys.argv[1]).read()
 # One line, and nothing around it. A patch that spelled out the whole switch
-# went stale on claim 36 the first time the code around it moved (#1379), and
+# went stale on claim 28 the first time the code around it moved (#1379), and
 # nothing runs a real-AWS BREAK arm but a person; live/smoke_break_patches_test.go
 # runs this block on every gate, so it says out loud when it stops matching.
 #

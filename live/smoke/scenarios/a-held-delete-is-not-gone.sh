@@ -32,8 +32,9 @@
 # own delete returned - has no AWS instance the emulator can produce: the
 # AWS shape of it is an eventually consistent delete, which floci
 # deliberately does not emulate (its tagging service says so), and most
-# hashicorp/aws deletes wait the lag out anyway. That is why the AWS cell of
-# claim 25 reads "restated", not "proven".
+# hashicorp/aws deletes wait the lag out anyway. That is why this proof's note
+# in claims.json says it covers the second half only (it was claim 25's
+# AWS cell, which read "restated", until #1817 made it a proof of claim 1).
 #
 # BREAK=1 sets recovery_window_in_days = 0, which the provider sends as
 # ForceDeleteWithoutRecovery, and requires the opposite outcome: the secret

@@ -31,7 +31,7 @@ import (
 // TestLivePlan_unmarkedApplyOfAMarkerOnlyResourceRefuses, unchanged: its
 // fixture declares no live block, so no store is open.
 //
-// The fixture is claim 17's (live/smoke) at this tier: aws_iam_group_policy
+// The fixture is claim 3's (live/smoke) at this tier: aws_iam_group_policy
 // with no name, a needs-discovery type with nowhere to carry a marker,
 // inside a live block with a local record store.
 

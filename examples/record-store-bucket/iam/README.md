@@ -190,7 +190,7 @@ cannot read a neighbour's records, because they carry the neighbour's
 tag, and it cannot change that tag either. An earlier version of this policy
 lacked the relabel Deny, and under it this paragraph was false: measured
 against AWS, such a role retagged a neighbour's record and then read it.
-[Claim 35](../../../live/smoke/claims/one-bucket-many-estates.md) now makes
+[Claim 28](../../../live/smoke/claims/one-bucket-many-estates.md) now makes
 the attempt.
 
 For listing, writing and deleting there is one: the prefix. S3 has no
@@ -232,7 +232,7 @@ Every run still sends one conditional write, for the store's sentinel. Under
 this policy it is denied, and the run carries on when the sentinel is already
 there. A store that has never been written is refused by name instead, so run
 the estate once under the full policy and read-only plans work from then on.
-[Claim 38](../../../live/smoke/claims/a-read-only-role-can-plan.md) measures
+[Claim 28](../../../live/smoke/claims/a-read-only-role-can-plan.md) measures
 both halves on real AWS, and reconciles what such a plan asks S3 for against
 what this rendering grants.
 

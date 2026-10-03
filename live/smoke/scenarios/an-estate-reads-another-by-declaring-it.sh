@@ -97,7 +97,7 @@ TRUST="{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Princi
 # two edits the pinned emulator needs and real AWS does not.
 #
 #   - The conditions come off the ALLOW statements. The emulator does not
-#     evaluate s3:prefix or s3:RequestObjectTag (claim 35 is the real-AWS
+#     evaluate s3:prefix or s3:RequestObjectTag (claim 28 is the real-AWS
 #     measurement of those), and an Allow whose condition it cannot evaluate
 #     never matches.
 #   - ListOwnNamespaces is granted on "*". choudoufu's S3 client sends

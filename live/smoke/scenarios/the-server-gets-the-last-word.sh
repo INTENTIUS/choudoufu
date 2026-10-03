@@ -27,7 +27,9 @@
 # tofu-estate tag on the way in - are not measured here: the emulator has no
 # tag-policy enforcement to produce the second, and no service it emulates
 # rewrites a declared field on write in a way stock reads as perpetual drift.
-# That is why the AWS cell of claim 26 reads "restated", not "proven".
+# That is why this proof's note in claims.json says it covers the first
+# part only (it was claim 26's AWS cell, which read "restated", until #1817
+# made it a proof of claim 15).
 #
 # BREAK=1 attaches the identical Deny with one action different -
 # sqs:DeleteQueue, which this apply never calls - and requires the opposite

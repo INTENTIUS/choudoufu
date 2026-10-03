@@ -13,7 +13,7 @@ behaviour, which is why this exists.
 
 fail     "<substring> <count>" or "<substring> <count> 404"
          A GetObject whose path contains <substring> is answered 500, <count>
-         times (-1 is forever). ListObjectsV2 is never failed. Claim 31.
+         times (-1 is forever). ListObjectsV2 is never failed. Claim 29.
 
          With the third field "404" the answer is S3's own 404 NoSuchKey
          instead, which is a different fault and not a milder one: a 500 is
@@ -22,7 +22,7 @@ fail     "<substring> <count>" or "<substring> <count> 404"
          naming the key. That is a store contradicting itself about one
          record, which is GitHub issue #1355's route, and every GET of the
          key gets it - the bulk read's, its second look, and the per-key
-         read the run falls back to. Claim 31, step 5.
+         read the run falls back to. Claim 29, step 5.
 
 hold     "<substring>"
          A PUT whose path contains <substring> is HELD: not forwarded, not
@@ -36,21 +36,21 @@ count    "<substring>"
          A GET whose path contains <substring> is counted while it is in
          flight, and the highest number ever in flight at once is written to
          <work-dir>/inflight-max. Deleting that file resets the high-water
-         mark, so a scenario measures one run at a time. Claim 31.
+         mark, so a scenario measures one run at a time. Claim 29.
 
 stall    "<substring> <seconds>"
          A GET whose path contains <substring> waits <seconds> before it is
          forwarded. Requests that are genuinely concurrent then overlap for
          long enough to be seen; without it a fan-out against a local
          emulator can finish each GET before the next begins and read as
-         sequential. Claim 31.
+         sequential. Claim 29.
 
 release  "<seq> <seq> ..." or "drop"
          Held PUTs are forwarded one at a time in that order, each completing
          its round trip before the next starts, which is what makes a race
          deterministic: both writers' conditional PUTs are in hand before
          either is judged. "drop" closes every held connection without
-         forwarding, which is a writer killed mid-write. Claim 32.
+         forwarding, which is a writer killed mid-write. Claim 2.
 """
 import http.client
 import http.server
@@ -65,7 +65,7 @@ lock = threading.Lock()
 turn = threading.Condition()
 released = set()
 
-# The in-flight high-water mark (claim 31's "eight at a time"). A separate
+# The in-flight high-water mark (claim 29's "eight at a time"). A separate
 # lock from `lock`, which the file-backed controls hold while they read and
 # write, so counting a request in can never wait on one of those.
 count_lock = threading.Lock()
@@ -153,7 +153,7 @@ def precondition(headers):
     """The conditional-write header a PUT carried, for its log line.
 
     Every record store write is one conditional PutObject: If-None-Match: *
-    to create a record, If-Match: <version> to update one. Claim 27's
+    to create a record, If-Match: <version> to update one. Claim 45's
     shared-store step (#1394) reads those off the wire instead of inferring
     them from the fact that the write landed, which is the only way to tell
     a conditional update from an unconditional overwrite that happened to

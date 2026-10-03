@@ -25,7 +25,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/k8stest"
 )
 
-// Claim 32 on the Kubernetes record store: two writers, one record, the
+// Claim 2 on the Kubernetes record store: two writers, one record, the
 // loser named and nothing clobbered (GitHub issue #1441).
 //
 // The bucket store proves this in live/smoke/scenarios/two-writers-one-record.sh,
@@ -379,7 +379,7 @@ func (c *raceTally) add(o raceTally) {
 	c.clobbers += o.clobbers
 }
 
-// TestKubernetesTwoWritersOneRecord is claim 32 on this store: two writers
+// TestKubernetesTwoWritersOneRecord is claim 2 on this store: two writers
 // that read the same version and are held on the wire until both are there
 // settle with exactly one winner, a loser told both versions by name, and
 // the loser's payload nowhere in the store.

@@ -175,7 +175,7 @@ role_with_policy() {
   aws s3api put-object --bucket "$bucket" --key "$marker" --body "$SMOKE_WORK/marker" >/dev/null || return 1
   # The proof statement grants a READ and a WRITE of the marker, and the loop
   # below wants both, several times running. One successful GetObject used to
-  # be the whole proof, and on 2026-09-19 it was not enough: claim 35 printed
+  # be the whole proof, and on 2026-09-19 it was not enough: claim 28 printed
   # "policy proven live after ~9s" for a brand-new role and that role's first
   # PutObject, seconds later, was denied with "no identity-based policy
   # allows". IAM reaches S3's hosts one at a time, and a write is a different

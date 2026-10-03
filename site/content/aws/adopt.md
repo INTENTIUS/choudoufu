@@ -5,7 +5,7 @@ description: "Bring resources that already run under management, one marker at a
 deeper:
   - "[Migrate an existing estate]({{< relref \"/docs/use/migrate\" >}}): the three groups and the bulk path."
   - "[Start a new estate]({{< relref \"/docs/use/start\" >}}): the `live` block from a first apply."
-  - "Claims [1]({{< relref \"/docs/claims/no-silent-orphans\" >}}), [5]({{< relref \"/docs/claims/recovery-is-a-rerun\" >}}), [6]({{< relref \"/docs/claims/roundtrip\" >}}) and [12]({{< relref \"/docs/claims/carve-by-retag\" >}})."
+  - "Claims [1]({{< relref \"/docs/claims/no-silent-orphans\" >}}), [5]({{< relref \"/docs/claims/recovery-is-a-rerun\" >}}), [6]({{< relref \"/docs/claims/roundtrip\" >}}) and [7]({{< relref \"/docs/claims/identity-is-a-tag\" >}})."
 ---
 
 # Adopt

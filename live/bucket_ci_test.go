@@ -28,7 +28,7 @@ import (
 // excluded by that test on their own, because they start no emulator.
 //
 // One more exclusion, from #1394: a scenario whose substrate is not aws
-// runs in the workflow its substrate needs, not here. Claim 27 keeps an
+// runs in the workflow its substrate needs, not here. Claim 45 keeps an
 // estate's records in a bucket on the emulator for one of its steps and
 // spends the rest of its run on a kind cluster, which this workflow does
 // not install. It runs in .github/workflows/k8s-smoke.yml, where
@@ -148,7 +148,7 @@ func TestBucketSmokesRunInCIWithTheirControls(t *testing.T) {
 		}
 	}
 	if named == 0 {
-		t.Errorf("no bucket scenario reads a control variable of its own (BREAK_<NAME>), and claim 31 is known to read BREAK_CROSSCHECK; this guard is looking in the wrong place")
+		t.Errorf("no bucket scenario reads a control variable of its own (BREAK_<NAME>), and claim 29 is known to read BREAK_CROSSCHECK; this guard is looking in the wrong place")
 	}
 }
 

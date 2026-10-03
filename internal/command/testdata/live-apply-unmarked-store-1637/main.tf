@@ -1,4 +1,4 @@
-# GitHub issue #1637, claim 17's shape at the command tier: an inline IAM
+# GitHub issue #1637, claim 3's shape at the command tier: an inline IAM
 # group policy with no `name`, so AWS assigns one at create time. The type
 # carries no tags, so no marker can find it, and its identity needs a value
 # only the apply learns. With no record store open that is #950's refusal.

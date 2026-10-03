@@ -31,7 +31,7 @@ import (
 //
 // `just smoke k8s-records-in-the-cluster` (live/smoke/scenarios/), which
 // creates a kind cluster, creates the records namespace, sets this variable
-// and runs `go test -run TestKubernetesStore`. That scenario is claim 39 in
+// and runs `go test -run TestKubernetesStore`. That scenario is claim 29 in
 // live/smoke/claims.json and is what the claim's evidence is read from.
 //
 // A skip here is not a pass. A `go test ./internal/live/staterecord/` with no

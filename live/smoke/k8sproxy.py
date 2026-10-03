@@ -3,7 +3,7 @@
 
     python3 k8sproxy.py <upstream-url> <work-dir>
 
-It is live/smoke/s3proxy.py for the Kubernetes record store: claim 31 on the
+It is live/smoke/s3proxy.py for the Kubernetes record store: claim 29 on the
 cluster (k8s-records-in-the-cluster, step 12) needs one page of a paged LIST
 to fail from OUTSIDE the binary, and nothing in a kind cluster can be made to
 expire a continue token on cue. The API server's watch cache keeps a token
@@ -38,7 +38,7 @@ expire   "<count>"
          410 Gone with the API server's own Status body (reason Expired),
          <count> times (-1 is forever). The first page is never failed, so
          what the run gets is exactly what an expired token gets it: a good
-         first page and a refused second one. Claim 31.
+         first page and a refused second one. Claim 29.
 
 skip     "<count>"
          The first <count> later-page requests that `expire` would answer
@@ -46,7 +46,7 @@ skip     "<count>"
          start answering. A run lists the records namespace more than once:
          once when the store opens, to read its sentinel back, and again for
          the bulk read the plan is built on. skip 1 lets the first through,
-         so the 410 lands on the second, which is the read claim 31 is
+         so the 410 lands on the second, which is the read claim 29 is
          about; with no skip it lands on the first.
 """
 import http.client

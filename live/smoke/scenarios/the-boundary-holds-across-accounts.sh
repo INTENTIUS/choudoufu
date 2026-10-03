@@ -13,7 +13,7 @@ LG_NAME="/smoke-two-accounts/app"
 HOME_ACCT="000000000000"
 OTHER_ACCT="111111111111"
 
-# The estate. It is claim 16's estate with the second axis swapped: there
+# The estate. It is claim 13's estate with the second axis swapped: there
 # the two aliased provider configurations differ by REGION and share an
 # account, here they differ by ACCOUNT and share a region. Everything else
 # is deliberately identical, because the claim is that the mechanism does
@@ -121,7 +121,7 @@ plan_full() {
 # signed BY one account's credentials. SigV4's credential scope opens with
 # the access key id, which here IS the account id, so this attributes work
 # to the provider configuration that did it without trusting any counter of
-# ours - the same wire-read attribution claim 16 makes by region.
+# ours - the same wire-read attribution claim 13 makes by region.
 requests_as() { grep -oE "Credential=$2/[0-9]{8}/us-east-1/" "$LOGDIR/$1.log" 2>/dev/null | wc -l | tr -d ' '; }
 # tagging_as counts the estate-wide tag-index fetches (choudoufu's OWN
 # Resource Groups Tagging client, not the provider's) that one debug stream
@@ -138,7 +138,7 @@ tagging_as() { { grep -c "stateless/tagging: HTTP Request Sent: .* signed_as=$2\
 
 step "the claim"
 explain \
-  "The boundary holds across accounts. Claim 16 proves it for two" \
+  "The boundary holds across accounts. Claim 13 proves it for two" \
   "regions; this is the same estate with the other axis swapped - two" \
   "ACCOUNTS, one region, one tofu-estate marker, one record store - and" \
   "the reason to run it separately is that a cross-account alias is only" \
@@ -186,7 +186,7 @@ case "$H_ARN" in *":$HOME_ACCT:"*) ;; *) fail "accounts" "aws.home's log group i
 case "$O_ARN" in *":$OTHER_ACCT:"*) ;; *) fail "accounts" "aws.other_account's log group is not in account $OTHER_ACCT: $O_ARN" ;; esac
 # Both objects are in us-east-1: the region is NOT what keeps them apart.
 case "$H_ARN" in *:us-east-1:*) ;; *) fail "accounts" "aws.home's log group is not in us-east-1: $H_ARN" ;; esac
-case "$O_ARN" in *:us-east-1:*) ;; *) fail "accounts" "aws.other_account's log group is not in us-east-1: $O_ARN - the two objects have to share a region or this measures claim 16 again" ;; esac
+case "$O_ARN" in *:us-east-1:*) ;; *) fail "accounts" "aws.other_account's log group is not in us-east-1: $O_ARN - the two objects have to share a region or this measures claim 13 again" ;; esac
 # Each account's own listing sees its own object and nothing of the other's.
 if grep -q "$O_ARN" <<< "$(awsa "$HOME_ACCT" logs describe-log-groups --output text)"; then
   fail "accounts" "account $HOME_ACCT's own listing returned the OTHER account's log group ($O_ARN) - the accounts are not separate populations here"

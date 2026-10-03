@@ -34,8 +34,10 @@
 {{- range $p := $d.provider_order }}
 {{- $pv := index $row.providers $p }}
 <td class="status status-{{ replace $pv.status "/" "-" }}"{{ with $pv.note }} title="{{ . }}"{{ end }}>{{ $pv.status }}
-{{- with $pv.scenario }}<br><code>{{ $pv.command }}</code> ~{{ $pv.minutes }} min{{ if $pv.needs_go }} <span class="needs-go">needs Go</span>{{ end }}{{ if $pv.needs_emulator }} <span class="needs-go">needs the emulator</span>{{ end }}{{ if $pv.real_service }} <span class="needs-go">real AWS, maintainer-run</span>{{ end }}{{ end }}
-{{- with $pv.proven_by }}{{ $by := index (where $d.claims "id" .) 0 }}{{ $byCell := index $by.providers $p }}<br>in claim {{ . }}: <code>{{ $byCell.command }}</code>{{ end -}}
+{{- range $pv.proofs }}
+{{- if .scenario }}<br><code>{{ .command }}</code> ~{{ .minutes }} min{{ if .needs_go }} <span class="needs-go">needs Go</span>{{ end }}{{ if .needs_emulator }} <span class="needs-go">needs the emulator</span>{{ end }}{{ if .real_service }} <span class="needs-go">real AWS, maintainer-run</span>{{ end }}
+{{- else if .proven_by }}<br>proven by claim {{ .proven_by }}: <code>{{ .command }}</code>{{ end }}
+{{- end -}}
 </td>
 {{- end }}
 </tr>

@@ -42,7 +42,7 @@ func manifestTypeSchema() providers.Schema {
 	}}
 }
 
-// manifestTestManifest is the CronTab of claim 24, its metadata built from
+// manifestTestManifest is the CronTab of claim 7, its metadata built from
 // the attributes given (labels omitted entirely when nil, the way an
 // object constructor with no labels key evaluates).
 func manifestTestManifest(labels cty.Value) cty.Value {
