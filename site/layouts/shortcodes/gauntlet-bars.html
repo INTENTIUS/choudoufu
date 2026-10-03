@@ -67,6 +67,13 @@
       <div class="gauntlet-bar-block">
         <div class="gauntlet-bar-label">{{ $set.label }}</div>
         <div class="gauntlet-bar-count">{{ $k }} of {{ $n }} estates behave like OpenTofu</div>
+        {{- /* #1558: clear splits into verified (measured on the emulator,
+               oracle and engine pinned now) and carried (clear on evidence
+               from an earlier pin). Both are shown so a repin neither hides
+               behind the headline nor reads as a regression. */ -}}
+        {{- if isset $set "verified" }}
+        <div class="gauntlet-bar-split">{{ $set.verified }} verified on the current pins, {{ $set.carried }} carried from a run on an earlier pin</div>
+        {{- end }}
         <div class="gauntlet-bar-track">
           <div class="gauntlet-bar-fill" style="width:{{ printf "%.1f" $pct }}%"></div>
         </div>

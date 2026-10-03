@@ -51,7 +51,7 @@ func TestRebuildNeverTouchesLiveCert(t *testing.T) {
 	}
 
 	baseline := &Artifact{}
-	baseline.Rebuild(m, nil, "sha256:baseline", OracleVersions{}, ProviderVersions{}, "")
+	baseline.Rebuild(m, nil, "sha256:baseline", OracleVersions{}, ProviderVersions{}, "", "")
 
 	withLiveCert := &Artifact{
 		LiveCert: []LiveCertResult{{
@@ -61,7 +61,7 @@ func TestRebuildNeverTouchesLiveCert(t *testing.T) {
 			Clear:  true, Date: "2026-08-29T00:00:00Z",
 		}},
 	}
-	withLiveCert.Rebuild(m, nil, "sha256:baseline", OracleVersions{}, ProviderVersions{}, "")
+	withLiveCert.Rebuild(m, nil, "sha256:baseline", OracleVersions{}, ProviderVersions{}, "", "")
 
 	if len(withLiveCert.LiveCert) != 1 || withLiveCert.LiveCert[0].Estate != "reference-ec2-vpc" {
 		t.Fatalf("Rebuild must never modify a.LiveCert; got %+v", withLiveCert.LiveCert)
@@ -236,7 +236,7 @@ func TestBoardLiveCertIsSeparate(t *testing.T) {
 		t.Fatal(err)
 	}
 	without := &Artifact{}
-	without.Rebuild(m, nil, "sha256:test", OracleVersions{}, ProviderVersions{}, "")
+	without.Rebuild(m, nil, "sha256:test", OracleVersions{}, ProviderVersions{}, "", "")
 	withoutBoard := buildBoard(m, without, nil, "")
 	if len(withoutBoard.LiveCert) != 0 {
 		t.Fatal("buildBoard must carry no live-cert rows when a.LiveCert is empty")
@@ -247,7 +247,7 @@ func TestBoardLiveCertIsSeparate(t *testing.T) {
 		Region: "us-east-1", CeilingUSD: 5, Clear: true, Date: "2026-08-29T00:00:00Z",
 		Stages: map[string]string{"cold_deploy": VerdictPass, "migrate": VerdictPass, "test_plan": VerdictPass, "test_apply": VerdictPass},
 	}}}
-	with.Rebuild(m, nil, "sha256:test", OracleVersions{}, ProviderVersions{}, "")
+	with.Rebuild(m, nil, "sha256:test", OracleVersions{}, ProviderVersions{}, "", "")
 	withBoard := buildBoard(m, with, nil, "")
 
 	if len(withBoard.LiveCert) != 1 || withBoard.LiveCert[0].Estate != "reference-ec2-vpc" || withBoard.LiveCert[0].Region != "us-east-1" {

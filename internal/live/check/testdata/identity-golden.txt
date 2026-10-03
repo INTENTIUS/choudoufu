@@ -9,14 +9,14 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=684 instances=2436
-# shape: class CONCRETE=1490
+# shape: dirs=688 instances=2441
+# shape: class CONCRETE=1495
 # shape: class NEEDS_DISCOVERY=781
 # shape: class PARENT_DERIVED=138
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=653 fixture-instances=1732
+# shape: fixture-dirs=657 fixture-instances=1737
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=a5114c48bb6ea12d8e8c9d4f3ba07b238defedc2d3aea34a433de87f3f6bd757
+# shape: body-sha256=79748bb0662839cadc0296c40163756cbf29a5caf30cd4cb07c859881abccc45
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -436,6 +436,8 @@ internal/live/identity/testdata/module-arg-hoisted	module.merged.aws_iam_role.de
 internal/live/identity/testdata/module-arg-hoisted	module.merged.aws_iam_role.gated[0]	CONCRETE	merged-0	name=merged-0
 internal/live/identity/testdata/module-arg-hoisted	module.output.aws_iam_role.derived[0]	CONCRETE	derived-subnet-from-output	name=derived-subnet-from-output
 internal/live/identity/testdata/module-arg-hoisted	module.output.aws_iam_role.gated[0]	CONCRETE	netout-0	name=netout-0
+internal/live/identity/testdata/module-count-sensitive	module.user[0].aws_iam_user.this	CONCRETE	user-0	name=user-0
+internal/live/identity/testdata/module-count-sensitive	module.user[1].aws_iam_user.this	CONCRETE	user-1	name=user-1
 internal/live/identity/testdata/module-count-var	module.user[0].aws_iam_user.this	CONCRETE	user-0	name=user-0
 internal/live/identity/testdata/module-count-var	module.user[1].aws_iam_user.this	CONCRETE	user-1	name=user-1
 internal/live/identity/testdata/module-foreach-comprehension-chase	module.wrapper.module.task["app"].aws_iam_user.this	CONCRETE	app	name=app
@@ -601,6 +603,9 @@ internal/live/identity/testdata/schema-precedence	aws_iam_role.example	CONCRETE	
 internal/live/identity/testdata/schema-precedence	aws_iam_role_policy_attachment.example	CONCRETE	example-role/arn:aws:iam::aws:policy/ReadOnlyAccess	policy_arn=arn:aws:iam::aws:policy/ReadOnlyAccess,role=example-role
 internal/live/identity/testdata/schema-precedence	aws_s3_bucket.example	CONCRETE	example-bucket	bucket=example-bucket
 internal/live/identity/testdata/schema-precedence-disagree	aws_route.example	CONCRETE	rtb-0123456789abcdef0_10.0.0.0/16	destination_cidr_block=10.0.0.0/16,route_table_id=rtb-0123456789abcdef0
+internal/live/identity/testdata/sensitive-count	aws_s3_bucket.data[0]	CONCRETE	estate-data-0	bucket=estate-data-0
+internal/live/identity/testdata/sensitive-count	aws_s3_bucket.data[1]	CONCRETE	estate-data-1	bucket=estate-data-1
+internal/live/identity/testdata/sensitive-count	aws_s3_bucket.data[2]	CONCRETE	estate-data-2	bucket=estate-data-2
 internal/live/identity/testdata/server-assigned-if-absent	aws_iam_role_policy.named	CONCRETE	example-role:explicit-policy-name	name=explicit-policy-name,role=example-role
 internal/live/identity/testdata/server-assigned-if-absent	aws_iam_role_policy.omitted	NEEDS_DISCOVERY		
 internal/live/identity/testdata/server-assigned-if-absent	aws_lambda_permission.omitted	NEEDS_DISCOVERY		

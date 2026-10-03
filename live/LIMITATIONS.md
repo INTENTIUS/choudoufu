@@ -3009,7 +3009,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Sensitive count expression
 
-**What.** A count expression reads a sensitive or ephemeral value; the instance keys it produces become marker values.
+**What.** A count expression reads an ephemeral value; the instance keys it produces become marker values. A sensitive count is unmarked, as stock does, since keys 0..n-1 disclose nothing.
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 

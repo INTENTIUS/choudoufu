@@ -210,6 +210,8 @@
       "label": "All estates",
       "estates": 27,
       "clear": 27,
+      "verified": 27,
+      "carried": 0,
       "stages": {
         "cold_deploy": {
           "pass": 27,
@@ -287,6 +289,8 @@
       "label": "Core estates",
       "estates": 26,
       "clear": 26,
+      "verified": 26,
+      "carried": 0,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -366,6 +370,8 @@
       "label": "kubernetes lane",
       "estates": 4,
       "clear": 4,
+      "verified": 4,
+      "carried": 0,
       "stages": {
         "cold_deploy": {
           "pass": 4,
@@ -443,6 +449,8 @@
       "label": "opentofu-native lane",
       "estates": 9,
       "clear": 9,
+      "verified": 9,
+      "carried": 0,
       "stages": {
         "cold_deploy": {
           "pass": 9,
@@ -520,6 +528,8 @@
       "label": "published-deployment lane",
       "estates": 1,
       "clear": 1,
+      "verified": 1,
+      "carried": 0,
       "stages": {
         "cold_deploy": {
           "pass": 1,
@@ -597,6 +607,8 @@
       "label": "reference lane",
       "estates": 2,
       "clear": 2,
+      "verified": 2,
+      "carried": 0,
       "stages": {
         "cold_deploy": {
           "pass": 2,
@@ -674,6 +686,8 @@
       "label": "terraform-popular lane",
       "estates": 15,
       "clear": 15,
+      "verified": 15,
+      "carried": 0,
       "stages": {
         "cold_deploy": {
           "pass": 15,

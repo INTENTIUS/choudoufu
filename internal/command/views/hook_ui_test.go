@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -167,7 +168,7 @@ func TestUiHook_ephemeral(t *testing.T) {
 				return hook.PostOpen(addr, nil)
 			},
 			wantOutput: `ephemeral\.test_instance\.foo: Opening\.\.\.
-ephemeral\.test_instance\.foo: Still opening\.\.\. \[\ds elapsed\]
+ephemeral\.test_instance\.foo: Still opening\.\.\. \[ELAPSED elapsed\]
 `,
 		},
 		{
@@ -179,8 +180,8 @@ ephemeral\.test_instance\.foo: Still opening\.\.\. \[\ds elapsed\]
 				return hook.PostRenew(addr, nil)
 			},
 			wantOutput: `ephemeral\.test_instance\.foo: Renewing\.\.\.
-ephemeral\.test_instance\.foo: Still renewing\.\.\. \[\ds elapsed\]
-ephemeral\.test_instance\.foo: Renew complete after \ds
+ephemeral\.test_instance\.foo: Still renewing\.\.\. \[ELAPSED elapsed\]
+ephemeral\.test_instance\.foo: Renew complete after ELAPSED
 `,
 		},
 		{
@@ -192,54 +193,93 @@ ephemeral\.test_instance\.foo: Renew complete after \ds
 				return hook.PostClose(addr, nil)
 			},
 			wantOutput: `ephemeral\.test_instance\.foo: Closing\.\.\.
-ephemeral\.test_instance\.foo: Still closing\.\.\. \[\ds elapsed\]
-ephemeral\.test_instance\.foo: Close complete after \ds
+ephemeral\.test_instance\.foo: Still closing\.\.\. \[ELAPSED elapsed\]
+ephemeral\.test_instance\.foo: Close complete after ELAPSED
 `,
 		},
 	}
-	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) {
-			streams, done := terminal.StreamsForTesting(t)
-			view := NewView(streams)
-			h := NewUiHook(view)
-			h.periodicUiTimer = 1 * time.Second
-
-			action, err := tt.preF(h)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if action != tofu.HookActionContinue {
-				t.Fatalf("Expected hook to continue, given: %#v", action)
-			}
-
-			<-time.After(1100 * time.Millisecond)
-
-			// stop the background writer
-			uiState := h.resources[addr.String()]
-			// call postF that will stop the waiting for the action
-			action, err = tt.postF(h)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if action != tofu.HookActionContinue {
-				t.Errorf("Expected hook to continue, given: %#v", action)
-			}
-			// wait for the waiting to stop completely
-			<-uiState.done
-
-			result := done(t)
-			output := result.Stdout()
-			if matched, _ := regexp.MatchString(tt.wantOutput, output); !matched {
-				t.Fatalf("Output didn't match.\nExpected: %q\nGiven: %q", tt.wantOutput, output)
-			}
-
-			expectedErrOutput := ""
-			errOutput := result.Stderr()
-			if errOutput != expectedErrOutput {
-				t.Fatalf("Error output didn't match.\nExpected: %q\nGiven: %q", expectedErrOutput, errOutput)
-			}
-		})
+	// The elapsed figure comes from h.now, not the wall clock: a gate run
+	// on a loaded machine once printed "3m5s elapsed" here (#1790). Both
+	// of the figure's formats are asserted, the seconds one and the one
+	// that gains a minutes part past 60s.
+	elapsed := []struct {
+		d      time.Duration
+		figure string
+	}{
+		{1 * time.Second, "1s"},
+		{61 * time.Second, "1m1s"},
 	}
+	for _, tt := range cases {
+		for _, el := range elapsed {
+			t.Run(tt.name+"/"+el.figure, func(t *testing.T) {
+				testUiHookEphemeral(t, addr, tt.preF, tt.postF, strings.ReplaceAll(tt.wantOutput, "ELAPSED", el.figure), el.d)
+			})
+		}
+	}
+}
+
+func testUiHookEphemeral(t *testing.T, addr addrs.AbsResourceInstance, preF, postF func(tofu.Hook) (tofu.HookAction, error), wantOutput string, elapsed time.Duration) {
+	t.Helper()
+	streams, done := terminal.StreamsForTesting(t)
+	view := NewView(streams)
+	h := NewUiHook(view)
+	h.periodicUiTimer = 1 * time.Second
+	h.now = (&steppedClock{elapsed: elapsed}).now
+
+	action, err := preF(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if action != tofu.HookActionContinue {
+		t.Fatalf("Expected hook to continue, given: %#v", action)
+	}
+
+	<-time.After(1100 * time.Millisecond)
+
+	// stop the background writer
+	uiState := h.resources[addr.String()]
+	// call postF that will stop the waiting for the action
+	action, err = postF(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if action != tofu.HookActionContinue {
+		t.Errorf("Expected hook to continue, given: %#v", action)
+	}
+	// wait for the waiting to stop completely
+	<-uiState.done
+
+	result := done(t)
+	output := result.Stdout()
+	if matched, _ := regexp.MatchString(wantOutput, output); !matched {
+		t.Fatalf("Output didn't match.\nExpected: %q\nGiven: %q", wantOutput, output)
+	}
+
+	expectedErrOutput := ""
+	errOutput := result.Stderr()
+	if errOutput != expectedErrOutput {
+		t.Fatalf("Error output didn't match.\nExpected: %q\nGiven: %q", expectedErrOutput, errOutput)
+	}
+}
+
+// steppedClock is a UiHook clock that reads a fixed start on its first call
+// and start+elapsed on every call after it, so an elapsed figure is what
+// the test chose rather than what the machine's load made it (#1790).
+type steppedClock struct {
+	mu      sync.Mutex
+	started bool
+	elapsed time.Duration
+}
+
+func (c *steppedClock) now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	start := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
+	if !c.started {
+		c.started = true
+		return start
+	}
+	return start.Add(c.elapsed)
 }
 
 // Test the PreApply hook's destroy path, including passing a deposed key as
