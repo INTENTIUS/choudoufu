@@ -264,6 +264,11 @@ func (r *statelessRunner) AfterPlan(ctx context.Context, config *configs.Config,
 	if r.view != nil {
 		r.view.KubernetesDryRun(evidence)
 	}
+	// GitHub issue #1191: the field-granular boundary, as live_plan.go
+	// asks it after its own dry run.
+	if r.resolver != nil {
+		diags = diags.Append(statelessKubernetesFieldOwners(ctx, r.labelListSweepers, config, plan, schemas, r.resolver.Estate))
+	}
 	return diags
 }
 
