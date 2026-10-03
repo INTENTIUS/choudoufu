@@ -141,6 +141,13 @@ type Substrate interface {
 	// Sweep is which sweep client the family's provider block builds.
 	Sweep() Sweep
 
+	// SweepFindsUnadmitted is whether the family's sweep finds its objects
+	// independently of internal/live/identity's admission table, drawing
+	// its universe from the provider and the service rather than from the
+	// table's rows, so a type with no row is still found once its last
+	// block is removed ([Sweeps], GitHub issue #1742).
+	SweepFindsUnadmitted() bool
+
 	// NewSweeper builds the family's estate-sweep client from its provider
 	// block's evaluated configuration (ok false when the run holds none):
 	// nil with no error for a family whose sweep runs through the
@@ -207,13 +214,14 @@ func ForProvider(providerType string) (Substrate, bool) {
 // table (GitHub issue #1581): a type belonging to such a family needs no
 // row there to be found again once its last block is removed.
 //
-// Only Kubernetes qualifies today ([SweepLabelList]): its leg lists every
-// kind the cluster serves and joins the result against the estate's
-// objects, drawing its universe from the provider and the cluster rather
-// than from the table. AWS's own sweep ([SweepTaggingIndex]) is that same
-// admission table read a different way, so a type with no row gets nothing
-// extra from it, and neither does an unregistered provider ForProvider
-// does not recognise at all.
+// It is the family's [Substrate.SweepFindsUnadmitted] (GitHub issue
+// #1742: it used to compare the sweep kind to [SweepLabelList], which a
+// third family's own sweep could never answer). Only Kubernetes qualifies
+// today: its leg lists every kind the cluster serves and joins the result
+// against the estate's objects. AWS's own sweep ([SweepTaggingIndex]) is
+// the admission table read a different way, so a type with no row gets
+// nothing extra from it, and neither does an unregistered provider
+// ForProvider does not recognise at all.
 //
 // This is the question [internal/live/identity]'s no-orphan-recovery
 // warning needs, and it is asked by provider - the resource's own resolved
@@ -223,7 +231,7 @@ func ForProvider(providerType string) (Substrate, bool) {
 // sweep leg, if any, will actually look for it again.
 func Sweeps(providerType string) bool {
 	s, ok := ForProvider(providerType)
-	return ok && s.Sweep() == SweepLabelList
+	return ok && s.SweepFindsUnadmitted()
 }
 
 // For is the family a surface belongs to, or nil for the zero Surface.
@@ -309,10 +317,11 @@ func WritesOf(surface markers.Surface) Writes {
 
 // Sweeper is a family's estate-sweep client as [Substrate.NewSweeper]
 // builds it from the provider block. SweepKind is the sweep it serves,
-// its family's own [Substrate.Sweep]: internal/live/discovery pairs a
-// client with the leg that lists through it by that property, never by
-// the family's name, so a third family's client plugs in by naming a
-// sweep and a leg serving it.
+// which must be its family's own [Substrate.Sweep]: internal/command's
+// leg for that sweep checks it, then asks the client for the capability
+// the leg lists through (for [SweepLabelList], kubesweep.Sweeper), never
+// for a family's concrete type, so a third family's client plugs in by
+// naming a sweep and serving its leg (GitHub issues #1580, #1742).
 type Sweeper interface {
 	SweepKind() Sweep
 }

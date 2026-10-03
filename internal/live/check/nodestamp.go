@@ -19,6 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/stamp"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -268,11 +269,19 @@ func NodeStampUnmarkedApplyRecordOnly(cfg *configs.Config, result *identity.Resu
 
 		typeName := blockAddr.Resource.Type
 		schema, hasSchema := schemas[typeName]
+		// GitHub issue #1742: whether the type carries a marker, and why
+		// not, are its provider family's answers ([substrate.SurfaceOf],
+		// [substrate.NotACarrier]), not the AWS tags-map predicates.
+		providerType := identity.ProviderTypeOf(cfg, r.Addr)
+		carries := false
+		if hasSchema {
+			_, carries = substrate.SurfaceOf(providerType, schema.Block)
+		}
 		if mustStamp && hasSchema && storeWritable && projection.ApplyRecordsIdentity(typeName, schema) {
 			// GitHub issue #1637. See this function's own doc comment on
 			// storeWritable.
 			mustStamp = false
-			if !markers.Taggable(schema.Block) {
+			if !carries {
 				// GitHub issue #1743: the record this exemption relies on
 				// is these instances' only carrier. A taggable type is
 				// marked on the node path and needs no such promise.
@@ -299,10 +308,10 @@ func NodeStampUnmarkedApplyRecordOnly(cfg *configs.Config, result *identity.Resu
 					typeName, blockAddr),
 				Subject: rng.Ptr(),
 			})
-		case !markers.Taggable(schema.Block):
+		case !carries:
 			switch {
 			case mustStamp:
-				detail := fmt.Sprintf("%s is a %s. %s", blockAddr, typeName, markers.NotAMarkerSurface(schema.Block, typeName)) +
+				detail := fmt.Sprintf("%s is a %s. %s", blockAddr, typeName, substrate.NotACarrier(providerType, schema.Block, typeName)) +
 					" " + stamp.UnmarkedDiscoveryDetail(blockAddr, disco)
 				if projection.ApplyRecordsIdentity(typeName, schema) {
 					// GitHub issue #1637: the other way out, for a type
@@ -332,7 +341,7 @@ func NodeStampUnmarkedApplyRecordOnly(cfg *configs.Config, result *identity.Resu
 				// configuration and warning on each would drown the run."
 			}
 		default:
-			// Taggable: the node path writes the marker successfully
+			// Carries a marker: the node path writes it successfully
 			// (AdjustConfigValue). Nothing to report.
 		}
 	}

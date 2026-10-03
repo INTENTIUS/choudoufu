@@ -90,6 +90,11 @@ func (kubernetes) AddressCarrier(surface markers.Surface) (key, noun string) {
 
 func (kubernetes) Sweep() Sweep { return SweepLabelList }
 
+// SweepFindsUnadmitted is true: the label-list leg lists every kind the
+// cluster serves and joins the result against the estate's objects
+// (GitHub issue #1581, [Sweeps]).
+func (kubernetes) SweepFindsUnadmitted() bool { return true }
+
 // NewSweeper is the cluster client the provider block's own connection
 // arguments build ([KubernetesSweepAttrs] mirrors hashicorp/kubernetes'
 // precedence).
