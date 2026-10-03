@@ -297,7 +297,14 @@ shape.
 ## Related
 
 - `live/floci-capabilities.json` — per-service and per-type implementation
-  evidence, keyed by image digest.
+  evidence for the pinned image's digest, and only that one (#697). A
+  repin probes the new image with `tools/floci-capability-gen` while the old
+  pin is still in place, moves `live/floci-image`, then runs
+  `go run ./tools/floci-capability-gen -mode=prune`, which drops every
+  other digest's entry. The 57 entries for earlier images (23MB) were
+  dropped at that change; the last commit carrying them is
+  `0a30ae86d95b5e05b0350edc8fa5b0dbe078eeaf`, read with
+  `git show 0a30ae86d9:live/floci-capabilities.json`.
 - `live/floci-image` — the pinned digest every harness and measurement uses.
 - `live/e2e/README.md` — the harnesses, and per-fixture notes on what floci
   gets wrong for that fixture specifically.
