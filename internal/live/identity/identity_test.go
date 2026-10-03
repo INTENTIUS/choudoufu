@@ -534,21 +534,17 @@ func TestResolveErrors(t *testing.T) {
 			wantDetail:  `"name"`,
 			wantAbsent:  `aws_iam_group.admins`,
 		},
-		// The three marked-expansion cases below crashed the run before
+		// The two marked-expansion cases below crashed the run before
 		// buildExpansion guarded them: cty panics rather than erroring when
-		// a marked value reaches Value.False or gocty.FromCtyValue. They
+		// a marked value reaches Value.False or gocty.FromCtyValue. A
+		// sensitive count used to be a third; it resolves since #1792
+		// (TestSensitiveCountResolvesLikeStock). They
 		// are in this table rather than a test of their own because the
 		// assertion that matters is the ordinary one - a named refusal and
 		// no resolved instance - and because reaching the assertion at all
 		// is what proves the panic is gone.
 		{
 			dir:         "ephemeral-count",
-			wantSummary: "Sensitive count expression",
-			wantDetail:  `aws_s3_bucket.data`,
-			wantAbsent:  `aws_s3_bucket.data[0]`,
-		},
-		{
-			dir:         "sensitive-count",
 			wantSummary: "Sensitive count expression",
 			wantDetail:  `aws_s3_bucket.data`,
 			wantAbsent:  `aws_s3_bucket.data[0]`,
