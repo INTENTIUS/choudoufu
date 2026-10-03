@@ -174,3 +174,42 @@ func nameOf(s Substrate) string {
 	}
 	return s.Name()
 }
+
+// listingFamily is a third family whose sweep has a kind of its own and
+// says for itself whether that sweep finds its objects without the
+// admission table. Everything else is Kubernetes', by embedding.
+type listingFamily struct {
+	Substrate
+	name       string
+	sweep      Sweep
+	unadmitted bool
+}
+
+func (f listingFamily) Name() string               { return f.name }
+func (f listingFamily) Sweep() Sweep               { return f.sweep }
+func (f listingFamily) SweepFindsUnadmitted() bool { return f.unadmitted }
+
+// TestSweepsAsksTheFamily (GitHub issue #1742 item 5): whether a family's
+// sweep finds a type with no admission-table row is the family's answer.
+// Before, [Sweeps] compared the sweep kind to SweepLabelList, so a third
+// family listing its own universe read false, and a family sharing the
+// label-list kind could not say otherwise.
+func TestSweepsAsksTheFamily(t *testing.T) {
+	withFamilies(t,
+		Kubernetes,
+		listingFamily{Substrate: Kubernetes, name: "fakelist", sweep: "fake-list", unadmitted: true},
+		listingFamily{Substrate: Kubernetes, name: "faketable", sweep: SweepLabelList, unadmitted: false},
+		AWS,
+	)
+	for provider, want := range map[string]bool{
+		"kubernetes": true,
+		"aws":        false,
+		"fakelist":   true,
+		"faketable":  false,
+		"google":     false,
+	} {
+		if got := Sweeps(provider); got != want {
+			t.Errorf("Sweeps(%q) = %v, want %v", provider, got, want)
+		}
+	}
+}
