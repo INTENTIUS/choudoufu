@@ -7,8 +7,8 @@ weight: 2
 
 ## The whole estate
 
-Two statements, because creating and mutating are conditioned by different
-keys.
+Creating and mutating are conditioned by different keys, and tagging is
+both.
 
 ```json
 {
@@ -20,16 +20,29 @@ keys.
       "Action": ["ec2:CreateTags", "ec2:DeleteTags", "ec2:TerminateInstances"],
       "Resource": "*",
       "Condition": {
-        "StringEquals": {"aws:ResourceTag/tofu-estate": "prod-networking"}
+        "StringEquals": {"aws:ResourceTag/tofu-estate": "prod-networking"},
+        "StringEqualsIfExists": {"aws:RequestTag/tofu-estate": "prod-networking"}
       }
     },
     {
       "Sid": "CreateOnlyIntoThisEstate",
       "Effect": "Allow",
-      "Action": ["ec2:RunInstances", "ec2:CreateTags"],
+      "Action": ["ec2:RunInstances"],
       "Resource": "*",
       "Condition": {
         "StringEquals": {"aws:RequestTag/tofu-estate": "prod-networking"}
+      }
+    },
+    {
+      "Sid": "TagOnlyAsPartOfThatCreate",
+      "Effect": "Allow",
+      "Action": ["ec2:CreateTags"],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestTag/tofu-estate": "prod-networking",
+          "ec2:CreateAction": "RunInstances"
+        }
       }
     }
   ]
@@ -43,8 +56,18 @@ no resource exists yet to carry the tag. What the creating principal supplies is
 statement a grant to create into this estate rather than a grant to create
 anything.
 
-The actions above are illustrative. A real grant names the actions your own
-types need.
+The first statement's `aws:RequestTag` line stops the role retagging its own
+resource into another team's estate, which `aws:ResourceTag` alone allows.
+The third's `ec2:CreateAction` stops it stamping its estate onto resources it
+did not create. A type tagged after its create, and a marker removed by
+`DeleteTags`, both fall outside these statements:
+[live/MARKERS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md#granting-an-estate)
+has why and what to grant instead.
+
+The actions are illustrative and all EC2. The tagging action differs by
+service; [Marker stamping]({{< relref "/docs/use/reference#marker-stamping" >}})
+has the generated per-service table, and the services on which a run cannot
+stamp a marker at all.
 
 ## Part of an estate
 
@@ -108,6 +131,7 @@ copy. Neither half moves.
 
 `choudoufu live-mv -from-estate=<old> <address> <address>`, run in the new
 estate's configuration after the block moves there, makes that tag write
-one resource at a time; the policy copy is yours.
+one resource at a time; the policy copy is yours. The role that runs it
+needs both estate names in its `aws:RequestTag` condition.
 [How to rename a resource]({{< relref "/docs/use/rename-a-resource#moving-a-resource-to-another-estate" >}})
 has the command's refusals.
