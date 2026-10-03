@@ -594,6 +594,26 @@ func TestModule_liveRecordStore(t *testing.T) {
 		}
 	})
 
+	// GitHub issue #1524. A control_plane block names the managed control
+	// plane, so encryption at rest is read from that provider's API.
+	t.Run("kubernetes with a control_plane", func(t *testing.T) {
+		mod, diags := testModuleFromDir("testdata/valid-modules/live-record-store-kubernetes-control-plane")
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Error())
+		}
+		rs := mod.Live.RecordStore
+		if rs == nil || rs.Kubernetes.ControlPlane == nil {
+			t.Fatal("the control_plane block was not decoded")
+		}
+		cp := rs.Kubernetes.ControlPlane
+		if cp.Provider != "gke" || cp.Name != "prod" || cp.Project != "acme" || cp.Location != "europe-west1" {
+			t.Errorf("ControlPlane = %+v", cp)
+		}
+		if cp.Region != "" || cp.ResourceGroup != "" || cp.SubscriptionID != "" {
+			t.Errorf("ControlPlane carries another provider's arguments: %+v", cp)
+		}
+	})
+
 	// GitHub issue #1448, section C. `insecure = true` is a contract finding
 	// named tls_verification, so the waiver list has to accept that name. The
 	// misspelling beside it is in TestModule_liveRecordStoreRefused.
@@ -844,6 +864,14 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 		{"testdata/invalid-files/live-record-store-exec-on-local.tf", `has no meaning for record_store "local"`},
 		{"testdata/invalid-files/live-record-store-kubernetes-bad-namespace.tf", `is not a Kubernetes namespace name`},
 		{"testdata/invalid-files/live-record-store-kubernetes-exec-no-command.tf", `An "exec" block requires an "command" argument`},
+		// GitHub issue #1524. control_plane names a provider this fork can
+		// ask, takes that provider's arguments and no other's, appears once,
+		// and only on the kubernetes store.
+		{"testdata/invalid-files/live-record-store-kubernetes-control-plane-unknown.tf", `control_plane "doks" names no managed control plane`},
+		{"testdata/invalid-files/live-record-store-kubernetes-control-plane-gke-no-project.tf", `control_plane "gke" requires a "project" argument`},
+		{"testdata/invalid-files/live-record-store-kubernetes-control-plane-wrong-provider-arg.tf", `The "resource_group" argument has no meaning for control_plane "eks"`},
+		{"testdata/invalid-files/live-record-store-kubernetes-control-plane-twice.tf", "Duplicate control_plane block"},
+		{"testdata/invalid-files/live-record-store-control-plane-on-local.tf", `has no meaning for record_store "local"`},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
 			parser := NewParser(nil)
