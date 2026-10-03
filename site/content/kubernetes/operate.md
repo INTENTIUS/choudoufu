@@ -16,7 +16,9 @@ Renaming a block rewrites the address annotation beside the label
 Changing a type's version suffix, `kubernetes_config_map` to
 `kubernetes_config_map_v1`, still replans empty. Moving an object to
 another estate is a relabel, through `live-mv -from-estate` or `kubectl
-label --overwrite`.
+label --overwrite`; for a `kubernetes_manifest` object `live-mv` sends it
+as one label patch through the cluster's API (#1104), the same governed
+write `kubectl label` makes.
 
 ### Records
 
