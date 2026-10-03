@@ -6,6 +6,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -99,10 +101,11 @@ const (
 //     rows on an edit that changes no version at all. Recording the value
 //     the way the other two are recorded is #1253's job and the right fix.
 //   - live/gauntlet/estates.json (via gauntlet_pre_apply_targets) - NOT
-//     watched. One file holds all 31 estates' manifest data, so a diff
-//     badges every row when one estate's pre_apply list moves. Honest
-//     coverage there needs a per-estate subtree comparison, which is a
-//     different mechanism from this one.
+//     path-watched. One file holds all 31 estates' manifest data, so a diff
+//     badges every row when one estate's pre_apply list moves. It is
+//     covered per entry instead (#1295): manifestEntryChanged compares the
+//     row's own entry at the recorded commit with the entry now, and a
+//     difference lands in Changed as manifestEntryPath(name).
 //
 // Not in the scan at all: $ROOT/.corpus/..., which is gitignored (git diff
 // cannot see it) and pinned per row by EstateResult.Pin; and internal/,
@@ -364,9 +367,123 @@ func AllScriptStaleness(root string, a *Artifact) map[string]ScriptStaleness {
 	diff := gitPathDiff(root)
 	out := make(map[string]ScriptStaleness, len(a.Estates))
 	for _, r := range a.Estates {
-		out[r.Name] = scriptStaleness(r, diff)
+		out[r.Name] = withManifestEntry(scriptStaleness(r, diff), r, gitManifestEntryChanged(root))
 	}
 	return out
+}
+
+// manifestEntryPath is how a moved manifest entry is named in
+// ScriptStaleness.Changed: the file, and which entry in it. It is one more
+// of this estate's own inputs, so it sits with the estate's own paths and
+// every sentence built from Changed names it without a branch of its own.
+func manifestEntryPath(name string) string { return ManifestPath + "[" + name + "]" }
+
+// measuredEntryFields are the manifest fields that change what a run of the
+// estate does (#1295): where it is fetched from and at what (url, pin),
+// which substrate it runs on (lane), which script runs (script), what is
+// applied ahead of the main apply and the sentence the verdict carries
+// about it (pre_apply, pre_apply_reason), and whether it runs at a size
+// (scale_ladder). name, source, set and reason are left out: Rebuild copies
+// them onto the row on every render, and they describe the estate rather
+// than change its run, so badging on a reworded reason would light a marker
+// a re-run cannot change.
+var measuredEntryFields = []string{"url", "pin", "lane", "script", "pre_apply", "pre_apply_reason", "scale_ladder"}
+
+// manifestEntryChanged answers whether the named estate's measured fields
+// differ between the manifest at commit and the manifest now.
+type manifestEntryChanged func(commit, name string) (bool, error)
+
+// withManifestEntry adds the row's own manifest entry to s. It only
+// changes an answer the path diff could give: a row already unknown stays
+// unknown, with its own reason.
+func withManifestEntry(s ScriptStaleness, r EstateResult, changed manifestEntryChanged) ScriptStaleness {
+	if s.State == ScriptUnknown || r.LastRun == nil {
+		return s
+	}
+	moved, err := changed(r.LastRun.Commit, r.Name)
+	if err != nil {
+		return ScriptStaleness{State: ScriptUnknown, Why: err.Error()}
+	}
+	if moved {
+		s.Changed = append(s.Changed, manifestEntryPath(r.Name))
+		sort.Strings(s.Changed)
+		s.State = ScriptChanged
+	}
+	return s
+}
+
+// gitManifestEntryChanged compares an entry at a commit against the
+// working tree's manifest, for gitPathDiff's reason: a render has to see
+// the edit before it is committed. An entry present on one side only (the
+// estate was renamed, or the file did not exist yet) is a change, the
+// conservative answer this file always gives; absent on both sides there
+// is nothing to compare.
+func gitManifestEntryChanged(root string) manifestEntryChanged {
+	return func(commit, name string) (bool, error) {
+		// The path diff has already placed commit in HEAD's history, so a
+		// failed show here is the file not existing at that commit.
+		then, err := gitOutput(root, "show", commit+":"+ManifestPath)
+		var thenFields map[string]json.RawMessage
+		if err == nil {
+			thenFields, err = measuredEntry([]byte(then), name)
+			if err != nil {
+				return false, fmt.Errorf("the manifest at commit `%s` cannot be read (%v)", short(commit), err)
+			}
+		}
+		var nowFields map[string]json.RawMessage
+		now, err := os.ReadFile(filepath.Join(root, ManifestPath)) //nolint:gosec // the checkout's own manifest
+		switch {
+		case os.IsNotExist(err):
+			// No manifest now: nothing to compare unless there was an
+			// entry then, which has gone.
+		case err != nil:
+			return false, fmt.Errorf("the manifest cannot be read (%v)", err)
+		default:
+			if nowFields, err = measuredEntry(now, name); err != nil {
+				return false, fmt.Errorf("the manifest cannot be read (%v)", err)
+			}
+		}
+		if (thenFields == nil) != (nowFields == nil) {
+			return true, nil
+		}
+		for _, f := range measuredEntryFields {
+			if string(thenFields[f]) != string(nowFields[f]) {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+}
+
+// measuredEntry is the named entry's measured fields, each compacted so a
+// reformat is not a change. nil when the manifest has no such entry.
+func measuredEntry(manifest []byte, name string) (map[string]json.RawMessage, error) {
+	var doc struct {
+		Estates []map[string]json.RawMessage `json:"estates"`
+	}
+	if err := json.Unmarshal(manifest, &doc); err != nil {
+		return nil, err
+	}
+	for _, e := range doc.Estates {
+		var n string
+		if err := json.Unmarshal(e["name"], &n); err != nil || n != name {
+			continue
+		}
+		out := map[string]json.RawMessage{}
+		for _, f := range measuredEntryFields {
+			v, ok := e[f]
+			if !ok {
+				continue
+			}
+			var buf bytes.Buffer
+			if err := json.Compact(&buf, v); err != nil {
+				return nil, err
+			}
+			out[f] = buf.Bytes()
+		}
+		return out, nil
+	}
+	return nil, nil
 }
 
 // printScriptStaleness writes `gauntlet check`'s live answer: which rows
