@@ -39,6 +39,29 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.22.0 (Unreleased)
 
+- `choudoufu live-summary FILE` groups many plans by identical change
+  (#1753, part of #1749): the set plan's `-json` document, one group per
+  set of roots that change the same way, or one plan's JSON, one group per
+  set of instances of one `for_each`/`count` expansion. Every destroy and
+  replace is listed by address and a failed root is a line of its own.
+  `-markdown` fits a GitLab merge-request note (1,000,000 characters),
+  cutting whole groups and naming what it cut. `-help` says what
+  "identical" means.
+- `choudoufu live-affected RANGE` names the estate roots a git range
+  touches and why (#1751, part of #1749; takes over #1106 section 4). It
+  reads each root's module graph at both ends of the range from git, with
+  no init: a file in a root names it (`changed`), a file in a module a root
+  calls by a local path, directly or nested, names that root (`uses
+  <module>`), a pinned `oci://`, registry or git call that moves names its
+  root (`pin shared 1.0.0 -> 1.1.0`) while a change under the pinned
+  module's own directory names none, and a root reading a named root's
+  estate is named transitively (`reads <estate>`). A lock-file or provider
+  version bump, module code under a floating source, a loose file a plan
+  could read, or a root that does not load answers `indeterminate` with the
+  reason and exits 2. Documentation and `-ignore` paths name nothing.
+  `-json` prints a documented, golden-pinned document; `-root` restricts the
+  roots.
+
 ## choudoufu v0.21.0 (2026-10-02)
 
 Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Earlier releases were built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`); the upgrade is #1778, and upstream's own 1.13.0 notes follow below under "OpenTofu". Board snapshot: [`live/history/v0.21.0.json`](live/history/v0.21.0.json).
