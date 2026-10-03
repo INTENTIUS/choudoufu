@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/builtin/providers/tf"
+	"github.com/intentius/choudoufu/internal/live/waves"
 )
 
 // liveWavesFixture writes #1750's chain at N=3 (e01 read by e02, read by
@@ -158,4 +161,12 @@ data "aws_subnet" "back" {
 			t.Errorf("exit %d, stderr:\n%s", code, stderr)
 		}
 	})
+}
+
+// TestWavesEstateOutputsTypeName holds internal/live/waves' copy of the
+// estate-outputs data source's type name to the provider's own.
+func TestWavesEstateOutputsTypeName(t *testing.T) {
+	if waves.EstateOutputsTypeName != tf.EstateOutputsTypeName {
+		t.Fatalf("waves reads %q as the estate-outputs data source; the provider names it %q", waves.EstateOutputsTypeName, tf.EstateOutputsTypeName)
+	}
 }

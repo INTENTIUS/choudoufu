@@ -358,6 +358,15 @@ func initCommands(meta command.Meta) {
 			}, nil
 		},
 
+		// GitHub issue #1754: apply one wave of an approved set, refusing
+		// with exit 3 when the set moved. It applies, so like live-plan it
+		// is public only because the approval it checks is the caller's.
+		"live-wave-apply": func() (cli.Command, error) {
+			return &command.LiveWaveApplyCommand{
+				Meta: meta,
+			}, nil
+		},
+
 		// GitHub issue #1753: the grouped plan summary over the set plan's
 		// document or one plan. It reads JSON and prints; public from the
 		// start for live-check's reason above.

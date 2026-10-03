@@ -105,3 +105,39 @@ func plural(n int, one, many string) string {
 	}
 	return many
 }
+
+// Text renders a wave apply's result for a reader.
+func (r *ApplyResult) Text() string {
+	var b strings.Builder
+	switch r.ExitCode {
+	case ExitSetMoved:
+		fmt.Fprintf(&b, "Wave %d: refused, nothing applied.\n%s\n", r.Wave, r.Error)
+		for _, m := range r.Moved {
+			fmt.Fprintf(&b, "  %s moved: approved %s, now %s\n", m.Root, m.Approved, m.Fresh)
+		}
+		return b.String()
+	case ExitError:
+		fmt.Fprintf(&b, "Wave %d: %s\n", r.Wave, r.Error)
+		return b.String()
+	}
+	counts := map[string]int{}
+	for _, e := range r.Outcomes {
+		counts[e.Outcome]++
+	}
+	fmt.Fprintf(&b, "Wave %d: %d landed, %d failed, %d skipped; %d applied by this run.\n",
+		r.Wave, counts[OutcomeLanded], counts[OutcomeFailed], counts[OutcomeSkipped], len(r.Applied))
+	for _, e := range r.Outcomes {
+		fmt.Fprintf(&b, "  %s %s", e.Root, e.Outcome)
+		if e.Reason != "" {
+			fmt.Fprintf(&b, ": %s", e.Reason)
+		}
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+// JSON renders a wave apply's result.
+func (r *ApplyResult) JSON() (string, error) {
+	b, err := json.MarshalIndent(r, "", "  ")
+	return string(b), err
+}

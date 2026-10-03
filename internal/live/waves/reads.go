@@ -18,7 +18,6 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/builtin/providers/tf"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/check"
 	"github.com/intentius/choudoufu/internal/live/discovery"
@@ -130,6 +129,13 @@ func loadTree(ctx context.Context, dir string) (*configs.Config, error) {
 	return cfg, nil
 }
 
+// EstateOutputsTypeName is the builtin terraform provider's cross-estate
+// output read (#1371), internal/builtin/providers/tf's
+// EstateOutputsTypeName. It is repeated rather than imported because that
+// package reaches internal/live/setplan, which digests through this one;
+// internal/command's TestWavesEstateOutputsTypeName holds the two equal.
+const EstateOutputsTypeName = "terraform_estate_outputs"
+
 // ReadsOf finds every estate cfg's configuration reads, over the whole
 // static module tree, sorted. A read is:
 //
@@ -197,7 +203,7 @@ func readsInModule(cfg *configs.Config, out *[]Read) error {
 // dataSourceReads is the estates one data source reads.
 func dataSourceReads(rc *configs.Resource) ([]string, error) {
 	var estates []string
-	if rc.Type == tf.EstateOutputsTypeName {
+	if rc.Type == EstateOutputsTypeName {
 		content, _, _ := rc.Config.PartialContent(&hcl.BodySchema{
 			Attributes: []hcl.AttributeSchema{{Name: "estate"}},
 		})

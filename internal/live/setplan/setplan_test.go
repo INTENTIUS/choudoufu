@@ -19,6 +19,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/intentius/choudoufu/internal/live/waves"
 )
 
 var update = flag.Bool("update", false, "rewrite testdata/document.golden.json")
@@ -410,4 +412,38 @@ func mustMarshal(t *testing.T, v any) []byte {
 		t.Fatal(err)
 	}
 	return b
+}
+
+// TestDocumentDigestReadsBack: the digest the document carries is the one
+// live-waves and live-wave-apply recompute from the printed document, so an
+// approval naming it can be checked by either (#1754).
+func TestDocumentDigestReadsBack(t *testing.T) {
+	base := setup(t, "estates/e01", "estates/e02", "estates/e03")
+	doc := run(t, base, &fakeRunner{
+		changes: map[string]bool{"e01": true},
+		breakAt: map[string]Stage{"e03": StageInit},
+	}, 2, "estates/e01", "estates/e02", "estates/e03")
+	if !strings.HasPrefix(doc.Digest, waves.DigestPrefix) {
+		t.Fatalf("document digest %q", doc.Digest)
+	}
+	printed, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	read, err := waves.ParseSetDocument(printed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byRoot, set, err := waves.DocumentDigests(read)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if set != doc.Digest {
+		t.Errorf("the printed document recomputes to %s, but carries %s", set, doc.Digest)
+	}
+	for _, r := range doc.Roots {
+		if byRoot[r.Root] != r.Digest {
+			t.Errorf("%s: carries %s, recomputes to %s", r.Root, r.Digest, byRoot[r.Root])
+		}
+	}
 }

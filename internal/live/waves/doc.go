@@ -56,4 +56,28 @@
 // other's estates in one direction, and wave 1 then has an order of its own,
 // which [Wave.Edges] carries. A cycle among the roots is refused with the
 // cycle named, since no order puts every reader after what it reads.
+//
+// # Wave apply
+//
+// [Apply] applies one wave of a set whose digest was approved elsewhere.
+// The set plan document must hash to the approved digest. Every root of
+// the wave that has not already landed is planned again, and unless each
+// fresh plan's root digest equals its approved one, nothing in the wave is
+// applied and the result is exit 3 naming the roots that moved: a set
+// extension of "apply PLANFILE"'s own refusal. A root whose fresh plan
+// fails is not a moved set; it is a failed root.
+//
+// Roots apply one at a time, producers first. A root that fails skips
+// every root that reads its estate, in its wave and in later ones, and
+// roots that read nothing that failed still apply. Each outcome is written
+// to the resume file as it is decided, and a later run with that file
+// plans and applies only roots that have not landed. A root in a later
+// wave whose producer has not landed, for any reason including its wave
+// never having run, is skipped rather than applied ahead of it.
+//
+// A reader in a later wave was planned before its producer applied. When
+// the producer's apply changes a value the reader reads, the reader's
+// fresh plan differs from its approved one and its wave exits 3: the set
+// has to be planned and approved again from that point. That is the
+// refusal working, not a fault in it.
 package waves
