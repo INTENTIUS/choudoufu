@@ -63,7 +63,7 @@ func shardBase(t *testing.T, root string) *Artifact {
 		t.Fatal(err)
 	}
 	a := &Artifact{}
-	a.Rebuild(m, nil, shardEmulator, OracleVersions{}, ProviderVersions{}, "")
+	a.Rebuild(m, nil, shardEmulator, OracleVersions{}, ProviderVersions{}, "", "")
 	return a
 }
 
@@ -107,7 +107,7 @@ func measure(t *testing.T, root string, a *Artifact, estate, commit, emulator st
 	if !found {
 		t.Fatalf("no row for %q to measure", estate)
 	}
-	a.Rebuild(m, nil, shardEmulator, OracleVersions{}, ProviderVersions{}, "")
+	a.Rebuild(m, nil, shardEmulator, OracleVersions{}, ProviderVersions{}, "", "")
 }
 
 // shardOf is one shard job's uploaded artifact: base, with its own estate
@@ -151,7 +151,7 @@ func measureKind(t *testing.T, root string, a *Artifact, estate, commit, kindIma
 	if !found {
 		t.Fatalf("no row for %q to measure", estate)
 	}
-	a.Rebuild(m, nil, shardEmulator, OracleVersions{}, ProviderVersions{}, "")
+	a.Rebuild(m, nil, shardEmulator, OracleVersions{}, ProviderVersions{}, "", "")
 }
 
 // shardOfKind is shardOf's counterpart for a kind-substrate estate: the
