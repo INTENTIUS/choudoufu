@@ -1467,7 +1467,7 @@ gauntlet_destroy_gap_verdict() {
   # first dot: the resource type.
   _gauntlet_destroy_types() {
     { grep -E "^[[:space:]]*# ${1}.+ will be destroyed\$" || true; } | sed -E 's/^[[:space:]]*# //; s/ will be destroyed$//' \
-      | sed -E 's/^(module\.[A-Za-z0-9_-]+(\[[^]]*\])?\.)+//; s/\..*$//' | sort
+      | sed -E 's/^(module\.[A-Za-z0-9_-]+(\[[^]]*\])?\.)+//; s/\..*$//' | LC_ALL=C sort
   }
   ours="$(_gauntlet_destroy_types "$re" <<< "$out")"
   theirs="$(_gauntlet_destroy_types "$re" <<< "$oracle")"
@@ -1481,9 +1481,9 @@ gauntlet_destroy_gap_verdict() {
     return 0
   fi
   # Per-type count differences, both directions.
-  missing="$(join -a1 -e0 -o 0,1.2,2.2 <(uniq -c <<< "$theirs" | awk '{print $2, $1}') <(uniq -c <<< "$ours" | awk '{print $2, $1}') \
+  missing="$(LC_ALL=C join -a1 -e0 -o 0,1.2,2.2 <({ grep . <<< "$theirs" || true; } | uniq -c | awk '{print $2, $1}') <({ grep . <<< "$ours" || true; } | uniq -c | awk '{print $2, $1}') \
     | awk '$2 > $3 {printf "%s%s x%d", sep, $1, $2 - $3; sep="; "}')"
-  extra="$(join -a1 -e0 -o 0,1.2,2.2 <(uniq -c <<< "$ours" | awk '{print $2, $1}') <(uniq -c <<< "$theirs" | awk '{print $2, $1}') \
+  extra="$(LC_ALL=C join -a1 -e0 -o 0,1.2,2.2 <({ grep . <<< "$ours" || true; } | uniq -c | awk '{print $2, $1}') <({ grep . <<< "$theirs" || true; } | uniq -c | awk '{print $2, $1}') \
     | awk '$2 > $3 {printf "%s%s x%d", sep, $1, $2 - $3; sep="; "}')"
   printf '%s' ". Stock destroys and choudoufu does not, by type: ${missing:-nothing}"
   [ -z "$extra" ] || printf '%s' "; choudoufu destroys and stock does not: $extra"
