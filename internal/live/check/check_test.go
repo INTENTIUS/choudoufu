@@ -233,6 +233,10 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// (a cycle, a canary reading a non-canary, a read it cannot
 		// order) are about the set's shape, worded by its own command.
 		"waves": true,
+		// The set digest #1754 split out of "waves" so internal/live/setplan
+		// can print it without importing any stage: a hash over finished
+		// plans, refusing nothing.
+		"setdigest": true,
 	}
 
 	classified := map[string]bool{}

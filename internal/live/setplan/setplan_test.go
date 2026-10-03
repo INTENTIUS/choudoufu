@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/intentius/choudoufu/internal/live/waves"
+	"github.com/intentius/choudoufu/internal/live/setdigest"
 )
 
 var update = flag.Bool("update", false, "rewrite testdata/document.golden.json")
@@ -423,18 +423,18 @@ func TestDocumentDigestReadsBack(t *testing.T) {
 		changes: map[string]bool{"e01": true},
 		breakAt: map[string]Stage{"e03": StageInit},
 	}, 2, "estates/e01", "estates/e02", "estates/e03")
-	if !strings.HasPrefix(doc.Digest, waves.DigestPrefix) {
+	if !strings.HasPrefix(doc.Digest, setdigest.DigestPrefix) {
 		t.Fatalf("document digest %q", doc.Digest)
 	}
 	printed, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
-	read, err := waves.ParseSetDocument(printed)
+	read, err := setdigest.ParseSetDocument(printed)
 	if err != nil {
 		t.Fatal(err)
 	}
-	byRoot, set, err := waves.DocumentDigests(read)
+	byRoot, set, err := setdigest.DocumentDigests(read)
 	if err != nil {
 		t.Fatal(err)
 	}

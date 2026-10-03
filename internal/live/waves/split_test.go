@@ -195,7 +195,7 @@ func TestAttachDigests(t *testing.T) {
 	if err := w.AttachDigests(byRoot); err != nil {
 		t.Fatal(err)
 	}
-	want, _ := SetDigest([]RootDigestEntry{{"estates/e05", "sha256:5"}, {"estates/e01", "sha256:1"}, {"estates/e04", "sha256:4"}})
+	want, _ := SetDigest([]RootDigestEntry{{Root: "estates/e05", Digest: "sha256:5"}, {Root: "estates/e01", Digest: "sha256:1"}, {Root: "estates/e04", Digest: "sha256:4"}})
 	if w.Waves[0].Digest != want {
 		t.Errorf("wave 1 digest %s, want the set digest over its three roots %s", w.Waves[0].Digest, want)
 	}

@@ -77,7 +77,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/intentius/choudoufu/internal/live/waves"
+	"github.com/intentius/choudoufu/internal/live/setdigest"
 )
 
 // FormatVersion is the document's format version. It moves when a field is
@@ -144,7 +144,7 @@ type Root struct {
 	// object "choudoufu show -json PLANFILE" prints. null for a failed root.
 	Plan json.RawMessage `json:"plan"`
 	// Digest is this root's digest (#1754): what [Document.Digest] is
-	// computed over. internal/live/waves' package doc says what it covers.
+	// computed over. internal/live/setdigest's package doc says what it covers.
 	Digest string `json:"digest"`
 }
 
@@ -427,20 +427,20 @@ func runRoot(ctx context.Context, runner Runner, base string, p rootPaths, now f
 }
 
 // digestDocument sets every root's digest and the set digest, through
-// internal/live/waves so the digest live-plan-set prints is the one
+// internal/live/setdigest so the digest live-plan-set prints is the one
 // live-waves and live-wave-apply compute from this document.
 func digestDocument(doc *Document) error {
-	entries := make([]waves.RootDigestEntry, 0, len(doc.Roots))
+	entries := make([]setdigest.RootDigestEntry, 0, len(doc.Roots))
 	for i := range doc.Roots {
 		r := &doc.Roots[i]
-		d, err := waves.RootDigest(waves.RootPlan{Root: r.Root, Estate: r.Estate, Status: string(r.Status), Error: r.Error, Plan: r.Plan})
+		d, err := setdigest.RootDigest(setdigest.RootPlan{Root: r.Root, Estate: r.Estate, Status: string(r.Status), Error: r.Error, Plan: r.Plan})
 		if err != nil {
 			return err
 		}
 		r.Digest = d
-		entries = append(entries, waves.RootDigestEntry{Root: r.Root, Digest: d})
+		entries = append(entries, setdigest.RootDigestEntry{Root: r.Root, Digest: d})
 	}
-	d, err := waves.SetDigest(entries)
+	d, err := setdigest.SetDigest(entries)
 	if err != nil {
 		return err
 	}
