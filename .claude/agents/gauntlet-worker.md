@@ -23,7 +23,7 @@ backgrounded and waited on:
 
 ```
 env -u PWD go run ./tools/gauntlet run <estate>     # many minutes - wait for it
-scripts/ci-gate.sh run                              # many minutes - wait for it
+env -u PWD go test ./live/                          # minutes - wait for it
 ```
 
 Never `&`. Never a background launch you intend to check on later. Never
@@ -100,9 +100,8 @@ all three known 2026-08-29 incidents and should not need reinventing.
 in every message**, starting with the first thing you learn (a converted
 script, a reproduced failure, a test that shows it): a session can end
 without warning, and a branch with commits is resumed by the next worker
-while a branch with none is deleted. Leave `ci.rc`, `ci.meta` and `ci.out` in
-the worktree; they are how the orchestrator, or your successor, reads your
-gate.
+while a branch with none is deleted. If you did run a gate, leave `ci.rc`,
+`ci.meta` and `ci.out` in the worktree for your successor.
 
 ## What a unit is
 
@@ -215,56 +214,36 @@ also asserted by value; an exit code is not a verdict.
 9. **Order matters at the end**: run the estate LAST, then `render`, then
    **commit** (script, code, artifact and board data together, with `-F`
    from a message file since shell substitution eats `${count.index}`; one
-   commit per unit is fine), and only THEN gate (step 10). Rendering before
+   commit per unit is fine), and only THEN verify (step 10). Rendering before
    the final run leaves a rendered page behind the artifact and
-   `TestRenderedDocsAreCurrent` fails. Committing before gating, not after, is
-   what makes `ci.meta`'s recorded sha (step 10) equal the commit a PR
-   actually carries: `scripts/ci-gate.sh check` compares `ci.meta` against
-   `git rev-parse HEAD`, and a gate run against an uncommitted working tree
-   records the PARENT commit's sha, which reads as stale the moment you
-   commit on top of it - not a bug in `check`, a real mismatch between what
-   was tested and what HEAD now points at.
+   `TestRenderedDocsAreCurrent` fails.
    When you rebase, only the rendered files conflict: resolve them with
    `git checkout --ours` (during a rebase that is the branch you are landing
    ON) and then RE-RUN your estate so the runner rewrites its row, commit the
-   resolution, and gate again - a rebase changes HEAD's sha even when nothing
-   else did, so a gate from before it is stale by the same rule. Taking the
+   resolution. Taking the
    other side, or hand-merging `live/gauntlet.json`, silently reverts whatever
    estates moved while you worked. `just merge-drivers` does the
    `checkout --ours` half for you from then on (#1308); resolving those files
    hunk by hunk instead is the one resolution that produces a board matching
    no artifact, because the board's headline and the rows it counts are far
    enough apart in the file to come from different sides.
-10. **Gate**: run `gofmt -l` over every Go file you touched and fix what it
-   names BEFORE the gate - three merges in one day reached the full tier
-   red on formatting alone because the per-worker gates run tests, not fmt.
-   Then: not the whole tier - the packages your change touches, plus the
-   ones that sweep the whole tree and so can fail on a file you never opened:
-   `./internal/live/check/` (the identity golden), `./tools/gauntlet/` (the
-   artifact and rendered-doc guards), `./live/` (the derivation registry and
-   the pins), and `./internal/live/marksafe/`, which proves every call site of
-   a mark-unsafe cty method. That last one bites anything touching identity or
-   projection: cty PANICS on a marked receiver, a sensitive input variable is
-   the ordinary way to produce one, and the fix is always a guard that REFUSES
-   - never an Unmark, because a forcibly unmarked value can flow on into an
-   identity component or a cloud tag. Several
-   workers running `just ci` each repeats the same minutes N times, so run
-   the narrower set through `scripts/ci-gate.sh run -- env -u PWD go test
-   <packages>` rather than typing the old inline idiom by hand
-   (`{ ...; } > ci.out 2>&1; echo $? > ci.rc`) - that idiom is #519: it is one
-   shell command end to end, and a kill between the two halves, or before
-   either runs, leaves an EARLIER run's `ci.rc` sitting there reading green
-   with nothing to say it is stale. `scripts/ci-gate.sh run` deletes
-   `ci.rc`/`ci.out`/`ci.meta` BEFORE it starts, so a kill anywhere in the run
-   leaves no readable gate at all, and it writes the HEAD sha into `ci.meta`
-   so a reader can tell a leftover gate from a fresh one even when the run
-   genuinely completed - for a commit you have since moved past (which is
-   exactly why this step runs AFTER step 9's commit, never before it). LEAVE
-   ALL THREE FILES THERE. The orchestrator verifies with `scripts/ci-gate.sh
-   check` (not by reading `ci.rc` alone) and cannot merge what that refuses;
-   deleting them as tidy-up costs a round trip. The full tier - also through
-   `scripts/ci-gate.sh run`, no `-- CMD` needed since `just ci` is its default
-   - runs once on the merge result before the push.
+10. **Verify, narrowly**: run `gofmt -l` over every Go file you touched and fix
+   what it names - merges have reached CI red on formatting alone because
+   test runs do not check fmt. Then `env -u PWD go build ./...` and the tests
+   of the packages your change touches, nothing more for a docs, data or
+   refactor change. A behaviour change gets one proof of the behaviour (a
+   test, or one local scenario run), never both a local run and a dispatched
+   smoke for the same thing. A NEW guard is proven red once, to show it can
+   fail; a table row does not need that. Do not run `scripts/ci-gate.sh` or
+   `just ci` for the PR: GitHub CI green on the PR is the merge gate, and
+   the full gate runs on main once per batch of merges. Anything that sweeps
+   the whole tree can still fail on a file you never opened
+   (`./internal/live/check/` identity golden, `./tools/gauntlet/` artifact
+   and rendered-doc guards, `./live/` derivation registry and pins,
+   `./internal/live/marksafe/` mark-unsafe cty call sites; cty PANICS on a
+   marked receiver and the fix is a guard that REFUSES, never an Unmark), so
+   run the one of those your change plausibly reaches. Read verdict lines,
+   not exit codes.
 11. **Open the pull request** against `INTENTIUS/choudoufu` `main` with:
    - title: `[gauntlet:<estate>/<stage>] <one line: what moved or what was found>`
    - body: the unit, the stage's verdict before and after (copy the
