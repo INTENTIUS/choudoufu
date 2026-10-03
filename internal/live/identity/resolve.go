@@ -4228,16 +4228,16 @@ func (r *resolver) countExpansion(rc *configs.Resource) (*expansion, bool) {
 		r.diags = r.diags[:mark]
 		val = retried
 	}
-	if val.IsMarked() {
-		// Before the marked check, gocty.FromCtyValue below panicked
-		// ("value is marked, so must be unmarked first") and took the
-		// whole run down. An ephemeral variable in count is the shortest
-		// way there - internal/command/e2etest/testdata/
-		// ephemeral-repetition/count is exactly that configuration - and
-		// a sensitive one reaches it too. for_each already refused its
-		// own marked value a few lines below; count did not.
+	// Before a marked check existed here, gocty.FromCtyValue below
+	// panicked ("value is marked, so must be unmarked first") and took the
+	// whole run down. An ephemeral variable in count is the shortest way
+	// there - internal/command/e2etest/testdata/ephemeral-repetition/count
+	// is exactly that configuration. A sensitive count is unmarked and
+	// resolves, as stock's does (#1792); see [unmarkCount].
+	val, ephemeral := unmarkCount(val)
+	if ephemeral {
 		r.errorf(rc.Count.Range(), "Sensitive count expression",
-			"The count for %s is sensitive or ephemeral, so the instance keys it produces cannot become part of resource addresses. Addresses are written to markers, logs and plan output.", addr.String())
+			"The count for %s is ephemeral, so the instance keys it produces could expose its value in resource addresses, which are written to markers, logs and plan output. Stock refuses the same count (\"Invalid count argument\").", addr.String())
 		return nil, false
 	}
 	if !val.IsKnown() || val.IsNull() {

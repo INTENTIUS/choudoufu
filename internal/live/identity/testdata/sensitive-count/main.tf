@@ -1,6 +1,8 @@
-# A sensitive variable in count. The mark reaches buildExpansion the same
-# way an ephemeral one does, so the same guard covers both; this fixture
-# exists so a fix that special-cased marks.Ephemeral would still fail.
+# A sensitive variable in count. Stock unmarks a sensitive count, because
+# instance keys 0..n-1 disclose nothing about the value, and refuses only an
+# ephemeral one (internal/lang/evalchecks/eval_count.go). #1792 brought the
+# identity path into line, so this resolves three instances; ephemeral-count
+# is the fixture that must keep refusing.
 
 variable "size" {
   type      = number
@@ -11,5 +13,5 @@ variable "size" {
 resource "aws_s3_bucket" "data" {
   count = var.size
 
-  bucket = "estate-data"
+  bucket = "estate-data-${count.index}"
 }
