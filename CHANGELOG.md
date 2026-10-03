@@ -434,6 +434,14 @@ FORK WORK:
     pattern to grant, across every provider configuration in the run. A
     listing that failed for any other reason keeps its own line, and every
     denied type and the action it named is in the log under `TF_LOG=WARN`.
+  - *A provider's apply-time private state survives the live path* (#1239).
+    A live plan's prior comes from import and read, so a private the
+    provider wrote at apply time came back empty. In hashicorp/aws that is
+    one resource: `aws_transfer_host_key` keeps a hash of `host_key_body_wo`
+    there and was replaced on every apply. The part of a private an import
+    cannot rebuild is now recorded beside the instance's residue after an
+    apply and at migration, then restored on the next plan. This happens
+    only under the default `strict { secrets = "store" }`.
   - *A framework resource's `timeouts` block survives the live path* (#1240,
     PR #1492). terraform-plugin-framework keeps the block in the resource's
     own state rather than in the private blob, so the projected prior carried
