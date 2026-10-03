@@ -218,7 +218,7 @@ func (s *Source) crossStack() bool {
 // EstateOutputsTypeName is the builtin terraform provider's cross-estate
 // output reader, internal/builtin/providers/tf's EstateOutputsTypeName. It is
 // repeated rather than imported because that package pulls in every state
-// backend; internal/command's TestDatareadEstateOutputsTypeName holds the two
+// backend; TestEstateOutputsTypeNameMatchesTheProvider holds the two
 // equal.
 const EstateOutputsTypeName = "terraform_estate_outputs"
 
