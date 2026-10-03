@@ -176,7 +176,7 @@ func CheckKubernetesFieldOwners(ctx context.Context, reader kubesweep.ObjectRead
 				Severity: hcl.DiagWarning,
 				Summary:  SummaryFieldOwnedByEstate,
 				Detail: fmt.Sprintf(
-					"%s writes fields of %s that the estate %q owns (field manager %q: %s). The API server will refuse the apply with a conflict naming that manager; force = true would be refused here rather than sent.",
+					"%s writes fields of %s that the estate %q owns (field manager %q: %s). Where the planned value differs from the live one, the API server refuses the apply with a conflict naming that manager; force = true would be refused here rather than sent.",
 					w.Addr, w.Object, other, markers.FieldManagerFor(other), fields),
 				Subject: manifestBlockRange(root, w.Addr),
 			})

@@ -356,7 +356,9 @@ func (kubernetes) CarrierPhrase(surface markers.Surface) string {
 // NotACarrier: a Kubernetes type with neither of the family's surfaces,
 // such as the patch types (kubernetes_labels,
 // kubernetes_config_map_v1_data), has nowhere of its own to carry the
-// estate label. It names both carriers it lacks, and never says "tags":
+// estate label. Those six are marked another way, by the field manager
+// their writes are made under ([FieldGranularShape], GitHub issue #1191),
+// which is not a surface on the object. It names both carriers it lacks, and never says "tags":
 // that is the AWS word, and a Kubernetes reader has no tags map to look
 // for.
 func (k kubernetes) NotACarrier(_ *configschema.Block, typeName string) string {
