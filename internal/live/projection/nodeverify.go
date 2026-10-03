@@ -113,14 +113,15 @@ func (n *NodeResolver) VerifyAppliedMarkers(_ context.Context, addr addrs.AbsRes
 		return diags
 	}
 
-	want, wantOK := carrierMarkers(planned, schema)
+	providerType := n.providerType(addr)
+	want, wantOK := carrierMarkers(providerType, planned, schema)
 	if !wantOK || len(want) == 0 {
 		// Nothing was stamped: an untaggable type, a record-rung
 		// selection, a policy untag, or a surface this pass could not
 		// write into and has already warned about.
 		return diags
 	}
-	got, gotOK := carrierMarkers(applied, schema)
+	got, gotOK := carrierMarkers(providerType, applied, schema)
 	if !gotOK {
 		// The provider returned no carrier at all - a null tags map, an
 		// absent metadata block. That is an absence of information, not
@@ -206,12 +207,12 @@ func (n *NodeResolver) VerifyAppliedMarkers(_ context.Context, addr addrs.AbsRes
 // present, known and non-null. A populated-but-marker-less map is a
 // contradiction of what was sent; a null one is a provider that did not
 // answer, and the caller must not treat the two alike.
-func carrierMarkers(obj cty.Value, schema providers.Schema) (map[string]string, bool) {
+func carrierMarkers(providerType string, obj cty.Value, schema providers.Schema) (map[string]string, bool) {
 	if obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() || obj.IsMarked() || !obj.Type().IsObjectType() {
 		return nil, false
 	}
 
-	surface, _ := substrate.SurfaceOf(schema.Block)
+	surface, _ := substrate.SurfaceOf(providerType, schema.Block)
 	switch surface {
 	case markers.SurfaceTags:
 		out := map[string]string{}

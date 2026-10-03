@@ -156,7 +156,7 @@ func TestK8sOwnership_surfaceIsReadFromTheSchema(t *testing.T) {
 		"aws taggable":          {fakeSchemas()["aws_cloudwatch_log_group"].Block, markers.SurfaceTags},
 		"nil":                   {nil, ""},
 	} {
-		got, ok := substrate.SurfaceOf(tc.block)
+		got, ok := substrate.SurfaceOf("", tc.block)
 		if got != tc.want {
 			t.Errorf("%s: SurfaceOf = %q, want %q", name, got, tc.want)
 		}

@@ -778,6 +778,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		// disco already).
 		resolver.Estate = estate
 		resolver.Selection = identity.SelectionFor(config)
+		resolver.Config = config
 		resolver.Slots = disco.SlotTable()
 		// GitHub issue #1084: the registry flag the create path keys on (the
 		// AWS family's facts, #1708),
@@ -979,6 +980,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		statelessForeignReport(classified, disco),
 		statelessUnownedReport(projResult, estate),
 		resourceSchemas,
+		config,
 		estate,
 		disco != nil,
 	))
@@ -4564,7 +4566,7 @@ func (p *statelessProviders) mayCarryMarkers(ctx context.Context, provider addrs
 		return true
 	}
 	for _, rs := range schema.ResourceTypes {
-		if _, ok := substrate.SurfaceOf(rs.Block); ok {
+		if _, ok := substrate.SurfaceOf(provider.Type, rs.Block); ok {
 			return true
 		}
 	}

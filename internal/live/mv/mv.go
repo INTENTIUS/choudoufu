@@ -414,7 +414,7 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// metadata-block shape; on the manifest shape the move is refused by
 	// name until that rewrite exists (#1104), and the rename is one
 	// annotation patch (manifest.go).
-	res.Surface = surfaceOf(schema.Block)
+	res.Surface = surfaceOf(providerAddr.Provider.Type, schema.Block)
 	switch {
 	case res.MarkerCarriesAddress():
 		// The tag path, which a type with no surface takes too.

@@ -46,6 +46,12 @@ type Target struct {
 
 	// DisplayName is the provider's own label, for reporting.
 	DisplayName string
+
+	// ProviderType is the type name of the provider that found it ("aws",
+	// "kubernetes"), which picks the family whose marker map is released
+	// ([substrate.SurfaceOf], GitHub issue #1742). Empty is a provider no
+	// family claims.
+	ProviderType string
 }
 
 // String renders a target on one line, for logs and test failures.
@@ -190,7 +196,7 @@ func releaseOne(ctx context.Context, provider providers.Interface, cluster kubes
 		return out
 	}
 
-	surface, _ := substrate.SurfaceOf(schema.Block)
+	surface, _ := substrate.SurfaceOf(t.ProviderType, schema.Block)
 	var w writer
 	switch surface {
 	case markers.SurfaceTags:
