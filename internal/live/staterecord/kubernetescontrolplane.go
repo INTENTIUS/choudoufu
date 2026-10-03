@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // Encryption at rest on a managed control plane (GitHub issue #1524).
@@ -182,6 +183,9 @@ func (e *ControlPlaneNotFoundError) Error() string {
 
 func (e *ControlPlaneNotFoundError) Unwrap() error { return e.Err }
 
+// controlPlaneReadTimeout bounds the one provider call a first contact makes.
+const controlPlaneReadTimeout = 30 * time.Second
+
 // checkManagedEncryption is assertion 3 on a cluster whose control plane is
 // named: the provider's own description of the setting, believed only for
 // the cluster this connection reaches.
@@ -199,7 +203,12 @@ func checkManagedEncryption(ctx context.Context, opts ClusterContractOptions) Fi
 		return f
 	}
 
-	got, err := opts.ControlPlaneReader.SecretsEncryption(ctx, cp)
+	// Bounded, because a credential chain with nothing to find can spend a
+	// long time looking (IMDS, a metadata server), and a first contact that
+	// hangs on it is worse than one that says it could not ask.
+	askCtx, cancel := context.WithTimeout(ctx, controlPlaneReadTimeout)
+	defer cancel()
+	got, err := opts.ControlPlaneReader.SecretsEncryption(askCtx, cp)
 	if err != nil {
 		f.Outcome = NotChecked
 		var denied *ControlPlaneDeniedError
