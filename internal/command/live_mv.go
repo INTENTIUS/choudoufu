@@ -345,9 +345,10 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 		ServiceTags:        serviceTags,
 		RecordStore:        projection.NewRecordEnvelopeStore(recordStore, recordKeyPrefixFor(config, estate)),
 		ReadParallelism:    readPar,
-		// GitHub issue #1639: a manifest-declared object's rename is an
-		// annotation patch through the cluster's own client, the one
-		// live-import's adoption of the same shape builds.
+		// GitHub issues #1639 and #1104: a manifest-declared object's
+		// rename and cross-estate move are a marker patch through the
+		// cluster's own client, the one live-import's adoption of the same
+		// shape builds.
 		Clusters: provs,
 	})
 	diags = diags.Append(moveDiags)
@@ -616,12 +617,14 @@ Usage: choudoufu [global options] live-mv [options] <old-address> <new-address>
   rewrites that annotation and nothing else, through the provider for an
   object with a metadata block and as one annotation patch for an object
   declared through a manifest block. -from-estate rewrites the tofu-estate
-  label and the annotation together, through the provider, as a
-  markers-only plan and apply on that object, and the cluster's admission
-  policy (live/kubernetes/estate-boundary.yaml) judges it under this run's
+  label and the annotation together: through the provider, as a
+  markers-only plan and apply, for an object with a metadata block, and as
+  one merge patch through the cluster's API for an object declared through
+  a manifest block, sent first as a server-side dry run (so -dry-run prints
+  the server's verdict). Either way the cluster's admission policy
+  (live/kubernetes/estate-boundary.yaml) judges it under this run's
   credential exactly as it judges a plain kubectl label; the policy reads
-  the label, never the annotation. A move of an object declared through a
-  manifest block is refused by name with the equivalent kubectl write.
+  the label, never the annotation.
 
   This command reads and writes the live system. It never reads or writes a
   state file, and it does not run a plan over the rest of the configuration.

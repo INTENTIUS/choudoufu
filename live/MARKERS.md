@@ -168,6 +168,20 @@ report prints as the instance's live id. Before this, every
 `kubernetes_manifest` entry ratified UNTAGGABLE: bound, counted as
 migrated, and left outside the boundary with nothing said about it.
 
+`live-mv -from-estate` on a `kubernetes_manifest` object is the same patch
+(#1104), through the same `kubesweep.LabelPatcher`, setting `tofu-estate` to
+the destination estate and the address annotation to the block's address
+in one request, under the run's own credential, so an admission policy such
+as `live/kubernetes/estate-boundary.yaml` judges it exactly as it judges
+`kubectl label`. The object must carry `tofu-estate=<-from-estate>` first,
+in the label surface's words otherwise. The dry run goes out under
+`-dry-run` too, so the server's verdict prints before anything is written,
+and its answer is held to stricter terms than the migration's: every label
+but `tofu-estate` must read back unchanged. Nothing is projected
+afterwards; the destination's next plan seeds the stamped manifest and
+mirrors the live label into the prior, so it replans empty. Before this the
+move was refused by name with the equivalent `kubectl label` command.
+
 A `kubernetes_manifest` block, the shape every custom resource is declared
 through, is identified the same way (#1079's first unit): the natural key
 is four keys inside its `manifest` argument's object constructor, read

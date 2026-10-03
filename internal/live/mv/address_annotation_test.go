@@ -188,14 +188,19 @@ func TestMove_LabelSurfaceRenameRefusesAPlanMovingAnotherAnnotation(t *testing.T
 }
 
 // manifestCluster is an API server holding one CronTab, for the manifest
-// rename: it answers ReadObject and PatchMarkers the way a server would,
-// and counts the patches.
+// rename and move: it answers ReadObject and PatchMarkers the way a server
+// would, and counts the patches. reject, when set, is an admission
+// policy's answer to a patch: given the labels the patch sets, it returns
+// the server's refusal, or "" to admit it.
 type manifestCluster struct {
 	object   *unstructured.Unstructured
 	mutate   func(*unstructured.Unstructured)
+	reject   func(labels map[string]string) string
 	dryRuns  int
 	realRuns int
 	labelled int
+	rejected int
+	managers []string
 }
 
 func (c *manifestCluster) LabelPatcher(context.Context, addrs.AbsProviderConfig) (kubesweep.LabelPatcher, error) {
@@ -209,10 +214,25 @@ func (c *manifestCluster) ReadObject(context.Context, kubesweep.ObjectRef) (*uns
 	return c.object.DeepCopy(), true, nil
 }
 
-func (c *manifestCluster) PatchMarkers(_ context.Context, _ kubesweep.ObjectRef, labels, annotations map[string]string, _ string, dryRun bool) (*unstructured.Unstructured, string, error) {
+func (c *manifestCluster) PatchMarkers(_ context.Context, _ kubesweep.ObjectRef, labels, annotations map[string]string, fieldManager string, dryRun bool) (*unstructured.Unstructured, string, error) {
+	c.managers = append(c.managers, fieldManager)
+	if c.reject != nil {
+		if why := c.reject(labels); why != "" {
+			c.rejected++
+			return nil, why, nil
+		}
+	}
 	next := c.object.DeepCopy()
 	if len(labels) > 0 {
 		c.labelled++
+		l := next.GetLabels()
+		if l == nil {
+			l = map[string]string{}
+		}
+		for k, v := range labels {
+			l[k] = v
+		}
+		next.SetLabels(l)
 	}
 	ann := next.GetAnnotations()
 	if ann == nil {
