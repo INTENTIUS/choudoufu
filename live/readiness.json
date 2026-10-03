@@ -11691,7 +11691,7 @@
       "status": "in-contract",
       "facts": {
         "taggable": true,
-        "survey_path": "moves to Ops",
+        "survey_path": "marker",
         "admitted": true,
         "markerless": false,
         "not_importable": false,

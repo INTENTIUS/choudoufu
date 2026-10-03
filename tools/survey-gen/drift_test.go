@@ -149,7 +149,14 @@ var surveyExpectations = []surveyExpectation{
 			// aws_iam_server_certificate, aws_iam_service_linked_role and
 			// aws_iam_virtual_mfa_device. No other type moved; aws_iam_ is
 			// the only service taggingAPIUnservedServices names today.
-			"marker": 778,
+			//
+			// 778 -> 779 on 2026-10-03 (issue #1496): the classifier reads
+			// the service-list leg (internal/live/servicetags' list and tag
+			// routes, #1477) as a third enumeration signal, and
+			// aws_iam_service_linked_role, which that leg binds by its
+			// marker, moved back here from "moves to Ops". No other type
+			// moved: it is the one type the list route table names.
+			"marker": 779,
 			// 702 -> 583. 118 rows moved to "enumerable, unbindable"
 			// because the classifier's enumeration question now reads
 			// the mapped CFN type's Cloud Control list handler as well
@@ -201,7 +208,11 @@ var surveyExpectations = []surveyExpectation{
 			// movers, has no native list resource and no Cloud Control list
 			// handler at all, so it lands here rather than on "enumerable,
 			// unbindable" with the other seven.
-			"moves to Ops":   562,
+			//
+			// 562 -> 561 on 2026-10-03 (issue #1496): that same row moved
+			// to "marker" once the classifier read the service-list leg
+			// #1493 shipped for it.
+			"moves to Ops":   561,
 			"client-named":   117,
 			"parent-derived": 48,
 			// 143 -> 142: aws_cloudwatch_otel_enrichment, the fifth mover.
