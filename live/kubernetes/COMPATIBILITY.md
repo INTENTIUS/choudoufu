@@ -316,6 +316,54 @@ adopts it; a plan where no such object exists still proposes the create.
 A root made only of refused types is blocked as a whole, and the report
 says which root and why.
 
+**Objects EKS also writes.** EKS writes `aws-auth`, CoreDNS, kube-proxy
+and the managed add-ons' Deployments with its own field managers. An
+undeclared one carries no `tofu-estate` label, and the sweep selects on
+that label, so no plan lists or proposes it. A declared one belongs to the
+operator, as it does in stock (ruled on
+[#1113](https://github.com/INTENTIUS/choudoufu/issues/1113)): choudoufu
+writes what the block says, EKS writes what EKS writes, and where the two
+meet in one field (`aws-auth`'s `mapRoles` is the usual case) they contend
+exactly as they do under stock OpenTofu. No list of EKS field-manager
+names is consulted. To keep one writer, grant cluster access with
+`aws_eks_access_entry` (and `aws_eks_access_policy_association`) instead of
+declaring `aws-auth`. An access entry is an AWS resource only the EKS API
+writes and carries the estate's tags like any other, and the ConfigMap
+stays EKS's alone.
+
+**A provider block that reads the cluster.** Every published EKS root
+configures `provider "kubernetes"` from the cluster it creates:
+`host = aws_eks_cluster.this.endpoint`, `host =
+module.eks.cluster_endpoint`, or through `data.aws_eks_cluster`, with a
+token from `data.aws_eks_cluster_auth` or an `exec` block. Since #1113
+each of these is answered from the live cluster, read before the plan, the
+value stock's graph supplies once the cluster exists. A cluster that does
+not exist yet reads as empty: a greenfield plan's cluster leg is all
+creates, and the apply configures the provider once the cluster is there,
+which is stock's order. A cluster that exists and cannot be read stops the
+plan with `Cannot read a value a provider configuration needs`. An
+unreachable cluster is never reported as an empty one.
+
+**Two fences, one estate.** An estate spanning AWS and the cluster has one
+name and two fences. IAM conditions on the `tofu-estate` and
+`tofu-address` tags (`live/MARKERS.md`) govern the AWS leg. The
+ValidatingAdmissionPolicy in `live/kubernetes/estate-boundary.yaml`
+governs writes to the cluster leg, per principal. Each is judged under its
+own credential, and nothing makes the two agree for you: a principal
+fenced out of the AWS leg is not fenced out of the cluster unless the
+admission policy says so as well. On EKS one AWS identity usually holds
+both, because the cluster credential is minted from it through an access
+entry or `aws-auth`. A carve across both legs is a sequence of
+`live-mv -from-estate` calls, one per object, each judged by its own
+fence. No move spans both legs atomically. A carve interrupted halfway
+resumes by running the moves that have not happened yet. Re-running one
+that already ran is refused as `new_address_claimed` (live-mv's own code
+for a destination something already carries), so nothing is moved twice
+or overwritten.
+What `live-whoami` prints for a mixed estate is
+[#1106](https://github.com/INTENTIUS/choudoufu/issues/1106)'s, and not
+built yet.
+
 ## How you run it
 
 The command-level refusals - a `backend` or `cloud` block, a non-default
