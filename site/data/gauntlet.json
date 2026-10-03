@@ -3888,67 +3888,67 @@
       },
       "stage_runs": {
         "cold_deploy": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:42:46Z"
+          "commit": "14ba7612adb703e23592105000677c61745c93d4",
+          "date": "2026-10-03T02:54:59Z"
         },
         "day2_count": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:42:46Z"
+          "commit": "14ba7612adb703e23592105000677c61745c93d4",
+          "date": "2026-10-03T02:54:59Z"
         },
         "day2_crash": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:42:46Z"
+          "commit": "14ba7612adb703e23592105000677c61745c93d4",
+          "date": "2026-10-03T02:54:59Z"
         },
         "day2_remove": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:42:46Z"
+          "commit": "14ba7612adb703e23592105000677c61745c93d4",
+          "date": "2026-10-03T02:54:59Z"
         },
         "day2_rename": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:42:46Z"
+          "commit": "14ba7612adb703e23592105000677c61745c93d4",
+          "date": "2026-10-03T02:54:59Z"
         },
         "day2_replace": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:42:46Z"
+          "commit": "14ba7612adb703e23592105000677c61745c93d4",
+          "date": "2026-10-03T02:54:59Z"
         },
         "day2_teardown": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:42:46Z"
+          "commit": "14ba7612adb703e23592105000677c61745c93d4",
+          "date": "2026-10-03T02:54:59Z"
         },
         "drift_reconverge": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:42:46Z"
+          "commit": "14ba7612adb703e23592105000677c61745c93d4",
+          "date": "2026-10-03T02:54:59Z"
         },
         "greenfield": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:42:46Z"
+          "commit": "14ba7612adb703e23592105000677c61745c93d4",
+          "date": "2026-10-03T02:54:59Z"
         },
         "migrate": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:42:46Z"
+          "commit": "14ba7612adb703e23592105000677c61745c93d4",
+          "date": "2026-10-03T02:54:59Z"
         },
         "plan_approval": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:42:46Z"
+          "commit": "14ba7612adb703e23592105000677c61745c93d4",
+          "date": "2026-10-03T02:54:59Z"
         },
         "strict": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:42:46Z"
+          "commit": "14ba7612adb703e23592105000677c61745c93d4",
+          "date": "2026-10-03T02:54:59Z"
         },
         "test_apply": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:42:46Z"
+          "commit": "14ba7612adb703e23592105000677c61745c93d4",
+          "date": "2026-10-03T02:54:59Z"
         },
         "test_plan": {
-          "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-          "date": "2026-10-02T19:42:46Z"
+          "commit": "14ba7612adb703e23592105000677c61745c93d4",
+          "date": "2026-10-03T02:54:59Z"
         }
       },
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "f707182267182e134aa988500c371d8f1af28cb6",
-        "date": "2026-10-02T19:42:46Z",
+        "commit": "14ba7612adb703e23592105000677c61745c93d4",
+        "date": "2026-10-03T02:54:59Z",
         "substrate_image": "kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5",
         "kubernetes_provider_version": "3.2.1",
         "oracle": {
@@ -3973,21 +3973,21 @@
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=reference-k8s unchanged at 7 across the six kinds the count covers, counted with kubectl",
           "test_plan": "the plan with no state file is empty; all 7 identities (NAMESPACE/NAME) confirmed present with kubectl"
         },
-        "duration_s": 694.1,
+        "duration_s": 683,
         "stage_seconds": {
-          "cold_deploy": 95,
-          "day2_count": 59,
-          "day2_crash": 221,
-          "day2_remove": 36,
+          "cold_deploy": 96,
+          "day2_count": 58,
+          "day2_crash": 218,
+          "day2_remove": 34,
           "day2_rename": 24,
-          "day2_replace": 59,
-          "day2_teardown": 25,
+          "day2_replace": 56,
+          "day2_teardown": 24,
           "drift_reconverge": 24,
-          "greenfield": 70,
-          "migrate": 3,
+          "greenfield": 68,
+          "migrate": 2,
           "plan_approval": 35,
-          "strict": 18,
-          "test_apply": 12,
+          "strict": 19,
+          "test_apply": 13,
           "test_plan": 11
         }
       }
