@@ -69,6 +69,9 @@ func readRoster(path string) ([]HandRow, error) {
 		if !validPaths[row.Path] {
 			return nil, fmt.Errorf("%s carries a Path outside the fixed vocabulary: %q", row.Type, row.Path)
 		}
+		if !validStatus(row.Status) {
+			return nil, fmt.Errorf("%s carries a Status outside the fixed vocabulary (statusVocabulary in render.go): %q", row.Type, row.Status)
+		}
 		// The Source column is "provenance; tier".
 		switch tier := cells[4][strings.LastIndex(cells[4], ";")+1:]; strings.TrimSpace(tier) {
 		case "schema":
