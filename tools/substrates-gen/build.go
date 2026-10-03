@@ -37,7 +37,6 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 )
 
@@ -103,7 +102,7 @@ func buildRow(root string, s substrate.Substrate, rf readinessFacts) (Row, error
 			CarrierPaths:     pathStrings(s.CarrierPaths(surf)),
 			CollidesOnKey:    s.CreateCollidesOnKey(surf),
 			Writes:           WritesFacts{Create: string(w.Create), Adopt: string(w.Adopt), PostCreate: string(w.PostCreate)},
-			PostCreateWriter: string(s.MarkerWriter(addrs.AbsProviderConfig{})),
+			PostCreateWriter: string(s.MarkerWriter()),
 		})
 	}
 

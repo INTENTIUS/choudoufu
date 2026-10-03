@@ -504,18 +504,15 @@ const bindingSurface markers.Surface = "graph-binding-surface"
 // own rule, reading no registry.
 type bindingFamily struct{ substrate.Substrate }
 
-func (bindingFamily) Name() string                                         { return "graph" }
-func (bindingFamily) Surfaces() []markers.Surface                          { return []markers.Surface{bindingSurface} }
-func (bindingFamily) CarriesAddress() bool                                 { return true }
-func (bindingFamily) MarkerWriter(addrs.AbsProviderConfig) substrate.Write { return "graph-binding" }
+func (bindingFamily) Name() string                  { return "graph" }
+func (bindingFamily) Surfaces() []markers.Surface   { return []markers.Surface{bindingSurface} }
+func (bindingFamily) CarriesAddress() bool          { return true }
+func (bindingFamily) MarkerWriter() substrate.Write { return "graph-binding" }
 func (bindingFamily) SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
 	if _, ok := block.Attributes["binding_target"]; ok {
 		return bindingSurface, true
 	}
 	return "", false
-}
-func (f bindingFamily) OwnershipSurfaceOf(block *configschema.Block) (markers.Surface, bool) {
-	return f.SurfaceOf(block)
 }
 func (bindingFamily) Writes(surface markers.Surface) substrate.Writes {
 	if surface == bindingSurface {
@@ -629,7 +626,7 @@ type widgetFamily struct{ substrate.Substrate }
 func (widgetFamily) Name() string                { return "widget" }
 func (widgetFamily) Surfaces() []markers.Surface { return []markers.Surface{widgetSurface} }
 func (widgetFamily) CarriesAddress() bool        { return true }
-func (widgetFamily) MarkerWriter(addrs.AbsProviderConfig) substrate.Write {
+func (widgetFamily) MarkerWriter() substrate.Write {
 	return "widget-binding"
 }
 func (widgetFamily) SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
@@ -637,9 +634,6 @@ func (widgetFamily) SurfaceOf(block *configschema.Block) (markers.Surface, bool)
 		return widgetSurface, true
 	}
 	return "", false
-}
-func (f widgetFamily) OwnershipSurfaceOf(block *configschema.Block) (markers.Surface, bool) {
-	return f.SurfaceOf(block)
 }
 func (widgetFamily) Writes(surface markers.Surface) substrate.Writes {
 	if surface == widgetSurface {
@@ -654,7 +648,7 @@ func (widgetFamily) PostCreateNeeded(surface markers.Surface, created substrate.
 	return "", false
 }
 func (widgetFamily) ManualMarkFix(created substrate.Created, want map[string]string, _ substrate.Facts) string {
-	return fmt.Sprintf("Run: widgetctl adopt --type %s --arn %s --tags %s", created.Type(), appliedString(created.Object, "arn"), markers.TagsArgument(want))
+	return fmt.Sprintf("Run: widgetctl adopt --type %s --arn %s --tags %s", created.Type(), substrate.ObjectString(created.Object, "arn"), markers.TagsArgument(want))
 }
 
 // TestWriteAppliedMarkers_theFixHintIsTheFamilysAnswer (GitHub issue

@@ -10,7 +10,6 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
@@ -370,7 +369,7 @@ func (k kubernetes) NotACarrier(_ *configschema.Block, typeName string) string {
 
 // MarkerWriter is [WriteNeverNeeded]: the label rides the create call on
 // both surfaces, so there is nothing to write after it.
-func (kubernetes) MarkerWriter(addrs.AbsProviderConfig) Write { return WriteNeverNeeded }
+func (kubernetes) MarkerWriter() Write { return WriteNeverNeeded }
 
 // ---- GitHub issue #1642: whether a create needs the post-create write ----
 
