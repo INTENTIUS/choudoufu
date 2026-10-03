@@ -180,12 +180,14 @@ type Substrate interface {
 	controllerHolding
 }
 
-// All is every family, in the order a surface question asks them.
+// All is every family, in the order an ordered question asks them.
 //
 // AWS is last, and that is load-bearing for [Substrate.SynthesizeIdentity]
 // (GitHub issue #1586): the AWS answer is the identity-schema route, which
 // claims every type, so a family with a convention of its own has to be
-// asked before it. The surface questions are disjoint and do not care.
+// asked before it. TestTheCatchAllFamilyIsLast holds it (GitHub issue
+// #1742). The surface questions are asked of the provider's own family
+// ([SurfaceOf]), so for a claimed provider the order does not decide them.
 var All = []Substrate{Kubernetes, AWS}
 
 // ForProvider is the family a provider type name belongs to ("aws",
@@ -236,15 +238,25 @@ func For(surface markers.Surface) Substrate {
 	return nil
 }
 
-// SurfaceOf is the marker surface a resource type's schema carries, or
-// false when it has none. The families' predicates are disjoint by
-// construction ([markers.LabelSurface] and [markers.ManifestSurface] each
-// refuse a [markers.Taggable] type, and the manifest shape refuses a
-// metadata block), so the order they are asked in cannot decide an answer.
+// SurfaceOf is the marker surface a resource type of provider providerType
+// carries, read off its schema, or false when it has none.
+//
+// GitHub issue #1742: the family is chosen by provider, the rule
+// [NotACarrier] and [ForProvider] use, and only that family is asked. A
+// schema alone cannot tell two families apart - an azurerm type's tags map
+// is shaped exactly like an AWS type's - so dispatching on it handed one
+// family's types to whichever claimed the shape first. A provider no
+// family claims (azurerm, datadog today) keeps the compatible default the
+// node stamp has always had: every family is asked in [All]'s order and
+// the first surface its schema carries is the one stamped (maintainer
+// ruling on #1742, 2026-10-02).
 //
 // This is the question live-mv's surface switch and live-import's carrier
 // choice asked.
-func SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
+func SurfaceOf(providerType string, block *configschema.Block) (markers.Surface, bool) {
+	if s, ok := ForProvider(providerType); ok {
+		return s.SurfaceOf(block)
+	}
 	for _, s := range All {
 		if surface, ok := s.SurfaceOf(block); ok {
 			return surface, true

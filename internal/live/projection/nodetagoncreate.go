@@ -202,7 +202,7 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 	// writer, rather than a provider type string. The tag surface's is the
 	// Tagging API; a surface whose marker always rides the create call
 	// answers WriteNeverNeeded and there is nothing to do.
-	surface, carries := substrate.SurfaceOf(schema.Block)
+	surface, carries := substrate.SurfaceOf(provider.Provider.Type, schema.Block)
 	if !carries {
 		return applied, diags
 	}

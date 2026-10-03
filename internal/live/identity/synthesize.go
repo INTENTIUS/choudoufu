@@ -124,21 +124,14 @@ func synthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 		return TypeIdentity{}, fmt.Sprintf(" The provider serves no %s at all.", typeName)
 	}
 	// Each family is asked how its schema identifies an instance (GitHub
-	// issue #1586), in [substrate.All]'s order, and the first to answer
+	// issue #1586), in [substrate.All]'s order ([substrate.SynthesizeIdentity]), and the first to answer
 	// decides. The Kubernetes conventions (object metadata, #1064, and the
 	// whole-object manifest, #1079) are asked ahead of the identity-schema
 	// route below, which cannot reach those types at all - their identity
 	// schema requires api_version and kind, constants no configuration
 	// carries. The identity-schema route is AWS's answer and claims every
 	// type, so it is last.
-	for _, sub := range substrate.All {
-		synth, ok := sub.SynthesizeIdentity(typeName, schema)
-		if !ok {
-			continue
-		}
-		if synth.FromIdentitySchema {
-			break
-		}
+	if synth, ok := substrate.SynthesizeIdentity(typeName, schema); ok && !synth.FromIdentitySchema {
 		return fromSynthesized(typeName, synth), ""
 	}
 	switch {

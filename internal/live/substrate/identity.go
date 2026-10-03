@@ -61,6 +61,21 @@ type IdentityComponent struct {
 	SameNameIdentity bool
 }
 
+// SynthesizeIdentity asks every family in [All]'s order how typeName's
+// schema identifies an instance, and the first to answer decides
+// (internal/live/identity's synthesizeTypeIdentity). The answer is AWS's
+// identity-schema route ([SynthesizedIdentity.FromIdentitySchema]) for any
+// type no earlier family claims, which is why a family placed after AWS
+// would never be asked (GitHub issue #1742).
+func SynthesizeIdentity(typeName string, schema providers.Schema) (SynthesizedIdentity, bool) {
+	for _, s := range All {
+		if synth, ok := s.SynthesizeIdentity(typeName, schema); ok {
+			return synth, true
+		}
+	}
+	return SynthesizedIdentity{}, false
+}
+
 // SynthesizeIdentity is always the identity-schema route: AWS types are
 // identified by the attributes the provider's resource identity schema
 // names. It claims every type, which is why AWS is last in [All]: a family

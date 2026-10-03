@@ -61,7 +61,7 @@ func (n *NodeResolver) refuseAddresslessMarker(addr addrs.AbsResourceInstance, s
 	if len(refused) == 0 {
 		return nil
 	}
-	surface, ok := substrate.SurfaceOf(schema.Block)
+	surface, ok := substrate.SurfaceOf(n.providerType(addr), schema.Block)
 	if !ok || substrate.AddressInMarkers(surface) {
 		return nil
 	}

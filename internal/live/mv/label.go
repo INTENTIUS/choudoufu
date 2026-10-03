@@ -87,8 +87,11 @@ const SummaryManifestMoveUnsupported = "Moving a manifest-declared object betwee
 // [substrate] what that surface means for a move ([relabels],
 // [Result.MarkerCarriesAddress]) rather than naming the surfaces, so a new
 // one is taught in internal/live/substrate alone.
-func surfaceOf(block *configschema.Block) markers.Surface {
-	surface, _ := substrate.SurfaceOf(block)
+//
+// providerType is the provider the moved object is read through, so the
+// surface is asked of that provider's family (GitHub issue #1742).
+func surfaceOf(providerType string, block *configschema.Block) markers.Surface {
+	surface, _ := substrate.SurfaceOf(providerType, block)
 	return surface
 }
 

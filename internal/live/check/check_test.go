@@ -174,6 +174,7 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"pluginschema":    true, // provider schema reading
 		"plugincache":     true, // whether a plugin cache holds a provider release, so an init can install offline (#1509)
 		"policy":          true, // the ownership policy matrix
+		"setplan":         true, // plans a set of roots as child processes and collects one document (#1752); an orchestrator, not a pass
 		"providerscope":   true, // module-aware provider address resolution (#104); a pure function, not yet wired into any pass
 		"recordtrips":     true, // the record-store round-trip measurement; an instrument, like "statefulcost" below
 		"refusalscan":     true, // the shared lockstep scanner behind those registries
@@ -221,6 +222,11 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// generated artifact, and the stage that would act on that signal
 		// does not exist yet.
 		"uniquename": true,
+		// GitHub issue #1751's live-affected: which roots a git range
+		// touches, read from configuration at two revisions before any
+		// stage runs. It refuses nothing; what it cannot attribute it
+		// answers as indeterminate, worded by its own command.
+		"affected": true,
 	}
 
 	classified := map[string]bool{}

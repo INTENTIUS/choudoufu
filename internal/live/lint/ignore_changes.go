@@ -111,7 +111,7 @@ func checkIgnoreChanges(resource *configs.Resource, addr string, path addrs.Modu
 
 	surface := markers.SurfaceTags
 	if schema, ok := schemas[resource.Type]; ok {
-		s, hasSurface := substrate.SurfaceOf(schema.Block)
+		s, hasSurface := substrate.SurfaceOf(resource.Provider.Type, schema.Block)
 		if !hasSurface {
 			return
 		}

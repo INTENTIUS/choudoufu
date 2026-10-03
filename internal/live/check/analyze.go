@@ -534,7 +534,7 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	// text summary from ever disagreeing on a count), and the loaded
 	// configuration itself for the reference walk, which reads raw HCL
 	// filter blocks that neither pass above has any reason to look at.
-	report.Roster = buildRoster(actx.Schemas, report.Identities, report.Findings)
+	report.Roster = buildRoster(cfg, actx.Schemas, report.Identities, report.Findings)
 	report.References = crossEstateReferences(cfg)
 
 	// Estate is read straight from the "live" block's own Estate argument

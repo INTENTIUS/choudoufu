@@ -1,0 +1,157 @@
+{
+  "schema": 1,
+  "issue": "#1752",
+  "fixture": {
+    "estates": 5,
+    "source": "local",
+    "prefix": "ls",
+    "from": "A",
+    "to": "B"
+  },
+  "condition": "choudoufu-live-plan-set-vs-separate-live-plan-after-own-apply",
+  "substrate": "floci",
+  "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
+  "commit": "269c0a0911cc3a37c7e24b5e69f12e35793672b6",
+  "date": "2026-10-03T02:23:35Z",
+  "repeats": 3,
+  "baseline": {
+    "path": "live/large-set/baseline-n5.json",
+    "commit": "316b310d9ad5243eee709d60e076b4c3f60e19a5",
+    "date": "2026-10-03T02:04:49Z"
+  },
+  "set": {
+    "calls": [
+      393,
+      393,
+      393
+    ],
+    "seconds": [
+      7.7,
+      9.99,
+      14.43
+    ],
+    "peak_rss_kb": [
+      3224704,
+      3740976,
+      3721088
+    ],
+    "peak_procs": [
+      11,
+      11,
+      11
+    ],
+    "parallel_estates": 5,
+    "exit_codes": [
+      2,
+      2,
+      2
+    ]
+  },
+  "separate": {
+    "live_plan": {
+      "calls": [
+        393,
+        393,
+        393
+      ],
+      "seconds": [
+        27.33,
+        33.81,
+        37.25
+      ],
+      "peak_rss_kb": [
+        758096,
+        782944,
+        768384
+      ],
+      "peak_procs": [
+        2,
+        2,
+        2
+      ]
+    },
+    "slowest_seconds": [
+      6.66,
+      8.48,
+      9.54
+    ],
+    "show_seconds": [
+      0.18,
+      0.2,
+      0.46
+    ]
+  },
+  "estates": [
+    {
+      "estate": "e01",
+      "role": "producer",
+      "equivalent": true,
+      "add": 1,
+      "change": 3,
+      "destroy": 0,
+      "changed": [
+        "module.shared.aws_iam_role.app",
+        "module.shared.aws_s3_bucket.data",
+        "module.shared.aws_sqs_queue.events",
+        "module.shared.aws_sqs_queue.work"
+      ]
+    },
+    {
+      "estate": "e02",
+      "role": "middle",
+      "equivalent": true,
+      "add": 1,
+      "change": 3,
+      "destroy": 0,
+      "changed": [
+        "module.shared.aws_iam_role.app",
+        "module.shared.aws_s3_bucket.data",
+        "module.shared.aws_sqs_queue.events",
+        "module.shared.aws_sqs_queue.work"
+      ]
+    },
+    {
+      "estate": "e03",
+      "role": "leaf",
+      "equivalent": true,
+      "add": 1,
+      "change": 3,
+      "destroy": 0,
+      "changed": [
+        "module.shared.aws_iam_role.app",
+        "module.shared.aws_s3_bucket.data",
+        "module.shared.aws_sqs_queue.events",
+        "module.shared.aws_sqs_queue.work"
+      ]
+    },
+    {
+      "estate": "e04",
+      "role": "outlier",
+      "equivalent": true,
+      "add": 1,
+      "change": 4,
+      "destroy": 0,
+      "changed": [
+        "module.shared.aws_iam_role.app",
+        "module.shared.aws_s3_bucket.data",
+        "module.shared.aws_sqs_queue.events",
+        "module.shared.aws_sqs_queue.extra[0]",
+        "module.shared.aws_sqs_queue.work"
+      ]
+    },
+    {
+      "estate": "e05",
+      "role": "plain",
+      "equivalent": true,
+      "add": 1,
+      "change": 3,
+      "destroy": 0,
+      "changed": [
+        "module.shared.aws_iam_role.app",
+        "module.shared.aws_s3_bucket.data",
+        "module.shared.aws_sqs_queue.events",
+        "module.shared.aws_sqs_queue.work"
+      ]
+    }
+  ]
+}

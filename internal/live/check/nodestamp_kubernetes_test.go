@@ -92,7 +92,7 @@ func TestNoKubernetesTypeNeedsDiscovery(t *testing.T) {
 	sawControl := false
 	for _, r := range result.All() {
 		typeName := r.Addr.Resource.Resource.Type
-		surface, ok := substrate.SurfaceOf(schemas[typeName].Block)
+		surface, ok := substrate.SurfaceOf("", schemas[typeName].Block)
 		if !ok {
 			t.Fatalf("%s: the fixture's schema for %s carries no marker surface", r.Addr, typeName)
 		}
