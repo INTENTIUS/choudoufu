@@ -358,6 +358,15 @@ func initCommands(meta command.Meta) {
 			}, nil
 		},
 
+		// GitHub issue #1751: which estate roots a git range touches. It
+		// reads configuration from git and prints; public from the start
+		// for live-check's reason above.
+		"live-affected": func() (cli.Command, error) {
+			return &command.LiveAffectedCommand{
+				Meta: meta,
+			}, nil
+		},
+
 		"providers lock": func() (cli.Command, error) {
 			return &command.ProvidersLockCommand{
 				Meta: meta,
