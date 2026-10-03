@@ -54,7 +54,7 @@ func TestSpecFiguresFollowTheirSources(t *testing.T) {
 
 	m := kindManifest()
 	a := &Artifact{}
-	a.Rebuild(m, &BehaviorIndex{}, "img", OracleVersions{}, ProviderVersions{}, "")
+	a.Rebuild(m, &BehaviorIndex{}, "img", OracleVersions{}, ProviderVersions{}, "", "")
 	doc := renderSpec(m, a, TypeIndexTotals{})
 
 	if got, want := specFigure(t, doc, reSpecStageCount), strconv.Itoa(len(Stages())); got != want {
