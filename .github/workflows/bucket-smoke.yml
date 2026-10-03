@@ -84,7 +84,7 @@ jobs:
         env:
           BREAK: "1"
         run: bash live/smoke/ci-run.sh ${{ matrix.scenario }} "$RUNNER_TEMP/smoke-logs/break.log"
-      # Claim 31 has a second control (GitHub issue #1430): a binary built
+      # Claim 29 has a second control (GitHub issue #1430): a binary built
       # without the plan-time cross-check must be caught reporting one
       # destroyed of two, which is #1355's output. Held to its one "caught"
       # line by name, because a control that exits 0 has only proved

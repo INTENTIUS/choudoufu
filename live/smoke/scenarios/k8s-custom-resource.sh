@@ -1,5 +1,29 @@
 # k8s-custom-resource
-# CLAIM 24 (kubernetes) - A custom resource binds by its natural key, carries the estate label and is swept by it, a block whose CRD the cluster does not serve is refused by name, and the plan carries the API server's own dry-run verdict on every planned object: a kubernetes_manifest block is found again by the apiVersion, kind, namespace and name written inside its manifest, with no state file, its object created with tofu-estate in metadata.labels; before the CRD is installed the plan refuses the block naming the kind, the apiVersion and the CRD to install; the plan submits the planned object to the server with dryRun=All and prints its acceptance, and a manifest the server rejects refuses the plan by name in the server's words; a label stripped out of band takes the object out of the estate and the next plan refuses it by name, an object deleted out of band walks back in as a create, and an object whose block is removed is found by the sweep and proposed for removal; and a custom resource stock created and recorded in a terraform.tfstate is adopted by live-import, which writes that same label as one API merge patch whose dry run is diffed against the live object so a write that would change anything beyond the labels map is refused and records the metadata keys the stock configuration declared, so that a label removed from the configuration once the state file is deleted is removed from the live object; and a migration of label-carrying objects under an estate name no Kubernetes label value can hold is refused once, at the read-only run, naming the count, with no per-object line and nothing written. ~5 min.
+# CLAIM 7 (kubernetes) - Identity is a tag you can read, move and carve by. ~5 min.
+#
+# This proof: A custom resource binds by its natural key, carries the estate
+# label and is swept by it, a block whose CRD the cluster does not serve is
+# refused by name, and the plan carries the API server's own dry-run verdict
+# on every planned object: a kubernetes_manifest block is found again by the
+# apiVersion, kind, namespace and name written inside its manifest, with no
+# state file, its object created with tofu-estate in metadata.labels; before
+# the CRD is installed the plan refuses the block naming the kind, the
+# apiVersion and the CRD to install; the plan submits the planned object to
+# the server with dryRun=All and prints its acceptance, and a manifest the
+# server rejects refuses the plan by name in the server's words; a label
+# stripped out of band takes the object out of the estate and the next plan
+# refuses it by name, an object deleted out of band walks back in as a
+# create, and an object whose block is removed is found by the sweep and
+# proposed for removal; and a custom resource stock created and recorded in
+# a terraform.tfstate is adopted by live-import, which writes that same
+# label as one API merge patch whose dry run is diffed against the live
+# object so a write that would change anything beyond the labels map is
+# refused and records the metadata keys the stock configuration declared, so
+# that a label removed from the configuration once the state file is deleted
+# is removed from the live object; and a migration of label-carrying objects
+# under an estate name no Kubernetes label value can hold is refused once,
+# at the read-only run, naming the count, with no per-object line and
+# nothing written.
 #
 # The first unit of #1079 (ruled 2026-09-12): every custom resource is
 # declared through kubernetes_manifest, whose whole object is one dynamic
@@ -178,7 +202,7 @@ cluster_up
 # configuration ever asked for them, and the adopt page's next instruction
 # is to delete it. Two rather than one so the removal below takes one of a
 # pair rather than emptying the map, which is a different shape and is
-# claim 27's to measure.
+# claim 45's to measure.
 MIGRATE_FIXTURE_UP=0
 migrate_fixture_up() {
 [ "$MIGRATE_FIXTURE_UP" = "1" ] && return 0

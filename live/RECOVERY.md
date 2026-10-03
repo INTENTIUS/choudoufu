@@ -11,7 +11,7 @@ load-bearing. Run them rather than reading a description of them:
 | Claim | What it shows | Command |
 |---|---|---|
 | [Claim 5: Recovery is a re-run, never surgery](smoke/claims/recovery-is-a-rerun.md) | An apply that crashed after a create, and a working copy with every local file deleted. Both end in a clean re-run. | `just smoke recovery-is-a-rerun` |
-| [Claim 17: A record-only composite identity survives cache loss](smoke/claims/record-only-survives-cache-loss.md) | The cache gone and the record intact recovers; the record gone as well produces one named duplicate create, never a silent bind. | `just smoke record-only-survives-cache-loss` |
+| [Claim 3 (claim 17 until #1817): A record-only composite identity survives cache loss](smoke/claims/record-only-survives-cache-loss.md) | The cache gone and the record intact recovers; the record gone as well produces one named duplicate create, never a silent bind. | `just smoke record-only-survives-cache-loss` |
 
 Everything below is the part neither claim supplies: what to do, in order,
 and what the damage is when it is not recoverable.
@@ -127,7 +127,7 @@ only place the pairing was ever held. Grouped by what breaks, at commit
 | other | 18 | `aws_kms_custom_key_store` |
 
 For the 45 attachments and singletons, AWS enforces uniqueness, so the
-duplicate create Claim 17 promises will mostly fail loudly at apply rather than
+duplicate create Claim 3 promises will mostly fail loudly at apply rather than
 silently double something. That is the benign half. It is inference from the
 AWS APIs rather than something measured here, and "fails loudly" is not the
 same as "recovers" - see the honest edge at the end of this page for what you

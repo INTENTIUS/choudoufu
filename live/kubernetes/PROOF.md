@@ -3,7 +3,7 @@
 Nine scenarios run on a real cluster. Three are the Kubernetes proofs of
 promises first proven on AWS: the marker itself (claim 7), the sweep that
 finds a deleted block's object by it (claim 1), and the admission policy
-that fences a write by it (claim 13, and claim 12's carve through it).
+that fences a write by it (claim 13, and claim 7's carve through it).
 Six are Kubernetes promises of their own: a custom resource bound by the
 natural key inside its manifest, carrying the label and swept by it, a delete the platform has accepted and
 not finished, admission getting the last word over a plan, a label edit as
@@ -56,13 +56,13 @@ the API server refuses a plain `kubectl label` across the boundary, and
 the policy governs a carve by relabel. Its `BREAK=1` removes the policy and
 requires the plan-side refusal to hold without it.
 
-[Claim 24](../smoke/claims/k8s-custom-resource.md) runs a
+[Claim 7](../smoke/claims/k8s-custom-resource.md) runs a
 custom resource on a CRD the scenario installs: refused by name while the
 CRD is missing, bound by the key inside its manifest, labelled on create,
 dry-run against the server before the apply, restored when the label is
 stripped, and swept when its block is removed.
 
-[Claim 25](../smoke/claims/k8s-a-held-delete-is-not-gone.md)
+[Claim 1](../smoke/claims/k8s-a-held-delete-is-not-gone.md)
 runs a held delete. A finalizer holds an object's delete, so the API
 accepts it and the object stays, terminating, with its label. The run's
 own summary says destroyed, and one warning after it names the object
@@ -72,7 +72,7 @@ really gone. Its
 `BREAK=1` takes the finalizer off before the destroying apply and requires
 the object to go in one apply.
 
-[Claim 26](../smoke/claims/k8s-the-server-gets-the-last-word.md)
+[Claim 15](../smoke/claims/k8s-the-server-gets-the-last-word.md)
 runs the gap between a plan and the write it approved. A real
 `ValidatingWebhookConfiguration` with `failurePolicy: Fail` and nothing
 behind it refuses the apply of a saved `-out` plan. The run reports the
@@ -86,7 +86,7 @@ apply wedges on the name
 `BREAK=1` points the identical policy at a decoy label and requires the
 marker landed and the second apply clean.
 
-[Claim 27](../smoke/claims/k8s-a-label-is-a-change.md)
+[Claim 45](../smoke/claims/k8s-a-label-is-a-change.md)
 runs the ordinary day-2 edit of a label or annotation on a
 `kubernetes_manifest`. The scenario measures stock's own answer for the
 edit on the same cluster, requires choudoufu to match it and to write the

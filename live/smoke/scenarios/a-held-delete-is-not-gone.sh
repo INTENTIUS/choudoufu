@@ -1,5 +1,12 @@
 # a-held-delete-is-not-gone
-# CLAIM 25 (aws) - A delete the platform accepted but has not finished is neither forgotten nor repeated: the plan after it reads the object the way the provider does - an object the provider still reads as present keeps its marker, the sweep finds it, and every plan proposes the same one destroy until it is really gone; an object the provider reads as gone plans nothing, as stock's plan does, with no second delete and no refusal. ~3 min.
+# CLAIM 1 (aws) - Owned resources never fall out of a plan. ~3 min.
+#
+# This proof: A delete the platform accepted but has not finished is neither
+# forgotten nor repeated: the plan after it reads the object the way the
+# provider does - an object the provider still reads as present keeps its
+# marker, the sweep finds it, and every plan proposes the same one destroy
+# until it is really gone; an object the provider reads as gone plans
+# nothing, as stock's plan does, with no second delete and no refusal.
 #
 # GitHub issue #1599. The AWS form of a held delete is a scheduled one:
 # Secrets Manager's DeleteSecret with a recovery window, like KMS's
@@ -25,8 +32,9 @@
 # own delete returned - has no AWS instance the emulator can produce: the
 # AWS shape of it is an eventually consistent delete, which floci
 # deliberately does not emulate (its tagging service says so), and most
-# hashicorp/aws deletes wait the lag out anyway. That is why the AWS cell of
-# claim 25 reads "restated", not "proven".
+# hashicorp/aws deletes wait the lag out anyway. That is why this proof's note
+# in claims.json says it covers the second half only (it was claim 25's
+# AWS cell, which read "restated", until #1817 made it a proof of claim 1).
 #
 # BREAK=1 sets recovery_window_in_days = 0, which the provider sends as
 # ForceDeleteWithoutRecovery, and requires the opposite outcome: the secret

@@ -74,7 +74,7 @@ label and annotation keys from the stock state into the estate's record
 ([#1391](https://github.com/INTENTIUS/choudoufu/issues/1391)), so a label you
 remove from the configuration after migrating is planned for removal, the way
 stock would plan it
-([claim 27](../smoke/claims/k8s-a-label-is-a-change.md)). Nothing the record
+([claim 45](../smoke/claims/k8s-a-label-is-a-change.md)). Nothing the record
 needs is left in the state after that, so the Secret is kept as the way back
 and not because a plan still reads it.
 

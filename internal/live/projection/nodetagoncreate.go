@@ -45,7 +45,7 @@ import (
 // the registry flag, no type name in control flow.
 //
 // How wide the unmarked window is, measured rather than assumed (#1535,
-// claim 42's scenario at 950e66c900, the pinned emulator): the tag WRITE is
+// claim 5's scenario at 950e66c900, the pinned emulator): the tag WRITE is
 // one round trip, and the WINDOW is not. WriteAppliedMarkers runs once
 // ApplyResourceChange RETURNS, which is when the provider's whole create
 // step finishes - for aws_route53_zone that was 15.0s after the zone was

@@ -39,7 +39,7 @@ import (
 //     names the namespace. So the update and delete paths can tell the two
 //     apart only through [KubernetesStore.conflictError]'s re-read and its
 //     namespace probe, and this is the test that they do.
-//   - claim 31's continue token. A paged LIST whose token has outlived the
+//   - claim 29's continue token. A paged LIST whose token has outlived the
 //     API server's watch cache answers 410 Gone with reason Expired on the
 //     page after, and a store that returned the pages it had would hand a
 //     plan a short listing with a nil error. kubernetes_survivors_test.go
@@ -214,7 +214,7 @@ func (t *expiredPageTransport) RoundTrip(req *http.Request) (*http.Response, err
 }
 
 // TestKubernetesAnExpiredContinueTokenFailsTheListingOnARealAPIServer is
-// claim 31 on this store, over the wire. Seven records and a page size of
+// claim 29 on this store, over the wire. Seven records and a page size of
 // two, so the first page is real and short by five; the second is answered
 // 410 Expired. List and GetAll must each fail and return nothing, and the
 // failure must be an ordinary error that says what was being done, not a

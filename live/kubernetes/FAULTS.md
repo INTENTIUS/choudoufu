@@ -8,12 +8,12 @@ plan). This note records the answer for all five and what is left.
 
 | # | Fault | Shape | Status | What injects it |
 |---|-------|-------|--------|-----------------|
-| 1 | A finalizer holds a delete | claim | done, claim 25 (#1186) | `live/smoke/scenarios/k8s-a-held-delete-is-not-gone.sh` puts a finalizer on the object; `BREAK=1` takes it off before the destroy |
-| 2 | An admission webhook rejects or mutates | claim | done, claim 26 (#1193) | `k8s-the-server-gets-the-last-word.sh`: a `ValidatingWebhookConfiguration` with no endpoint, and `MutatingAdmissionPolicy` objects for the mutations |
+| 1 | A finalizer holds a delete | claim | done, claim 1 (#1186) | `live/smoke/scenarios/k8s-a-held-delete-is-not-gone.sh` puts a finalizer on the object; `BREAK=1` takes it off before the destroy |
+| 2 | An admission webhook rejects or mutates | claim | done, claim 15 (#1193) | `k8s-the-server-gets-the-last-word.sh`: a `ValidatingWebhookConfiguration` with no endpoint, and `MutatingAdmissionPolicy` objects for the mutations |
 | 3 | A server-side apply conflict | claim | blocked on #1191 (deferred) | nothing; see below |
 | 4a | A kill mid-apply | stage | done, `day2_crash` on kind (#1189) | the gauntlet's crash stage sends SIGTERM between two objects' creates |
 | 4b | A kill mid-move | unit test | injector landed, fault is red today | `crashBetweenMarkerWrites` in `internal/live/mv/fault_move_crash_test.go` |
-| 5 | The namespace is deleted under the estate | claim | done, claim 46 (#1765) | `k8s-a-deleted-namespace-is-gone.sh` runs `kubectl delete namespace` under two estates and their stock twins; `BREAK=1` asserts an empty plan after the delete, which must fail |
+| 5 | The namespace is deleted under the estate | claim | done, claim 1 (#1765) | `k8s-a-deleted-namespace-is-gone.sh` runs `kubectl delete namespace` under two estates and their stock twins; `BREAK=1` asserts an empty plan after the delete, which must fail |
 
 ## 1 and 2: done
 
@@ -81,7 +81,7 @@ same way; that is read from the code, not measured.
 
 #1110 put this down as stage-shaped, a fault between an apply and a plan
 the lane already runs. #1765 took the fallback the issue allowed and made
-it claim 46, `live/smoke/scenarios/k8s-a-deleted-namespace-is-gone.sh`. A
+it claim 1, `live/smoke/scenarios/k8s-a-deleted-namespace-is-gone.sh`. A
 stage is one more headline column: it would have had to read n/a on every
 floci estate and re-measure the four kubernetes-lane estates, when what
 the fault measures does not depend on an estate's shape beyond whether it

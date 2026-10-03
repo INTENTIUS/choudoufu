@@ -1,130 +1,96 @@
 ---
-title: "Claim 7: Identity is a tag you can read and move"
+title: "Claim 7: Identity is a tag you can read, move and carve by"
 claim: identity-is-a-tag
 ---
 
-# Claim 7: Identity is a tag you can read and move
+# Claim 7: Identity is a tag you can read, move and carve by
+
+Ownership lives on each resource as a marker the platform holds: two tags
+on AWS, one label (with the address in an annotation) on Kubernetes. So
+any tool reads ownership without this one, estates in one account are
+apart by construction, a rename is a marker rewrite where stock needs
+`state mv`, and carving a monolith into estates is a marker write instead
+of state surgery.
+
+Each scenario runs from the repository root and ends on a `PASS` line; its
+`BREAK=1` run breaks the thing the proof rests on and must print a
+`caught` line. [The README](README.md) says what each needs installed.
 
 ## On AWS
 
-Because ownership lives on each resource as two tags, three things
-follow that stock cannot offer: estates in one account are isolated by
-construction, any AWS tool can answer ownership without this tool
-present, and renaming a resource in code is a tag rewrite where stock
-demands `state mv` surgery.
+### identity-is-a-tag
 
-```text
-Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
-(docker info) and the AWS CLI is installed. If Go is not installed,
-export CHOUDOUFU_VERSION=<latest tag from
-https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
+    just smoke identity-is-a-tag
+    BREAK=1 just smoke identity-is-a-tag
 
-  just smoke identity-is-a-tag
+Two estates stand up in one account; the plain CLI's tagging API answers
+ownership; neither plan names the other's resources; and a VPC renamed in
+code is moved by `live-mv` rewriting its address tag, after which the plan
+is clean. `BREAK=1` skips the `live-mv`, and the plan must propose stock's
+destroy-and-recreate.
 
-Explain each step's verdict line to me as it prints. Then run
-BREAK=1 just smoke identity-is-a-tag and report the "caught" line: it
-renames the resource in code but skips the retag, and the plan must
-propose the destroy-and-recreate stock would inflict.
-```
+### carve-by-retag (claim 12 until #1817)
 
-The steps as they print:
+    just smoke carve-by-retag
+    BREAK=1 just smoke carve-by-retag
 
-1. `two estates stand up in one account` - two copies of the estate,
-   different estate tags, one account. Nothing else separates them.
-2. `any AWS tool answers ownership` - the plain CLI's tagging API lists
-   each estate's resources and reads a resource's address tag. No
-   choudoufu involved.
-3. `neither estate can see the other` - both plans are clean, and
-   neither plan output ever names the other estate's resources.
-4. `a rename is a retag, not surgery` - `aws_vpc.main` becomes
-   `aws_vpc.core` in code, `live-mv` rewrites the address tag on the
-   live resource, and the next plan is clean. No state file was edited,
-   because there is none to edit.
-5. `teardown - both estates`, each by its own destroy.
+A stock terralith is adopted with one command, then carved into estates by
+rewriting `tofu-estate` on the resources that leave. Each side plans clean
+and nothing is rebuilt; a parent whose marker names another estate never
+anchors a child for this one, whatever a left-behind record says. Needs
+Go. `BREAK=1` does the git half of the carve and never rewrites a tag,
+and both sides must then plan the two-ledger mess stock lives in.
 
-The `BREAK=1` run skips `live-mv` after the code rename. The live vpc
-still wears the old address, so the plan must treat the new name as
-missing and the old one as orphaned - stock's destroy-and-recreate,
-demonstrated as what the retag saves you from.
+### count-is-a-fungible-set (claim 11 until #1817)
+
+    just smoke count-is-a-fungible-set
+    BREAK=1 just smoke count-is-a-fungible-set
+
+A `count` pool whose members are interchangeable gets a `tofu-slot` marker
+per member, minted once, so a pool of three scales to two by removing one
+member and rebuilding nothing. A `count` block the configuration names
+through `count.index` gets no slot and binds by `tofu-address`. `BREAK=1`
+deletes the local files and strips one member's slot, and the plan must
+refuse the half-slotted set by name; `BREAK_SLOT=1` stamps a slot where
+none belongs, and the tag check must fail on it. On Kubernetes the case
+does not arise: names are unique per kind and namespace.
 
 ## On Kubernetes
 
-On AWS the marker is two tags, because AWS hands back opaque ids and the
-object has to carry the configuration address that owns it. Kubernetes
-returns the natural key, group, kind, namespace and name, with the name
-authored in the configuration, so the object carries one label,
-`tofu-estate`, and nothing else. This was the first proof that ran on a
-real API server rather than an emulator: a kind cluster in Docker, created
-for the run and deleted after it.
+### k8s-greenfield
 
-```text
-Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
-(docker info) and kind and kubectl are installed. If Go is not
-installed, export CHOUDOUFU_VERSION=<latest tag from
-https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
+    just smoke k8s-greenfield
+    BREAK=1 just smoke k8s-greenfield
 
-  just smoke k8s-greenfield
+A Kubernetes estate applies with no AWS provider; kubectl reads
+`tofu-estate` back; `live-ls` lists the estate by its label; the replan is
+empty with the cache deleted; and an `api_version` change of a block's type
+is not a move. `BREAK=1` strips the label, and `live-ls` must drop the
+object while the replan refuses it by name; `BREAK_ANNOTATION=1` strips
+the address annotation from an object whose name is read at plan time,
+and the replan must refuse that block by name.
 
-Explain each step's verdict line to me as it prints. Then run
-BREAK=1 just smoke k8s-greenfield and report the "caught, twice" line:
-the scenario strips the label with kubectl, live-ls must drop the object
-from its listing, and the replan must refuse the object by name and
-propose the create the block declares.
-```
+### k8s-custom-resource (claim 24 until #1817)
 
-The steps, in the order they print:
+    just smoke k8s-custom-resource
+    BREAK=1 just smoke k8s-custom-resource
 
-1. `a Kubernetes estate, one plain apply` - a namespace, a ConfigMap, a
-   ServiceAccount and a Service under a `live` block with no AWS provider
-   anywhere; no `terraform.tfstate` appears.
-2. `the marker, read back with kubectl - no choudoufu in the loop` - the
-   ConfigMap and the namespace both carry `tofu-estate=smoke-k8s`, and
-   neither carries a `tofu-address`.
-3. `the inventory - live-ls lists the estate by its label, no state file` -
-   `choudoufu live-ls -estate=smoke-k8s .` reads the provider block to
-   learn the substrate, lists the cluster the way the sweep does (one
-   label-selected list per kind), and prints all four objects by kind and
-   natural key, each joined to the block that declares it on the kind and
-   the natural key, since the object carries no address
-   ([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081)):
+A custom resource is bound by the apiVersion, kind, namespace and name
+inside its `kubernetes_manifest`, created with `tofu-estate` in its labels
+and swept by it. A block whose CRD the cluster does not serve is refused
+by name; every planned create or update is sent with `dryRun=All` and the
+server's verdict printed above the plan; and `live-import` adopts a
+stock-made custom resource with one label merge patch, refusing one an
+admission policy would also change. `BREAK=1` runs seven controls, from a
+value only the server rejects to a migration a mutating policy would
+widen.
 
-   ```text
-   kubernetes_config_map        smoke-k8s/app-config
-     kind:    ConfigMap (v1)
-     address: kubernetes_config_map.app  (declared)
-   kubernetes_namespace         smoke-k8s
-     kind:    Namespace (v1)
-     address: kubernetes_namespace.app  (declared)
-   ```
+### carve by relabel, in k8s-the-label-is-the-boundary
 
-   No AWS call is attempted: a configuration with a kubernetes provider
-   and no aws provider lists the cluster alone.
-4. `the replan - prior state rebuilt from the cluster` - empty.
-5. `the state cache - present, disposable, and never trusted` - deleted,
-   and the replan is still empty.
-6. `an api_version change is not a move` - the ConfigMap block's type is
-   rewritten from `kubernetes_config_map` to `kubernetes_config_map_v1`
-   with the same metadata and no `moved` block, and the replan is empty:
-   both spellings name the same object
-   ([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081)).
-7. `destroy - exactly what was made` - four objects destroyed, the
-   ConfigMap through its new spelling, `kube-system` untouched.
-8. `the inventory after destroy - empty` - the same `live-ls` reports
-   `Nothing found.`
+    just smoke k8s-the-label-is-the-boundary
 
-The `BREAK=1` run removes the label with `kubectl label configmap
-app-config -n smoke-k8s tofu-estate-` after step 3. `live-ls` must then
-list three objects and not the ConfigMap - if it still listed it, the
-inventory would not be reading the label - and the next plan must propose
-exactly one in-place change, restoring `tofu-estate`; if it were still
-empty, the label would not be what the plan reads and every empty-plan
-assertion above would be scenery. That is also the `marker_repair` default
-at work: a stripped marker is repaired by the next apply.
-
-What this proof does not say: nothing fences a write on the label until
-an admission policy is installed ([claim 13 on
-Kubernetes](the-tag-is-the-boundary.md#on-kubernetes)), and an
-object nobody declares is the sweep's business ([claim 1 on
-Kubernetes](no-silent-orphans.md#on-kubernetes)), not this
-listing's: `live-ls` reports such an object as undeclared and proposes
-nothing.
+A carve on Kubernetes is one label write through `live-mv -from-estate`
+or `kubectl label`. With the admission policy installed the caller must
+hold both estates; [claim 13's Kubernetes
+scenario](the-tag-is-the-boundary.md#on-kubernetes) measures the refusal
+without the grant and the carve with it (claim 12 until #1817).

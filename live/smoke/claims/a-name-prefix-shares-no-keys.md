@@ -1,65 +1,91 @@
 ---
-title: "Claim 28: Two estates whose names prefix one another share a bucket and none of each other's keys"
+title: "Claim 28: An estate reaches only its own records"
 claim: a-name-prefix-shares-no-keys
 ---
 
-# Claim 28: Two estates whose names prefix one another share a bucket and none of each other's keys
+# Claim 28: An estate reaches only its own records
 
-Every estate's records live in one bucket, one key prefix per estate.
-S3's LIST matches a plain string prefix, so `tofu-records/prod` also
-names `tofu-records/prod-eu`, and estate names prefix one another all the
-time. An object tag cannot condition a LIST, which touches no object, so
-the trailing slash on the prefix is the only thing that keeps one
-estate's listing, and the bulk read that follows it, out of its
-neighbour's records.
+Every estate's records can share one store. What keeps an estate to its
+own is the store's layout and the platform's access control: a key
+prefix and IAM on a bucket, a namespace and RBAC on a cluster. Each proof
+below takes one of those away and shows another estate's records become
+reachable.
 
-```text
-Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
-(docker info), the AWS CLI is installed, and Go is installed. From the
-repo root run:
+Each scenario runs from the repository root and ends on a `PASS` line; its
+`BREAK=1` run breaks the thing the proof rests on and must print a
+`caught` line. [The README](README.md) says what each needs installed.
 
-  just smoke a-name-prefix-shares-no-keys
+## On AWS
 
-Explain each step's verdict line to me as it prints. Then run
-BREAK=1 just smoke a-name-prefix-shares-no-keys and report the "caught"
-line: it rebuilds choudoufu with the delimiter dropped and the run must
-be seen fetching its neighbour's record.
-```
+### a-name-prefix-shares-no-keys
 
-As the run prints them:
+    just smoke a-name-prefix-shares-no-keys
+    BREAK=1 just smoke a-name-prefix-shares-no-keys
 
-1. `two estates, one bucket` - `smoke-prod` and `smoke-prod-eu` each
-   apply one record-backed resource into the same bucket. The listing
-   shows both estates' objects side by side.
-2. `the hazard, with no choudoufu in the loop` - the AWS CLI lists
-   `tofu-records/smoke-prod/` and gets one estate, then lists
-   `tofu-records/smoke-prod` and gets both. If the bare prefix did not
-   return the neighbour, the store would not have the hazard and the
-   scenario would stop there rather than pass.
-3. `what smoke-prod asks the bucket for` - `smoke-prod` plans with the
-   request log on. Every LIST it sends carries a prefix ending in a
-   slash, and no request in the run names `smoke-prod-eu`. The step
-   first requires the run's own LIST requests to be in the log, so an
-   empty log cannot pass.
-4. `smoke-prod tears itself down` - the neighbour's keys are identical
-   before and after, and its plan is still empty.
+Two estates whose names prefix one another (`smoke-prod`,
+`smoke-prod-eu`) share a bucket; the trailing slash on the prefix is all
+that keeps one listing out of the other, since an object tag cannot
+condition a LIST. `BREAK=1` rebuilds choudoufu without the slash (Go
+needed), and the wire must show one estate fetching the other's record.
 
-The `BREAK=1` run cannot corrupt anything in the cloud, because the
-delimiter is a line inside the binary. It rebuilds choudoufu from the
-checkout with `staterecord.NamespacePrefix` no longer appending its
-slash, using `go build -overlay` so the source tree is untouched, and
-requires the wire to show `smoke-prod` fetching `smoke-prod-eu`'s
-record. It refuses to run against `CHOUDOUFU_BIN` or
-`CHOUDOUFU_VERSION`.
+### a-new-estate-writes-its-first-record (claim 34 until #1817)
 
-What the defect reaches was measured on #1335, and it is narrower than
-"one estate destroys another's records". An estate that lists its
-neighbour's keys reads the neighbour's record payloads, secret material
-included. An estate with no records of its own stops sweeping in full,
-because its listing is no longer empty, and a removal it should have
-proposed goes missing. It does not propose destroying the neighbour's
-resources: a listed key is decoded only if it sits under the estate's
-own delimited prefix, and the record is then re-read under that prefix
-before anything acts on it. Both of those checks are independent of how
-the keys were listed, and both are pinned by unit tests beside this
-claim.
+    SMOKE_REAL_AWS=1 just smoke a-new-estate-writes-its-first-record
+    SMOKE_REAL_AWS=1 BREAK=1 just smoke a-new-estate-writes-its-first-record
+
+Under the published policy a new estate's first write succeeds: the
+create condition is `s3:RequestObjectTag`, because `s3:ExistingObjectTag`
+reads tags an object that does not exist yet does not have. `BREAK=1`
+swaps the key, and the first create must be denied.
+
+### one-bucket-many-estates (claim 35 until #1817)
+
+    SMOKE_REAL_AWS=1 just smoke one-bucket-many-estates
+    SMOKE_REAL_AWS=1 BREAK=1 just smoke one-bucket-many-estates
+
+Reading a neighbour's records takes two mistakes: a mis-scoped prefix is
+still stopped by the object-tag Deny, and a relabel is stopped by its own
+Deny (#1381). `BREAK=1` widens the prefix and removes one Deny at a time,
+and each time the neighbour's record must read back.
+
+### objects-carry-the-estate-tag (claim 36 until #1817)
+
+    SMOKE_REAL_AWS=1 just smoke objects-carry-the-estate-tag
+    SMOKE_REAL_AWS=1 BREAK=1 just smoke objects-carry-the-estate-tag
+
+Every object written to the bucket carries `tofu-estate` (and
+`tofu-address` on a record), and the published policy denies a foreign
+tag. `BREAK=1` builds a binary that sends no tags, and its first write
+must be denied.
+
+### a-read-only-role-can-plan (claim 38 until #1817)
+
+    SMOKE_REAL_AWS=1 just smoke a-read-only-role-can-plan
+    SMOKE_REAL_AWS=1 BREAK=1 just smoke a-read-only-role-can-plan
+
+A role with the read-only rendering of the policy plans an established
+estate and writes nothing; a store with no sentinel is still refused by
+name. `BREAK=1` restores the pre-#1416 sentinel write, and the role must
+then be unable to plan at all.
+
+The real-AWS proofs are maintainer-run: the pinned emulator does not
+evaluate `s3:ExistingObjectTag` or `s3:RequestObjectTag`.
+
+## On Kubernetes
+
+### k8s-records-in-the-cluster, steps 2, 4, 5 and 9
+
+    just smoke k8s-records-in-the-cluster
+    BREAK=1 just smoke k8s-records-in-the-cluster
+
+The scenario is [claim 29's](a-wrong-bucket-is-refused.md#on-kubernetes).
+Step 2: a Kubernetes-only estate writes its first record as a Secret with
+no AWS credentials anywhere. Step 4: a role scoped to one records
+namespace cannot read another estate's records, while a role with list
+and get on a shared namespace reads all of them, which is why the
+namespace is per estate. Step 5: record Secrets carry `tofu-estate`, so
+the estate-boundary policy fences writes to them with no new policy.
+Step 9: an identity with get and list plans and writes nothing. `BREAK=1`
+widens the plan role and removes the policy, and the other estate's
+records must become readable and writable. Two estates whose key
+prefixes prefix one another are not measured here.

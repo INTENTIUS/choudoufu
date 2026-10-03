@@ -28,7 +28,7 @@ import (
 // authorizer's yes or no becomes a finding, and what a refused read turns
 // into. What it cannot measure is anything about a real authorizer, because
 // the fake has none - a SelfSubjectAccessReview against it answers whatever
-// the reactor below says. The claim 39 arms are where the answers come from
+// the reactor below says. The claim 29 arms are where the answers come from
 // a real API server.
 
 // allowFunc decides one review. namespace is "" for a cluster-wide question.

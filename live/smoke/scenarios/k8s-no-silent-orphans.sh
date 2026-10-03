@@ -1,5 +1,10 @@
 # k8s-no-silent-orphans
-# CLAIM 1 (kubernetes) - No silent orphans on Kubernetes: an object this estate owns whose block is deleted is proposed for removal by the next plan, found by its label with one list per kind, and a controller's copies of that label are never touched. ~3 min.
+# CLAIM 1 (kubernetes) - Owned resources never fall out of a plan. ~3 min.
+#
+# This proof: No silent orphans on Kubernetes: an object this estate owns
+# whose block is deleted is proposed for removal by the next plan, found by
+# its label with one list per kind, and a controller's copies of that label
+# are never touched.
 #
 # The Kubernetes sibling of claim 1 (#1065, under #1016's ruling). The
 # estate label is the only thing that says an object is this estate's; a

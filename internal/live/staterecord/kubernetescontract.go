@@ -834,7 +834,7 @@ func encryptionProviderConfigPath(pod *corev1.Pod) string {
 // installed AND in force AND this identity on the allowed side of it.
 //
 // Installed is not the same as in force, and the difference has already cost
-// this repository a step that measured nothing (claim 39, step 5). The name
+// this repository a step that measured nothing (claim 29, step 5). The name
 // is not the same as the policy either: this used to read the policy's
 // status and its binding's validationActions and nothing out of
 // policy.Spec, so a policy of the right name whose one validation was `true`

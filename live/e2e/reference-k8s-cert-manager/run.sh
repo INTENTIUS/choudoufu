@@ -16,7 +16,7 @@
 #
 # What it drives that nothing else in the lane does:
 #
-#   - `kubernetes_manifest` over real CRDs at every stage, where claim 24
+#   - `kubernetes_manifest` over real CRDs at every stage, where claim 7
 #     proves one CronTab;
 #   - a cluster-scoped custom kind (ClusterIssuer);
 #   - the estate sweep over custom kinds at day2_remove and day2_count;

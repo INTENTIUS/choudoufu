@@ -1,5 +1,9 @@
 # an-estate-reads-another-by-declaring-it
-# CLAIM 44 (aws) - An estate reads another estate's outputs only by declaring the read: the plan says how old the value is, a destroyed producer's values are gone, and without the grant the plan refuses naming the other estate. ~3 min.
+# CLAIM 44 (aws) - Reading another estate is declared. ~3 min.
+#
+# This proof: An estate reads another estate's outputs only by declaring the
+# read: the plan says how old the value is, a destroyed producer's values
+# are gone, and without the grant the plan refuses naming the other estate.
 
 W="$SMOKE_WORKROOT/estateoutputs"; PRODUCER="$W/network"; CONSUMER="$W/app"
 mkdir -p "$PRODUCER" "$CONSUMER"
@@ -93,7 +97,7 @@ TRUST="{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Princi
 # two edits the pinned emulator needs and real AWS does not.
 #
 #   - The conditions come off the ALLOW statements. The emulator does not
-#     evaluate s3:prefix or s3:RequestObjectTag (claim 35 is the real-AWS
+#     evaluate s3:prefix or s3:RequestObjectTag (claim 28 is the real-AWS
 #     measurement of those), and an Allow whose condition it cannot evaluate
 #     never matches.
 #   - ListOwnNamespaces is granted on "*". choudoufu's S3 client sends

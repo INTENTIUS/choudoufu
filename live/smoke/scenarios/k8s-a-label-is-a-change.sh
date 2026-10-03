@@ -1,5 +1,16 @@
 # k8s-a-label-is-a-change
-# CLAIM 27 (kubernetes) - An edit to a Kubernetes object's labels or annotations is an ordinary change: a label edited in the configuration plans one in-place update and the apply writes it, stock's own answer for the same edit alongside it, an annotation added and then changed does the same, a label or an annotation DELETED from the configuration is removed from the object and the estate then settles, a key the configuration never declared - the API server's own kubernetes.io/metadata.name, a controller's annotation - stays the server's and churns nothing, and a second working directory holding no record of its own removes the same label when the estate shares its records, as Secrets in the cluster or as objects in a bucket. ~10 min.
+# CLAIM 45 (kubernetes) - Drift you ignore isn't drift. ~10 min.
+#
+# This proof: An edit to a Kubernetes object's labels or annotations is an
+# ordinary change: a label edited in the configuration plans one in-place
+# update and the apply writes it, stock's own answer for the same edit
+# alongside it, an annotation added and then changed does the same, a label
+# or an annotation DELETED from the configuration is removed from the object
+# and the estate then settles, a key the configuration never declared - the
+# API server's own kubernetes.io/metadata.name, a controller's annotation -
+# stays the server's and churns nothing, and a second working directory
+# holding no record of its own removes the same label when the estate shares
+# its records, as Secrets in the cluster or as objects in a bucket.
 #
 # GitHub issue #1177, and the one place a stateless run pays for having no
 # last-applied value.
@@ -198,7 +209,7 @@ cluster_up
 # from nothing at all.
 #
 #   step 8, record_store "kubernetes": records as Secrets in this cluster
-#           (#1392, claim 39). It is first because it needs nothing but the
+#           (#1392, claim 29). It is first because it needs nothing but the
 #           cluster the claim already runs on.
 #   step 9, record_store "s3": records as objects in a bucket on the pinned
 #           floci emulator. It needs both substrates at once, which is why
@@ -379,7 +390,7 @@ shared_store_step() {
       "B deletes one label from its configuration and plans."
     cmd "kubectl create namespace $SH_RECORDS_NS   # the store never creates it"
     explain \
-      "The records namespace is the read boundary (claim 39 step 4), so" \
+      "The records namespace is the read boundary (claim 29 step 4), so" \
       "creating one is an operator's act and not a side effect of a first" \
       "write. Nothing in this fork creates it. The block below names no" \
       "namespace at all, so what is used is what the estate name derives:" \
@@ -394,7 +405,7 @@ shared_store_step() {
       "are not encrypted at rest, and this claim installs no estate" \
       "boundary policy, because what it is about is a label edit and not" \
       "the fence. Both are refusals and both are named, and the run says" \
-      "what each one costs, every time. Claim 39 is where the same four" \
+      "what each one costs, every time. Claim 29 is where the same four" \
       "assertions are measured properly, one at a time."
     SH_LIVE_BODY='    record_store "kubernetes" {
       allow_insecure = ["encryption_at_rest", "estate_boundary"]
@@ -581,7 +592,7 @@ shared_store_step() {
     explain \
       "resourceVersion is what this store conditions a write on, which is" \
       "the API server's own optimistic concurrency and not something the" \
-      "store implements (claim 39 step 1 runs the Store suite's" \
+      "store implements (claim 29 step 1 runs the Store suite's" \
       "stale-version case against this same cluster). The copy taken" \
       "before B's apply still carries the old version, so replacing it now" \
       "is exactly the write B would have made had it not re-read - and the" \

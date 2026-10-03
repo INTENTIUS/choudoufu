@@ -125,8 +125,8 @@ Every object is written with `tofu-estate`, and a record also with
 untagged. The tags are for authorization and provenance. The published policy
 requires the tag on a write, denies a read of an object tagged as another
 estate's, and denies relabelling one
-([claim 35](smoke/claims/one-bucket-many-estates.md),
-[claim 36](smoke/claims/objects-carry-the-estate-tag.md)).
+([claim 28](smoke/claims/one-bucket-many-estates.md),
+[claim 28](smoke/claims/objects-carry-the-estate-tag.md)).
 Nothing is found by tag: objects are found by listing a known prefix.
 
 ### Requests
@@ -134,7 +134,7 @@ Nothing is found by tag: objects are found by listing a known prefix.
 | When | What is sent |
 |---|---|
 | Opening the store, every run | A conditional `PutObject` of the sentinel, which writes only the first time and is skipped by a role that cannot write. After the first run it is answered `412`, and one `GetObject` of the sentinel follows. Then one `ListObjectsV2` |
-| Reading the estate, every run | `ceil(N/1000)` `ListObjectsV2`, then a `GetObject` per key including the sentinel, eight in flight unless `TOFU_LIVE_RECORD_READ_PARALLELISM` says otherwise. The read is complete or the run fails ([claim 31](smoke/claims/a-bulk-read-is-complete-or-it-fails.md)) |
+| Reading the estate, every run | `ceil(N/1000)` `ListObjectsV2`, then a `GetObject` per key including the sentinel, eight in flight unless `TOFU_LIVE_RECORD_READ_PARALLELISM` says otherwise. The read is complete or the run fails ([claim 29](smoke/claims/a-bulk-read-is-complete-or-it-fails.md)) |
 | The hint and the outputs, every run | One `GetObject` each |
 | An apply, per record that changed | A `GetObject`, then a conditional `PutObject` or `DeleteObject` |
 
@@ -291,7 +291,7 @@ rather than a pass.
 
 `get` and `list` on Secrets in the records namespace, and nothing else.
 Measured on kind: such an identity plans to `No changes.` and no record
-Secret's `resourceVersion` moves. Claim 39 step 9 is that measurement.
+Secret's `resourceVersion` moves. Claim 29 step 9 is that measurement.
 
 A plan does send one write. The provisioning sentinel (issue #693) is written
 with a conditional create on every open, and for a plan identity the API server

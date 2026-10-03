@@ -38,10 +38,10 @@ comparing `resourceVersion`.
 | Two runs update the same record | The first to arrive wins. The second's `If-Match` no longer matches, and it fails with a named write conflict and changes nothing |
 | An update racing a delete | The loser is told the version it read is not the version the store holds, whether S3 said `412` or, for a key that is gone, `404` |
 
-[Claim 32]({{< relref "/docs/claims/two-writers-one-record" >}}) holds two
+[Claim 2]({{< relref "/docs/claims/no-self-managed-locks" >}}) holds two
 writers at the wire so both arrive at one version; every round yields one
 winner and one named conflict.
-[Claim 4]({{< relref "/docs/claims/backend-sets-itself-up" >}}) kills an apply
+[Claim 2]({{< relref "/docs/claims/no-self-managed-locks" >}}) kills an apply
 with `SIGKILL` and the next run finishes the work.
 
 A conditional write succeeds or fails in one step and keeps nothing, so a dead
@@ -51,4 +51,4 @@ file write, and a stale one is broken by the next writer.
 
 Serialize applies against one estate in CI anyway, where the real mutex has
 always been - two estates need none
-([Claim 43]({{< relref "/docs/claims/two-estates-at-once" >}})).
+([Claim 13]({{< relref "/docs/claims/the-tag-is-the-boundary" >}})).

@@ -1,5 +1,9 @@
 # the-boundary-holds-across-regions
-# CLAIM 16 (aws) - The boundary holds across provider configurations: one estate spans regions, and every answer a plan gives is about one provider configuration. ~2 min.
+# CLAIM 13 (aws) - The tag is the boundary. ~2 min.
+#
+# This proof: The boundary holds across provider configurations: one estate
+# spans regions, and every answer a plan gives is about one provider
+# configuration.
 
 SMOKE_WORK="$SMOKE_WORKROOT/tworegions"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

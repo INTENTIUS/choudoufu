@@ -1,5 +1,8 @@
 # a-read-only-role-can-plan
-# CLAIM 38 (aws) - A role with the read-only policy plans an established estate and writes nothing, and a store with no sentinel is still refused by name (REAL AWS, maintainer-run). ~6 min.
+# CLAIM 28 (aws) - An estate reaches only its own records (REAL AWS, maintainer-run). ~6 min.
+#
+# This proof: A role with the read-only policy plans an established estate
+# and writes nothing, and a store with no sentinel is still refused by name.
 
 SMOKE_WORK="$SMOKE_WORKROOT/readonlyplan"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -59,7 +62,7 @@ if [ "${BREAK:-0}" = "1" ]; then
 import sys
 src = open(sys.argv[1]).read()
 # One line, and nothing around it. A patch that spelled out the whole switch
-# went stale on claim 36 the first time the code around it moved (#1379), and
+# went stale on claim 28 the first time the code around it moved (#1379), and
 # nothing runs a real-AWS BREAK arm but a person; live/smoke_break_patches_test.go
 # runs this block on every gate, so it says out loud when it stops matching.
 #

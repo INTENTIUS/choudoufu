@@ -42,8 +42,8 @@ just smoke k8s-a-held-delete-is-not-gone # a finalizer holds a delete: the run s
 just smoke k8s-the-server-gets-the-last-word # admission after the plan: a fail-closed webhook refuses an approved write, a mutating policy rewrites a declared field, and one that strips tofu-estate leaves an object the estate cannot claim (#1110)
 just smoke k8s-a-label-is-a-change # a label or annotation edited in the configuration plans and applies like any other change, a key the configuration never declared stays the server's, and a second directory removes the same label over records shared as Secrets and as bucket objects (#1177, #1394; the bucket half needs Docker and the AWS CLI as well as kind)
 just smoke k8s-a-deleted-namespace-is-gone # fault 5 of #1110: kubectl delete namespace under a converged estate; the plan reads its objects as gone and proposes stock's creates, and a deleted record-store namespace is refused by name (#1765)
-just smoke a-held-delete-is-not-gone # claim 25 on AWS: a secret deleted with a recovery window stays in the account, and the plans after it read it as the provider does, empty (#1599)
-just smoke the-server-gets-the-last-word # claim 26 on AWS: a Deny landing after approval refuses the approved apply in AWS's words, and the same plan file applies once it lifts (#1599)
+just smoke a-held-delete-is-not-gone # claim 1 on AWS: a secret deleted with a recovery window stays in the account, and the plans after it read it as the provider does, empty (#1599)
+just smoke the-server-gets-the-last-word # claim 15 on AWS: a Deny landing after approval refuses the approved apply in AWS's words, and the same plan file applies once it lifts (#1599)
 just smoke full           # the comprehensive 15-step harness (~6 minutes)
 ```
 
@@ -115,7 +115,7 @@ cluster the runner creates (`.github/workflows/k8s-smoke.yml`, #1080;
 scenario has to be added there too). The Gauntlet workflow, when
 dispatched, runs the kubernetes lane's estates the same way.
 
-`k8s-custom-resource` is claim 24 (#1079's first unit): a CRD installed
+`k8s-custom-resource` is claim 7 (#1079's first unit): a CRD installed
 with kubectl, one `kubernetes_manifest` block declaring a CronTab, applied
 and replanned empty with nothing stored anywhere, the object found again
 by the apiVersion, kind, namespace and name inside its manifest, and
@@ -134,7 +134,7 @@ and the 63-character cap, with no per-object line, exit 1 and nothing
 changed on the cluster; `BREAK=1`'s last control runs the same migration
 under a 60-character name and requires the report and exit 0.
 
-`k8s-a-held-delete-is-not-gone` is claim 25 (#1110's first fault): a
+`k8s-a-held-delete-is-not-gone` is claim 1 (#1110's first fault): a
 finalizer added out of band holds a ConfigMap's delete, so the API accepts
 it, the run prints `Destruction complete after 0s` and counts one
 destroyed, and the object is still in the cluster with a
@@ -153,7 +153,7 @@ deleted a ConfigMap at all. The namespace is made with kubectl rather than
 declared, because a `kubernetes_namespace` delete waits on everything
 inside it and that five-minute timer would hide the answer.
 
-`k8s-a-label-is-a-change` is claim 27 (#1177). On `kubernetes_manifest` an
+`k8s-a-label-is-a-change` is claim 45 (#1177). On `kubernetes_manifest` an
 edit to `metadata.labels` or `metadata.annotations` used to be invisible:
 the plan said `No changes.` and the apply wrote nothing, silently. The
 provider's `computed_fields` default takes the LIVE value at those paths
@@ -199,7 +199,7 @@ where the second must propose nothing. Step 9 refuses rather than skips
 when Docker or the AWS CLI is missing, and
 `.github/workflows/k8s-smoke.yml` checks for both before the matrix runs.
 
-`k8s-the-server-gets-the-last-word` is claim 26 (#1110's second fault):
+`k8s-the-server-gets-the-last-word` is claim 15 (#1110's second fault):
 three things admission can do to a write the plan already approved. A real
 `ValidatingWebhookConfiguration` with `failurePolicy: Fail` and no endpoint
 refuses the apply of a saved `-out` plan, and the run reports the API
@@ -284,7 +284,7 @@ showing its own checks would have caught it.
   today's wire savings are small until #692's vouch widening lands. The
   BREAK control drifts the live world and proves the three-way equality
   comparator can fail.
-- **backend-sets-itself-up** - *Claim 4: the backend is a bucket with
+- **backend-sets-itself-up** - *Claim 2 (claim 4 until #1817): the backend is a bucket with
   no lock table and no lock: nothing is held, so nothing gets stuck.*
   **Real AWS, maintainer-run, for now** (the pinned emulator's
   CloudFormation applies none of a bucket's properties). A live block
@@ -367,7 +367,7 @@ showing its own checks would have caught it.
   default plan as a named reconvergence. The BREAK control overwrites
   the record with garbage - the run must refuse naming the exact
   address, never plan against improvised values.
-- **cache-serves-the-whole-estate** - *Claim 10: the cache serves the
+- **cache-serves-the-whole-estate** - *Claim 9 (claim 10 until #1817): the cache serves the
   whole estate.* On -refresh=false every converged instance is served
   from the state cache - server-assigned needs-discovery resources
   (VPCs, subnets, security groups) included, not just the schema-admitted
@@ -376,7 +376,7 @@ showing its own checks would have caught it.
   and the serving is existence-vouched: the BREAK control deletes a
   resource out of band and the plan surfaces it, never serving a gone
   object from cache.
-- **count-is-a-fungible-set** - *Claim 11: a count pool is a fungible
+- **count-is-a-fungible-set** - *Claim 7 (claim 11 until #1817): a count pool is a fungible
   set.* Where nothing in the configuration says which live resource is
   which, a `count` block's members are interchangeable and a `tofu-slot`
   marker is what names each one rather than its index. Scaling a pool
@@ -398,7 +398,7 @@ showing its own checks would have caught it.
   passes in the ordinary run must fail on it - an absence can only be
   tested by a tag that should not be there.
 
-- **carve-by-retag** - *Claim 12: carve by retag.* Needs Go. The pinned
+- **carve-by-retag** - *Claim 7 (claim 12 until #1817): carve by retag.* Needs Go. The pinned
   stock oracle stands up terralith-gen's scale-1 terralith (79 resources,
   one state file, no markers); live-import adopts it and the file is
   deleted; then a team of six leaves for its own estate through three
@@ -429,7 +429,7 @@ showing its own checks would have caught it.
   cross-half refusal through choudoufu and the tool-less cross-half
   refusal must vanish.
 
-- **the-boundary-holds-across-regions** - *Claim 16: the boundary holds
+- **the-boundary-holds-across-regions** - *Claim 13 (claim 16 until #1817): the boundary holds
   across provider configurations.* One estate spans two aliased
   providers, a region each, under one `tofu-estate` marker and one
   record store; a client-chosen name mirrored into both regions stays
@@ -450,7 +450,7 @@ showing its own checks would have caught it.
   the only live evidence for the deleted instance - the plan reports it
   unchanged and the run must fail on that line.
 
-- **record-only-survives-cache-loss** - *Claim 17: a record-only
+- **record-only-survives-cache-loss** - *Claim 3 (claim 17 until #1817): a record-only
   composite identity survives cache loss without a duplicate create.*
   `aws_iam_group_policy` with its `name` left for the provider to
   assign carries no tags argument and no list route this fork uses, so
@@ -464,7 +464,7 @@ showing its own checks would have caught it.
   that same re-plan: the plan must propose one create, named, rather
   than silently reporting no changes.
 
-- **a-shadow-is-not-a-claimant** - *Claim 18: a replaced object's
+- **a-shadow-is-not-a-claimant** - *Claim 1 (claim 18 until #1817): a replaced object's
   shadow is not a second claimant.* Two ForceNew replaces at one
   declared address leave two terminated instances still wearing its
   markers - AWS's own documented lag, read back through the plain CLI -
@@ -485,8 +485,8 @@ showing its own checks would have caught it.
   not; and then patches the record to call the deposed, running object
   destroyed, which the read must catch.
 
-- **the-boundary-holds-across-accounts** - *Claim 19: the boundary holds
-  across accounts.* Claim 16's estate with the other axis swapped: two
+- **the-boundary-holds-across-accounts** - *Claim 13 (claim 19 until #1817): the boundary holds
+  across accounts.* Claim 13's estate with the other axis swapped: two
   AWS accounts, one region, one `tofu-estate` marker and one record
   store. The same client-chosen name is declared in both accounts and
   the two objects are told apart by account alone - `sts:GetCallerIdentity`
@@ -505,7 +505,7 @@ showing its own checks would have caught it.
   the only live evidence for the deleted instance - the plan reports it
   unchanged and the run must fail on that line.
 
-- **plan-cost-under-foreign-load** - *Claim 20: scale - the estate
+- **plan-cost-under-foreign-load** - *Claim 14 (claim 20 until #1817): scale - the estate
   boundary holds when the account around it is a terralith.* Claim 14's
   question asked where it is load-bearing: a generated terralith
   (`tools/terralith-gen`, so this scenario needs Go) is applied under a
@@ -551,7 +551,7 @@ showing its own checks would have caught it.
   versioning is Suspended, and passes only when that arm's own check
   catches the apply going through (#1339, #1379).
 
-- **a-waiver-names-what-it-waives** - *Claim 30: a bucket waiver waives
+- **a-waiver-names-what-it-waives** - *Claim 29 (claim 30 until #1817): a bucket waiver waives
   only the assertion it names, and says so on every run.* A bucket with
   no versioning and `allow_insecure = ["versioning"]`: the apply
   proceeds, warns with what the waiver costs, and says the bucket really
@@ -569,7 +569,7 @@ showing its own checks would have caught it.
   Kubernetes record store is step 11 of `k8s-records-in-the-cluster`, which
   also requires `live-cluster` to ignore the waiver (#1441).
 
-- **a-bulk-read-is-complete-or-it-fails** - *Claim 31: a record read
+- **a-bulk-read-is-complete-or-it-fails** - *Claim 29 (claim 31 until #1817): a record read
   that fails mid-fanout fails the read; a short map never reaches a
   plan.* Twelve record-backed resources, then a small proxy in front of
   S3 that can answer one record's GET with a 500, which nothing else can
@@ -596,7 +596,7 @@ showing its own checks would have caught it.
   of `k8s-records-in-the-cluster`, where `live/smoke/k8sproxy.py` answers
   the second page of the records listing with 410 Expired (#1441).
 
-- **two-writers-one-record** - *Claim 32: two writers, one record: the
+- **two-writers-one-record** - *Claim 2 (claim 32 until #1817): two writers, one record: the
   loser is named, nothing is clobbered, and nothing is held.* Two
   checkouts of one estate contend for one record. The smoke proxy
   (`live/smoke/s3proxy.py`) holds both writers' conditional PUTs until
@@ -615,7 +615,7 @@ showing its own checks would have caught it.
   where a RoundTripper parks each writer's first request until both are
   parked (#1441).
 
-- **cas-holds-under-every-sse-flavour** - *Claim 33: compare-and-swap
+- **cas-holds-under-every-sse-flavour** - *Claim 2 (claim 33 until #1817): compare-and-swap
   holds under every SSE flavour.* **Real AWS, maintainer-run, not in
   CI**: it refuses to start without `SMOKE_REAL_AWS=1`, because an
   emulator does not reproduce the ETag semantics it measures. It creates
@@ -630,7 +630,7 @@ showing its own checks would have caught it.
   on that check under all three KMS flavours (#1344). Needs Go and
   python3.
 
-- **a-new-estate-writes-its-first-record** - *Claim 34: under the
+- **a-new-estate-writes-its-first-record** - *Claim 28 (claim 34 until #1817): under the
   published IAM policy a new estate's first write succeeds, and so does
   every write after it.* **Real AWS, maintainer-run**
   (`SMOKE_REAL_AWS=1`). A control role that is allowed nothing is
@@ -640,7 +640,7 @@ showing its own checks would have caught it.
   marker statement before it is tested. The BREAK control changes one
   key, `s3:RequestObjectTag` to `s3:ExistingObjectTag`, and the first
   create must be denied (#1343). Needs jq.
-- **one-bucket-many-estates** - *Claim 35: reading a neighbour's records
+- **one-bucket-many-estates** - *Claim 28 (claim 35 until #1817): reading a neighbour's records
   takes two mistakes, not one.* **Real AWS, maintainer-run.** Two
   estates under their own roles in one bucket; one role is refused the
   other's records, outputs and listings, and the bare prefix; with its
@@ -653,7 +653,7 @@ showing its own checks would have caught it.
   The BREAK control has two arms: without the relabel Deny the retag and
   then the read both succeed, and without the read Deny the read
   succeeds (#1343). Needs jq.
-- **objects-carry-the-estate-tag** - *Claim 36: every record store
+- **objects-carry-the-estate-tag** - *Claim 28 (claim 36 until #1817): every record store
   object carries its estate's tag, and the tag is load-bearing.* **Real
   AWS, maintainer-run.** An estate applies as its scoped role and every
   object is read back tagged, records with the marker form of their
@@ -676,7 +676,7 @@ showing its own checks would have caught it.
   policy, and the run must be refused naming the key, the KMS action and
   the role, not just the words "KMS key" (#1345, #1379). Needs jq, just,
   node and npm.
-- **a-read-only-role-can-plan** - *Claim 38: a role with the read-only
+- **a-read-only-role-can-plan** - *Claim 28 (claim 38 until #1817): a role with the read-only
   policy plans an established estate and writes nothing, and a store with
   no sentinel is still refused by name.* **Real AWS, maintainer-run.** An
   estate is recorded once under the full policy, which provisions the
@@ -709,7 +709,7 @@ showing its own checks would have caught it.
   estate under `secrets = "store"`, and the same scan must find the value.
   The replan under refuse proposes the password again, rotated or not,
   which is what the refusal costs (#1503).
-- **the-estate-answers-in-the-present-tense** - *Claim 41: the estate
+- **the-estate-answers-in-the-present-tense** - *Claim 3 (claim 41 until #1817): the estate
   answers in the present tense.* "Which of this estate's security groups
   are attached to nothing" is asked from the `tofu-estate` tag plus a live
   describe with no choudoufu in the loop, and from the state cache. Both
@@ -719,7 +719,7 @@ showing its own checks would have caught it.
   next plan proposes the one update that puts it back. The BREAK control
   skips the move, and both answers must agree. The estate's own resources
   only; it is not account-wide gap analysis.
-- **a-killed-apply-hides-nothing** - *Claim 42: a killed apply hides
+- **a-killed-apply-hides-nothing** - *Claim 5 (claim 42 until #1817): a killed apply hides
   nothing it marked.* A real apply is killed with SIGKILL at a point
   pinned by a count read off the account - hosted zones named
   `killed-apply.example.`, 0 then 1 - never by a timer. The VPC it
@@ -742,7 +742,7 @@ showing its own checks would have caught it.
   `tofu-outputs/network/` object goes, and `app`'s plan then stops with
   `Another estate has not recorded this output`. The BREAK control renders
   `app`'s role without the flag and requires the plan to refuse naming
-  estate `network`. Emulator; the tag-conditioned half is claim 35's.
+  estate `network`. Emulator; the tag-conditioned half is claim 28's.
 
 ## Knobs
 

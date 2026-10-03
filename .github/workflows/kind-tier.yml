@@ -11,7 +11,7 @@
 # test issue #1596 found invoked by nothing - is selected by some step.
 #
 # The record-store conformance and race tests (internal/live/staterecord)
-# already ran against a real cluster inside claim 39's scenario
+# already ran against a real cluster inside claim 29's scenario
 # (live/smoke/scenarios/k8s-records-in-the-cluster.sh, wired into
 # k8s-smoke.yml on every pull request); this workflow runs them again, on
 # k8stest.Gate's own switch, directly with `go test`, nightly, independent

@@ -5,68 +5,55 @@ claim: apply-what-was-approved
 
 # Claim 15: Apply exactly what was approved
 
-CI runs Terraform as: plan on the pull request, a human approves, apply
-exactly what was approved. The artifact that crosses that gate is the
-stock plan file: `plan -out=FILE`, then `apply FILE`. The apply never
-replays the file. It reads the live system, makes a fresh plan, and
-compares it with the one the file describes: same resources, same
-actions, same live objects, same planned values. If they match, it
-applies without asking again. If they differ, it refuses by name and
-exits 3, a pipeline's signal to send the change back to review.
+The artifact that crosses a CI approval gate is the plan file. The apply
+never replays it: it reads the live system, plans again and compares,
+applying only when the two match and refusing by name (exit 3) when they
+do not. And the platform has the last word after the plan: a write it
+refuses is reported in its own words with nothing changed, and the same
+approved file applies once the refusal lifts.
 
-Values are compared canonically, not byte for byte: map and object keys
-sorted, sets compared by their elements rather than their order, every
-scalar carrying its type so the string `"3"` is not the number `3`. Two
-things are deliberately outside the comparison. An attribute that is
-unknown at plan time - "known after apply" - on either side is skipped,
-so a value the provider only settles during the apply can never make a
-matched artifact refuse. And a sensitive value is compared as a stable
-`sha256` digest of its canonical rendering: a moved secret still
-refuses, and no secret is ever printed.
+Each scenario runs from the repository root and ends on a `PASS` line; its
+`BREAK=1` run breaks the thing the proof rests on and must print a
+`caught` line. [The README](README.md) says what each needs installed.
 
-```text
-Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
-(docker info) and the AWS CLI is installed. From the repo root run:
+## On AWS
 
-  just smoke apply-what-was-approved
+### apply-what-was-approved
 
-Explain each step's verdict line to me as it prints. Then run
-BREAK=1 just smoke apply-what-was-approved and report the "caught" line:
-it leaves the world unmoved, and the same file must APPLY - a comparison
-that refuses every plan file it is handed would prove nothing.
-```
+    just smoke apply-what-was-approved
+    BREAK=1 just smoke apply-what-was-approved
 
-The steps as they print:
+A plan saved with `-out` applies unchanged; an out-of-band change between
+plan and apply makes the same file refuse by name. Values compare
+canonically, unknown values are skipped, sensitive ones compared by
+digest. `BREAK=1` is the inverse control: no out-of-band change, and the
+file must apply.
 
-1. `stand the estate up` - the fixture applies, every resource carrying
-   its ownership markers.
-2. `the change under review` - a log group's retention goes from one day
-   to three, and `plan -out=approved.tfplan` writes the stock-format
-   file a pipeline would attach to the pull request.
-3. `the world moves while the approval waits` - a subnet appears in the
-   account carrying this estate's markers for an address the
-   configuration does not declare, so the next plan proposes destroying
-   it: a change nobody approved.
-4. `apply the approved plan` - the apply re-reads the live system,
-   compares, and refuses. The scenario asserts the refusal's own summary
-   line, that the row it prints is `aws_subnet.crashed  Delete
-   subnet-...`, and that the exit status is 3.
-5. `the same change, a different value` - the subtler failure, and the
-   one a comparison over resource names alone would wave through. The
-   out-of-band subnet is removed so the change sets agree exactly, and
-   the configuration is edited after the approval: fourteen days of
-   retention instead of the three that were reviewed. Same resource,
-   same action, same live log group, different planned value. The
-   scenario requires exit 3 again, the refusal saying the two plans
-   `disagree about the values it writes`, and the attribute named -
-   `after.retention_in_days`.
-6. `re-plan, re-approve, apply` - the way forward the refusal names. The
-   same two commands over the world as it now is, and the approved
-   change lands: the log group's retention reads 3.
-7. `teardown` - the estate destroyed.
+### the-server-gets-the-last-word (claim 26 until #1817)
 
-The `BREAK=1` run is the inverse control, and it is the one this claim
-needs. A refusal that fires for every plan file handed to it is not a
-check, and it would pass step 4 forever. So `BREAK=1` skips the
-out-of-band change and the same file must apply cleanly; the scenario
-fails if it refuses.
+    just smoke the-server-gets-the-last-word
+    BREAK=1 just smoke the-server-gets-the-last-word
+
+Restated for AWS (the part the emulator can produce): a plan saved under
+a permissive role, then an explicit Deny on `sqs:SetQueueAttributes`
+before the apply. The apply fails quoting AWS's own message, the queue
+unchanged and still marked, and the same file applies once the Deny is
+lifted. A tag policy rewriting the marker is not measured
+([lex00/floci#217](https://github.com/lex00/floci/issues/217)). `BREAK=1`
+denies an action the apply never calls, which must not stop it.
+
+## On Kubernetes
+
+### k8s-the-server-gets-the-last-word (claim 26 until #1817)
+
+    just smoke k8s-the-server-gets-the-last-word
+    BREAK=1 just smoke k8s-the-server-gets-the-last-word
+
+A fail-closed webhook refuses the approved plan in the API server's own
+words, with nothing changed, and the same file lands once it is removed.
+A mutating policy that rewrites a declared field reads as the same
+perpetual drift stock reads, marker intact. A policy that strips
+`tofu-estate` on the way in is named by the run that made it: the create
+warns, the adopting update fails rather than reporting a change nothing
+kept (#1192). `BREAK=1` points the stripping policy at a decoy label, and
+the marker must land with no warning.

@@ -1,40 +1,93 @@
 ---
-title: "Claim 2: Contention settles at the platform API, never in a lock"
+title: "Claim 2: Nothing is held"
 claim: no-self-managed-locks
 ---
 
-# Claim 2: Contention settles at the platform API, never in a lock
+# Claim 2: Nothing is held
 
-Stock backends take a lock before touching state, because two writers
-corrupting one file is fatal when the file is the record. A stuck lock
-then needs `force-unlock`. With no authoritative file to defend there is no lock at all; two
-racing applies are refereed by the platform's own uniqueness rules.
+Stock takes a lock before it touches state, because two writers corrupting
+one file is fatal when the file is the record, and a run that dies holding
+the lock strands the next one until someone runs `force-unlock`. Nothing
+here takes a lock. Two applies racing on a resource are refereed by the
+platform's own uniqueness rules, and two racing on a record by one
+conditional write that lands or is refused. A run killed at any point
+leaves nothing behind for the next run to clear.
 
-```text
-Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
-(docker info) and the AWS CLI is installed. If Go is not installed,
-export CHOUDOUFU_VERSION=<latest tag from
-https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
+Each scenario runs from the repository root and ends on a `PASS` line; its
+`BREAK=1` run breaks the thing the proof rests on and must print a
+`caught` line. [The README](README.md) says what each needs installed.
 
-  just smoke no-self-managed-locks
+## On AWS
 
-Explain each step's verdict line to me as it prints. Then run
-BREAK=1 just smoke no-self-managed-locks and report the "caught" line:
-it strips the race winner's identity marker and convergence must fail.
-```
+### no-self-managed-locks
 
-Step by step:
+    just smoke no-self-managed-locks
+    BREAK=1 just smoke no-self-managed-locks
 
-1. `there is no lock to force open, and the tool says so` -
-   `force-unlock` refuses with the true reason instead of pretending a
-   lock exists.
-2. `the race` - two applies of the same client-named IAM role start at
-   the same moment. The cloud's name-uniqueness constraint referees;
-   the phrase "Acquiring state lock" appears in neither output.
-3. `the loser converges by reading reality` - the losing apply's next
-   plan is `No changes.` Its whole recovery is one ordinary plan.
-4. `the one race the API cannot referee is a named collision` -
-   server-assigned resources can genuinely duplicate; the duplicate
-   surfaces as a named pair rather than hiding.
-5. `the human resolves it` - one delete, and the estate is clean again.
-6. `teardown`.
+`force-unlock` refuses with the true reason, that there is no lock. Two
+applies of one client-named IAM role start together; the cloud's
+name-uniqueness referees, "Acquiring state lock" appears in neither
+output, and the loser's next plan is `No changes.` Server-assigned
+resources can really duplicate, and the duplicate surfaces as a named pair
+for a human to resolve with one delete. `BREAK=1` strips the race winner's
+marker, and convergence must fail.
+
+### two-writers-one-record (claim 32 until #1817)
+
+    just smoke two-writers-one-record
+    BREAK=1 just smoke two-writers-one-record
+
+Every record write is one conditional `PutObject` carrying the version it
+read (`If-Match`). A proxy holds two applies' writes until both are in
+flight, over several rounds: exactly one lands, the other is told the
+version it expected and the one it found, and its recovery is an ordinary
+re-plan. A writer killed mid-write strands nothing. `BREAK=1` rebuilds
+choudoufu with no `If-Match` (`go build -overlay`, so it needs Go), and
+both racing applies must be caught reporting success over one record.
+
+### backend-sets-itself-up (claim 4 until #1817; real AWS)
+
+    SMOKE_REAL_AWS=1 just smoke backend-sets-itself-up
+    SMOKE_REAL_AWS=1 BREAK=1 just smoke backend-sets-itself-up
+
+Maintainer-run against a real account: it stands the record store bucket
+up with the shipped `just up`, and the pinned emulator's CloudFormation
+reports `CREATE_COMPLETE` while applying none of the bucket's properties.
+Stock's day one is a bucket, versioning, a lock table and IAM for both.
+Here the lock table is gone, and with it the lock: a run killed in the
+middle of an apply strands nothing, and the next run goes ahead. The
+bucket still wants versioning, a lifecycle rule and a public-access block,
+so the list is no shorter; what changes is that none of those sits in the
+path of every apply. `BREAK=1` makes the store unreachable and requires
+the run to refuse by name with nothing proposed.
+
+### cas-holds-under-every-sse-flavour (claim 33 until #1817; real AWS)
+
+    SMOKE_REAL_AWS=1 just smoke cas-holds-under-every-sse-flavour
+    SMOKE_REAL_AWS=1 BREAK=1 just smoke cas-holds-under-every-sse-flavour
+
+Maintainer-run: an emulator does not reproduce the ETag semantics that are
+the subject. The conditional write holds under SSE-S3, SSE-KMS with the
+AWS-managed key, SSE-KMS with a customer managed key and DSSE-KMS, because
+the store treats the ETag as opaque. `BREAK=1` builds a binary that checks
+each ETag is the MD5 of the payload, a check someone might add in good
+faith; it must work under SSE-S3 and fail, on that check alone, under all
+three KMS flavours.
+
+## On Kubernetes
+
+### k8s-records-in-the-cluster, steps 3 and 10
+
+    just smoke k8s-records-in-the-cluster
+    BREAK=1 just smoke k8s-records-in-the-cluster
+
+The scenario is [claim 29's](a-wrong-bucket-is-refused.md#on-kubernetes);
+two of its steps are this claim on the cluster's record store
+(`record_store "kubernetes"`, one Secret per record, `resourceVersion` as
+the conditional write). Step 3 kills an apply with SIGKILL and the next
+run carries on, with no Lease and nothing lock-shaped in the records
+namespace. Step 10 holds two writers' first requests on the wire until
+both are parked: twelve rounds, each landing one write and refusing the
+other with a conflict naming both versions, no Lease taken. Its `BREAK=1`
+control swaps each write for the stock `backend "kubernetes"`
+read-then-update, and all twelve rounds must end with both writes landed.

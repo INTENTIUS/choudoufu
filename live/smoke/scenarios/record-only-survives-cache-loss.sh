@@ -1,5 +1,8 @@
 # record-only-survives-cache-loss
-# CLAIM 17 (aws) - A record-only composite identity survives cache loss without a duplicate create. ~2 min.
+# CLAIM 3 (aws) - The cache never changes an answer. ~2 min.
+#
+# This proof: A record-only composite identity survives cache loss without a
+# duplicate create.
 
 SMOKE_WORK="$SMOKE_WORKROOT/recordonly"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

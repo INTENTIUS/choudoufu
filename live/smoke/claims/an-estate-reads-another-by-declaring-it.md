@@ -1,9 +1,11 @@
 ---
-title: "Claim 44: An estate reads another estate's outputs only by declaring the read"
+title: "Claim 44: Reading another estate is declared"
 claim: an-estate-reads-another-by-declaring-it
 ---
 
-# Claim 44: An estate reads another estate's outputs only by declaring the read
+# Claim 44: Reading another estate is declared
+
+## On AWS
 
 Every estate records its root output values under `tofu-outputs/<estate>/`
 in the record store, for its own next plan. Issue #1371 lets another estate
@@ -73,5 +75,6 @@ conditions from the Allow statements, grants the list on `*` (the emulator
 does not match a virtual-hosted ListObjectsV2 against the bucket's ARN), and
 the tag Denies never fire. The refusal here comes from the resource scope of
 the one statement the flag adds. The tag-conditioned half, that the grant
-opens network's outputs and nothing else of network, is claim 35's, on real
+opens network's outputs and nothing else of network, is claim 28's
+(one-bucket-many-estates), on real
 AWS.

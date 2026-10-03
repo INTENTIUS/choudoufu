@@ -1,5 +1,8 @@
 # objects-carry-the-estate-tag
-# CLAIM 36 (aws) - Every record store object carries its estate's tag, and the tag is load-bearing (REAL AWS, maintainer-run). ~5 min.
+# CLAIM 28 (aws) - An estate reaches only its own records (REAL AWS, maintainer-run). ~5 min.
+#
+# This proof: Every record store object carries its estate's tag, and the
+# tag is load-bearing.
 
 SMOKE_WORK="$SMOKE_WORKROOT/objecttags"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

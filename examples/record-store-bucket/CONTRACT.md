@@ -109,7 +109,7 @@ only when run in the estate's directory with no `-bucket` flag, because a
 bucket named on the command line has no configuration to read a waiver from. An unknown name, a
 repeated name, a boolean, and `allow_insecure` on a store that is not a bucket
 are all configuration errors.
-[Claim 30](../../live/smoke/claims/a-waiver-names-what-it-waives.md)
+[Claim 29](../../live/smoke/claims/a-waiver-names-what-it-waives.md)
 measures this.
 
 The legitimate uses are narrow: a role that is not allowed to read a bucket's

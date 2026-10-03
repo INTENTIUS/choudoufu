@@ -1,5 +1,8 @@
 # a-wrong-bucket-is-refused
-# CLAIM 29 (aws) - A record store bucket that cannot keep its records is refused by name before anything is applied. ~2 min.
+# CLAIM 29 (aws) - The record store refuses what it can't trust. ~2 min.
+#
+# This proof: A record store bucket that cannot keep its records is refused
+# by name before anything is applied.
 
 SMOKE_WORK="$SMOKE_WORKROOT/wrongbucket"
 BUCKET="smoke-asserted-records"

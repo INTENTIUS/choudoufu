@@ -1,5 +1,8 @@
 # roundtrip
-# CLAIM 6 (aws) - The roundtrip: one command in, one file out. A stock estate is adopted with live-import and handed back as a stock state file. ~3 min.
+# CLAIM 6 (aws) - One command in, one file out. ~3 min.
+#
+# This proof: The roundtrip: one command in, one file out. A stock estate is
+# adopted with live-import and handed back as a stock state file.
 
 SMOKE_WORK="$SMOKE_WORKROOT/roundtrip"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

@@ -1,5 +1,8 @@
 # backend-sets-itself-up
-# CLAIM 4 (aws) - The backend is a bucket with no lock table and no lock: nothing is held, so nothing gets stuck (REAL AWS, maintainer-run). ~6 min.
+# CLAIM 2 (aws) - Nothing is held (REAL AWS, maintainer-run). ~6 min.
+#
+# This proof: The backend is a bucket with no lock table and no lock:
+# nothing is held, so nothing gets stuck.
 #
 # The slug is older than the headline and stays, because the claim's URL is
 # what earlier evidence links to. GitHub issue #1349.

@@ -1,5 +1,7 @@
 # cas-holds-under-every-sse-flavour
-# CLAIM 33 (aws) - Compare-and-swap holds under every SSE flavour (REAL AWS, maintainer-run). ~6 min.
+# CLAIM 2 (aws) - Nothing is held (REAL AWS, maintainer-run). ~6 min.
+#
+# This proof: Compare-and-swap holds under every SSE flavour.
 
 SMOKE_WORK="$SMOKE_WORKROOT/sseflavours"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

@@ -24,16 +24,16 @@ import (
 //
 // Since #1112 a claim is a generic promise and proof is per provider: a row
 // is the promise (id, slug, title, theme, the substrates it applies to), and
-// each provider cell carries its own scenario, command, minutes and break
-// mode, because the mechanism differs from one substrate to the next. A
-// scenario proves one promise on one provider, and its header says which:
-// "# CLAIM 7 (kubernetes) - ... ~2 min." Claims 21, 22 and 23 were the
-// Kubernetes proofs of 7, 1 and 13 filed as claims of their own; they are
-// retired into those cells, their numbers are never reused, and the
-// top-level "retired" list is what keeps them resolving.
+// each provider cell carries its own proofs, because the mechanism differs
+// from one substrate to the next. Since #1817 a cell carries a list of them:
+// 43 claims were folded into 16 short promises, and the scenarios of the 27
+// folded ones stayed as proofs of their survivors. A scenario still proves
+// one cell, and its header says which: "# CLAIM 7 (kubernetes) - <title>.
+// ~2 min." A folded number is retired, never reused, and the top-level
+// "retired" list is what keeps it resolving.
 //
-// Proving it red: add a scenario file with a "CLAIM 43 (aws)" header and no
-// cell, point two cells at one scenario, or edit site/data/claims.json by
+// Proving it red: add a scenario file with a "CLAIM 47 (aws)" header and no
+// proof, point two proofs at one scenario, or edit site/data/claims.json by
 // hand; each fails a different check below.
 
 const (
@@ -43,11 +43,6 @@ const (
 	siteClaimsPages   = "smoke/claims"
 	siteClaimsStubs   = "../site/content/docs/claims"
 )
-
-// smokeDemoScenarios are the scenarios that are demos, not claims. They
-// carry no CLAIM header and no cell; anything else under the scenario
-// directory must have both.
-var smokeDemoScenarios = map[string]bool{"import": true, "greenfield": true, "full": true}
 
 // smokeSlugReadabilityPrefixes are the prefixes a slug may carry for
 // readability (the file's _comment: "k8s- for a Kubernetes proof").
@@ -71,17 +66,20 @@ type smokeClaimsFile struct {
 	Themes        map[string]string `json:"themes"`
 	ProviderOrder []string          `json:"provider_order"`
 	Retired       []smokeRetired    `json:"retired"`
+	Demos         []smokeProof      `json:"demos"`
 	Claims        []smokeClaim      `json:"claims"`
 }
 
-// smokeRetired is a claim number that was a second proof of an existing
-// promise and now lives in that promise's cell. Its slug is still the
-// scenario's name and still an old URL.
+// smokeRetired is a claim number that is no longer a claim of its own.
+// Most were a second proof of an existing promise and now live in that
+// promise's cell for one provider; their slug is still the scenario's name
+// and still an old URL. One (#1817's 37) became a demo, and says so.
 type smokeRetired struct {
 	ID       int    `json:"id"`
 	Slug     string `json:"slug"`
 	Claim    int    `json:"claim"`
 	Provider string `json:"provider"`
+	Demo     bool   `json:"demo"`
 }
 
 type smokeClaim struct {
@@ -93,9 +91,19 @@ type smokeClaim struct {
 	Providers map[string]smokeClaimProviderCell `json:"providers"`
 }
 
+// smokeClaimProviderCell is one (claim, provider) cell: what is true of
+// the promise on that provider, and the proofs that show it. #1817 made
+// proofs a list, because folding 43 claims into 16 left most cells with
+// more than one scenario.
 type smokeClaimProviderCell struct {
-	Status        string   `json:"status"`
-	Note          string   `json:"note"`
+	Status string       `json:"status"`
+	Note   string       `json:"note"`
+	Proofs []smokeProof `json:"proofs"`
+}
+
+// smokeProof is one proof in a cell: a scenario of its own, or (ProvenBy)
+// some steps of another claim's scenario on the same provider.
+type smokeProof struct {
 	Scenario      string   `json:"scenario"`
 	Command       string   `json:"command"`
 	Minutes       int      `json:"minutes"`
@@ -104,41 +112,71 @@ type smokeClaimProviderCell struct {
 	RealService   bool     `json:"real_service"`
 	BreakMode     string   `json:"break_mode"`
 	Evidence      []string `json:"evidence"`
+	Note          string   `json:"note"`
 	// ProvenBy names the claim whose cell for the same provider carries the
-	// scenario that proves this one, for a proof that is a step of another
-	// claim's scenario rather than a scenario of its own.
+	// scenario that proves this, for a proof that is steps of another
+	// claim's scenario rather than a scenario of its own. Command is then
+	// that scenario's command, and Note names the steps.
 	ProvenBy int `json:"proven_by"`
 }
 
-// smokeScenarioCell is one (claim, provider) cell that carries a scenario.
+// scenarios returns the proofs in the cell that are scenarios of its own.
+func (c smokeClaimProviderCell) scenarios() []smokeProof {
+	var out []smokeProof
+	for _, p := range c.Proofs {
+		if p.Scenario != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// smokeScenarioCell is one proof that is a scenario, with the (claim,
+// provider) cell it proves.
 type smokeScenarioCell struct {
 	Claim    smokeClaim
 	Provider string
-	Cell     smokeClaimProviderCell
+	// Status is the cell's status.
+	Status string
+	Cell   smokeProof
 	// Name is the scenario's file name without .sh, which is also what
 	// `just smoke` takes.
 	Name string
 }
 
 func (s smokeScenarioCell) String() string {
+	if s.Claim.ID == 0 {
+		return fmt.Sprintf("demo %s.sh", s.Name)
+	}
 	return fmt.Sprintf("claim %d (%s) %s.sh", s.Claim.ID, s.Provider, s.Name)
 }
 
-// smokeScenarioCells returns every cell that carries a scenario, in claim
-// order and then provider_order.
+// smokeScenarioCells returns every proof that is a scenario, in claim
+// order, then provider_order, then the cell's own order.
 func smokeScenarioCells(f smokeClaimsFile) []smokeScenarioCell {
 	var out []smokeScenarioCell
 	for _, c := range f.Claims {
 		for _, p := range f.ProviderOrder {
 			cell, ok := c.Providers[p]
-			if !ok || cell.Scenario == "" {
+			if !ok {
 				continue
 			}
-			out = append(out, smokeScenarioCell{
-				Claim: c, Provider: p, Cell: cell,
-				Name: strings.TrimSuffix(filepath.Base(cell.Scenario), ".sh"),
-			})
+			for _, pr := range cell.scenarios() {
+				out = append(out, smokeScenarioCell{
+					Claim: c, Provider: p, Status: cell.Status, Cell: pr,
+					Name: strings.TrimSuffix(filepath.Base(pr.Scenario), ".sh"),
+				})
+			}
 		}
+	}
+	return out
+}
+
+// smokeDemoNames is the set of demo scenario names claims.json lists.
+func smokeDemoNames(f smokeClaimsFile) map[string]bool {
+	out := map[string]bool{}
+	for _, d := range f.Demos {
+		out[strings.TrimSuffix(filepath.Base(d.Scenario), ".sh")] = true
 	}
 	return out
 }
@@ -160,51 +198,6 @@ var scenarioHeaderTitle = regexp.MustCompile(`^# CLAIM (\d+) \(([a-z0-9]+)\) - (
 // to say REAL AWS; this is the one spelling of that which also leaves the
 // two titles comparable.
 const realServiceHeaderSuffix = " (REAL AWS, maintainer-run)"
-
-// smokeCellKey names one (claim, provider) cell.
-type smokeCellKey struct {
-	ID       int
-	Provider string
-}
-
-// scenarioTitleDiffers is the set of cells whose scenario header is still a
-// longer restatement of the claims.json title instead of the same sentence,
-// with the reason each is still on the list. Every one of them predates the
-// bucket backend epic (#1332), where the two were written together.
-//
-// The list is a ratchet, not an excuse: TestSmokeClaimScenarioHeadersStateTheClaim
-// fails both on a cell that differs and is not listed AND on a listed cell
-// that no longer differs, so it can only shrink, and a new cell cannot join
-// it. #1379 found claims 29 and 34 differing with nothing checking; those two
-// are fixed rather than listed. The three Kubernetes cells of 1, 7 and 13
-// were claims 22, 21 and 23 until #1112 and carried the same entry then.
-var scenarioTitleDiffers = map[smokeCellKey]string{
-	{1, "aws"}:         "pre-#1332; the header names the claim and then restates it",
-	{1, "kubernetes"}:  "pre-#1332 (claim 22 until #1112); the header states the Kubernetes proof",
-	{2, "aws"}:         "pre-#1332; the header names the claim and then restates it",
-	{3, "aws"}:         "pre-#1332; the header names the claim and then restates it",
-	{5, "aws"}:         "pre-#1332; the header names the claim and then restates it",
-	{6, "aws"}:         "pre-#1332; the header names the claim and then restates it",
-	{7, "aws"}:         "pre-#1332; the header names the claim and then restates it",
-	{7, "kubernetes"}:  "pre-#1332 (claim 21 until #1112); the header states the Kubernetes proof",
-	{8, "aws"}:         "pre-#1332; the header names the claim and then restates it",
-	{9, "aws"}:         "pre-#1332; the header names the claim and then restates it",
-	{10, "aws"}:        "pre-#1332; the header names the claim and then restates it",
-	{11, "aws"}:        "pre-#1332; the header names the claim and then restates it",
-	{12, "aws"}:        "pre-#1332; the header also carries \"Needs Go\", which the index carries as a column",
-	{13, "aws"}:        "pre-#1332; the header names the claim and then restates it",
-	{13, "kubernetes"}: "pre-#1332 (claim 23 until #1112); the header states the Kubernetes proof",
-	{14, "aws"}:        "pre-#1332; the header names the claim and then restates it",
-	{15, "aws"}:        "pre-#1332; the header names the claim and then restates it",
-	{16, "aws"}:        "pre-#1332; the header names the claim and then restates it",
-	{18, "aws"}:        "pre-#1332; the header names the claim and then restates it",
-	{19, "aws"}:        "pre-#1332; the header names the claim and then restates it",
-	{20, "aws"}:        "pre-#1332; the header also carries \"Needs Go\", which the index carries as a column",
-	{24, "kubernetes"}: "pre-#1332; the header names the claim and then restates it",
-	{25, "kubernetes"}: "pre-#1332; the header names the claim and then restates it",
-	{26, "kubernetes"}: "pre-#1332; the header names the claim and then restates it",
-	{27, "kubernetes"}: "pre-#1332; the header names the claim and then restates it",
-}
 
 // goToolchainCall matches a scenario line that runs the Go toolchain. It is
 // what needs_go means: whether a reader without Go can run the scenario, its
@@ -231,10 +224,10 @@ func readSmokeClaims(t *testing.T) smokeClaimsFile {
 }
 
 // TestSmokeClaimsMatchScenarios: every claim scenario is the scenario of
-// exactly one (claim, provider) cell, every such cell names a scenario that
-// exists, and the script's own header states that cell's claim, provider and
-// minutes. Claim numbers are stable forever: the live ones and the retired
-// ones together are 1..N with no gap and no number used twice.
+// exactly one proof, every proof that names a scenario names one that
+// exists, and the script's own header states that proof's claim, provider
+// and minutes. Claim numbers are stable forever: the live ones and the
+// retired ones together are 1..N with no gap and no number used twice.
 func TestSmokeClaimsMatchScenarios(t *testing.T) {
 	f := readSmokeClaims(t)
 	slugs := map[string]bool{}
@@ -254,6 +247,25 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 			t.Errorf("claim %d: theme %q is not in the file's themes map", c.ID, c.Theme)
 		}
 	}
+	demos := smokeDemoNames(f)
+	if len(demos) == 0 {
+		t.Errorf("%s lists no demos; import, greenfield and full are demos and belong there", smokeClaimsPath)
+	}
+	for _, d := range f.Demos {
+		name := strings.TrimSuffix(filepath.Base(d.Scenario), ".sh")
+		if want := filepath.ToSlash(filepath.Join("live", smokeScenariosDir, name+".sh")); d.Scenario != want {
+			t.Errorf("demo %s: scenario is %q, want %q", name, d.Scenario, want)
+		}
+		if _, err := os.Stat(filepath.Join(smokeScenariosDir, name+".sh")); err != nil {
+			t.Errorf("demo %s: %v", name, err)
+		}
+		if want := "just smoke " + name; d.Command != want {
+			t.Errorf("demo %s: command is %q, want %q", name, d.Command, want)
+		}
+		if d.Minutes <= 0 {
+			t.Errorf("demo %s: minutes is %d; a demo states how long it runs", name, d.Minutes)
+		}
+	}
 	retiredBySlug := map[string]smokeRetired{}
 	for _, r := range f.Retired {
 		if prev, dup := ids[r.ID]; dup {
@@ -263,14 +275,28 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 		if slugs[r.Slug] {
 			t.Errorf("retired claim %d's slug %q is also a live claim's slug", r.ID, r.Slug)
 		}
+		if r.Demo {
+			if r.Claim != 0 || r.Provider != "" {
+				t.Errorf("retired claim %d is a demo and still names claim %d (%s); a demo belongs to no cell", r.ID, r.Claim, r.Provider)
+			}
+			if !demos[r.Slug] {
+				t.Errorf("retired claim %d says it became a demo, and %s lists no demo %s.sh", r.ID, smokeClaimsPath, r.Slug)
+			}
+			continue
+		}
 		retiredBySlug[r.Slug] = r
 		into, ok := byID[r.Claim]
 		if !ok {
 			t.Errorf("retired claim %d says it moved into claim %d, which is not a claim", r.ID, r.Claim)
 			continue
 		}
-		if cell, ok := into.Providers[r.Provider]; !ok || cell.Scenario != filepath.ToSlash(filepath.Join("live", smokeScenariosDir, r.Slug+".sh")) {
-			t.Errorf("retired claim %d (%s) says it is claim %d on %s, and that cell does not carry %s.sh", r.ID, r.Slug, r.Claim, r.Provider, r.Slug)
+		want := filepath.ToSlash(filepath.Join("live", smokeScenariosDir, r.Slug+".sh"))
+		carried := false
+		for _, p := range into.Providers[r.Provider].scenarios() {
+			carried = carried || p.Scenario == want
+		}
+		if !carried {
+			t.Errorf("retired claim %d (%s) says it is claim %d on %s, and that cell carries no proof %s.sh", r.ID, r.Slug, r.Claim, r.Provider, r.Slug)
 		}
 	}
 	for i := 1; i <= len(ids); i++ {
@@ -285,25 +311,32 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 		if prev, dup := cellByName[s.Name]; dup {
 			t.Errorf("%s.sh is the scenario of both %s and %s; a scenario proves one promise on one provider", s.Name, prev, s)
 		}
+		if demos[s.Name] {
+			t.Errorf("%s.sh is a demo in %s and also %s", s.Name, smokeClaimsPath, s)
+		}
 		cellByName[s.Name] = s
 		if want := filepath.ToSlash(filepath.Join("live", smokeScenariosDir, s.Name+".sh")); cell.Scenario != want {
 			t.Errorf("%s: scenario is %q, want %q", s, cell.Scenario, want)
 		}
 		// The scenario is named for the promise, or for the promise with
-		// its readability prefix taken off, or it is a retired claim's
-		// scenario that moved into exactly this cell.
+		// its readability prefix taken off, or for a retired claim that
+		// moved into this claim, with or without that prefix.
 		//
-		// The second form is #1599's. A claim born on Kubernetes carries
+		// The prefix forms are #1599's. A claim born on Kubernetes carries
 		// the k8s- prefix in its slug, and its Kubernetes proof already
 		// holds <slug>.sh; its proof on another provider cannot share that
 		// file, and the slug is a URL that must not move. So that proof is
 		// named for the slug without the prefix. This reads the prefix off
 		// the slug, never a provider off a file name: which provider a
 		// scenario proves is still the providers.<name> key of its cell.
-		if s.Name != c.Slug && s.Name != unprefixedSlug(c.Slug) {
-			if r, ok := retiredBySlug[s.Name]; !ok || r.Claim != c.ID || r.Provider != s.Provider {
-				t.Errorf("%s: a cell's scenario is named for its claim's slug (%s.sh), for that slug without its readability prefix (%s.sh), or for a retired claim whose retired entry names this claim and provider", s, c.Slug, unprefixedSlug(c.Slug))
+		named := s.Name == c.Slug || s.Name == unprefixedSlug(c.Slug)
+		for _, r := range f.Retired {
+			if r.Claim == c.ID && (s.Name == r.Slug || s.Name == unprefixedSlug(r.Slug)) {
+				named = true
 			}
+		}
+		if !named {
+			t.Errorf("%s: a proof's scenario is named for its claim's slug (%s.sh), for that slug without its readability prefix (%s.sh), or for a retired claim that moved into this claim", s, c.Slug, unprefixedSlug(c.Slug))
 		}
 		if want := "just smoke " + s.Name; cell.Command != want {
 			t.Errorf("%s: command is %q, want %q", s, cell.Command, want)
@@ -314,6 +347,9 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 		if cell.BreakMode == "" {
 			t.Errorf("%s: break_mode is empty; every proof ships with its failure demonstrated", s)
 		}
+		if cell.ProvenBy != 0 {
+			t.Errorf("%s: the proof is a scenario of its own and also proven_by %d; say one", s, cell.ProvenBy)
+		}
 		for _, ev := range cell.Evidence {
 			if _, err := os.Stat(filepath.Join("..", filepath.FromSlash(ev))); err != nil {
 				t.Errorf("%s: evidence %q does not exist", s, ev)
@@ -322,11 +358,16 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 	}
 	for _, c := range f.Claims {
 		for p, cell := range c.Providers {
-			if cell.Scenario != "" {
-				continue
-			}
-			if cell.Command != "" || cell.Minutes != 0 || cell.BreakMode != "" || cell.NeedsGo || cell.NeedsEmulator || cell.RealService || len(cell.Evidence) > 0 {
-				t.Errorf("claim %d (%s): the cell carries no scenario and still carries a command, minutes, break mode, flag or evidence; those describe a scenario", c.ID, p)
+			for _, pr := range cell.Proofs {
+				if pr.Scenario != "" {
+					continue
+				}
+				if pr.ProvenBy == 0 {
+					t.Errorf("claim %d (%s): a proof with no scenario and no proven_by proves nothing", c.ID, p)
+				}
+				if pr.Minutes != 0 || pr.BreakMode != "" || pr.NeedsGo || pr.NeedsEmulator || pr.RealService || len(pr.Evidence) > 0 {
+					t.Errorf("claim %d (%s): a proven_by proof carries minutes, a break mode, a flag or evidence; those describe a scenario, and the scenario's own proof carries them", c.ID, p)
+				}
 			}
 		}
 	}
@@ -338,13 +379,7 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 	seen := 0
 	for _, e := range entries {
 		name := strings.TrimSuffix(e.Name(), ".sh")
-		if !strings.HasSuffix(e.Name(), ".sh") || smokeDemoScenarios[name] {
-			continue
-		}
-		seen++
-		s, ok := cellByName[name]
-		if !ok {
-			t.Errorf("scenario %s is the scenario of no (claim, provider) cell in %s (or belongs in smokeDemoScenarios)", e.Name(), smokeClaimsPath)
+		if !strings.HasSuffix(e.Name(), ".sh") {
 			continue
 		}
 		raw, err := os.ReadFile(filepath.Join(smokeScenariosDir, e.Name()))
@@ -352,6 +387,18 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 			t.Fatal(err)
 		}
 		lines := strings.SplitN(string(raw), "\n", 3)
+		if demos[name] {
+			if len(lines) > 1 && strings.HasPrefix(lines[1], "# CLAIM") {
+				t.Errorf("%s is a demo in %s and its header claims a number: %q", e.Name(), smokeClaimsPath, lines[1])
+			}
+			continue
+		}
+		seen++
+		s, ok := cellByName[name]
+		if !ok {
+			t.Errorf("scenario %s is the proof of no (claim, provider) cell and no demo in %s", e.Name(), smokeClaimsPath)
+			continue
+		}
 		if len(lines) < 2 {
 			t.Errorf("%s has no header line", e.Name())
 			continue
@@ -362,14 +409,14 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 			continue
 		}
 		if fmt.Sprint(s.Claim.ID) != m[1] || s.Provider != m[2] {
-			t.Errorf("%s header says CLAIM %s (%s), %s says it is the scenario of claim %d (%s)", e.Name(), m[1], m[2], smokeClaimsPath, s.Claim.ID, s.Provider)
+			t.Errorf("%s header says CLAIM %s (%s), %s says it is a proof of claim %d (%s)", e.Name(), m[1], m[2], smokeClaimsPath, s.Claim.ID, s.Provider)
 		}
 		if fmt.Sprint(s.Cell.Minutes) != m[3] {
 			t.Errorf("%s header says ~%s min, %s says %d", e.Name(), m[3], smokeClaimsPath, s.Cell.Minutes)
 		}
 	}
 	if seen != len(cellByName) {
-		t.Errorf("%d claim scenarios on disk, %d cells carrying one in %s", seen, len(cellByName), smokeClaimsPath)
+		t.Errorf("%d claim scenarios on disk, %d proofs carrying one in %s", seen, len(cellByName), smokeClaimsPath)
 	}
 }
 
@@ -378,20 +425,18 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 // sentence. #1379's audit found claims 29, 34 and 35 stating one claim in the
 // script and another in claims.json, with nothing checking: a reader who runs
 // `just smoke <slug>` and a reader who reads the claims table were told
-// different things about what was proven.
+// different things about what was proven. Until #1817 twenty-five headers
+// were on a ratchet that let them restate the claim at length; since the
+// titles became short promises every header states its claim's title
+// exactly, and what the scenario shows is on the claim's page.
 //
 // Proving it red: put claim 29's old header back
 // ("A record store bucket without versioning, a lifecycle that expires
-// noncurrent versions, or public-access block is refused ..."), or delete an
-// entry from scenarioTitleDiffers without fixing that scenario's header. Both
-// were run on 2026-09-19 and named the claim they were given.
+// noncurrent versions, or public-access block is refused ...").
 func TestSmokeClaimScenarioHeadersStateTheClaim(t *testing.T) {
 	f := readSmokeClaims(t)
-	cells := map[smokeCellKey]bool{}
 	for _, s := range smokeScenarioCells(f) {
 		c, name := s.Claim, s.Name+".sh"
-		key := smokeCellKey{c.ID, s.Provider}
-		cells[key] = true
 		raw, err := os.ReadFile(filepath.Join(smokeScenariosDir, name))
 		if err != nil {
 			t.Fatal(err)
@@ -406,22 +451,12 @@ func TestSmokeClaimScenarioHeadersStateTheClaim(t *testing.T) {
 			t.Errorf("%s line 2 is not a \"# CLAIM N (provider) - <title>. ~M min.\" header: %q", name, lines[1])
 			continue
 		}
-		got := m[3]
 		want := c.Title
 		if s.Cell.RealService {
 			want += realServiceHeaderSuffix
 		}
-		reason, listed := scenarioTitleDiffers[key]
-		switch {
-		case got == want && listed:
-			t.Errorf("%s: the header now states the claims.json title, so take %v out of scenarioTitleDiffers (it is listed as %q). That list is only allowed to shrink.", s, key, reason)
-		case got != want && !listed:
+		if got := m[3]; got != want {
 			t.Errorf("%s: the scenario's header states\n  %q\nand %s states\n  %q\nThe two are what a reader running the scenario and a reader reading the index are each told this claim is.", s, got, smokeClaimsPath, want)
-		}
-	}
-	for key := range scenarioTitleDiffers {
-		if !cells[key] {
-			t.Errorf("scenarioTitleDiffers names claim %d (%s), which is not a cell carrying a scenario in %s", key.ID, key.Provider, smokeClaimsPath)
 		}
 	}
 }
@@ -610,22 +645,6 @@ func smokeRefusalLine(exec []string) (idx int, wired bool) {
 	return -1, false
 }
 
-// TestSmokeClaimsRealServiceSaysSo: a claim that needs a real AWS account
-// says so in the index, and its scenario refuses to start without
-// SMOKE_REAL_AWS=1. The bucket backend epic (#1332) has five such claims,
-// and its rule is that the index states it rather than leaving a cell
-// nobody can explain. The other direction matters as much: a scenario that
-// reaches for real AWS without the refusal would spend a maintainer's money
-// from a paste-and-go prompt, and CLAUDE.md's rule is that such a run is
-// never started by anything but the maintainer.
-//
-// The audit in #1379 showed the substring form of this test green against a
-// commented-out refusal, a refusal moved below every resource the scenario
-// creates, and an emulator scenario that sourced bucket-iam.sh and called
-// real_aws_begin with no refusal at all. So what is checked is where the
-// refusal sits in the file bash would run: an executable line, wired to
-// `fail`, above the first line that can reach an account.
-
 // TestSmokeClaimsRealServiceSaysSo: a proof that needs a real AWS account
 // says so in the index, and its scenario refuses to start without
 // SMOKE_REAL_AWS=1. The bucket backend epic (#1332) has five such claims,
@@ -641,9 +660,25 @@ func smokeRefusalLine(exec []string) (idx int, wired bool) {
 // real_aws_begin with no refusal at all. So what is checked is where the
 // refusal sits in the file bash would run: an executable line, wired to
 // `fail`, above the first line that can reach an account.
+//
+// A demo is held to the same rule (#1817): the recommended secure
+// configuration stopped being a claim and is still a real-AWS run, so it
+// still refuses to start without the variable and smoke.sh still reads its
+// real_service off claims.json to leave its teardown unbounded.
 func TestSmokeClaimsRealServiceSaysSo(t *testing.T) {
 	f := readSmokeClaims(t)
-	for _, s := range smokeScenarioCells(f) {
+	all := smokeScenarioCells(f)
+	realDemos := 0
+	for _, d := range f.Demos {
+		if d.RealService {
+			realDemos++
+		}
+		all = append(all, smokeScenarioCell{Provider: "aws", Cell: d, Name: strings.TrimSuffix(filepath.Base(d.Scenario), ".sh")})
+	}
+	if realDemos == 0 {
+		t.Errorf("no demo in %s is real_service; the-recommended-secure-configuration is one, so this test is reading the wrong list", smokeClaimsPath)
+	}
+	for _, s := range all {
 		name := s.Name + ".sh"
 		raw, err := os.ReadFile(filepath.Join(smokeScenariosDir, name))
 		if err != nil {
@@ -703,7 +738,7 @@ func TestSmokeClaimsRealServiceSaysSo(t *testing.T) {
 			t.Errorf("%s: the scenario's header line does not say REAL AWS, so `just smoke` lists it like any other", s)
 		}
 		if note := s.Cell.Note; !strings.Contains(note, "maintainer-run") || !strings.Contains(note, "SMOKE_REAL_AWS=1") {
-			t.Errorf("%s: the cell's note must say the proof is maintainer-run and how to run it; got %q", s, note)
+			t.Errorf("%s: the proof's note must say it is maintainer-run and how to run it; got %q", s, note)
 		}
 		if strings.Contains(script, "stack_up") {
 			t.Errorf("%s: a real-AWS scenario starts the emulator", s)
@@ -713,13 +748,13 @@ func TestSmokeClaimsRealServiceSaysSo(t *testing.T) {
 
 // TestSmokeClaimsProviderCells: every row states every provider in
 // provider_order with a status from the fixed vocabulary, and the vocabulary
-// means what #1112 ruled. proven is a scenario that runs on that provider
-// and catches its BREAK control, so a proven cell carries a scenario or
-// names the claim whose scenario, on the same provider, carries the proof as
-// one of its steps (proven_by). restated holds in a weaker form the note
-// states, n/a is a substrate with no such concept, and open is a missing
-// proof. The row's substrate is the providers the promise applies to: every
-// cell that is not n/a.
+// means what #1112 ruled. proven is a proof that runs on that provider and
+// catches its BREAK control, so a proven cell carries at least one proof: a
+// scenario of its own, or steps of another claim's scenario on the same
+// provider (proven_by). restated holds in a weaker form the note states,
+// n/a is a substrate with no such concept, and open is a missing proof, so
+// neither carries one. The row's substrate is the providers the promise
+// applies to: every cell that is not n/a.
 func TestSmokeClaimsProviderCells(t *testing.T) {
 	f := readSmokeClaims(t)
 	if len(f.ProviderOrder) < 2 || f.ProviderOrder[0] != "aws" {
@@ -744,44 +779,46 @@ func TestSmokeClaimsProviderCells(t *testing.T) {
 			if cell.Status != "n/a" {
 				applies = append(applies, p)
 			}
-			if cell.Scenario != "" {
-				scenarios++
-				if cell.Status != "proven" && cell.Status != "restated" {
-					t.Errorf("claim %d, %s: the cell carries a scenario and reads %q; a scenario that runs and catches its control is a proof", c.ID, p, cell.Status)
-				}
-				if cell.ProvenBy != 0 {
-					t.Errorf("claim %d, %s: the cell carries a scenario of its own and also proven_by %d; say one", c.ID, p, cell.ProvenBy)
-				}
+			scenarios += len(cell.scenarios())
+			proves := cell.Status == "proven" || cell.Status == "restated"
+			if len(cell.Proofs) > 0 && !proves {
+				t.Errorf("claim %d, %s: the cell carries %d proof(s) and reads %q; a proof that runs and catches its control makes the cell proven or restated", c.ID, p, len(cell.Proofs), cell.Status)
 			}
-			if cell.ProvenBy != 0 {
-				by, ok := byID[cell.ProvenBy]
-				switch {
-				case cell.ProvenBy == c.ID:
-					t.Errorf("claim %d, %s: proven_by names the claim itself", c.ID, p)
-				case !ok:
-					t.Errorf("claim %d, %s: proven_by %d is not a claim", c.ID, p, cell.ProvenBy)
-				case by.Providers[p].Scenario == "":
-					t.Errorf("claim %d, %s: proven_by %d, and claim %d's %s cell carries no scenario", c.ID, p, cell.ProvenBy, cell.ProvenBy, p)
-				}
-				if cell.Status != "proven" && cell.Status != "restated" {
-					t.Errorf("claim %d, %s: proven_by on a cell that reads %q", c.ID, p, cell.Status)
-				}
-				if strings.TrimSpace(cell.Note) == "" {
-					t.Errorf("claim %d, %s: proven_by %d with no note; say which steps of that scenario are the proof", c.ID, p, cell.ProvenBy)
-				}
-			}
-			if cell.Status == "proven" && cell.Scenario == "" && cell.ProvenBy == 0 {
-				t.Errorf("claim %d, %s: proven with no scenario and no proven_by; proven means that provider's scenario runs and its BREAK control catches, so name it", c.ID, p)
+			if cell.Status == "proven" && len(cell.Proofs) == 0 {
+				t.Errorf("claim %d, %s: proven with no proof; proven means a proof on that provider runs and its BREAK control catches, so name it", c.ID, p)
 			}
 			if cell.Status != "proven" && strings.TrimSpace(cell.Note) == "" {
 				t.Errorf("claim %d, %s: status %q with no note; say what is true instead", c.ID, p, cell.Status)
+			}
+			for _, pr := range cell.Proofs {
+				if pr.ProvenBy == 0 {
+					continue
+				}
+				by, ok := byID[pr.ProvenBy]
+				switch {
+				case pr.ProvenBy == c.ID:
+					t.Errorf("claim %d, %s: proven_by names the claim itself", c.ID, p)
+				case !ok:
+					t.Errorf("claim %d, %s: proven_by %d is not a claim", c.ID, p, pr.ProvenBy)
+				default:
+					found := false
+					for _, bp := range by.Providers[p].scenarios() {
+						found = found || bp.Command == pr.Command
+					}
+					if !found {
+						t.Errorf("claim %d, %s: proven_by %d with command %q, and claim %d's %s cell carries no proof with that command", c.ID, p, pr.ProvenBy, pr.Command, pr.ProvenBy, p)
+					}
+				}
+				if strings.TrimSpace(pr.Note) == "" {
+					t.Errorf("claim %d, %s: proven_by %d with no note; say which steps of that scenario are the proof", c.ID, p, pr.ProvenBy)
+				}
 			}
 		}
 		if len(c.Providers) != len(f.ProviderOrder) {
 			t.Errorf("claim %d: %d provider cells, provider_order has %d", c.ID, len(c.Providers), len(f.ProviderOrder))
 		}
 		if scenarios == 0 {
-			t.Errorf("claim %d: no cell carries a scenario; a promise nothing runs is not a claim", c.ID)
+			t.Errorf("claim %d: no cell carries a scenario of its own; a promise nothing runs is not a claim", c.ID)
 		}
 		if strings.Join(c.Substrate, ",") != strings.Join(applies, ",") {
 			t.Errorf("claim %d: substrate is %v and the cells that are not n/a are %v; substrate is the substrates the promise applies to", c.ID, c.Substrate, applies)
@@ -790,7 +827,7 @@ func TestSmokeClaimsProviderCells(t *testing.T) {
 }
 
 // smokeProviderSection returns the body of a page's "## On <Name>" section,
-// up to the next "## On " heading, and whether the page has one.
+// up to the next "## " heading, and whether the page has one.
 func smokeProviderSection(page, provider string) (string, bool) {
 	head := "\n## On " + smokeProviderNames[provider] + "\n"
 	i := strings.Index(page, head)
@@ -798,7 +835,7 @@ func smokeProviderSection(page, provider string) (string, bool) {
 		return "", false
 	}
 	body := page[i+len(head):]
-	if j := strings.Index(body, "\n## On "); j >= 0 {
+	if j := strings.Index(body, "\n## "); j >= 0 {
 		body = body[:j]
 	}
 	return body, true
@@ -806,12 +843,12 @@ func smokeProviderSection(page, provider string) (string, bool) {
 
 // TestSmokeClaimsSiteCopyAndPages: the site renders a byte-for-byte copy of
 // the file, and every promise has exactly one page under live/smoke/claims
-// whose front matter names its slug and which tells the reader the command
-// of every proof it has. A promise proven by scenarios on more than one
-// provider carries a "## On <Provider>" section per provider, each with its
-// own command, which is how #1112 folded the Kubernetes pages of claims 21,
-// 22 and 23 into 7, 1 and 13. A retired claim's page is a stub pointing at
-// that section, so a link to it from an issue still lands.
+// whose front matter names its slug, with a "## On <Provider>" section for
+// every cell that is proven or restated, and in that section the command of
+// every proof in the cell (#1112, #1817). A retired claim's page is a stub
+// pointing at the section it moved into, so a link to it from an issue
+// still lands; a retired claim that became a demo keeps its page, which
+// says so and gives the demo's command.
 //
 // The pages lived under site/content/docs/claims until GitHub issue #1414
 // moved the evidence off the site and beside the scenarios; the site keeps
@@ -844,6 +881,7 @@ func TestSmokeClaimsSiteCopyAndPages(t *testing.T) {
 	}
 	known := map[string]bool{}
 	bySlugID := map[int]string{}
+	sections := 0
 	for _, c := range f.Claims {
 		known[c.Slug] = true
 		bySlugID[c.ID] = c.Slug
@@ -859,18 +897,9 @@ func TestSmokeClaimsSiteCopyAndPages(t *testing.T) {
 		if !strings.Contains(page, "\nclaim: "+c.Slug+"\n") {
 			t.Errorf("%s/%s.md front matter does not carry `claim: %s`", siteClaimsPages, c.Slug, c.Slug)
 		}
-		var proofs []string
 		for _, p := range f.ProviderOrder {
-			if c.Providers[p].Scenario != "" {
-				proofs = append(proofs, p)
-			}
-		}
-		for _, p := range proofs {
-			cmd := c.Providers[p].Command
-			if len(proofs) == 1 {
-				if !strings.Contains(page, cmd) {
-					t.Errorf("%s/%s.md never tells the reader to run `%s`", siteClaimsPages, c.Slug, cmd)
-				}
+			cell := c.Providers[p]
+			if cell.Status != "proven" && cell.Status != "restated" {
 				continue
 			}
 			if _, ok := smokeProviderNames[p]; !ok {
@@ -879,13 +908,19 @@ func TestSmokeClaimsSiteCopyAndPages(t *testing.T) {
 			}
 			body, ok := smokeProviderSection(page, p)
 			if !ok {
-				t.Errorf("%s/%s.md: claim %d is proven on %v and the page has no \"## On %s\" section; one page per promise, one section per provider's proof", siteClaimsPages, c.Slug, c.ID, proofs, smokeProviderNames[p])
+				t.Errorf("%s/%s.md: claim %d is %s on %s and the page has no \"## On %s\" section; one page per promise, one section per proven cell", siteClaimsPages, c.Slug, c.ID, cell.Status, p, smokeProviderNames[p])
 				continue
 			}
-			if !strings.Contains(body, cmd) {
-				t.Errorf("%s/%s.md: the \"## On %s\" section never tells the reader to run `%s`", siteClaimsPages, c.Slug, smokeProviderNames[p], cmd)
+			sections++
+			for _, pr := range cell.Proofs {
+				if !strings.Contains(body, pr.Command) {
+					t.Errorf("%s/%s.md: the \"## On %s\" section never tells the reader to run `%s`", siteClaimsPages, c.Slug, smokeProviderNames[p], pr.Command)
+				}
 			}
 		}
+	}
+	if sections == 0 {
+		t.Errorf("no page carries a provider section; this test is checking nothing")
 	}
 	for _, r := range f.Retired {
 		known[r.Slug] = true
@@ -897,9 +932,18 @@ func TestSmokeClaimsSiteCopyAndPages(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if !strings.Contains(string(raw), "\nretired: "+fmt.Sprint(r.ID)+"\n") {
+			t.Errorf("%s/%s.md does not carry front matter `retired: %d`", siteClaimsPages, r.Slug, r.ID)
+		}
+		if r.Demo {
+			if want := "just smoke " + r.Slug; !strings.Contains(string(raw), want) {
+				t.Errorf("%s/%s.md: retired claim %d is a demo now and its page never gives `%s`", siteClaimsPages, r.Slug, r.ID, want)
+			}
+			continue
+		}
 		want := bySlugID[r.Claim] + ".md#on-" + strings.ToLower(smokeProviderNames[r.Provider])
-		if !strings.Contains(string(raw), "\nretired: "+fmt.Sprint(r.ID)+"\n") || !strings.Contains(string(raw), "("+want+")") {
-			t.Errorf("%s/%s.md is not a stub for retired claim %d (front matter `retired: %d`) linking to %s", siteClaimsPages, r.Slug, r.ID, r.ID, want)
+		if !strings.Contains(string(raw), "("+want+")") {
+			t.Errorf("%s/%s.md is not a stub for retired claim %d linking to %s", siteClaimsPages, r.Slug, r.ID, want)
 		}
 	}
 	var names []string
@@ -919,24 +963,33 @@ func TestSmokeClaimsSiteCopyAndPages(t *testing.T) {
 // /docs/claims/<slug>/ are in issues, pull requests and search indexes, and
 // a claim whose stub is missing would answer them with a 404. A retired
 // claim's URL is a Hugo alias on the stub of the claim it moved into
-// (#1112), and has no stub of its own.
+// (#1112), and has no stub of its own; one that became a demo (#1817) keeps
+// its own redirect, to its own page.
 func TestSmokeClaimsSiteRedirects(t *testing.T) {
 	f := readSmokeClaims(t)
 	bySlugID := map[int]string{}
-	for _, c := range f.Claims {
-		bySlugID[c.ID] = c.Slug
-		stub := filepath.Join(siteClaimsStubs, c.Slug+".md")
+	redirect := func(slug string) (string, bool) {
+		stub := filepath.Join(siteClaimsStubs, slug+".md")
 		raw, err := os.ReadFile(stub)
 		if err != nil {
-			t.Errorf("claim %d: no redirect stub at %s: %v", c.ID, stub, err)
-			continue
+			t.Errorf("no redirect stub at %s: %v", stub, err)
+			return "", false
 		}
-		want := "live/smoke/claims/" + c.Slug + ".md"
+		want := "live/smoke/claims/" + slug + ".md"
 		if !strings.Contains(string(raw), "\nlayout: redirect\n") || !strings.Contains(string(raw), want) {
 			t.Errorf("%s is not a redirect to %s", stub, want)
 		}
+		return string(raw), true
+	}
+	for _, c := range f.Claims {
+		bySlugID[c.ID] = c.Slug
+		redirect(c.Slug)
 	}
 	for _, r := range f.Retired {
+		if r.Demo {
+			redirect(r.Slug)
+			continue
+		}
 		if _, err := os.Stat(filepath.Join(siteClaimsStubs, r.Slug+".md")); err == nil {
 			t.Errorf("retired claim %d still has its own stub at %s/%s.md; its URL is an alias on claim %d's stub", r.ID, siteClaimsStubs, r.Slug, r.Claim)
 		}
@@ -955,6 +1008,40 @@ func TestSmokeClaimsSiteRedirects(t *testing.T) {
 		}
 		if want := `"/docs/claims/` + r.Slug + `/"`; !strings.Contains(aliases, want) {
 			t.Errorf("%s: front matter aliases %q do not carry %s, so /docs/claims/%s/ no longer resolves", stub, aliases, want, r.Slug)
+		}
+	}
+}
+
+// smokeTitleMaxWords and smokeTitleMaxRunes bound a claim's title (#1817).
+// A title is a promise of about ten words; anything with a step in it goes
+// on the claim's page. By September 2026 eleven titles ran past 150
+// characters and four (24, 26, 27 and 39) were paragraphs restating their
+// scenario's steps, which is how 46 claims grew where 16 promises were.
+//
+// The issue's rule is about ten words, and the longest approved title is
+// eleven ("Identity is a tag you can read, move and carve by", 49
+// characters), so the word bound is twelve: one word of slack over the
+// approved list, and nowhere near the 20-word sentences that came before.
+// The rune bound is there because a word count alone lets a title grow by
+// long words and joined clauses; 60 leaves room for a twelve-word title of
+// ordinary words while refusing the shape that grew back each time, a
+// promise followed by a colon and its proof.
+const (
+	smokeTitleMaxWords = 12
+	smokeTitleMaxRunes = 60
+)
+
+// TestSmokeClaimTitlesAreShortPromises: every live claim's title fits the
+// bound above. Proving it red: put claim 24's old title back as a live row
+// (the 1,200-character paragraph #1817 retired); it fails on both counts.
+func TestSmokeClaimTitlesAreShortPromises(t *testing.T) {
+	f := readSmokeClaims(t)
+	for _, c := range f.Claims {
+		words := len(strings.Fields(c.Title))
+		runes := len([]rune(c.Title))
+		if words > smokeTitleMaxWords || runes > smokeTitleMaxRunes {
+			t.Errorf("claim %d's title is %d words and %d characters; a title is a promise of at most %d words and %d characters, and the steps belong on live/smoke/claims/%s.md: %q",
+				c.ID, words, runes, smokeTitleMaxWords, smokeTitleMaxRunes, c.Slug, c.Title)
 		}
 	}
 }

@@ -1,5 +1,8 @@
 # one-bucket-many-estates
-# CLAIM 35 (aws) - One bucket, many estates: reading a neighbour's records takes two mistakes, not one (REAL AWS, maintainer-run). ~6 min.
+# CLAIM 28 (aws) - An estate reaches only its own records (REAL AWS, maintainer-run). ~6 min.
+#
+# This proof: One bucket, many estates: reading a neighbour's records takes
+# two mistakes, not one.
 
 SMOKE_WORK="$SMOKE_WORKROOT/manyestates"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

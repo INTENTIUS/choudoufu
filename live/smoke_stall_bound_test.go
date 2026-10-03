@@ -60,30 +60,42 @@ func smokeClaimCells(t *testing.T) map[string]smokeClaimCell {
 	if err != nil {
 		t.Fatal(err)
 	}
+	type proof struct {
+		Scenario    string `json:"scenario"`
+		Minutes     int    `json:"minutes"`
+		RealService bool   `json:"real_service"`
+	}
 	var doc struct {
 		Claims []struct {
 			Providers map[string]struct {
-				Scenario    string `json:"scenario"`
-				Minutes     int    `json:"minutes"`
-				RealService bool   `json:"real_service"`
+				Proofs []proof `json:"proofs"`
 			} `json:"providers"`
 		} `json:"claims"`
+		Demos []proof `json:"demos"`
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		t.Fatal(err)
 	}
 	out := map[string]smokeClaimCell{}
+	add := func(p proof) {
+		if p.Scenario == "" {
+			return
+		}
+		name := strings.TrimSuffix(filepath.Base(p.Scenario), ".sh")
+		e := out[name]
+		e.minutes = append(e.minutes, p.Minutes)
+		e.realAWS = e.realAWS || p.RealService
+		out[name] = e
+	}
 	for _, c := range doc.Claims {
 		for _, cell := range c.Providers {
-			if cell.Scenario == "" {
-				continue
+			for _, p := range cell.Proofs {
+				add(p)
 			}
-			name := strings.TrimSuffix(filepath.Base(cell.Scenario), ".sh")
-			e := out[name]
-			e.minutes = append(e.minutes, cell.Minutes)
-			e.realAWS = e.realAWS || cell.RealService
-			out[name] = e
 		}
+	}
+	for _, d := range doc.Demos {
+		add(d)
 	}
 	return out
 }

@@ -122,7 +122,8 @@ func TestSlotPresenceDocsMatchTheCode(t *testing.T) {
 // tofu-slot. MARKERS.md is first because the test reads it again by name.
 var slotPresenceDocs = []string{
 	"MARKERS.md",
-	"smoke/claims/count-is-a-fungible-set.md",
+	// count-is-a-fungible-set.md until #1817 folded claim 11 into claim 7.
+	"smoke/claims/identity-is-a-tag.md",
 	"../internal/live/doc.go",
 }
 

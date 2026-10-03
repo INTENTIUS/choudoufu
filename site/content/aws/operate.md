@@ -6,7 +6,7 @@ deeper:
   - "[Day-2 operations]({{< relref \"/docs/use/day2\" >}}) indexes every task; [rename]({{< relref \"/docs/use/rename-a-resource\" >}}) and [remove]({{< relref \"/docs/use/remove-a-resource\" >}}) go deeper."
   - "[Running an estate from CI]({{< relref \"/docs/use/cicd\" >}}): the five jobs and what the governance policies lock."
   - "[Two runs at once]({{< relref \"/docs/model/concurrency\" >}}): why there is no lock to manage or force open."
-  - "Claims [2]({{< relref \"/docs/claims/no-self-managed-locks\" >}}), [4]({{< relref \"/docs/claims/backend-sets-itself-up\" >}}), [8]({{< relref \"/docs/claims/stock-when-you-need-it\" >}}) and [15]({{< relref \"/docs/claims/apply-what-was-approved\" >}})."
+  - "Claims [2]({{< relref \"/docs/claims/no-self-managed-locks\" >}}), [8]({{< relref \"/docs/claims/stock-when-you-need-it\" >}}) and [15]({{< relref \"/docs/claims/apply-what-was-approved\" >}})."
 ---
 
 # Operate

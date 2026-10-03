@@ -55,7 +55,7 @@ configuration last declared, because the object itself cannot say which of
 its keys came from your configuration and which a controller or a webhook
 added. Without that record a label removed from the configuration is not
 planned for removal
-([claim 27](../smoke/claims/k8s-a-label-is-a-change.md)).
+([claim 45](../smoke/claims/k8s-a-label-is-a-change.md)).
 
 One operator can leave the records in the implied `local` store, on the
 machine that applies. A team needs a store both operators and CI can read,
@@ -75,7 +75,7 @@ namespace that is not there is refused by name with the `kubectl` line that
 makes it, because a list in an absent namespace answers empty and an empty
 listing reads as an estate with no records. RBAC cannot condition on a label,
 so the namespace is what keeps one estate out of another's records
-([claim 39](../smoke/claims/k8s-records-in-the-cluster.md)).
+([claim 29](../smoke/claims/k8s-records-in-the-cluster.md)).
 
 [Where things are stored](https://intentius.io/choudoufu/docs/use/storage/#the-cluster) has
 the rest.
