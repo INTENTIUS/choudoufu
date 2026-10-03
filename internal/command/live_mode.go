@@ -327,8 +327,11 @@ func statelessBegin(
 // path, and the refusal registry smaller by the retired stage, none of
 // which has happened. This flip only changes which path an operator gets
 // with nothing set in the environment; CHOUDOUFU_NODE_RESOLVE=0 is the
-// opt-out, and it still selects the static evaluator and the HCL-rewriting
-// stamp exactly as before. Any other value, including "1" (the flag's old
+// opt-out, and it selects the static identity evaluator. Since GitHub
+// issue #644 it selects nothing else: the HCL-rewriting stamp it once also
+// chose is deleted, and the node-path marker writer (the run's
+// ConfigValueAdjuster, installed unconditionally above) runs either way.
+// Any other value, including "1" (the flag's old
 // spelling from when it defaulted off, kept working so nobody's existing
 // override silently changes meaning) and unset, resolves to the node path.
 // Read once per statelessBegin so a single CLI invocation cannot see the
