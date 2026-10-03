@@ -624,7 +624,7 @@ func TestClearNeedsEveryHeadlineStage(t *testing.T) {
 		got := isClear(cp)
 		if s.Tier1Gated {
 			// #999: a tier1-gated headline stage activates on fixture
-			// evidence, not on 26 hand-written per-estate sections, so an
+			// evidence, not on one hand-written section per estate, so an
 			// estate that never exercised it is not run - not failing -
 			// and stays clear.
 			if !got {
