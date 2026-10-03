@@ -159,6 +159,16 @@ set -uo pipefail
 #                 BREAK flag, for BREAK_GREEN's reason; the run reports
 #                 greenfield=fail, exits non-zero and reaches no later
 #                 stage.
+#   BREAK_APPLY_COUNT
+#                 set to 1 to run test_apply's OBJECT-COUNT negative control
+#                 (#1552, BREAK_GREEN_COUNT's shape): after the no-op apply
+#                 and before the after-read, remove tofu-estate from the
+#                 crossing's IAM user - the after-read must see 1 where the
+#                 before-read saw 2, and the stage has to fail. The call
+#                 this stage used to make reads the same number marked or
+#                 unmarked, and the run prints both. Reached on the real
+#                 path only; the run reports test_apply=fail, exits
+#                 non-zero and reaches no later stage.
 #   BREAK_COUNT   set to 1 to run day2_count's own break control instead of
 #                 the real scale-down checks: after the real scale-down
 #                 plan, assert the WRONG instance (count_test[0] rather
@@ -802,25 +812,83 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 gauntlet_begin_stage test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
-BEFORE_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
-  2>/dev/null || echo 0)"
+# gauntlet_estate_objects, not `gauntlet_tagged_count ...
+# resourcegroupstaggingapi get-resources` (#1552, the same blindness #1549
+# fixed one stage earlier in this script). This stage used to count the
+# estate's marked objects through the Resource Groups Tagging API alone and
+# compare the two numbers. The tagging API does not index this estate's IAM
+# user in us-west-2 (see PART GREENFIELD 6's own measurement), so the count
+# read 1 - the bucket - where the estate has 2 taggable objects, and an
+# apply that stripped the user's tofu-estate marker left both counts at 1
+# and the stage passing. A comparison that cannot see an object cannot
+# fail for it.
+#
+# So both reads now go through the helper, which unions GetResources with
+# IAM's own list-user-tags and deduplicates by ARN, and the stage asserts
+# three things the old one did not: the before-read holds both taggable
+# objects (the bucket and the user; the inline user policy can carry no marker), the
+# after-read holds the SAME ARNs rather than merely as many, and a read that
+# cannot reach the endpoint refuses instead of turning into
+# `2>/dev/null || echo 0`'s "0 objects before, 0 after".
+#
+# Proved red: BREAK_APPLY_COUNT=1 below strips the user's marker between the
+# two reads, so the ACTUAL after-count moves, not the expected one.
+gauntlet_estate_objects "$ESTATE_NAME" awsl \
+  || fail "could not read the account's tofu-estate=$ESTATE_NAME inventory before the no-op apply"
+BEFORE_N="$GAUNTLET_ESTATE_N"
+BEFORE_ARNS="$GAUNTLET_ESTATE_ARNS"
+# Keep the before-read's split: the after-read overwrites the globals.
+BEFORE_RGTA_N="$GAUNTLET_ESTATE_RGTA_N"
+BEFORE_IAM_N="$GAUNTLET_ESTATE_IAM_N"
+BEFORE_BOTH_N="$GAUNTLET_ESTATE_BOTH_N"
+[ "$BEFORE_N" = "2" ] \
+  || fail "expected 2 objects carrying tofu-estate=$ESTATE_NAME before the no-op apply (the bucket and the user), got $BEFORE_N (GetResources $BEFORE_RGTA_N + IAM's own tag APIs $BEFORE_IAM_N, $BEFORE_BOTH_N returned by both, deduplicated by ARN)"
 
 APPLY2_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
 [ "$APPLY2_RC" -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -40; fail "the post-migration apply failed"; }
 grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
   || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the post-migration apply was not a no-op"; }
 
-AFTER_N="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
-  --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
-  2>/dev/null || echo 0)"
-[ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
+if [ "${BREAK_APPLY_COUNT:-}" = "1" ]; then
+  # The negative control for the comparison below, in BREAK_GREEN_COUNT's
+  # shape. Strip tofu-estate from the IAM user AFTER the before-read and the
+  # apply, which is what an apply that dropped the marker would leave
+  # behind; the after-read must see 1 and the stage must fail. Against the
+  # GetResources-only call this replaced, the removal was invisible - it
+  # read the same number with the marker and without it, and the run
+  # prints both so the reader can see it.
+  OLD_IDIOM_MARKED="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
+    --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME")"
+  awsl iam untag-user --user-name "$USER_NAME" --tag-keys tofu-estate >/dev/null \
+    || fail "BREAK_APPLY_COUNT=1 could not remove tofu-estate from user $USER_NAME - the control cannot run, and the comparison below would pass for the wrong reason"
+  OLD_IDIOM_UNMARKED="$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \
+    --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME")"
+  log "  BREAK_APPLY_COUNT=1: removed tofu-estate from user $USER_NAME after the apply - the"
+  log "           comparison below must now fail. The call this stage used to make"
+  log "           read $OLD_IDIOM_MARKED with the marker and $OLD_IDIOM_UNMARKED without it:"
+  log "           that is the defect, not the control."
+fi
+
+gauntlet_estate_objects "$ESTATE_NAME" awsl \
+  || fail "could not re-read the account's tofu-estate=$ESTATE_NAME inventory after the no-op apply"
+AFTER_N="$GAUNTLET_ESTATE_N"
+if [ "$GAUNTLET_ESTATE_ARNS" != "$BEFORE_ARNS" ]; then
+  # Name the ARNs that moved, each list only when it holds one: the sets
+  # differ, so at least one of them does, and an empty list is never
+  # printed as if it were a finding.
+  LOST="$(comm -23 <(printf '%s\n' "$BEFORE_ARNS" | awk 'NF') <(printf '%s\n' "$GAUNTLET_ESTATE_ARNS" | awk 'NF') | paste -sd, -)"
+  GAINED="$(comm -13 <(printf '%s\n' "$BEFORE_ARNS" | awk 'NF') <(printf '%s\n' "$GAUNTLET_ESTATE_ARNS" | awk 'NF') | paste -sd, -)"
+  MOVED=""
+  [ -n "$LOST" ] && MOVED="no longer marked: $LOST"
+  [ -n "$GAINED" ] && MOVED="${MOVED:+$MOVED; }newly marked: $GAINED"
+  fail "the estate's marked objects changed across a no-op apply: $BEFORE_N -> $AFTER_N carrying tofu-estate=$ESTATE_NAME ($MOVED)"
+fi
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "a state file exists after the apply"
-log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
+log "  genuine no-op: the same $AFTER_N marked objects before and after (GetResources $BEFORE_RGTA_N + IAM's own tag APIs $BEFORE_IAM_N, $BEFORE_BOTH_N by both, deduplicated by ARN), no state file either time"
 
 log ""
 log "STAGE 4 (test apply): PASS"
-gauntlet_stage test_apply pass "genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
+gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); the same $AFTER_N ARNs carry tofu-estate=$ESTATE_NAME before and after (the bucket and the user) - GetResources $BEFORE_RGTA_N + IAM's own list-user-tags $BEFORE_IAM_N, $BEFORE_BOTH_N by both, deduplicated by ARN, because the tagging API does not index this estate's IAM user in us-west-2 (#1552); no state file"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -925,7 +993,8 @@ log ""
 # it reports no verdict at all and the runner records the stage as not_run,
 # never as a pass.
 if [ -z "${BREAK:-}" ] && [ -z "${BREAK_REMOVE:-}" ] && [ -z "${BREAK_GREEN:-}" ] \
-   && [ -z "${BREAK_GREEN_COUNT:-}" ] && [ -z "${BREAK_COUNT:-}" ]; then
+   && [ -z "${BREAK_GREEN_COUNT:-}" ] && [ -z "${BREAK_COUNT:-}" ] \
+   && [ -z "${BREAK_APPLY_COUNT:-}" ]; then
   gauntlet_begin_stage plan_approval
   log "=== PART P: plan, review, apply (the approval gate, live/GAUNTLET.md #12) ==="
 
