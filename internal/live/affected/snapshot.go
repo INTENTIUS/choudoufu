@@ -136,6 +136,9 @@ func loadSnapshot(ctx context.Context, tree string, selected []string, reads Rea
 	sort.Strings(rootDirs)
 	for _, d := range rootDirs {
 		g := loadRoot(ctx, parser, tree, d, reads)
+		// A diagnostic names files by their extracted path; a reader
+		// knows them by the path in the repository.
+		g.LoadErr = strings.ReplaceAll(g.LoadErr, tree+string(filepath.Separator), "")
 		s.roots[d] = g.rootGraph
 		for dir, reqs := range g.providers {
 			s.providers[dir] = reqs

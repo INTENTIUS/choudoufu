@@ -423,6 +423,11 @@ func TestAffectedTable(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			for _, i := range res.Indeterminate {
+				if strings.Contains(i.Text, os.TempDir()) || strings.Contains(i.Text, "live-affected-") {
+					t.Errorf("a reason names the extracted tree rather than the repository: %s", i.Text)
+				}
+			}
 			got := summary(res)
 			if strings.Join(got, "\n") != strings.Join(tc.want, "\n") {
 				t.Errorf("got:\n  %s\nwant:\n  %s", strings.Join(got, "\n  "), strings.Join(tc.want, "\n  "))
