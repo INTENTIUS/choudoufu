@@ -30,13 +30,24 @@ the API server as a dry run and prints the server's verdict. A manifest the
 server would reject refuses the plan, in the server's own words. A block whose
 kind the cluster does not serve is refused by name, with the CRD to install.
 
+### Labels, annotations, env, data and taints on someone else's object
+
+`kubernetes_labels`, `kubernetes_annotations`, `kubernetes_env`,
+`kubernetes_config_map_v1_data`, `kubernetes_secret_v1_data` and
+`kubernetes_node_taint` patch fields of an object they do not own. Their
+marker is the server-side-apply field manager, `choudoufu:<estate>`, which
+the plan sets for you, so two estates can each own one field of the same
+object. A plan that would force a field another estate owns is refused by
+name; force against kubectl or a controller works as usual. Keep each
+object to one of these blocks per estate. Removing a block does not yet
+remove its fields.
+
 ### Refused
 
 | What | Why |
 |---|---|
 | `metadata.generate_name` | The server picks the name, so the object cannot be found again. Set `name` |
 | A namespaced object with no `namespace` | Refused and not defaulted, for the same reason |
-| `kubernetes_labels`, `kubernetes_annotations`, `kubernetes_env`, the `*_data` types | They patch an object and are not one |
 | `helm_release` | A release is many objects Helm makes. Run Helm roots without a `live` block, where they behave as stock. An object carrying Helm's release annotation is controller-held while that release exists: never swept or adopted, even with `tofu-estate` in chart values; listed with its release |
 
 ## Running it

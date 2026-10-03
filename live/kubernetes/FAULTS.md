@@ -10,7 +10,7 @@ plan). This note records the answer for all five and what is left.
 |---|-------|-------|--------|-----------------|
 | 1 | A finalizer holds a delete | claim | done, claim 1 (#1186) | `live/smoke/scenarios/k8s-a-held-delete-is-not-gone.sh` puts a finalizer on the object; `BREAK=1` takes it off before the destroy |
 | 2 | An admission webhook rejects or mutates | claim | done, claim 15 (#1193) | `k8s-the-server-gets-the-last-word.sh`: a `ValidatingWebhookConfiguration` with no endpoint, and `MutatingAdmissionPolicy` objects for the mutations |
-| 3 | A server-side apply conflict | claim | blocked on #1191 (deferred) | nothing; see below |
+| 3 | A server-side apply conflict | claim | unblocked by #1191; proof written, not run | `live/kubernetes/proof-ssa-conflict.sh` puts two estates on one ConfigMap, one label each; `BREAK=1` forces the same write through the stock oracle |
 | 4a | A kill mid-apply | stage | done, `day2_crash` on kind (#1189) | the gauntlet's crash stage sends SIGTERM between two objects' creates |
 | 4b | A kill mid-move | unit test | injector landed, fault is red today | `crashBetweenMarkerWrites` in `internal/live/mv/fault_move_crash_test.go` |
 | 5 | The namespace is deleted under the estate | claim | done, claim 1 (#1765) | `k8s-a-deleted-namespace-is-gone.sh` runs `kubectl delete namespace` under two estates and their stock twins; `BREAK=1` asserts an empty plan after the delete, which must fail |
@@ -23,15 +23,43 @@ separately: #1184 (a held delete printed as destroyed), #1185 (`timeouts`
 dropped on the live path) and #1192 (a mutation that strips `tofu-estate`
 goes unnoticed).
 
-## 3: SSA conflict, blocked
+## 3: SSA conflict, unblocked, proof not yet run
 
-The proof #1110 asks for, two estates writing one field with the second
-refused by name, cannot be reached for anything choudoufu admits. A whole
-object is settled by the `tofu-estate` label before server-side apply
-ever runs, and the six field-granular types that could reach a real
-conflict are `unadmitted-type` (#1191, ruled out of #1579 on
-2026-09-26). Separately, a `field_manager` block is re-planned on every
-plan (#1190). Nothing more happens here until #1191 is taken up.
+The six field-granular types are admitted
+([#1191](https://github.com/INTENTIUS/choudoufu/issues/1191), ruled
+2026-10-03, superseding the 2026-09-26 ruling that kept them out of
+#1579). Their ownership marker is the server-side-apply field manager,
+`choudoufu:<estate>`, and the patched object's own estate label is
+irrelevant, so two estates can now meet on one object - one field each -
+which a whole-object type never can: there the `tofu-estate` label
+settles the object before server-side apply runs.
+
+That gives #1106 section 3's second control its subject, and it is
+built: a planned write with `force = true` over a field another estate's
+manager owns is refused by the plan, naming that estate, with nothing
+applied (`Force refused over another estate's field`). Without force the
+plan warns by name and the API server refuses the apply with a 409 that
+names `choudoufu:<other>`, the first estate's name rather than the
+provider's `Terraform`. Force against any manager that is not an
+estate's keeps its ordinary meaning.
+
+The proof #1110 asks for is `live/kubernetes/proof-ssa-conflict.sh`. It
+is a manual script against a kind cluster the caller creates from
+`live/kind-node-image`, and **it has not been run**: it was written with
+the unit and is not a claim, because `live/smoke/claims.json` admits a
+proof only once it has run and its control has caught. Its five steps:
+estate `ssa-a` labels a ConfigMap neither estate owns and replans empty;
+estate `ssa-b` declares the same label and is warned, then refused by
+the server's 409, both by name; the same block with `force = true` is
+refused by the plan; force over a label kubectl wrote goes through; and
+two field-granular blocks of one estate on one object are refused.
+`BREAK=1` applies the forced write with the stock oracle and requires
+the label to move, so the plan's refusal is shown to be this fork's and
+not the server's.
+
+Still open: running it, and then filing it as a smoke claim's Kubernetes
+proof. The `field_manager` block on `kubernetes_manifest` is a separate
+question (#1190) and is unchanged.
 
 ## 4: crash
 
