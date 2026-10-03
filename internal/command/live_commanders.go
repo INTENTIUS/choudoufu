@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// LiveCommanders are this fork's seven live-* commands, as entries in the
+// LiveCommanders are this fork's eight live-* commands, as entries in the
 // new CLI's command tree. [RootCommander] appends them after the stock
 // commands; the legacy CLI's command map (cmd/choudoufu/commands.go) reaches
 // the same Execute methods through each command's Run.
@@ -18,9 +18,10 @@ import (
 // static and built here, not from the legacy map, so a command registered
 // only in the map is "no command named" under the default CLI. The test
 // TestNewCLIDispatchesLiveCommands walks RootCommander and fails if any of
-// the seven is missing.
+// the eight is missing.
 func LiveCommanders() []Command {
 	return []Command{
+		LiveAffectedCommander(),
 		LiveBucketCommander(),
 		LiveCheckCommander(),
 		LiveClusterCommander(),
