@@ -1,0 +1,292 @@
+{
+  "schema": 1,
+  "issue": "#1750",
+  "fixture": {
+    "estates": 5,
+    "source": "local",
+    "prefix": "ls",
+    "from": "A",
+    "to": "B"
+  },
+  "condition": "choudoufu-live-plan-default-after-own-apply",
+  "substrate": "floci",
+  "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
+  "commit": "316b310d9ad5243eee709d60e076b4c3f60e19a5",
+  "date": "2026-10-03T02:04:49Z",
+  "repeats": 3,
+  "estates": [
+    {
+      "estate": "e01",
+      "role": "producer",
+      "steady": {
+        "calls": [
+          82,
+          82,
+          82
+        ],
+        "seconds": [
+          3.48,
+          3.14,
+          3.06
+        ],
+        "summaries": [
+          "No changes.",
+          "No changes.",
+          "No changes."
+        ],
+        "add": 0,
+        "change": 0,
+        "destroy": 0,
+        "output_lines": 105
+      },
+      "bump": {
+        "calls": [
+          82,
+          82,
+          82
+        ],
+        "seconds": [
+          3.17,
+          3.65,
+          3.06
+        ],
+        "summaries": [
+          "Plan: 1 to add, 3 to change, 0 to destroy.",
+          "Plan: 1 to add, 3 to change, 0 to destroy.",
+          "Plan: 1 to add, 3 to change, 0 to destroy."
+        ],
+        "add": 1,
+        "change": 3,
+        "destroy": 0,
+        "changed": [
+          "module.shared.aws_iam_role.app",
+          "module.shared.aws_s3_bucket.data",
+          "module.shared.aws_sqs_queue.events",
+          "module.shared.aws_sqs_queue.work"
+        ],
+        "output_lines": 220
+      }
+    },
+    {
+      "estate": "e02",
+      "role": "middle",
+      "steady": {
+        "calls": [
+          81,
+          81,
+          81
+        ],
+        "seconds": [
+          3.66,
+          3.5,
+          3.55
+        ],
+        "summaries": [
+          "No changes.",
+          "No changes.",
+          "No changes."
+        ],
+        "add": 0,
+        "change": 0,
+        "destroy": 0,
+        "output_lines": 107
+      },
+      "bump": {
+        "calls": [
+          81,
+          81,
+          81
+        ],
+        "seconds": [
+          3.58,
+          3.52,
+          3.13
+        ],
+        "summaries": [
+          "Plan: 1 to add, 3 to change, 0 to destroy.",
+          "Plan: 1 to add, 3 to change, 0 to destroy.",
+          "Plan: 1 to add, 3 to change, 0 to destroy."
+        ],
+        "add": 1,
+        "change": 3,
+        "destroy": 0,
+        "changed": [
+          "module.shared.aws_iam_role.app",
+          "module.shared.aws_s3_bucket.data",
+          "module.shared.aws_sqs_queue.events",
+          "module.shared.aws_sqs_queue.work"
+        ],
+        "output_lines": 222
+      }
+    },
+    {
+      "estate": "e03",
+      "role": "leaf",
+      "steady": {
+        "calls": [
+          78,
+          78,
+          78
+        ],
+        "seconds": [
+          3.7,
+          2.96,
+          4.13
+        ],
+        "summaries": [
+          "No changes.",
+          "No changes.",
+          "No changes."
+        ],
+        "add": 0,
+        "change": 0,
+        "destroy": 0,
+        "output_lines": 99
+      },
+      "bump": {
+        "calls": [
+          78,
+          78,
+          78
+        ],
+        "seconds": [
+          3.38,
+          3.61,
+          3.76
+        ],
+        "summaries": [
+          "Plan: 1 to add, 3 to change, 0 to destroy.",
+          "Plan: 1 to add, 3 to change, 0 to destroy.",
+          "Plan: 1 to add, 3 to change, 0 to destroy."
+        ],
+        "add": 1,
+        "change": 3,
+        "destroy": 0,
+        "changed": [
+          "module.shared.aws_iam_role.app",
+          "module.shared.aws_s3_bucket.data",
+          "module.shared.aws_sqs_queue.events",
+          "module.shared.aws_sqs_queue.work"
+        ],
+        "output_lines": 215
+      }
+    },
+    {
+      "estate": "e04",
+      "role": "outlier",
+      "steady": {
+        "calls": [
+          77,
+          77,
+          77
+        ],
+        "seconds": [
+          3.72,
+          3.64,
+          3.57
+        ],
+        "summaries": [
+          "No changes.",
+          "No changes.",
+          "No changes."
+        ],
+        "add": 0,
+        "change": 0,
+        "destroy": 0,
+        "output_lines": 98
+      },
+      "bump": {
+        "calls": [
+          77,
+          77,
+          77
+        ],
+        "seconds": [
+          2.87,
+          4.08,
+          3.64
+        ],
+        "summaries": [
+          "Plan: 1 to add, 4 to change, 0 to destroy.",
+          "Plan: 1 to add, 4 to change, 0 to destroy.",
+          "Plan: 1 to add, 4 to change, 0 to destroy."
+        ],
+        "add": 1,
+        "change": 4,
+        "destroy": 0,
+        "changed": [
+          "module.shared.aws_iam_role.app",
+          "module.shared.aws_s3_bucket.data",
+          "module.shared.aws_sqs_queue.events",
+          "module.shared.aws_sqs_queue.extra[0]",
+          "module.shared.aws_sqs_queue.work"
+        ],
+        "output_lines": 230
+      }
+    },
+    {
+      "estate": "e05",
+      "role": "plain",
+      "steady": {
+        "calls": [
+          75,
+          75,
+          75
+        ],
+        "seconds": [
+          3.62,
+          3.81,
+          3.15
+        ],
+        "summaries": [
+          "No changes.",
+          "No changes.",
+          "No changes."
+        ],
+        "add": 0,
+        "change": 0,
+        "destroy": 0,
+        "output_lines": 91
+      },
+      "bump": {
+        "calls": [
+          75,
+          75,
+          75
+        ],
+        "seconds": [
+          3.78,
+          3.87,
+          3.62
+        ],
+        "summaries": [
+          "Plan: 1 to add, 3 to change, 0 to destroy.",
+          "Plan: 1 to add, 3 to change, 0 to destroy.",
+          "Plan: 1 to add, 3 to change, 0 to destroy."
+        ],
+        "add": 1,
+        "change": 3,
+        "destroy": 0,
+        "changed": [
+          "module.shared.aws_iam_role.app",
+          "module.shared.aws_s3_bucket.data",
+          "module.shared.aws_sqs_queue.events",
+          "module.shared.aws_sqs_queue.work"
+        ],
+        "output_lines": 206
+      }
+    }
+  ],
+  "summary": {
+    "groups": [
+      4,
+      1
+    ],
+    "outliers": [
+      "e04"
+    ],
+    "summary_lines": 12,
+    "plan_lines": 1093,
+    "markdown_chars": 569
+  }
+}

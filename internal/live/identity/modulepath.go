@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/instances"
+	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/live/staticeval"
 )
@@ -392,11 +393,12 @@ func ChildModuleCountKeys(ctx context.Context, mod *configs.Module, subject stri
 	if hclDiags.HasErrors() {
 		return nil, staticEvalCountDiag(expr.Range(), subject, hclDiags.Error())
 	}
-	if val.IsMarked() {
+	val, ephemeral := unmarkCount(val)
+	if ephemeral {
 		return nil, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Sensitive count expression",
-			Detail:   fmt.Sprintf("The count for %s is sensitive or ephemeral, so the instance keys it produces cannot become part of addresses inside the module.", subject),
+			Detail:   fmt.Sprintf("The count for %s is ephemeral, so the instance keys it produces could expose its value in addresses inside the module. Stock refuses the same count (\"Invalid count argument\").", subject),
 			Subject:  expr.Range().Ptr(),
 		}
 	}
@@ -427,6 +429,17 @@ func ChildModuleCountKeys(ctx context.Context, mod *configs.Module, subject stri
 		keys = append(keys, addrs.IntKey(i))
 	}
 	return keys, nil
+}
+
+// unmarkCount applies stock's rule for a marked count
+// (internal/lang/evalchecks/eval_count.go): a sensitive count is unmarked,
+// because the instance keys 0..n-1 it produces disclose nothing about the
+// value, and an ephemeral one is reported so the caller can refuse it, as
+// stock does. for_each has no counterpart: its keys are the value (#1792).
+func unmarkCount(val cty.Value) (cty.Value, bool) {
+	unmarked, valMarks := val.Unmark()
+	_, ephemeral := valMarks[marks.Ephemeral]
+	return unmarked, ephemeral
 }
 
 func staticEvalCountDiag(rng hcl.Range, subject, why string) *hcl.Diagnostic {

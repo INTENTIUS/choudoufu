@@ -114,6 +114,7 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"foreign":    true, // classification of unclaimed resources, inside discovery's stage
 		"harness":    true, // the burndown and assumptions registries; measures the instrument, is not part of it
 		"lifecycle":  true,
+		"largeset":   true, // issue #1750's multi-estate fixture generator and its baseline record
 		"listclient": true, // a client
 		"liveimport": true, // the bulk migration command's engine
 		"markerkey":  true,
@@ -162,10 +163,14 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// measured (tools/refusal-probe -onboarded). It rewrites text and
 		// refuses nothing: everything it produces is fed back through this
 		// package's own passes, which is where the verdict comes from.
-		"onboard":         true,
-		"moved":           true, // the moved-block relation lint and discovery share; a pure function over addresses
-		"passthrough":     true, // a registry of upstream diagnostics, not a pass
-		"pins":            true, // the shared provider-version pin (#117), one constant
+		"onboard":     true,
+		"moved":       true, // the moved-block relation lint and discovery share; a pure function over addresses
+		"passthrough": true, // a registry of upstream diagnostics, not a pass
+		"pins":        true, // the shared provider-version pin (#117), one constant
+		// GitHub issue #1753's grouped plan summary: it reads finished
+		// plans (the set plan's document, or one stock plan) and renders
+		// them grouped. It runs after every stage and refuses nothing.
+		"plansummary":     true,
 		"pluginschema":    true, // provider schema reading
 		"plugincache":     true, // whether a plugin cache holds a provider release, so an init can install offline (#1509)
 		"policy":          true, // the ownership policy matrix

@@ -39,6 +39,15 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.22.0 (Unreleased)
 
+- `choudoufu live-summary FILE` groups many plans by identical change
+  (#1753, part of #1749): the set plan's `-json` document, one group per
+  set of roots that change the same way, or one plan's JSON, one group per
+  set of instances of one `for_each`/`count` expansion. Every destroy and
+  replace is listed by address and a failed root is a line of its own.
+  `-markdown` fits a GitLab merge-request note (1,000,000 characters),
+  cutting whole groups and naming what it cut. `-help` says what
+  "identical" means.
+
 ## choudoufu v0.21.0 (2026-10-02)
 
 Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Earlier releases were built on OpenTofu 1.13.0-dev (upstream main `03743ce6e8`); the upgrade is #1778, and upstream's own 1.13.0 notes follow below under "OpenTofu". Board snapshot: [`live/history/v0.21.0.json`](live/history/v0.21.0.json).
