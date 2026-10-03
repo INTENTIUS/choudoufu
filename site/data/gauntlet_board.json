@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
-  "banner": "Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, recorded between 2026-10-02T19:19:39Z and 2026-10-03T04:36:14Z. Each row below carries its own `last_run` date; they are not all the same run.",
-  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 5h3m54.2s, but not from one sweep: 13m1.3s across 1 estate(s) at commit `0b620164db`; 11m23s across 1 estate(s) at commit `14ba7612ad`; 12m18.9s across 2 estate(s) at commit `66a25ed700`; 9m4.4s across 1 estate(s) at commit `7e96d33b12`; 9m58.3s across 1 estate(s) at commit `a65938087e`; 47m56.7s across 1 estate(s) at commit `a778ea0041`; 7m44.5s across 1 estate(s) at commit `c134a6edeb`; 12m23.6s across 1 estate(s) at commit `e4466f3d42`; 2h50m26.6s across 21 estate(s) at commit `f707182267`; 9m36.9s across 1 estate(s) at commit `f7295671cb`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
-  "script_banner": "**24 of 31 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 24 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-dynamodb-table-basic, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-xancloud-iac, reference-ec2-vpc, reference-k8s-stateful, terralith-scale.",
+  "banner": "Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, recorded between 2026-10-02T19:19:40Z and 2026-10-03T02:57:13Z. Each row below carries its own `last_run` date; they are not all the same run.",
+  "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 5h13m32.9s, but not from one sweep: 13m1.3s across 1 estate(s) at commit `0b620164db`; 12m18.9s across 2 estate(s) at commit `66a25ed700`; 16m58.5s across 2 estate(s) at commit `debf8ccd05`; 4h31m14.2s across 26 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "script_banner": "Every row below was measured against the estate files and the shared protocol library that are in the tree now.",
   "provider_banner": "Estates were last measured against different hashicorp/aws versions: 22 against `6.63.0` (current pin), 1 against `5.100.0`, 1 against `6.59.0`. The current pin is `6.63.0`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work. Estates were last measured against different hashicorp/kubernetes versions: 3 against `3.2.1` (current pin), 1 against `3.3.0`. The current pin is `3.2.1`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
   "upstream_version": "1.13.0",
   "engine_banner": "The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 31 estates measured so far, 31 recorded running on it.",
@@ -193,9 +193,9 @@
         "pass",
         "not run"
       ],
-      "runtime_total": "9m36.9s",
-      "runtime_cells": "cold_deploy 1m34s, migrate 1m20s, test_plan 7s, test_apply 10s, drift_reconverge 44s, day2_rename 31s, day2_remove 32s, day2_count 1m27s, day2_replace 42s, plan_approval 40s, greenfield 1m48s",
-      "last_run_note": "Last run at commit `f7295671cb` on 2026-10-03T04:06:06Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 9m36.9s.",
+      "runtime_total": "10m55.1s",
+      "runtime_cells": "cold_deploy 1m49s, migrate 1m21s, test_plan 9s, test_apply 11s, drift_reconverge 51s, day2_rename 38s, day2_remove 38s, day2_count 1m47s, day2_replace 49s, plan_approval 51s, greenfield 1m51s",
+      "last_run_note": "Last run at commit `f707182267` on 2026-10-02T19:28:30Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 10m55.1s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
@@ -204,64 +204,64 @@
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "1m34s",
+          "duration": "1m49s",
           "detail": "80 resources, once for real (floci fixes #58, #61, #62)"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "1m20s",
+          "duration": "1m21s",
           "detail": "51 of 80 stamped, 1 recorded, 0 failed, 28 skipped"
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "7s",
+          "duration": "9s",
           "detail": "empty live-plan with no state file; 0 Error diagnostics; the two record-rung aws_route53_record.validation identities verified by value against route53 list-resource-record-sets"
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "10s",
+          "duration": "11s",
           "detail": "genuine no-op (0 added, 0 changed, 0 destroyed); 46 tofu-estate-tagged objects before, 46 after"
         },
         {
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
           "verdict": "pass",
-          "duration": "44s",
+          "duration": "51s",
           "detail": "one object tampered (the ALB's Example tag), plan proposed fixing exactly module.alb.aws_lb.this[0], apply changed 1 and the Example tag reconverged"
         },
         {
           "id": "day2_rename",
           "title": "Rename",
           "verdict": "pass",
-          "duration": "31s",
+          "duration": "38s",
           "detail": "moved block: aws_instance.this renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_instance.other renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state (positioned right after stage 1, before migrate ever touches these shared objects) also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
         },
         {
           "id": "day2_remove",
           "title": "Remove a block",
           "verdict": "pass",
-          "duration": "32s",
+          "duration": "38s",
           "detail": "choudoufu: deleting aws_instance.other_renamed's block (and its one target-group-attachment reference) proposed exactly 2 destroys (0 add, 0 change, 2 destroy), matching the stock oracle and applied cleanly; the instance is confirmed terminated via the AWS CLI, not through choudoufu's own report; the next plan proposes no resource action; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) also proposes exactly 2 destroys for the same two objects"
         },
         {
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "1m27s",
-          "detail": "choudoufu: scaling aws_security_group.count_test from 2 to 1 destroyed exactly count_test[1] (Plan: 0 to add, 0 to change, 1 to destroy.) and left count_test[0] untouched; scaling back from 1 to 2 created exactly count_test[1] (Plan: 1 to add, 0 to change, 0 to destroy.); the next plan is empty. Read back through the AWS CLI, never through choudoufu's own report: the destroyed count_test[1] (sg-b3a00646313d702ba) is absent after the scale-down and comes back under a NEW server-minted GroupId (sg-c9ec25aef07de1ba6) carrying tofu-address=aws_security_group.count_test:1, while the survivor count_test[0] keeps BOTH its GroupId (sg-068b2e2240272c851) and its tofu-address=aws_security_group.count_test:0 marker across both moves. What witnesses the destroy was measured against the pinned emulator with no terraform in the loop before this section was written: floci sha256:c55d74e1 never reuses a deleted group's GroupId, not even for the same group-name in the same VPC. G-ORACLE is a real stock oracle for the same shape - stock never had this count block, so it was stood up for real with the stock terraform binary in its own working directory and state against its own idle account on :5369 - and stock shows the IDENTICAL shape: destroy the higher index only (sg-5a410f87c36c351f7, then absent), create it back under a new id (sg-cd8c441bc4d970719), count_test[0]=sg-d6bf97eff6fce8d0e unchanged throughout (stock's own plan lines: \"Plan: 0 to add, 0 to change, 1 to destroy.\" down, \"Plan: 1 to add, 0 to change, 0 to destroy.\" up). SYNTHETIC BLOCK, and why: this estate declares no scalable count of its own - examples/complete-alb has no root-level count or for_each at all, terraform-aws-alb's only count is its `local.create ? 1 : 0` boolean create toggle, and everything the module fans out (6 listeners, 7 listener rules, 3 target groups, 2 security-group ingress rules) is for_each over a STRING-KEYED map, which has no index whose slot binding could be scaled and over which \"the higher index is destroyed\" is not expressible - so the sanctioned fallback applies (reference-ec2-vpc Part F, corpus-iam-policy Part G), with aws_security_group, a type this estate already exercises. BREAK_COUNT=1 confirms the check has teeth: asserting the WRONG instance (count_test[0]) was destroyed makes this stage report fail. One emulator divergence noted in passing, harmless to this stage and asserted around rather than papered over: floci answers DescribeSecurityGroups for a deleted group-id with an empty list and exit 0, where real EC2 raises InvalidGroup.NotFound."
+          "duration": "1m47s",
+          "detail": "choudoufu: scaling aws_security_group.count_test from 2 to 1 destroyed exactly count_test[1] (Plan: 0 to add, 0 to change, 1 to destroy.) and left count_test[0] untouched; scaling back from 1 to 2 created exactly count_test[1] (Plan: 1 to add, 0 to change, 0 to destroy.); the next plan is empty. Read back through the AWS CLI, never through choudoufu's own report: the destroyed count_test[1] (sg-096c87839986332a8) is absent after the scale-down and comes back under a NEW server-minted GroupId (sg-a3125ca02045074b6) carrying tofu-address=aws_security_group.count_test:1, while the survivor count_test[0] keeps BOTH its GroupId (sg-e6f762e1055933227) and its tofu-address=aws_security_group.count_test:0 marker across both moves. What witnesses the destroy was measured against the pinned emulator with no terraform in the loop before this section was written: floci sha256:c55d74e1 never reuses a deleted group's GroupId, not even for the same group-name in the same VPC. G-ORACLE is a real stock oracle for the same shape - stock never had this count block, so it was stood up for real with the stock terraform binary in its own working directory and state against its own idle account on :20400 - and stock shows the IDENTICAL shape: destroy the higher index only (sg-6cce4a0e8a6105ba7, then absent), create it back under a new id (sg-23bc8c52e41e1997e), count_test[0]=sg-7e70ebc8b787721e4 unchanged throughout (stock's own plan lines: \"Plan: 0 to add, 0 to change, 1 to destroy.\" down, \"Plan: 1 to add, 0 to change, 0 to destroy.\" up). SYNTHETIC BLOCK, and why: this estate declares no scalable count of its own - examples/complete-alb has no root-level count or for_each at all, terraform-aws-alb's only count is its `local.create ? 1 : 0` boolean create toggle, and everything the module fans out (6 listeners, 7 listener rules, 3 target groups, 2 security-group ingress rules) is for_each over a STRING-KEYED map, which has no index whose slot binding could be scaled and over which \"the higher index is destroyed\" is not expressible - so the sanctioned fallback applies (reference-ec2-vpc Part F, corpus-iam-policy Part G), with aws_security_group, a type this estate already exercises. BREAK_COUNT=1 confirms the check has teeth: asserting the WRONG instance (count_test[0]) was destroyed makes this stage report fail. One emulator divergence noted in passing, harmless to this stage and asserted around rather than papered over: floci answers DescribeSecurityGroups for a deleted group-id with an empty list and exit 0, where real EC2 raises InvalidGroup.NotFound."
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
           "verdict": "pass",
-          "duration": "42s",
-          "detail": "choudoufu: changing aws_instance.this_renamed's ForceNew ami argument proposed a forced replace at the same declared address (Plan: 2 to add, 0 to change, 2 to destroy.), applied cleanly; the old instance (i-3d3e48b4ee74260c1) is confirmed terminated and the new instance (i-4c3b8b9232c13c391) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one (i-3d3e48b4ee74260c1 -\u003e i-4c3b8b9232c13c391); the next plan proposes no resource action; stock oracle on cold_deploy's own state (day2_replace ORACLE) also proposes replacing aws_instance.this at the same address (plan only, not applied - it shares floci's account with $ADOPTED_EST); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one address\", naming both live instances) rather than silently proposed as nothing - internal/live/discovery/supersededclaimant.go (#849) tombstones only what an apply actually destroyed, so a live duplicate with no tombstone is never pruned away. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
+          "duration": "49s",
+          "detail": "choudoufu: changing aws_instance.this_renamed's ForceNew ami argument proposed a forced replace at the same declared address (Plan: 2 to add, 0 to change, 2 to destroy.), applied cleanly; the old instance (i-90398e9be9d91c240) is confirmed terminated and the new instance (i-11887b867724e4190) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one (i-90398e9be9d91c240 -\u003e i-11887b867724e4190); the next plan proposes no resource action; stock oracle on cold_deploy's own state (day2_replace ORACLE) also proposes replacing aws_instance.this at the same address (plan only, not applied - it shares floci's account with $ADOPTED_EST); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one address\", naming both live instances) rather than silently proposed as nothing - internal/live/discovery/supersededclaimant.go (#849) tombstones only what an apply actually destroyed, so a live duplicate with no tombstone is never pruned away. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
         },
         {
           "id": "day2_crash",
@@ -277,14 +277,14 @@
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "40s",
-          "detail": "one argument edited (the \"ex-instance\" target group's own InstanceTargetGroupTag tag, baz -\u003e reviewed - the one tags argument in examples/complete-alb that reaches exactly one instance, with no dependent resource or data source behind it), \"plan -out=approved.tfplan\" wrote a 177775-byte stock-format plan file whose whole change set is one update on module.alb.aws_lb_target_group.this[\"ex-instance\"]; the world then moved out of band (arn:aws:elasticloadbalancing:eu-west-1:000000000000:loadbalancer/app/ex-complete-alb/d1373dca0ffd4f9e's Example tag, through the AWS CLI, never through choudoufu - the same mutation stage 5 uses) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.alb.aws_lb.this[0] and the live arn:aws:elasticloadbalancing:eu-west-1:000000000000:loadbalancer/app/ex-complete-alb/d1373dca0ffd4f9e it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - arn:aws:elasticloadbalancing:eu-west-1:000000000000:targetgroup/h1e839ffe22f07f2274b532809a8/8b99d2e358ea4b02 still read InstanceTargetGroupTag=baz through elbv2 describe-tags, not from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the ALB's tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and arn:aws:elasticloadbalancing:eu-west-1:000000000000:targetgroup/h1e839ffe22f07f2274b532809a8/8b99d2e358ea4b02 read back with InstanceTargetGroupTag=reviewed, so the refusal is earned by the drift and not handed out to every plan file. The edit was then reverted, re-applied and the estate replanned empty, so PART D starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+          "duration": "51s",
+          "detail": "one argument edited (the \"ex-instance\" target group's own InstanceTargetGroupTag tag, baz -\u003e reviewed - the one tags argument in examples/complete-alb that reaches exactly one instance, with no dependent resource or data source behind it), \"plan -out=approved.tfplan\" wrote a 177910-byte stock-format plan file whose whole change set is one update on module.alb.aws_lb_target_group.this[\"ex-instance\"]; the world then moved out of band (arn:aws:elasticloadbalancing:eu-west-1:000000000000:loadbalancer/app/ex-complete-alb/b3dab0d865c24e7e's Example tag, through the AWS CLI, never through choudoufu - the same mutation stage 5 uses) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.alb.aws_lb.this[0] and the live arn:aws:elasticloadbalancing:eu-west-1:000000000000:loadbalancer/app/ex-complete-alb/b3dab0d865c24e7e it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - arn:aws:elasticloadbalancing:eu-west-1:000000000000:targetgroup/h1f0e48193fdc61dd27aa14b69af/a91035d1a2c8455b still read InstanceTargetGroupTag=baz through elbv2 describe-tags, not from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the ALB's tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and arn:aws:elasticloadbalancing:eu-west-1:000000000000:targetgroup/h1f0e48193fdc61dd27aa14b69af/a91035d1a2c8455b read back with InstanceTargetGroupTag=reviewed, so the refusal is earned by the drift and not handed out to every plan file. The edit was then reverted, re-applied and the estate replanned empty, so PART D starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "1m48s",
+          "duration": "1m51s",
           "detail": "80 resources from nothing, matching stock's own cold-deploy count; the ALB's markers verified via the AWS CLI; 80 records in the local record store including untaggable types; replan empty; a representative EC2 instance's own shape (type/ami) matches stock's cold deploy, via the AWS CLI on both endpoints, marker tags never compared; 46 objects carry the estate tag"
         },
         {
@@ -322,9 +322,9 @@
         "pass",
         "not run"
       ],
-      "runtime_total": "9m58.3s",
-      "runtime_cells": "cold_deploy 1m43s, migrate 1m40s, test_plan 8s, test_apply 8s, drift_reconverge 18s, day2_rename 33s, day2_remove 38s, day2_count 1m46s, day2_replace 30s, plan_approval 40s, greenfield 1m52s",
-      "last_run_note": "Last run at commit `a65938087e` on 2026-10-03T03:56:07Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 9m58.3s.",
+      "runtime_total": "10m18.4s",
+      "runtime_cells": "cold_deploy 1m52s, migrate 1m16s, test_plan 10s, test_apply 11s, drift_reconverge 21s, day2_rename 39s, day2_remove 33s, day2_count 1m58s, day2_replace 35s, plan_approval 51s, greenfield 1m50s",
+      "last_run_note": "Last run at commit `f707182267` on 2026-10-02T19:27:56Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 10m18.4s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
@@ -333,64 +333,64 @@
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "1m43s",
+          "duration": "1m52s",
           "detail": "Apply complete! Resources: 68 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=autoscaling-complete-crossing before migration"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "1m40s",
+          "duration": "1m16s",
           "detail": "41 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 27 skipped; 36 objects carry tofu-estate=autoscaling-complete-crossing"
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "8s",
+          "duration": "10s",
           "detail": "empty plan; identity re-check unchanged: module.complete.aws_launch_template.this:0, aws_iam_role.ssm"
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "8s",
+          "duration": "11s",
           "detail": "genuine no-op: 36 objects before, 36 after, no state file either time"
         },
         {
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
           "verdict": "pass",
-          "duration": "18s",
+          "duration": "21s",
           "detail": "one object tampered (SQS queue 'complete's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag"
         },
         {
           "id": "day2_rename",
           "title": "Rename",
           "verdict": "pass",
-          "duration": "33s",
+          "duration": "39s",
           "detail": "moved block: module.asg_sg renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place on its security group; live-mv: aws_sqs_queue.this renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
         },
         {
           "id": "day2_remove",
           "title": "Remove a block",
           "verdict": "pass",
-          "duration": "38s",
+          "duration": "33s",
           "detail": "choudoufu: deleting module.default's block proposed exactly 2 destroys (0 add, 0 change, 2 destroy), matching the stock oracle's own count and applied cleanly; the live ASG count dropped by exactly one and the tagged object count dropped too, both confirmed via the AWS CLI, not through choudoufu's own report; the next plan proposes no resource action; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) also proposes exactly 2 destroys for the same module"
         },
         {
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "1m46s",
-          "detail": "choudoufu: scaling aws_security_group.count_test from 2 to 1 proposed and applied exactly one destroy (0 add, 0 change, 1 destroy) and it was the HIGHER index, count_test[1] (sg-44879f5f03931633a); count_test[0] (sg-f6f132cf56899e860) kept its live GroupId, its tofu-address=aws_security_group.count_test:0 marker and its local record across the move, all re-read through the AWS CLI and off the record-store file rather than out of choudoufu's own report. Scaling back from 1 to 2 proposed and applied exactly one create (1 add, 0 change, 0 destroy) and count_test[1] came back as a genuinely NEW object (sg-44879f5f03931633a -\u003e sg-2f6c54ab9a2a3d3f2) carrying tofu-address=aws_security_group.count_test:1, with its record re-keyed to the new id rather than left stale on the destroyed one; count_test[0] was untouched throughout and the next plan is empty. Stock oracle (G0): a plain terraform working directory standing the identical 2-instance block up for real in its own VPC and scaling it the same way shows the identical shape - destroy count_test[1] (sg-ece4d75e897390859) only on the way down, create count_test[1] back under a new id (sg-b4d1476f1a71e9b3d) on the way up, count_test[0] (sg-118d14b3008cf462a) untouched both times - and was torn down before the choudoufu leg ran. SYNTHETIC BLOCK, and why: this estate declares no scalable count anywhere - the module's own aws_autoscaling_group.this/.idc pair is a 0-or-1 boolean toggle, the schedules/policies/traffic-source attachments are for_each over name-keyed maps, and none of the twelve module calls carries count or for_each - so this is live/GAUNTLET.md #8's sanctioned self-contained fallback, the same one reference-ec2-vpc's Part F and corpus-iam-policy's Part G use, on aws_security_group, a type this estate already exercises through module.asg_sg. An ASG's own desired_capacity is deliberately NOT what was scaled: this stage is about the count meta-argument's slot binding (internal/live/discovery/count.go), not about a live group's capacity. BREAK_COUNT=1 confirms the check has teeth: expecting count_test[0] to be the destroyed instance makes this stage report fail."
+          "duration": "1m58s",
+          "detail": "choudoufu: scaling aws_security_group.count_test from 2 to 1 proposed and applied exactly one destroy (0 add, 0 change, 1 destroy) and it was the HIGHER index, count_test[1] (sg-ec6a4104be57791a1); count_test[0] (sg-6e4092b00394b4ec1) kept its live GroupId, its tofu-address=aws_security_group.count_test:0 marker and its local record across the move, all re-read through the AWS CLI and off the record-store file rather than out of choudoufu's own report. Scaling back from 1 to 2 proposed and applied exactly one create (1 add, 0 change, 0 destroy) and count_test[1] came back as a genuinely NEW object (sg-ec6a4104be57791a1 -\u003e sg-491c0cca312c345ac) carrying tofu-address=aws_security_group.count_test:1, with its record re-keyed to the new id rather than left stale on the destroyed one; count_test[0] was untouched throughout and the next plan is empty. Stock oracle (G0): a plain terraform working directory standing the identical 2-instance block up for real in its own VPC and scaling it the same way shows the identical shape - destroy count_test[1] (sg-179dffe1336bc3fbe) only on the way down, create count_test[1] back under a new id (sg-66b6aaf5c72e1f815) on the way up, count_test[0] (sg-d34abc8ec20c07b39) untouched both times - and was torn down before the choudoufu leg ran. SYNTHETIC BLOCK, and why: this estate declares no scalable count anywhere - the module's own aws_autoscaling_group.this/.idc pair is a 0-or-1 boolean toggle, the schedules/policies/traffic-source attachments are for_each over name-keyed maps, and none of the twelve module calls carries count or for_each - so this is live/GAUNTLET.md #8's sanctioned self-contained fallback, the same one reference-ec2-vpc's Part F and corpus-iam-policy's Part G use, on aws_security_group, a type this estate already exercises through module.asg_sg. An ASG's own desired_capacity is deliberately NOT what was scaled: this stage is about the count meta-argument's slot binding (internal/live/discovery/count.go), not about a live group's capacity. BREAK_COUNT=1 confirms the check has teeth: expecting count_test[0] to be the destroyed instance makes this stage report fail."
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
           "verdict": "pass",
-          "duration": "30s",
-          "detail": "choudoufu: changing module.asg_sg_renamed's ForceNew name argument (module CALL, passed through to its own aws_security_group.this_name_prefix's name_prefix) proposed a forced replace at the same declared address (Plan: 3 to add, 2 to change, 3 to destroy.), applied cleanly; the old security group is confirmed gone via the AWS CLI (InvalidGroup.NotFound) and the new group (sg-4f2684ed1e1aa1875) carries the marker; the local record store's record at the same address now names the new object's id, not the destroyed one (sg-5b688fcd83106e9a8 -\u003e sg-4f2684ed1e1aa1875); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the security group at the same address (Plan: 3 to add, 2 to change, 3 to destroy., plan only, not applied - it shares floci's account with $ADOPTED); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; also scope note: the section originally targeted aws_sqs_queue.this_renamed and found a genuine, separate defect (mv.go's propagateModuleRename skipped MoveRecord for a same-module live-mv rename, leaving the local record stale even though the marker moved correctly) - FIXED on this branch, GitHub issue #412: propagateModuleRename now calls MoveRecord unconditionally for the renamed resource's own key before the moduleRenameBoundary guard; see this section's own header comment for the fix and eks-basic's/ecs-fargate's matching ones in this same unit, which independently hit the identical shape and were not re-run for #412."
+          "duration": "35s",
+          "detail": "choudoufu: changing module.asg_sg_renamed's ForceNew name argument (module CALL, passed through to its own aws_security_group.this_name_prefix's name_prefix) proposed a forced replace at the same declared address (Plan: 3 to add, 2 to change, 3 to destroy.), applied cleanly; the old security group is confirmed gone via the AWS CLI (InvalidGroup.NotFound) and the new group (sg-5983543ba75e6a4d3) carries the marker; the local record store's record at the same address now names the new object's id, not the destroyed one (sg-2218d9b3f80ac41d2 -\u003e sg-5983543ba75e6a4d3); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the security group at the same address (Plan: 3 to add, 2 to change, 3 to destroy., plan only, not applied - it shares floci's account with $ADOPTED); BREAK=replace confirms a manufactured marker collision is reported loudly (\"Two live resources claiming one slot\") rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; also scope note: the section originally targeted aws_sqs_queue.this_renamed and found a genuine, separate defect (mv.go's propagateModuleRename skipped MoveRecord for a same-module live-mv rename, leaving the local record stale even though the marker moved correctly) - FIXED on this branch, GitHub issue #412: propagateModuleRename now calls MoveRecord unconditionally for the renamed resource's own key before the moduleRenameBoundary guard; see this section's own header comment for the fix and eks-basic's/ecs-fargate's matching ones in this same unit, which independently hit the identical shape and were not re-run for #412."
         },
         {
           "id": "day2_crash",
@@ -406,14 +406,14 @@
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "40s",
-          "detail": "one argument edited (aws_iam_role.ssm's tags gain Reviewed=yes - a single instance whose only dependent reads its name, which an in-place tag update leaves known), \"plan -out=approved.tfplan\" wrote a 300769-byte stock-format plan file whose whole change set is one update on aws_iam_role.ssm; the world then moved out of band (the SQS queue's Example tag, through the AWS CLI, never through choudoufu - the same mutation STAGE 5 uses) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both aws_sqs_queue.this and the live https://sqs.eu-west-1.amazonaws.com/000000000000/complete it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - IAM role complete still carried no Reviewed tag, read back through iam list-role-tags rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the queue's tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and the role read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The edit was then reverted, re-applied and the estate replanned empty, so PART D starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+          "duration": "51s",
+          "detail": "one argument edited (aws_iam_role.ssm's tags gain Reviewed=yes - a single instance whose only dependent reads its name, which an in-place tag update leaves known), \"plan -out=approved.tfplan\" wrote a 301006-byte stock-format plan file whose whole change set is one update on aws_iam_role.ssm; the world then moved out of band (the SQS queue's Example tag, through the AWS CLI, never through choudoufu - the same mutation STAGE 5 uses) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both aws_sqs_queue.this and the live https://sqs.eu-west-1.amazonaws.com/000000000000/complete it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - IAM role complete still carried no Reviewed tag, read back through iam list-role-tags rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the queue's tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and the role read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The edit was then reverted, re-applied and the estate replanned empty, so PART D starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "1m52s",
+          "duration": "1m50s",
           "detail": "68 resources from nothing, matching stock's own cold-deploy count (68); the sqs queue's markers verified via the AWS CLI; 68 records in the local record store including the untaggable ASGs (#364 A2); replan empty; the asg_sg security group's rule counts match stock's cold deploy structurally, via the AWS CLI on both endpoints, marker tags never compared; 36 objects carry the estate tag"
         },
         {
@@ -457,8 +457,6 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -581,9 +579,9 @@
         "pass",
         "not run"
       ],
-      "runtime_total": "9m4.4s",
-      "runtime_cells": "cold_deploy 1m2s, migrate 42s, test_plan 10s, test_apply 10s, drift_reconverge 13s, day2_rename 30s, day2_remove 36s, day2_count 2m59s, day2_replace 59s, plan_approval 33s, greenfield 1m8s",
-      "last_run_note": "Last run at commit `7e96d33b12` on 2026-10-03T04:15:30Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 9m4.4s.",
+      "runtime_total": "9m43.2s",
+      "runtime_cells": "cold_deploy 1m15s, migrate 39s, test_plan 12s, test_apply 11s, drift_reconverge 15s, day2_rename 29s, day2_remove 39s, day2_count 3m13s, day2_replace 1m2s, plan_approval 39s, greenfield 1m9s",
+      "last_run_note": "Last run at commit `f707182267` on 2026-10-02T19:26:39Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 9m43.2s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
@@ -592,64 +590,64 @@
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "1m2s",
+          "duration": "1m15s",
           "detail": "35 resources added across 13 types (aws_instance, aws_eip, aws_iam_role/instance_profile/role_policy_attachment, aws_ebs_volume, aws_volume_attachment, aws_security_group x2, aws_vpc_security_group_egress_rule x2, aws_security_group_rule x2, vpc/subnet/route*/igw/default_* from the vpc module), 0 objects carry tofu-estate before migration"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "42s",
+          "duration": "39s",
           "detail": "24 of 35 eligible (11 untaggable across 5 types - aws_iam_role_policy_attachment, aws_volume_attachment, aws_security_group_rule x2, aws_route, aws_route_table_association x6 - all resolved by provider identity schema), 24 stamped, 0 failed, 11 skipped; the IAM role policy attachment's composite live id asserted by value; genuine no-op on the follow-up apply"
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "10s",
+          "duration": "12s",
           "detail": "no resource change proposed by either plan; the default plan reports \"nothing was swept\" (the CollectUnclaimed ruling (#604) made the account-inventory question opt-in, and a run that did not ask must say so), and a second plan run with TOFU_LIVE_COLLECT_UNCLAIMED=1 finds exactly 8 foreign objects - the instance's own root volume plus floci's default-VPC bootstrap; instance tofu-address re-checked against EC2"
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "10s",
+          "duration": "11s",
           "detail": "genuine no-op (0 added, 0 changed, 0 destroyed); 24 objects before, 24 after (resourcegroupstaggingapi GetResources 22 of them - it does not index IAM, #1160 - plus the instance's aws_iam_role and aws_iam_instance_profile checked directly via list-role-tags/list-instance-profile-tags, 2 of them), no state file"
         },
         {
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
           "verdict": "pass",
-          "duration": "13s",
+          "duration": "15s",
           "detail": "one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to \"ex-complete\""
         },
         {
           "id": "day2_rename",
           "title": "Rename",
           "verdict": "pass",
-          "duration": "30s",
+          "duration": "29s",
           "detail": "moved block: module.vpc renamed with zero churn (0 add, 15 change, 0 destroy), marker rewritten in place; live-mv: module.security_group's security group renamed with zero churn, its two untaggable rules followed for free; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
         },
         {
           "id": "day2_remove",
           "title": "Remove a block",
           "verdict": "pass",
-          "duration": "36s",
+          "duration": "39s",
           "detail": "choudoufu: deleting module.ec2_complete's block proposed exactly 10 destroys (0 add, 0 change, 10 destroy), matching the stock oracle's own count and applied cleanly; the instance is confirmed terminated and the tagged object count dropped, both via the AWS CLI, not through choudoufu's own report; the next plan proposes no resource action; stock oracle on cold_deploy's own state (D-REMOVE-ORACLE) also proposes exactly 10 destroys for the same module"
         },
         {
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "2m59s",
-          "detail": "choudoufu: scaling aws_ebs_volume.count_test from 2 to 1 destroyed exactly count_test[1] (vol-00d08f8b5ed1c5092, 0 add, 0 change, 1 destroy) and left count_test[0] (vol-ad9d6c790b7b37ad9) with the same live VolumeId, the same tofu-address=aws_ebs_volume.count_test:0 and the same tofu-slot=0, all read back through the AWS CLI rather than choudoufu's own report; the destroyed volume is genuinely gone (describe-volumes answers InvalidVolume.NotFound for it). Scaling back from 1 to 2 planned exactly 1 to add, 0 to change, 0 to destroy and brought count_test[1] back as a NEW object (vol-b529fba836b97ffce, not vol-00d08f8b5ed1c5092) carrying tofu-address=aws_ebs_volume.count_test:1 and tofu-slot=1, above the live high-water mark count_test[0] still holds, while count_test[0] stayed untouched throughout; the next plan is empty, and scaling the block to zero destroys both and leaves the estate planning empty again. C-ORACLE, the same 2-instance block stood up for real with plain terraform in its own working directory at the SAME resolved provider version (6.63.0), shows the identical shape: destroy the higher index only (vol-db9ad8d0e5f596014), create the higher index back under a new id (vol-aeedcec09cc97e156), the lower index's id (vol-a520ec45c0105b8f9) unchanged both times. SYNTHETIC BLOCK, and why: terraform-aws-ec2-instance v6.4.0 declares no scalable count or for_each knob this estate reaches - all nine of its own count usages are boolean create toggles of the form 'count = local.create ? 1 : 0', which can never hold two instances, and the upstream example's one real for_each fan-out (module.ec2_multiple) is dropped by this script's reduction because floci does not model the surfaces around it - so this section adds a new, self-contained count block of a type the estate ALREADY exercises (aws_ebs_volume, module.ec2_complete's own /dev/sdf data volume), the sanctioned fallback live/GAUNTLET.md #8 names, with reference-ec2-vpc Part F and corpus-iam-policy Part G as precedent. BREAK_COUNT=1 asserts the WRONG instance (count_test[0]) was destroyed and reports day2_count fail, proving the assertion is load-bearing."
+          "duration": "3m13s",
+          "detail": "choudoufu: scaling aws_ebs_volume.count_test from 2 to 1 destroyed exactly count_test[1] (vol-3caa4d3e70a79f37a, 0 add, 0 change, 1 destroy) and left count_test[0] (vol-4ad3d92a64337ce18) with the same live VolumeId, the same tofu-address=aws_ebs_volume.count_test:0 and the same tofu-slot=0, all read back through the AWS CLI rather than choudoufu's own report; the destroyed volume is genuinely gone (describe-volumes answers InvalidVolume.NotFound for it). Scaling back from 1 to 2 planned exactly 1 to add, 0 to change, 0 to destroy and brought count_test[1] back as a NEW object (vol-13ed3d82c8bb24242, not vol-3caa4d3e70a79f37a) carrying tofu-address=aws_ebs_volume.count_test:1 and tofu-slot=1, above the live high-water mark count_test[0] still holds, while count_test[0] stayed untouched throughout; the next plan is empty, and scaling the block to zero destroys both and leaves the estate planning empty again. C-ORACLE, the same 2-instance block stood up for real with plain terraform in its own working directory at the SAME resolved provider version (6.63.0), shows the identical shape: destroy the higher index only (vol-514c88531a80b3642), create the higher index back under a new id (vol-7e366b5d033d6806d), the lower index's id (vol-911e8105ea757d658) unchanged both times. SYNTHETIC BLOCK, and why: terraform-aws-ec2-instance v6.4.0 declares no scalable count or for_each knob this estate reaches - all nine of its own count usages are boolean create toggles of the form 'count = local.create ? 1 : 0', which can never hold two instances, and the upstream example's one real for_each fan-out (module.ec2_multiple) is dropped by this script's reduction because floci does not model the surfaces around it - so this section adds a new, self-contained count block of a type the estate ALREADY exercises (aws_ebs_volume, module.ec2_complete's own /dev/sdf data volume), the sanctioned fallback live/GAUNTLET.md #8 names, with reference-ec2-vpc Part F and corpus-iam-policy Part G as precedent. BREAK_COUNT=1 asserts the WRONG instance (count_test[0]) was destroyed and reports day2_count fail, proving the assertion is load-bearing."
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
           "verdict": "pass",
-          "duration": "59s",
-          "detail": "choudoufu: changing module.ec2_complete's ForceNew ami argument proposed exactly one instance replace at the same declared address, cascading into the eip (updated in-place) and the volume attachment (also replaced, instance_id is ForceNew there too) - 2 to add, 1 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old instance is confirmed terminated and the new instance carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one (i-6d198be7503853819 -\u003e i-eb9e8552de3095d66); the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly (\"Indistinguishable instances without per-instance markers\", naming both live instances) rather than silently proposed as nothing - internal/live/discovery/supersededclaimant.go (#849) tombstones only what an apply actually destroyed, so a live duplicate with no tombstone is never pruned away. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one."
+          "duration": "1m2s",
+          "detail": "choudoufu: changing module.ec2_complete's ForceNew ami argument proposed exactly one instance replace at the same declared address, cascading into the eip (updated in-place) and the volume attachment (also replaced, instance_id is ForceNew there too) - 2 to add, 1 to change, 2 to destroy, matching F-ORACLE's own plan shape; applied cleanly; the old instance is confirmed terminated and the new instance carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new instance's id, not the terminated one (i-f39912d7ed7cf631c -\u003e i-999eead3b069021f0); the next plan proposes no resource action; BREAK=replace confirms a manufactured marker collision is reported loudly (\"Indistinguishable instances without per-instance markers\", naming both live instances) rather than silently proposed as nothing - internal/live/discovery/supersededclaimant.go (#849) tombstones only what an apply actually destroyed, so a live duplicate with no tombstone is never pruned away. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment and corpus-sqs-basic's matching one."
         },
         {
           "id": "day2_crash",
@@ -665,14 +663,14 @@
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "33s",
-          "detail": "one argument edited (the \"/dev/sdf\" entry's MountPoint volume tag inside module \"ec2_complete\"'s ebs_volumes argument, /mnt/data -\u003e /mnt/data-reviewed - the module merges each entry's tags into that entry's aws_ebs_volume alone, so it reaches module.ec2_complete.aws_ebs_volume.this[\"/dev/sdf\"] and nothing else), \"plan -out=approved.tfplan\" wrote a 84461-byte stock-format plan file whose whole change set is that one update; the world then moved out of band (i-6d198be7503853819's Example tag, through the AWS CLI, never through choudoufu - the same mutation STAGE 5 uses) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.ec2_complete.aws_instance.this[0] and the live i-6d198be7503853819 it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - volume vol-c8bac9974e36d7f4c still read MountPoint=/mnt/data through ec2 describe-tags, not from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with i-6d198be7503853819's tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and vol-c8bac9974e36d7f4c read back with MountPoint=/mnt/data-reviewed, so the refusal is earned by the drift and not handed out to every plan file. The edit was then reverted, re-applied and the estate replanned empty, so PART C starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+          "duration": "39s",
+          "detail": "one argument edited (the \"/dev/sdf\" entry's MountPoint volume tag inside module \"ec2_complete\"'s ebs_volumes argument, /mnt/data -\u003e /mnt/data-reviewed - the module merges each entry's tags into that entry's aws_ebs_volume alone, so it reaches module.ec2_complete.aws_ebs_volume.this[\"/dev/sdf\"] and nothing else), \"plan -out=approved.tfplan\" wrote a 84381-byte stock-format plan file whose whole change set is that one update; the world then moved out of band (i-f39912d7ed7cf631c's Example tag, through the AWS CLI, never through choudoufu - the same mutation STAGE 5 uses) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.ec2_complete.aws_instance.this[0] and the live i-f39912d7ed7cf631c it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - volume vol-a2875d40a8b9297ab still read MountPoint=/mnt/data through ec2 describe-tags, not from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with i-f39912d7ed7cf631c's tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and vol-a2875d40a8b9297ab read back with MountPoint=/mnt/data-reviewed, so the refusal is earned by the drift and not handed out to every plan file. The edit was then reverted, re-applied and the estate replanned empty, so PART C starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "1m8s",
+          "duration": "1m9s",
           "detail": "35 resources from nothing, matching stock's own cold-deploy count; the instance's markers verified via the AWS CLI; 35 records in the local record store including untaggable types; replan empty; the instance's own shape (type/ami/block-device-count) matches stock's cold deploy, via the AWS CLI on both endpoints, marker tags never compared; 22 objects carry the estate tag"
         },
         {
@@ -710,9 +708,9 @@
         "pass",
         "not run"
       ],
-      "runtime_total": "12m23.6s",
-      "runtime_cells": "cold_deploy 1m18s, migrate 1m29s, test_plan 52s, test_apply 11s, drift_reconverge 26s, day2_rename 1m9s, day2_remove 32s, day2_count 2m2s, day2_replace 31s, plan_approval 55s, greenfield 2m57s",
-      "last_run_note": "Last run at commit `e4466f3d42` on 2026-10-03T04:28:12Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 12m23.6s.",
+      "runtime_total": "12m59s",
+      "runtime_cells": "cold_deploy 1m37s, migrate 1m10s, test_plan 58s, test_apply 14s, drift_reconverge 25s, day2_rename 1m16s, day2_remove 34s, day2_count 2m2s, day2_replace 36s, plan_approval 1m7s, greenfield 3m0s",
+      "last_run_note": "Last run at commit `f707182267` on 2026-10-02T19:37:25Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 12m59s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
@@ -721,49 +719,49 @@
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "1m18s",
+          "duration": "1m37s",
           "detail": "62 resources, once for real"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "1m29s",
+          "duration": "1m10s",
           "detail": "46 of 62 stamped"
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "52s",
+          "duration": "58s",
           "detail": "genuinely empty replan (\"No changes. Your infrastructure matches the configuration.\") - #371, #378, #372, #110, #395 and #376 all fixed and stay fixed; the standalone task definition's essential/mountPoints[].readOnly wall is gone (lex00/floci#131, published and repinned this unit) and essential defaulting to true was never an independent wall on its own (this unit's own re-measurement). #395/#376: choudoufu keeps no persisted state, so every plan re-derives PriorState through ImportResourceState's bare stub; internal/live/projection/build.go's configuredAttrsSeed generalizes the tags-only import-stub seed (issue #287 item 8) to every Required-or-Optional-non-Computed attribute (fixing #376's track_latest/skip_destroy directly), and internal/live/projection/residue.go's residueConfigSourced widening of classifyResidue plus the new builder.residueSeedFor pre-read seed close #395's managed-reference case (task_definition = aws_ecs_task_definition.this[0].arn) that configuredAttrsSeed's static evaluator alone could not reach. Identities confirmed by value against the AWS CLI: $CLUSTER_ARN, $TD_SVC_ARN, $TD_STANDALONE_ARN, and #368's scalable target $GOT_TARGET_RID."
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "11s",
+          "duration": "14s",
           "detail": "genuine no-op (0 added, 0 changed, 0 destroyed); 38 tofu-estate-tagged objects before, 38 after, no state file either time"
         },
         {
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
           "verdict": "pass",
-          "duration": "26s",
+          "duration": "25s",
           "detail": "one object tampered (VPC's Name tag), plan proposed fixing exactly module.vpc.aws_vpc.this[0], apply changed 1 and the Name tag reconverged"
         },
         {
           "id": "day2_rename",
           "title": "Rename",
           "verdict": "pass",
-          "duration": "1m9s",
+          "duration": "1m16s",
           "detail": "moved block: module.alb renamed with zero churn (0 add, 9 change, 0 destroy), marker rewritten in place; live-mv: aws_service_discovery_http_namespace.this renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
         },
         {
           "id": "day2_remove",
           "title": "Remove a block",
           "verdict": "pass",
-          "duration": "32s",
+          "duration": "34s",
           "detail": "choudoufu: deleting module.ecs_task_definition's block proposed exactly 8 destroys (0 add, 0 change, 8 destroy), address-for-address identical to stock's oracle on cold_deploy's own state; applied cleanly (0 added, 0 changed, 8 destroyed); the standalone task definition family (ex-fargate-standalone) genuinely has 0 active revisions afterward, read via the AWS CLI, not choudoufu's own report; classifyOrphans did not withhold any destroy because no other module.ecs_task_definition block is declared anywhere in this config; the next plan is empty"
         },
         {
@@ -771,13 +769,13 @@
           "title": "Change count",
           "verdict": "pass",
           "duration": "2m2s",
-          "detail": "choudoufu: scaling aws_security_group.count_test from 2 to 1 destroyed exactly count_test[1] (Plan: 0 to add, 0 to change, 1 to destroy.), leaving count_test[0]'s live GroupId (sg-240bbf6559ed16225), its tofu-address (aws_security_group.count_test:0) and its tofu-slot (0) unchanged, and count_test[1] (sg-d7673d4ec51420a99) genuinely absent - all read through the AWS CLI, never choudoufu's own report; scaling back from 1 to 2 created exactly count_test[1] (Plan: 1 to add, 0 to change, 0 to destroy.) under a NEW server-minted GroupId (sg-1490a09ce1150f8fc, was sg-d7673d4ec51420a99) carrying tofu-address=aws_security_group.count_test:1 and the same tofu-slot=1, while count_test[0] stayed untouched throughout; the next plan is empty. Stock oracle (H-ORACLE), the identical 2-instance block stood up for real with plain terraform in its own account and its own working directory - stock never had this block, so unlike day2_rename/day2_remove/day2_replace there is no cold_deploy state to reuse - shows the identical shape: Plan: 0 to add, 0 to change, 1 to destroy. destroying count_test[1]=sg-c7ca29be456d84eda only, then Plan: 1 to add, 0 to change, 0 to destroy. bringing it back under a new GroupId (sg-b4cc8c6e0b0d38504), with count_test[0]=sg-c106d0cd2eeeb027d unchanged both times. SYNTHETIC block, and why: this estate's corpus example (terraform-aws-modules/terraform-aws-ecs v7.6.0, examples/fargate) declares no scalable count knob at all - every count in its vendored modules is a 'count = local.create ? 1 : 0' boolean create toggle, which cannot hold two instances - and the only construct holding three, module.vpc's private_subnets, is driven by local.azs, which the ECS service's network configuration, the ALB and the NAT gateway all read, so scaling it churns a dozen unrelated resources instead of isolating which count instance a scale-down destroys. aws_security_group was chosen because this estate already exercises it three times in its own vendored modules (modules/cluster, modules/service, modules/express-service each declare aws_security_group.this) and because its destroy is witnessed TWICE on the pinned emulator - a new GroupId AND verified absence in between - established by reading the EC2 API directly with no tofu in the loop before any assertion here was written. Placed last, after every other stage reported, at an address nothing else in this configuration names, so no earlier stage's assertions move. BREAK_COUNT=1 asserts the WRONG instance (count_test[0]) was destroyed and correctly fails."
+          "detail": "choudoufu: scaling aws_security_group.count_test from 2 to 1 destroyed exactly count_test[1] (Plan: 0 to add, 0 to change, 1 to destroy.), leaving count_test[0]'s live GroupId (sg-8bc474cff969bbe2f), its tofu-address (aws_security_group.count_test:0) and its tofu-slot (0) unchanged, and count_test[1] (sg-86d8f0d7d55b1befc) genuinely absent - all read through the AWS CLI, never choudoufu's own report; scaling back from 1 to 2 created exactly count_test[1] (Plan: 1 to add, 0 to change, 0 to destroy.) under a NEW server-minted GroupId (sg-1b0a2888ad3a3db18, was sg-86d8f0d7d55b1befc) carrying tofu-address=aws_security_group.count_test:1 and the same tofu-slot=1, while count_test[0] stayed untouched throughout; the next plan is empty. Stock oracle (H-ORACLE), the identical 2-instance block stood up for real with plain terraform in its own account and its own working directory - stock never had this block, so unlike day2_rename/day2_remove/day2_replace there is no cold_deploy state to reuse - shows the identical shape: Plan: 0 to add, 0 to change, 1 to destroy. destroying count_test[1]=sg-ecc58380ed7a1dc09 only, then Plan: 1 to add, 0 to change, 0 to destroy. bringing it back under a new GroupId (sg-519bc4bdee4a7c82a), with count_test[0]=sg-9f05f95eeb23db91e unchanged both times. SYNTHETIC block, and why: this estate's corpus example (terraform-aws-modules/terraform-aws-ecs v7.6.0, examples/fargate) declares no scalable count knob at all - every count in its vendored modules is a 'count = local.create ? 1 : 0' boolean create toggle, which cannot hold two instances - and the only construct holding three, module.vpc's private_subnets, is driven by local.azs, which the ECS service's network configuration, the ALB and the NAT gateway all read, so scaling it churns a dozen unrelated resources instead of isolating which count instance a scale-down destroys. aws_security_group was chosen because this estate already exercises it three times in its own vendored modules (modules/cluster, modules/service, modules/express-service each declare aws_security_group.this) and because its destroy is witnessed TWICE on the pinned emulator - a new GroupId AND verified absence in between - established by reading the EC2 API directly with no tofu in the loop before any assertion here was written. Placed last, after every other stage reported, at an address nothing else in this configuration names, so no earlier stage's assertions move. BREAK_COUNT=1 asserts the WRONG instance (count_test[0]) was destroyed and correctly fails."
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
           "verdict": "pass",
-          "duration": "31s",
+          "duration": "36s",
           "detail": "choudoufu: changing module.ecs_task_definition's ForceNew name argument (module CALL, passed through to the local module's own family = coalesce(var.family, var.name)) proposed a forced replace at the same declared address (Plan: 8 to add, 0 to change, 8 to destroy.), applied cleanly; the old task definition is confirmed INACTIVE via the AWS CLI (ECS deregisters rather than deletes) and the new one (arn:aws:ecs:eu-west-1:000000000000:task-definition/ex-fargate-standalone-v2:1) carries the marker, moved via the tofu-address tag (arn:aws:ecs:eu-west-1:000000000000:task-definition/ex-fargate-standalone:1 -\u003e arn:aws:ecs:eu-west-1:000000000000:task-definition/ex-fargate-standalone-v2:1); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes replacing the task definition at the same address (Plan: 8 to add, 0 to change, 8 to destroy., plan only, not applied - it shares floci's account with $ADOPTED_EST); BREAK=replace confirms a manufactured marker collision - a second, genuinely live task definition wearing this address's marker, which no tombstone names as destroyed - is still reported loudly (\"Indistinguishable instances without per-instance markers\", naming both ARNs) rather than pruned or silently proposed as nothing, which is #849's own rule holding on this route too. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names; the local record store is read by value on both sides of the replace (#879): before it, the record names family=ex-fargate-standalone with identity.secondary_id=arn:aws:ecs:eu-west-1:000000000000:task-definition/ex-fargate-standalone:1; after it, identity.secondary_id=arn:aws:ecs:eu-west-1:000000000000:task-definition/ex-fargate-standalone-v2:1 with exactly one tombstone naming arn:aws:ecs:eu-west-1:000000000000:task-definition/ex-fargate-standalone:1, which is what lets the F2 plan tell the deregistered object's lingering tag from a second live claimant instead of refusing \"Indistinguishable instances without per-instance markers\" forever; two earlier target choices each found a genuine, separate defect: aws_service_discovery_http_namespace.this_renamed's (mv.go's propagateModuleRename skipping MoveRecord for a same-module rename) is FIXED on the gauntlet/mv-rekey branch, GitHub issue #412 - see F-ORACLE's own header comment and corpus-autoscaling-complete's/corpus-eks-basic's matching mv.go finding in this same unit, neither of which was re-run for #412; module.alb_renamed's (the non-converging cascade, F-ORACLE's own header comment, finding 2) remains a separate, open finding, not fixed here."
         },
         {
@@ -794,14 +792,14 @@
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "55s",
-          "detail": "one argument edited (module \"ecs_service\"'s service_tags ServiceTag, \"Tag on service level\" -\u003e \"Tag on service level, reviewed\" - the service module merges service_tags into aws_ecs_service's own tags and nowhere else, so it reaches exactly one instance where every tags = local.tags in this example fans out over a whole module), \"plan -out=approved.tfplan\" wrote a 165227-byte stock-format plan file whose whole change set is one update on module.ecs_service.aws_ecs_service.this[0]; the world then moved out of band (VPC vpc-f953a2fb's Name tag, through the AWS CLI, never through choudoufu - the same mutation STAGE 5 uses) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.vpc.aws_vpc.this[0] and the live vpc-f953a2fb it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - arn:aws:ecs:eu-west-1:000000000000:service/ex-fargate/ex-fargate still read ServiceTag=\"Tag on service level\" through ecs list-tags-for-resource, not from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the VPC's Name tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and the service read back with the reviewed ServiceTag, so the refusal is earned by the drift and not handed out to every plan file. The edit was then reverted, re-applied and the estate replanned empty, so PART D starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+          "duration": "1m7s",
+          "detail": "one argument edited (module \"ecs_service\"'s service_tags ServiceTag, \"Tag on service level\" -\u003e \"Tag on service level, reviewed\" - the service module merges service_tags into aws_ecs_service's own tags and nowhere else, so it reaches exactly one instance where every tags = local.tags in this example fans out over a whole module), \"plan -out=approved.tfplan\" wrote a 165296-byte stock-format plan file whose whole change set is one update on module.ecs_service.aws_ecs_service.this[0]; the world then moved out of band (VPC vpc-e1aea747's Name tag, through the AWS CLI, never through choudoufu - the same mutation STAGE 5 uses) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.vpc.aws_vpc.this[0] and the live vpc-e1aea747 it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - arn:aws:ecs:eu-west-1:000000000000:service/ex-fargate/ex-fargate still read ServiceTag=\"Tag on service level\" through ecs list-tags-for-resource, not from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the VPC's Name tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and the service read back with the reviewed ServiceTag, so the refusal is earned by the drift and not handed out to every plan file. The edit was then reverted, re-applied and the estate replanned empty, so PART D starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "2m57s",
+          "duration": "3m0s",
           "detail": "62 resources from nothing, cluster marker verified via the AWS CLI, 62 of 62 records in the local record store (#364 A2; both aws_ecs_task_definition instances are now included, #671 having closed the numeric-wire-identity-component gap in internal/live/identity/located.go's LocatedIdentityPlanFor that used to exclude them), replan empty, stock oracle in its own namespace matches structurally on cluster/service/standalone-task-definition/CloudMap-namespace/ALB/VPC"
         },
         {
@@ -844,8 +842,6 @@
       "last_run_note": "Last run at commit `f707182267` on 2026-10-02T19:26:38Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 9m41.4s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -975,8 +971,6 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1106,8 +1100,6 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1237,8 +1229,6 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1368,8 +1358,6 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1499,8 +1487,6 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1630,8 +1616,6 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1755,77 +1739,75 @@
         "pass",
         "not run"
       ],
-      "runtime_total": "2m57.9s",
-      "runtime_cells": "cold_deploy 22s, migrate 36s, test_plan 3s, test_apply 4s, drift_reconverge 7s, day2_rename 13s, day2_remove 9s, day2_count 29s, day2_replace 10s, plan_approval 26s, greenfield 19s",
-      "last_run_note": "Last run at commit `f707182267` on 2026-10-02T19:19:39Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 2m57.9s.",
+      "runtime_total": "6m41.6s",
+      "runtime_cells": "cold_deploy 19s, migrate 1m8s, test_plan 6s, test_apply 19s, drift_reconverge 21s, day2_rename 25s, day2_remove 33s, day2_count 1m33s, day2_replace 25s, plan_approval 54s, greenfield 38s",
+      "last_run_note": "Last run at commit `debf8ccd05` on 2026-10-03T02:46:49Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 6m41.6s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "22s",
-          "detail": "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=iam-read-only-policy-crossing before migration"
+          "duration": "19s",
+          "detail": "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=iam-read-only-policy-crossing before migration, counted through GetResources AND IAM's own list-policy-tags (#1275 - GetResources does not return this eu-west-1 estate's IAM policy on this pin, so the GetResources-only count this line used to carry read 0 whether or not anything was marked)"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "36s",
+          "duration": "1m8s",
           "detail": "1 of 1 stamped, carrying tofu-slot=0 read back through IAM (choudoufu #372); Apply complete! Resources: 0 added, 0 changed, 0 destroyed. - nothing left to converge"
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "3s",
+          "duration": "6s",
           "detail": "no resource change proposed, nothing foreign; identity re-check (via the AWS CLI) unchanged"
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "4s",
-          "detail": "genuine no-op: 0 objects before, 0 after, no state file either time"
+          "duration": "19s",
+          "detail": "genuine no-op: 1 objects before, 1 after, no state file either time - counted through GetResources (0 of them) AND IAM's own list-policy-tags (1), deduplicated by ARN, because GetResources does not return this eu-west-1 estate's IAM policy on this pin and the GetResources-only count this stage used to carry read 0 on both sides (#1275)"
         },
         {
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
           "verdict": "pass",
-          "duration": "7s",
-          "detail": "one object tampered (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-65b51676916e36c9997f855785's Example tag), plan proposed fixing exactly module.read_only_iam_policy.aws_iam_policy.policy[0], apply changed 1 and reconverged the tag"
+          "duration": "21s",
+          "detail": "one object tampered (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-5ffc162c31b6f5df040c0c4114's Example tag), plan proposed fixing exactly module.read_only_iam_policy.aws_iam_policy.policy[0], apply changed 1 and reconverged the tag"
         },
         {
           "id": "day2_rename",
           "title": "Rename",
           "verdict": "pass",
-          "duration": "13s",
+          "duration": "25s",
           "detail": "moved block: module.read_only_iam_policy renamed to module.read_only_iam_policy_moved with zero churn (0 add, 1 change, 0 destroy), tofu-address marker rewritten in place; live-mv: module.read_only_iam_policy_moved renamed to module.read_only_iam_policy_final with zero churn, marker rewritten in place; stock oracle over the identical net rename on cold_deploy's own state also shows a true no-op (0 add, 0 change, 0 destroy, outputs unchanged in value); the live policy ARN unchanged throughout, read via the AWS CLI"
         },
         {
           "id": "day2_remove",
           "title": "Remove a block",
           "verdict": "pass",
-          "duration": "9s",
+          "duration": "33s",
           "detail": "choudoufu: deleting module.read_only_iam_policy_final's block proposed exactly one destroy (0 add, 0 change, 1 destroy), applied cleanly (0 added, 0 changed, 1 destroyed), the object is genuinely gone from the live account (iam get-policy on the old ARN now returns NoSuchEntity, read via the AWS CLI, not choudoufu's own report), and the next plan proposes no resource action; classifyOrphans did not withhold the destroy because no other aws_iam_policy.policy block anywhere in this config ever declares a real instance (count=0 on both remaining module calls)"
         },
         {
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "29s",
+          "duration": "1m33s",
           "detail": "choudoufu: scaling aws_iam_policy.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live PolicyId and tofu-address marker unchanged; scaling back from 1 to 2 created exactly count_test[1] under the SAME ARN (deterministic from name+path) but a NEW PolicyId (0 add, 0 change -\u003e 1 add, 0 change, 0 destroy) while count_test[0] stayed untouched throughout; the next plan is empty; the G-ORACLE stock oracle on the same 2-instance count block, applied fresh in the idle greenfield-oracle account, shows the identical shape: destroy the higher index only, create the higher index back under the same ARN but a new PolicyId, the lower index's PolicyId unchanged both times"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
           "verdict": "pass",
-          "duration": "10s",
-          "detail": "choudoufu: changing module.read_only_iam_policy_final's ForceNew description argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-65b51676916e36c9997f855785) is confirmed gone and the new object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-0c40422a6a006b227bd7935277) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-65b51676916e36c9997f855785 -\u003e arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-0c40422a6a006b227bd7935277); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
+          "duration": "25s",
+          "detail": "choudoufu: changing module.read_only_iam_policy_final's ForceNew description argument proposed exactly one replace at the same declared address (1 add, 0 change, 1 destroy; -/+ destroy and then create), applied cleanly; the old object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-5ffc162c31b6f5df040c0c4114) is confirmed gone and the new object (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-b4839161bade8212b72ff3e762) carries the marker, both via the AWS CLI; the local record store's record at the same address now names the new object's import_id, not the destroyed one (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-5ffc162c31b6f5df040c0c4114 -\u003e arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-b4839161bade8212b72ff3e762); the next plan proposes no resource action; stock oracle on cold_deploy's own state (F-ORACLE) also proposes exactly one replace at the same address (plan only, not applied); BREAK=replace confirms a manufactured marker collision is reported loudly rather than silently proposed as nothing. Scope note: this exercises OpenTofu's default destroy-then-create ordering, not the create_before_destroy variant the stage's Title names - see this section's own header comment."
         },
         {
           "id": "day2_crash",
@@ -1841,14 +1823,14 @@
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "26s",
-          "detail": "one argument edited (aws_iam_policy.approval_probe's Reviewed tag, no -\u003e yes), \"plan -out=approved.tfplan\" wrote a 30628-byte stock-format plan file whose whole change set is one update on aws_iam_policy.approval_probe; the world then moved out of band (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-65b51676916e36c9997f855785's Example tag, this estate's own STAGE 5 mutation lifted, through the AWS CLI and never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.read_only_iam_policy.aws_iam_policy.policy[0] and the live arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-65b51676916e36c9997f855785 it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - arn:aws:iam::000000000000:policy/example/iam-ro-approval-probe still read Reviewed=no through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and arn:aws:iam::000000000000:policy/example/iam-ro-approval-probe read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The reviewed object is a self-contained synthetic aws_iam_policy.approval_probe (sanctioned fallback per live/GAUNTLET.md #8, same discipline as PART G's count_test) because this estate has exactly ONE real object and the leg needs two disjoint rows; it is created in P0 and destroyed in P5, and the module policy's ARN and Example tag are read back unchanged so PART D starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+          "duration": "54s",
+          "detail": "one argument edited (aws_iam_policy.approval_probe's Reviewed tag, no -\u003e yes), \"plan -out=approved.tfplan\" wrote a 30634-byte stock-format plan file whose whole change set is one update on aws_iam_policy.approval_probe; the world then moved out of band (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-5ffc162c31b6f5df040c0c4114's Example tag, this estate's own STAGE 5 mutation lifted, through the AWS CLI and never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.read_only_iam_policy.aws_iam_policy.policy[0] and the live arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-5ffc162c31b6f5df040c0c4114 it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - arn:aws:iam::000000000000:policy/example/iam-ro-approval-probe still read Reviewed=no through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and arn:aws:iam::000000000000:policy/example/iam-ro-approval-probe read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The reviewed object is a self-contained synthetic aws_iam_policy.approval_probe (sanctioned fallback per live/GAUNTLET.md #8, same discipline as PART G's count_test) because this estate has exactly ONE real object and the leg needs two disjoint rows; it is created in P0 and destroyed in P5, and the module policy's ARN and Example tag are read back unchanged so PART D starts where it would have. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "19s",
+          "duration": "38s",
           "detail": "1 resource from nothing, marker verified via the AWS CLI, 1 record in the local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally (path, description, policy document)"
         },
         {
@@ -1892,8 +1874,6 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2023,8 +2003,6 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `5.100.0`. **Stale**: the current pin is `6.63.0`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2154,8 +2132,6 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2284,8 +2260,6 @@
       "last_run_note": "Last run at commit `f707182267` on 2026-10-02T19:46:42Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 14m20.1s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2415,8 +2389,6 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2546,8 +2518,6 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2677,8 +2647,6 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2807,8 +2775,6 @@
       "last_run_note": "Last run at commit `f707182267` on 2026-10-02T19:29:09Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 12m15s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2938,8 +2904,6 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3063,9 +3027,9 @@
         "pass",
         "not run"
       ],
-      "runtime_total": "7m44.5s",
-      "runtime_cells": "cold_deploy 35s, migrate 2m21s, test_plan 8s, test_apply 7s, drift_reconverge 16s, day2_rename 26s, day2_remove 29s, day2_count 2m17s, day2_replace 29s, plan_approval 36s, greenfield 1m18s",
-      "last_run_note": "Last run at commit `c134a6edeb` on 2026-10-03T04:36:14Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 7m44.5s.",
+      "runtime_total": "6m39.7s",
+      "runtime_cells": "cold_deploy 40s, migrate 1m32s, test_plan 8s, test_apply 7s, drift_reconverge 19s, day2_rename 24s, day2_remove 29s, day2_count 1m58s, day2_replace 28s, plan_approval 33s, greenfield 58s",
+      "last_run_note": "Last run at commit `f707182267` on 2026-10-02T19:38:43Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 6m39.7s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
@@ -3074,14 +3038,14 @@
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "35s",
+          "duration": "40s",
           "detail": "Apply complete! Resources: 62 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=vpc-complete-crossing before migration"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "2m21s",
+          "duration": "1m32s",
           "detail": "40 stamped, 22 skipped, 0 recorded, 0 failed; 39 objects carry tofu-estate=vpc-complete-crossing; the VPC's tofu-slot reads 0 off EC2, written by the migration itself (choudoufu #372)"
         },
         {
@@ -3102,14 +3066,14 @@
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
           "verdict": "pass",
-          "duration": "16s",
+          "duration": "19s",
           "detail": "one subnet tampered (Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag to ex-complete"
         },
         {
           "id": "day2_rename",
           "title": "Rename",
           "verdict": "pass",
-          "duration": "26s",
+          "duration": "24s",
           "detail": "moved block: module.vpc_endpoints renamed with zero churn (0 add, 7 change, 0 destroy), marker rewritten in place across its taggable objects; live-mv: aws_security_group.rds renamed with zero churn, marker rewritten in place; stock oracle over the same two-object rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
         },
         {
@@ -3123,15 +3087,15 @@
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "2m17s",
-          "detail": "choudoufu: scaling aws_customer_gateway.count_test from 2 to 1 destroyed exactly count_test[1], the higher index (0 add, 0 change, 1 destroy), and cgw-4cf834893d835f1ad is confirmed gone from the live account while count_test[0] (cgw-a1ecf7815d6344a49) kept its server-minted id, its tofu-address marker and its tofu-slot; scaling back from 1 to 2 created exactly count_test[1] (1 add, 0 change, 0 destroy) as a genuinely NEW object (cgw-ab989723a3b2706c2, not the destroyed cgw-4cf834893d835f1ad), with count_test[0] untouched throughout; the next plan is empty. Every identity above was read off EC2 through the AWS CLI, by the tofu-address marker, never from choudoufu's own report. Stock oracle (G-ORACLE): the identical count block stood up by terraform in its own floci account and scaled 2-\u003e1-\u003e2 for real shows the identical shape - destroy count_test[1] only, recreate it under a new id, count_test[0]'s id unchanged both times. THE BLOCK IS SYNTHETIC, deliberately: every real count knob in this estate is a subnet list that drives an untaggable aws_route_table_association count block in lockstep (a question about orphaned derived children, not about count-slot binding), and the one real zero-cascade knob, module.vpc's customer_gateways, is a for_each map with no index slots and is already day2_replace's target - so the block uses aws_customer_gateway, a type this estate really does exercise three of. Building it found and fixed a real defect (five-row row 2): the scale-down proposed NO destroy at all, because the removal sweep read live/mapping.json's via=\"former2\" provenance - a Cloud Control ENUMERABILITY filter - to answer the identity question \"which TF type is this ARN\", and classified aws_customer_gateway TYPE_NOT_LISTABLE against live/registry.json's own handlers.list=true."
+          "duration": "1m58s",
+          "detail": "choudoufu: scaling aws_customer_gateway.count_test from 2 to 1 destroyed exactly count_test[1], the higher index (0 add, 0 change, 1 destroy), and cgw-87eb436e249c25484 is confirmed gone from the live account while count_test[0] (cgw-f5f44b808e635df77) kept its server-minted id, its tofu-address marker and its tofu-slot; scaling back from 1 to 2 created exactly count_test[1] (1 add, 0 change, 0 destroy) as a genuinely NEW object (cgw-8fca20f0d657f3c0d, not the destroyed cgw-87eb436e249c25484), with count_test[0] untouched throughout; the next plan is empty. Every identity above was read off EC2 through the AWS CLI, by the tofu-address marker, never from choudoufu's own report. Stock oracle (G-ORACLE): the identical count block stood up by terraform in its own floci account and scaled 2-\u003e1-\u003e2 for real shows the identical shape - destroy count_test[1] only, recreate it under a new id, count_test[0]'s id unchanged both times. THE BLOCK IS SYNTHETIC, deliberately: every real count knob in this estate is a subnet list that drives an untaggable aws_route_table_association count block in lockstep (a question about orphaned derived children, not about count-slot binding), and the one real zero-cascade knob, module.vpc's customer_gateways, is a for_each map with no index slots and is already day2_replace's target - so the block uses aws_customer_gateway, a type this estate really does exercise three of. Building it found and fixed a real defect (five-row row 2): the scale-down proposed NO destroy at all, because the removal sweep read live/mapping.json's via=\"former2\" provenance - a Cloud Control ENUMERABILITY filter - to answer the identity question \"which TF type is this ARN\", and classified aws_customer_gateway TYPE_NOT_LISTABLE against live/registry.json's own handlers.list=true."
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
           "verdict": "pass",
-          "duration": "29s",
-          "detail": "choudoufu: changing customer_gateways[\"IP1\"]'s ForceNew ip_address argument proposed exactly one isolated replace at the same declared for_each key (1 to add, 1 to destroy, nothing else), matching F-ORACLE's own plan shape; applied cleanly; the old gateway (cgw-8441bb9b6f6bd45ba) is confirmed gone/deleted and the new gateway (cgw-9c0a00ec88bfc0278) carries the marker, both via the AWS CLI; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here)."
+          "duration": "28s",
+          "detail": "choudoufu: changing customer_gateways[\"IP1\"]'s ForceNew ip_address argument proposed exactly one isolated replace at the same declared for_each key (1 to add, 1 to destroy, nothing else), matching F-ORACLE's own plan shape; applied cleanly; the old gateway (cgw-7e504e06a4790136b) is confirmed gone/deleted and the new gateway (cgw-060b97f8f09db5dc2) carries the marker, both via the AWS CLI; the next plan proposes no resource action. No BREAK=replace leg - see this section's own header comment (reusing corpus-security-group-complete's own finding from this same unit rather than re-measuring it here)."
         },
         {
           "id": "day2_crash",
@@ -3147,14 +3111,14 @@
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "36s",
-          "detail": "one argument edited (aws_security_group.rds's tags gain Reviewed=yes, a tags-only update that is not ForceNew and leaves sg-3587abcfa5a1fd6d4's id alone for PART D's later rename), \"plan -out=approved.tfplan\" wrote a 69785-byte stock-format plan file whose whole change set is one update on aws_security_group.rds; the world then moved out of band (subnet-5b21427a's Example tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.vpc.aws_subnet.private[0] and the live subnet-5b21427a it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - sg-3587abcfa5a1fd6d4 still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and sg-3587abcfa5a1fd6d4 read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+          "duration": "33s",
+          "detail": "one argument edited (aws_security_group.rds's tags gain Reviewed=yes, a tags-only update that is not ForceNew and leaves sg-7ba46064f06814f3e's id alone for PART D's later rename), \"plan -out=approved.tfplan\" wrote a 69819-byte stock-format plan file whose whole change set is one update on aws_security_group.rds; the world then moved out of band (subnet-c5f30b1a's Example tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both module.vpc.aws_subnet.private[0] and the live subnet-c5f30b1a it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - sg-7ba46064f06814f3e still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and sg-7ba46064f06814f3e read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "1m18s",
+          "duration": "58s",
           "detail": "62 resources from nothing (40 tag-stamped, 22 untaggable/derived), replan empty, stock oracle in its own namespace matches on vpc cidr, subnet count (18) and the s3 endpoint's presence"
         },
         {
@@ -3198,8 +3162,6 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3327,8 +3289,6 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3453,48 +3413,46 @@
         "pass",
         "not run"
       ],
-      "runtime_total": "8m36.2s",
-      "runtime_cells": "cold_deploy 2m33s, migrate 39s, test_plan 11s, test_apply 16s, drift_reconverge 47s, day2_rename 31s, day2_remove 18s, day2_count 35s, day2_replace 22s, plan_approval 32s, greenfield 1m52s, strict -",
-      "last_run_note": "Last run at commit `f707182267` on 2026-10-02T19:25:32Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 8m36.2s.",
+      "runtime_total": "10m16.9s",
+      "runtime_cells": "cold_deploy 2m28s, migrate 56s, test_plan 12s, test_apply 18s, drift_reconverge 1m11s, day2_rename 31s, day2_remove 22s, day2_count 45s, day2_replace 35s, plan_approval 43s, greenfield 2m15s, strict -",
+      "last_run_note": "Last run at commit `debf8ccd05` on 2026-10-03T02:57:13Z, exit code 0, against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`. Total run time 10m16.9s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.59.0`. **Stale**: the current pin is `6.63.0`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "2m33s",
+          "duration": "2m28s",
           "detail": "stock terraform applied 79 resources at scale=1 from unmodified terralith-gen output into BOTH accounts (COLD keeps its terraform.tfstate for migrate to adopt from and is confirmed carrying no tofu-address tag; GREEN was enumerated at 34 objects, proved non-vacuous by a deliberately-added role, then destroyed back to an enumerated-empty account - issue #564's own proof, unchanged)"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "39s",
+          "duration": "56s",
           "detail": "live-import ratified 38 of 79 instances as eligible and stamped all 38 with 0 failed and 41 skipped (untaggable, identity composed from an already-stamped parent); every one of the 79 addresses in stock's own `terraform state list` - this stage's oracle - is accounted for by name in the report"
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "11s",
+          "duration": "12s",
           "detail": "post-migration plan is empty; six rendered identities asserted BY VALUE against the AWS CLI across four separate tagging surfaces (Route 53, IAM, ECS, EC2), including the count-indexed aws_iam_role.count_team[1] and the module-nested, double-indexed module.team_pod[\"pod-a\"].aws_iam_role.pod_role[0]"
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "16s",
-          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); the estate is enumerated object by object before and after - 34 objects across IAM/Route53/ECS/EC2, byte-identical listings, never a bare count - and the tofu-estate-tagged count is unchanged at 27"
+          "duration": "18s",
+          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); the estate is enumerated object by object before and after - 34 objects across IAM/Route53/ECS/EC2, byte-identical listings, never a bare count - and the tofu-estate-tagged count GetResources indexes is unchanged at 27 (it omits IAM roles on this pin, #1275; the enumeration is the oracle)"
         },
         {
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
           "verdict": "pass",
-          "duration": "47s",
+          "duration": "1m11s",
           "detail": "one live object mutated out of band through the AWS CLI; choudoufu's next plan proposed fixing exactly aws_vpc.main and nothing else (0 add, 1 change, 0 destroy), matching stock's own plan for the identical mutation on cold_deploy's own state (B4, taken before any marker existed); the apply changed exactly 1 resource, the Name tag reads back as configured and the tofu-address marker is unchanged"
         },
         {
@@ -3508,21 +3466,21 @@
           "id": "day2_remove",
           "title": "Remove a block",
           "verdict": "pass",
-          "duration": "18s",
+          "duration": "22s",
           "detail": "deleting two blocks - the taggable, marked aws_iam_instance_profile.team_0002_profile and the UNTAGGABLE aws_iam_role_policy.team_0002_inline, whose parent role stays declared - proposed exactly two destroys (0 add, 0 change, 2 destroy) in an order the cloud accepted, matching stock's own plan for the same two removals on cold_deploy's state (B2); the apply destroyed exactly two, both objects are confirmed gone and the parent role confirmed still live via the AWS CLI, and the next plan is empty"
         },
         {
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "35s",
+          "duration": "45s",
           "detail": "the estate's OWN count block - six declarations across four resource types, two of them untaggable - scaled 2 to 1 and back: exactly six index-[1] destroys then exactly six index-[1] creates, no index-[0] instance touched in either plan, matching stock's own applied cycle over the identical six-block shape in a separate account (G1); across the whole cycle count_team[0]'s live role id was unchanged and its marker still reads aws_iam_role.count_team[0], count_team_profile[0]'s still reads aws_iam_instance_profile.count_team_profile[0], the recreated count_team[1] carries aws_iam_role.count_team[1], and the plan afterwards is empty"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
           "verdict": "pass",
-          "duration": "22s",
+          "duration": "35s",
           "detail": "changing aws_iam_instance_profile.team_0004_profile's ForceNew name under create_before_destroy proposed exactly one isolated replace at the same declared address (1 to add, 0 to change, 1 to destroy), matching stock's own plan for the identical change on cold_deploy's state (B3); the apply created the new object and destroyed the old one, the old name no longer resolves and the new one carries the declared address's marker (both read via the AWS CLI), and the next plan is empty with no collision"
         },
         {
@@ -3539,14 +3497,14 @@
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "32s",
-          "detail": "one argument edited through the generator's own render_config path (the reviewp case: aws_subnet.main's tags gain Reviewed=yes - the one shared, singular, taggable resource no later part renames, removes, scales or replaces, and a tags-only update that is not ForceNew, so the subnet id ecs.tf reads is untouched), \"plan -out=approved.tfplan\" wrote a 39844-byte stock-format plan file whose whole change set is one update on aws_subnet.main (Plan: 0 to add, 1 to change, 0 to destroy); the world then moved out of band (vpc-2bdc872d's Name tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both aws_vpc.main and the live vpc-2bdc872d it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - subnet-a1d0a48b still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and subnet-a1d0a48b read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The estate re-renders to the pristine generator output, replans empty and the VPC's tofu-address marker still reads aws_vpc.main. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
+          "duration": "43s",
+          "detail": "one argument edited through the generator's own render_config path (the reviewp case: aws_subnet.main's tags gain Reviewed=yes - the one shared, singular, taggable resource no later part renames, removes, scales or replaces, and a tags-only update that is not ForceNew, so the subnet id ecs.tf reads is untouched), \"plan -out=approved.tfplan\" wrote a 38745-byte stock-format plan file whose whole change set is one update on aws_subnet.main (Plan: 0 to add, 1 to change, 0 to destroy); the world then moved out of band (vpc-1f46250d's Name tag, through the AWS CLI, never through choudoufu) and \"apply approved.tfplan\" refused with \"The approved plan no longer matches the live system\" at exit 3, classifying the drift under \"This apply would do, and the approved plan does not include:\" and naming both aws_vpc.main and the live vpc-1f46250d it was computed against, with \"Exit status 3\" spelled out for a pipeline; nothing was applied - subnet-6ed37d28 still carried no Reviewed tag, read back through the AWS CLI rather than from the absence of an \"Apply complete!\" line. Inverted control on the same run (the shape live/smoke/scenarios/apply-what-was-approved.sh reasons out): with the tag put back and nothing else changed, the IDENTICAL file applied - 0 added, 1 changed, 0 destroyed - and subnet-6ed37d28 read back with Reviewed=yes, so the refusal is earned by the drift and not handed out to every plan file. The estate re-renders to the pristine generator output, replans empty and the VPC's tofu-address marker still reads aws_vpc.main. BREAK_APPROVAL=1 asserts stage 12's own recorded Break line (apply the planfile after a mutation and expect success) and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "1m52s",
+          "duration": "2m15s",
           "detail": "choudoufu applied 79 resources into an account a stock destroy had left enumerated empty (A2), and its cloud matches stock's cold deploy across 79 structural facts compared object by object with marker tags never read on either side - the oracle this stage names. Also, beyond the oracle: the six representative identities are correct by value via the AWS CLI across Route 53/IAM/ECS/EC2; the apply persisted 79 records, matching stock's own instance list type for type with no gap - #671 closed the last one (aws_ecs_task_definition), which used to get no record and now does; the next plan is empty; and with the local record store deleted outright every one of the 79 objects is still found - nothing created, destroyed or replaced, 41 of them untaggable and composing from a stamped parent - with the only movement being 1 residue-held aws_ecs_service update(s), which is what deleting the residue store (issue #275) means rather than a divergence"
         },
         {
@@ -3591,8 +3549,6 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3721,8 +3677,6 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/kubernetes `3.3.0`. **Stale**: the current pin is `3.2.1`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3849,9 +3803,9 @@
         "pass",
         "pass"
       ],
-      "runtime_total": "11m23s",
-      "runtime_cells": "cold_deploy 1m36s, migrate 2s, test_plan 11s, test_apply 13s, drift_reconverge 24s, day2_rename 24s, day2_remove 34s, day2_count 58s, day2_replace 56s, day2_crash 3m38s, day2_teardown 24s, plan_approval 35s, greenfield 1m8s, strict 19s",
-      "last_run_note": "Last run at commit `14ba7612ad` on 2026-10-03T02:54:59Z, exit code 0, against substrate image `kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5`. Total run time 11m23s.",
+      "runtime_total": "11m34.1s",
+      "runtime_cells": "cold_deploy 1m35s, migrate 3s, test_plan 11s, test_apply 12s, drift_reconverge 24s, day2_rename 24s, day2_remove 36s, day2_count 59s, day2_replace 59s, day2_crash 3m41s, day2_teardown 25s, plan_approval 35s, greenfield 1m10s, strict 18s",
+      "last_run_note": "Last run at commit `f707182267` on 2026-10-02T19:42:46Z, exit code 0, against substrate image `kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5`. Total run time 11m34.1s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
@@ -3860,14 +3814,14 @@
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "1m36s",
+          "duration": "1m35s",
           "detail": "7 objects (namespace, 3 ConfigMaps, ServiceAccount, Service, Deployment) from plain terraform against kind v1.37.0, a real terraform.tfstate with 7 instances, zero tofu-estate labels read back with kubectl; the identical shape cold-deployed by stock on a second cluster as every later stage's oracle"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "2s",
+          "duration": "3s",
           "detail": "7 of 7 stamped, 0 skipped; every object carries tofu-estate=reference-k8s, read back with kubectl"
         },
         {
@@ -3881,7 +3835,7 @@
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "13s",
+          "duration": "12s",
           "detail": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=reference-k8s unchanged at 7 across the six kinds the count covers, counted with kubectl"
         },
         {
@@ -3902,35 +3856,35 @@
           "id": "day2_remove",
           "title": "Remove a block",
           "verdict": "pass",
-          "duration": "34s",
+          "duration": "36s",
           "detail": "deleting kubernetes_service_account.team's block proposed exactly one destroy (0 add, 0 change, 1 destroy) at the sweep's synthetic orphan address kubernetes_service_account_v1.orphan_refk8s_app (\"Owned and undeclared: 1 live resource will be destroyed\") - the object is found by its label, which carries no address, and filed under the versioned type since no block declares the kind any more - applied cleanly, the object gone from the cluster (kubectl get serviceaccount: NotFound) and the next plan empty; stock's plan for the same removal on the oracle cluster is also exactly one destroy; the Deployment's ReplicaSet and Pod, which carry no estate label, were never proposed. BREAK_REMOVE=1 keeps the block and no destroy is proposed"
         },
         {
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "58s",
+          "duration": "59s",
           "detail": "scaling kubernetes_config_map.shard from 2 to 1 destroyed exactly shard-1, planned at the sweep's orphan address kubernetes_config_map.orphan_refk8s_shard-1 since the label carries no index (shard-0 untouched, both read with kubectl); back to 2 created exactly kubernetes_config_map.shard[1] under the same name; the next plan is empty; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
           "verdict": "pass",
-          "duration": "56s",
+          "duration": "59s",
           "detail": "a create_before_destroy ConfigMap whose content-hashed name changes (cfg-a -\u003e cfg-b) plans as stock's replace: 'kubernetes_config_map.hashed must be replaced', +/- create replacement and then destroy, 1 add and 1 destroy, with no orphan destroy beside it, because cfg-a carries the block's address annotation and the sweep binds it (#1640). At -parallelism=1 the apply log shows cfg-b's creation complete (line 65) before cfg-a's deposed destroy starts (line 66), the same order stock's apply shows on the oracle cluster; kubectl confirms cfg-b alone remains, carrying the annotation, and the next plan is empty (#1541). The block is removed from both roots afterwards. BREAK_REPLACE=1 recreates cfg-a carrying the block's annotation and the next plan correctly proposes destroying it"
         },
         {
           "id": "day2_crash",
           "title": "Crash mid-apply",
           "verdict": "pass",
-          "duration": "3m38s",
+          "duration": "3m41s",
           "detail": "an apply creating two objects was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 graph walker the instant kubernetes_config_map.crash_first's create committed (internal/command/apply_e2etesting_crash.go); crash_second reads crash_first's name, so the walker cannot have reached it - kubectl confirms crash-first exists carrying tofu-estate=reference-k8s and crash-second does not. The create-before-destroy window this stage interrupts on the emulator does not exist here (see day2_replace), and neither does a move's: a cross-estate live-mv makes one governed write, the label patch itself, and re-keys no record. The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, kubernetes_config_map.crash_second created) and proposed nothing at all for crash-first, which it bound by its label and its namespace and name - not a second create the API server would refuse, not an orphan sweep - matching stock's own plan from the same position on the oracle cluster; the recovery apply added exactly one object, both objects read back with kubectl, the plan after it is empty and 8 objects carry the estate's label. The record store's contribution is read, not counted: the interrupted apply wrote exactly one record (files 12 -\u003e 13) for kubernetes_secret.crash_first carrying residue wait_for_service_account_token, and taking that one file out of the store and replanning from the identical position turns the recovery plan from Plan: 1 to add, 0 to change, 0 to destroy into Plan: 1 to add, 1 to change, 0 to destroy, proposing wait_for_service_account_token back on the object the crash left behind; putting it back restores the exact-remainder plan. The crash pair's first object is a Secret and not a ConfigMap for that reason (#1235): a kubernetes_config_map(_v1) has neither a ratified identity row nor a config-only argument, records nothing, and made this line a count that could not move (#1188). BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips the label off crash-first and the same recovery check correctly fails The create_before_destroy rename window is interrupted too (#1768): a kubernetes_config_map renamed under create_before_destroy was killed by the engine's own hook the instant the new object's create committed, at -parallelism=1, leaving both objects carrying the block's address annotation and the record holding the old one as the address's deposed object. The verdict is the end state stock's replace leaves, not the plan's wording: after one more apply exactly the new object remains, the old one is gone, the record's deposed entry is cleared and the replan is empty. Both of the rerun's paths reached it - orphan leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at 'orphan_refk8s_crash-rename-a'; deposed leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at '(deposed object'; the same configuration through the orphan destroy, and the name read from another block's attribute (#1539's shape) through the deposed record (#1683), where stock's plan reads the same deposed-object destroy."
         },
         {
           "id": "day2_teardown",
           "title": "Teardown",
           "verdict": "pass",
-          "duration": "24s",
+          "duration": "25s",
           "detail": "apply -destroy removed exactly the 8 remaining objects in one apply, the namespace is gone and no object of any of the six kinds the count covers carries tofu-estate=reference-k8s (kubectl, every namespace); stock's destroy of the same estate on the oracle cluster also removed exactly the 8 its state held"
         },
         {
@@ -3944,14 +3898,14 @@
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "1m8s",
+          "duration": "1m10s",
           "detail": "7 objects applied fresh with a live block and no terraform.tfstate, every one labelled tofu-estate=reference-k8s (kubectl, six kinds); the record store held 7 record envelope(s) - envelopes counted by their own address field, not files, so guided discovery's hint at tofu-hints/reference-k8s and any root output in the same store are not mistaken for records (#1291); replanned empty with and without the cache. Deleting the whole record store and the cache and replanning - the reading six AWS estates take here and no Kubernetes estate took - proposed Plan: 0 to add, 1 to change, 0 to destroy: nothing created, nothing destroyed, nothing swept as an orphan, every object still bound by its label and its namespace and name, and 1 in-place update(s) putting back the residue the store held (wait_for_load_balancer); one apply reconverged and the plan after it is empty, so a lost store costs an apply here and not an object (#1188, #1235). The cluster's inventory (ConfigMap data, the Service's ports and selector, the Deployment's replicas and container, the ServiceAccount and namespace) matches stock's cold deploy on the same cluster object by object, labels never compared. BREAK=1 drops the Deployment from the expected inventory and the match correctly fails"
         },
         {
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "pass",
-          "duration": "19s",
+          "duration": "18s",
           "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_config_map) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
         }
       ]
@@ -3981,9 +3935,9 @@
         "pass",
         "pass"
       ],
-      "runtime_total": "47m56.7s",
-      "runtime_cells": "cold_deploy 2m44s, migrate 59s, test_plan 34s, test_apply 52s, drift_reconverge 1m53s, day2_rename 1m52s, day2_remove 3m52s, day2_count 5m42s, day2_replace 5m19s, day2_crash 13m6s, day2_teardown 1m35s, plan_approval 4m1s, greenfield 4m30s, strict 56s",
-      "last_run_note": "Last run at commit `a778ea0041` on 2026-10-03T03:43:09Z, exit code 0, against substrate image `kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5`. Total run time 47m56.7s.",
+      "runtime_total": "50m12.2s",
+      "runtime_cells": "cold_deploy 2m49s, migrate 1m0s, test_plan 35s, test_apply 55s, drift_reconverge 1m53s, day2_rename 1m52s, day2_remove 4m4s, day2_count 6m10s, day2_replace 5m38s, day2_crash 13m42s, day2_teardown 1m37s, plan_approval 4m11s, greenfield 4m47s, strict 58s",
+      "last_run_note": "Last run at commit `f707182267` on 2026-10-02T20:07:09Z, exit code 0, against substrate image `kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5`. Total run time 50m12.2s.",
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
@@ -3992,28 +3946,28 @@
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "2m44s",
+          "duration": "2m49s",
           "detail": "50 objects (cert-manager v1.21.2's 47-object bundle over 11 kinds plus 3 custom resources over 3 custom kinds) from plain terraform against kind v1.37.0, a real terraform.tfstate with 50 instances, zero tofu-estate labels read back with kubectl, and the Certificate Ready=True from the self-signed ClusterIssuer; the identical shape cold-deployed by stock on a second cluster as every later stage's oracle. Two applies, and the first is declared: declared pre-apply, #1173: 47 address(es) declared at pre_apply in live/gauntlet/estates.json, applied with -target on every side (estate,oracle) before the main apply - the full list is in that file and in the GAUNTLET pre_apply= line this run printed, which the runner checks address by address; forced by: kubernetes_manifest builds an object's schema at PLAN time, so a root declaring a CRD and an object of that CRD cannot be planned at all against an empty cluster - depends_on does not help and re-running fails identically forever (#1173, measured: 'no matches for kind \"ClusterIssuer\" in group \"cert-manager.io\"'). On top of that both cert-manager webhooks are failurePolicy: Fail, so the validating webhook has to be SERVING before a custom resource can be admitted - including through the server-side dry run kubernetes_manifest does at plan time. The whole installation therefore goes up first, with -target, on every side; the three custom resources are what the main apply creates. Control, run first on this same cluster: the un-targeted one-pass plan exits 1 before creating anything - \"no matches for kind \"ClusterIssuer\" in group \"cert-manager.io\"\" - so the pre-apply is load-bearing and not decoration. BREAK_PREAPPLY=1 requires that one-pass plan to succeed and correctly fails"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "59s",
+          "duration": "1m0s",
           "detail": "50 of 50 stamped, 0 skipped; every object carries tofu-estate=reference-k8s-cert-manager, counted back with kubectl across all 14 kinds including the three custom ones (ClusterIssuer, Issuer, Certificate) whose CRDs the pre-apply installed. The eligibility line was: 50 of 50 resource instance(s) are eligible for stamping (VERIFIED or DRIFTED)."
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "34s",
+          "duration": "35s",
           "detail": "the plan with no state file is empty; all 50 objects bind by namespace and name, and eight identities spanning every shape the root has - a cluster-scoped Namespace and two CRDs, a cluster-scoped custom kind (ClusterIssuer), two namespaced custom kinds (Issuer, Certificate), a Deployment and a ValidatingWebhookConfiguration - were confirmed present by value with kubectl"
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "52s",
+          "duration": "55s",
           "detail": "no-op apply (0 added, 0 changed, 0 destroyed) over a root of 50 kubernetes_manifest instances; objects carrying tofu-estate=reference-k8s-cert-manager unchanged at 50 across the estate's 14 kinds, counted with kubectl"
         },
         {
@@ -4034,56 +3988,56 @@
           "id": "day2_remove",
           "title": "Remove a block",
           "verdict": "pass",
-          "duration": "3m52s",
+          "duration": "4m4s",
           "detail": "two blocks removed, one destroy each. Deleting the namespaced custom kind (Issuer) proposed exactly one destroy at the sweep's synthetic orphan address kubernetes_manifest.orphan_issuer_cert-manager_selfsigned (\"Owned and undeclared: 1 live resource will be destroyed\") - the object is found by its label, which carries no address. Deleting the Certificate then proposed exactly ONE destroy too, and crucially NOT the Secret its controller created: example-com-tls carries controller.cert-manager.io/fao and no tofu-estate label, and it is still on the cluster afterwards ({\"controller.cert-manager.io/fao\":\"true\"}), which is the controller-copy exclusion this estate exists to check. Stock's plans for both removals on the oracle cluster are also exactly one destroy each; the next plan is empty and 48 objects remain labelled"
         },
         {
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "5m42s",
+          "duration": "6m10s",
           "detail": "scaling a COUNTED CUSTOM KIND (kubernetes_manifest.issuer_shard, a cert-manager.io/v1 Issuer whose object name is shard-${count.index} inside the manifest object) from 2 to 1 destroyed exactly shard-1, planned at kubernetes_manifest.orphan_issuer_cert-manager_shard-1 (shard-0 untouched, both read with kubectl); back to 2 created exactly one object under the same name; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
           "verdict": "pass",
-          "duration": "5m19s",
+          "duration": "5m38s",
           "detail": "a create_before_destroy ConfigMap whose content-hashed name changes (cfg-a -\u003e cfg-b) plans as stock's replace: 'kubernetes_config_map.hashed must be replaced', +/- create replacement and then destroy, 1 add and 1 destroy, with no orphan destroy beside it, because cfg-a carries the block's address annotation and the sweep binds it (#1640). At -parallelism=1 the apply log shows cfg-b's creation complete (line 65) before cfg-a's deposed destroy starts (line 66), the same order stock's apply shows on the oracle cluster; kubectl confirms cfg-b alone remains, carrying the annotation, and the next plan is empty (#1541). The block is removed from both roots afterwards. BREAK_REPLACE=1 recreates cfg-a carrying the block's annotation and the next plan correctly proposes destroying it"
         },
         {
           "id": "day2_crash",
           "title": "Crash mid-apply",
           "verdict": "pass",
-          "duration": "13m6s",
+          "duration": "13m42s",
           "detail": "an apply creating two CUSTOM RESOURCES was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 graph walker the instant kubernetes_manifest.crash_first's create committed (internal/command/apply_e2etesting_crash.go); crash_second's own manifest reads crash_first's name, so the walker cannot have reached it - kubectl confirms the Issuer crash-first exists carrying tofu-estate=reference-k8s-cert-manager and crash-second does not. Both are cert-manager.io/v1 Issuers, so every write in this graph - the plan-time server-side dry run included - goes through the two failurePolicy: Fail webhooks this estate installs, and the recovery is the counted-manifest binding path #1178 broke, reached from a half-finished apply rather than a replan. The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, kubernetes_manifest.crash_second created) and proposed nothing at all for crash-first, which it bound by its label and its namespace and name - not a second create the webhook and the API server would refuse, not an orphan sweep - matching stock's own plan from the same position on the oracle cluster; the recovery apply added exactly one object, both read back with kubectl, the plan after it is empty and 50 objects carry the estate's label, the 48 the estate carried before the pair plus exactly the pair. What the record store contributed is read by value rather than counted (#1235, #1288): the interrupted apply durably recorded exactly the one object it had created (records 57 -\u003e 58, #1188 section 3's 7 -\u003e 8 on a type that now has something to carry), and that record says the applied manifest declared metadata.labels [tofu-estate] and metadata.annotations [] - the estate marker this fork stamps in on the configuration's behalf, and the empty set a block declaring no annotations must record rather than leave out (#1211). Recording the marker key as declared is what stops the very next plan proposing its removal, which is the binding the recovery then rests on. The record carries no identity member, so the label is still the whole of the identity binding here. The pair's graph edge is the data reference the lane's other three estates use - an annotation in crash_second's manifest reading kubernetes_manifest.crash_first.manifest.metadata.name, with no depends_on between the two - which is the shape this section was first written in and which found #1262 (a kubernetes_manifest whose manifest argument references another resource never bound to its own object again). PR #1461 fixed that against a fake provider and asked for this pair as the cluster proof; the empty replan after the recovery is that proof, since the recovered crash_second, whose manifest carries the reference, is bound rather than proposed for a second create. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips the label off crash-first and the same recovery check correctly fails The create_before_destroy rename window is interrupted too (#1768): a kubernetes_config_map renamed under create_before_destroy was killed by the engine's own hook the instant the new object's create committed, at -parallelism=1, leaving both objects carrying the block's address annotation and the record holding the old one as the address's deposed object. The verdict is the end state stock's replace leaves, not the plan's wording: after one more apply exactly the new object remains, the old one is gone, the record's deposed entry is cleared and the replan is empty. Both of the rerun's paths reached it - orphan leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at 'orphan_cert-manager_crash-rename-a'; deposed leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at '(deposed object'; the same configuration through the orphan destroy, and the name read from another block's attribute (#1539's shape) through the deposed record (#1683), where stock's plan reads the same deposed-object destroy."
         },
         {
           "id": "day2_teardown",
           "title": "Teardown",
           "verdict": "pass",
-          "duration": "1m35s",
+          "duration": "1m37s",
           "detail": "apply -destroy removed exactly the 50 remaining objects in one apply - no second pass needed on the way down, although the way up took two - the namespace is gone, all six cert-manager CRDs are gone, and no object of any of the estate's 14 kinds carries tofu-estate=reference-k8s-cert-manager (kubectl, every namespace); stock's destroy of the same estate on the oracle cluster also removed exactly the 50 its state held"
         },
         {
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "4m1s",
+          "duration": "4m11s",
           "detail": "plan -out wrote one update to a namespaced custom kind (the Certificate gains a second dnsName); the world then moved out of band (the cainjector Deployment's replicas moved to 2 with kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl still reads one dnsName); with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and both dnsNames read back; stock's own planfile applied on the oracle cluster. BREAK_APPROVAL=1 expects success after the move and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "4m30s",
+          "duration": "4m47s",
           "detail": "50 objects applied fresh with a live block and no terraform.tfstate, every one labelled tofu-estate=reference-k8s-cert-manager (kubectl, 14 kinds), and the Certificate Ready=True from the self-signed ClusterIssuer exactly as stock's cold deploy left it; the record store held 50 record envelope(s), one for each of the 50 instances, asserted rather than printed (#1288: since #1211 every applied kubernetes_manifest records the metadata keys its manifest declared, so this store is full where it used to be empty); replanned empty with and without the cache, and empty again with that whole full record store deleted (No changes. Your infrastructure matches the configuration) - the reading six AWS estates take here and no Kubernetes estate took (#1235): nothing created, nothing destroyed, nothing swept as an orphan and nothing to reconverge. The label plus namespace and name carries the whole binding, and what the 50 lost records held - which metadata keys the last apply declared - proposes removing nothing when it is missing, so losing the store costs this root the ability to notice a FUTURE key deletion rather than an object or an apply. Greenfield needs the SAME declared pre-apply the cold deploy did, read from live/gauntlet/estates.json rather than repeated here - the cluster is empty again, so the CRD plan-time constraint is back and it is a property of the configuration, not of who is applying it. BREAK=1 expects a deliberately wrong object count and the assertion correctly fails"
         },
         {
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "pass",
-          "duration": "56s",
+          "duration": "58s",
           "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_manifest) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
         }
       ]
@@ -4119,8 +4073,6 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
