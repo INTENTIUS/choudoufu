@@ -64,6 +64,10 @@ var guardedPackages = []string{
 	"foreign",
 	"harness",
 	"identity",
+	// Issue #1750's multi-estate fixture: HCL text rendering, a module
+	// package publisher and a gated record. It imports no cty, so it is held
+	// to zero rather than deferred.
+	"largeset",
 	"lifecycle",
 	"lint",
 	"markerkey",
