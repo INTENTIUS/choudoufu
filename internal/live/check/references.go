@@ -128,7 +128,7 @@ func crossEstateFilters(rc *configs.Resource) (estate, address string, ok bool) 
 		Blocks: []hcl.BlockHeaderSchema{{Type: "filter"}},
 	})
 	for _, block := range content.Blocks {
-		name, values := staticFilter(block.Body)
+		name, values := StaticFilter(block.Body)
 		switch name {
 		case "tag:tofu-estate":
 			if len(values) > 0 {
@@ -143,7 +143,7 @@ func crossEstateFilters(rc *configs.Resource) (estate, address string, ok bool) 
 	return estate, address, estate != ""
 }
 
-// staticFilter reads one "filter" block's name and values arguments, the
+// StaticFilter reads one "filter" block's name and values arguments, the
 // AWS provider's own required pair for that block. Neither is decoded
 // against a provider schema - this walk runs whether or not one was ever
 // read (see [Context.Schemas]) - so a value this configuration builds from
@@ -151,7 +151,10 @@ func crossEstateFilters(rc *configs.Resource) (estate, address string, ok bool) 
 // nothing and the block is silently not a match: the same "not proven, not
 // guessed" rule [rungForType] already follows for a fact this package
 // cannot settle offline.
-func staticFilter(body hcl.Body) (name string, values []string) {
+//
+// Exported for internal/live/waves (GitHub issue #1754), which orders a set
+// of roots by these same edges and has to read the filters the same way.
+func StaticFilter(body hcl.Body) (name string, values []string) {
 	content, _, _ := body.PartialContent(&hcl.BodySchema{
 		Attributes: []hcl.AttributeSchema{{Name: "name"}, {Name: "values"}},
 	})

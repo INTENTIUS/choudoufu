@@ -39,7 +39,7 @@ explain \
   "point: identity exists only in terraform.tfstate."
 cmd "docker compose run opentofu apply -auto-approve"
 use_versions stock
-stock init -input=false -no-color >/dev/null 2>&1 || fail "roundtrip" "stock init failed"
+logged roundtrip-stock-init "roundtrip" "stock init failed" -- stock init -input=false -no-color
 SOUT="$(stock apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "roundtrip" "stock apply failed: $SOUT"
 ADDED="$(grep -oE 'Resources: [0-9]+ added' <<< "$SOUT" | grep -oE '[0-9]+')"
@@ -66,7 +66,7 @@ else
     "modified at all."
   cmd "choudoufu live-import -state=terraform.tfstate -estate=smoke-roundtrip -approve"
   use_versions live
-  ( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "roundtrip" "choudoufu init before live-import failed"
+  logged roundtrip-pre-import-init "roundtrip" "choudoufu init before live-import failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
   IOUT="$(cd "$SMOKE_WORK" && chdf live-import -state=terraform.tfstate -estate=smoke-roundtrip -approve -no-color 2>&1)" \
     || fail "roundtrip" "live-import failed: $IOUT"
   grep -iE "ratif|marked|stamp" <<< "$IOUT" | head -2 | evidence
@@ -77,7 +77,7 @@ fi
 
 step "3. bound - and the old record is now optional"
 use_versions live
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "roundtrip" "choudoufu init failed"
+logged roundtrip-init "roundtrip" "choudoufu init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 P1="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" || fail "roundtrip" "choudoufu plan failed: $P1"
 if [ "${BREAK:-0}" = "1" ]; then
   if grep -q "No changes." <<< "$P1"; then

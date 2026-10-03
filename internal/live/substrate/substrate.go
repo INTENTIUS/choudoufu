@@ -141,6 +141,13 @@ type Substrate interface {
 	// Sweep is which sweep client the family's provider block builds.
 	Sweep() Sweep
 
+	// SweepFindsUnadmitted is whether the family's sweep finds its objects
+	// independently of internal/live/identity's admission table, drawing
+	// its universe from the provider and the service rather than from the
+	// table's rows, so a type with no row is still found once its last
+	// block is removed ([Sweeps], GitHub issue #1742).
+	SweepFindsUnadmitted() bool
+
 	// NewSweeper builds the family's estate-sweep client from its provider
 	// block's evaluated configuration (ok false when the run holds none):
 	// nil with no error for a family whose sweep runs through the
@@ -180,12 +187,14 @@ type Substrate interface {
 	controllerHolding
 }
 
-// All is every family, in the order a surface question asks them.
+// All is every family, in the order an ordered question asks them.
 //
 // AWS is last, and that is load-bearing for [Substrate.SynthesizeIdentity]
 // (GitHub issue #1586): the AWS answer is the identity-schema route, which
 // claims every type, so a family with a convention of its own has to be
-// asked before it. The surface questions are disjoint and do not care.
+// asked before it. TestTheCatchAllFamilyIsLast holds it (GitHub issue
+// #1742). The surface questions are asked of the provider's own family
+// ([SurfaceOf]), so for a claimed provider the order does not decide them.
 var All = []Substrate{Kubernetes, AWS}
 
 // ForProvider is the family a provider type name belongs to ("aws",
@@ -205,13 +214,14 @@ func ForProvider(providerType string) (Substrate, bool) {
 // table (GitHub issue #1581): a type belonging to such a family needs no
 // row there to be found again once its last block is removed.
 //
-// Only Kubernetes qualifies today ([SweepLabelList]): its leg lists every
-// kind the cluster serves and joins the result against the estate's
-// objects, drawing its universe from the provider and the cluster rather
-// than from the table. AWS's own sweep ([SweepTaggingIndex]) is that same
-// admission table read a different way, so a type with no row gets nothing
-// extra from it, and neither does an unregistered provider ForProvider
-// does not recognise at all.
+// It is the family's [Substrate.SweepFindsUnadmitted] (GitHub issue
+// #1742: it used to compare the sweep kind to [SweepLabelList], which a
+// third family's own sweep could never answer). Only Kubernetes qualifies
+// today: its leg lists every kind the cluster serves and joins the result
+// against the estate's objects. AWS's own sweep ([SweepTaggingIndex]) is
+// the admission table read a different way, so a type with no row gets
+// nothing extra from it, and neither does an unregistered provider
+// ForProvider does not recognise at all.
 //
 // This is the question [internal/live/identity]'s no-orphan-recovery
 // warning needs, and it is asked by provider - the resource's own resolved
@@ -221,7 +231,7 @@ func ForProvider(providerType string) (Substrate, bool) {
 // sweep leg, if any, will actually look for it again.
 func Sweeps(providerType string) bool {
 	s, ok := ForProvider(providerType)
-	return ok && s.Sweep() == SweepLabelList
+	return ok && s.SweepFindsUnadmitted()
 }
 
 // For is the family a surface belongs to, or nil for the zero Surface.
@@ -236,15 +246,25 @@ func For(surface markers.Surface) Substrate {
 	return nil
 }
 
-// SurfaceOf is the marker surface a resource type's schema carries, or
-// false when it has none. The families' predicates are disjoint by
-// construction ([markers.LabelSurface] and [markers.ManifestSurface] each
-// refuse a [markers.Taggable] type, and the manifest shape refuses a
-// metadata block), so the order they are asked in cannot decide an answer.
+// SurfaceOf is the marker surface a resource type of provider providerType
+// carries, read off its schema, or false when it has none.
+//
+// GitHub issue #1742: the family is chosen by provider, the rule
+// [NotACarrier] and [ForProvider] use, and only that family is asked. A
+// schema alone cannot tell two families apart - an azurerm type's tags map
+// is shaped exactly like an AWS type's - so dispatching on it handed one
+// family's types to whichever claimed the shape first. A provider no
+// family claims (azurerm, datadog today) keeps the compatible default the
+// node stamp has always had: every family is asked in [All]'s order and
+// the first surface its schema carries is the one stamped (maintainer
+// ruling on #1742, 2026-10-02).
 //
 // This is the question live-mv's surface switch and live-import's carrier
 // choice asked.
-func SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
+func SurfaceOf(providerType string, block *configschema.Block) (markers.Surface, bool) {
+	if s, ok := ForProvider(providerType); ok {
+		return s.SurfaceOf(block)
+	}
 	for _, s := range All {
 		if surface, ok := s.SurfaceOf(block); ok {
 			return surface, true
@@ -297,10 +317,11 @@ func WritesOf(surface markers.Surface) Writes {
 
 // Sweeper is a family's estate-sweep client as [Substrate.NewSweeper]
 // builds it from the provider block. SweepKind is the sweep it serves,
-// its family's own [Substrate.Sweep]: internal/live/discovery pairs a
-// client with the leg that lists through it by that property, never by
-// the family's name, so a third family's client plugs in by naming a
-// sweep and a leg serving it.
+// which must be its family's own [Substrate.Sweep]: internal/command's
+// leg for that sweep checks it, then asks the client for the capability
+// the leg lists through (for [SweepLabelList], kubesweep.Sweeper), never
+// for a family's concrete type, so a third family's client plugs in by
+// naming a sweep and serving its leg (GitHub issues #1580, #1742).
 type Sweeper interface {
 	SweepKind() Sweep
 }
@@ -416,10 +437,13 @@ const (
 
 // markerWriting is the part of [Substrate] #1587 added.
 type markerWriting interface {
-	// MarkerWriter is the post-create write a provider configuration of
-	// this family builds a client for: [WriteNeverNeeded] for a family
-	// whose every surface rides the create call.
-	MarkerWriter(provider addrs.AbsProviderConfig) Write
+	// MarkerWriter is the post-create write every provider configuration
+	// of this family builds a client for: [WriteNeverNeeded] for a family
+	// whose every surface rides the create call. It is a property of the
+	// family, so it takes no provider configuration; the configuration
+	// reaches the client builder in internal/command instead (GitHub
+	// issue #1742 item 8: no family's answer ever read it).
+	MarkerWriter() Write
 }
 
 // ---- GitHub issue #1642: whether a create needs the post-create write ----
@@ -761,15 +785,15 @@ func CreatedObject(surface markers.Surface, created Created) string {
 
 // idPhrase is "[id=...]", or a sentence saying the object has no id.
 func idPhrase(obj cty.Value) string {
-	if id := objectString(obj, "id"); id != "" {
+	if id := ObjectString(obj, "id"); id != "" {
 		return fmt.Sprintf("[id=%s]", id)
 	}
 	return "an object with no id in what the provider returned"
 }
 
-// objectString reads one top-level string attribute off obj, or "" when
+// ObjectString reads one top-level string attribute off obj, or "" when
 // it is absent, null, unknown, marked or not a string.
-func objectString(obj cty.Value, name string) string {
+func ObjectString(obj cty.Value, name string) string {
 	if obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() || obj.IsMarked() || !obj.Type().IsObjectType() || !obj.Type().HasAttribute(name) {
 		return ""
 	}
@@ -801,7 +825,7 @@ func objectString(obj cty.Value, name string) string {
 // family's answers cannot mark the object:
 //
 //   - the surface names no write, or [WriteNeverNeeded];
-//   - created.Provider is set and the family's MarkerWriter for it names a
+//   - created.Provider is set and the family's MarkerWriter names a
 //     different write than the surface does;
 //   - the family carries the block address ([Substrate.CarriesAddress])
 //     outside its marker map ([Substrate.AddressInMarkers] false), where
@@ -823,8 +847,8 @@ func PostCreateWrite(surface markers.Surface, created Created, facts Facts) (rea
 	switch {
 	case write == "" || write == WriteNeverNeeded:
 		err = fmt.Errorf("provider family %s withholds the %s surface's marker from this create (%s) and names post-create write %q, so nothing would mark the object", s.Name(), surface, reason, write)
-	case created.Provider.Provider != (addrs.Provider{}) && s.MarkerWriter(created.Provider) != write:
-		err = fmt.Errorf("the %s surface names post-create write %q and provider family %s builds %q for provider configuration %s", surface, write, s.Name(), s.MarkerWriter(created.Provider), created.Provider)
+	case created.Provider.Provider != (addrs.Provider{}) && s.MarkerWriter() != write:
+		err = fmt.Errorf("the %s surface names post-create write %q and provider family %s builds %q for provider configuration %s", surface, write, s.Name(), s.MarkerWriter(), created.Provider)
 	case s.CarriesAddress() && !s.AddressInMarkers():
 		key, noun := s.AddressCarrier(surface)
 		err = fmt.Errorf("provider family %s carries the block address in the %s %s, outside the marker map post-create write %q sets, so the object would be written without it", s.Name(), key, noun, write)

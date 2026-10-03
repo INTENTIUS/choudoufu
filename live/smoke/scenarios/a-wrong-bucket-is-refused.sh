@@ -70,7 +70,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
 awsl s3api create-bucket --bucket "$BUCKET" >/dev/null || fail "wrongbucket" "could not create the bucket"
 make_correct || fail "wrongbucket" "could not configure the bucket"
 cmd "choudoufu apply -auto-approve"
-( cd "$SMOKE_WORK/est" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "wrongbucket" "init failed"
+logged a-wrong-bucket-is-refused-est-init "wrongbucket" "init failed" -- in_dir "$SMOKE_WORK/est" chdf init -input=false -no-color
 OUT="$(cd "$SMOKE_WORK/est" && chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "wrongbucket" "the apply against a correct bucket failed: $OUT"
 grep -qE 'Resources: 1 added' <<< "$OUT" || fail "wrongbucket" "nothing applied against a correct bucket: $OUT"
 awsl s3api get-bucket-versioning --bucket "$BUCKET" --query Status --output text | sed 's/^/versioning: /' | evidence
@@ -191,7 +191,7 @@ explain \
   "store sentinel is how a run knows it is first - and a refusal takes" \
   "the sentinel back out, or the second plan would sail past the bucket" \
   "the first one refused."
-( cd "$SMOKE_WORK/fresh" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "wrongbucket" "init failed in the fresh estate"
+logged a-wrong-bucket-is-refused-fresh-init "wrongbucket" "init failed in the fresh estate" -- in_dir "$SMOKE_WORK/fresh" chdf init -input=false -no-color
 for attempt in 1 2; do
   cmd "choudoufu plan   # smoke-asserted-fresh, attempt $attempt, versioning still Suspended"
   F_OUT="$(cd "$SMOKE_WORK/fresh" && chdf plan -input=false -no-color 2>&1)" \

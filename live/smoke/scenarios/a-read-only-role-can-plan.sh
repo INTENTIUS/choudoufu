@@ -113,7 +113,7 @@ cmd "render-policy.sh $ESTATE $BUCKET   # the full policy, for the writing role"
 role_with_policy "$WRITER" "$("$POLICY_RENDERER" "$ESTATE" "$BUCKET")" "$BUCKET" \
   || fail "readonlyplan" "could not create the writing role"
 write_bucket_estate "$SMOKE_WORK/est" "$ESTATE" "$BUCKET" v1
-( cd "$SMOKE_WORK/est" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || fail "readonlyplan" "init failed"
+logged a-read-only-role-can-plan-est-init "readonlyplan" "init failed" -- in_dir "$SMOKE_WORK/est" "$TOFU" init -input=false -no-color
 cmd "choudoufu apply -auto-approve   # as the writing role"
 A_OUT="$(run_as_writer apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "readonlyplan" "the estate could not apply under the full policy: $A_OUT"
@@ -178,7 +178,7 @@ explain \
   "they held before - the sentinel included, which is the write the run" \
   "sends and is refused."
 write_bucket_estate "$SMOKE_WORK/reader" "$ESTATE" "$BUCKET" v1
-( cd "$SMOKE_WORK/reader" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || fail "readonlyplan" "init failed in the reader's directory"
+logged a-read-only-role-can-plan-reader-init "readonlyplan" "init failed in the reader's directory" -- in_dir "$SMOKE_WORK/reader" "$TOFU" init -input=false -no-color
 BEFORE="$(versions_under "$ESTATE")"
 [ -n "$BEFORE" ] || fail "readonlyplan" "the estate's namespaces hold no object versions at all, so the comparison below would pass over nothing"
 cmd "choudoufu plan   # as the read-only role"
@@ -225,7 +225,7 @@ explain \
   "here would propose creating everything in it again. That is #693's" \
   "failure, and it has to stay a refusal."
 write_bucket_estate "$SMOKE_WORK/empty" "$EMPTY_ESTATE" "$BUCKET" v1
-( cd "$SMOKE_WORK/empty" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || fail "readonlyplan" "init failed in the empty estate's directory"
+logged a-read-only-role-can-plan-empty-init "readonlyplan" "init failed in the empty estate's directory" -- in_dir "$SMOKE_WORK/empty" "$TOFU" init -input=false -no-color
 EMPTY_OBJECTS="$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix "tofu-records/$EMPTY_ESTATE/" --query 'length(Contents || `[]`)' --output text)"
 [ "$EMPTY_OBJECTS" = "0" ] || fail "readonlyplan" "$EMPTY_ESTATE already has $EMPTY_OBJECTS object(s) under its records prefix, so there is no unprovisioned store to refuse"
 cmd "choudoufu plan   # as the read-only role, against an estate with no sentinel"

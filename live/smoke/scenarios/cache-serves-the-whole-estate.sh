@@ -53,7 +53,7 @@ explain \
 
 step "1. stand the estate up - four needs-discovery resources"
 cmd "choudoufu apply -auto-approve"
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "refserve" "init failed"
+logged cache-serves-the-whole-estate-init "refserve" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 ( cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "refserve" "apply failed"
 proof "a VPC, two subnets and a security group are up, each with a server-assigned id, and the cache is warm."
 

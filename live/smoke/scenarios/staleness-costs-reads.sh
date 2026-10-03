@@ -31,7 +31,7 @@ explain \
   "server-assigned ids - while C1 is kept aside. C1 now remembers a" \
   "world that no longer exists: every VPC and subnet id in it is dead."
 cmd "apply ; save cache ; apply -destroy ; apply"
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null ) || fail "stale" "init failed"
+logged staleness-costs-reads-init "stale" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 A1="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "stale" "first apply failed: $A1"
 ADDED="$(grep -oE 'Resources: [0-9]+ added' <<< "$A1" | grep -oE '[0-9]+')"
 [ -f "$CACHE" ] || fail "stale" "no cache after the first apply"
@@ -172,7 +172,7 @@ resource "terraform_data" "phantom" {
 }
 TFEOF
 cmd "apply ; save cache ; destroy ; drop a block ; apply ; plan (fresh vs ancient)"
-( cd "$R" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "stale" "record init failed"
+logged staleness-costs-reads-r-init "stale" "record init failed" -- in_dir "$R" chdf init -input=false -no-color
 ( cd "$R" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stale" "record apply failed"
 [ -f "$RCACHE" ] || fail "stale" "no cache after the record apply"
 cp "$RCACHE" "$R/ancient-cache.tfstate" || fail "stale" "saving the record cache failed"

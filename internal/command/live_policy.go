@@ -356,6 +356,8 @@ func statelessUntagTargets(disco *discovery.Result) []untagGroup {
 			Identity:    o.Identity,
 			Marker:      o.Normalized,
 			DisplayName: o.DisplayName,
+			// The configuration that found it (GitHub issue #1742).
+			ProviderType: o.Provider.Provider.Type,
 		})
 	}
 	sort.SliceStable(out, func(i, j int) bool {

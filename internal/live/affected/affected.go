@@ -56,8 +56,10 @@
 //
 // A cross-estate read inside a module called from outside the working tree
 // is not seen, since that module is not descended into. Reads are found by
-// [check.EstatesRead]; internal/live/waves (#1754) carries a stricter
-// reader that replaces it when it lands.
+// [waves.EstatesRead], the reader live-waves (#1754) orders a set by: a
+// marker-filtered data source (filter or tags) or a
+// terraform_estate_outputs read. A read whose estate is not a literal
+// makes the answer indeterminate (unreadable-read), never a read missed.
 package affected
 
 import (
@@ -73,8 +75,7 @@ import (
 
 	"github.com/bmatcuk/doublestar/v4"
 
-	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/live/check"
+	"github.com/intentius/choudoufu/internal/live/waves"
 )
 
 // Schema is the -json document's version. A field's meaning never changes
@@ -163,12 +164,16 @@ const (
 	IndetFloating = "floating-module"
 	IndetUnplaced = "unplaced-file"
 	IndetLoad     = "load-error"
+	// IndetReads is a root at the head revision with a cross-estate read
+	// whose estate is not a literal: whether it reads a named root, and so
+	// is named itself, cannot be told.
+	IndetReads = "unreadable-read"
 )
 
 // Indeterminacy is one reason the answer is indeterminate.
 type Indeterminacy struct {
 	// Kind is "lock-file", "provider-version", "floating-module",
-	// "unplaced-file" or "load-error".
+	// "unplaced-file", "load-error" or "unreadable-read".
 	Kind string `json:"kind"`
 	// Path is the changed file or root directory it concerns.
 	Path string `json:"path"`
@@ -202,7 +207,7 @@ type Options struct {
 	// Ignore are path patterns (doublestar, against the path from the
 	// repository top) whose changes name nothing.
 	Ignore []string
-	// Reads finds a root's cross-estate reads; nil is [check.EstatesRead].
+	// Reads finds a root's cross-estate reads; nil is [waves.EstatesRead].
 	Reads ReadsFunc
 	// TempDir is where the two revisions are extracted; "" is os.TempDir.
 	TempDir string
@@ -211,7 +216,7 @@ type Options struct {
 // Compute answers the range.
 func Compute(ctx context.Context, o Options) (*Result, error) {
 	if o.Reads == nil {
-		o.Reads = func(cfg *configs.Config) ([]string, error) { return check.EstatesRead(cfg), nil }
+		o.Reads = waves.EstatesRead
 	}
 	for _, p := range o.Ignore {
 		if !doublestar.ValidatePattern(p) {

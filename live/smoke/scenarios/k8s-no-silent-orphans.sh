@@ -73,7 +73,7 @@ explain \
   "copy it onto a ReplicaSet and a Pod nobody declared. That is the shape" \
   "a naive sweep would destroy."
 cmd "choudoufu init && choudoufu apply -auto-approve"
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null ) || fail "k8s-no-silent-orphans" "init failed"
+logged k8s-no-silent-orphans-init "k8s-no-silent-orphans" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 APPLY_OUT="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "k8s-no-silent-orphans" "apply failed: $APPLY_OUT"
 grep -E 'Apply complete!' <<< "$APPLY_OUT" | evidence

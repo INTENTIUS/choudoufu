@@ -135,7 +135,7 @@ if [ "${BREAK:-0}" = "1" ]; then
     "update, or step 2's clean plan proved nothing at all."
   render 0 platform
   cmd "choudoufu init ; choudoufu apply -auto-approve   # no ignore_tags"
-  ( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "oobtag" "init failed"
+  logged an-ignored-tag-is-not-drift-break-init "oobtag" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
   ( cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "oobtag" "apply failed"
   ARN="$(lg_arn)"
   [ -n "$ARN" ] && [ "$ARN" != "None" ] || fail "oobtag" "no log group named $LG_NAME after apply"
@@ -157,7 +157,7 @@ fi
 step "1. an estate applies, one tag declared and one key told to the provider to ignore"
 cmd "choudoufu init ; choudoufu apply -auto-approve   # ignore_tags { keys = [\"CostCenter\"] }"
 render 1 platform
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "oobtag" "init failed"
+logged an-ignored-tag-is-not-drift-init "oobtag" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 AOUT="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "oobtag" "apply failed: $AOUT"
 grep -q "Resources: 1 added" <<< "$AOUT" || fail "oobtag" "the apply: $AOUT"
 ARN="$(lg_arn)"

@@ -17,7 +17,7 @@ explain \
   "ownership tags on every taggable resource, so stock writes them as" \
   "ordinary tags without knowing they mean anything."
 cmd "docker compose run opentofu init && ... apply -auto-approve"
-stock init -input=false -no-color >/dev/null 2>&1 || fail "import" "stock init failed"
+logged import-stock-init "import" "stock init failed" -- stock init -input=false -no-color
 SOUT="$(stock apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "import" "stock apply failed: $SOUT"
 grep -E 'Apply complete!' <<< "$SOUT" | head -1 | evidence
@@ -42,7 +42,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
 
 step "3. choudoufu init - same config, provider resolved by the fork"
 cmd "choudoufu init"
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "import" "choudoufu init failed"
+logged import-init "import" "choudoufu init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 proof "no conversion step happened. It is the same configuration directory."
 
 step "3b. two resources were deliberately unowned - adoption is a tag you write"

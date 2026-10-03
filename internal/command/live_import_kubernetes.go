@@ -7,6 +7,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
@@ -34,17 +35,17 @@ var _ liveimport.Clusters = (*statelessProviders)(nil)
 // cluster that cannot be reached is not re-dialled once per custom
 // resource in the state file.
 type labelPatcher struct {
-	client *kubesweep.Client
+	client kubesweep.LabelPatcher
 	err    error
 }
 
 // LabelPatcher implements [liveimport.Clusters].
 //
-// The nil-interface trap is the reason this returns the concrete client
-// through an explicit branch rather than assigning it straight into the
-// interface: a (*kubesweep.Client)(nil) in a kubesweep.LabelPatcher is not
-// a nil interface, and the caller's "no client, say why" path would never
-// run.
+// The client is the family's sweep client taken through the
+// kubesweep.LabelPatcher capability (GitHub issue #1742), never a concrete
+// type. A client that is set only on the success path below keeps the
+// field a nil interface otherwise, so the caller's "no client, say why"
+// path runs.
 func (p *statelessProviders) LabelPatcher(ctx context.Context, addr addrs.AbsProviderConfig) (kubesweep.LabelPatcher, error) {
 	key := providerCacheKey(addr)
 
@@ -59,7 +60,11 @@ func (p *statelessProviders) LabelPatcher(ctx context.Context, addr addrs.AbsPro
 		case err != nil:
 			got = labelPatcher{err: err}
 		default:
-			got = labelPatcher{client: client}
+			if patcher, ok := client.(kubesweep.LabelPatcher); ok {
+				got = labelPatcher{client: patcher}
+			} else {
+				got = labelPatcher{err: fmt.Errorf("the sweep client provider configuration %s builds cannot patch a label", addr)}
+			}
 		}
 		p.mu.Lock()
 		if p.markerPatchers == nil {

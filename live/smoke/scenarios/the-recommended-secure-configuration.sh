@@ -256,7 +256,7 @@ as_estate() { ( cd "$SMOKE_WORK/est" && as_role "$ROLE" env TF_LOG=debug TF_LOG_
 
 step "4. an estate's life, as that role, against that stack"
 write_estate '["keep", "precious"]' v1
-( cd "$SMOKE_WORK/est" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || fail "secureconfig" "init failed"
+logged the-recommended-secure-configuration-est-init "secureconfig" "init failed" -- in_dir "$SMOKE_WORK/est" "$TOFU" init -input=false -no-color
 cmd "choudoufu apply -auto-approve   # as the estate's role"
 A_OUT="$(as_estate apply apply -auto-approve -input=false -no-color 2>&1)" && A_RC=0 || A_RC=$?
 

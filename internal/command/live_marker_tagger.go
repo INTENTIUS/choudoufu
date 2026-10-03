@@ -41,7 +41,7 @@ func (p *statelessProviders) markerWriterFor(sub substrate.Substrate, known bool
 	if !known {
 		return nil, fmt.Errorf("provider %s belongs to no provider family this fork can write a marker through after a create", addr.Provider)
 	}
-	have := sub.MarkerWriter(addr)
+	have := sub.MarkerWriter()
 	if have != write {
 		return nil, fmt.Errorf("the %q post-create marker write was asked of provider family %s, whose provider configurations write with %q", write, sub.Name(), have)
 	}

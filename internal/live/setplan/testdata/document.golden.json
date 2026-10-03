@@ -1,0 +1,76 @@
+{
+  "format_version": "1",
+  "roots": [
+    {
+      "root": "estates/e01",
+      "estate": "est-e01",
+      "status": "planned",
+      "error": "",
+      "changes": true,
+      "plan_file": "out/estates/e01.tfplan",
+      "log_file": "out/estates/e01.log",
+      "duration_ms": 0,
+      "plan": {
+        "format_version": "1.2",
+        "resource_changes": [
+          {
+            "address": "terraform_data.x",
+            "change": {
+              "actions": [
+                "create"
+              ]
+            }
+          }
+        ]
+      },
+      "digest": "sha256:bbe048fb0f7df99fcd65f00351d8b3c3be9b8a2a25a99a706b1c16d81277bb97"
+    },
+    {
+      "root": "estates/e02",
+      "estate": "est-e02",
+      "status": "planned",
+      "error": "",
+      "changes": false,
+      "plan_file": "out/estates/e02.tfplan",
+      "log_file": "out/estates/e02.log",
+      "duration_ms": 0,
+      "plan": {
+        "format_version": "1.2",
+        "resource_changes": [
+          {
+            "address": "terraform_data.x",
+            "change": {
+              "actions": [
+                "no-op"
+              ]
+            }
+          }
+        ]
+      },
+      "digest": "sha256:be83b6c9faebeaf63391a7f45dafa02f87f58a01de31f9a0649b1898218b2127"
+    },
+    {
+      "root": "estates/e03",
+      "estate": "est-e03",
+      "status": "failed",
+      "error": "e03 broke at init on purpose",
+      "stage": "init",
+      "changes": false,
+      "plan_file": "",
+      "log_file": "out/estates/e03.log",
+      "duration_ms": 0,
+      "plan": null,
+      "digest": "sha256:b1f431ac6f4c9c24d0744f4cecb7581149918ece30e4ad22f4c3982c62c90874"
+    }
+  ],
+  "summary": {
+    "roots": 3,
+    "planned": 2,
+    "changed": 1,
+    "failed": 1
+  },
+  "digest": "sha256:2c4f5f352d4bef19ffcae056b5e40fff77042ec608ca19060bf8b2d5701e5222",
+  "exit_code": 4,
+  "plugin_cache_dir": "/shared/plugin-cache",
+  "parallel_estates": 2
+}

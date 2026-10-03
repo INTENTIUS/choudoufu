@@ -144,8 +144,8 @@ awsl iam get-role-policy --role-name app --policy-name estate --query 'PolicyDoc
 proof "two estates, one bucket, each with the role the renderer writes for it."
 
 step "2. the producer applies and records its output"
-( cd "$PRODUCER" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "estateoutputs" "init failed in the producer"
-( cd "$CONSUMER" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "estateoutputs" "init failed in the consumer"
+logged an-estate-reads-another-by-declaring-it-producer-init "estateoutputs" "init failed in the producer" -- in_dir "$PRODUCER" chdf init -input=false -no-color
+logged an-estate-reads-another-by-declaring-it-consumer-init "estateoutputs" "init failed in the consumer" -- in_dir "$CONSUMER" chdf init -input=false -no-color
 cmd "choudoufu apply -auto-approve   # in network/, as the network role"
 P_OUT="$(as network "$PRODUCER" apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "estateoutputs" "the producer could not apply: $P_OUT"

@@ -98,7 +98,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
 awsl s3api create-bucket --bucket "$BUCKET" >/dev/null || fail "waiver" "could not create the bucket"
 awsl s3api put-bucket-lifecycle-configuration --bucket "$BUCKET" --lifecycle-configuration "$EXPIRING" >/dev/null || fail "waiver" "could not set the lifecycle"
 awsl s3api put-public-access-block --bucket "$BUCKET" --public-access-block-configuration "$PAB" >/dev/null || fail "waiver" "could not set the public-access block"
-run "$SMOKE_WORK/est" init -input=false -no-color >/dev/null 2>&1 || fail "waiver" "init failed"
+logged a-waiver-names-what-it-waives-est-init "waiver" "init failed" -- run "$SMOKE_WORK/est" init -input=false -no-color
 cmd "choudoufu apply -auto-approve   # allow_insecure = [\"versioning\"]"
 APPLY_LOG="$SMOKE_WORKROOT/logs/waiver-apply.log"
 PLAN_LOG="$SMOKE_WORKROOT/logs/waiver-plan.log"

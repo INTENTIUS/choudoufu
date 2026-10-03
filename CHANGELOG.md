@@ -39,6 +39,13 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.22.0 (Unreleased)
 
+- New: `choudoufu live-plan-set ROOT...` plans a set of estate roots in one
+  invocation, `-parallel-estates` at a time, with one provider cache shared
+  across them so a provider release is installed once rather than once per
+  root. Each root gets its own plan file under `-out-dir`, named by its path;
+  a root that fails is reported and never stops the others; `-json` prints
+  one document holding every root's stock machine-readable plan. Exit 0 when
+  no root has changes, 2 when any has, 4 when any root failed (#1752).
 - `choudoufu live-summary FILE` groups many plans by identical change
   (#1753, part of #1749): the set plan's `-json` document, one group per
   set of roots that change the same way, or one plan's JSON, one group per
@@ -61,6 +68,21 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
   reason and exits 2. Documentation and `-ignore` paths name nothing.
   `-json` prints a documented, golden-pinned document; `-root` restricts the
   roots.
+- `choudoufu live-waves [ROOT...]` splits a set of estate roots into
+  ordered waves (#1754, part of #1749): `-canary` roots form wave 1, and
+  every other root lands after each root whose estate it reads through a
+  marker-filtered data source or `terraform_estate_outputs`. A cycle, a
+  canary reading a non-canary, and a read whose estate is not a literal are
+  refused by name. `-plan-set` gives the set and each wave a set digest
+  over the roots' planned changes, `-wave=n` prints one wave's roots one per
+  line, and `-json` prints everything. It applies nothing.
+- `choudoufu live-wave-apply` applies one wave of an approved set (#1754):
+  given the set plan document, the approved `-digest` and `-wave`, it plans
+  the wave's roots again and exits 3 naming any root whose plan moved,
+  applying nothing. A failed root skips the roots that read it while the
+  rest apply, every outcome goes to `-resume`, and a re-run with that file
+  applies only what has not landed. `live-plan-set` now carries a `digest`
+  for the set and for each root, and prints the set digest.
 
 ## choudoufu v0.21.0 (2026-10-02)
 

@@ -322,6 +322,14 @@ func initCommands(meta command.Meta) {
 			}, nil
 		},
 
+		// GitHub issue #1752: plan a set of estate roots in one
+		// invocation, sharing one provider install across them.
+		"live-plan-set": func() (cli.Command, error) {
+			return &command.LivePlanSetCommand{
+				Meta: meta,
+			}, nil
+		},
+
 		// GitHub issue #1341: the bucket's true state, whatever the
 		// configuration waives. It is what the runnable bucket project's
 		// `just verify` calls, so the project and the tool share one
@@ -337,6 +345,24 @@ func initCommands(meta command.Meta) {
 		// checked and is never a pass.
 		"live-cluster": func() (cli.Command, error) {
 			return &command.LiveClusterCommand{
+				Meta: meta,
+			}, nil
+		},
+
+		// GitHub issue #1754: split a set of roots into ordered waves. It
+		// reads configuration and prints; public from the start for
+		// live-check's reason above.
+		"live-waves": func() (cli.Command, error) {
+			return &command.LiveWavesCommand{
+				Meta: meta,
+			}, nil
+		},
+
+		// GitHub issue #1754: apply one wave of an approved set, refusing
+		// with exit 3 when the set moved. It applies, so like live-plan it
+		// is public only because the approval it checks is the caller's.
+		"live-wave-apply": func() (cli.Command, error) {
+			return &command.LiveWaveApplyCommand{
 				Meta: meta,
 			}, nil
 		},

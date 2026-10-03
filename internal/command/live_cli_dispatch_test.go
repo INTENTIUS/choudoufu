@@ -72,7 +72,7 @@ func dispatchNewCLI(t *testing.T, meta Meta, args ...string) int {
 // were not flags of "plan", and the state family's and force-unlock's
 // guards had been dropped by the merge. Each half below fails on that tree.
 func TestNewCLIDispatchesLiveCommands(t *testing.T) {
-	t.Run("all nine live commands are in the tree", func(t *testing.T) {
+	t.Run("all twelve live commands are in the tree", func(t *testing.T) {
 		var help, version bool
 		var chdir string
 		root := RootCommander(&help, &version, &chdir)
@@ -80,7 +80,7 @@ func TestNewCLIDispatchesLiveCommands(t *testing.T) {
 		for _, cmd := range root.Commands {
 			have[cmd.Name] = cmd.Run != nil
 		}
-		for _, name := range []string{"live-check", "live-plan", "live-mv", "live-import", "live-ls", "live-bucket", "live-cluster", "live-summary", "live-affected"} {
+		for _, name := range []string{"live-check", "live-plan", "live-mv", "live-import", "live-ls", "live-bucket", "live-cluster", "live-summary", "live-affected", "live-plan-set", "live-waves", "live-wave-apply"} {
 			if !have[name] {
 				t.Errorf("%s is not a runnable command in RootCommander, so the default CLI cannot reach it", name)
 			}

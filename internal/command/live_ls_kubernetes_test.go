@@ -399,9 +399,6 @@ func (fakeThirdSubstrate) CarriesAddress() bool        { return false }
 func (fakeThirdSubstrate) SurfaceOf(*configschema.Block) (markers.Surface, bool) {
 	return "", false
 }
-func (fakeThirdSubstrate) OwnershipSurfaceOf(*configschema.Block) (markers.Surface, bool) {
-	return "", false
-}
 func (fakeThirdSubstrate) MarkersOf(markers.Surface, cty.Value) (map[string]string, bool) {
 	return nil, false
 }

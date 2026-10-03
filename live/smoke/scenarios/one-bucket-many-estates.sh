@@ -50,7 +50,7 @@ role_of() { case "$1" in a) echo "$ROLE_A" ;; b) echo "$ROLE_B" ;; esac; }
 for e in a b; do
   role_with_policy "$(role_of "$e")" "$("$POLICY_RENDERER" "smoke-$e" "$BUCKET")" "$BUCKET" || fail "manyestates" "could not create estate $e's role"
   write_bucket_estate "$SMOKE_WORK/$e" "smoke-$e" "$BUCKET" v1
-  ( cd "$SMOKE_WORK/$e" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "manyestates" "init failed in $e"
+  logged "one-bucket-many-estates-$e-init" "manyestates" "init failed in $e" -- in_dir "$SMOKE_WORK/$e" chdf init -input=false -no-color
   OUT="$(cd "$SMOKE_WORK/$e" && as_role "$(role_of "$e")" chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "manyestates" "estate $e could not apply under its own role: $OUT"
   grep -q "Resources: 2 added" <<< "$OUT" || fail "manyestates" "estate $e: $OUT"
 done

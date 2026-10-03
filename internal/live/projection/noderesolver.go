@@ -12,6 +12,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/live/substrate"
@@ -100,6 +101,13 @@ type NodeResolver struct {
 	// run's estate name or selection.
 	Estate    string
 	Selection *strict.Selection
+
+	// Config is the run's configuration, from which [NodeResolver.providerType]
+	// reads the provider a resource block is configured under, so a surface
+	// question is asked of that provider's family ([substrate.SurfaceOf],
+	// GitHub issue #1742). Nil asks every family in order, as a provider no
+	// family claims is asked.
+	Config *configs.Config
 
 	// Slots is [discovery.Result.SlotTable]: the estate-wide sweep's slot
 	// assignment, escaped instance address to slot value, the same map
@@ -462,4 +470,13 @@ func (n *NodeResolver) ResolveResourceIdentity(ctx context.Context, addr addrs.A
 		addr, addr.Resource.Resource.Type,
 	)))
 	return providers.ImportTarget{}, false, diags
+}
+
+// providerType is the type name of the provider addr's resource block is
+// configured under ("aws", "kubernetes"), resolved the way the builder's
+// providerFor resolves a declared block. Empty when the resolver holds no
+// configuration or the block is not in it: [substrate.SurfaceOf] then asks
+// every family, as for a provider no family claims.
+func (n *NodeResolver) providerType(addr addrs.AbsResourceInstance) string {
+	return identity.ProviderTypeOf(n.Config, addr)
 }

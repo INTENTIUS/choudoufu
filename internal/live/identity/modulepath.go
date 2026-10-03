@@ -19,6 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/instances"
 	"github.com/intentius/choudoufu/internal/lang/marks"
+	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/live/staticeval"
 )
 
@@ -498,6 +499,27 @@ func ConfigForModule(root *configs.Config, modInst addrs.ModuleInstance) (*confi
 		cur = child
 	}
 	return cur, true
+}
+
+// ProviderTypeOf is the type name of the provider addr's resource block is
+// configured under in root ("aws", "kubernetes"), through
+// [providerscope.ResolveResource], or "" when root is nil or does not
+// declare the block. It is what a surface question is keyed on
+// (substrate.SurfaceOf, GitHub issue #1742); "" there asks every family, as
+// for a provider no family claims.
+func ProviderTypeOf(root *configs.Config, addr addrs.AbsResourceInstance) string {
+	if root == nil {
+		return ""
+	}
+	modCfg, ok := ConfigForModule(root, addr.Module)
+	if !ok || modCfg == nil || modCfg.Module == nil {
+		return ""
+	}
+	rc := modCfg.Module.ResourceByAddr(addr.Resource.Resource)
+	if rc == nil {
+		return ""
+	}
+	return providerscope.ResolveResource(modCfg, rc).Provider.Type
 }
 
 // DeclaresBlock reports whether a configuration still declares the managed

@@ -11,7 +11,6 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/markers"
 )
@@ -67,6 +66,10 @@ func (aws) AddressCarrier(surface markers.Surface) (key, noun string) {
 
 func (aws) Sweep() Sweep { return SweepTaggingIndex }
 
+// SweepFindsUnadmitted is false: the tagging-index sweep's universe is the
+// admission table, read a different way ([Sweeps]).
+func (aws) SweepFindsUnadmitted() bool { return false }
+
 func (aws) NewSweeper(cty.Value, bool) (Sweeper, error) { return nil, nil }
 
 // ---- GitHub issue #1584: the answers the projection's shadow enum held ----
@@ -96,7 +99,7 @@ func (aws) NotACarrier(block *configschema.Block, typeName string) string {
 // MarkerWriter is [WriteTaggingAPI] for every AWS provider configuration:
 // internal/command builds the Tagging API client signed as that
 // configuration's own principal.
-func (aws) MarkerWriter(addrs.AbsProviderConfig) Write { return WriteTaggingAPI }
+func (aws) MarkerWriter() Write { return WriteTaggingAPI }
 
 // ---- GitHub issue #1642: whether a create needs the post-create write ----
 
@@ -145,7 +148,7 @@ func (aws) PostCreateNeeded(surface markers.Surface, created Created, facts Fact
 // shared node path.
 func (aws) ManualMarkFix(created Created, want map[string]string, facts Facts) string {
 	tagsArg := markers.TagsArgument(want)
-	if arn := objectString(created.Object, "arn"); arn != "" {
+	if arn := ObjectString(created.Object, "arn"); arn != "" {
 		return fmt.Sprintf("Mark it, then plan again:\n\n  aws resourcegroupstaggingapi tag-resources --resource-arn-list %s --tags %s", arn, tagsArg)
 	}
 	if reg := awsFacts(facts); reg != nil {
@@ -162,8 +165,8 @@ func (aws) ManualMarkFix(created Created, want map[string]string, facts Facts) s
 // unchanged: the arn, with the id beside it when that differs; the id
 // alone when there is no arn; a sentence when there is neither.
 func (aws) CreatedObject(created Created) string {
-	arn := objectString(created.Object, "arn")
-	id := objectString(created.Object, "id")
+	arn := ObjectString(created.Object, "arn")
+	id := ObjectString(created.Object, "id")
 	object := arn
 	if id != "" && id != arn {
 		object = fmt.Sprintf("%s [id=%s]", arn, id)

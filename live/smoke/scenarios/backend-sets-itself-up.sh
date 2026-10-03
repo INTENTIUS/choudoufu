@@ -101,7 +101,7 @@ explain \
   "implies a local record store: a .tofu-records directory beside the" \
   "module, created at first use, sentinel first."
 cmd "choudoufu apply -auto-approve   # no record_store anywhere in the config"
-( cd "$SMOKE_WORK/a" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "auto" "init failed"
+logged backend-sets-itself-up-a-init "auto" "init failed" -- in_dir "$SMOKE_WORK/a" chdf init -input=false -no-color
 A_OUT="$(cd "$SMOKE_WORK/a" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "auto" "apply failed: $A_OUT"
 grep -qE 'Resources: 1 added' <<< "$A_OUT" || fail "auto" "the record-backed resource did not apply: $A_OUT"
@@ -179,7 +179,7 @@ TFEOF
 }
 write_b 0
 cmd "choudoufu apply -auto-approve   # record_store \"s3\" { bucket = ... } is all the configuration says"
-( cd "$SMOKE_WORK/b" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "auto" "copy b init failed"
+logged backend-sets-itself-up-b-init "auto" "copy b init failed" -- in_dir "$SMOKE_WORK/b" chdf init -input=false -no-color
 B_OUT="$(cd "$SMOKE_WORK/b" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "auto" "the bucket-backed apply failed: $B_OUT"
 grep -qE 'Resources: 1 added' <<< "$B_OUT" || fail "auto" "the bucket-backed apply: $B_OUT"

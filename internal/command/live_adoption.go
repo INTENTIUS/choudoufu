@@ -8,8 +8,11 @@ package command
 import (
 	"sort"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -84,13 +87,16 @@ func statelessPlanView(view *views.View, adoptionOnly bool, filter arguments.Rep
 // projResult is the projection; foreignRep and unowned are the already-built
 // view values for the two sections that carry adoption information today;
 // schemas is the run's own managed-resource schema map, consulted only
-// through [substrate.SurfaceOf]; estate is the settled estate name, empty when
+// through [substrate.SurfaceOf], of the family of the provider cfg configures
+// each block under (GitHub issue #1742; nil asks every family); estate is
+// the settled estate name, empty when
 // the run has none.
 func statelessAdoptionReport(
 	projResult *projection.Result,
 	foreignRep views.StatelessForeign,
 	unowned []views.StatelessUnowned,
 	schemas map[string]providers.Schema,
+	cfg *configs.Config,
 	estate string,
 	swept bool,
 ) views.StatelessAdoption {
@@ -118,12 +124,12 @@ func statelessAdoptionReport(
 	// never read answers false, which is the safe direction here: it costs
 	// the row a marker-half tally line it might have earned, and never
 	// claims a marker can be written where it cannot.
-	canCarryMarker := func(typeName string) bool {
-		schema, ok := schemas[typeName]
+	canCarryMarker := func(addr addrs.AbsResourceInstance) bool {
+		schema, ok := schemas[addr.Resource.Resource.Type]
 		if !ok {
 			return false
 		}
-		_, carries := substrate.SurfaceOf(schema.Block)
+		_, carries := substrate.SurfaceOf(identity.ProviderTypeOf(cfg, addr), schema.Block)
 		return carries
 	}
 
@@ -134,7 +140,7 @@ func statelessAdoptionReport(
 			Addr:           addr.String(),
 			TypeName:       typeName,
 			Class:          views.AdoptionMarked,
-			CanCarryMarker: canCarryMarker(typeName),
+			CanCarryMarker: canCarryMarker(addr),
 		})
 	}
 
@@ -144,7 +150,7 @@ func statelessAdoptionReport(
 		row := views.StatelessAdoptionRow{
 			Addr:           addr,
 			TypeName:       typeName,
-			CanCarryMarker: canCarryMarker(typeName),
+			CanCarryMarker: canCarryMarker(om.Addr),
 			Detail:         om.Detail,
 		}
 

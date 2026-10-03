@@ -51,7 +51,7 @@ explain \
   "identity from the platform and finds aws_vpc.main already owned;" \
   "it binds to it, and only what is actually missing gets created."
 cmd "choudoufu apply -auto-approve"
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "recovery" "init failed"
+logged recovery-is-a-rerun-init "recovery" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 AOUT="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "recovery" "the recovery apply failed: $AOUT"
 ADDED="$(grep -oE 'Resources: [0-9]+ added' <<< "$AOUT" | grep -oE '[0-9]+')"
@@ -91,7 +91,7 @@ cmd "rm -rf .terraform* terraform.tfstate* ; choudoufu init ; choudoufu plan"
 rm -rf "$SMOKE_WORK"/.terraform "$SMOKE_WORK"/.terraform.lock.hcl "$SMOKE_WORK"/terraform.tfstate*
 LEFT="$(ls -A "$SMOKE_WORK" | tr '\n' ' ')"
 echo "everything left on disk: $LEFT" | evidence
-( cd "$SMOKE_WORK" && chdf init -input=false -no-color >/dev/null 2>&1 ) || fail "recovery" "re-init after the wipe failed"
+logged recovery-is-a-rerun-reinit-after-wipe "recovery" "re-init after the wipe failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 P2="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" || fail "recovery" "the post-wipe plan failed: $P2"
 grep -E "No changes." <<< "$P2" | head -1 | evidence
 grep -q "No changes." <<< "$P2" || fail "recovery" "losing the local files changed the answer: $P2"

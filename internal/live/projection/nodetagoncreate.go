@@ -147,7 +147,7 @@ type TaggingAPIWriter struct {
 
 // WriteMarkers implements [MarkerWriter].
 func (w TaggingAPIWriter) WriteMarkers(ctx context.Context, created CreatedInstance, tags map[string]string) error {
-	arn := appliedString(created.Object, "arn")
+	arn := substrate.ObjectString(created.Object, "arn")
 	if arn == "" {
 		return errNoARN
 	}
@@ -202,7 +202,7 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 	// writer, rather than a provider type string. The tag surface's is the
 	// Tagging API; a surface whose marker always rides the create call
 	// answers WriteNeverNeeded and there is nothing to do.
-	surface, carries := substrate.SurfaceOf(schema.Block)
+	surface, carries := substrate.SurfaceOf(provider.Provider.Type, schema.Block)
 	if !carries {
 		return applied, diags
 	}
@@ -284,20 +284,6 @@ func (n *NodeResolver) markersWithheld(surface markers.Surface, addr addrs.AbsRe
 		out[markers.TagSlot] = slot
 	}
 	return out
-}
-
-// appliedString reads one top-level string attribute off the object the
-// provider returned, or "" when it is absent, null, unknown, marked or not
-// a string.
-func appliedString(obj cty.Value, name string) string {
-	if obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() || obj.IsMarked() || !obj.Type().IsObjectType() || !obj.Type().HasAttribute(name) {
-		return ""
-	}
-	v := obj.GetAttr(name)
-	if v.IsNull() || !v.IsKnown() || v.IsMarked() || v.Type() != cty.String {
-		return ""
-	}
-	return v.AsString()
 }
 
 // withMarkersAt returns obj with written merged into the map at each of

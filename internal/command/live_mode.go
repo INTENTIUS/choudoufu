@@ -1314,6 +1314,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// stamp's own call site does.
 		r.resolver.Estate = estate
 		r.resolver.Selection = identity.SelectionFor(config)
+		r.resolver.Config = config
 		r.resolver.Slots = disco.SlotTable()
 		// GitHub issue #1084: the registry flag the create path keys on (the
 		// AWS family's facts, #1708),
@@ -1497,6 +1498,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		statelessForeignReport(classified, disco),
 		statelessUnownedReport(projResult, estate),
 		resourceSchemas,
+		r.resolver.Config,
 		estate,
 		disco != nil,
 	))
