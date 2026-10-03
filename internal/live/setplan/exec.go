@@ -76,6 +76,15 @@ func (e Exec) Plan(ctx context.Context, dir, planFile string, log io.Writer) (bo
 	return false, err
 }
 
+// Apply applies planFile in dir: "apply PLANFILE", which under a live
+// block plans the live system again and exits 3 when that plan differs
+// from the file's (internal/command's ExitApprovalRefused). Used by
+// live-wave-apply (#1754).
+func (e Exec) Apply(ctx context.Context, dir, planFile string, log io.Writer) error {
+	_, _, err := e.run(ctx, dir, log, "apply", "-input=false", "-no-color", planFile)
+	return err
+}
+
 func (e Exec) Show(ctx context.Context, dir, planFile string, log io.Writer) (json.RawMessage, error) {
 	_, stdout, err := e.runQuiet(ctx, dir, log, "show", "-json", "-no-color", planFile)
 	if err != nil {

@@ -202,14 +202,23 @@ Options:
                                "plan_file":   "choudoufu-plan-set/estates/e01.tfplan",
                                "log_file":    "choudoufu-plan-set/estates/e01.log",
                                "duration_ms": 1234,
-                               "plan":        { ...what "show -json PLANFILE" prints... }
+                               "plan":        { ...what "show -json PLANFILE" prints... },
+                               "digest":      "sha256:..."
                              }
                            ],
                            "summary": {"roots": 1, "planned": 1, "changed": 1, "failed": 0},
+                           "digest": "sha256:...",
                            "exit_code": 2,
                            "plugin_cache_dir": "/abs/path",
                            "parallel_estates": 4
                          }
+
+                       "digest" is the set digest: SHA-256 over every
+                       root's planned changes, the same whatever order the
+                       roots were given in, and different when any one
+                       root's changes differ. It is what an approval names
+                       and what live-wave-apply checks; the summary prints
+                       it too. Each root's "digest" is its share.
 
                        Roots keep the order they were given in. "error" is
                        set and "stage" names where when "status" is

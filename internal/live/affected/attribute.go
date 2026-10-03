@@ -281,6 +281,13 @@ func (at *attribution) loadErrors() {
 			}
 		}
 	}
+	// Only the head revision's reads decide dependents, so only there does
+	// an unreadable one leave the answer open.
+	for d, g := range at.b.roots {
+		if g.ReadsErr != "" {
+			at.indeterminate(IndetReads, d, fmt.Sprintf("%s has a cross-estate read this cannot name, so whether it reads a named root is unknown: %s", d, g.ReadsErr))
+		}
+	}
 }
 
 // dependents names, transitively, every root that reads a named root's

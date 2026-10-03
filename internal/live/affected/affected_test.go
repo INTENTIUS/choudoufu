@@ -371,6 +371,37 @@ var rows = []row{
 		want: []string{"estates/e05: changed", "indeterminate load-error estates/e05", "outcome indeterminate"},
 	},
 	{
+		name: "a cross-estate read whose estate is not a literal is indeterminate",
+		base: localFixture,
+		head: func(t *testing.T, dir string) {
+			appendFile(t, dir, "estates/e05/main.tf", `
+variable "producer" {
+  type    = string
+  default = "ls-e04"
+}
+data "aws_vpc" "dynamic" {
+  filter {
+    name   = "tag:tofu-estate"
+    values = [var.producer]
+  }
+}
+`)
+		},
+		want: []string{"estates/e05: changed", "indeterminate unreadable-read estates/e05", "outcome indeterminate"},
+	},
+	{
+		name: "a read through a tags argument names the reader",
+		base: steps(localFixture, func(t *testing.T, dir string) {
+			appendFile(t, dir, "estates/e05/main.tf", `
+data "aws_sqs_queue" "peer" {
+  tags = { tofu-estate = "ls-e04" }
+}
+`)
+		}),
+		head: func(t *testing.T, dir string) { appendFile(t, dir, "estates/e04/main.tf", "\n# edited\n") },
+		want: []string{"estates/e04: changed", "estates/e05: reads ls-e04", "outcome determinate"},
+	},
+	{
 		name: "oci: a change under modules/ with every root pinned names no root",
 		base: ociFixture(),
 		head: writeModuleB,

@@ -76,6 +76,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/intentius/choudoufu/internal/live/setdigest"
 )
 
 // FormatVersion is the document's format version. It moves when a field is
@@ -141,6 +143,9 @@ type Root struct {
 	// Plan is stock OpenTofu's machine-readable plan for this root, the
 	// object "choudoufu show -json PLANFILE" prints. null for a failed root.
 	Plan json.RawMessage `json:"plan"`
+	// Digest is this root's digest (#1754): what [Document.Digest] is
+	// computed over. internal/live/setdigest's package doc says what it covers.
+	Digest string `json:"digest"`
 }
 
 // Summary counts the document's roots.
@@ -158,6 +163,11 @@ type Document struct {
 	// they finished in.
 	Roots   []Root  `json:"roots"`
 	Summary Summary `json:"summary"`
+	// Digest is the set digest (#1754): one digest over every root's
+	// planned changes, independent of root order, moving whenever any one
+	// root's changes move. It is what an approval names and what
+	// live-wave-apply checks the set against.
+	Digest string `json:"digest"`
 	// ExitCode is the code the command exits with, so a reader of a saved
 	// document does not have to have watched the process.
 	ExitCode int `json:"exit_code"`
@@ -316,6 +326,9 @@ func Run(ctx context.Context, opts Options) (*Document, error) {
 			doc.Summary.Failed++
 		}
 	}
+	if err := digestDocument(doc); err != nil {
+		return nil, err
+	}
 	doc.ExitCode = ExitCode(doc)
 	return doc, nil
 }
@@ -411,4 +424,26 @@ func runRoot(ctx context.Context, runner Runner, base string, p rootPaths, now f
 	r.Plan = plan
 	r.DurationMS = now().Sub(start).Milliseconds()
 	return r
+}
+
+// digestDocument sets every root's digest and the set digest, through
+// internal/live/setdigest so the digest live-plan-set prints is the one
+// live-waves and live-wave-apply compute from this document.
+func digestDocument(doc *Document) error {
+	entries := make([]setdigest.RootDigestEntry, 0, len(doc.Roots))
+	for i := range doc.Roots {
+		r := &doc.Roots[i]
+		d, err := setdigest.RootDigest(setdigest.RootPlan{Root: r.Root, Estate: r.Estate, Status: string(r.Status), Error: r.Error, Plan: r.Plan})
+		if err != nil {
+			return err
+		}
+		r.Digest = d
+		entries = append(entries, setdigest.RootDigestEntry{Root: r.Root, Digest: d})
+	}
+	d, err := setdigest.SetDigest(entries)
+	if err != nil {
+		return err
+	}
+	doc.Digest = d
+	return nil
 }

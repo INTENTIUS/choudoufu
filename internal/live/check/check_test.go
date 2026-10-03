@@ -227,6 +227,16 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// stage runs. It refuses nothing; what it cannot attribute it
 		// answers as indeterminate, worded by its own command.
 		"affected": true,
+		// GitHub issue #1754's set digest and wave planning: a hash over
+		// finished plans and an order over the roots of a set. It runs
+		// before or after every stage, never inside one; its refusals
+		// (a cycle, a canary reading a non-canary, a read it cannot
+		// order) are about the set's shape, worded by its own command.
+		"waves": true,
+		// The set digest #1754 split out of "waves" so internal/live/setplan
+		// can print it without importing any stage: a hash over finished
+		// plans, refusing nothing.
+		"setdigest": true,
 	}
 
 	classified := map[string]bool{}

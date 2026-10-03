@@ -162,8 +162,15 @@ var guardedPackages = []string{
 	// arguments, moved here from internal/command, which tests every
 	// argument for a mark before reading it and unmarks only the three
 	// that are the credential (#1527).
+	// GitHub issue #1754's set digest: hashes decoded plan JSON with the
+	// standard library only. No cty at all, so held to zero.
+	"setdigest",
 	"substrate",
 	"uniquename",
+	// GitHub issue #1754's wave planning reads literal estate names out of
+	// data-source configuration with Value(nil); every string it takes is
+	// checked unmarked first, and its digest reads plan JSON, not cty.
+	"waves",
 }
 
 // deferredPackages read CLOUD OBJECTS - a live read's response, a prior

@@ -68,6 +68,21 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
   reason and exits 2. Documentation and `-ignore` paths name nothing.
   `-json` prints a documented, golden-pinned document; `-root` restricts the
   roots.
+- `choudoufu live-waves [ROOT...]` splits a set of estate roots into
+  ordered waves (#1754, part of #1749): `-canary` roots form wave 1, and
+  every other root lands after each root whose estate it reads through a
+  marker-filtered data source or `terraform_estate_outputs`. A cycle, a
+  canary reading a non-canary, and a read whose estate is not a literal are
+  refused by name. `-plan-set` gives the set and each wave a set digest
+  over the roots' planned changes, `-wave=n` prints one wave's roots one per
+  line, and `-json` prints everything. It applies nothing.
+- `choudoufu live-wave-apply` applies one wave of an approved set (#1754):
+  given the set plan document, the approved `-digest` and `-wave`, it plans
+  the wave's roots again and exits 3 naming any root whose plan moved,
+  applying nothing. A failed root skips the roots that read it while the
+  rest apply, every outcome goes to `-resume`, and a re-run with that file
+  applies only what has not landed. `live-plan-set` now carries a `digest`
+  for the set and for each root, and prints the set digest.
 
 ## choudoufu v0.21.0 (2026-10-02)
 

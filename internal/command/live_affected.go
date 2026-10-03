@@ -104,7 +104,10 @@ Usage: choudoufu [global options] live-affected [options] RANGE
                        source. A change under that module's own directory
                        in this repository names no root: no root reads it.
     reads <estate>     the root reads a named root's estate through a
-                       cross-estate data source, followed transitively
+                       data source filtered on its tofu-estate marker (a
+                       filter block or a tags argument) or a
+                       terraform_estate_outputs read, followed
+                       transitively; live-waves orders by the same reads
 
   A changed file belongs to the nearest directory at or above it holding
   configuration (.tf, .tofu, .tf.json, .tofu.json), so a template beside a
@@ -124,7 +127,9 @@ Usage: choudoufu [global options] live-affected [options] RANGE
     - a file outside every module directory that is not documentation,
       since a plan can read one (a -var-file, a file() call, a wrapper's
       configuration) and nothing says which;
-    - a root's configuration does not load at either revision.
+    - a root's configuration does not load at either revision;
+    - a root has, at the head revision, a cross-estate read whose estate
+      is not a literal, so whether it reads a named root cannot be told.
 
   Named as touching no root, and not indeterminate: documentation outside
   every module (.md, .markdown, .rst, .adoc, LICENSE, COPYING, NOTICE),
@@ -154,8 +159,8 @@ Options:
                                     uses, pin or reads
                    indeterminate  [{kind, path, text}]; kind is
                                   lock-file, provider-version,
-                                  floating-module, unplaced-file or
-                                  load-error
+                                  floating-module, unplaced-file,
+                                  load-error or unreadable-read
                    unplaced       [{path, why, text}]; why is
                                   documentation, ignored or
                                   unread-module

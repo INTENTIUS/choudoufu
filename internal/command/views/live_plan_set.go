@@ -70,5 +70,8 @@ func (v *LivePlanSetHuman) Report(doc *setplan.Document) {
 	_ = tw.Flush()
 	fmt.Fprintf(&b, "\n%d root(s): %d with changes, %d without, %d failed.\n",
 		doc.Summary.Roots, doc.Summary.Changed, doc.Summary.Planned-doc.Summary.Changed, doc.Summary.Failed)
+	if doc.Digest != "" {
+		fmt.Fprintf(&b, "Set digest: %s\n", doc.Digest)
+	}
 	v.view.streams.Print(b.String())
 }
