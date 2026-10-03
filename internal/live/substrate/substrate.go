@@ -428,10 +428,13 @@ const (
 
 // markerWriting is the part of [Substrate] #1587 added.
 type markerWriting interface {
-	// MarkerWriter is the post-create write a provider configuration of
-	// this family builds a client for: [WriteNeverNeeded] for a family
-	// whose every surface rides the create call.
-	MarkerWriter(provider addrs.AbsProviderConfig) Write
+	// MarkerWriter is the post-create write every provider configuration
+	// of this family builds a client for: [WriteNeverNeeded] for a family
+	// whose every surface rides the create call. It is a property of the
+	// family, so it takes no provider configuration; the configuration
+	// reaches the client builder in internal/command instead (GitHub
+	// issue #1742 item 8: no family's answer ever read it).
+	MarkerWriter() Write
 }
 
 // ---- GitHub issue #1642: whether a create needs the post-create write ----
@@ -773,15 +776,15 @@ func CreatedObject(surface markers.Surface, created Created) string {
 
 // idPhrase is "[id=...]", or a sentence saying the object has no id.
 func idPhrase(obj cty.Value) string {
-	if id := objectString(obj, "id"); id != "" {
+	if id := ObjectString(obj, "id"); id != "" {
 		return fmt.Sprintf("[id=%s]", id)
 	}
 	return "an object with no id in what the provider returned"
 }
 
-// objectString reads one top-level string attribute off obj, or "" when
+// ObjectString reads one top-level string attribute off obj, or "" when
 // it is absent, null, unknown, marked or not a string.
-func objectString(obj cty.Value, name string) string {
+func ObjectString(obj cty.Value, name string) string {
 	if obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() || obj.IsMarked() || !obj.Type().IsObjectType() || !obj.Type().HasAttribute(name) {
 		return ""
 	}
@@ -813,7 +816,7 @@ func objectString(obj cty.Value, name string) string {
 // family's answers cannot mark the object:
 //
 //   - the surface names no write, or [WriteNeverNeeded];
-//   - created.Provider is set and the family's MarkerWriter for it names a
+//   - created.Provider is set and the family's MarkerWriter names a
 //     different write than the surface does;
 //   - the family carries the block address ([Substrate.CarriesAddress])
 //     outside its marker map ([Substrate.AddressInMarkers] false), where
@@ -835,8 +838,8 @@ func PostCreateWrite(surface markers.Surface, created Created, facts Facts) (rea
 	switch {
 	case write == "" || write == WriteNeverNeeded:
 		err = fmt.Errorf("provider family %s withholds the %s surface's marker from this create (%s) and names post-create write %q, so nothing would mark the object", s.Name(), surface, reason, write)
-	case created.Provider.Provider != (addrs.Provider{}) && s.MarkerWriter(created.Provider) != write:
-		err = fmt.Errorf("the %s surface names post-create write %q and provider family %s builds %q for provider configuration %s", surface, write, s.Name(), s.MarkerWriter(created.Provider), created.Provider)
+	case created.Provider.Provider != (addrs.Provider{}) && s.MarkerWriter() != write:
+		err = fmt.Errorf("the %s surface names post-create write %q and provider family %s builds %q for provider configuration %s", surface, write, s.Name(), s.MarkerWriter(), created.Provider)
 	case s.CarriesAddress() && !s.AddressInMarkers():
 		key, noun := s.AddressCarrier(surface)
 		err = fmt.Errorf("provider family %s carries the block address in the %s %s, outside the marker map post-create write %q sets, so the object would be written without it", s.Name(), key, noun, write)

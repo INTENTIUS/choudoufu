@@ -41,7 +41,7 @@ type gadgetFamily struct{ substrate.Substrate }
 
 func (gadgetFamily) Name() string                { return "gadget" }
 func (gadgetFamily) Surfaces() []markers.Surface { return []markers.Surface{gadgetSurface} }
-func (gadgetFamily) MarkerWriter(addrs.AbsProviderConfig) substrate.Write {
+func (gadgetFamily) MarkerWriter() substrate.Write {
 	return "gadget-bind"
 }
 func (gadgetFamily) SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
@@ -49,9 +49,6 @@ func (gadgetFamily) SurfaceOf(block *configschema.Block) (markers.Surface, bool)
 		return gadgetSurface, true
 	}
 	return "", false
-}
-func (f gadgetFamily) OwnershipSurfaceOf(block *configschema.Block) (markers.Surface, bool) {
-	return f.SurfaceOf(block)
 }
 func (gadgetFamily) Writes(surface markers.Surface) substrate.Writes {
 	if surface == gadgetSurface {
@@ -67,10 +64,10 @@ func (f gadgetFamily) PostCreateNeeded(surface markers.Surface, created substrat
 	return created.Type() + " binds its marker after the create (gadget rules)", true
 }
 func (gadgetFamily) ManualMarkFix(created substrate.Created, want map[string]string, _ substrate.Facts) string {
-	return fmt.Sprintf("Run: gadgetctl bind %s %s", appliedString(created.Object, "self_link"), markers.TagsArgument(want))
+	return fmt.Sprintf("Run: gadgetctl bind %s %s", substrate.ObjectString(created.Object, "self_link"), markers.TagsArgument(want))
 }
 func (gadgetFamily) CreatedObject(created substrate.Created) string {
-	return appliedString(created.Object, "self_link")
+	return substrate.ObjectString(created.Object, "self_link")
 }
 
 func gadgetSchema() providers.Schema {
