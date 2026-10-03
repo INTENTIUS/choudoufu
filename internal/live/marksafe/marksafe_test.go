@@ -101,6 +101,11 @@ var guardedPackages = []string{
 	// release. It imports no cty at all, so like "onboard" it is held to
 	// zero rather than deferred: it has nothing to defer.
 	"plugincache",
+	// GitHub issue #1752: plans a set of estate roots by running each
+	// root's init, plan and show as child processes and collecting their
+	// output into one document. It imports no cty at all, so like
+	// "plugincache" it is held to zero rather than deferred.
+	"setplan",
 	"pluginschema",
 	"policy",
 	// GitHub issues #1196 and #1148's retry vocabulary: two settings, their

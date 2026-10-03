@@ -18,11 +18,11 @@ import (
 	"github.com/intentius/choudoufu/internal/terminal"
 )
 
-// liveCommandNames are this fork's seven live-* commands. Under OpenTofu
+// liveCommandNames are this fork's eight live-* commands. Under OpenTofu
 // v1.13.0 the default CLI is commandMain's urfave/cli tree, built from
 // command.RootCommander rather than from the legacy commands map, so each
 // has to be reachable there as well as in initCommands.
-var liveCommandNames = []string{"live-check", "live-plan", "live-mv", "live-import", "live-ls", "live-bucket", "live-cluster"}
+var liveCommandNames = []string{"live-check", "live-plan", "live-mv", "live-import", "live-ls", "live-bucket", "live-cluster", "live-plan-set"}
 
 // TestCommandMainRoutesLiveCommands is the routing half of GitHub issue
 // #1778's step 3 test (internal/command's TestNewCLIDispatchesLiveCommands

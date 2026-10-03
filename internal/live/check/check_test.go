@@ -169,6 +169,7 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"pluginschema":    true, // provider schema reading
 		"plugincache":     true, // whether a plugin cache holds a provider release, so an init can install offline (#1509)
 		"policy":          true, // the ownership policy matrix
+		"setplan":         true, // plans a set of roots as child processes and collects one document (#1752); an orchestrator, not a pass
 		"providerscope":   true, // module-aware provider address resolution (#104); a pure function, not yet wired into any pass
 		"recordtrips":     true, // the record-store round-trip measurement; an instrument, like "statefulcost" below
 		"refusalscan":     true, // the shared lockstep scanner behind those registries
