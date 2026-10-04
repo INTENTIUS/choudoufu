@@ -309,3 +309,59 @@ func TestMarkersHeldByUpdate(t *testing.T) {
 		t.Errorf("after PatchMarkers re-sent over the same values: held = %v, err = %v; want false", held, err)
 	}
 }
+
+// TestAfterMarkerPatchRunsInsideTheWindow is GitHub issue #1883's hook:
+// AfterMarkerPatch is called once per real write, after the merge patch
+// has landed (the markers are on the object, held by the manager's Update
+// entry) and before the ownership hand-off (which, once sent, leaves no
+// marker in an Update entry). A dry run never calls it.
+func TestAfterMarkerPatchRunsInsideTheWindow(t *testing.T) {
+	c, dyn := fieldManagedCluster(t)
+	if _, err := providerApply(t, dyn, providerManifest(nil, nil)); err != nil {
+		t.Fatalf("stock create: %v", err)
+	}
+	ref := ObjectRef{APIVersion: "stable.example.com/v1", Kind: "CronTab", Namespace: "smoke-crd", Name: "my-crontab"}
+	labels, annotations := []string{"tofu-estate"}, []string{ssaTestAnnotation}
+
+	calls := 0
+	var seenHeld bool
+	var seenErr error
+	AfterMarkerPatch = func(got ObjectRef) {
+		calls++
+		if got != ref {
+			t.Errorf("AfterMarkerPatch got %+v, want %+v", got, ref)
+		}
+		live, err := dyn.Resource(crontabGVR).Namespace("smoke-crd").Get(context.Background(), "my-crontab", metav1.GetOptions{})
+		if err != nil {
+			seenErr = err
+			return
+		}
+		seenHeld, seenErr = MarkersHeldByUpdate(live, "", labels, annotations)
+	}
+	t.Cleanup(func() { AfterMarkerPatch = nil })
+
+	if _, rejected, err := c.PatchMarkers(context.Background(), ref,
+		map[string]string{"tofu-estate": "smoke-crd"},
+		map[string]string{ssaTestAnnotation: "kubernetes_manifest.x"}, "", true); err != nil || rejected != "" {
+		t.Fatalf("dry run: err=%v rejected=%q", err, rejected)
+	}
+	if calls != 0 {
+		t.Fatalf("a dry run called AfterMarkerPatch %d time(s); it writes nothing, so there is no window", calls)
+	}
+
+	finished, rejected, err := c.PatchMarkers(context.Background(), ref,
+		map[string]string{"tofu-estate": "smoke-crd"},
+		map[string]string{ssaTestAnnotation: "kubernetes_manifest.x"}, "", false)
+	if err != nil || rejected != "" {
+		t.Fatalf("PatchMarkers: err=%v rejected=%q", err, rejected)
+	}
+	if calls != 1 {
+		t.Fatalf("AfterMarkerPatch called %d time(s), want 1", calls)
+	}
+	if seenErr != nil || !seenHeld {
+		t.Errorf("inside the hook the markers were not yet held by the Update entry (held = %v, err = %v): the hook ran outside the window", seenHeld, seenErr)
+	}
+	if held, err := MarkersHeldByUpdate(finished, "", labels, annotations); held || err != nil {
+		t.Errorf("after PatchMarkers returned: held = %v, err = %v; the hand-off did not run after the hook", held, err)
+	}
+}
