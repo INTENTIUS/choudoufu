@@ -26,12 +26,15 @@
 #                scheduling is not what this estate measures).
 #
 # The access entry and the pod identity association are behind one
-# variable, eks_access_api, true by default. floci serves only the LIST
-# routes for both (EksController.java: GET /clusters/{name}/access-entries
-# and GET /clusters/{name}/pod-identity-associations, no create), so a
-# create there fails before anything this estate measures; the emulator
-# runs pass `false` and say so in their verdicts, and the real-AWS run is
-# the only one that creates them. That is a declared deviation, not a
+# variable, eks_access_api, true by default. floci main serves access-entry
+# create since lex00/floci 6b389c33e (#3805), but pod identity associations
+# only through their LIST route (EksController.java: GET
+# /clusters/{name}/pod-identity-associations, no create), and whether the
+# image live/floci-image pins carries the access-entry routes has not been
+# checked. So the emulator runs pass `false` and say so in their verdicts,
+# and the real-AWS run is the only one that creates them; turning the access
+# entry on for the emulator is a split of this variable once the pin is
+# known to carry it. That is a declared deviation, not a
 # silent one: what the emulator cannot create is exactly what the live-cert
 # cycle exists to certify (live/GAUNTLET.md, floci-eks on cold_deploy).
 #
