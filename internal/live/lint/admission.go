@@ -13,6 +13,38 @@ import (
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
+// admittedTypesV0 is every provider-local resource type a stateless
+// configuration may name: exactly [identity.DefaultTable]'s key set minus its
+// RecordBacked rows (the RECORD_ADMITTED types, which lint refuses by class
+// before identity resolution ever runs).
+//
+// Keyed by provider-local type name (the first label of a resource block), not
+// by fully-qualified provider address, because that is what a configuration
+// author writes and what the error message has to name back to them.
+//
+// It used to be a second generated file, admission_generated.go, written by
+// tools/row-gen -emit beside the identity table from the same rows (#809).
+// Two generated copies of one fact agree only as long as every regeneration
+// writes both, and admitting a type touched the table, this list and
+// tools/estate-gen in one commit 36 times. Derived here, the identity table
+// is the one admission artifact and there is nothing for lint to fall out
+// of step with. Tests may delete an entry and restore it in t.Cleanup, which
+// is why this stays a package variable rather than a function.
+var admittedTypesV0 = deriveAdmittedTypes(identity.DefaultTable)
+
+// deriveAdmittedTypes is admittedTypesV0's whole relationship to the
+// identity table.
+func deriveAdmittedTypes(table map[string]identity.TypeIdentity) map[string]struct{} {
+	out := make(map[string]struct{}, len(table))
+	for typeName, row := range table {
+		if row.RecordBacked {
+			continue
+		}
+		out[typeName] = struct{}{}
+	}
+	return out
+}
+
 // admitted reports whether the given provider-local resource type may appear
 // in a stateless configuration: first by the generated table, then by
 // [identity.MarkerlessTypes]' standing veto, and - only when the caller

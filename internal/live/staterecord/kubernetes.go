@@ -101,6 +101,12 @@ type KubernetesStore struct {
 	// and read by nothing else.
 	insecureTLS bool
 
+	// controlPlane, controlPlaneReader and apiServerHost are
+	// [KubernetesConfig]'s, kept for the contract and read by nothing else.
+	controlPlane       *ManagedControlPlane
+	controlPlaneReader ControlPlaneReader
+	apiServerHost      string
+
 	// listPageSize bounds one page of a LIST. Zero takes
 	// [DefaultKubernetesListPageSize].
 	listPageSize int64
@@ -144,6 +150,16 @@ type KubernetesConfig struct {
 	// cluster contract reports it as a finding (GitHub issue #1448), and it
 	// is carried here because neither client says how it was built.
 	InsecureTLS bool
+
+	// ControlPlane, ControlPlaneReader and APIServerHost are the cluster
+	// contract's [ClusterContractOptions] fields of the same names (GitHub
+	// issue #1524): which managed control plane this cluster runs on, how to
+	// ask its provider whether Secrets are encrypted at rest, and the host
+	// the clients reach, which the provider's answer has to match. All
+	// optional; a nil ControlPlane keeps reading the API server's Pod.
+	ControlPlane       *ManagedControlPlane
+	ControlPlaneReader ControlPlaneReader
+	APIServerHost      string
 
 	// Namespace is the Kubernetes namespace Secrets writes into. It is
 	// carried here for the error text, since a namespaced client does not
@@ -510,6 +526,10 @@ func NewKubernetesStore(cfg KubernetesConfig) (*KubernetesStore, error) {
 		estate:       cfg.Estate,
 		insecureTLS:  cfg.InsecureTLS,
 		listPageSize: cfg.ListPageSize,
+
+		controlPlane:       cfg.ControlPlane,
+		controlPlaneReader: cfg.ControlPlaneReader,
+		apiServerHost:      cfg.APIServerHost,
 	}, nil
 }
 

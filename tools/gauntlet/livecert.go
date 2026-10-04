@@ -169,8 +169,16 @@ func (a *Artifact) SetLiveCertResult(r LiveCertResult) {
 // can hold the refused rung beside the measured one; live_cert is keyed by
 // estate alone and has room for exactly one certification, so a refusal at
 // scale 136 must not be what replaces a certification at scale 50.
+//
+// Spoken is necessary and not sufficient. It is set by the `GAUNTLET
+// protocol=1` line, which gauntlet_begin prints before the script has done
+// anything at all, so a script that announces the protocol and then stops
+// at its first gate - the 2026-09-13 shape, one line later - is Spoken with
+// zero stages. That run measured exactly as much as one that printed
+// nothing, and #1100's ask is literally "a run whose script exited before
+// any stage line was spoken", so a stage line is the third clause.
 func RecordsLiveCert(res *ProtocolResult) bool {
-	return res != nil && res.Spoken && res.Refusal == nil
+	return res != nil && res.Spoken && res.Refusal == nil && len(res.Stages) > 0
 }
 
 // LiveCertWrites is what a finished run writes, and why. Split out of
@@ -223,9 +231,11 @@ func PlanLiveCertWrites(target string, res *ProtocolResult, state LiveCertRunSta
 		// A refusal has somewhere to go: a rung of its own.
 		w.Why = fmt.Sprintf("the run REFUSED, so %s is left unchanged - a refusal must not replace a certification (#1151). The refusal itself is recorded in %s: on its own rung when the run named a scale, which holds it beside the rung below, and on that file's estate-level `refusals` shelf when the estate declares no scale ladder at all (#1233).", ArtifactPath, ScaleRecordsPath)
 	default:
-		// A run that spoke nothing measured nothing, at any scale.
+		// A run that spoke nothing measured nothing, at any scale - whether
+		// it never announced the protocol or announced it and stopped
+		// before its first stage line.
 		w.ScaleRecord = false
-		w.Why = fmt.Sprintf("the run spoke no stage, so nothing was measured - %s left unchanged rather than overwriting the last certification (#1100)", ArtifactPath)
+		w.Why = fmt.Sprintf("the run spoke no stage, so nothing was measured - %s and %s left unchanged rather than overwriting the last certification (#1100)", ArtifactPath, ScaleRecordsPath)
 	}
 	return w
 }

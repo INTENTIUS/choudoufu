@@ -28,9 +28,9 @@ touches live infrastructure, so the generator proposes and humans decide -
 see issue #37.
 
 Paste a block into tools/row-gen/ratified.json and re-run
-"go run ./tools/row-gen -emit". There is no second paste: admittedTypesV0 in
-internal/live/lint/admission_generated.go is DERIVED from the emitted table's
-own key set, so admitting a type is exactly the act of giving it a row here
+"go run ./tools/row-gen -emit". There is no second paste: internal/live/lint's
+admittedTypesV0 is DERIVED from the emitted table when lint loads (#809), so
+admitting a type is exactly the act of giving it a row here
 (issue #263).
 
 Non-goals (also true of every block below, not just this header):

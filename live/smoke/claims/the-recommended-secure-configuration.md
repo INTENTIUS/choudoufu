@@ -52,6 +52,11 @@ As the run prints them:
    `RECORD_KMS_KEY_ARN`, then `just verify`, which asks the choudoufu
    binary about the three asserted settings and then probes the key
    policy statements on the bucket.
+   The run prints step 2b next, `the same up again, with the key
+   forgotten`. `just up` runs a second time with `RECORD_KMS_KEY_ARN`
+   unset. It must refuse before deploying, and the refusal must name the
+   key exactly as `get-bucket-encryption` reports it. The bucket's key
+   must be unchanged afterwards (#1421).
 3. `the estate's role, from the published policy` - proven live before
    anything is measured under it.
 4. `an estate's life, as that role` - create, update under `If-Match`,
@@ -66,6 +71,14 @@ As the run prints them:
    naming both. With the right owner back the same plan is empty. One
    account cannot stage a stranger's bucket, so the pin is moved and the
    bucket is not. S3 answers the two cases the same way.
+   Step 4c, `the same bucket name, really in another account`, stages the
+   real case. It needs `SMOKE_OTHER_ACCOUNT_PROFILE`, an AWS CLI profile
+   for a second account, and prints `NOT MEASURED` without one. In that
+   account it creates a bucket with the three asserted settings and a
+   policy that lets this account in. As the operator with no pin, the plan
+   reads the bucket. With `bucket_owner` set to this account, the same
+   plan stops on its first request, and the other account's bucket gains
+   nothing (#1408, #1421).
 5. `a record destroyed by mistake, and brought back` - an instance is
    removed from the configuration and applied. Its record is gone from a
    listing, and a delete marker sits over the earlier versions. The

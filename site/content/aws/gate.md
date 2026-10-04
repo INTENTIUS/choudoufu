@@ -13,8 +13,9 @@ deeper:
 
 Tag-based IAM scoping is a feature AWS already has. What it needs is tags
 that are reliably present and correct on everything, and that is what a
-marker is: derived from the configuration address, written as part of the
-create call, not a convention that drifts.
+marker is: derived from the configuration address, written with the create
+call (or straight after it, for a type that cannot take tags at creation),
+not a convention that drifts.
 
 So scoping a role is ordinary tag conditions. Two statements, because
 creating and mutating are conditioned by different keys.
@@ -25,7 +26,10 @@ creating and mutating are conditioned by different keys.
   "Effect": "Allow",
   "Action": ["ec2:CreateTags", "ec2:DeleteTags", "ec2:TerminateInstances"],
   "Resource": "*",
-  "Condition": {"StringEquals": {"aws:ResourceTag/tofu-estate": "prod-networking"}}
+  "Condition": {
+    "StringEquals": {"aws:ResourceTag/tofu-estate": "prod-networking"},
+    "StringEqualsIfExists": {"aws:RequestTag/tofu-estate": "prod-networking"}
+  }
 }
 ```
 

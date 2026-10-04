@@ -136,6 +136,9 @@ EOF
     printf '%s\n' 'set -uo pipefail'
     printf '%s\n' "$TEARDOWN_SRC"
     printf '%s\n' 'log() { printf "  [harness] %s\n" "$*"; }'
+    # teardown() calls heartbeat_stop first (#1324); without this the run
+    # prints "command not found" and goes on (#1568).
+    printf '%s\n' 'heartbeat_stop() { :; }'
     printf '%s\n' 'verify_empty() { echo "  [harness] verify_empty called - should not happen when held"; return 0; }'
     printf '%s\n' 'sweep() { echo "  [harness] sweep called - should not happen when held"; }'
     printf 'TEARDOWN_DONE=0\n'

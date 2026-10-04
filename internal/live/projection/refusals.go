@@ -86,6 +86,10 @@ var refusals = []Refusal{
 		What:    "A live object read from the cloud could not be encoded against the provider's schema for its type.",
 	},
 	{
+		Summary: "Cannot confirm the destroy removed every record",
+		What:    "GitHub issue #1355: after a destroy of the whole estate, listing or reading the record store back to confirm no record-backed instance survived failed. Nothing is known to be wrong, but the destroy is not reported complete until the check succeeds.",
+	},
+	{
 		Summary: "Cannot import for projection",
 		What:    "The provider refused the import this projection needed to read a resource's current state.",
 	},
@@ -332,6 +336,10 @@ var refusals = []Refusal{
 	{
 		Summary: SummaryEstateBoundaryRefusedTheWrite,
 		What:    "live/kubernetes/estate-boundary.yaml refused a record write because this run's identity holds no \"use\" grant on its estate. The refusal carries the estate-grant.yaml line that fixes it. It is raised when the store is opened, so a plan stops as well as an apply (GitHub issue #1448).",
+	},
+	{
+		Summary: "The destroy left record-backed instances behind",
+		What:    "GitHub issue #1355: a destroy of the whole estate finished, and the record store still holds a record-backed instance's record that the destroy's plan never listed. For a record-backed resource the record is the instance, so it was not destroyed, and the run fails rather than report a complete destroy.",
 	},
 	{
 		Summary: "The record store contradicts itself about a record",

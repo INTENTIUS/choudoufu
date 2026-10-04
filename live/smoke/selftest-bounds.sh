@@ -187,7 +187,8 @@ SCEOF
 }
 
 # sandbox <name>: a scratch tree shaped like the repository as far as lib.sh
-# reads it (live/smoke, live/floci-image, live/oracle-versions.json), the
+# reads it (live/smoke, live/floci-image, live/oracle-versions.json,
+# live/kind-node-image), the
 # stubs on a bin dir of its own, and the logs the stubs write.
 sandbox() {
   [ -z "${SB:-}" ] || reap_stubs
@@ -196,7 +197,7 @@ sandbox() {
   cp "$SMOKE_SRC/smoke.sh" "$SMOKE_SRC/lib.sh" "$SMOKE_SRC/VERSION" "$SMOKE_SRC/claims.json" \
      "$SMOKE_SRC/docker-compose.yml" "$SB/tree/live/smoke/"
   cp "$SMOKE_SRC/scenarios/k8s-the-server-gets-the-last-word.sh" "$SB/tree/live/smoke/scenarios/"
-  cp "$REPO_ROOT/live/floci-image" "$REPO_ROOT/live/oracle-versions.json" "$SB/tree/live/"
+  cp "$REPO_ROOT/live/floci-image" "$REPO_ROOT/live/oracle-versions.json" "$REPO_ROOT/live/kind-node-image" "$SB/tree/live/"
   write_stubs "$SB/bin"
   write_stall_scenario "$SB/tree/live/smoke/scenarios"
   : > "$SB/kubectl.log"; : > "$SB/kind.log"; : > "$SB/choudoufu.log"; : > "$SB/stub.pids"

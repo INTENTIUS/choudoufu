@@ -89,8 +89,10 @@ truthfully weaker, because an admin reads every namespace.
 
 On kind and on any cluster whose API server Pod is not started with
 `--encryption-provider-config`, `encryption_at_rest` fails. On a managed
-control plane (EKS, GKE, AKS) it reads `NOT CHECKED`, which is not a pass;
-[CONTRACT.md](CONTRACT.md) says why, and what a run does with it.
+control plane (EKS, GKE, AKS) it reads `NOT CHECKED`, which is not a pass,
+unless the record_store block's `control_plane` block names the cluster (or,
+on EKS, its exec plugin does), in which case it is read from the provider's
+API; [CONTRACT.md](CONTRACT.md) says how, and what a run does with it.
 
 ## Parameters
 

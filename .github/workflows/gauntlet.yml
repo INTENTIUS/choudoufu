@@ -67,9 +67,13 @@ name: Gauntlet
 # The org policy that once blocked GITHUB_TOKEN from opening pull requests
 # is gone (2026-09-21: can_approve_pull_request_reviews is true at both the
 # org and the repo level), so the fallback opens the PR; its cost is issue
-# #948 - a PR authored by the Actions app waits for a human to approve its
-# CI run. That is one click. The alternative was a measurement computed
-# nightly and discarded.
+# #948 - a PR authored by the Actions app gets a CI run that waits at
+# action_required for a human's approval, and for most of September nobody
+# clicked it (#1731's CI never ran). So on the fallback path the collect job
+# also dispatches CI on gauntlet/nightly ("Run CI on the verdicts branch"
+# below): a workflow_dispatch is the one event GITHUB_TOKEN may start, and
+# its checks land on the branch head, which is the PR's head. That needs
+# `actions: write` and ci.yml's own workflow_dispatch trigger.
 
 on:
   # Dispatch only (2026-09-29): the board is re-measured when the maintainer
@@ -86,6 +90,8 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # Issue #948: the fallback path dispatches CI on the verdicts branch.
+  actions: write
 
 concurrency:
   group: gauntlet
@@ -457,7 +463,7 @@ jobs:
             enforceRatchet failure (if any) means a previously-passing cohort
             regressed, not merely that a still-failing one stayed failing.
 
-            ${{ steps.prtoken.outputs.usable != 'true' && format('Opened with GITHUB_TOKEN because GAUNTLET_PR_TOKEN was unusable: {0}. A pull request authored by the Actions app waits for a human to approve its CI run (issue #948): `gh run list --branch gauntlet/nightly --workflow CI`, then `gh api -X POST repos/INTENTIUS/choudoufu/actions/runs/<id>/approve`. A fine-grained PAT with resource owner INTENTIUS stops this (issue #496).', steps.prtoken.outputs.reason) || '' }}
+            ${{ steps.prtoken.outputs.usable != 'true' && format('Opened with GITHUB_TOKEN because GAUNTLET_PR_TOKEN was unusable: {0}. A pull request authored by the Actions app gets a pull_request CI run that waits at action_required, so the Gauntlet run dispatched CI on gauntlet/nightly instead (issue #948); its checks report on this PR. Ignore the action_required run, or approve it: `gh run list --branch gauntlet/nightly --workflow CI`, then `gh api -X POST repos/INTENTIUS/choudoufu/actions/runs/<id>/approve`. A fine-grained PAT with resource owner INTENTIUS stops this (issue #496).', steps.prtoken.outputs.reason) || '' }}
           # Every file `gauntlet render` writes (tools/gauntlet/render.go)
           # plus the cohort acceptance artifact the acceptance job writes.
           # TestGauntletWorkflowCarriesEveryFileTheCommandWrites holds this
@@ -491,10 +497,26 @@ jobs:
             echo "$MSG" >> "$GITHUB_STEP_SUMMARY"
           fi
           exit 1
+      - name: Run CI on the verdicts branch (issue #948)
+        # The fallback path (header comment). The PR's own pull_request run
+        # stalls at action_required because the Actions app authored it;
+        # a workflow_dispatch started with GITHUB_TOKEN does not, and its
+        # checks attach to gauntlet/nightly's head, which is the PR's head,
+        # so `fast` reports on the PR and automerge-artifact.yml can act.
+        # Only when a PR exists: with nothing changed there is no PR and no
+        # head worth checking. A failed dispatch fails the job, because a
+        # PR whose CI never runs is the state #948 is about.
+        if: steps.open_pr.outcome == 'success' && steps.prtoken.outputs.usable != 'true' && steps.open_pr.outputs.pull-request-url != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run ci.yml -R "$GITHUB_REPOSITORY" --ref gauntlet/nightly
+          echo "dispatched CI on gauntlet/nightly; its checks report on the verdicts PR (issue #948)"
       - name: Warn when the verdicts PR was opened by the Actions app
         # The fallback path (header comment): the measurement landed in a
-        # pull request, and that pull request needs a human's click on its
-        # CI run (issue #948) until the secret is reissued (issue #496).
+        # pull request whose CI had to be dispatched rather than triggered
+        # (issue #948, the step above), until the secret is reissued
+        # (issue #496).
         # A warning and not a failure, because the job did its work - but
         # nightly-watch.yml reads conclusions, so a token left broken shows
         # up here, in the PR body, and in the run summary, not in an issue.
@@ -503,7 +525,7 @@ jobs:
           REASON: ${{ steps.prtoken.outputs.reason }}
           PR_URL: ${{ steps.open_pr.outputs.pull-request-url }}
         run: |
-          MSG="the verdicts PR ${PR_URL:-(none opened: nothing changed)} was opened with GITHUB_TOKEN because $REASON. Approve its CI run by hand (issue #948) and issue GAUNTLET_PR_TOKEN with resource owner INTENTIUS (issue #496)."
+          MSG="the verdicts PR ${PR_URL:-(none opened: nothing changed)} was opened with GITHUB_TOKEN because $REASON. CI was dispatched on gauntlet/nightly so its checks report on the PR (issue #948); issue GAUNTLET_PR_TOKEN with resource owner INTENTIUS to open it as a user (issue #496)."
           echo "::warning title=Nightly verdicts PR opened by the Actions app::$MSG"
           if [ -n "$GITHUB_STEP_SUMMARY" ]; then
             echo "$MSG" >> "$GITHUB_STEP_SUMMARY"

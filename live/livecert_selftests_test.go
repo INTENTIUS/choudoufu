@@ -101,7 +101,7 @@ var liveCertSelftests = []liveCertSelftest{
 		proves:   "#1048 - teardown()'s untrusted step ran with no timeout, so a hang there blocked the trusted destroy indefinitely",
 		runner:   runsHere,
 		bound:    120 * time.Second,
-		measured: "2.2s. Already carries its own OUTER_BOUND_S=15 `timeout` around the extracted teardown(), under the fake hung step's own 30s sleep, so the unfixed script fails in seconds rather than hanging.",
+		measured: "2.2s. Already carries its own OUTER_BOUND_S=60 `timeout` around the extracted teardown(), under the fake hung step's own 120s sleep, so the unfixed script fails in a minute rather than hanging (15s under 30s until #1568, which a loaded machine used up).",
 	},
 	{
 		script:   "selftest-hold-resume.sh",

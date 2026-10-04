@@ -127,6 +127,13 @@ trap 'bootstrap_rc=$?
       exit $bootstrap_rc' EXIT
 cp "$EXAMPLE"/package.json "$EXAMPLE"/package-lock.json "$EXAMPLE"/chant.config.ts "$SEED/"
 cp -R "$EXAMPLE"/src "$EXAMPLE"/terraform "$SEED/"
+# The sidecar pins the record store bucket's owner to the real account
+# (bucket_owner, #1381/#1421). Every job here runs against floci, whose account
+# is the 000000000000 the role ARNs above already name, so the seeded copy
+# names that one. The example itself is not touched.
+perl -pi -e 's/^(\s*bucket_owner\s*=\s*)"[0-9]+"/${1}"000000000000"/' "$SEED/terraform/estate.chdf.hcl"
+grep -qE '^[[:space:]]*bucket_owner[[:space:]]*=[[:space:]]*"000000000000"' "$SEED/terraform/estate.chdf.hcl" \
+  || { echo "[bootstrap] FAIL: could not point the seeded sidecar's bucket_owner at floci's account" >&2; exit 1; }
 cp "$EXAMPLE"/gitlab/scheduled-ops.gitlab-ci.yml "$SEED/"   # byte-identical to the generated file
 cp "$HERE"/overlay/.gitlab-ci.yml "$SEED/"
 (

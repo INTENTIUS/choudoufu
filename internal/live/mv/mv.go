@@ -410,10 +410,11 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// Kubernetes surface the ownership marker is the estate label and the
 	// block address is an annotation beside it (GitHub issue #1639): a
 	// rename within one estate rewrites the annotation, and a move between
-	// estates rewrites the label and the annotation together, on the
-	// metadata-block shape; on the manifest shape the move is refused by
-	// name until that rewrite exists (#1104), and the rename is one
-	// annotation patch (manifest.go).
+	// estates rewrites the label and the annotation together. On the
+	// metadata-block shape that is a markers-only plan and apply through
+	// the provider; on the manifest shape it is one merge patch to the API
+	// server under the run's own credential (manifest.go; the move is
+	// GitHub issue #1104).
 	res.Surface = surfaceOf(providerAddr.Provider.Type, schema.Block)
 	switch {
 	case res.MarkerCarriesAddress():
@@ -426,17 +427,12 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			res.NothingToWrite = true
 			return res, diags.Append(m.propagateModuleRename(ctx))
 		}
-	case req.FromEstate == "":
-		diags = diags.Append(m.reannotateManifest(ctx))
+	default:
+		diags = diags.Append(m.rewriteManifest(ctx))
 		if diags.HasErrors() || req.DryRun {
 			return res, diags
 		}
 		return res, diags.Append(m.propagateModuleRename(ctx))
-	default:
-		// The one cross-estate write built here for a Kubernetes marker
-		// is the metadata block's plan; the manifest shape's label patch
-		// is not (#1104), so it is refused by name.
-		return res, diags.Append(manifestMoveRefusal(res.TypeName, anchor, req.FromEstate, req.Estate))
 	}
 
 	prior, findDiags := m.find(ctx)

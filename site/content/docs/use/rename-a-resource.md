@@ -60,5 +60,9 @@ through the provider under your own credential, so the cluster's admission
 policy judges it as it judges a plain `kubectl label`: you must hold both
 the estate the object is leaving and the one it is entering
 ([claim 13 on Kubernetes]({{< relref "/docs/claims/the-tag-is-the-boundary" >}})).
-An object declared through a manifest block is refused by name with the
-equivalent `kubectl label` command.
+An object declared through a manifest block has no metadata block for the
+provider to plan, so its move is one merge patch through the cluster's API
+instead, setting the `tofu-estate` label and the address annotation and
+nothing else, under the same credential and the block's own field manager.
+It is sent first as a server-side dry run, so `-dry-run` prints the
+cluster's verdict, a policy's refusal included, before anything is written.

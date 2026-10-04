@@ -11,11 +11,43 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
 
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
+	"github.com/intentius/choudoufu/internal/live/managedk8s"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 )
+
+// controlPlaneReader asks a managed control plane's provider whether Secrets
+// are encrypted at rest (GitHub issue #1524). A variable so a test can hand
+// the contract a fake provider.
+var controlPlaneReader staterecord.ControlPlaneReader = &managedk8s.Reader{}
+
+// kubernetesControlPlane is the managed control plane the connection cfg
+// reaches: the record_store block's control_plane block when it has one,
+// otherwise what [managedk8s.ControlPlaneFor] recognises from the connection
+// itself (an EKS host and an EKS exec plugin), otherwise nil.
+func kubernetesControlPlane(rs *configs.LiveRecordStore, cfg *restclient.Config) *staterecord.ManagedControlPlane {
+	var declared *staterecord.ManagedControlPlane
+	if c := rs.Kubernetes.ControlPlane; c != nil {
+		declared = &staterecord.ManagedControlPlane{
+			Provider:       c.Provider,
+			Name:           c.Name,
+			Region:         c.Region,
+			Project:        c.Project,
+			Location:       c.Location,
+			ResourceGroup:  c.ResourceGroup,
+			SubscriptionID: c.SubscriptionID,
+		}
+	}
+	var command string
+	var args []string
+	if cfg.ExecProvider != nil {
+		command, args = cfg.ExecProvider.Command, cfg.ExecProvider.Args
+	}
+	return managedk8s.ControlPlaneFor(declared, cfg.Host, command, args)
+}
 
 // kubernetesNamespacePrefix starts the Kubernetes namespace an estate's
 // records go in when the record_store block names none.
@@ -99,7 +131,12 @@ func newKubernetesStore(rs *configs.LiveRecordStore, estate string) (staterecord
 		// what carries it there, since a clientset does not say how it was
 		// built.
 		InsecureTLS: rs.Kubernetes.Insecure,
-		Namespace:   ns,
+		// #1524: on a managed control plane, encryption at rest is the
+		// provider's setting and is read from its API, for this host only.
+		ControlPlane:       kubernetesControlPlane(rs, cfg),
+		ControlPlaneReader: controlPlaneReader,
+		APIServerHost:      cfg.Host,
+		Namespace:          ns,
 		// Empty on purpose, the same as the s3 backend's: the namespace a
 		// record lives under is carried by the KEY. See backendKeyPrefix.
 		KeyPrefix: backendKeyPrefix,
