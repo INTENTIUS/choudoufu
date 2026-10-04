@@ -614,6 +614,32 @@ func TestModule_liveRecordStore(t *testing.T) {
 		}
 	})
 
+	// Claim 44 on Kubernetes: reads_outputs_of declares another estate's
+	// outputs as read, defaulting to that estate's own records namespace.
+	t.Run("kubernetes with reads_outputs_of", func(t *testing.T) {
+		mod, diags := testModuleFromDir("testdata/valid-modules/live-record-store-kubernetes-reads-outputs-of")
+		if diags.HasErrors() {
+			t.Fatalf("unexpected diagnostics: %s", diags.Error())
+		}
+		rs := mod.Live.RecordStore
+		if rs == nil || len(rs.ReadsOutputsOf) != 2 {
+			t.Fatalf("want two reads_outputs_of blocks decoded, got %+v", rs)
+		}
+		network, dns := rs.ReadsOutputsOf[0], rs.ReadsOutputsOf[1]
+		if network.Estate != "network" || network.NamespaceSet || network.Namespace != "" {
+			t.Errorf("network = %+v, want no namespace of its own", network)
+		}
+		if dns.Estate != "dns" || !dns.NamespaceSet || dns.Namespace != "platform-records" {
+			t.Errorf("dns = %+v, want namespace platform-records", dns)
+		}
+		if rs.NamespaceSet {
+			t.Error("a reads_outputs_of namespace leaked into the store's own namespace")
+		}
+		if !rs.OutputReadsDeclared {
+			t.Error("a kubernetes store does not say its cross-estate reads must be declared")
+		}
+	})
+
 	// GitHub issue #1448, section C. `insecure = true` is a contract finding
 	// named tls_verification, so the waiver list has to accept that name. The
 	// misspelling beside it is in TestModule_liveRecordStoreRefused.
@@ -872,6 +898,15 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 		{"testdata/invalid-files/live-record-store-kubernetes-control-plane-wrong-provider-arg.tf", `The "resource_group" argument has no meaning for control_plane "eks"`},
 		{"testdata/invalid-files/live-record-store-kubernetes-control-plane-twice.tf", "Duplicate control_plane block"},
 		{"testdata/invalid-files/live-record-store-control-plane-on-local.tf", `has no meaning for record_store "local"`},
+		// Claim 44 on Kubernetes. reads_outputs_of is the kubernetes store's
+		// declaration; on s3 the same read is the bucket policy's, and the
+		// refusal says so. One block per estate, a real namespace, and an
+		// estate name that can be a label value.
+		{"testdata/invalid-files/live-record-store-reads-outputs-of-on-s3.tf", `render-policy.sh <this estate> <bucket> --reads-outputs-of network`},
+		{"testdata/invalid-files/live-record-store-reads-outputs-of-on-local.tf", `has no meaning for record_store "local"`},
+		{"testdata/invalid-files/live-record-store-kubernetes-reads-outputs-of-twice.tf", "Duplicate reads_outputs_of block"},
+		{"testdata/invalid-files/live-record-store-kubernetes-reads-outputs-of-bad-namespace.tf", `"Platform_Records", which is not a Kubernetes namespace name`},
+		{"testdata/invalid-files/live-record-store-kubernetes-reads-outputs-of-bad-estate.tf", `reads_outputs_of "Network!" does not name an estate`},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
 			parser := NewParser(nil)

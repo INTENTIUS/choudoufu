@@ -517,6 +517,30 @@ type LiveRecordStore struct {
 	// which is the one copy of that precedence this fork keeps.
 	Kubernetes LiveRecordStoreKubernetes
 
+	// ReadsOutputsOf is the "kubernetes" backend's declared cross-estate
+	// output reads: one `reads_outputs_of "<estate>"` block per other estate
+	// whose recorded root outputs this estate reads through a data
+	// "terraform_estate_outputs" block (GitHub issue #1371's reader, on
+	// Kubernetes). Empty means this estate reads no other estate's outputs,
+	// and a data block that names one is refused by name.
+	//
+	// It is a declaration on the store because on Kubernetes the store is
+	// where the boundary is. Each estate's records live in a namespace of
+	// their own by default, and a namespace is the read isolation (see
+	// Namespace above), so another estate's outputs are only reachable by
+	// opening its namespace, which this run does only for an estate named
+	// here. On "s3" the same declaration is the bucket policy's
+	// (render-policy.sh --reads-outputs-of), and the block is refused there.
+	ReadsOutputsOf []LiveRecordStoreOutputRead
+
+	// OutputReadsDeclared is true for a store kind that keeps each estate's
+	// records apart, so that another estate's outputs are read only where a
+	// ReadsOutputsOf block declares them, and an undeclared read is refused.
+	// Set by decodeRecordStoreKubernetes, the one place the kind's own
+	// properties are decoded, so a reader asks this rather than naming a
+	// backend.
+	OutputReadsDeclared bool
+
 	// DeclRange is the "record_store" block's own header, or - for the
 	// implied store - the live block's own header, since that is the
 	// nearest thing the author wrote.
@@ -587,6 +611,30 @@ type LiveRecordStoreKubernetes struct {
 	// because on a managed control plane the API server is not a Pod the
 	// cluster can see. Nil when none is declared.
 	ControlPlane *LiveRecordStoreControlPlane
+}
+
+// LiveRecordStoreOutputRead is one `reads_outputs_of "<estate>"` block
+// nested in a record_store "kubernetes" block:
+//
+//	reads_outputs_of "network" {}                                    # tofu-records-network
+//	reads_outputs_of "network" { namespace = "platform-records" }    # a shared or renamed namespace
+//
+// The label is the other estate's name, as the data
+// "terraform_estate_outputs" block's estate argument spells it. Namespace is
+// where that estate keeps its records; empty means the default
+// [internal/live/projection.KubernetesRecordNamespace] derives from the
+// other estate's name, which is where that estate's own record_store block
+// puts them unless it says otherwise.
+//
+// The read it declares is read-only: the store opened on the other
+// namespace answers Get and nothing else, and the grant it needs is get on
+// the other estate's output Secrets, which a refusal names.
+type LiveRecordStoreOutputRead struct {
+	Estate       string
+	Namespace    string
+	NamespaceSet bool
+
+	DeclRange hcl.Range
 }
 
 // LiveRecordStoreControlPlane is the `control_plane` block nested in a
@@ -840,6 +888,13 @@ var recordStoreBlockSchema = &hcl.BodySchema{
 	Blocks: []hcl.BlockHeaderSchema{
 		{Type: "exec"},
 		{Type: "control_plane", LabelNames: []string{"provider"}},
+		{Type: "reads_outputs_of", LabelNames: []string{"estate"}},
+	},
+}
+
+var recordStoreOutputReadBlockSchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{
+		{Name: "namespace"},
 	},
 }
 
@@ -1688,8 +1743,20 @@ func decodeRecordStoreKubernetes(rs *LiveRecordStore, content *hcl.BodyContent) 
 				Subject:  blk.DefRange.Ptr(),
 			})
 		}
+		for _, blk := range content.Blocks.OfType("reads_outputs_of") {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Invalid block for the %s record store", rs.Type),
+				Detail:   recordStoreOutputReadElsewhere(rs.Type, blk.Labels[0]),
+				Subject:  blk.DefRange.Ptr(),
+			})
+		}
 		return diags
 	}
+
+	// Each estate's records are in a namespace of their own, so another
+	// estate's outputs are read only where reads_outputs_of declares them.
+	rs.OutputReadsDeclared = true
 
 	if attr, exists := content.Attributes["path"]; exists {
 		diags = append(diags, &hcl.Diagnostic{
@@ -1827,7 +1894,85 @@ func decodeRecordStoreKubernetes(rs *LiveRecordStore, content *hcl.BodyContent) 
 		}
 	}
 
+	seenReads := map[string]hcl.Range{}
+	for _, blk := range content.Blocks.OfType("reads_outputs_of") {
+		read, readDiags := decodeRecordStoreOutputReadBlock(blk)
+		diags = append(diags, readDiags...)
+		if readDiags.HasErrors() {
+			continue
+		}
+		if prev, dup := seenReads[read.Estate]; dup {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Duplicate reads_outputs_of block",
+				Detail:   fmt.Sprintf("Estate %q's outputs are already declared as read at %s. One estate keeps its records in one namespace, so one block says where.", read.Estate, prev),
+				Subject:  blk.DefRange.Ptr(),
+			})
+			continue
+		}
+		seenReads[read.Estate] = blk.DefRange
+		rs.ReadsOutputsOf = append(rs.ReadsOutputsOf, *read)
+	}
+
 	return diags
+}
+
+// recordStoreOutputReadElsewhere is the refusal detail for a
+// reads_outputs_of block on a store that is not "kubernetes": where that
+// store declares the same read instead.
+func recordStoreOutputReadElsewhere(storeType, other string) string {
+	switch storeType {
+	case "s3":
+		return fmt.Sprintf("A \"reads_outputs_of\" block declares where another estate's records namespace is in a Kubernetes cluster, and has no meaning for record_store \"s3\": every estate sharing the bucket reads through the same store, and the read of estate %q's outputs is declared in this estate's bucket policy instead (examples/record-store-bucket/iam/render-policy.sh <this estate> <bucket> --reads-outputs-of %s). Remove the block.", other, other)
+	default:
+		return fmt.Sprintf("A \"reads_outputs_of\" block declares where another estate's records namespace is in a Kubernetes cluster, and has no meaning for record_store %q, whose records are a directory this run's user already reads. Remove the block.", storeType)
+	}
+}
+
+// decodeRecordStoreOutputReadBlock decodes one `reads_outputs_of "<estate>"`
+// block. Both the label and the namespace are literals, for the reason every
+// record_store argument is: they name where records are before any plan
+// exists to evaluate an expression in.
+func decodeRecordStoreOutputReadBlock(block *hcl.Block) (*LiveRecordStoreOutputRead, hcl.Diagnostics) {
+	read := &LiveRecordStoreOutputRead{Estate: block.Labels[0], DeclRange: block.DefRange}
+	content, diags := block.Body.Content(recordStoreOutputReadBlockSchema)
+
+	// The other estate's name becomes the tofu-estate label value the store
+	// opened on its namespace checks every record against, so it has to be
+	// one. The marker grammar itself is checked where the name is read
+	// (projection.ReadEstateOutputs), the same place the data block's own
+	// estate argument is.
+	if errs := validation.IsValidLabelValue(read.Estate); read.Estate == "" || len(errs) > 0 {
+		why := "it is empty"
+		if len(errs) > 0 {
+			why = strings.Join(errs, "; ")
+		}
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid reads_outputs_of estate",
+			Detail:   fmt.Sprintf("reads_outputs_of %q does not name an estate whose records a Kubernetes store could hold: every record Secret carries its estate as the tofu-estate label, and %s.", read.Estate, why),
+			Subject:  block.LabelRanges[0].Ptr(),
+		})
+	}
+
+	if attr, exists := content.Attributes["namespace"]; exists {
+		val, valDiags := decodeLiteralString(attr, "namespace")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			if errs := validation.IsDNS1123Label(val); len(errs) > 0 {
+				diags = append(diags, &hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  "Invalid reads_outputs_of namespace",
+					Detail:   fmt.Sprintf("The \"namespace\" argument was set to %q, which is not a Kubernetes namespace name: %s. Omit it to read from estate %q's default records namespace.", val, strings.Join(errs, "; "), read.Estate),
+					Subject:  attr.Expr.Range().Ptr(),
+				})
+			} else {
+				read.Namespace = val
+				read.NamespaceSet = true
+			}
+		}
+	}
+	return read, diags
 }
 
 // decodeRecordStoreControlPlaneBlock decodes a `control_plane "<provider>"`

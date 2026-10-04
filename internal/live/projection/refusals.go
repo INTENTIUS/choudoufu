@@ -368,7 +368,11 @@ var refusals = []Refusal{
 	// GitHub issue #1371: the cross-estate output read (estateoutputs.go).
 	{
 		Summary: SummaryEstateOutputsDenied,
-		What:    "A data \"terraform_estate_outputs\" block declares that this estate reads another estate's recorded root outputs, and the record store refused the read by policy. The refusal names the other estate and the grant to add (for an s3 store, render-policy.sh's --reads-outputs-of).",
+		What:    "A data \"terraform_estate_outputs\" block declares that this estate reads another estate's recorded root outputs, and the record store refused the read by policy. The refusal names the other estate and the grant to add (for an s3 store, render-policy.sh's --reads-outputs-of; for a kubernetes store, a Role granting get on the other estate's output Secrets by name in its namespace).",
+	},
+	{
+		Summary: SummaryEstateOutputsUndeclared,
+		What:    "A data \"terraform_estate_outputs\" block reads another estate's outputs through a record_store \"kubernetes\" block that declares no reads_outputs_of block for that estate. Each estate's records are in a namespace of their own, and another estate's is opened only when the configuration names it, so the read is not attempted. The refusal gives the block to add.",
 	},
 	{
 		Summary: SummaryEstateOutputsUnreadable,

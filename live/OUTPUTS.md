@@ -196,6 +196,24 @@ outputs that are non-sensitive and wholly known. The consumer's plan warns
 that the value is as of the producer's last apply, with the time the record
 was written. `site/content/docs/use/cross-estate.md` is the operator's page.
 
+On `record_store "kubernetes"` the declaration moves into the record_store
+block, because there the store is where the boundary is. Each estate keeps
+its records in a namespace of its own by default (`tofu-records-<estate>`),
+and that namespace is the read isolation, so the producer's outputs are not
+in the consumer's store at all; in a namespace shared by configuration the
+consumer's own store refuses a record labelled as another estate's (#1355).
+The consumer declares the read with `reads_outputs_of "<estate>" {}`, adding
+`namespace = "..."` when the producer's records are not in its default
+namespace. Only a declared estate's namespace is opened, through a store
+opened as that estate and able to `get` and nothing else; a read of an
+undeclared estate is refused before anything is sent ("This estate does not
+declare that it reads another estate's outputs"). The grant is a Role in the
+producer's namespace with `get` on the named output Secrets and no other
+verb, and a refusal by RBAC prints the `kubectl create role` and
+`rolebinding` lines that grant exactly that.
+`live/smoke/drafts/k8s-an-estate-reads-another-by-declaring-it.sh` is the
+draft proof (not yet run).
+
 A record goes when nothing stands behind it. A destroy of the whole estate
 (no `-target`, no `-exclude`) deletes every record under
 `tofu-outputs/<estate>/`, and an apply after an `output` block is removed
