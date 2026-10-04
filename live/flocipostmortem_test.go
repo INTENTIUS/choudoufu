@@ -167,7 +167,12 @@ func TestEveryScriptThatStartsFlociCanReadItBack(t *testing.T) {
 	// ... \` with `--name` on a later line, so the one-line detection above
 	// never counted it. Routing every start through gauntlet_floci_start put
 	// the name on the same line as the call, and the guard now sees it.
-	const wantStarters = 62
+	//
+	// 64 since #1113: two scripts added, both real starters through
+	// gauntlet_floci_start - live/e2e/reference-eks/run.sh (the floci-eks
+	// crossing) and live/live-cert/reference-eks.sh (its live-cert harness,
+	// whose TARGET=floci leg starts the emulator).
+	const wantStarters = 64
 
 	var starters, blind []string
 	for _, rel := range flociSortedKeys(scripts) {

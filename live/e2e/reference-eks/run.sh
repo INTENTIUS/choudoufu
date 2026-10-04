@@ -155,20 +155,27 @@ labelled_count() {
 # inventory <aws-fn> <namespace>: the structural inventory greenfield
 # compares, one line per object, markers never part of it. The AWS leg by
 # the AWS CLI, the cluster leg by kubectl in the k3s container. The
-# backquoted words are JMESPath literals labelling each line, not shell.
-# shellcheck disable=SC2016
+# first field of each line labels the object it describes.
 inventory() {
   local awsf="$1" ns="$2" vpc
-  vpc="$("$awsf" ec2 describe-vpcs --filters "Name=tag:Name,Values=${PREFIX}-vpc" --query 'Vpcs[0].VpcId' --output text)" || return 1
-  "$awsf" ec2 describe-vpcs --vpc-ids "$vpc" --query 'Vpcs[].[`vpc`,CidrBlock]' --output text
-  "$awsf" ec2 describe-subnets --filters "Name=vpc-id,Values=$vpc" --query 'Subnets[].[`subnet`,CidrBlock,AvailabilityZone,MapPublicIpOnLaunch]' --output text
-  "$awsf" ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$vpc" --query 'InternetGateways[].[`igw`,Attachments[0].State]' --output text
-  "$awsf" ec2 describe-route-tables --filters "Name=vpc-id,Values=$vpc" "Name=tag:Name,Values=${PREFIX}-public" --query 'RouteTables[].[`rtb`,length(Associations)]' --output text
-  "$awsf" iam get-role --role-name "${PREFIX}-cluster" --query 'Role.[`role`,RoleName]' --output text
-  "$awsf" iam get-role --role-name "${PREFIX}-node" --query 'Role.[`role`,RoleName]' --output text
-  "$awsf" eks describe-cluster --name "$CLUSTER" --query 'cluster.[`cluster`,name,length(resourcesVpcConfig.subnetIds)]' --output text
-  "$awsf" eks describe-nodegroup --cluster-name "$CLUSTER" --nodegroup-name "${PREFIX}-default" \
-    --query 'nodegroup.[`nodegroup`,nodegroupName,scalingConfig.desiredSize,scalingConfig.minSize,scalingConfig.maxSize]' --output text
+  # Whole responses through jq, never a reducing CLI query: the CLI merges a
+  # paginated response's pages only when nothing reduces it first
+  # (live/awspagequery_test.go, #1042).
+  vpc="$("$awsf" ec2 describe-vpcs --filters "Name=tag:Name,Values=${PREFIX}-vpc" --output json | jq -r '.Vpcs[0].VpcId // empty')" || return 1
+  [ -n "$vpc" ] || return 1
+  "$awsf" ec2 describe-vpcs --vpc-ids "$vpc" --output json | jq -r '.Vpcs[] | ["vpc", .CidrBlock] | @tsv'
+  "$awsf" ec2 describe-subnets --filters "Name=vpc-id,Values=$vpc" --output json \
+    | jq -r '.Subnets[] | ["subnet", .CidrBlock, .AvailabilityZone, (.MapPublicIpOnLaunch|tostring)] | @tsv'
+  "$awsf" ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$vpc" --output json \
+    | jq -r '.InternetGateways[] | ["igw", .Attachments[0].State] | @tsv'
+  "$awsf" ec2 describe-route-tables --filters "Name=vpc-id,Values=$vpc" "Name=tag:Name,Values=${PREFIX}-public" --output json \
+    | jq -r '.RouteTables[] | ["rtb", (.Associations|length|tostring)] | @tsv'
+  "$awsf" iam get-role --role-name "${PREFIX}-cluster" --output json | jq -r '["role", .Role.RoleName] | @tsv'
+  "$awsf" iam get-role --role-name "${PREFIX}-node" --output json | jq -r '["role", .Role.RoleName] | @tsv'
+  "$awsf" eks describe-cluster --name "$CLUSTER" --output json \
+    | jq -r '["cluster", .cluster.name, (.cluster.resourcesVpcConfig.subnetIds|length|tostring)] | @tsv'
+  "$awsf" eks describe-nodegroup --cluster-name "$CLUSTER" --nodegroup-name "${PREFIX}-default" --output json \
+    | jq -r '.nodegroup | ["nodegroup", .nodegroupName, (.scalingConfig.desiredSize|tostring), (.scalingConfig.minSize|tostring), (.scalingConfig.maxSize|tostring)] | @tsv'
   kc "$ns" get namespace app -o jsonpath='{"namespace\t"}{.metadata.name}{"\n"}'
   kc "$ns" get serviceaccount app -n app -o jsonpath='{"serviceaccount\t"}{.metadata.name}{"\n"}'
   kc "$ns" get configmap app-config -n app -o jsonpath='{"configmap\t"}{.metadata.name}{"\t"}{.data.greeting}{"\n"}'
@@ -233,13 +240,15 @@ gauntlet_begin_stage cold_deploy
 mkdir -p "$STOCK"
 reference_eks_main_tf "" "$(aws_provider_block)" "$PREFIX" "$ACCESS_API" "$REGION" > "$STOCK/main.tf" \
   || fail "could not write the stock root (provider pins unreadable?)"
-gauntlet_locked_init with_endpoint "$ENDPOINT" terraform -chdir="$STOCK" init -input=false -no-color > "$WORK/stock_init.out" 2>&1 \
-  || { tail -30 "$WORK/stock_init.out"; fail "stock terraform init failed"; }
+# init reads no endpoint, so it needs no with_endpoint; the lock is what
+# matters here (#1300).
+gauntlet_locked_init terraform -chdir="$STOCK" init -input=false -no-color > "$WORK/stock_init.out" 2>&1 \
+  || { tail -30 "$WORK/stock_init.out"; fail "the stock init failed"; }
 with_endpoint "$ENDPOINT" terraform -chdir="$STOCK" apply -input=false -auto-approve -no-color > "$WORK/stock_apply.out" 2>&1 \
   || { tail -40 "$WORK/stock_apply.out"; fail "stock terraform apply failed against floci-eks"; }
 grep -qE "Apply complete! Resources: ${TOTAL_N} added" "$WORK/stock_apply.out" \
   || { grep -E 'Apply complete' "$WORK/stock_apply.out"; fail "stock apply did not create exactly ${TOTAL_N} resources (${AWS_N} AWS, ${CLUSTER_N} cluster)"; }
-STATUS="$(awsl eks describe-cluster --name "$CLUSTER" --query 'cluster.status' --output text)" \
+STATUS="$(awsl eks describe-cluster --name "$CLUSTER" --output json | jq -r '.cluster.status')" \
   || fail "the AWS CLI cannot describe cluster $CLUSTER after the cold apply"
 [ -n "$(k3s_of "$FLOCI_NS")" ] || fail "no k3s container for namespace $FLOCI_NS: floci did not start the cluster this estate's provider block configures against"
 STOCK_INVENTORY="$(inventory awsl "$FLOCI_NS")" || fail "could not read the stock inventory"
@@ -269,7 +278,7 @@ fi
 LABELLED="$(labelled_count "$FLOCI_NS" "$ESTATE")" || fail "could not count tofu-estate labels with kubectl"
 [ "$LABELLED" = "$CLUSTER_N" ] \
   || fail "live-import's summary was clean but only $LABELLED of the ${CLUSTER_N} cluster-leg objects carry tofu-estate=$ESTATE, read with kubectl in $(k3s_of "$FLOCI_NS")"
-CLUSTER_TAGS="$(awsl eks describe-cluster --name "$CLUSTER" --query 'cluster.tags' --output json)" || fail "could not read the cluster's tags"
+CLUSTER_TAGS="$(awsl eks describe-cluster --name "$CLUSTER" --output json | jq '.cluster.tags')" || fail "could not read the cluster's tags"
 [ "$(jq -r '."tofu-estate" // empty' <<< "$CLUSTER_TAGS")" = "$ESTATE" ] || fail "cluster $CLUSTER carries no tofu-estate=$ESTATE tag after migrate: $CLUSTER_TAGS"
 [ "$(jq -r '."tofu-address" // empty' <<< "$CLUSTER_TAGS")" = "aws_eks_cluster.this" ] || fail "cluster $CLUSTER carries tofu-address=$(jq -r '."tofu-address" // "none"' <<< "$CLUSTER_TAGS"), not aws_eks_cluster.this"
 gauntlet_estate_objects "$ESTATE" awsl || fail "could not count the AWS leg's marked objects"
