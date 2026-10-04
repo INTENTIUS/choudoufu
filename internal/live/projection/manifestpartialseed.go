@@ -212,10 +212,16 @@ func fillManifestIdentityFromImportID(manifest cty.Value, importID string) cty.V
 		attrs[key] = cty.StringVal(val)
 		return true
 	}
+	if manifest.IsMarked() || !manifest.Type().IsObjectType() {
+		return manifest
+	}
 	attrs := manifest.AsValueMap()
 	changed := fill(attrs, "apiVersion", apiVersion)
 	changed = fill(attrs, "kind", kind) || changed
 	if meta, has := attrs[markers.LabelSurfaceBlock]; has && !meta.IsNull() && meta.IsKnown() && meta.Type().IsObjectType() {
+		if meta.IsMarked() {
+			return manifest
+		}
 		metaAttrs := meta.AsValueMap()
 		metaChanged := fill(metaAttrs, "name", name)
 		metaChanged = fill(metaAttrs, "namespace", namespace) || metaChanged
