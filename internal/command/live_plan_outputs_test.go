@@ -27,7 +27,7 @@ func TestLivePlan_rootOutputsNoOpWhenUnchanged(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan-outputs"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
 		"id":     "tofu-stateless-unit-data",
 		"bucket": "tofu-stateless-unit-data",
@@ -67,7 +67,7 @@ func TestLivePlan_rootOutputsChangeWhenResourceIsCreated(t *testing.T) {
 	t.Chdir(td)
 
 	// Nothing put in the cloud: the bucket does not exist yet.
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 
 	c, done := newLivePlanCommand(t, cloud)
 

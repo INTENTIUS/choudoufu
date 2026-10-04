@@ -44,7 +44,7 @@ import (
 // to exist BEFORE tofu.NewContext is called, because ContextOpts is where
 // it is handed over, but its two data sources only exist after PriorState's
 // record-store-open and marker-sweep steps have run - the same "build
-// early, populate once the run knows more" shape statelessRunner itself
+// early, populate once the run knows more" shape liveRunner itself
 // already uses for recordStore).
 type NodeResolver struct {
 	// RecordStore is the estate's per-instance record ([RecordStore]),
@@ -194,7 +194,7 @@ type NodeResolver struct {
 	// withheld marker through, for the provider configuration the
 	// instance was applied under - so a two-account estate marks each
 	// object as the principal that created it. The command layer supplies
-	// it (internal/command's statelessProviders.markerTagger), for the
+	// it (internal/command's projectionProviders.markerTagger), for the
 	// post-create write the instance's surface names
 	// ([substrate.Writes.PostCreate], GitHub issue #1587); nil, a nil
 	// result or an error is a failed write for the instances that need

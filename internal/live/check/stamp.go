@@ -17,7 +17,7 @@ import (
 
 // flatSchemas adapts [Context.Schemas] - a flat map keyed by resource type
 // name, with any type two providers both serve already dropped (see
-// internal/command's statelessProviders.resourceSchemas) - to [stamp.Schemas]
+// internal/command's projectionProviders.resourceSchemas) - to [stamp.Schemas]
 // and [projection.Schemas], which both ask for a provider and a resource
 // mode alongside the type name.
 //
@@ -62,7 +62,7 @@ const syntheticStampEstate = "check-instrument"
 // read one from.
 //
 // This mirrors what a real "choudoufu live-plan" with no -estate flag does
-// (internal/command/live_plan.go's statelessEstateFor): read the tofu-estate
+// (internal/command/live_plan.go's liveEstateFor): read the tofu-estate
 // values the configuration's own tags arguments already hardcode. When
 // exactly one is found, using it is not a choice this instrument is making -
 // it is the same value a real run derives from the same configuration by the

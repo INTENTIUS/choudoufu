@@ -253,7 +253,7 @@ func xeTofu(t *testing.T, bin, dir string, args ...string) string {
 
 // xeAWS runs one AWS CLI call against this test's own emulator and returns
 // its trimmed output. Mirrors ra6AWS: the package-level awsText/awsJSON/
-// awsRun helpers hardcode the shared flociPort (TestStatelessLifecycleAgainstFloci's
+// awsRun helpers hardcode the shared flociPort (TestLiveLifecycleAgainstFloci's
 // own suite), and this test needs its own port so it can run alongside them.
 func xeAWS(t *testing.T, args ...string) string {
 	t.Helper()

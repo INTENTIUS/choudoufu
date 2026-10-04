@@ -237,7 +237,7 @@ func Reconcile(ctx context.Context, req ReconcileRequest) (*ReconcileResult, tfd
 	// reason this pass listed anything.
 	//
 	// The bound, stated because it is the same one classifyOrphans records:
-	// [statelessTargetScope] builds the scope from the configuration's plan
+	// [liveTargetScope] builds the scope from the configuration's plan
 	// graph, and a candidate is by definition a resource no configuration
 	// declares, so in practice this withholds every candidate whenever
 	// -target or -exclude is in play. That is the conservative direction -

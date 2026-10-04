@@ -281,7 +281,7 @@ func strandedAcrossProviderConfigs(estate string, passes []Pass, res *Result, re
 		first := found[0]
 		if _, ran := labelOf[first.owner.String()]; !ran {
 			// The address's own provider configuration contributed no pass
-			// at all - statelessDiscover drops one whose configuration
+			// at all - liveDiscover drops one whose configuration
 			// depends on a managed resource this run has not created yet.
 			// Silence from a pass that never ran is not evidence the
 			// address's own configuration cannot find its object, and this

@@ -815,14 +815,14 @@ func TestLiveMv_jsonWarningsStayOffStdout(t *testing.T) {
 	}
 }
 
-// decodeMvJSON parses -json's stdout as one views.StatelessMvJSONReport, the
-// same struct live_mv.go builds and views.StatelessMvJSONHuman prints -
+// decodeMvJSON parses -json's stdout as one views.LiveMvJSONReport, the
+// same struct live_mv.go builds and views.LiveMvJSONHuman prints -
 // decoding into it, rather than into a map, is what makes this test fail to
 // compile the day a field is renamed instead of failing at runtime with a
 // silently missing key.
-func decodeMvJSON(t *testing.T, stdout string) views.StatelessMvJSONReport {
+func decodeMvJSON(t *testing.T, stdout string) views.LiveMvJSONReport {
 	t.Helper()
-	var rep views.StatelessMvJSONReport
+	var rep views.LiveMvJSONReport
 	if err := json.Unmarshal([]byte(stdout), &rep); err != nil {
 		t.Fatalf("-json's stdout does not parse as JSON: %s\nstdout:\n%s", err, stdout)
 	}

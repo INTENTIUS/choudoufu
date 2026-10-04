@@ -17,7 +17,7 @@ import (
 // GitHub issue #1114: the provider block's exec block is how every EKS
 // root authenticates, and nothing read it before. These drive
 // kubernetesSweepAttrs over the evaluated provider configuration the way
-// statelessProviders.kubernetesClient hands it one.
+// projectionProviders.kubernetesClient hands it one.
 
 // execBlockType is the exec block as the hashicorp/kubernetes provider's
 // schema implies it: a nested block of at most one, so a list of one

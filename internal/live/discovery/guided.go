@@ -29,7 +29,7 @@ import (
 // [Discover] that builds a bare Request gets today's full enumeration,
 // unchanged, and every test in this file that does exactly that still
 // passes for that reason. What changed is the fork's own commands
-// (internal/command's statelessDiscover, the Request builder behind both
+// (internal/command's liveDiscover, the Request builder behind both
 // "choudoufu live-plan" and a plain plan/apply under a "live" block): they
 // turn Guided on automatically whenever the estate has a record store to
 // read a hint from - a "live" block with a record_store block, the same
@@ -47,7 +47,7 @@ import (
 // without a fresh sweep runs this pass as a verification sweep anyway - the
 // safety valve that keeps "trust a week-old hint" from also meaning "drift
 // can hide for a week". See GuidedVerifyAge below and
-// internal/command/live_plan.go's statelessApplyGuidedDiscovery for where
+// internal/command/live_plan.go's liveApplyGuidedDiscovery for where
 // these numbers are set and documented in full.
 
 // defaultGuidedMaxAge is how old a hint may be before guided discovery

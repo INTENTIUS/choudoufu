@@ -113,16 +113,16 @@ func (c *LiveMvCommand) Execute(args *arguments.LiveMv) int {
 		// this point, not only a clean success: GitHub issue #791 asks for
 		// the move as one document "with and without -dry-run", and a
 		// refusal is exactly the other half of what a preview or a receipt
-		// reader needs to show - see views.StatelessMvJSONReport's own doc
+		// reader needs to show - see views.LiveMvJSONReport's own doc
 		// comment. res can be nil here (liveMv failed before mv.Move ever
 		// ran - a bad estate name, a lint refusal, an identity resolution
 		// that never settled), and liveMvJSONReport degrades to the two
 		// addresses this run was given and whatever diags says, exactly the
 		// way the case below already tolerates res == nil by skipping the
 		// human report entirely.
-		views.NewStatelessMvJSON(c.View).Report(liveMvJSONReport(res, diags, oldAddr, newAddr, args.DryRun))
+		views.NewLiveMvJSON(c.View).Report(liveMvJSONReport(res, diags, oldAddr, newAddr, args.DryRun))
 	case !diags.HasErrors() && res != nil:
-		views.NewStatelessMv(c.View).Report(liveMvReport(res))
+		views.NewLiveMv(c.View).Report(liveMvReport(res))
 	}
 	if args.JSON {
 		// The ordinary Diagnostics call below sends warnings to Stdout by
@@ -203,7 +203,7 @@ type liveMvArgs struct {
 // [lint.CheckWith]. Nothing between the config load and the lint check below
 // reads or writes the live system: liveMvEstate only reads tag values back
 // out of the configuration, contextOpts only resolves which plugin binaries
-// are available, and newStatelessProviders only builds the struct - the
+// are available, and newProjectionProviders only builds the struct - the
 // first live-system call of any kind is resourceSchemas, whose answer lint
 // consumes immediately.
 func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv.Result, diags tfdiags.Diagnostics) {
@@ -263,7 +263,7 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 		return nil, diags
 	}
 
-	provs := newStatelessProviders(config, coreOpts.Plugins)
+	provs := newProjectionProviders(config, coreOpts.Plugins)
 	// A named return, so that the shutdown warning still reaches the caller.
 	defer func() { diags = diags.Append(provs.close(ctx)) }()
 
@@ -290,9 +290,9 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	// Resolved now that lint has passed and the estate name is settled, so
 	// that any verb here is already known valid for its quadrant (see
 	// internal/live/lint's checkLivePolicy). Nothing downstream reads this
-	// yet - GitHub issue #67's config/lint half only, see [statelessPolicy].
+	// yet - GitHub issue #67's config/lint half only, see [livePolicy].
 	if config.Module != nil {
-		log.Printf("[TRACE] live-mv: ownership policy: %s", statelessPolicy(config.Module.Live, estate))
+		log.Printf("[TRACE] live-mv: ownership policy: %s", livePolicy(config.Module.Live, estate))
 	}
 
 	// GitHub issue #179's data-read phase, exactly as a plan runs it, and
@@ -304,7 +304,7 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	// a rename is about the whole configuration's identity map, and scoping
 	// it to a subset would rewrite a marker against a map the next full plan
 	// disagrees with.
-	dataResults, drDiags := statelessDataReads(ctx, config, provs, resourceSchemas, nil)
+	dataResults, drDiags := liveDataReads(ctx, config, provs, resourceSchemas, nil)
 	diags = diags.Append(drDiags)
 	if drDiags.HasErrors() {
 		return nil, diags
@@ -314,8 +314,8 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	// the comment above gives: a rename that derived the identity map
 	// differently from a plan would rewrite a marker a plan then disputes.
 	// Through the same helper a plan uses, second pass and all: see
-	// [statelessResolve].
-	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, nil)
+	// [liveResolve].
+	resolutions, idDiags := liveResolve(ctx, config, provs, resourceSchemas, dataResults, nil)
 	diags = diags.Append(idDiags)
 	if idDiags.HasErrors() {
 		// Fatal for the same reason it is fatal in a plan: an identity map
@@ -372,7 +372,7 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 // disk. Without this, the command an operator is told to run would be a
 // command that cannot run.
 func (c *LiveMvCommand) liveMvEstate(ctx context.Context, flagValue string, config *configs.Config) (string, tfdiags.Diagnostics) {
-	name, found, diags := statelessEstateFor(ctx, flagValue, config)
+	name, found, diags := liveEstateFor(ctx, flagValue, config)
 	if diags.HasErrors() {
 		return "", diags
 	}
@@ -427,7 +427,7 @@ func (c *LiveMvCommand) liveMvEstate(ctx context.Context, flagValue string, conf
 // reports the region its list calls should go to. Failures are silent on
 // purpose: the mv package asks for the same provider a moment later and
 // reports the failure with the context to explain it.
-func (c *LiveMvCommand) liveMvRegion(ctx context.Context, config *configs.Config, provs *statelessProviders, candidates ...addrs.AbsResourceInstance) string {
+func (c *LiveMvCommand) liveMvRegion(ctx context.Context, config *configs.Config, provs *projectionProviders, candidates ...addrs.AbsResourceInstance) string {
 	for _, addr := range candidates {
 		modCfg, ok := identity.ConfigForModule(config, addr.Module)
 		if !ok || modCfg.Module == nil {
@@ -450,8 +450,8 @@ func (c *LiveMvCommand) liveMvRegion(ctx context.Context, config *configs.Config
 // is a fixed set of labelled facts rather than prose: the operator needs to be
 // able to see, and to grep, which live resource was written to and what its
 // marker says now.
-func liveMvReport(res *mv.Result) views.StatelessMvReport {
-	return views.StatelessMvReport{
+func liveMvReport(res *mv.Result) views.LiveMvReport {
+	return views.LiveMvReport{
 		Estate:      res.Estate,
 		FromEstate:  res.FromEstate,
 		TypeName:    res.TypeName,
@@ -495,10 +495,10 @@ func liveMvFoundBy(res *mv.Result) string {
 // that a preview reads the same shape whether the rename it describes
 // happened or was refused, rather than a caller having to fall back to
 // stderr parsing the moment something goes wrong.
-func liveMvJSONReport(res *mv.Result, diags tfdiags.Diagnostics, old, new addrs.AbsResourceInstance, dryRun bool) views.StatelessMvJSONReport {
-	rep := views.StatelessMvJSONReport{
-		From:   views.StatelessMvJSONEndpoint{Address: old.String()},
-		To:     views.StatelessMvJSONEndpoint{Address: new.String()},
+func liveMvJSONReport(res *mv.Result, diags tfdiags.Diagnostics, old, new addrs.AbsResourceInstance, dryRun bool) views.LiveMvJSONReport {
+	rep := views.LiveMvJSONReport{
+		From:   views.LiveMvJSONEndpoint{Address: old.String()},
+		To:     views.LiveMvJSONEndpoint{Address: new.String()},
 		DryRun: dryRun,
 	}
 
@@ -507,13 +507,13 @@ func liveMvJSONReport(res *mv.Result, diags tfdiags.Diagnostics, old, new addrs.
 		if fromEstate == "" {
 			fromEstate = res.Estate
 		}
-		rep.Resource = views.StatelessMvJSONResource{
+		rep.Resource = views.LiveMvJSONResource{
 			TypeName:    res.TypeName,
 			LiveID:      res.LiveID,
 			DisplayName: res.DisplayName,
 		}
-		rep.From = views.StatelessMvJSONEndpoint{Estate: fromEstate, Address: res.Old.String(), Marker: res.OldMarker}
-		rep.To = views.StatelessMvJSONEndpoint{Estate: res.Estate, Address: res.New.String(), Marker: res.NewMarker}
+		rep.From = views.LiveMvJSONEndpoint{Estate: fromEstate, Address: res.Old.String(), Marker: res.OldMarker}
+		rep.To = views.LiveMvJSONEndpoint{Estate: res.Estate, Address: res.New.String(), Marker: res.NewMarker}
 		rep.Followers = liveMvJSONFollowers(res.Followers)
 		rep.DryRun = res.DryRun
 		rep.Written = res.Written
@@ -535,7 +535,7 @@ func liveMvJSONReport(res *mv.Result, diags tfdiags.Diagnostics, old, new addrs.
 	}
 
 	if code, diag, ok := mv.CodedRefusal(diags); ok {
-		rep.Refusal = &views.StatelessMvJSONRefusal{
+		rep.Refusal = &views.LiveMvJSONRefusal{
 			Code:    string(code),
 			Summary: diag.Description().Summary,
 			Detail:  diag.Description().Detail,
@@ -549,7 +549,7 @@ func liveMvJSONReport(res *mv.Result, diags tfdiags.Diagnostics, old, new addrs.
 			if d.Severity() != tfdiags.Error {
 				continue
 			}
-			rep.Refusal = &views.StatelessMvJSONRefusal{
+			rep.Refusal = &views.LiveMvJSONRefusal{
 				Summary: d.Description().Summary,
 				Detail:  d.Description().Detail,
 			}
@@ -562,13 +562,13 @@ func liveMvJSONReport(res *mv.Result, diags tfdiags.Diagnostics, old, new addrs.
 
 // liveMvJSONFollowers unpacks mv.Result.Followers into the JSON shape,
 // nil-safe so an anchor with none reports an omitted key rather than [].
-func liveMvJSONFollowers(followers []mv.Follower) []views.StatelessMvJSONFollower {
+func liveMvJSONFollowers(followers []mv.Follower) []views.LiveMvJSONFollower {
 	if len(followers) == 0 {
 		return nil
 	}
-	out := make([]views.StatelessMvJSONFollower, len(followers))
+	out := make([]views.LiveMvJSONFollower, len(followers))
 	for i, f := range followers {
-		out[i] = views.StatelessMvJSONFollower{Address: f.Addr.String(), TypeName: f.TypeName}
+		out[i] = views.LiveMvJSONFollower{Address: f.Addr.String(), TypeName: f.TypeName}
 	}
 	return out
 }

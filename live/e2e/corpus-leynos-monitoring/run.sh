@@ -66,8 +66,8 @@ set -uo pipefail
 # UPDATE 2026-08-21 (a): `-target` scoped cold deploy and the final core
 # plan fine, but did NOT scope choudoufu's stateless live-plan identity
 # resolution/discovery/stamping passes at all: args.Operation.Targets was
-# threaded only into the final tfCtx.Plan() call, after statelessResolve/
-# statelessDataReads/statelessDiscover/statelessStamp had already walked the
+# threaded only into the final tfCtx.Plan() call, after liveResolve/
+# liveDataReads/liveDiscover/liveStamp had already walked the
 # entire configs.Config. Those passes hit aws_budgets_budget's own identity
 # requirement (account_id has no value anywhere in this module, by design -
 # AWS defaults it to the caller's account) and refused hard with "Identity
@@ -135,7 +135,7 @@ set -uo pipefail
 # internal/command/live_plan.go by making originalArgs an explicit copy
 # (`append([]string(nil), rawArgs...)`); regression-tested in
 # internal/command/live_mode_test.go
-# (TestStatelessMode_livePlanIsAnAlias/delegates_with_-target), confirmed to
+# (TestLiveMode_livePlanIsAnAlias/delegates_with_-target), confirmed to
 # fail without the fix (raw ANSI escapes reach the alias's output) and pass
 # with it.
 #

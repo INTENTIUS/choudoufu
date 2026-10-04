@@ -187,7 +187,7 @@ func TestStatefulCostAgainstFloci(t *testing.T) {
 
 		// Both forms by default. They are the same pipeline - live-plan's
 		// configuration form and plain plan under a live block both go
-		// through statelessRunner.PriorState - and a run that has already
+		// through liveRunner.PriorState - and a run that has already
 		// established they agree can drop the first with
 		// STATEFUL_COST_FORMS=plan rather than pay for it again.
 		forms := []struct {

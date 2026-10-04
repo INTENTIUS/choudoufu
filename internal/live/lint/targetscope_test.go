@@ -153,7 +153,7 @@ var lintRuleTargetScope = map[Rule]struct {
 
 	// ---- names a block, and still does not narrow ------------------
 	RuleMovedBlock:              {ruleBlockButUnscoped, "internal/live/discovery's declaredInstances is built on lint refusing exactly the statements it leaves out; and a moved endpoint is an addrs.MoveEndpoint whose FROM address the configuration no longer declares, so the plan graph has no vertex for it. See checkMovedBlocks"},
-	RuleUndeclaredProviderAlias: {ruleBlockButUnscoped, "the estate sweep's provider set is statelessManagedResourceProviders, read off the configuration rather than off the target set, so a stray alias still configures a provider from the environment alone on a narrowed run. See checkUndeclaredProviderAlias"},
+	RuleUndeclaredProviderAlias: {ruleBlockButUnscoped, "the estate sweep's provider set is liveManagedResourceProviders, read off the configuration rather than off the target set, so a stray alias still configures a provider from the environment alone on a narrowed run. See checkUndeclaredProviderAlias"},
 
 	// ---- not about a resource block at all -------------------------
 	RuleStateBackend:              {ruleWholeConfig, "a backend or cloud block; names no resource"},

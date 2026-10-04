@@ -228,7 +228,7 @@ func TestProviderConfigDemandReadsThroughALegacySplat(t *testing.T) {
 		t.Fatalf("demand names %d instances, want exactly 1 (aws_eks_cluster.this has count = 1): %#v", len(d.Instances), d.Instances)
 	}
 
-	// Now resolve it the way statelessProviderDataReads's second pass does:
+	// Now resolve it the way liveProviderDataReads's second pass does:
 	// supply the live read the demand named, keyed by the resource
 	// INSTANCE (count = 1, so index [0]), and confirm the splat's own value
 	// resolves through both hops.

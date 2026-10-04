@@ -94,7 +94,7 @@ func refusedHookupCluster() *liveLsStubSweeper {
 func refusedHookupStubLeg(t *testing.T, cluster kubesweep.Sweeper) {
 	t.Helper()
 	orig := sweepLegBuilders[substrate.SweepLabelList]
-	sweepLegBuilders[substrate.SweepLabelList] = func(ctx context.Context, p *statelessProviders, sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, bool, tfdiags.Diagnostics) {
+	sweepLegBuilders[substrate.SweepLabelList] = func(ctx context.Context, p *projectionProviders, sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, bool, tfdiags.Diagnostics) {
 		p.rememberKubernetesSweeper(addr, cluster)
 		return discovery.KubernetesSweep{Client: cluster, Types: []string{"kubernetes_config_map"}}, false, nil
 	}
@@ -195,8 +195,8 @@ func TestNodeRefusedHookup_plainPlan(t *testing.T) {
 	refusedHookupStubLeg(t, refusedHookupCluster())
 	m, done := refusedHookupMeta(t, refusedHookupProvider())
 
-	var captured *statelessRunner
-	defer statelessRunnerTestHook(func(r *statelessRunner) { captured = r })()
+	var captured *liveRunner
+	defer liveRunnerTestHook(func(r *liveRunner) { captured = r })()
 
 	c := &PlanCommand{Meta: m}
 	code := c.Run([]string{"-no-color"})

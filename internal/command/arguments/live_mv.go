@@ -45,7 +45,7 @@ type LiveMv struct {
 	// with no write of their own, a refusal's stable code alongside its
 	// text, and (on a real write) whatever the provider handed back for a
 	// receipt to match against. See internal/command/views/live_mv.go's
-	// StatelessMvJSONReport.
+	// LiveMvJSONReport.
 	JSON bool
 }
 

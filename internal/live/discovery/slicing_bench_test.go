@@ -848,7 +848,7 @@ func crossRefsFor(blocks []tfBlock, assignment []sliceAssign) []crossRef {
 // writeSlice materializes one slice as a runnable root module. estate is
 // empty for the stock copy and names the estate for the choudoufu copy,
 // which also gets a live block with a record store (so guided discovery is
-// eligible - see internal/command/statelessApplyGuidedDiscovery).
+// eligible - see internal/command/liveApplyGuidedDiscovery).
 func writeSlice(t *testing.T, base, dir string, blocks []tfBlock, sl sliceAssign, st *stateFile, estate string) []crossRef {
 	t.Helper()
 

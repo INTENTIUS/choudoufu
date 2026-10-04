@@ -25,7 +25,7 @@ import (
 //
 // What it holds is the seam that has now broken three times: live-import
 // -approve's one-line summary is rendered by
-// [views.StatelessImportHuman.Stamped] and asserted by exact string in
+// [views.LiveImportHuman.Stamped] and asserted by exact string in
 // twenty-odd live/e2e/*/run.sh crossing scripts that nothing in CI executes.
 // Issue #340 inserted two columns into that line and updated one script; the
 // other twenty stayed red and invisible for a day.
@@ -56,10 +56,10 @@ func renderStampSummary(t *testing.T) string {
 		{"FAILED", 11},
 		{"SKIPPED", 13},
 	}
-	rep := views.StatelessImportStamped{Estate: "guard-estate"}
+	rep := views.LiveImportStamped{Estate: "guard-estate"}
 	for _, c := range counts {
 		for i := 0; i < c.n; i++ {
-			rep.Outcomes = append(rep.Outcomes, views.StatelessImportOutcome{
+			rep.Outcomes = append(rep.Outcomes, views.LiveImportOutcome{
 				Addr:     "aws_vpc.guard",
 				TypeName: "aws_vpc",
 				Outcome:  c.outcome,
@@ -69,7 +69,7 @@ func renderStampSummary(t *testing.T) string {
 	}
 
 	streams, done := terminal.StreamsForTesting(t)
-	views.NewStatelessImport(views.NewView(streams)).Stamped(rep)
+	views.NewLiveImport(views.NewView(streams)).Stamped(rep)
 	out := done(t).Stdout()
 
 	for _, line := range strings.Split(out, "\n") {

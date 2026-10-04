@@ -23,10 +23,10 @@ import (
 	"github.com/intentius/choudoufu/internal/tofu"
 )
 
-// afterPlanRecordingStateless is [replaceRecordingStateless] with an
+// afterPlanRecordingLiveRun is [replaceRecordingLiveRun] with an
 // AfterPlan that records what it was handed and refuses when told to.
-type afterPlanRecordingStateless struct {
-	replaceRecordingStateless
+type afterPlanRecordingLiveRun struct {
+	replaceRecordingLiveRun
 	refuse bool
 
 	apMu          sync.Mutex
@@ -36,7 +36,7 @@ type afterPlanRecordingStateless struct {
 
 const afterPlanRefusalSummary = "Kubernetes API server rejected the planned object"
 
-func (s *afterPlanRecordingStateless) AfterPlan(_ context.Context, _ *configs.Config, plan *plans.Plan, schemas *tofu.Schemas) tfdiags.Diagnostics {
+func (s *afterPlanRecordingLiveRun) AfterPlan(_ context.Context, _ *configs.Config, plan *plans.Plan, schemas *tofu.Schemas) tfdiags.Diagnostics {
 	s.apMu.Lock()
 	defer s.apMu.Unlock()
 	s.afterPlanSeen = plan
@@ -47,7 +47,7 @@ func (s *afterPlanRecordingStateless) AfterPlan(_ context.Context, _ *configs.Co
 	return nil
 }
 
-func afterPlanFixture(t *testing.T, refuse bool) (*Local, *afterPlanRecordingStateless, *int) {
+func afterPlanFixture(t *testing.T, refuse bool) (*Local, *afterPlanRecordingLiveRun, *int) {
 	t.Helper()
 	b := TestLocal(t)
 	p := TestLocalProvider(t, b, "test", applyFixtureSchema())
@@ -60,15 +60,15 @@ func afterPlanFixture(t *testing.T, refuse bool) (*Local, *afterPlanRecordingSta
 		})}
 	}
 	prior := states.NewState()
-	stateless := &afterPlanRecordingStateless{
-		replaceRecordingStateless: replaceRecordingStateless{
+	recorder := &afterPlanRecordingLiveRun{
+		replaceRecordingLiveRun: replaceRecordingLiveRun{
 			mgr:   statemgr.NewFullFake(statemgr.NewTransientInMemory(nil), prior.DeepCopy()),
 			prior: prior,
 		},
 		refuse: refuse,
 	}
-	b.Stateless = stateless
-	return b, stateless, applied
+	b.LiveRun = recorder
+	return b, recorder, applied
 }
 
 // TestAfterPlanRefusalStopsTheApply (GitHub issue #1081, item 3): an
@@ -76,7 +76,7 @@ func afterPlanFixture(t *testing.T, refuse bool) (*Local, *afterPlanRecordingSta
 // plan is rendered, and stops the operation with nothing applied and no
 // WriteBack - the live system has already refused what the plan proposes.
 func TestAfterPlanRefusalStopsTheApply(t *testing.T) {
-	b, stateless, applied := afterPlanFixture(t, true)
+	b, recorder, applied := afterPlanFixture(t, true)
 
 	op, done := testOperationApply(t, "./testdata/apply")
 	op.PlanRefresh = false
@@ -90,9 +90,9 @@ func TestAfterPlanRefusalStopsTheApply(t *testing.T) {
 	if run.Result != backend.OperationFailure {
 		t.Fatalf("the apply succeeded past an AfterPlan refusal:\nstdout:\n%s", output.Stdout())
 	}
-	stateless.apMu.Lock()
-	seen, schemasSeen := stateless.afterPlanSeen, stateless.schemasSeen
-	stateless.apMu.Unlock()
+	recorder.apMu.Lock()
+	seen, schemasSeen := recorder.afterPlanSeen, recorder.schemasSeen
+	recorder.apMu.Unlock()
 	if seen == nil || !schemasSeen {
 		t.Fatal("AfterPlan was not handed the plan and the schemas")
 	}
@@ -102,9 +102,9 @@ func TestAfterPlanRefusalStopsTheApply(t *testing.T) {
 	if *applied != 0 {
 		t.Errorf("the provider applied %d changes after the refusal; nothing may be applied", *applied)
 	}
-	stateless.mu.Lock()
-	wb := stateless.writeBackCalled
-	stateless.mu.Unlock()
+	recorder.mu.Lock()
+	wb := recorder.writeBackCalled
+	recorder.mu.Unlock()
 	if wb {
 		t.Error("WriteBack ran after an AfterPlan refusal")
 	}
@@ -119,7 +119,7 @@ func TestAfterPlanRefusalStopsTheApply(t *testing.T) {
 // TestAfterPlanRefusalStopsThePlan: the same on a plan-only operation -
 // the plan is not rendered and the operation fails.
 func TestAfterPlanRefusalStopsThePlan(t *testing.T) {
-	b, stateless, _ := afterPlanFixture(t, true)
+	b, recorder, _ := afterPlanFixture(t, true)
 
 	op, done := testOperationPlan(t, "./testdata/plan")
 	op.PlanRefresh = false
@@ -133,9 +133,9 @@ func TestAfterPlanRefusalStopsThePlan(t *testing.T) {
 	if run.Result != backend.OperationFailure {
 		t.Fatalf("the plan succeeded past an AfterPlan refusal:\nstdout:\n%s", output.Stdout())
 	}
-	stateless.apMu.Lock()
-	seen := stateless.afterPlanSeen
-	stateless.apMu.Unlock()
+	recorder.apMu.Lock()
+	seen := recorder.afterPlanSeen
+	recorder.apMu.Unlock()
 	if seen == nil {
 		t.Fatal("AfterPlan was never asked")
 	}
@@ -150,7 +150,7 @@ func TestAfterPlanRefusalStopsThePlan(t *testing.T) {
 // TestAfterPlanWithoutRefusalIsInert: AfterPlan returning nothing changes
 // nothing about the apply, which still applies and still writes back.
 func TestAfterPlanWithoutRefusalIsInert(t *testing.T) {
-	b, stateless, applied := afterPlanFixture(t, false)
+	b, recorder, applied := afterPlanFixture(t, false)
 
 	op, done := testOperationApply(t, "./testdata/apply")
 	op.PlanRefresh = false
@@ -166,9 +166,9 @@ func TestAfterPlanWithoutRefusalIsInert(t *testing.T) {
 	if *applied == 0 {
 		t.Error("nothing was applied")
 	}
-	stateless.mu.Lock()
-	wb := stateless.writeBackCalled
-	stateless.mu.Unlock()
+	recorder.mu.Lock()
+	wb := recorder.writeBackCalled
+	recorder.mu.Unlock()
 	if !wb {
 		t.Error("WriteBack did not run")
 	}

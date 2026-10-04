@@ -22,12 +22,12 @@ import (
 // aws_iam_role_policy are the untaggable 41). The proportions matter to what
 // this view has to get right, so the fixture keeps them rather than using
 // three tidy rows.
-func terralithLedger() StatelessAdoption {
-	rep := StatelessAdoption{Estate: "tl1-terralith", Swept: true}
+func terralithLedger() LiveAdoption {
+	rep := LiveAdoption{Estate: "tl1-terralith", Swept: true}
 
-	add := func(n int, typeName string, taggable bool, class StatelessAdoptionClass, mutate func(*StatelessAdoptionRow)) {
+	add := func(n int, typeName string, taggable bool, class LiveAdoptionClass, mutate func(*LiveAdoptionRow)) {
 		for i := 0; i < n; i++ {
-			row := StatelessAdoptionRow{
+			row := LiveAdoptionRow{
 				Addr:           fmt.Sprintf("%s.r%02d", typeName, i),
 				TypeName:       typeName,
 				Class:          class,
@@ -50,18 +50,18 @@ func terralithLedger() StatelessAdoption {
 
 	// The taggable 38.
 	add(17, "aws_iam_role", true, AdoptionMarked, nil)
-	add(4, "aws_security_group", true, AdoptionAdoptable, func(r *StatelessAdoptionRow) {
+	add(4, "aws_security_group", true, AdoptionAdoptable, func(r *LiveAdoptionRow) {
 		r.LiveID = "sg-625dfa25c07ed54c9"
 		r.DisplayName = "tl1-ecs-sg"
-		r.Matched = []StatelessTag{{Key: "name", Value: "tl1-ecs-sg"}}
+		r.Matched = []LiveTag{{Key: "name", Value: "tl1-ecs-sg"}}
 		r.MarkerEstate = "tl1-terralith"
 		r.MarkerAddress = "aws_security_group.ecs"
 		r.Hint = "aws ec2 create-tags --resources 'sg-625dfa25c07ed54c9' --tags 'Key=tofu-estate,Value=tl1-terralith'"
 	})
-	add(7, "aws_iam_policy", true, AdoptionNoPath, func(r *StatelessAdoptionRow) {
+	add(7, "aws_iam_policy", true, AdoptionNoPath, func(r *LiveAdoptionRow) {
 		r.Detail = "IAM mints this policy's own ARN at create time, so no argument in the configuration reconstructs it."
 	})
-	add(1, "aws_ecs_cluster", true, AdoptionInTheWay, func(r *StatelessAdoptionRow) {
+	add(1, "aws_ecs_cluster", true, AdoptionInTheWay, func(r *LiveAdoptionRow) {
 		r.LiveID = "tl1-cluster"
 		r.HeldBy = "other-estate"
 	})
@@ -87,7 +87,7 @@ func terralithLedger() StatelessAdoption {
 // corresponding check fails.
 func TestAdoption_untaggableReadsAsOrdinary(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
-	NewStatelessAdoption(NewView(streams).SetRunningInAutomation(true)).Adoption(terralithLedger())
+	NewLiveAdoption(NewView(streams).SetRunningInAutomation(true)).Adoption(terralithLedger())
 	out := done(t).Stdout()
 
 	// The population is stated as its own half of the estate, with both
@@ -156,7 +156,7 @@ func TestAdoption_untaggableReadsAsOrdinary(t *testing.T) {
 func TestAdoption_everyRowIsCountedOnce(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
 	rep := terralithLedger()
-	NewStatelessAdoption(NewView(streams).SetRunningInAutomation(true)).Adoption(rep)
+	NewLiveAdoption(NewView(streams).SetRunningInAutomation(true)).Adoption(rep)
 	out := done(t).Stdout()
 
 	if !strings.Contains(out, "Adoption: 79 declared resource instances, estate \"tl1-terralith\"") {
@@ -165,7 +165,7 @@ func TestAdoption_everyRowIsCountedOnce(t *testing.T) {
 
 	// Every class the marker half carries has to reach the tally, and the
 	// tally has to sum to the marker half's own headline count.
-	var carriers []StatelessAdoptionRow
+	var carriers []LiveAdoptionRow
 	for _, r := range rep.Rows {
 		if r.CanCarryMarker {
 			carriers = append(carriers, r)
@@ -195,10 +195,10 @@ func TestAdoption_everyRowIsCountedOnce(t *testing.T) {
 // reason attached, which is the whole point of the issue.
 //
 // Proving it red: classify a NEEDS_DISCOVERY omission as ABSENT in
-// statelessAdoptionReport and this section disappears.
+// liveAdoptionReport and this section disappears.
 func TestAdoption_noPathIsStatedAsItsOwnSection(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
-	NewStatelessAdoption(NewView(streams).SetRunningInAutomation(true)).Adoption(terralithLedger())
+	NewLiveAdoption(NewView(streams).SetRunningInAutomation(true)).Adoption(terralithLedger())
 	out := done(t).Stdout()
 
 	if !strings.Contains(out, "No adoption path: 7 resource instances") {
@@ -220,7 +220,7 @@ func TestAdoption_noPathIsStatedAsItsOwnSection(t *testing.T) {
 // cannot be adopted.
 func TestAdoption_adoptableCarriesTheWholeContract(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
-	NewStatelessAdoption(NewView(streams).SetRunningInAutomation(true)).Adoption(terralithLedger())
+	NewLiveAdoption(NewView(streams).SetRunningInAutomation(true)).Adoption(terralithLedger())
 	out := done(t).Stdout()
 
 	for _, want := range []string{
@@ -246,7 +246,7 @@ func TestAdoption_saysWhenNothingWasSwept(t *testing.T) {
 	rep.Swept = false
 
 	streams, done := terminal.StreamsForTesting(t)
-	NewStatelessAdoption(NewView(streams).SetRunningInAutomation(true)).Adoption(rep)
+	NewLiveAdoption(NewView(streams).SetRunningInAutomation(true)).Adoption(rep)
 	out := done(t).Stdout()
 
 	if !strings.Contains(out, "No discovery sweep ran this time") {
@@ -261,7 +261,7 @@ func TestAdoption_saysWhenNothingWasSwept(t *testing.T) {
 // worse.
 func TestAdoption_ordinaryViewRendersNothing(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
-	NewStatelessPlan(NewView(streams).SetRunningInAutomation(true)).Adoption(terralithLedger())
+	NewLivePlan(NewView(streams).SetRunningInAutomation(true)).Adoption(terralithLedger())
 	out := done(t)
 
 	if got := out.Stdout(); got != "" {
@@ -277,13 +277,13 @@ func TestAdoption_ordinaryViewRendersNothing(t *testing.T) {
 // pipeline that calls them all still prints one section.
 func TestAdoption_onlyModeRendersOnlyTheLedger(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
-	v := NewStatelessAdoption(NewView(streams).SetRunningInAutomation(true))
+	v := NewLiveAdoption(NewView(streams).SetRunningInAutomation(true))
 
-	v.Omissions([]StatelessOmission{{Addr: "aws_vpc.main", Reason: "ABSENT", Detail: "not there"}})
-	v.Unowned([]StatelessUnowned{{Addr: "aws_iam_role.app", TypeName: "aws_iam_role", LiveID: "app-role", MarkerEstate: "dev", MarkerAddress: "aws_iam_role.app"}})
-	v.Foreign(StatelessForeign{Estate: "dev", Swept: []string{"aws_vpc"}})
+	v.Omissions([]LiveOmission{{Addr: "aws_vpc.main", Reason: "ABSENT", Detail: "not there"}})
+	v.Unowned([]LiveUnowned{{Addr: "aws_iam_role.app", TypeName: "aws_iam_role", LiveID: "app-role", MarkerEstate: "dev", MarkerAddress: "aws_iam_role.app"}})
+	v.Foreign(LiveForeign{Estate: "dev", Swept: []string{"aws_vpc"}})
 	v.GuidedFallback("the hint was stale")
-	v.Lookalikes([]StatelessLookalike{{Addr: "aws_vpc.main", TypeName: "aws_vpc", LiveID: "vpc-1"}})
+	v.Lookalikes([]LiveLookalike{{Addr: "aws_vpc.main", TypeName: "aws_vpc", LiveID: "vpc-1"}})
 
 	out := done(t).Stdout()
 	if out != "" {

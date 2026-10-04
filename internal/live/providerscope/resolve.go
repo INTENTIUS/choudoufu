@@ -99,7 +99,7 @@ import (
 // [live/e2e/limits/module-providers/aliased/main.tf] would need to admit:
 // a root declaring provider "aws" { alias = "primary" } as the mapping
 // says) or raises the same "provider configuration is not declared"
-// diagnostic [statelessProviders.providerConfigValue] in
+// diagnostic [projectionProviders.providerConfigValue] in
 // internal/command/live_plan.go already raises for an unresolvable
 // root-level alias (GitHub issue #123) - never a silent fall-through to the
 // environment.

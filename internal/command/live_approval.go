@@ -192,7 +192,7 @@ func (c *ApplyCommand) planFileEstate(ctx context.Context, path string, reader *
 		return "", diags
 	}
 
-	// SelectiveLoadBackend is the same narrow load statelessSettings uses
+	// SelectiveLoadBackend is the same narrow load liveSettings uses
 	// for the working directory: enough of the file to see the live block,
 	// and none of the resource bodies.
 	// Static evaluation is a separate step since OpenTofu v1.13.0

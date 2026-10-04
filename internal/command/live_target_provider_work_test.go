@@ -31,10 +31,10 @@ import (
 //
 // It counts, per resource type, the calls a fake provider receives from
 //
-//   - [projection.PlanInstances], reached through [statelessResolve]'s second
+//   - [projection.PlanInstances], reached through [liveResolve]'s second
 //     pass: one PlanResourceChange per plannable block; and
 //   - [projection.ReadInstances] and [dataread.ReadProviderConfigs], reached
-//     through [statelessProviderDataReads]: one ImportResourceState plus one
+//     through [liveProviderDataReads]: one ImportResourceState plus one
 //     ReadResource per demanded managed instance, and one ReadDataSource per
 //     provider-configuration data source.
 //
@@ -43,7 +43,7 @@ import (
 // ReadResource calls of its own (the plan walk, the projection build) and a
 // count taken there could not say which pass made which call.
 //
-// The scope is the plan graph's, computed by [statelessTargetScope] from a
+// The scope is the plan graph's, computed by [liveTargetScope] from a
 // real [tofu.Context] over the same fake providers, and never hand-built
 // except in the one test that says so. A hand-built scope can name a state
 // targeting cannot produce - an in-scope block reading an out-of-scope one -
@@ -126,7 +126,7 @@ func newTargetWorkCloud() *targetWorkCloud {
 	c.aws = &tofu.MockProvider{
 		GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{
 			Provider:      providers.Schema{Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{"region": {Type: cty.String, Optional: true}}}},
-			ResourceTypes: statelessTestIdentitySchemasFrom(awsTypes),
+			ResourceTypes: liveTestIdentitySchemasFrom(awsTypes),
 			DataSources: map[string]providers.Schema{
 				"aws_eks_cluster": {Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{
 					"id":       {Type: cty.String, Computed: true},
@@ -149,7 +149,7 @@ func newTargetWorkCloud() *targetWorkCloud {
 				"host":  {Type: cty.String, Optional: true},
 				"token": {Type: cty.String, Optional: true},
 			}}},
-			ResourceTypes: statelessTestIdentitySchemasFrom(map[string]providers.Schema{
+			ResourceTypes: liveTestIdentitySchemasFrom(map[string]providers.Schema{
 				"kubernetes_namespace":  {Block: &configschema.Block{Attributes: targetWorkAttrs(), BlockTypes: metadata}},
 				"kubernetes_config_map": {Block: &configschema.Block{Attributes: targetWorkAttrs(), BlockTypes: metadata}},
 			}),
@@ -185,7 +185,7 @@ func newTargetWorkCloud() *targetWorkCloud {
 			schema := p.GetProviderSchemaResponse.ResourceTypes[req.TypeName]
 			resp.ImportedResources = []providers.ImportedResource{{
 				TypeName: req.TypeName,
-				State:    statelessTestObject(schema, map[string]string{"id": id}),
+				State:    liveTestObject(schema, map[string]string{"id": id}),
 			}}
 			return resp
 		}
@@ -193,7 +193,7 @@ func newTargetWorkCloud() *targetWorkCloud {
 			c.count(c.reads, req.TypeName)
 			schema := p.GetProviderSchemaResponse.ResourceTypes[req.TypeName]
 			id := req.PriorState.GetAttr("id").AsString()
-			resp.NewState = statelessTestObject(schema, map[string]string{
+			resp.NewState = liveTestObject(schema, map[string]string{
 				"id": id, "name": id, "endpoint": "https://" + id + ".example",
 			})
 			return resp
@@ -227,7 +227,7 @@ func (c *targetWorkCloud) count(m map[string]int, typeName string) {
 
 // ConfiguredProvider hands back the fake for whichever provider the block
 // names. It evaluates no provider block: whether the kubernetes provider
-// CAN be configured is [statelessProviders]' business, and what this
+// CAN be configured is [projectionProviders]' business, and what this
 // instrument counts is the work done once something has been.
 func (c *targetWorkCloud) ConfiguredProvider(_ context.Context, addr addrs.AbsProviderConfig) (providers.Interface, error) {
 	switch addr.Provider.Type {
@@ -254,7 +254,7 @@ func (c *targetWorkCloud) managedTypesByProvider(context.Context) map[addrs.Prov
 	return out
 }
 
-// scopeFor is [statelessTargetScope] over a real plan graph built from the
+// scopeFor is [liveTargetScope] over a real plan graph built from the
 // same fakes, so the scope is the one a run with these flags would compute.
 func (c *targetWorkCloud) scopeFor(t *testing.T, cfg *configs.Config, targets ...string) identity.Scope {
 	t.Helper()
@@ -278,12 +278,12 @@ func (c *targetWorkCloud) scopeFor(t *testing.T, cfg *configs.Config, targets ..
 		}
 		parsed = append(parsed, target.Subject)
 	}
-	scope, diags := statelessTargetScope(t.Context(), tfCtx, cfg, parsed, nil)
+	scope, diags := liveTargetScope(t.Context(), tfCtx, cfg, parsed, nil)
 	if diags.HasErrors() {
-		t.Fatalf("statelessTargetScope: %s", diags.Err())
+		t.Fatalf("liveTargetScope: %s", diags.Err())
 	}
 	if scope == nil {
-		t.Fatal("statelessTargetScope returned no scope for a targeted run")
+		t.Fatal("liveTargetScope returned no scope for a targeted run")
 	}
 	return scope
 }
@@ -349,11 +349,11 @@ func plannableInScope(cfg *configs.Config, scope identity.Scope) int {
 // argument of that block names. The edge runs through the PROVIDER - the
 // namespace needs provider "kubernetes", whose host reads
 // data.aws_eks_cluster.cluster, whose name reads the cluster - and the plan
-// graph follows it. So a scope from [statelessTargetScope] already keeps
+// graph follows it. So a scope from [liveTargetScope] already keeps
 // whatever a still-needed provider's configuration reads, and drops it only
 // when nothing in the run uses that provider.
 func TestTargetWorkScopeIsThePlanGraphs(t *testing.T) {
-	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", targetWorkFixture))
+	cfg := liveTestLoadConfig(t, filepath.Join("testdata", targetWorkFixture))
 
 	for _, tc := range []struct {
 		target string
@@ -426,7 +426,7 @@ func TestTargetWorkScopeIsThePlanGraphs(t *testing.T) {
 //     state; it reaches no cloud. And it is made only when a first
 //     resolution pass refuses with a managed demand (the ACM/Route53 shape).
 //     A configuration without one pays nothing, targeted or not - see
-//     TestStatelessResolveNeverConfiguresAProviderWithNothingToGain.
+//     TestLiveResolveNeverConfiguresAProviderWithNothingToGain.
 //   - The live reads are one import, one read and one normalizing plan per
 //     managed instance a PROVIDER BLOCK's data source demands, which is one cluster here and in
 //     corpus-eks-basic, the shape the fixpoint exists for.
@@ -441,9 +441,9 @@ func TestTargetWorkScopeIsThePlanGraphs(t *testing.T) {
 // to say so. The PlanInstances excluded column is at zero; the read column
 // is not, and the untargeted row must not move with either.
 //
-// Re-read after GitHub issue #1514 scoped [statelessDiscover]'s
+// Re-read after GitHub issue #1514 scoped [liveDiscover]'s
 // needs-discovery set and #1258's second leg passed the run's scope into
-// [statelessProviderDataReads]:
+// [liveProviderDataReads]:
 //
 //	                                   PlanInstances' own    live managed reads       data reads
 //	                                   PlanResourceChange    import+read+normalize
@@ -482,9 +482,9 @@ func TestTargetWorkScopeIsThePlanGraphs(t *testing.T) {
 // "kubernetes" is now unconfigurable for the rest of that run, because the
 // value its host argument needs was deliberately not read. Nothing in the
 // plan graph wants it - targeting dropped every kubernetes block too - but
-// [statelessManagedResourceProviders] is still read off the whole
+// [liveManagedResourceProviders] is still read off the whole
 // configuration, so the estate-wide sweep still tries a pass through it and
-// [statelessDiscoverProviderUnavailable] downgrades that pass to the
+// [liveDiscoverProviderUnavailable] downgrades that pass to the
 // "Provider unavailable for the estate-wide sweep" warning GitHub issue
 // #1514 built for exactly this. Fatal is reachable only when a
 // needs-discovery instance THIS RUN ACTS ON uses that provider, and such an
@@ -494,7 +494,7 @@ func TestTargetWorkScopeIsThePlanGraphs(t *testing.T) {
 // file cannot reach it, because its harness registers no second provider
 // process.
 func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
-	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", targetWorkFixture))
+	cfg := liveTestLoadConfig(t, filepath.Join("testdata", targetWorkFixture))
 
 	const allNinePlans = "9 [aws_acm_certificate=1 aws_cloudwatch_log_group=1 aws_eks_cluster=1 aws_s3_bucket=2 aws_sns_topic=1 aws_sqs_queue=1 kubernetes_config_map=1 kubernetes_namespace=1]"
 	const oneCluster = "1 [aws_eks_cluster=1]"
@@ -527,7 +527,7 @@ func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 		readsForExcluded int
 
 		// noSecondPass is a row whose first resolution pass is clean, so
-		// statelessResolve returns before PlanInstances and the subtraction
+		// liveResolve returns before PlanInstances and the subtraction
 		// above has nothing to measure: zero calls, in scope or out.
 		noSecondPass bool
 
@@ -554,7 +554,7 @@ func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 		{
 			// No plan call at all since #1470: with the excluded record's
 			// refusal rolled back, this run's first pass is clean and
-			// statelessResolve returns before PlanInstances. The reads
+			// liveResolve returns before PlanInstances. The reads
 			// stand: targeting the namespace keeps its provider, and the
 			// plan graph keeps that provider's data source and the cluster
 			// the data source names.
@@ -569,22 +569,22 @@ func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 				targets = []string{tc.target}
 			}
 
-			// Leg one: statelessResolve's second pass.
+			// Leg one: liveResolve's second pass.
 			resolveCloud := newTargetWorkCloud()
 			scope := resolveCloud.scopeFor(t, cfg, targets...)
-			resolutions, resolveDiags := statelessResolve(t.Context(), cfg, resolveCloud, nil, nil, scope)
+			resolutions, resolveDiags := liveResolve(t.Context(), cfg, resolveCloud, nil, nil, scope)
 			if got := renderCounts(resolveCloud.plans); got != tc.plans {
 				t.Errorf("PlanResourceChange calls:\n got %s\nwant %s", got, tc.plans)
 			}
-			// The two ratchets statelessResolve carries, read per row: a
+			// The two ratchets liveResolve carries, read per row: a
 			// narrowing that traded the excluded calls for a refusal, or for
 			// a demotion to discovery, would show here and nowhere else.
 			if n := errorCount(resolveDiags); n != 0 {
-				t.Errorf("statelessResolve refused with %d error(s): %v", n, renderDiags(resolveDiags))
+				t.Errorf("liveResolve refused with %d error(s): %v", n, renderDiags(resolveDiags))
 			}
 			first, _ := identity.ResolveWith(t.Context(), cfg, identity.Context{Scope: scope})
 			if downgraded := downgradedToDiscovery(first, resolutions); downgraded != "" {
-				t.Errorf("the pass statelessResolve kept demoted %s to needs-discovery against the first pass", downgraded)
+				t.Errorf("the pass liveResolve kept demoted %s to needs-discovery against the first pass", downgraded)
 			}
 			total := 0
 			for _, n := range resolveCloud.plans {
@@ -598,14 +598,14 @@ func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 				t.Errorf("%d PlanResourceChange call(s) were made for blocks the scope excludes, want %d", got, tc.plansForExcluded)
 			}
 			if n := len(resolveCloud.imports) + len(resolveCloud.reads) + len(resolveCloud.dataReads); n != 0 {
-				t.Errorf("statelessResolve reached the cloud: imports %s, reads %s, data reads %s",
+				t.Errorf("liveResolve reached the cloud: imports %s, reads %s, data reads %s",
 					renderCounts(resolveCloud.imports), renderCounts(resolveCloud.reads), renderCounts(resolveCloud.dataReads))
 			}
 
 			// Leg two: the provider-configuration fixpoint, on a fresh cloud
 			// so the two legs' calls cannot be confused.
 			readCloud := newTargetWorkCloud()
-			results, _, readDiags := statelessProviderDataReads(t.Context(), cfg, readCloud, nil, resolutions, nil, 1, scope, nil)
+			results, _, readDiags := liveProviderDataReads(t.Context(), cfg, readCloud, nil, resolutions, nil, 1, scope, nil)
 			if readDiags.HasErrors() {
 				t.Errorf("the provider-configuration fixpoint raised an error: %v", renderDiags(readDiags))
 			}
@@ -697,11 +697,11 @@ func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 // collection: a regression there would present exactly as it did before,
 // now with nothing left to mask it.
 func TestATargetedRunIsNotRefusedByAnExcludedForEach(t *testing.T) {
-	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", targetWorkFixture))
+	cfg := liveTestLoadConfig(t, filepath.Join("testdata", targetWorkFixture))
 	cloud := newTargetWorkCloud()
 	scope := cloud.scopeFor(t, cfg, "kubernetes_namespace.app")
 
-	_, diags := statelessResolve(t.Context(), cfg, cloud, nil, nil, scope)
+	_, diags := liveResolve(t.Context(), cfg, cloud, nil, nil, scope)
 	if n := errorCount(diags); n != 0 {
 		t.Errorf("-target=kubernetes_namespace.app refused with %d error(s), for blocks the run excludes: %v\n"+
 			"PlanResourceChange calls were %s. The excluded record's for_each refusal reached the caller; "+

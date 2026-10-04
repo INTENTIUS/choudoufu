@@ -50,7 +50,7 @@ func approvalFixture(t *testing.T, estate string) string {
 
 // planOut runs "choudoufu plan -out=<name>" in dir and returns the file's
 // path, failing loudly if the run did not produce one.
-func planOut(t *testing.T, dir string, cloud *statelessTestCloud, name string) string {
+func planOut(t *testing.T, dir string, cloud *liveTestCloud, name string) string {
 	t.Helper()
 	t.Chdir(dir)
 
@@ -69,7 +69,7 @@ func planOut(t *testing.T, dir string, cloud *statelessTestCloud, name string) s
 
 // applyPlanFile runs "choudoufu apply <file>" in dir and returns the exit
 // code with everything the run printed.
-func applyPlanFile(t *testing.T, dir string, cloud *statelessTestCloud, file string) (int, string) {
+func applyPlanFile(t *testing.T, dir string, cloud *liveTestCloud, file string) (int, string) {
 	t.Helper()
 	t.Chdir(dir)
 
@@ -85,7 +85,7 @@ func applyPlanFile(t *testing.T, dir string, cloud *statelessTestCloud, file str
 // file rather than being refused.
 func TestApproval_planOutWritesAnArtifact(t *testing.T) {
 	dir := approvalFixture(t, "")
-	path := planOut(t, dir, newStatelessTestCloud(), "approved.tfplan")
+	path := planOut(t, dir, newLiveTestCloud(), "approved.tfplan")
 
 	info, err := os.Stat(path)
 	if err != nil {
@@ -103,7 +103,7 @@ func TestApproval_planOutWritesAnArtifact(t *testing.T) {
 // below a real check rather than a constant.
 func TestApproval_matchApplies(t *testing.T) {
 	dir := approvalFixture(t, "")
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	path := planOut(t, dir, cloud, "approved.tfplan")
 
 	code, output := applyPlanFile(t, dir, cloud, filepath.Base(path))
@@ -126,7 +126,7 @@ func TestApproval_matchApplies(t *testing.T) {
 // plan has one change where the approved artifact had two.
 func TestApproval_driftRefuses(t *testing.T) {
 	dir := approvalFixture(t, "")
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	path := planOut(t, dir, cloud, "approved.tfplan")
 
 	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
@@ -162,7 +162,7 @@ func TestApproval_driftRefuses(t *testing.T) {
 // arrange without touching the world.
 func TestApproval_valueDriftRefuses(t *testing.T) {
 	dir := approvalFixture(t, "")
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	path := planOut(t, dir, cloud, "approved.tfplan")
 
 	main := filepath.Join(dir, "main.tf")
@@ -210,7 +210,7 @@ func TestApproval_valueDriftRefuses(t *testing.T) {
 // estate says nothing about another.
 func TestApproval_wrongEstateRefuses(t *testing.T) {
 	other := approvalFixture(t, "some-other-estate")
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	foreign := planOut(t, other, cloud, "approved.tfplan")
 
 	dir := approvalFixture(t, "")

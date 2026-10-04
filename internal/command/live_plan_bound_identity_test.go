@@ -25,7 +25,7 @@ import (
 // live-ls item for the same object.
 //
 // Before this test, the id was read off the pre-projection
-// [identity.Resolution] ([statelessBoundReport]'s own merged list), which
+// [identity.Resolution] ([liveBoundReport]'s own merged list), which
 // holds one only for the paths that settle an identity BEFORE the
 // projection runs. Two of the three shapes the issue observed do not:
 //
@@ -38,7 +38,7 @@ import (
 //     ClassNeedsDiscovery resolution, with no ImportID, and is
 //     materialized by GitHub issue #364's record-first read instead. It
 //     is still reported with source "marker", because
-//     [statelessNeedsDiscoverySet] is what classifies it and the sweep is
+//     [liveNeedsDiscoverySet] is what classifies it and the sweep is
 //     what it was waiting on.
 //
 // Both are asserted here BY VALUE against literal ids the fixtures seed, so
@@ -47,7 +47,7 @@ import (
 //
 // The fourth [views.LivePlanBoundSource], "cache", has no subtest: this
 // pipeline never sets projection.Options.StateCache, so it cannot produce
-// one - see [statelessBoundReport]'s own doc comment.
+// one - see [liveBoundReport]'s own doc comment.
 func TestLivePlan_jsonBoundCarriesTheIdentityItMatchedOn(t *testing.T) {
 	t.Run("derived and marker", func(t *testing.T) {
 		td := t.TempDir()
@@ -55,7 +55,7 @@ func TestLivePlan_jsonBoundCarriesTheIdentityItMatchedOn(t *testing.T) {
 		t.Chdir(td)
 
 		const estate = "stateless-unit"
-		cloud := newStatelessTestCloud()
+		cloud := newLiveTestCloud()
 		// The bucket: client-named, so its identity is derivable from
 		// configuration and the projection reads it back directly.
 		cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", estate, "aws_s3_bucket.data", map[string]string{
@@ -101,7 +101,7 @@ func TestLivePlan_jsonBoundCarriesTheIdentityItMatchedOn(t *testing.T) {
 	// see it, which is what the pinned emulator serves one second after an
 	// apply ("tag index for estate ... holds 7 resources"). The apply also
 	// left an identity record, and that record is what decides the path:
-	// [statelessRecordBackedNeedsDiscoveryAddrs] (edge 3 of #388's
+	// [liveRecordBackedNeedsDiscoveryAddrs] (edge 3 of #388's
 	// plan-node seam, on by default) takes every needs-discovery address
 	// with a record OUT of the sweep's binding demand, so the sweep never
 	// rewrites the resolution to a concrete one and r.ImportID stays "".
@@ -122,7 +122,7 @@ func TestLivePlan_jsonBoundCarriesTheIdentityItMatchedOn(t *testing.T) {
 		t.Chdir(td)
 
 		const estate = "stateless-unit"
-		cloud := newStatelessTestCloud()
+		cloud := newLiveTestCloud()
 		cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", estate, "aws_s3_bucket.data", map[string]string{
 			"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
 		})
@@ -165,7 +165,7 @@ func TestLivePlan_jsonBoundCarriesTheIdentityItMatchedOn(t *testing.T) {
 		t.Chdir(td)
 
 		const estate = "markers-record-unit"
-		cloud := newStatelessTestCloud()
+		cloud := newLiveTestCloud()
 		cloud.putMarked("aws_vpc", "vpc-existing", estate, "aws_vpc.main", map[string]string{
 			"id": "vpc-existing", "cidr_block": "10.42.0.0/16",
 		})

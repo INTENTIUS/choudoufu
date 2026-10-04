@@ -1,5 +1,5 @@
 # GitHub issue #1470's end-to-end shape: the block a -target run is about,
-# beside a pair the run excludes, arranged so that statelessResolve's second
+# beside a pair the run excludes, arranged so that liveResolve's second
 # pass CANNOT settle the excluded record's for_each.
 #
 # projection.PlanInstances plans only blocks with no count and no for_each,

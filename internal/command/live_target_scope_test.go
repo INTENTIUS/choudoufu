@@ -34,14 +34,14 @@ import (
 
 // liveOrchestrators are the functions this fork runs the live path from.
 // Every pass a live run performs is called, directly or through a
-// stateless* helper, from one of these four.
+// live* helper, from one of these four.
 var liveOrchestrators = []struct{ file, recv, fn string }{
 	// "choudoufu live-plan" and the "-estate" flag form.
 	{"live_plan.go", "LivePlanCommand", "livePlan"},
 	// Plain "choudoufu plan" / "choudoufu apply" under a live block.
-	{"live_mode.go", "statelessRunner", "PriorState"},
-	{"live_mode.go", "statelessRunner", "WriteBack"},
-	{"live_mode.go", "statelessRunner", "AfterApply"},
+	{"live_mode.go", "liveRunner", "PriorState"},
+	{"live_mode.go", "liveRunner", "WriteBack"},
+	{"live_mode.go", "liveRunner", "AfterApply"},
 }
 
 // targetScopeVerdict is what somebody decided about one pass.
@@ -84,43 +84,43 @@ var liveTargetScopeClassification = map[string]struct {
 	why     string
 }{
 	// ---- scope-aware -----------------------------------------------
-	"statelessTargetScope":         {scopeAware, "computes the scope; #352"},
-	"statelessResolve":             {scopeAware, "identity.Context.Scope; #352"},
-	"statelessDataReads":           {scopeAware, "dataread.Options.Scope; #352"},
-	"statelessRootOutputDataReads": {scopeAware, "dataread.Options.Scope; #352"},
-	"statelessDiscover":            {scopeAware, "discovery.Request.Scope; #1176"},
-	"projection.BuildWith":         {scopeAware, "projection.Options.Scope; #1176"},
-	"statelessUnmarkedApplyGaps":   {scopeAware, "check.NodeStampUnmarkedApply's scope; #1203"},
-	"lint.CheckWith":               {scopeAware, "lint.Context.Scope; #1256. The twelve per-resource rules narrow; moved-block, the live-block settings, the module-call rules and undeclared-provider-alias stay whole-configuration, each with its reason at its own raising site"},
-	"lint.CheckResidueAttributes":  {scopeAware, "lint.Context.Scope, same struct; #1256"},
-	"statelessPolicyReconcile":     {scopeAware, "discovery.ReconcileRequest.Scope; #1257. The roster is still listed and reported in full; what narrows is discovery.ReconcileResult.Proposable, which is both the set merged in as destroy proposals and the set the threshold guard counts"},
+	"liveTargetScope":             {scopeAware, "computes the scope; #352"},
+	"liveResolve":                 {scopeAware, "identity.Context.Scope; #352"},
+	"liveDataReads":               {scopeAware, "dataread.Options.Scope; #352"},
+	"liveRootOutputDataReads":     {scopeAware, "dataread.Options.Scope; #352"},
+	"liveDiscover":                {scopeAware, "discovery.Request.Scope; #1176"},
+	"projection.BuildWith":        {scopeAware, "projection.Options.Scope; #1176"},
+	"liveUnmarkedApplyGaps":       {scopeAware, "check.NodeStampUnmarkedApply's scope; #1203"},
+	"lint.CheckWith":              {scopeAware, "lint.Context.Scope; #1256. The twelve per-resource rules narrow; moved-block, the live-block settings, the module-call rules and undeclared-provider-alias stay whole-configuration, each with its reason at its own raising site"},
+	"lint.CheckResidueAttributes": {scopeAware, "lint.Context.Scope, same struct; #1256"},
+	"livePolicyReconcile":         {scopeAware, "discovery.ReconcileRequest.Scope; #1257. The roster is still listed and reported in full; what narrows is discovery.ReconcileResult.Proposable, which is both the set merged in as destroy proposals and the set the threshold guard counts"},
 
 	// ---- narrowed before they run ----------------------------------
-	"statelessKubernetesDryRun":        {planDerived, "iterates plan.Changes.Resources, which targeting already pruned"},
+	"liveKubernetesDryRun":             {planDerived, "iterates plan.Changes.Resources, which targeting already pruned"},
 	"collectKubernetesFieldOwners":     {planDerived, "iterates plan.Changes.Resources, which targeting already pruned, and reads back only the objects those changes patch (GitHub issue #1191)"},
-	"statelessHeldKubernetesDeletes":   {planDerived, "asks only about the deletes statelessKubernetesDeletes read off the pruned plan (GitHub issue #1184)"},
-	"foreign.Lookalikes":               {planDerived, "reads statelessPlannedCreates(plan)"},
+	"liveHeldKubernetesDeletes":        {planDerived, "asks only about the deletes liveKubernetesDeletes read off the pruned plan (GitHub issue #1184)"},
+	"foreign.Lookalikes":               {planDerived, "reads livePlannedCreates(plan)"},
 	"projection.ApplyRootOutputValues": {planDerived, "evaluates outputs against projResult.State, itself scoped by BuildWith"},
 	"projection.WriteBack":             {planDerived, "reads the final state of an apply that already honoured -target"},
 	"untag.Release":                    {planDerived, "releases the tags PriorState captured from a scoped projection"},
-	"statelessManifestOwnedKeys":       {planDerived, "#1211's safety rail. Builds a per-instance hook the projection calls only for an instance it is already reading - projection.BuildWith narrowed that set by scope - and the hook never looks beyond the one address it is handed"},
+	"liveManifestOwnedKeys":            {planDerived, "#1211's safety rail. Builds a per-instance hook the projection calls only for an instance it is already reading - projection.BuildWith narrowed that set by scope - and the hook never looks beyond the one address it is handed"},
 
 	// ---- whole-configuration on purpose ----------------------------
-	"statelessEstateFor":              {wholeConfigByDesign, "the estate name is a property of the configuration, not of one resource"},
-	"statelessMarkerEstate":           {wholeConfigByDesign, "same question, said out loud; warning-severity and names no resource"},
-	"statelessPolicy":                 {wholeConfigByDesign, "resolves the live block's ownership policy; not per-resource"},
+	"liveEstateFor":                   {wholeConfigByDesign, "the estate name is a property of the configuration, not of one resource"},
+	"liveMarkerEstate":                {wholeConfigByDesign, "same question, said out loud; warning-severity and names no resource"},
+	"livePolicy":                      {wholeConfigByDesign, "resolves the live block's ownership policy; not per-resource"},
 	"projection.ReadRootOutputValues": {wholeConfigByDesign, "root outputs are not resources and carry no address to target"},
 	"foreign.Classify":                {wholeConfigByDesign, "classifies live objects nothing declares; an estate fact, not a run's"},
 	"collectDeposedRecords":           {wholeConfigByDesign, "record reads for crash-window recovery; errors are swallowed, nothing is refused"},
 
 	// ---- filed gaps ------------------------------------------------
-	"statelessProviderDataReads": {unscopedKnownGap, "dataread.AnalyzeProviderConfigs runs unscoped; provider work, not a refusal. #1258's second leg. Its first leg, projection.PlanInstancesIn inside statelessResolve, is narrowed"},
+	"liveProviderDataReads": {unscopedKnownGap, "dataread.AnalyzeProviderConfigs runs unscoped; provider work, not a refusal. #1258's second leg. Its first leg, projection.PlanInstancesIn inside liveResolve, is narrowed"},
 
 	// ---- not a pass ------------------------------------------------
 	"lint.Diagnostics":                    {notAPass, "renders issues"},
 	"lint.HasErrors":                      {notAPass, "reads issues"},
 	"identity.DowngradeForNodeResolution": {notAPass, "rewrites diagnostic severities"},
-	"identity.InstanceRefusals":           {notAPass, "indexes statelessResolve's already-scoped diagnostics by address; the node reads it only for an instance the targeted walk reaches (#1539)"},
+	"identity.InstanceRefusals":           {notAPass, "indexes liveResolve's already-scoped diagnostics by address; the node reads it only for an instance the targeted walk reaches (#1539)"},
 	"identity.SelectionFor":               {notAPass, "reads the live block's markers selection"},
 	"identity.NoSourceCreateFor":          {notAPass, "reads the strict profile"},
 	"identity.SecretsFor":                 {notAPass, "reads the strict profile's secrets setting, to decide whether this run keeps a state cache at all (#1375). That is a fact about the run, not about any resource, so no target set narrows it"},
@@ -129,22 +129,27 @@ var liveTargetScopeClassification = map[string]struct {
 	"projection.NewRecordEnvelopeStore":   {notAPass, "wraps a store"},
 	"projection.NewRootOutputStore":       {notAPass, "wraps a store"},
 	"projection.RecordStoreKeyPrefix":     {notAPass, "computes a key prefix"},
-	"statelessAdoptionReport":             {notAPass, "renders"},
-	"statelessBoundReport":                {notAPass, "renders"},
-	"statelessForeignReport":              {notAPass, "renders"},
-	"statelessLookalikeReport":            {notAPass, "renders"},
-	"statelessOmissions":                  {notAPass, "renders"},
-	"statelessOwnershipWith":              {notAPass, "builds the ownership rule"},
-	"statelessPlannedCreates":             {notAPass, "reads the plan"},
-	"statelessPolicyReport":               {notAPass, "renders"},
-	"statelessPolicyTagKey":               {notAPass, "reads a field"},
-	"statelessPolicyTagValue":             {notAPass, "reads a field"},
-	"statelessNeedsDiscoverySet":          {notAPass, "indexes resolutions already in hand"},
-	"statelessUnownedReport":              {notAPass, "renders"},
-	"statelessUntagTargets":               {notAPass, "reads discovery's result"},
-	"statelessUntagCluster":               {notAPass, "a map lookup into the cluster clients the sweep already built; it sends no request, and the targets it serves are the ones untag.Release was already handed (GitHub issue #1656)"},
-	"statelessReleasedReport":             {notAPass, "renders untag.Release's outcome"},
-	"statelessNoSweepAnswer":              {notAPass, "renders -filter's answer for a run that swept nothing (#1197); reads no resource"},
+	"liveAdoptionReport":                  {notAPass, "renders"},
+	"liveBoundReport":                     {notAPass, "renders"},
+	"liveForeignReport":                   {notAPass, "renders"},
+	"liveLookalikeReport":                 {notAPass, "renders"},
+	"liveOmissions":                       {notAPass, "renders"},
+	"liveOwnershipWith":                   {notAPass, "builds the ownership rule"},
+	"livePlannedCreates":                  {notAPass, "reads the plan"},
+	"livePolicyReport":                    {notAPass, "renders"},
+	"livePolicyTagKey":                    {notAPass, "reads a field"},
+	"livePolicyTagValue":                  {notAPass, "reads a field"},
+	"liveNeedsDiscoverySet":               {notAPass, "indexes resolutions already in hand"},
+	"liveUnownedReport":                   {notAPass, "renders"},
+	"liveUntagTargets":                    {notAPass, "reads discovery's result"},
+	"liveUntagCluster":                    {notAPass, "a map lookup into the cluster clients the sweep already built; it sends no request, and the targets it serves are the ones untag.Release was already handed (GitHub issue #1656)"},
+	"liveReleasedReport":                  {notAPass, "renders untag.Release's outcome"},
+	"liveNoSweepAnswer":                   {notAPass, "renders -filter's answer for a run that swept nothing (#1197); reads no resource"},
+	"livePlanAdoptable":                   {notAPass, "projects the foreign report's adoptable rows into the JSON document"},
+	"livePlanControllerHeld":              {notAPass, "projects the foreign report's controller-held rows into the JSON document"},
+	"livePlanDiagnostics":                 {notAPass, "converts diagnostics already in hand into the JSON document's wire format"},
+	"livePlanFilterDocument":              {notAPass, "narrows an already-built JSON document by -filter; reads no resource"},
+	"livePlanForeign":                     {notAPass, "projects the foreign report's rows into the JSON document"},
 }
 
 // TestEveryLiveOrchestratorCallIsClassifiedForTargeting is GitHub issue
@@ -196,7 +201,7 @@ func TestEveryLiveOrchestratorCallIsClassifiedForTargeting(t *testing.T) {
 
 // liveOrchestratorCalls is the mechanical population: every call inside one
 // of the [liveOrchestrators]' bodies whose callee is either a selector on a
-// live-path package, or a package-local helper named stateless*/collect*.
+// live-path package, or a package-local helper named live*/collect*.
 //
 // That filter is the definition of "a live-path pass" this audit used, and
 // it is deliberately syntactic: a rule a reader can re-run is worth more
@@ -235,7 +240,7 @@ func liveOrchestratorCalls(t *testing.T) []string {
 					seen[pkg.Name+"."+fn.Sel.Name] = true
 				}
 			case *ast.Ident:
-				if strings.HasPrefix(fn.Name, "stateless") || strings.HasPrefix(fn.Name, "collect") {
+				if strings.HasPrefix(fn.Name, "live") || strings.HasPrefix(fn.Name, "collect") {
 					seen[fn.Name] = true
 				}
 			}

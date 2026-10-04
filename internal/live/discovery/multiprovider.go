@@ -11,7 +11,7 @@
 // [Request] carries. [Merge] is what lets a caller run [Discover] once per
 // distinct provider configuration and combine the results into one Result,
 // usable by the rest of the pipeline exactly as a single-provider Result
-// already is - see internal/command/live_plan.go's statelessDiscover for the
+// already is - see internal/command/live_plan.go's liveDiscover for the
 // caller that drives it.
 //
 // Discover itself is unchanged: every existing single-provider caller

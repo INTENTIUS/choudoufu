@@ -20,8 +20,8 @@ import (
 	"github.com/intentius/choudoufu/internal/tofu"
 )
 
-// StatelessRun is the seam stateless mode enters the ordinary
-// local operations through. When [Local.Stateless] is nil - which is every
+// LiveRun is the seam stateless mode enters the ordinary
+// local operations through. When [Local.LiveRun] is nil - which is every
 // run of a configuration without a "live" block - nothing in this file
 // is reached and the backend behaves exactly as it always has.
 //
@@ -60,7 +60,7 @@ import (
 // projection and an apply-time release are built entirely out of those two;
 // a manager that could do either would be a manager that had been handed the
 // whole run.
-type StatelessRun interface {
+type LiveRun interface {
 	// StateMgr is the state manager for this run. It is called once per
 	// operation and must return the same object each time, because the
 	// operation hands it to the state hook and to the final write and expects
@@ -96,7 +96,7 @@ type StatelessRun interface {
 	// It is [projection.ApplyRootOutputValues]'s fallback for an output that
 	// cannot be evaluated against the projection at all, which is what a
 	// stock state file's own stored output values are to `tofu plan`. A
-	// method here for [StatelessRun.RootOutputData]'s reason: the store is
+	// method here for [LiveRun.RootOutputData]'s reason: the store is
 	// opened inside PriorState and the values are used a moment later, in
 	// the caller's own step. Called at most once per operation, always after
 	// PriorState has returned without errors.

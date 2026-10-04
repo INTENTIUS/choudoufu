@@ -20,7 +20,7 @@ terraform {
 # read pass's own bound is the only thing left that can hold these calls apart.
 #
 # The regions differ only because the mock insists a provider block name one it
-# was told to accept (statelessTestCloud.allowedRegions). Read-back is
+# was told to accept (liveTestCloud.allowedRegions). Read-back is
 # deliberately not region-partitioned, so all four objects are readable through
 # any of them.
 provider "aws" {

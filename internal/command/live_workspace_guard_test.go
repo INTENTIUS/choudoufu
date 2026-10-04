@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-// TestStatelessWorkspaceGuard_workspaceCommandsRefused is the regression for audit finding
+// TestLiveWorkspaceGuard_workspaceCommandsRefused is the regression for audit finding
 // F-WS. A live directory refused a non-default workspace at plan and apply
 // time only, so "choudoufu workspace new staging" succeeded, selected the new
 // workspace on the way out, and left a directory where nothing could run.
@@ -20,7 +20,7 @@ import (
 // under the working directory - including the terraform.tfstate.d workspace
 // directory, which is what "workspace new" creates and what assertNoStateArtifacts
 // looks for by name.
-func TestStatelessWorkspaceGuard_workspaceCommandsRefused(t *testing.T) {
+func TestLiveWorkspaceGuard_workspaceCommandsRefused(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		summary string
@@ -78,13 +78,13 @@ func TestStatelessWorkspaceGuard_workspaceCommandsRefused(t *testing.T) {
 	}
 }
 
-// TestStatelessWorkspaceGuard_workspaceSelectDefaultAllowed is the other half of the guard,
+// TestLiveWorkspaceGuard_workspaceSelectDefaultAllowed is the other half of the guard,
 // and the reason it is not symmetric: selecting the default workspace is the
 // way out of a directory that is already stranded in another one, so it must
 // never be the thing that is refused. The command is allowed to fail for its
 // own ordinary reasons here; what it must not do is refuse on stateless
 // grounds.
-func TestStatelessWorkspaceGuard_workspaceSelectDefaultAllowed(t *testing.T) {
+func TestLiveWorkspaceGuard_workspaceSelectDefaultAllowed(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block"), td)
 	t.Chdir(td)
@@ -99,10 +99,10 @@ func TestStatelessWorkspaceGuard_workspaceSelectDefaultAllowed(t *testing.T) {
 	}
 }
 
-// TestStatelessWorkspaceGuard_workspaceCommandsUnguarded checks the guard says nothing in a
+// TestLiveWorkspaceGuard_workspaceCommandsUnguarded checks the guard says nothing in a
 // configuration with no live block: a stateless refusal appearing in an
 // ordinary working directory would be a worse bug than the one being fixed.
-func TestStatelessWorkspaceGuard_workspaceCommandsUnguarded(t *testing.T) {
+func TestLiveWorkspaceGuard_workspaceCommandsUnguarded(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		run  func(m Meta) int
@@ -122,7 +122,7 @@ func TestStatelessWorkspaceGuard_workspaceCommandsUnguarded(t *testing.T) {
 			t.Chdir(td)
 
 			view, done := testView(t)
-			tc.run(liveBlockMeta(view, newStatelessTestCloud()))
+			tc.run(liveBlockMeta(view, newLiveTestCloud()))
 			output := done(t)
 
 			if strings.Contains(output.Stderr()+output.Stdout(), "live resource markers") {

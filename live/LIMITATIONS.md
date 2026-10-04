@@ -4931,7 +4931,7 @@ above), which is a separate rule about identity resolution and is
 unaffected.
 
 **A multi-configuration estate's adoption hint may name the wrong region.**
-Marker discovery itself is per provider configuration. `statelessDiscover`
+Marker discovery itself is per provider configuration. `liveDiscover`
 runs one `discovery.Discover` pass per configuration among the estate's
 managed resources and the ones its discovery-needing resources use, and
 `discovery.Merge` combines them; `discovery.Request.ScopeProvider` narrows
@@ -4953,8 +4953,8 @@ provider needs a larger change to `internal/live/foreign`. Materializing
 undeclared instances does not go through the hint: callers use the
 per-address provider map instead, so an undeclared instance is created
 through whichever configuration found it.
-(`internal/command/live_plan.go`, `statelessDiscover`'s second and third
-return values; `statelessDiscoveryPassProviders` for the pass set.
+(`internal/command/live_plan.go`, `liveDiscover`'s second and third
+return values; `liveDiscoveryPassProviders` for the pass set.
 Multi-configuration behavior is pinned by `internal/live/discovery`'s
 `TestAliasedProvidersAgainstFloci`, fixture at
 `internal/live/discovery/testdata/alias-e2e/`, and at the command level by

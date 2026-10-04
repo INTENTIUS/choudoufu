@@ -25,7 +25,7 @@ import (
 )
 
 // TestReplacedInstances is GitHub issue #854's whole seam: which addresses
-// [StatelessRun.WriteBack] is told this run replaced, and therefore which
+// [LiveRun.WriteBack] is told this run replaced, and therefore which
 // addresses the record store is allowed to record a destroyed identity for.
 //
 // The write side used to derive that from the record alone - "the identity
@@ -85,11 +85,11 @@ func TestReplacedInstances(t *testing.T) {
 	}
 }
 
-// replaceRecordingStateless is a [StatelessRun] that does nothing to a live
+// replaceRecordingLiveRun is a [LiveRun] that does nothing to a live
 // system and exists only to record what opApply hands its WriteBack: the
 // replace set, at the moment the real call site computes it, after a real
 // lr.Core.Apply has run.
-type replaceRecordingStateless struct {
+type replaceRecordingLiveRun struct {
 	mgr statemgr.Full
 
 	// prior is what PriorState hands back as the projection - the "live"
@@ -106,16 +106,16 @@ type replaceRecordingStateless struct {
 	finalState      *states.State
 }
 
-func (s *replaceRecordingStateless) StateMgr() statemgr.Full { return s.mgr }
+func (s *replaceRecordingLiveRun) StateMgr() statemgr.Full { return s.mgr }
 
-func (s *replaceRecordingStateless) PriorState(_ context.Context, _ *configs.Config, _ *tofu.Context) (*states.State, tfdiags.Diagnostics) {
+func (s *replaceRecordingLiveRun) PriorState(_ context.Context, _ *configs.Config, _ *tofu.Context) (*states.State, tfdiags.Diagnostics) {
 	return s.prior.DeepCopy(), nil
 }
 
-func (s *replaceRecordingStateless) RootOutputData() map[string]cty.Value      { return nil }
-func (s *replaceRecordingStateless) RecordedRootOutputs() map[string]cty.Value { return nil }
+func (s *replaceRecordingLiveRun) RootOutputData() map[string]cty.Value      { return nil }
+func (s *replaceRecordingLiveRun) RecordedRootOutputs() map[string]cty.Value { return nil }
 
-func (s *replaceRecordingStateless) WriteBack(_ context.Context, finalState *states.State, _ *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy, _ bool) tfdiags.Diagnostics {
+func (s *replaceRecordingLiveRun) WriteBack(_ context.Context, finalState *states.State, _ *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy, _ bool) tfdiags.Diagnostics {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.writeBackCalled = true
@@ -125,18 +125,18 @@ func (s *replaceRecordingStateless) WriteBack(_ context.Context, finalState *sta
 	return nil
 }
 
-func (s *replaceRecordingStateless) AfterApply(_ context.Context) tfdiags.Diagnostics { return nil }
-func (s *replaceRecordingStateless) BeforeApply(_ context.Context) tfdiags.Diagnostics {
+func (s *replaceRecordingLiveRun) AfterApply(_ context.Context) tfdiags.Diagnostics { return nil }
+func (s *replaceRecordingLiveRun) BeforeApply(_ context.Context) tfdiags.Diagnostics {
 	return nil
 }
-func (s *replaceRecordingStateless) AfterPlan(_ context.Context, _ *configs.Config, _ *plans.Plan, _ *tofu.Schemas) tfdiags.Diagnostics {
+func (s *replaceRecordingLiveRun) AfterPlan(_ context.Context, _ *configs.Config, _ *plans.Plan, _ *tofu.Schemas) tfdiags.Diagnostics {
 	return nil
 }
 
 // TestWriteBackSeesTheReplaceSetAfterApply is GitHub issue #908's guard, and
 // it is deliberately not a unit test of replacedInstances.
 //
-// #854 plumbed the plan's replace set into [StatelessRun.WriteBack] and
+// #854 plumbed the plan's replace set into [LiveRun.WriteBack] and
 // TestReplacedInstances above proved the function correct - against a
 // synthetic plan, which nothing ever drains. The live call site read
 // `replacedInstances(plan)` in the WriteBack argument list, AFTER
@@ -215,11 +215,11 @@ func TestWriteBackSeesTheReplaceSetAfterApply(t *testing.T) {
 		)
 	})
 
-	stateless := &replaceRecordingStateless{
+	recorder := &replaceRecordingLiveRun{
 		mgr:   statemgr.NewFullFake(statemgr.NewTransientInMemory(nil), prior.DeepCopy()),
 		prior: prior,
 	}
-	b.Stateless = stateless
+	b.LiveRun = recorder
 
 	op, done := testOperationApply(t, "./testdata/apply")
 	op.PlanRefresh = false
@@ -235,9 +235,9 @@ func TestWriteBackSeesTheReplaceSetAfterApply(t *testing.T) {
 		t.Fatalf("the apply failed, so this test measured nothing:\nstdout:\n%s\nstderr:\n%s", output.Stdout(), output.Stderr())
 	}
 
-	stateless.mu.Lock()
-	called, got, final := stateless.writeBackCalled, stateless.gotReplaced, stateless.finalState
-	stateless.mu.Unlock()
+	recorder.mu.Lock()
+	called, got, final := recorder.writeBackCalled, recorder.gotReplaced, recorder.finalState
+	recorder.mu.Unlock()
 
 	if !called {
 		t.Fatal("WriteBack was never called, so this test measured nothing about the replace set")
@@ -273,7 +273,7 @@ func TestWriteBackSeesTheReplaceSetAfterApply(t *testing.T) {
 
 // TestWriteBackSeesTheDeposedDestroySetAfterApply is
 // TestWriteBackSeesTheReplaceSetAfterApply's twin for GitHub issue #938's
-// signal: what [StatelessRun.WriteBack] is actually handed on a real apply
+// signal: what [LiveRun.WriteBack] is actually handed on a real apply
 // - real plan, real graph walk - that destroys a deposed object.
 //
 // The prior state is the shape a crashed create_before_destroy replace
@@ -341,11 +341,11 @@ func TestWriteBackSeesTheDeposedDestroySetAfterApply(t *testing.T) {
 		)
 	})
 
-	stateless := &replaceRecordingStateless{
+	recorder := &replaceRecordingLiveRun{
 		mgr:   statemgr.NewFullFake(statemgr.NewTransientInMemory(nil), prior.DeepCopy()),
 		prior: prior,
 	}
-	b.Stateless = stateless
+	b.LiveRun = recorder
 
 	op, done := testOperationApply(t, "./testdata/apply")
 	op.PlanRefresh = false
@@ -361,9 +361,9 @@ func TestWriteBackSeesTheDeposedDestroySetAfterApply(t *testing.T) {
 		t.Fatalf("the apply failed, so this test measured nothing:\nstdout:\n%s\nstderr:\n%s", output.Stdout(), output.Stderr())
 	}
 
-	stateless.mu.Lock()
-	called, got, final := stateless.writeBackCalled, stateless.gotDeposed, stateless.finalState
-	stateless.mu.Unlock()
+	recorder.mu.Lock()
+	called, got, final := recorder.writeBackCalled, recorder.gotDeposed, recorder.finalState
+	recorder.mu.Unlock()
 
 	if !called {
 		t.Fatal("WriteBack was never called, so this test measured nothing about the deposed-destroy set")

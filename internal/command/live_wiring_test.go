@@ -36,7 +36,7 @@ func TestResidueWarningWiredIntoEveryLiveEntryPoint(t *testing.T) {
 // worth of commits ("nil Request.CloudControl is 'the fallback does not
 // apply here', not an error"), so deleting this wiring fails no behavioral
 // test that does not also run a live emulator - exactly how the gap survived
-// until #124's media cohort hit it at replan. statelessDiscoverOne is the
+// until #124's media cohort hit it at replan. liveDiscoverOne is the
 // one site every live entry point's discovery goes through.
 func TestCloudControlFallbackWiredIntoDiscovery(t *testing.T) {
 	src, err := os.ReadFile("live_plan.go")

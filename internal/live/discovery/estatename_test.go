@@ -23,7 +23,7 @@ import (
 // this walk had.
 //
 // [DeclaredEstateNames] was written out twice, body for body: once in
-// internal/command as statelessEstateFromModule and once in
+// internal/command as liveEstateFromModule and once in
 // internal/live/check as declaredEstateNamesFrom, whose own doc said it
 // mirrored the other. Between them there was no test at all - stopping
 // check's copy recursing into child modules left the whole tree green - so

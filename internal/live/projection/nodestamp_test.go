@@ -226,7 +226,7 @@ func TestNodeResolver_AdjustConfigValue_recordSelectionSetsNothing(t *testing.T)
 // regression, caught by TestLivePlan_stampingNeedsAnEstateName once
 // CHOUDOUFU_NODE_RESOLVE defaulted on (2026-08-25): a resolver with no
 // estate name - the ordinary "-estate not given, no live block names one"
-// shape internal/command/live_plan.go's statelessStamp already degrades
+// shape internal/command/live_plan.go's liveStamp already degrades
 // gracefully for on the HCL path (its own estate=="" branch: a single
 // "Ownership markers not stamped" warning, config untouched) - must leave
 // the configuration exactly as it found it, not write

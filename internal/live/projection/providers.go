@@ -53,7 +53,7 @@ type Providers interface {
 // question in one shot either; its graph defers configuring
 // provider.kubernetes until aws_eks_cluster.this[0] is actually applied,
 // mid-run. The stateless pre-pass this package and internal/command's
-// statelessDiscover build has no such graph to defer through, so the
+// liveDiscover build has no such graph to defer through, so the
 // generic, safe answer here is the same one [Build]'s omitFailed already
 // gives every other unreadable instance: proceed as if nothing was found,
 // and let the REAL resource graph (which does defer provider
@@ -64,7 +64,7 @@ type Providers interface {
 //
 // A caller must still gate the downgrade on whether the FAILING provider
 // is the one that would have supplied THIS instance's own identity: see
-// internal/command's statelessDiscoverProviderUnavailable, whose needsSet
+// internal/command's liveDiscoverProviderUnavailable, whose needsSet
 // argument is exactly that gate for the discovery/sweep pass. [Build]'s
 // own materialize family never needs that gate itself, because by
 // construction it only ever reaches a provider this error class describes

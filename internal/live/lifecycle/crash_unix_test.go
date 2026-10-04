@@ -22,10 +22,10 @@ import (
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 )
 
-// TestStatelessCrashMidApplyAgainstFloci is the crash row of the concurrency
+// TestLiveCrashMidApplyAgainstFloci is the crash row of the concurrency
 // taxonomy, run rather than argued.
 //
-//	TF_FLOCI_TEST=1 go test ./internal/live/lifecycle/ -run TestStatelessCrashMidApplyAgainstFloci -v
+//	TF_FLOCI_TEST=1 go test ./internal/live/lifecycle/ -run TestLiveCrashMidApplyAgainstFloci -v
 //
 // The docs page claims, for "crash mid-apply", that a backend leaves a stale
 // lock blocking the team and resources created-but-unrecorded orphaned EVEN
@@ -58,7 +58,7 @@ import (
 // between the first create and the last one - so the interesting failure
 // mode is a run that got killed before it did anything, which proves
 // nothing. That case is detected and retried rather than passed.
-func TestStatelessCrashMidApplyAgainstFloci(t *testing.T) {
+func TestLiveCrashMidApplyAgainstFloci(t *testing.T) {
 	flocitest.Gate(t, "crash-mid-apply")
 	flocitest.RequireBinary(t, "docker")
 	flocitest.RequireBinary(t, "aws")

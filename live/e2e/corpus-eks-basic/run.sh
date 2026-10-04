@@ -115,7 +115,7 @@ set -uo pipefail
 #                          internal/command/live_plan.go already opened as
 #                          hintStore for the guided-sweep cost hint alone,
 #                          now reaches the Request unconditionally rather
-#                          than only when statelessApplyGuidedDiscovery's
+#                          than only when liveApplyGuidedDiscovery's
 #                          cost-decision gate turns Guided on (which it
 #                          deliberately never does for an IMPLIED record
 #                          store - #364's own blast-radius containment - so
@@ -1430,7 +1430,7 @@ gauntlet_stage migrate pass "26 of 54 resource instances stamped, 25 of the 26 c
 #      decl.entryFor (scoped to THIS pass's own inScope set, correctly
 #      empty for an object out of scope) instead of decl.declares (built
 #      from every resolution regardless of provider scope, exactly what
-#      internal/command/live_plan.go's own statelessDiscover doc comment
+#      internal/command/live_plan.go's own liveDiscover doc comment
 #      already promised). Fixed in internal/live/discovery/discovery.go's
 #      sweepBindType.
 #
@@ -1725,7 +1725,7 @@ fi
 #     estate's wall - the data-source seed alone could not, because
 #     data.template_file.userdata is read by the real plan graph AFTER
 #     materialize() already needs its value, and the estate's own
-#     statelessDataReads phase never reads it either (out of its
+#     liveDataReads phase never reads it either (out of its
 #     identity/count/for_each-only scope). No type name anywhere in either
 #     mechanism.
 #
@@ -2715,9 +2715,9 @@ green_tofu_run init -input=false -no-color > /tmp/eks-basic-green-init.log 2>&1 
 #   1. The kubernetes provider's config (data.aws_eks_cluster.cluster /
 #      data.aws_eks_cluster_auth.cluster, reading aws_eks_cluster.this[0] -
 #      a managed resource this same apply creates, with no record, no
-#      marker and no state anywhere yet) made statelessDiscover's
+#      marker and no state anywhere yet) made liveDiscover's
 #      multi-provider sweep pass fail to CONFIGURE provider.kubernetes at
-#      all, which internal/command/live_plan.go's statelessDiscover
+#      all, which internal/command/live_plan.go's liveDiscover
 #      treated as fatal for the WHOLE estate - aborting before the real
 #      resource graph, which defers this exact provider configuration
 #      until the cluster is known (same as stock's own single-apply
@@ -2728,7 +2728,7 @@ green_tofu_run init -input=false -no-color > /tmp/eks-basic-green-init.log 2>&1 
 #      coverage. Fixed generically: internal/live/projection.
 #      ProviderConfigNotEvaluable is a new typed error, distinct from a
 #      genuinely broken plugin or missing credentials, that internal/
-#      command's statelessDiscoverProviderUnavailable and internal/live/
+#      command's liveDiscoverProviderUnavailable and internal/live/
 #      projection/build.go's providerUnavailableSeverity both downgrade
 #      to a Warning instead of an Error - but ONLY when no declared
 #      instance's own identity resolution depends on the failing provider

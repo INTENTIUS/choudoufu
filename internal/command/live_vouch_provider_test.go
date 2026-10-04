@@ -33,11 +33,11 @@ func TestVouchProviderIsThePassesOwnProviderConfiguration(t *testing.T) {
 		t.Fatalf("parsing live_plan.go: %v", err)
 	}
 
-	one := findFuncDecl(t, file, "statelessDiscoverOne")
+	one := findFuncDecl(t, file, "liveDiscoverOne")
 
 	vouch, ok := requestFieldValue(t, one, "VouchProvider").(*ast.Ident)
 	if !ok {
-		t.Fatalf("discovery.Request.VouchProvider is set from %s, not from a parameter of statelessDiscoverOne", exprText(requestFieldValue(t, one, "VouchProvider")))
+		t.Fatalf("discovery.Request.VouchProvider is set from %s, not from a parameter of liveDiscoverOne", exprText(requestFieldValue(t, one, "VouchProvider")))
 	}
 
 	// The handle that does the listing is built from one of the same
@@ -59,7 +59,7 @@ func TestVouchProviderIsThePassesOwnProviderConfiguration(t *testing.T) {
 		return false
 	})
 	if listed == "" {
-		t.Fatal("statelessDiscoverOne makes no ConfiguredProvider(ctx, <parameter>) call, so this test cannot tell which provider configuration the pass lists through")
+		t.Fatal("liveDiscoverOne makes no ConfiguredProvider(ctx, <parameter>) call, so this test cannot tell which provider configuration the pass lists through")
 	}
 	if vouch.Name != listed {
 		t.Errorf("discovery.Request.VouchProvider is set from %q, but the pass lists through the provider configured from %q. A sighting stamped with a configuration other than the one that made the list call is evidence about an account this pass never read.", vouch.Name, listed)
@@ -67,6 +67,6 @@ func TestVouchProviderIsThePassesOwnProviderConfiguration(t *testing.T) {
 
 	scope, ok := requestFieldValue(t, one, "ScopeProvider").(*ast.Ident)
 	if ok && scope.Name == vouch.Name {
-		t.Errorf("discovery.Request.VouchProvider and ScopeProvider are both set from %q. ScopeProvider is the zero value on the single-provider path (statelessDiscover passes addrs.AbsProviderConfig{} there), so sharing it would stamp every single-provider run's sightings with a configuration no instance's own provider address can equal, and the cache would never serve.", vouch.Name)
+		t.Errorf("discovery.Request.VouchProvider and ScopeProvider are both set from %q. ScopeProvider is the zero value on the single-provider path (liveDiscover passes addrs.AbsProviderConfig{} there), so sharing it would stamp every single-provider run's sightings with a configuration no instance's own provider address can equal, and the cache would never serve.", vouch.Name)
 	}
 }

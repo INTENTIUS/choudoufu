@@ -22,12 +22,12 @@ import (
 // cloud serves no list resource for.
 const targetDiscoveryFixture = "live-plan-target-discovery-1514"
 
-// targetDiscoverySchemas is [statelessTestSchemas]'s caricature widened by
+// targetDiscoverySchemas is [liveTestSchemas]'s caricature widened by
 // the excluded certificate. It carries tags, so the certificate is a
-// marker-discovered type; [statelessTestListSchemas] has no entry for it,
+// marker-discovered type; [liveTestListSchemas] has no entry for it,
 // which is what makes it unlistable here.
 func targetDiscoverySchemas() map[string]providers.Schema {
-	out := statelessTestSchemas()
+	out := liveTestSchemas()
 	out["aws_acm_certificate"] = providers.Schema{Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{
 		"id":                {Type: cty.String, Computed: true},
 		"arn":               {Type: cty.String, Computed: true},
@@ -50,16 +50,16 @@ func targetDiscoverySchemas() map[string]providers.Schema {
 //
 // Targeted at the bucket, the run must succeed. Before the fix it exited 1
 // with "Unlistable marker-discovered type" for aws_acm_certificate.cert, a
-// block the plan graph had already dropped, because [statelessDiscover]
+// block the plan graph had already dropped, because [liveDiscover]
 // took its needs-discovery set from the whole configuration.
 func TestLivePlan_targetIsNotRefusedByAnExcludedBlocksDiscoveryNeed(t *testing.T) {
-	run := func(t *testing.T, args ...string) (int, *terminal.TestOutput, *statelessTestCloud) {
+	run := func(t *testing.T, args ...string) (int, *terminal.TestOutput, *liveTestCloud) {
 		t.Helper()
 		td := t.TempDir()
 		testCopyDir(t, testFixturePath(targetDiscoveryFixture), td)
 		t.Chdir(td)
 
-		cloud := newStatelessTestCloud()
+		cloud := newLiveTestCloud()
 		cloud.schemas = targetDiscoverySchemas()
 		cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
 			"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
@@ -98,7 +98,7 @@ func TestLivePlan_targetIsNotRefusedByAnExcludedBlocksDiscoveryNeed(t *testing.T
 
 // TestLivePlan_targetIsNotRefusedByAnExcludedBlocksDiscoveryProvider is
 // the other half of GitHub issue #1514: the provider set whose failure is
-// fatal. [statelessDiscoverProviderUnavailable] downgrades a provider it
+// fatal. [liveDiscoverProviderUnavailable] downgrades a provider it
 // cannot configure only when no needs-discovery instance uses it, and that
 // set came from the whole configuration too. Here the excluded
 // certificate's provider reads a managed attribute, so it cannot be
@@ -114,7 +114,7 @@ func TestLivePlan_targetIsNotRefusedByAnExcludedBlocksDiscoveryProvider(t *testi
 		testCopyDir(t, testFixturePath(fixture), td)
 		t.Chdir(td)
 
-		cloud := newStatelessTestCloud()
+		cloud := newLiveTestCloud()
 		cloud.schemas = targetDiscoverySchemas()
 		cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
 			"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",

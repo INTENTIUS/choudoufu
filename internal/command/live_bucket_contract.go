@@ -46,7 +46,7 @@ var (
 // picked these:
 //
 //   - On every apply, at the last point before it changes anything
-//     ([statelessRunner.BeforeApply]). An apply writes records, so it is a
+//     ([liveRunner.BeforeApply]). An apply writes records, so it is a
 //     run a store with versioning off or no estate boundary can hurt, and a
 //     handful of configuration reads are nothing beside the writes it is
 //     about to make. It is also what catches drift: a bucket whose
@@ -114,7 +114,7 @@ func assertRecordStoreContract(ctx context.Context, store staterecord.Store, rs 
 
 // BeforeApply is the apply's call into [assertRecordStoreContract], at the
 // last point before the apply changes anything.
-func (r *statelessRunner) BeforeApply(ctx context.Context) tfdiags.Diagnostics {
+func (r *liveRunner) BeforeApply(ctx context.Context) tfdiags.Diagnostics {
 	return assertRecordStoreContract(ctx, r.rawStore, r.recordStoreCfg, r.recordEstate, contractRunApply)
 }
 

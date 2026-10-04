@@ -137,7 +137,7 @@ func (c *LivePlanSetCommand) Execute(args *arguments.LivePlanSet) int {
 }
 
 // liveBlockEstate reads dir's live block, from its .tf files or its
-// estate.chdf.hcl sidecar, the way statelessSettings does for the working
+// estate.chdf.hcl sidecar, the way liveSettings does for the working
 // directory, and returns the estate it names.
 func liveBlockEstate(dir string) (string, bool, error) {
 	mod, diags := configs.NewParser(nil).LoadConfigDirSelective(dir, configs.SelectiveLoadBackend)

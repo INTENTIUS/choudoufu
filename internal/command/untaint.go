@@ -59,7 +59,7 @@ func (c UntaintCommand) Execute(args *arguments.Taint, view views.Taint) int {
 	// Untainting is a write to a state file, so a stateless configuration is
 	// refused here, before a backend is prepared and before anything can
 	// reach a state manager.
-	if guardDiags := c.statelessCommandGuard(ctx, "untaint"); len(guardDiags) > 0 {
+	if guardDiags := c.liveCommandGuard(ctx, "untaint"); len(guardDiags) > 0 {
 		diags = diags.Append(guardDiags)
 		if guardDiags.HasErrors() {
 			view.Diagnostics(diags)

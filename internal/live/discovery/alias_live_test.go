@@ -29,10 +29,10 @@ import (
 // History: this test used to skip with a recorded finding rather than pass
 // or fail outright, because live-plan refused any configuration whose
 // managed resources spanned more than one provider configuration at all
-// (internal/command/live_plan.go's now-removed statelessDiscoveryProvider) -
+// (internal/command/live_plan.go's now-removed liveDiscoveryProvider) -
 // even here, where neither resource needs marker-based discovery in the
 // first place. Issue #69 made the estate-wide sweep provider-aware
-// (statelessDiscover loops it once per distinct managed-resource provider
+// (liveDiscover loops it once per distinct managed-resource provider
 // configuration and internal/live/discovery.Merge combines the results),
 // and this is that fix's own acceptance test: it now asserts a real,
 // passing plan rather than recording why one could not be produced.

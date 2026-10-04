@@ -122,7 +122,7 @@ func (n *NodeResolver) adjustConfigValue(_ context.Context, addr addrs.AbsResour
 
 	if n.Estate == "" {
 		// No estate name: parity with internal/live/stamp's own guard
-		// (statelessStamp's estate=="" branch, internal/command/live_plan.go),
+		// (liveStamp's estate=="" branch, internal/command/live_plan.go),
 		// which already returns a nil *stamp.Result plus a single
 		// "Ownership markers not stamped" warning and writes nothing -
 		// both call sites run that pass unconditionally today, flag on or

@@ -1070,7 +1070,7 @@ ENGINE WORK:
   held a record, and a `lifecycle.destroy = false` create all produce that
   same fact and destroy nothing, so a displaced object still wearing the old
   marker was pruned as "destroyed by an earlier apply of this estate" while
-  it was running. The signal now comes from the plan: `StatelessRun.WriteBack`
+  it was running. The signal now comes from the plan: `LiveRun.WriteBack`
   is handed the addresses whose action is `DeleteThenCreate` or
   `CreateThenDelete`, an entry is written only when the plan names the
   address and the identity moved, and import and live-mv write nothing, so a

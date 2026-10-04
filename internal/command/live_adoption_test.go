@@ -42,10 +42,10 @@ func adoptionAddr(t *testing.T, s string) addrs.AbsResourceInstance {
 
 // renderAdoption builds the ledger and renders it through the adoption-only
 // view, returning what an operator would see on stdout.
-func renderAdoption(t *testing.T, rep views.StatelessAdoption) string {
+func renderAdoption(t *testing.T, rep views.LiveAdoption) string {
 	t.Helper()
 	streams, done := terminal.StreamsForTesting(t)
-	views.NewStatelessAdoption(views.NewView(streams).SetRunningInAutomation(true)).Adoption(rep)
+	views.NewLiveAdoption(views.NewView(streams).SetRunningInAutomation(true)).Adoption(rep)
 	return done(t).Stdout()
 }
 
@@ -68,16 +68,16 @@ func adoptionSchemas() map[string]providers.Schema {
 	}
 }
 
-// TestStatelessAdoptionReport_taggabilityIsMarkersTaggable pins that the one
+// TestLiveAdoptionReport_taggabilityIsMarkersTaggable pins that the one
 // judgement this file makes for itself is not made for itself at all: it is
 // markers.Taggable, the single implementation every writing package in this
 // repository delegates to, live-import's UNTAGGABLE verdict included.
 //
 // Proving it red: replace the markers.Taggable call in
-// statelessAdoptionReport with the "has a settable top-level tags attribute"
+// liveAdoptionReport with the "has a settable top-level tags attribute"
 // shape check that used to be inlined in four places, and
 // aws_thing_vocabulary moves from the declaration half to the marker half.
-func TestStatelessAdoptionReport_taggabilityIsMarkersTaggable(t *testing.T) {
+func TestLiveAdoptionReport_taggabilityIsMarkersTaggable(t *testing.T) {
 	res := &projection.Result{
 		Materialized: []addrs.AbsResourceInstance{
 			adoptionAddr(t, "aws_thing_tagged.a"),
@@ -86,7 +86,7 @@ func TestStatelessAdoptionReport_taggabilityIsMarkersTaggable(t *testing.T) {
 		},
 	}
 
-	out := renderAdoption(t, statelessAdoptionReport(res, views.StatelessForeign{}, nil, adoptionSchemas(), nil, "dev", true))
+	out := renderAdoption(t, liveAdoptionReport(res, views.LiveForeign{}, nil, adoptionSchemas(), nil, "dev", true))
 
 	if !strings.Contains(out, "Identity by declaration: 2 of 3 instances") {
 		t.Errorf("the declaration half does not hold both untaggable types; a vocabulary-namespaced tags map is not a marker surface (markers.TagSurface's VocabularyRefusal clause):\n%s", out)
@@ -101,15 +101,15 @@ func TestStatelessAdoptionReport_taggabilityIsMarkersTaggable(t *testing.T) {
 	}
 }
 
-// TestStatelessAdoptionReport_readsTheUnownedSectionsOwnVerdict pins that an
+// TestLiveAdoptionReport_readsTheUnownedSectionsOwnVerdict pins that an
 // adoptable resource is adoptable here because the Unowned section already
 // said so, values and all, rather than because this file decided it a second
-// time. statelessUnownedReport is what both consume.
+// time. liveUnownedReport is what both consume.
 //
 // Proving it red: compute MarkerEstate here instead of reading it, and a run
 // with no estate name starts offering adoptions the Unowned section refuses
 // to offer.
-func TestStatelessAdoptionReport_readsTheUnownedSectionsOwnVerdict(t *testing.T) {
+func TestLiveAdoptionReport_readsTheUnownedSectionsOwnVerdict(t *testing.T) {
 	res := &projection.Result{
 		Omitted: []projection.Omission{
 			{Addr: adoptionAddr(t, "aws_thing_tagged.mine"), Reason: projection.ReasonUnowned, Detail: "unmarked"},
@@ -123,9 +123,9 @@ func TestStatelessAdoptionReport_readsTheUnownedSectionsOwnVerdict(t *testing.T)
 			{Addr: adoptionAddr(t, "aws_thing_tagged.theirs"), TypeName: "aws_thing_tagged", ImportID: "thing-2", Estate: "other", AddressMarker: true},
 		},
 	}
-	unowned := statelessUnownedReport(res, "dev")
+	unowned := liveUnownedReport(res, "dev")
 
-	out := renderAdoption(t, statelessAdoptionReport(res, views.StatelessForeign{}, unowned, adoptionSchemas(), nil, "dev", true))
+	out := renderAdoption(t, liveAdoptionReport(res, views.LiveForeign{}, unowned, adoptionSchemas(), nil, "dev", true))
 
 	if !strings.Contains(out, "Adoptable now: 1 resource instance") {
 		t.Errorf("the unmarked resource is not offered for adoption:\n%s", out)
@@ -142,34 +142,34 @@ func TestStatelessAdoptionReport_readsTheUnownedSectionsOwnVerdict(t *testing.T)
 	}
 }
 
-// TestStatelessAdoptionReport_contentMatchWins pins that the foreign
+// TestLiveAdoptionReport_contentMatchWins pins that the foreign
 // classifier's content match - the one adoption verdict that arrives with a
 // paste-ready command attached - is not lost behind the omission reason that
 // made the instance eligible for classification in the first place.
 //
 // Proving it red: move the candidate lookup below the switch, and an
 // instance the classifier matched renders as "nothing live" with no command.
-func TestStatelessAdoptionReport_contentMatchWins(t *testing.T) {
+func TestLiveAdoptionReport_contentMatchWins(t *testing.T) {
 	res := &projection.Result{
 		Omitted: []projection.Omission{
 			{Addr: adoptionAddr(t, "aws_thing_tagged.zone"), Reason: projection.ReasonAbsent, Detail: "no such object"},
 		},
 	}
-	foreignRep := views.StatelessForeign{
+	foreignRep := views.LiveForeign{
 		Estate: "dev",
-		Candidates: []views.StatelessBindCandidate{{
+		Candidates: []views.LiveBindCandidate{{
 			Addr:          "aws_thing_tagged.zone",
 			TypeName:      "aws_thing_tagged",
 			LiveID:        "Z6ULYQAYZAD0GR7",
 			DisplayName:   "example.test",
-			Matched:       []views.StatelessTag{{Key: "name", Value: "example.test"}},
+			Matched:       []views.LiveTag{{Key: "name", Value: "example.test"}},
 			MarkerEstate:  "dev",
 			MarkerAddress: "aws_thing_tagged.zone",
 			Hint:          "aws ec2 create-tags --resources 'Z6ULYQAYZAD0GR7'",
 		}},
 	}
 
-	out := renderAdoption(t, statelessAdoptionReport(res, foreignRep, nil, adoptionSchemas(), nil, "dev", true))
+	out := renderAdoption(t, liveAdoptionReport(res, foreignRep, nil, adoptionSchemas(), nil, "dev", true))
 
 	for _, want := range []string{
 		"Adoptable now: 1 resource instance",
@@ -186,7 +186,7 @@ func TestStatelessAdoptionReport_contentMatchWins(t *testing.T) {
 	}
 }
 
-// TestStatelessAdoptionReport_needsDiscoveryIsItsOwnAnswer is the gap
+// TestLiveAdoptionReport_needsDiscoveryIsItsOwnAnswer is the gap
 // live/e2e/terralith-scale/MIGRATION.md measured: 7 of 55 resources had no
 // adoption path anywhere in the plan output, because a NEEDS_DISCOVERY
 // omission is a line in a 42-entry "Not read from the live system" list and
@@ -195,7 +195,7 @@ func TestStatelessAdoptionReport_contentMatchWins(t *testing.T) {
 // Proving it red: route ReasonNeedsDiscovery to AdoptionAbsent, and the
 // section vanishes while the count moves to "nothing live" - the exact
 // misreading the issue was filed about.
-func TestStatelessAdoptionReport_needsDiscoveryIsItsOwnAnswer(t *testing.T) {
+func TestLiveAdoptionReport_needsDiscoveryIsItsOwnAnswer(t *testing.T) {
 	res := &projection.Result{
 		Omitted: []projection.Omission{
 			{
@@ -211,7 +211,7 @@ func TestStatelessAdoptionReport_needsDiscoveryIsItsOwnAnswer(t *testing.T) {
 		},
 	}
 
-	out := renderAdoption(t, statelessAdoptionReport(res, views.StatelessForeign{}, nil, adoptionSchemas(), nil, "dev", true))
+	out := renderAdoption(t, liveAdoptionReport(res, views.LiveForeign{}, nil, adoptionSchemas(), nil, "dev", true))
 
 	if !strings.Contains(out, "No adoption path: 1 resource instance") {
 		t.Errorf("a server-assigned identity with nothing to point at is not reported as having no adoption path:\n%s", out)
@@ -231,7 +231,7 @@ func TestStatelessAdoptionReport_needsDiscoveryIsItsOwnAnswer(t *testing.T) {
 	}
 }
 
-// TestStatelessAdoptionReport_countsTheWholePopulation pins that the ledger
+// TestLiveAdoptionReport_countsTheWholePopulation pins that the ledger
 // is a partition of what the projection attempted: one row per materialized
 // instance plus one per omission, no more and no fewer. An aggregate that
 // silently drops a class still adds up, which is how this repository has had
@@ -239,7 +239,7 @@ func TestStatelessAdoptionReport_needsDiscoveryIsItsOwnAnswer(t *testing.T) {
 //
 // Proving it red: skip any arm of the switch, or return early on an
 // unrecognised reason, and the headline count stops matching.
-func TestStatelessAdoptionReport_countsTheWholePopulation(t *testing.T) {
+func TestLiveAdoptionReport_countsTheWholePopulation(t *testing.T) {
 	res := &projection.Result{
 		Materialized: []addrs.AbsResourceInstance{adoptionAddr(t, "aws_thing_tagged.a")},
 		Omitted: []projection.Omission{
@@ -252,7 +252,7 @@ func TestStatelessAdoptionReport_countsTheWholePopulation(t *testing.T) {
 		},
 	}
 
-	rep := statelessAdoptionReport(res, views.StatelessForeign{}, nil, adoptionSchemas(), nil, "dev", true)
+	rep := liveAdoptionReport(res, views.LiveForeign{}, nil, adoptionSchemas(), nil, "dev", true)
 	if got, want := len(rep.Rows), len(res.Materialized)+len(res.Omitted); got != want {
 		t.Fatalf("the ledger holds %d rows for %d attempted instances", got, want)
 	}
@@ -292,14 +292,14 @@ func TestPlanRejectAdoptionOnly(t *testing.T) {
 	}
 }
 
-// TestStatelessAdoptionReport_everySurfaceCarriesAMarker is GitHub issue
+// TestLiveAdoptionReport_everySurfaceCarriesAMarker is GitHub issue
 // #1565's: a Kubernetes object carries its marker as the tofu-estate label
 // (metadata.labels, or manifest.metadata.labels on kubernetes_manifest), so
 // its row belongs in the marker half. Asked through markers.Taggable alone,
 // every Kubernetes row landed in "Identity by declaration" and was told its
 // type has no tags argument, which is the AWS answer to a question the
 // schema already answered differently.
-func TestStatelessAdoptionReport_everySurfaceCarriesAMarker(t *testing.T) {
+func TestLiveAdoptionReport_everySurfaceCarriesAMarker(t *testing.T) {
 	schemas := adoptionSchemas()
 	schemas["kubernetes_config_map_v1"] = providers.Schema{Block: &configschema.Block{
 		BlockTypes: map[string]*configschema.NestedBlock{
@@ -322,7 +322,7 @@ func TestStatelessAdoptionReport_everySurfaceCarriesAMarker(t *testing.T) {
 		},
 	}
 
-	out := renderAdoption(t, statelessAdoptionReport(res, views.StatelessForeign{}, nil, schemas, nil, "dev", true))
+	out := renderAdoption(t, liveAdoptionReport(res, views.LiveForeign{}, nil, schemas, nil, "dev", true))
 
 	if !strings.Contains(out, "Identity by marker: 3 of 4 instances") {
 		t.Errorf("the marker half does not hold the tags map, the label and the manifest label:\n%s", out)

@@ -951,7 +951,7 @@ grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT" \
 # On failure, print the WHOLE plan, not the "Foreign resources:" header
 # line alone. That line carries only a count; the objects it counted -
 # type, live id, tags, why - are printed directly beneath it by
-# StatelessPlanHuman.Foreign (internal/command/views/live_plan.go), and a
+# LivePlanHuman.Foreign (internal/command/views/live_plan.go), and a
 # bare `grep -E '^Foreign resources:'` discards exactly that section. Same
 # defect PR #1129 fixed for terralith-scale's day2_remove, where three runs
 # read as silence because the printer greped away the plan's "Not swept for

@@ -23,7 +23,7 @@ type untagStubReleaser struct {
 	kubesweep.LabelReleaser
 }
 
-func TestStatelessUntagClusterIsTheReleasingConfigurationsClient(t *testing.T) {
+func TestLiveUntagClusterIsTheReleasingConfigurationsClient(t *testing.T) {
 	k8s := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("kubernetes")}
 	other := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("kubernetes"), Alias: "other"}
 	aws := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("aws")}
@@ -33,21 +33,21 @@ func TestStatelessUntagClusterIsTheReleasingConfigurationsClient(t *testing.T) {
 		providerCacheKey(k8s):   mine,
 		providerCacheKey(other): &untagStubReleaser{},
 	}
-	if got := statelessUntagCluster(sweepers, k8s); got != kubesweep.LabelReleaser(mine) {
+	if got := liveUntagCluster(sweepers, k8s); got != kubesweep.LabelReleaser(mine) {
 		t.Errorf("released through %v, want the kubernetes configuration's own client", got)
 	}
-	if got := statelessUntagCluster(sweepers, aws); got != nil {
+	if got := liveUntagCluster(sweepers, aws); got != nil {
 		t.Errorf("a configuration with no client borrowed one: %v", got)
 	}
-	if got := statelessUntagCluster(nil, k8s); got != nil {
+	if got := liveUntagCluster(nil, k8s); got != nil {
 		t.Errorf("no sweepers produced a client: %v", got)
 	}
 	listOnly := map[string]kubesweep.Sweeper{providerCacheKey(k8s): &untagStubSweeper{}}
-	if got := statelessUntagCluster(listOnly, k8s); got != nil {
+	if got := liveUntagCluster(listOnly, k8s); got != nil {
 		t.Errorf("a list-only sweeper was used as a releaser: %v", got)
 	}
 	typedNil := map[string]kubesweep.Sweeper{providerCacheKey(k8s): (*kubesweep.Client)(nil)}
-	if got := statelessUntagCluster(typedNil, k8s); got != nil {
+	if got := liveUntagCluster(typedNil, k8s); got != nil {
 		t.Errorf("a typed-nil client came back as a non-nil releaser")
 	}
 }

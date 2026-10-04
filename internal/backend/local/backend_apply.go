@@ -56,7 +56,7 @@ func getEnvAsInt(envName string, defaultValue int) (int, tfdiags.Diagnostics) {
 // REPLACE for: [plans.Action.IsReplace], which is DeleteThenCreate or
 // CreateThenDelete and nothing else.
 //
-// GitHub issue #854. It is [StatelessRun.WriteBack]'s replace signal, and
+// GitHub issue #854. It is [LiveRun.WriteBack]'s replace signal, and
 // the plan is the only place that signal exists. The write side's own
 // evidence - "this address's recorded identity changed and the address is
 // still in the final state" - is true of a replace AND of every other way an
@@ -231,12 +231,12 @@ func (b *Local) opApply(
 			return
 		}
 
-		// The fork's post-plan step ([StatelessRun.AfterPlan]), before
+		// The fork's post-plan step ([LiveRun.AfterPlan]), before
 		// the plan is rendered or approved: a refusal here stops the
 		// apply with nothing applied, the live system having already
 		// said it will not take what the plan proposes.
-		if b.Stateless != nil {
-			afterDiags := b.Stateless.AfterPlan(ctx, lr.Config, plan, schemas)
+		if b.LiveRun != nil {
+			afterDiags := b.LiveRun.AfterPlan(ctx, lr.Config, plan, schemas)
 			diags = diags.Append(afterDiags)
 			if afterDiags.HasErrors() {
 				op.ReportResult(runningOp, diags)
@@ -404,8 +404,8 @@ func (b *Local) opApply(
 	// GitHub issue #1339: the last point before anything in the cloud
 	// changes, reached by both branches above. A refusal here leaves the
 	// estate exactly as the plan found it.
-	if b.Stateless != nil {
-		beforeDiags := b.Stateless.BeforeApply(ctx)
+	if b.LiveRun != nil {
+		beforeDiags := b.LiveRun.BeforeApply(ctx)
 		diags = diags.Append(beforeDiags)
 		if beforeDiags.HasErrors() {
 			op.ReportResult(runningOp, diags)
@@ -488,8 +488,8 @@ func (b *Local) opApply(
 	// clean: a resource that did apply successfully before some later
 	// resource failed still deserves its record, so the next plan does not
 	// propose creating it again.
-	if b.Stateless != nil {
-		wbDiags := b.Stateless.WriteBack(ctx, applyState, schemas, replacedAddrs, deposedDestroys, wholeDestroy)
+	if b.LiveRun != nil {
+		wbDiags := b.LiveRun.WriteBack(ctx, applyState, schemas, replacedAddrs, deposedDestroys, wholeDestroy)
 		diags = diags.Append(wbDiags)
 		if wbDiags.HasErrors() {
 			op.ReportResult(runningOp, diags)
@@ -502,9 +502,9 @@ func (b *Local) opApply(
 		return
 	}
 
-	if b.Stateless != nil {
+	if b.LiveRun != nil {
 		// A real apply just finished changing the live system with no
-		// errors - the one moment [StatelessRun.AfterApply] exists for. See
+		// errors - the one moment [LiveRun.AfterApply] exists for. See
 		// its own doc comment for why this can never fire from a plan-only
 		// operation: opPlan never reaches this line, because it never calls
 		// lr.Core.Apply at all.
@@ -515,7 +515,7 @@ func (b *Local) opApply(
 		// already landed and are reported above - but it is real: the
 		// operation's own result reflects it via ReportResult below rather
 		// than only printing a diagnostic and returning success anyway.
-		diags = diags.Append(b.Stateless.AfterApply(ctx))
+		diags = diags.Append(b.LiveRun.AfterApply(ctx))
 	}
 
 	// If we've accumulated any warnings along the way then we'll show them

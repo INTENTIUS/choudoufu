@@ -48,7 +48,7 @@ func TestLivePlan_slotIsWrittenForAFungibleSetAndNotForANamedOne(t *testing.T) {
 	// Nothing live: every instance of both blocks is a create, which is the
 	// case #969 reported ("choudoufu apply reported them created") and the
 	// one the spec's "assigned when the instance is created" is about.
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 
 	c, done := newLivePlanCommand(t, cloud)
 
@@ -72,7 +72,7 @@ func TestLivePlan_slotIsWrittenForAFungibleSetAndNotForANamedOne(t *testing.T) {
 			"tofu-address": fmt.Sprintf("aws_eip.pool:%d", i),
 			"tofu-slot":    fmt.Sprintf("%d", i),
 		}
-		if got := statelessPlannedTags(t, stdout, addr); !reflect.DeepEqual(got, want) {
+		if got := livePlannedTags(t, stdout, addr); !reflect.DeepEqual(got, want) {
 			t.Errorf("%s: planned tags\n  %v\nwant\n  %v", addr, got, want)
 		}
 	}
@@ -87,13 +87,13 @@ func TestLivePlan_slotIsWrittenForAFungibleSetAndNotForANamedOne(t *testing.T) {
 			"tofu-estate":  estate,
 			"tofu-address": fmt.Sprintf("aws_s3_bucket.shard:%d", i),
 		}
-		if got := statelessPlannedTags(t, stdout, addr); !reflect.DeepEqual(got, wantConcreteTags) {
+		if got := livePlannedTags(t, stdout, addr); !reflect.DeepEqual(got, wantConcreteTags) {
 			t.Errorf("%s: planned tags\n  %v\nwant\n  %v", addr, got, wantConcreteTags)
 		}
 	}
 }
 
-// statelessPlannedTags is the tags map the rendered plan proposes for one
+// livePlannedTags is the tags map the rendered plan proposes for one
 // resource instance, read out of the diff the operator actually sees.
 //
 // It reads the renderer's output rather than the plan file on purpose: the
@@ -101,7 +101,7 @@ func TestLivePlan_slotIsWrittenForAFungibleSetAndNotForANamedOne(t *testing.T) {
 // reported from exactly this text. The scan is bounded to the one
 // resource's `tags = {` block, so a tag belonging to a sibling instance
 // cannot be mistaken for this one's.
-func statelessPlannedTags(t *testing.T, output, addr string) map[string]string {
+func livePlannedTags(t *testing.T, output, addr string) map[string]string {
 	t.Helper()
 
 	lines := strings.Split(output, "\n")
@@ -125,7 +125,7 @@ func statelessPlannedTags(t *testing.T, output, addr string) map[string]string {
 				// The next resource's header: this one had no tags block.
 				break
 			}
-			if statelessTagsOpen.MatchString(trimmed) {
+			if liveTagsOpen.MatchString(trimmed) {
 				inTags = true
 			}
 			continue
@@ -133,7 +133,7 @@ func statelessPlannedTags(t *testing.T, output, addr string) map[string]string {
 		if strings.HasPrefix(trimmed, "}") {
 			break
 		}
-		if m := statelessTagEntry.FindStringSubmatch(trimmed); m != nil {
+		if m := liveTagEntry.FindStringSubmatch(trimmed); m != nil {
 			tags[m[1]] = m[2]
 		}
 	}
@@ -144,6 +144,6 @@ func statelessPlannedTags(t *testing.T, output, addr string) map[string]string {
 }
 
 var (
-	statelessTagsOpen = regexp.MustCompile(`^\+?\s*(?:~\s*)?tags(?:_all)?\s*=\s*\{`)
-	statelessTagEntry = regexp.MustCompile(`^\+?\s*"([^"]+)"\s*=\s*"([^"]*)"`)
+	liveTagsOpen = regexp.MustCompile(`^\+?\s*(?:~\s*)?tags(?:_all)?\s*=\s*\{`)
+	liveTagEntry = regexp.MustCompile(`^\+?\s*"([^"]+)"\s*=\s*"([^"]*)"`)
 )

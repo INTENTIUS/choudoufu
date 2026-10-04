@@ -155,12 +155,12 @@ func (b *Local) opPlan(
 		return
 	}
 
-	// The fork's post-plan step ([StatelessRun.AfterPlan]): evidence
+	// The fork's post-plan step ([LiveRun.AfterPlan]): evidence
 	// about the plan from the live system, before the plan is saved or
 	// rendered. A refusal here means nothing is saved and nothing is
 	// rendered - the live system has already refused it.
-	if b.Stateless != nil {
-		afterDiags := b.Stateless.AfterPlan(ctx, lr.Config, plan, schemas)
+	if b.LiveRun != nil {
+		afterDiags := b.LiveRun.AfterPlan(ctx, lr.Config, plan, schemas)
 		diags = diags.Append(afterDiags)
 		if afterDiags.HasErrors() {
 			runningOp.PlanEmpty = true

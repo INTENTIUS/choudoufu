@@ -46,9 +46,9 @@ import (
 // shared config, an assume-role call) is deferred to the first Retrieve
 // and cached, so a run whose sweep never fires - an offline unit test, a
 // plan with nothing to list - pays nothing for having read the block.
-func (p *statelessProviders) credentials(addr addrs.AbsProviderConfig, endpoint string) (provider aws.CredentialsProvider, explicit bool) {
+func (p *projectionProviders) credentials(addr addrs.AbsProviderConfig, endpoint string) (provider aws.CredentialsProvider, explicit bool) {
 	val, ok := p.configVals[providerCacheKey(addr)]
-	// The same guards [statelessProviders.region] applies, for the same
+	// The same guards [projectionProviders.region] applies, for the same
 	// reason: a sensitive-marked value panics GetAttr, and an unknown or
 	// null one has nothing to read.
 	if !ok || val == cty.NilVal || val.ContainsMarked() || val.IsNull() || !val.Type().IsObjectType() {
@@ -179,7 +179,7 @@ func (l *lazyCredentials) Retrieve(ctx context.Context) (aws.Credentials, error)
 }
 
 // sweepServiceCredentials is what an aws-sdk-go-v2 SERVICE client built for
-// the sweep signs with, given whatever [statelessProviders.credentials]
+// the sweep signs with, given whatever [projectionProviders.credentials]
 // resolved out of the provider block.
 //
 // The two sweep clients that predate it ([cloudcontrol.Client]) accept a nil
@@ -227,7 +227,7 @@ func serviceEndpoint(serviceVar, fallback string) string {
 // internal/live/servicetags's package comment for what the other three are
 // and why they come back empty for IAM.
 //
-// GitHub issue #1131 built it inline in [statelessDiscover]. GitHub issue
+// GitHub issue #1131 built it inline in [liveDiscover]. GitHub issue
 // #1274 is what that cost: live-mv needed the identical reader and did not
 // have one, so it refused to rename an aws_iam_policy whose marker
 // live-plan could read perfectly well through iam:ListPolicyTags. The

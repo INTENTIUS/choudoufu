@@ -14,7 +14,7 @@ import (
 	"github.com/intentius/choudoufu/internal/lang/marks"
 )
 
-// statelessProviders caches the value each provider configuration was
+// projectionProviders caches the value each provider configuration was
 // configured with, and that value comes from StaticEvaluator.DecodeBlock
 // (providerConfigValue). DecodeBlock, unlike its DecodeExpression sibling,
 // has no guard refusing a sensitive value, and internal/configs/static_scope.go
@@ -32,7 +32,7 @@ import (
 // internal/command, which internal/live/marksafe's sweep does not reach:
 // marksafe_test.go loads "./internal/live/..." and nothing else.
 
-func markedRegionProviders(t *testing.T, val cty.Value) (*statelessProviders, addrs.AbsProviderConfig) {
+func markedRegionProviders(t *testing.T, val cty.Value) (*projectionProviders, addrs.AbsProviderConfig) {
 	t.Helper()
 	// No region from the environment, so the answer is about the cached value
 	// and not about the machine the test runs on.
@@ -40,7 +40,7 @@ func markedRegionProviders(t *testing.T, val cty.Value) (*statelessProviders, ad
 	t.Setenv("AWS_DEFAULT_REGION", "")
 
 	addr := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("aws")}
-	p := &statelessProviders{configVals: map[string]cty.Value{providerCacheKey(addr): val}}
+	p := &projectionProviders{configVals: map[string]cty.Value{providerCacheKey(addr): val}}
 	return p, addr
 }
 
@@ -89,7 +89,7 @@ func TestEndpointURLOfASensitiveProviderConfigDoesNotPanic(t *testing.T) {
 			"ec2": cty.StringVal("http://localhost:4566").Mark(marks.Sensitive),
 		})}),
 	})
-	p := &statelessProviders{configVals: map[string]cty.Value{
+	p := &projectionProviders{configVals: map[string]cty.Value{
 		providerCacheKey(addr): val,
 		addr.String():          val,
 	}}

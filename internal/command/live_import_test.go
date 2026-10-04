@@ -314,7 +314,7 @@ func TestEveryStampOutcomeIsRenderedWithAHeadline(t *testing.T) {
 	}
 
 	streams, done := terminal.StreamsForTesting(t)
-	views.NewStatelessImport(views.NewView(streams)).Stamped(liveImportStampReport(rep))
+	views.NewLiveImport(views.NewView(streams)).Stamped(liveImportStampReport(rep))
 	out := done(t).Stdout()
 
 	for i, outcome := range all {

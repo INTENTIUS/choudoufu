@@ -17,7 +17,7 @@ import (
 
 // This file is issue #255.
 //
-// statelessDiscoverOne used to read
+// liveDiscoverOne used to read
 //
 //	req.TaggingSweep = !isEmulatorEndpoint(ep)
 //
@@ -49,7 +49,7 @@ import (
 // live/floci-capabilities.json, keyed by digest, so a pin move re-decides it
 // rather than leaving a sentence behind.
 
-// taggingSweepAssignment is the source form statelessDiscoverOne carries
+// taggingSweepAssignment is the source form liveDiscoverOne carries
 // when no emulator exception is on record: the sweep on for every endpoint.
 // TestCloudControlFallbackWiredIntoDiscovery pins its presence as wiring;
 // TestTaggingSweepPremiseHoldsForThePinnedEmulator below decides whether it
@@ -59,13 +59,13 @@ const taggingSweepAssignment = "req.TaggingSweep = true"
 // taggingSweepEmulatorExceptions records resource types whose tagging-sweep
 // support the pinned emulator does NOT provide, keyed by provider-local
 // type, with what re-measuring would cost. A non-empty map is a standing
-// decision that statelessDiscoverOne must gate TaggingSweep again rather
+// decision that liveDiscoverOne must gate TaggingSweep again rather
 // than assign it unconditionally; empty is the intended state and is what
 // the current pin supports.
 //
 // alwaysNativeSweepTypes below is one of the two other, narrower ways a row
 // here can be something other than "implemented" without owing
-// statelessDiscoverOne a gate (taggingSweepEmulatorDefects is the third, for
+// liveDiscoverOne a gate (taggingSweepEmulatorDefects is the third, for
 // a gap that is the emulator's own defect and expires with it): a type internal/live/discovery's own per-type routing
 // (typeNeedsResourceObjectToRecompose, issue #394) sends through the
 // native per-type sweep unconditionally, never through sweepViaTagging, no
@@ -86,7 +86,7 @@ var taggingSweepEmulatorExceptions = map[string]string{}
 // entry's own citation into that package for what to re-check if
 // discovery.go's routing ever changes). Unlike taggingSweepEmulatorExceptions,
 // listing a type here is not a standing decision about the emulator: it is
-// a fact about where statelessDiscoverOne's candidates for the type come
+// a fact about where liveDiscoverOne's candidates for the type come
 // from, true or false regardless of any floci pin, and it does not toggle
 // case 5's unconditional/exception coupling below - Request.TaggingSweep
 // stays correctly unconditional either way.
@@ -119,7 +119,7 @@ type trackedEmulatorGap struct {
 // be accounted for, and the only one of the three that is temporary.
 //
 // The other two say something permanent. taggingSweepEmulatorExceptions
-// says "the emulator cannot serve this, so statelessDiscoverOne owes the
+// says "the emulator cannot serve this, so liveDiscoverOne owes the
 // run a gate" - case 5 below enforces exactly that, so an entry there
 // conditions TaggingSweep for every type to buy coverage for one.
 // alwaysNativeSweepTypes says "discovery routes this type through the
@@ -248,7 +248,7 @@ func sortedKeys[V any](m map[string]V) []string {
 
 // TestTaggingSweepPremiseHoldsForThePinnedEmulator decides, from the
 // committed capability manifest rather than from a sentence, whether
-// statelessDiscoverOne is entitled to enable the estate-wide tagging sweep
+// liveDiscoverOne is entitled to enable the estate-wide tagging sweep
 // unconditionally.
 //
 // Six ways it fails, and all six are the point:
@@ -323,7 +323,7 @@ func TestTaggingSweepPremiseHoldsForThePinnedEmulator(t *testing.T) {
 	// 3 and 4: the two directions, on the same rows. alwaysNativeSweepTypes
 	// is checked first and short-circuits both: a type it names never takes
 	// the tagging leg regardless of this row's status, so neither direction
-	// says anything about whether statelessDiscoverOne needs a gate.
+	// says anything about whether liveDiscoverOne needs a gate.
 	//
 	// taggingSweepEmulatorDefects is checked next and short-circuits case 3
 	// only. It carries the same routing fact, so an unimplemented row is

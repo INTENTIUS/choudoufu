@@ -31,7 +31,7 @@ import (
 //	SWEEP_PAR_SCALE=4 TF_FLOCI_TEST=1 go test ./internal/live/discovery/ -run TestSweepParallelismAgainstFloci -v -timeout 40m
 //
 // It is [runSweepSplitBenchmark]'s Request shape - the production one
-// internal/command/live_plan.go's statelessDiscoverOne builds, TaggingSweep
+// internal/command/live_plan.go's liveDiscoverOne builds, TaggingSweep
 // included, so the native leg it measures is the ~500-call one issue #605 is
 // about and not a synthetic full-table sweep - repeated against ONE estate in
 // ONE container at several [Request.SweepParallelism] settings.

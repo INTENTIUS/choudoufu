@@ -32,7 +32,7 @@ func (req Request) inScope(addr addrs.AbsResourceInstance) bool {
 // all, and that is a property of what reconciliation looks for rather than
 // a defect in this predicate. A reconciliation candidate carries no estate
 // marker and no configuration block by definition, and
-// [statelessTargetScope] builds the scope from the configuration's own plan
+// [liveTargetScope] builds the scope from the configuration's own plan
 // graph, so no vertex exists for [syntheticReconcileAddr]'s minted address.
 // It is still written as a per-candidate scope check rather than a bare
 // `req.Scope != nil`, for two reasons: it is the one mechanism the rest of

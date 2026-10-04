@@ -309,7 +309,7 @@ def parse_json_report(doc: dict, move: CarveMove | None = None) -> MovePreview:
     """Read one ``live-mv -json`` document into a :class:`MovePreview`.
 
     The mapping is the document's, field for field
-    (views.StatelessMvJSONReport): ``resource`` is the live object,
+    (views.LiveMvJSONReport): ``resource`` is the live object,
     ``from``/``to`` are the two endpoints, and ``found_by`` is "LIST" or
     "IDENTITY". The two tag writes are derived rather than transcribed,
     because the document reports endpoints and not writes: the tofu-estate

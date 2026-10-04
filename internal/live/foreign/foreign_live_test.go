@@ -152,7 +152,7 @@ func TestForeignAgainstFloci(t *testing.T) {
 	//
 	// TOFU_LIVE_COLLECT_UNCLAIMED=1 rather than -adoption-only, because the
 	// adoption-only view drops the Foreign section this test reads
-	// (views.StatelessAdoptionHuman.Foreign is a no-op), and it is the
+	// (views.LiveAdoptionHuman.Foreign is a no-op), and it is the
 	// question, not the renderer, that the ruling put behind a switch.
 	output := runLivePlan(t, tofuBin, dir, []string{collectUnclaimedEnv + "=1"})
 

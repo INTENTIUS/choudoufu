@@ -46,7 +46,7 @@ import (
 // GitHub issue #1256 classified every rule that names a resource block as
 // scoped or not, and this is the one per-resource rule that is NOT, because
 // the hazard it names outlives the plan graph. The estate sweep's provider
-// set is internal/command's statelessManagedResourceProviders, read off the
+// set is internal/command's liveManagedResourceProviders, read off the
 // CONFIGURATION rather than off the targeting scope, so a stray alias still
 // contributes a discovery pass on a narrowed run: a provider configured from
 // the environment alone would list and classify live objects through

@@ -65,7 +65,7 @@ func (c UnlockCommand) Execute(args *arguments.Unlock, view views.Unlock) int {
 	// this command was given is not visible to it otherwise - not just
 	// under a live block, but for any configuration whose backend depends
 	// on a variable, live or not.
-	if guardDiags := c.statelessCommandGuard(ctx, "force-unlock"); len(guardDiags) > 0 {
+	if guardDiags := c.liveCommandGuard(ctx, "force-unlock"); len(guardDiags) > 0 {
 		view.Diagnostics(guardDiags)
 		if guardDiags.HasErrors() {
 			return 1

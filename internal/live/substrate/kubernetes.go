@@ -114,7 +114,7 @@ func (kubernetes) NewSweeper(providerConfig cty.Value, ok bool) (Sweeper, error)
 // KubernetesSweepAttrs reads the connection arguments the Kubernetes sweep
 // understands off the evaluated provider block. A marked value is left
 // unread rather than unmarked - the same rule internal/command's
-// statelessProviders.region applies to a sensitive region - EXCEPT for the
+// projectionProviders.region applies to a sensitive region - EXCEPT for the
 // three arguments that are themselves the credential, which are unmarked
 // and read: see secret below, and GitHub issue #1527 for what leaving them
 // unread cost. It moved here from internal/command with the sweep-client
@@ -157,7 +157,7 @@ func KubernetesSweepAttrs(val cty.Value, ok bool) kubesweep.Attrs {
 	// RPC and unmarked by internal/plugins/provider.go, read the cluster.
 	//
 	// Unmarked rather than refused, which is where this parts company
-	// with internal/command's statelessProviders.region rule (see its own
+	// with internal/command's projectionProviders.region rule (see its own
 	// comment): a region becomes an operator-facing hint string and a
 	// secret does not belong in one, while these three go into a restclient.Config and out over
 	// TLS. Nothing renders them - [kubesweep.Credentials] deliberately

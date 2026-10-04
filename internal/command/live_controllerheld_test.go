@@ -97,13 +97,13 @@ func TestLivePlan_controllerHeldSection(t *testing.T) {
 			{TypeName: "kubernetes_config_map_v1", ImportID: "smoke-k8s/web-greeting", Kind: "ConfigMap", Controller: kubesweep.ControllerHelm, HeldBy: "Helm release smoke-k8s/web"},
 		},
 	}
-	rep := statelessForeignReport(res, nil)
+	rep := liveForeignReport(res, nil)
 	if len(rep.Items) != 0 || len(rep.Candidates) != 0 || len(rep.Removals) != 0 {
 		t.Fatalf("controller-held resources leaked into another section: %+v", rep)
 	}
 
 	streams, done := terminal.StreamsForTesting(t)
-	views.NewStatelessPlan(views.NewView(streams).SetRunningInAutomation(true)).Foreign(rep)
+	views.NewLivePlan(views.NewView(streams).SetRunningInAutomation(true)).Foreign(rep)
 	human := done(t).Stdout()
 	// The renderer word-wraps; compare with whitespace collapsed.
 	flat := strings.Join(strings.Fields(human), " ")
@@ -138,7 +138,7 @@ func TestLivePlan_controllerHeldSection(t *testing.T) {
 	awsOnly := rep
 	awsOnly.ControllerHeld = rep.ControllerHeld[:2]
 	streams, done = terminal.StreamsForTesting(t)
-	views.NewStatelessPlan(views.NewView(streams).SetRunningInAutomation(true)).Foreign(awsOnly)
+	views.NewLivePlan(views.NewView(streams).SetRunningInAutomation(true)).Foreign(awsOnly)
 	if out := done(t).Stdout(); strings.Contains(out, "chart's values") {
 		t.Errorf("an AWS-only controller-held section carries the Helm remedy:\n%s", out)
 	}
