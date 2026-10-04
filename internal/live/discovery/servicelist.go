@@ -155,7 +155,7 @@ func scanTypeServiceList(ctx context.Context, req Request, schemas listclient.Sc
 		res.SweepCovered = append(res.SweepCovered, typeName)
 	}
 
-	log.Printf("[DEBUG] stateless/discovery: listing %s through the service's own API (%s), %d resources, client-side tag filtering (the listing takes no tag filter)", typeName, action, len(objs))
+	log.Printf("[DEBUG] live/discovery: listing %s through the service's own API (%s), %d resources, client-side tag filtering (the listing takes no tag filter)", typeName, action, len(objs))
 
 	// failed and unread are the sweep's evidence for [serviceListMarkerReadGap]:
 	// reads that were made and refused, and objects no route was even able
@@ -181,7 +181,7 @@ func scanTypeServiceList(ctx context.Context, req Request, schemas listclient.Sc
 			case joinBound:
 				tags = joined
 				scan.Joined++
-				log.Printf("[DEBUG] stateless/discovery: %s %q came back from %s with no ownership marker; joined one from the estate's tag index", typeName, obj.ImportID, action)
+				log.Printf("[DEBUG] live/discovery: %s %q came back from %s with no ownership marker; joined one from the estate's tag index", typeName, obj.ImportID, action)
 			case joinAmbiguous:
 				diags = diags.Append(problemDiag(res, Problem{
 					Kind:     ProblemAmbiguousTagJoin,

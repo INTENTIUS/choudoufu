@@ -35,7 +35,7 @@ func TestControllerHeldLookalikeWarnsWithNoAdoptionHint(t *testing.T) {
 	held := discovery.ControllerHeldResource{
 		TypeName:    "aws_security_group",
 		ImportID:    "sg-controller",
-		DisplayName: "stateless-e2e-main",
+		DisplayName: "live-e2e-main",
 		Controller:  string(markers.ControllerACK),
 		HeldBy: markers.ControllerHold{
 			Controller: markers.ControllerACK,
@@ -44,7 +44,7 @@ func TestControllerHeldLookalikeWarnsWithNoAdoptionHint(t *testing.T) {
 				"services.k8s.aws/namespace":          "team-a",
 			},
 		}.Describe(),
-		Resource: cty.ObjectVal(map[string]cty.Value{"name": cty.StringVal("stateless-e2e-main")}),
+		Resource: cty.ObjectVal(map[string]cty.Value{"name": cty.StringVal("live-e2e-main")}),
 	}
 
 	res := classifyFixture(t, discovery.Result{Report: discovery.Report{
@@ -74,7 +74,7 @@ func TestControllerHeldLookalikeWarnsWithNoAdoptionHint(t *testing.T) {
 	if w.LiveID != "sg-controller" {
 		t.Errorf("warning names live ID %q, want sg-controller", w.LiveID)
 	}
-	if len(w.Matched) != 1 || w.Matched[0].Attr != "name" || w.Matched[0].Value != "stateless-e2e-main" {
+	if len(w.Matched) != 1 || w.Matched[0].Attr != "name" || w.Matched[0].Value != "live-e2e-main" {
 		t.Errorf("warning carries matched arguments %v, want the name match", w.Matched)
 	}
 	if w.Hint != "" {
@@ -93,7 +93,7 @@ func TestControllerHeldLookalikeWarnsWithNoAdoptionHint(t *testing.T) {
 // same as an ordinary adoption pair - a guess here would point an operator
 // at the wrong one.
 func TestControllerHeldLookalikeAmbiguousStaysSilent(t *testing.T) {
-	obj := cty.ObjectVal(map[string]cty.Value{"name": cty.StringVal("stateless-e2e-main")})
+	obj := cty.ObjectVal(map[string]cty.Value{"name": cty.StringVal("live-e2e-main")})
 	held := discovery.ControllerHeldResource{
 		TypeName: "aws_security_group", ImportID: "sg-one",
 		Controller: string(markers.ControllerACK),

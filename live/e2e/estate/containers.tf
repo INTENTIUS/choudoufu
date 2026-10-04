@@ -4,7 +4,7 @@
 # import identity). First slice of the survey's client-named cohort (#19).
 
 resource "aws_ecs_cluster" "app" {
-  name = "tofu-stateless-e2e-cluster"
+  name = "tofu-live-e2e-cluster"
 
   tags = {
     tofu-estate  = local.estate_tag

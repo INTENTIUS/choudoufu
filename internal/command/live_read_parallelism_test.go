@@ -700,10 +700,10 @@ func TestLivePlan_readParallelismBoundsTheReadPass(t *testing.T) {
 	// The four buckets the fixture declares, in the address order the read
 	// pass materializes them in.
 	wantImports := []string{
-		"aws_s3_bucket/tofu-stateless-read-a",
-		"aws_s3_bucket/tofu-stateless-read-b",
-		"aws_s3_bucket/tofu-stateless-read-c",
-		"aws_s3_bucket/tofu-stateless-read-d",
+		"aws_s3_bucket/tofu-live-read-a",
+		"aws_s3_bucket/tofu-live-read-b",
+		"aws_s3_bucket/tofu-live-read-c",
+		"aws_s3_bucket/tofu-live-read-d",
 	}
 
 	run := func(t *testing.T, rec *readWidthRecorder) (int, string, []string) {
@@ -719,15 +719,15 @@ func TestLivePlan_readParallelismBoundsTheReadPass(t *testing.T) {
 			cloud.allowRegion(region)
 		}
 		for _, name := range []string{"a", "b", "c", "d"} {
-			id := "tofu-stateless-read-" + name
-			cloud.putMarked("aws_s3_bucket", id, "stateless-unit", fmt.Sprintf("aws_s3_bucket.%s", name), map[string]string{
+			id := "tofu-live-read-" + name
+			cloud.putMarked("aws_s3_bucket", id, "live-unit", fmt.Sprintf("aws_s3_bucket.%s", name), map[string]string{
 				"id": id, "bucket": id,
 			})
 		}
 		cloud.onImport = rec.hook
 
 		c, done := newLivePlanCommand(t, cloud)
-		code := c.Run([]string{"-no-color", "-estate=stateless-unit"})
+		code := c.Run([]string{"-no-color", "-estate=live-unit"})
 		output := done(t)
 		cloud.mu.Lock()
 		imports := append([]string(nil), cloud.imports...)

@@ -74,7 +74,7 @@ roster first. Left as follow-up.
 | File | Contents |
 |---|---|
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
-| `locals.tf` | `estate_tag` — `"lambda-cohort"`, distinct from the demo estate's `"stateless-e2e"`. |
+| `locals.tf` | `estate_tag` — `"lambda-cohort"`, distinct from the demo estate's `"live-e2e"`. |
 | `iam.tf` | `aws_iam_role.lambda`, supporting infrastructure for the function's execution role and the capacity provider's operator role — not a coverage row; `aws_iam_role` is already covered by `live/e2e/estate/`. |
 | `lambda.tf` | The five ratified types. |
 
@@ -215,7 +215,7 @@ From `lambda.tf`:
 From `locals.tf`:
 
 > The marker's estate value (live/MARKERS.md, P0.3), distinct from the
-> demo estate's "stateless-e2e" so the two cohorts never collide if ever
+> demo estate's "live-e2e" so the two cohorts never collide if ever
 > applied against the same account side by side.
 
 From `versions.tf`:

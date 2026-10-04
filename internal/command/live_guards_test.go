@@ -40,7 +40,7 @@ func TestLiveGuards_escapeHatchesRefused(t *testing.T) {
 			replacement: "live/MARKERS.md",
 			run: func(m Meta) int {
 				c := &ImportCommand{Meta: m}
-				return c.Run([]string{"-no-color", "aws_s3_bucket.data", "tofu-stateless-unit-data"})
+				return c.Run([]string{"-no-color", "aws_s3_bucket.data", "tofu-live-unit-data"})
 			},
 		},
 		{

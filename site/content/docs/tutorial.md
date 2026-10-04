@@ -45,7 +45,7 @@ the first line and the last:
 === 14. lint-rejects — every limits fixture is refused by its own named rule ===
 ...
 EXPECT 5: OK -- every step phase<=5 is pass, every step phase>5 is not_implemented
-PASS: stateless-mode E2E harness reached the end.
+PASS: live-mode E2E harness reached the end.
 ```
 
 Exit code 0 means every one of those steps checked out. Anything else, and

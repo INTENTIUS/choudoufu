@@ -52,7 +52,7 @@ const (
 	slotsEstate = "slots-e2e"
 
 	// estateName is the P0.1 fixture's own estate, which it declares.
-	estateName = "stateless-e2e"
+	estateName = "live-e2e"
 
 	terraformBin = "terraform"
 )

@@ -56,10 +56,10 @@ func untagReportLines(stdout string) []untagReportLine {
 
 func untagReportCloud() *liveTestCloud {
 	cloud := newLiveTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-untag-1002-owned", "stateless-unit", markers.EscapeAddress(`aws_s3_bucket.pool["owned"]`), map[string]string{
+	cloud.putMarked("aws_s3_bucket", "tofu-untag-1002-owned", "live-unit", markers.EscapeAddress(`aws_s3_bucket.pool["owned"]`), map[string]string{
 		"id": "tofu-untag-1002-owned", "bucket": "tofu-untag-1002-owned",
 	})
-	cloud.putMarked("aws_s3_bucket", "tofu-untag-1002-pinned", "stateless-unit", "aws_s3_bucket.pinned", map[string]string{
+	cloud.putMarked("aws_s3_bucket", "tofu-untag-1002-pinned", "live-unit", "aws_s3_bucket.pinned", map[string]string{
 		"id": "tofu-untag-1002-pinned", "bucket": "tofu-untag-1002-pinned",
 	})
 	return cloud

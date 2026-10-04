@@ -13,7 +13,7 @@ for c in a b; do
 import sys, pathlib
 d, name = sys.argv[1], sys.argv[2]
 for f in pathlib.Path(d).glob('*.tf'):
-    f.write_text(f.read_text().replace('stateless-e2e-block', name))
+    f.write_text(f.read_text().replace('live-e2e-block', name))
 PYEOF
 done
 export SMOKE_WORK

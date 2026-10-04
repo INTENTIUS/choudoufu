@@ -32,14 +32,14 @@ import (
 // spec's old claim, asserted literally) and this fails with
 //
 //	aws_s3_bucket.shard[0]: planned tags
-//	  map[tofu-address:aws_s3_bucket.shard:0 tofu-estate:stateless-count-classes]
+//	  map[tofu-address:aws_s3_bucket.shard:0 tofu-estate:live-count-classes]
 //	want
-//	  map[tofu-address:aws_s3_bucket.shard:0 tofu-estate:stateless-count-classes tofu-slot:0]
+//	  map[tofu-address:aws_s3_bucket.shard:0 tofu-estate:live-count-classes tofu-slot:0]
 //
 // which is the shape of #969's report, printed by a check rather than
 // found by hand against an emulator.
 func TestLivePlan_slotIsWrittenForAFungibleSetAndNotForANamedOne(t *testing.T) {
-	const estate = "stateless-count-classes"
+	const estate = "live-count-classes"
 
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-plan-count-classes"), td)

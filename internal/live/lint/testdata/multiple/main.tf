@@ -20,7 +20,7 @@ resource "null_resource" "trigger" {
 }
 
 resource "aws_s3_bucket" "old" {
-  bucket = "tofu-stateless-lint-old"
+  bucket = "tofu-live-lint-old"
 }
 
 # Refused because the address it moves from is still declared above; a moved

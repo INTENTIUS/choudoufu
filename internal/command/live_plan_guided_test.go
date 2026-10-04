@@ -186,7 +186,7 @@ func TestLiveMode_guidedDiscoveryEngagesWithFreshHint(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-block-record-store"), td)
 	t.Chdir(td)
 
-	writeCommandGuidedHintFixture(t, td, "stateless-unit", time.Now())
+	writeCommandGuidedHintFixture(t, td, "live-unit", time.Now())
 
 	c, done := newLiveBlockPlanCommand(t, newLiveTestCloud())
 

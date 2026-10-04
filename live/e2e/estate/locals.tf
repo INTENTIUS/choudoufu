@@ -1,7 +1,7 @@
 locals {
   # The marker's estate value (live/MARKERS.md, P0.3). Every taggable
   # resource in this fixture carries this plus its own tofu-address.
-  estate_tag = "stateless-e2e"
+  estate_tag = "live-e2e"
 
   subnets = {
     a = { cidr = "10.42.1.0/24", az = "us-east-1a" }

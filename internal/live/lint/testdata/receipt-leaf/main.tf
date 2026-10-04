@@ -6,7 +6,7 @@
 # checks the naming convention rather than the type alone.
 
 resource "aws_ssm_parameter" "demo_effect" {
-  name  = "/tofu-receipts/stateless-e2e/demo-effect"
+  name  = "/tofu-receipts/live-e2e/demo-effect"
   type  = "String"
   value = sha256(jsonencode({ input = "x" }))
 }

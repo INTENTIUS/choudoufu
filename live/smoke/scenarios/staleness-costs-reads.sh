@@ -82,7 +82,7 @@ if [ "${BREAK:-0}" = "1" ]; then
     "configuration and compare again: the plans MUST differ now, or the" \
     "equality above was comparing blindfolded."
   cmd "aws logs put-retention-policy --retention-in-days 7 ; choudoufu plan"
-  awsl logs put-retention-policy --log-group-name "/stateless-e2e-block/app" --retention-in-days 7 \
+  awsl logs put-retention-policy --log-group-name "/live-e2e-block/app" --retention-in-days 7 \
     || fail "stale" "BREAK: could not drift the retention"
   P_DRIFT="$(plan_filtered || true)"
   if [ "$P_FRESH" = "$P_DRIFT" ]; then
@@ -103,7 +103,7 @@ explain \
 cmd "aws logs put-retention-policy --retention-in-days 7 ; choudoufu plan"
 ( cd "$SMOKE_WORK" && chdf plan -input=false -no-color >/dev/null 2>&1 ) # rewrite nothing; ensure cache present from apply
 [ -f "$CACHE" ] || ( cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 )
-awsl logs put-retention-policy --log-group-name "/stateless-e2e-block/app" --retention-in-days 7 \
+awsl logs put-retention-policy --log-group-name "/live-e2e-block/app" --retention-in-days 7 \
   || fail "stale" "could not drift the retention"
 P_DRIFT="$(plan_filtered)" || fail "stale" "the drift plan failed"
 grep -E 'retention_in_days' <<< "$P_DRIFT" | head -2 | evidence

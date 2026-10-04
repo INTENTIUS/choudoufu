@@ -606,7 +606,7 @@ What actually happened is visible in one line of the same debug log, at
 returned:
 
 ```
-stateless/discovery: tag index for estate "tl-livecert-lc1032s50b" holds 104 resources
+live/discovery: tag index for estate "tl-livecert-lc1032s50b" holds 104 resources
 ```
 
 That line is `markerIndex.fetch` in `internal/live/discovery/bindtags.go`,

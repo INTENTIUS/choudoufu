@@ -121,7 +121,7 @@ func scanTypeContentMatch(ctx context.Context, req Request, decl *declared, type
 		}))
 	}
 	scan.Listed = len(descs)
-	log.Printf("[DEBUG] stateless/discovery: listing %s via Cloud Control (%s) for content match on %s, %d resources",
+	log.Printf("[DEBUG] live/discovery: listing %s via Cloud Control (%s) for content match on %s, %d resources",
 		typeName, binding.CFNType, binding.Argument, len(descs))
 
 	// Index every candidate by its own matched property value. A candidate
@@ -153,7 +153,7 @@ func scanTypeContentMatch(ctx context.Context, req Request, decl *declared, type
 
 		val, why := staticeval.Argument(ctx, req.Config.Module, rc, binding.Argument)
 		if why != "" {
-			log.Printf("[DEBUG] stateless/discovery: %s cannot be content-matched: %s", entry.res.Addr, why)
+			log.Printf("[DEBUG] live/discovery: %s cannot be content-matched: %s", entry.res.Addr, why)
 			continue
 		}
 

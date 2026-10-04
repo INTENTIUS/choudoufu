@@ -128,7 +128,7 @@ func sweepTagIndexFallback(ctx context.Context, req Request, schemas listclient.
 		return diags, false
 	}
 
-	log.Printf("[DEBUG] stateless/discovery: the estate's tag index serves %s in %s and answered holding none of this estate's; sweeping it natively as well (issue #1321)", typeName, req.Region)
+	log.Printf("[DEBUG] live/discovery: the estate's tag index serves %s in %s and answered holding none of this estate's; sweeping it natively as well (issue #1321)", typeName, req.Region)
 
 	// The same collectUnclaimed the native sweep loop computes for a type it
 	// owns (discovery.go's TaggingSweep leg), for the same reason: a type

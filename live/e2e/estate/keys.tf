@@ -24,6 +24,6 @@ resource "aws_kms_key" "main" {
 # on the marker-discovered key above). No tags argument on this resource
 # type — untaggable by type. #19's second slice.
 resource "aws_kms_alias" "main" {
-  name          = "alias/tofu-stateless-e2e-main"
+  name          = "alias/tofu-live-e2e-main"
   target_key_id = aws_kms_key.main.key_id
 }

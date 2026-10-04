@@ -112,7 +112,7 @@ countin() {
 # line AND a Response line per call, both carrying the same rpc.service and
 # rpc.method, so the unanchored pattern counts every call twice. It reported
 # 870 Cloud Control lists inside a 736-request plan before this said so.
-cclists() { countin "$1" "stateless/cloudcontrolapi: HTTP Request Sent: rpc.service=Cloud Control rpc.method=ListResources"; }
+cclists() { countin "$1" "live/cloudcontrolapi: HTTP Request Sent: rpc.service=Cloud Control rpc.method=ListResources"; }
 
 planned_nothing() { grep -q "No changes." "$LOGS/$1.out" 2>/dev/null; }
 
@@ -125,7 +125,7 @@ planned_nothing() { grep -q "No changes." "$LOGS/$1.out" 2>/dev/null; }
 # back, which is the number that grows with the account even when the call
 # count does not.
 unfiltered_types() {
-  grep -oE "stateless/discovery: listing [a-z0-9_]+ (unfiltered \\(|via Cloud Control \\()[^)]*\\)(, [0-9]+ resources)?" "$LOGS/$1.log" 2>/dev/null \
+  grep -oE "live/discovery: listing [a-z0-9_]+ (unfiltered \\(|via Cloud Control \\()[^)]*\\)(, [0-9]+ resources)?" "$LOGS/$1.log" 2>/dev/null \
     | sed "s/stateless.discovery: listing //" | sort | uniq -c | sed "s/^ *//" || true
 }
 

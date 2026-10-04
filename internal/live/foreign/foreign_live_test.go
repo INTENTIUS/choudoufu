@@ -116,7 +116,7 @@ func TestForeignAgainstFloci(t *testing.T) {
 	if vpcID == "" || vpcID == "None" {
 		t.Fatalf("the estate's VPC could not be found by its marker")
 	}
-	foreignName := fmt.Sprintf("stateless-e2e-foreign-%d", os.Getpid())
+	foreignName := fmt.Sprintf("live-e2e-foreign-%d", os.Getpid())
 	foreignSG := flocitest.AWSCLI(t, flociPort, "ec2", "create-security-group",
 		"--group-name", foreignName,
 		"--description", "unmanaged, no tofu-estate marker",

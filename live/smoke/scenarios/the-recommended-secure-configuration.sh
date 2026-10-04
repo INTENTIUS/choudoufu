@@ -508,7 +508,7 @@ explain \
   "Every S3 operation the estate's role made is in the request log. A" \
   "policy that grants something the run never used, or a run that needed" \
   "something the policy does not grant, is a defect in the policy."
-USED="$(cat "$SMOKE_WORKROOT"/logs/secure-*.log | grep 'stateless/recordstore: HTTP Request Sent' | grep -oE 'rpc.method=[A-Za-z0-9]+' | cut -d= -f2 | sort -u)"
+USED="$(cat "$SMOKE_WORKROOT"/logs/secure-*.log | grep 'live/recordstore: HTTP Request Sent' | grep -oE 'rpc.method=[A-Za-z0-9]+' | cut -d= -f2 | sort -u)"
 [ -n "$USED" ] || fail "secureconfig" "the request log holds no record store requests, so nothing was reconciled"
 to_action() { case "$1" in
   ListObjectsV2) echo s3:ListBucket ;; GetObject) echo s3:GetObject ;; PutObject) echo "s3:PutObject s3:PutObjectTagging" ;;

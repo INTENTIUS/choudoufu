@@ -44,7 +44,7 @@ func TestLiveImportConfiguresAProviderFromADataSource(t *testing.T) {
 
 	prov := providerDataImportProvider(cloud)
 	c, done := newLiveImportCommandIn(t, "live-import-providerdata", prov)
-	code := c.Run([]string{"-no-color", "-state=import.tfstate", "-estate=stateless-unit", "-approve"})
+	code := c.Run([]string{"-no-color", "-state=import.tfstate", "-estate=live-unit", "-approve"})
 	output := done(t)
 	stdout, stderr := output.Stdout(), output.Stderr()
 
@@ -62,8 +62,8 @@ func TestLiveImportConfiguresAProviderFromADataSource(t *testing.T) {
 	}
 
 	tags := cloud.tagsOf("aws_s3_bucket", "tofu-import-unit-data")
-	if tags["tofu-estate"] != "stateless-unit" {
-		t.Errorf("tofu-estate = %q, want stateless-unit\nstdout:\n%s", tags["tofu-estate"], stdout)
+	if tags["tofu-estate"] != "live-unit" {
+		t.Errorf("tofu-estate = %q, want live-unit\nstdout:\n%s", tags["tofu-estate"], stdout)
 	}
 	if tags["tofu-address"] != "aws_s3_bucket.data" {
 		t.Errorf("tofu-address = %q, want aws_s3_bucket.data", tags["tofu-address"])
@@ -241,7 +241,7 @@ func TestLiveImportReadsProviderDataThroughTheStateItIsMigrating(t *testing.T) {
 
 	c, done := newLiveImportCommandIn(t, "live-import-providerdata-record", prov,
 		addrs.NewDefaultProvider("random"), providers.FactoryFixed(recordBackedUnitProvider()))
-	code := c.Run([]string{"-no-color", "-state=import.tfstate", "-estate=stateless-unit", "-approve"})
+	code := c.Run([]string{"-no-color", "-state=import.tfstate", "-estate=live-unit", "-approve"})
 	output := done(t)
 	stdout, stderr := output.Stdout(), output.Stderr()
 
@@ -251,7 +251,7 @@ func TestLiveImportReadsProviderDataThroughTheStateItIsMigrating(t *testing.T) {
 	if strings.Contains(stdout, "Dynamic value in static context") {
 		t.Errorf("the aliased provider was still not configurable:\n%s", stdout)
 	}
-	if tags := cloud.tagsOf("aws_s3_bucket", "tofu-import-unit-derived"); tags["tofu-estate"] != "stateless-unit" {
+	if tags := cloud.tagsOf("aws_s3_bucket", "tofu-import-unit-derived"); tags["tofu-estate"] != "live-unit" {
 		t.Errorf("the resource served by the derived provider was not stamped: tofu-estate = %q\nstdout:\n%s", tags["tofu-estate"], stdout)
 	}
 	if !prov.configuredWith("us-west-2") {

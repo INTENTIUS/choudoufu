@@ -20,7 +20,7 @@
 # blocked-emulator, choudoufu#26.
 
 resource "aws_sns_topic" "alerts" {
-  name = "tofu-stateless-e2e-alerts"
+  name = "tofu-live-e2e-alerts"
 
   tags = {
     tofu-estate  = local.estate_tag

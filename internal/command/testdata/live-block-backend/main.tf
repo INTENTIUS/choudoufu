@@ -2,7 +2,7 @@
 # decoder refuses it: the two disagree about where the truth lives.
 terraform {
   live {
-    estate = "stateless-unit"
+    estate = "live-unit"
   }
 
   backend "local" {
@@ -11,5 +11,5 @@ terraform {
 }
 
 resource "aws_s3_bucket" "data" {
-  bucket = "tofu-stateless-unit-data"
+  bucket = "tofu-live-unit-data"
 }

@@ -169,7 +169,7 @@ func (m *mover) rewriteManifest(ctx context.Context) tfdiags.Diagnostics {
 			return diags
 		}
 		m.res.AlreadyMarked = false
-		log.Printf("[TRACE] stateless/mv: %s on %s already names %q but field manager %q's Update entry still holds it; re-sending the write", markers.AddressAnnotation, ref, m.res.NewMarker, fieldManager)
+		log.Printf("[TRACE] live/mv: %s on %s already names %q but field manager %q's Update entry still holds it; re-sending the write", markers.AddressAnnotation, ref, m.res.NewMarker, fieldManager)
 	}
 	if err != nil {
 		return diags.Append(tfdiags.Sourceless(
@@ -237,9 +237,9 @@ func (m *mover) rewriteManifest(ctx context.Context) tfdiags.Diagnostics {
 	}
 	m.res.Written = true
 	if move {
-		log.Printf("[TRACE] stateless/mv: moved %s from estate %q to %q; %s %q -> %q", ref, m.req.FromEstate, m.req.Estate, markers.AddressAnnotation, m.res.OldMarker, m.res.NewMarker)
+		log.Printf("[TRACE] live/mv: moved %s from estate %q to %q; %s %q -> %q", ref, m.req.FromEstate, m.req.Estate, markers.AddressAnnotation, m.res.OldMarker, m.res.NewMarker)
 	} else {
-		log.Printf("[TRACE] stateless/mv: rewrote %s on %s: %q -> %q", markers.AddressAnnotation, ref, m.res.OldMarker, m.res.NewMarker)
+		log.Printf("[TRACE] live/mv: rewrote %s on %s: %q -> %q", markers.AddressAnnotation, ref, m.res.OldMarker, m.res.NewMarker)
 	}
 
 	if written != nil && written.GetAnnotations()[markers.AddressAnnotation] == m.res.NewMarker &&

@@ -198,10 +198,10 @@ func liveBegin(
 	cachePath, cacheOffForSecrets := stateCachePathFor(secretsSetting)
 	if cachePath != "" {
 		mgr.EnableStateCache(cachePath)
-		log.Printf("[DEBUG] stateless: state cache enabled at %s", cachePath)
+		log.Printf("[DEBUG] live: state cache enabled at %s", cachePath)
 	}
 	if cacheOffForSecrets {
-		log.Printf("[INFO] stateless: strict { secrets = %q } is set, so no state cache is written or read; set %s to a path to keep one on purpose", secretsSetting, EnvStateCache)
+		log.Printf("[INFO] live: strict { secrets = %q } is set, so no state cache is written or read; set %s to a path to keep one on purpose", secretsSetting, EnvStateCache)
 		diags = diags.Append(stateCacheOffForSecretsDiags(secretsSetting))
 	}
 
@@ -211,7 +211,7 @@ func liveBegin(
 	// so once rather than leaving a flag user to wonder why nothing hit.
 	readsSelective := readsPolicyFor(settings.Reads) != "full"
 	if !readsSelective && !opReq.PlanRefresh {
-		log.Printf("[INFO] stateless: reads=\"full\" is set for this estate, so -refresh=false serves nothing from the state cache on this run")
+		log.Printf("[INFO] live: reads=\"full\" is set for this estate, so -refresh=false serves nothing from the state cache on this run")
 	}
 
 	runner := &liveRunner{
@@ -520,16 +520,16 @@ func loadStateCache(secrets strict.Secrets) *states.State {
 	}
 	f, err := os.Open(path)
 	if err != nil {
-		log.Printf("[DEBUG] stateless: no state cache at %s (%s); the projection will read live", path, err)
+		log.Printf("[DEBUG] live: no state cache at %s (%s); the projection will read live", path, err)
 		return nil
 	}
 	defer f.Close()
 	sf, err := statefile.Read(f, encryption.StateEncryptionDisabled())
 	if err != nil || sf == nil || sf.State == nil {
-		log.Printf("[WARN] stateless: the state cache at %s could not be read (%v); the projection will read live", path, err)
+		log.Printf("[WARN] live: the state cache at %s could not be read (%v); the projection will read live", path, err)
 		return nil
 	}
-	log.Printf("[DEBUG] stateless: loaded the state cache from %s", path)
+	log.Printf("[DEBUG] live: loaded the state cache from %s", path)
 	return sf.State
 }
 
@@ -1873,7 +1873,7 @@ func readsPolicyFor(configured string) string {
 		return v
 	case "":
 	default:
-		log.Printf("[WARN] stateless: %s=%q is not a reads policy (\"selective\" or \"full\"); using the configuration's setting", EnvReads, v)
+		log.Printf("[WARN] live: %s=%q is not a reads policy (\"selective\" or \"full\"); using the configuration's setting", EnvReads, v)
 	}
 	if configured == "full" {
 		return "full"

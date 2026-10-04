@@ -57,11 +57,11 @@ const (
 	awsRegion = "us-east-1"
 
 	// estateName is the estate the P0.1 fixture stamps on everything.
-	estateName = "stateless-e2e"
+	estateName = "live-e2e"
 
 	// estateBucket is the fixture's bucket, whose name is its identity and
 	// which the rename below deliberately does not change.
-	estateBucket = "tofu-stateless-e2e-data"
+	estateBucket = "tofu-live-e2e-data"
 
 	// terraformBin stands the estate up. Stock terraform on purpose: what is
 	// renamed has to be something this fork did not create.
@@ -69,7 +69,7 @@ const (
 
 	// estateLogGroup is the fixture's log group, the client-named type this
 	// test renames for a gap-free proof of that path.
-	estateLogGroup = "/stateless-e2e/app"
+	estateLogGroup = "/live-e2e/app"
 
 	// flociPolicyChild is the untaggable child of a bucket, and the one
 	// tolerated shape here that is not an emulator gap at all.

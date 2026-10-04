@@ -446,11 +446,11 @@ func directReadFallback(ctx context.Context, req Request, decl *declared, res *R
 	incrementScanDirectRead(res, typeName)
 
 	if !found {
-		log.Printf("[DEBUG] stateless/discovery: direct read of %s at %s (composed for %s) found no live object; a create is correct for this candidate", typeName, candidateARN, addr)
+		log.Printf("[DEBUG] live/discovery: direct read of %s at %s (composed for %s) found no live object; a create is correct for this candidate", typeName, candidateARN, addr)
 		return directReadAbsent, nil, ""
 	}
 	if !taggable || tags[TagEstate] != req.Estate {
-		log.Printf("[DEBUG] stateless/discovery: direct read of %s at %s (composed for %s) found a live object with no marker for this estate", typeName, candidateARN, addr)
+		log.Printf("[DEBUG] live/discovery: direct read of %s at %s (composed for %s) found a live object with no marker for this estate", typeName, candidateARN, addr)
 		return directReadForeign, nil, fmt.Sprintf("a live %s exists at %s and does not carry estate %q's ownership marker", typeName, candidateARN, req.Estate)
 	}
 	raw, corrupt := GatherAddress(tags)
@@ -473,7 +473,7 @@ func directReadFallback(ctx context.Context, req Request, decl *declared, res *R
 		return directReadForeign, nil, fmt.Sprintf("a live %s exists at %s carrying estate %q's marker for a different address (%s)", typeName, candidateARN, req.Estate, raw)
 	}
 
-	log.Printf("[DEBUG] stateless/discovery: direct read bound %s to the live %s at %s; the estate's tag index had not caught up yet", addr, typeName, candidateARN)
+	log.Printf("[DEBUG] live/discovery: direct read bound %s to the live %s at %s; the estate's tag index had not caught up yet", addr, typeName, candidateARN)
 	return directReadBound, &claimant{
 		importID:     candidateARN,
 		identityAttr: "arn",

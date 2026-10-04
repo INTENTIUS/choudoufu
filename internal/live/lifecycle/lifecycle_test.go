@@ -26,7 +26,7 @@ import (
 //	TF_FLOCI_TEST=1 go test ./internal/live/lifecycle/ -run TestLiveLifecycleAgainstFloci -v
 //
 // It starts from an empty account and drives an estate through its whole life
-// with the two plain commands - no stateless-prefixed subcommand, no flag
+// with the two plain commands - no live-prefixed subcommand, no flag
 // asking for stateless behaviour, nothing but a "live" block in the
 // configuration:
 //

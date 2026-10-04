@@ -17,7 +17,7 @@ import (
 // configuration, and the ordinary plan engine does the rest. These are the
 // unit-level proof of the harness step P3.5 wires up.
 
-const countEstate = "stateless-count"
+const countEstate = "live-count"
 
 // TestLivePlan_countBoundBySlotPlansClean: three declared, three live,
 // each carrying its slot. Everything binds and nothing changes - including

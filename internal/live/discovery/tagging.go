@@ -1420,7 +1420,7 @@ func sweepViaTagging(ctx context.Context, req Request, schemas listclient.Schema
 		}
 		res.SweepCovered = append(res.SweepCovered, typeName)
 
-		log.Printf("[DEBUG] stateless/discovery: sweeping %s via the Tagging API (%s), %d resources", typeName, cfnType, len(candidates))
+		log.Printf("[DEBUG] live/discovery: sweeping %s via the Tagging API (%s), %d resources", typeName, cfnType, len(candidates))
 
 		for _, c := range candidates {
 			diags = diags.Append(fileTaggingCandidate(ctx, req, decl, typeName, c, res))

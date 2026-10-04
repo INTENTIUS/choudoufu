@@ -12,11 +12,11 @@
 # refuses the same shape, as "Moved object still exists".
 
 resource "aws_s3_bucket" "old" {
-  bucket = "tofu-stateless-limits-moved-old"
+  bucket = "tofu-live-limits-moved-old"
 }
 
 resource "aws_s3_bucket" "new" {
-  bucket = "tofu-stateless-limits-moved"
+  bucket = "tofu-live-limits-moved"
 }
 
 moved {

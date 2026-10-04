@@ -34,7 +34,7 @@ func TestLiveImport_reportsWithoutWriting(t *testing.T) {
 		map[string]string{})
 
 	c, done := newLiveImportCommand(t, cloud)
-	code := c.Run([]string{"-no-color", "-state=import.tfstate", "-estate=stateless-unit"})
+	code := c.Run([]string{"-no-color", "-state=import.tfstate", "-estate=live-unit"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -44,7 +44,7 @@ func TestLiveImport_reportsWithoutWriting(t *testing.T) {
 	for _, want := range []string{
 		"Ratifying",
 		"import.tfstate",
-		"stateless-unit",
+		"live-unit",
 		"VERIFIED",
 		"aws_s3_bucket.data",
 		"No tag has been written",
@@ -70,7 +70,7 @@ func TestLiveImport_approveStampsAndReportsSuccess(t *testing.T) {
 		map[string]string{})
 
 	c, done := newLiveImportCommand(t, cloud)
-	code := c.Run([]string{"-no-color", "-state=import.tfstate", "-estate=stateless-unit", "-approve"})
+	code := c.Run([]string{"-no-color", "-state=import.tfstate", "-estate=live-unit", "-approve"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -89,8 +89,8 @@ func TestLiveImport_approveStampsAndReportsSuccess(t *testing.T) {
 	}
 
 	tags := cloud.tagsOf("aws_s3_bucket", "tofu-import-unit-data")
-	if tags["tofu-estate"] != "stateless-unit" {
-		t.Errorf("tofu-estate = %q, want stateless-unit", tags["tofu-estate"])
+	if tags["tofu-estate"] != "live-unit" {
+		t.Errorf("tofu-estate = %q, want live-unit", tags["tofu-estate"])
 	}
 	if tags["tofu-address"] != "aws_s3_bucket.data" {
 		t.Errorf("tofu-address = %q, want aws_s3_bucket.data", tags["tofu-address"])
@@ -125,7 +125,7 @@ func TestLiveImport_secondRunWithApproveIsIdempotent(t *testing.T) {
 		map[string]string{})
 
 	c1, done1 := newLiveImportCommand(t, cloud)
-	if code := c1.Run([]string{"-no-color", "-state=import.tfstate", "-estate=stateless-unit", "-approve"}); code != 0 {
+	if code := c1.Run([]string{"-no-color", "-state=import.tfstate", "-estate=live-unit", "-approve"}); code != 0 {
 		t.Fatalf("first run exit code %d\n%s", code, done1(t).Stdout())
 	}
 	done1(t)
@@ -134,7 +134,7 @@ func TestLiveImport_secondRunWithApproveIsIdempotent(t *testing.T) {
 	}
 
 	c2, done2 := newLiveImportCommand(t, cloud)
-	code2 := c2.Run([]string{"-no-color", "-state=import.tfstate", "-estate=stateless-unit", "-approve"})
+	code2 := c2.Run([]string{"-no-color", "-state=import.tfstate", "-estate=live-unit", "-approve"})
 	output2 := done2(t)
 	if code2 != 0 {
 		t.Fatalf("second run exit code %d\n%s", code2, output2.Stdout())

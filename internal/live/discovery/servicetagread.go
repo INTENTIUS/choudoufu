@@ -204,15 +204,15 @@ func serviceTagReadWith(ctx context.Context, reader servicetags.Reader, typeName
 			// which is a programming error in the reader rather than
 			// anything about the object. Logged and treated as a failed
 			// read, so the caller's existing refusal stands.
-			log.Printf("[WARN] stateless/discovery: service tag read for %s %q: %s", typeName, importID, err)
+			log.Printf("[WARN] live/discovery: service tag read for %s %q: %s", typeName, importID, err)
 			return nil, tagReadFailed, err
 		}
 		// A failed read establishes nothing. The caller keeps whatever it
 		// had - for the sweep that is #1129's SweepGapMarkerUnreadable,
 		// which is the honest answer when no route could read the marker.
-		log.Printf("[DEBUG] stateless/discovery: service tag read for %s %q failed, leaving the marker unread: %s", typeName, importID, err)
+		log.Printf("[DEBUG] live/discovery: service tag read for %s %q failed, leaving the marker unread: %s", typeName, importID, err)
 		return nil, tagReadFailed, err
 	}
-	log.Printf("[DEBUG] stateless/discovery: %s %q carried no readable marker on any enumeration or index route; read %d tag(s) from the service's own tag API", typeName, importID, len(tags))
+	log.Printf("[DEBUG] live/discovery: %s %q carried no readable marker on any enumeration or index route; read %d tag(s) from the service's own tag API", typeName, importID, len(tags))
 	return tags, tagReadAnswered, nil
 }

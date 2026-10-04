@@ -14,5 +14,5 @@ provider "aws" {
 }
 
 resource "aws_s3_bucket" "data" {
-  bucket = "tofu-stateless-unit-data"
+  bucket = "tofu-live-unit-data"
 }

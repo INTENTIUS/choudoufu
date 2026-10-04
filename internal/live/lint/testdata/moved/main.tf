@@ -8,11 +8,11 @@
 # Stock OpenTofu refuses the same shape, as "Moved object still exists".
 
 resource "aws_s3_bucket" "old" {
-  bucket = "tofu-stateless-lint-old"
+  bucket = "tofu-live-lint-old"
 }
 
 resource "aws_s3_bucket" "new" {
-  bucket = "tofu-stateless-lint-data"
+  bucket = "tofu-live-lint-data"
 }
 
 moved {

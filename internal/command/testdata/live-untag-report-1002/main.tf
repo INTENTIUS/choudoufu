@@ -3,7 +3,7 @@
 # asserted by value rather than by whether it rendered at all.
 terraform {
   live {
-    estate = "stateless-unit"
+    estate = "live-unit"
 
     policy {
       declared_tagged = "untag"
@@ -39,6 +39,6 @@ resource "aws_s3_bucket" "pinned" {
   bucket = "tofu-untag-1002-pinned"
 
   tags = {
-    "tofu-estate" = "stateless-unit"
+    "tofu-estate" = "live-unit"
   }
 }

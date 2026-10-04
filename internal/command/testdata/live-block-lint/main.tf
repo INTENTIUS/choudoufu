@@ -23,7 +23,7 @@
 # exactly as "tofu live-plan" does.
 terraform {
   live {
-    estate = "stateless-unit"
+    estate = "live-unit"
   }
 
   required_providers {
@@ -38,7 +38,7 @@ provider "aws" {
 }
 
 resource "aws_s3_bucket" "data" {
-  bucket = "tofu-stateless-unit-data"
+  bucket = "tofu-live-unit-data"
 
   lifecycle {
     ignore_changes = all

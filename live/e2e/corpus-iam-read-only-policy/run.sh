@@ -1200,7 +1200,7 @@ if [ "${BREAK:-}" = "2" ]; then
   # visited at all - there is nothing to propose destroying, and the marker
   # it still carries is simply left behind, orphaned - while the new
   # address IS declared and gets a create proposed. This is
-  # corpus-sqs-basic's exact stateless-replan shape (its own D1
+  # corpus-sqs-basic's exact live-replan shape (its own D1
   # BREAK=rename comment documents the same finding for its module
   # rename), not corpus-eks-basic's clean destroy+create.
   grep -qE '^  # module\.read_only_iam_policy\.aws_iam_policy\.policy\[0\] will be' <<< "$BREAK_PLAN_OUT" \

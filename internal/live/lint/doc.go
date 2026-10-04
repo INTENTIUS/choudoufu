@@ -3,7 +3,7 @@
 // Copyright (c) 2023 HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-// Package lint is the stateless-mode subset check: the pass that decides
+// Package lint is the live-mode subset check: the pass that decides
 // whether a configuration can be planned with no authoritative state at all.
 //
 // It runs against an already-loaded [configs.Config] — the same tree the

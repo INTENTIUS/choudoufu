@@ -33,7 +33,7 @@ logged apply-what-was-approved-init "approval" "init failed" -- in_dir "$SMOKE_W
 APPLY_OUT="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" \
   || fail "approval" "apply failed: $APPLY_OUT"
 grep -E 'Apply complete!' <<< "$APPLY_OUT" | evidence
-VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=stateless-e2e-block" --query 'Vpcs[0].VpcId' --output text)"
+VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=live-e2e-block" --query 'Vpcs[0].VpcId' --output text)"
 [ -n "$VPC_ID" ] && [ "$VPC_ID" != "None" ] || fail "approval" "the estate's VPC is not there after the apply"
 proof "a live estate, every resource carrying its ownership markers."
 
@@ -72,7 +72,7 @@ else
   CRASHED="$(awsl ec2 create-subnet --vpc-id "$VPC_ID" --cidr-block 10.0.99.0/24 --query 'Subnet.SubnetId' --output text)"
   [ -n "$CRASHED" ] || fail "approval" "could not create the out-of-band subnet"
   awsl ec2 create-tags --resources "$CRASHED" \
-    --tags "Key=tofu-estate,Value=stateless-e2e-block" "Key=tofu-address,Value=aws_subnet.crashed" \
+    --tags "Key=tofu-estate,Value=live-e2e-block" "Key=tofu-address,Value=aws_subnet.crashed" \
     || fail "approval" "could not mark the out-of-band subnet"
   echo "created $CRASHED, marked as aws_subnet.crashed - after the approval, before the apply" | evidence
 fi
@@ -155,7 +155,7 @@ SECOND="$(cd "$SMOKE_WORK" && chdf apply -input=false -no-color approved.tfplan 
   || fail "approval" "the re-approved apply failed: $SECOND"
 grep -E 'Apply complete!' <<< "$SECOND" | evidence
 grep -q "Apply complete!" <<< "$SECOND" || fail "approval" "the re-approved apply did not complete: $SECOND"
-RETENTION="$(awsl logs describe-log-groups --log-group-name-prefix "/stateless-e2e-block/app" --query 'logGroups[0].retentionInDays' --output text)"
+RETENTION="$(awsl logs describe-log-groups --log-group-name-prefix "/live-e2e-block/app" --query 'logGroups[0].retentionInDays' --output text)"
 [ "$RETENTION" = "3" ] \
   || fail "approval" "the approved change did not land: retention is $RETENTION, want 3"
 proof "retention is $RETENTION days, exactly what was reviewed. The gate held twice and then let the right thing through."

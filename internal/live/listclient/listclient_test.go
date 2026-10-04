@@ -300,7 +300,7 @@ func TestBuildConfig(t *testing.T) {
 		val, diags := ts.BuildConfig(map[string]cty.Value{
 			"filter": cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{
 				"name":   cty.StringVal("tag:tofu-estate"),
-				"values": cty.ListVal([]cty.Value{cty.StringVal("stateless-e2e")}),
+				"values": cty.ListVal([]cty.Value{cty.StringVal("live-e2e")}),
 			})}),
 		})
 		if diags.HasErrors() {
@@ -464,7 +464,7 @@ func TestList_nilConfigUsesSchemaEmpty(t *testing.T) {
 func TestList_resourceObject(t *testing.T) {
 	resource := cty.ObjectVal(map[string]cty.Value{
 		"id":   cty.StringVal("vpc-1"),
-		"tags": cty.MapVal(map[string]cty.Value{"tofu-estate": cty.StringVal("stateless-e2e")}),
+		"tags": cty.MapVal(map[string]cty.Value{"tofu-estate": cty.StringVal("live-e2e")}),
 	})
 	f := &fakeLister{
 		schema: testSchema(),
@@ -485,7 +485,7 @@ func TestList_resourceObject(t *testing.T) {
 	}
 	// Reading a marker off the resource object is what P2.3 will do.
 	tags := results[0].Resource.GetAttr("tags")
-	if got := tags.Index(cty.StringVal("tofu-estate")).AsString(); got != "stateless-e2e" {
+	if got := tags.Index(cty.StringVal("tofu-estate")).AsString(); got != "live-e2e" {
 		t.Errorf("tofu-estate tag: %q", got)
 	}
 }

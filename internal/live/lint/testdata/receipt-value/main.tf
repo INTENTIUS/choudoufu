@@ -14,13 +14,13 @@ resource "aws_s3_bucket" "data" {
 }
 
 resource "aws_ssm_parameter" "secure" {
-  name  = "/tofu-receipts/stateless-e2e/secure"
+  name  = "/tofu-receipts/live-e2e/secure"
   type  = "SecureString"
   value = sha256("x")
 }
 
 resource "aws_ssm_parameter" "raw_input" {
-  name  = "/tofu-receipts/stateless-e2e/raw-input"
+  name  = "/tofu-receipts/live-e2e/raw-input"
   type  = "String"
   value = aws_s3_bucket.data.bucket
 }
@@ -30,19 +30,19 @@ locals {
 }
 
 resource "aws_ssm_parameter" "hash_via_local" {
-  name  = "/tofu-receipts/stateless-e2e/hash-via-local"
+  name  = "/tofu-receipts/live-e2e/hash-via-local"
   type  = "String"
   value = local.precomputed
 }
 
 resource "aws_ssm_parameter" "hash_flavor" {
-  name  = "/tofu-receipts/stateless-e2e/hash-flavor"
+  name  = "/tofu-receipts/live-e2e/hash-flavor"
   type  = "String"
   value = sha256(jsonencode({ bucket = aws_s3_bucket.data.bucket }))
 }
 
 resource "aws_ssm_parameter" "existence_flavor" {
-  name  = "/tofu-receipts/stateless-e2e/existence-flavor"
+  name  = "/tofu-receipts/live-e2e/existence-flavor"
   type  = "String"
   value = "done"
 }

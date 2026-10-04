@@ -6,7 +6,7 @@
 # resolving it). Third slice of the survey's marker cohort (#20).
 
 resource "aws_acm_certificate" "app" {
-  domain_name       = "app.stateless-e2e.example.com"
+  domain_name       = "app.live-e2e.example.com"
   validation_method = "DNS"
 
   tags = {

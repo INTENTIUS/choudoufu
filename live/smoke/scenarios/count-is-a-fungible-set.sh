@@ -17,13 +17,13 @@ resource "aws_eip" "pool" {
 }
 TFEOF
 pool() { awsl ec2 describe-addresses \
-  --query 'Addresses[?Tags[?Key==`tofu-estate`&&Value==`stateless-e2e-block`]].[AllocationId,Tags[?Key==`tofu-slot`]|[0].Value,Tags[?Key==`tofu-address`]|[0].Value]' \
+  --query 'Addresses[?Tags[?Key==`tofu-estate`&&Value==`live-e2e-block`]].[AllocationId,Tags[?Key==`tofu-slot`]|[0].Value,Tags[?Key==`tofu-address`]|[0].Value]' \
   --output text | sort -k2; }
 # settle waits until the tagging index the sweep uses reflects a manufactured
 # tag change - floci's tagging API lags a raw create-tags/delete-tags, and a
 # plan that raced it would read stale markers (the #756 lesson).
 settle() { local want="$1" i; for i in $(seq 1 20); do
-  if awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=stateless-e2e-block" \
+  if awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=live-e2e-block" \
     --query 'ResourceTagMappingList[].Tags' --output text 2>/dev/null | grep -q "$want"; then return 0; fi
   sleep 1; done; return 0; }
 
@@ -57,8 +57,8 @@ named_tag_check() {
       echo "/svc/$i carries tag keys [$keys], not exactly [purpose tofu-address tofu-estate] - the configuration names this instance, so nothing is left for a slot to decide and it must carry no tofu-slot at all; the name_prefix log groups beside it, read through the identical call, do carry one"
       return 1
     fi
-    if [ "$(lg_tag "$arn" tofu-estate)" != "stateless-e2e-block" ]; then
-      echo "/svc/$i does not carry tofu-estate=stateless-e2e-block"; return 1
+    if [ "$(lg_tag "$arn" tofu-estate)" != "live-e2e-block" ]; then
+      echo "/svc/$i does not carry tofu-estate=live-e2e-block"; return 1
     fi
     if [ "$(lg_tag "$arn" tofu-address)" != "aws_cloudwatch_log_group.named:$i" ]; then
       echo "/svc/$i does not carry tofu-address=aws_cloudwatch_log_group.named:$i - the index in the address is what says which instance it is when there is no slot"; return 1
@@ -119,7 +119,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   # settle: the sweep reads the tagging index, which lags a raw delete-tags
   # (the #756 lesson), so wait until the index shows two slots, not three.
   for i in $(seq 1 30); do
-    SLOTS_NOW="$(awsl resourcegroupstaggingapi get-resources --tag-filters Key=tofu-estate,Values=stateless-e2e-block \
+    SLOTS_NOW="$(awsl resourcegroupstaggingapi get-resources --tag-filters Key=tofu-estate,Values=live-e2e-block \
       --query 'length(ResourceTagMappingList[].Tags[?Key==`tofu-slot`][])' --output text 2>/dev/null || echo 3)"
     [ "$SLOTS_NOW" = "2" ] && break; sleep 1
   done

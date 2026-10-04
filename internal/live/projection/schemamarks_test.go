@@ -76,12 +76,12 @@ func TestMaterializeMarksASensitiveAttributeFromTheSchema(t *testing.T) {
 	resolutions := resolveOrFail(t, cfg)
 
 	cloud := newFakeCloud()
-	cloud.put("aws_ssm_parameter", "/tofu-receipts/stateless-e2e/demo-effect", map[string]string{
-		"id": "/tofu-receipts/stateless-e2e/demo-effect", "name": "/tofu-receipts/stateless-e2e/demo-effect",
+	cloud.put("aws_ssm_parameter", "/tofu-receipts/live-e2e/demo-effect", map[string]string{
+		"id": "/tofu-receipts/live-e2e/demo-effect", "name": "/tofu-receipts/live-e2e/demo-effect",
 		"type": "String", "value": "the-secret",
 	})
-	cloud.put("aws_cloudwatch_log_group", "/stateless-e2e/app", map[string]string{
-		"id": "/stateless-e2e/app", "name": "/stateless-e2e/app",
+	cloud.put("aws_cloudwatch_log_group", "/live-e2e/app", map[string]string{
+		"id": "/live-e2e/app", "name": "/live-e2e/app",
 	})
 
 	res, diags := Build(context.Background(), cfg, resolutions, cloud.providers(t))

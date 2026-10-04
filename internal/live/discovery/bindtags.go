@@ -232,7 +232,7 @@ func (m *markerIndex) fetch(ctx context.Context) {
 	if m.err != nil {
 		return
 	}
-	log.Printf("[DEBUG] stateless/discovery: tag index for estate %q holds %d resources", m.estate, len(m.tagged))
+	log.Printf("[DEBUG] live/discovery: tag index for estate %q holds %d resources", m.estate, len(m.tagged))
 	m.objs, m.byKey = indexTagged(m.tagged)
 }
 
@@ -641,7 +641,7 @@ func scanTypeMarkerFallback(ctx context.Context, req Request, decl *declared, ty
 			// filing a second claimant carrying a different string for the
 			// same live object, which reads as ProblemCollision ("Two live
 			// resources claiming one address") over one resource.
-			log.Printf("[DEBUG] stateless/discovery: %s has no list route of its own and its import identity is not composable from its own ARN; %s's list call covers it", typeName, plain)
+			log.Printf("[DEBUG] live/discovery: %s has no list route of its own and its import identity is not composable from its own ARN; %s's list call covers it", typeName, plain)
 			res.Scans = append(res.Scans, TypeScan{
 				TypeName:  typeName,
 				Declared:  len(decl.types[typeName]),
@@ -706,7 +706,7 @@ func scanTypeMarkerFallback(ctx context.Context, req Request, decl *declared, ty
 		})
 	}
 
-	log.Printf("[DEBUG] stateless/discovery: %s has no list route; the estate's tag index found %d resource(s) of it", typeName, len(candidates))
+	log.Printf("[DEBUG] live/discovery: %s has no list route; the estate's tag index found %d resource(s) of it", typeName, len(candidates))
 
 	for _, c := range candidates {
 		diags = diags.Append(fileTaggingCandidate(ctx, req, decl, typeName, c, res))

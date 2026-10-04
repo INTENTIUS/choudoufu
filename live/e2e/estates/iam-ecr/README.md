@@ -126,7 +126,7 @@ in a cohort of its own.
 | File | Contents |
 |---|---|
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
-| `locals.tf` | `estate_tag` — `"iam-ecr-cohort"`, distinct from the demo estate's `"stateless-e2e"` and the lambda cohort's `"lambda-cohort"`. |
+| `locals.tf` | `estate_tag` — `"iam-ecr-cohort"`, distinct from the demo estate's `"live-e2e"` and the lambda cohort's `"lambda-cohort"`. |
 | `iam.tf` | The four ratified IAM types (three from this cohort's own batch, plus `aws_iam_group` from the ECS/EKS batch), plus `aws_iam_role.support` — supporting infrastructure, not a coverage row. |
 | `ecr.tf` | The four ratified ECR types. |
 

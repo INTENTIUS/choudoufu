@@ -41,7 +41,7 @@ import (
 // # What this measures, and what it deliberately does not
 //
 // This runs identity.Resolve + Discover + projection.BuildFrom - the
-// stateless-discovery pipeline, with the state file deleted after apply so
+// live-discovery pipeline, with the state file deleted after apply so
 // nothing here leans on it (mirrors scale_bench_test.go's
 // runScaleBenchmark). It does NOT run live-import
 // (internal/command/live_import.go), which reads an existing tfstate as its

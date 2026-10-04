@@ -1793,7 +1793,7 @@ else
     BREAK_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
     [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=2 rename-without-moved plan exited $BREAK_PLAN_RC"; }
     # Verified directly (measured, not guessed - this is NOT the uniform
-    # "create only, no destroy" stateless-replan shape iam-read-only-policy
+    # "create only, no destroy" live-replan shape iam-read-only-policy
     # and simpleinfra-dns show elsewhere in this batch): different
     # resources in THIS module resolve differently once nothing bridges
     # the rename. The VPC, subnet, security group and a few others show

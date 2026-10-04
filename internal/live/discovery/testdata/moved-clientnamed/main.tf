@@ -14,7 +14,7 @@
 # identity disagree; the move is why, and the check has to say so.
 
 resource "aws_s3_bucket" "renamed" {
-  bucket = "tofu-stateless-e2e-renamed"
+  bucket = "tofu-live-e2e-renamed"
 }
 
 moved {
