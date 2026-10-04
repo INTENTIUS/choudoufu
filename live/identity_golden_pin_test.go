@@ -3146,7 +3146,13 @@ const (
 	// instance's identity needs a data read the golden's schema-less sweep
 	// does not perform, so it adds no row: instances and body-sha256 are
 	// unchanged. fixture-dirs 657 -> 658 on the same row.
-	identityGoldenPinDirs = 689
+	//
+	// 689 -> 690 for #1881: one directory,
+	// live/e2e/corpus-cloud-platform-components/root, the estate's
+	// pre-applied VPA CRDs and their namespaces. It adds no row, so
+	// instances and body-sha256 are unchanged. fixture-dirs 658 -> 659 on
+	// the same row; the cohort pins are untouched.
+	identityGoldenPinDirs = 690
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).

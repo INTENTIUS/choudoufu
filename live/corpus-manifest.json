@@ -176,9 +176,22 @@
     "    the account directory itself (and global-resources, the only other",
     "    in-corpus entry) has no .tf files directly, so HasConfigFiles",
     "    excludes it and neither in-corpus entry has a tfvars file of its",
-    "    own to apply. Reaching the nested root modules would mean widening",
-    "    the glob that decides which directories are in the corpus at all -",
-    "    a different axis from var_files, not this change's to make.",
+    "    own to apply. Reaching the nested root modules meant widening the",
+    "    glob that decides which directories are in the corpus at all - a",
+    "    different axis from var_files - and #1881 did that for",
+    "    aws-accounts/*/vpc/eks/** (three globs, one per depth, since",
+    "    filepath.Glob has no **), for the corpus-cloud-platform-components",
+    "    estate. Four of the five roots the globs add ship a",
+    "    terraform.tfvars, and all six tfvars files under aws-accounts are",
+    "    git-crypt ciphertext (they start with \"\\0GITCRYPT\"), which the",
+    "    loader auto-reads exactly as stock would; what corpus-gen records for",
+    "    those four is for the next `just corpus` run to show, not something",
+    "    this manifest can fix. The 22 github.com/ministryofjustice/* module",
+    "    repositories those roots call are pinned under module_sources at",
+    "    their default-branch heads of 2026-10-04; the mirror serves each",
+    "    repository's tags at the commits recorded in",
+    "    live/corpus-module-pins.json, so a \"?ref=<tag>\" call resolves to",
+    "    the release it names.",
     "  - govuk-aws ships zero tfvars files anywhere in the repository; its",
     "    estates stay language-blocked on unset_var_only refusals, honestly,",
     "    with no entry here.",
@@ -487,6 +500,18 @@
       }
     },
     {
+      "glob": ".corpus/cloud-platform/terraform/aws-accounts/*/vpc/eks",
+      "origin": "published deployment"
+    },
+    {
+      "glob": ".corpus/cloud-platform/terraform/aws-accounts/*/vpc/eks/*",
+      "origin": "published deployment"
+    },
+    {
+      "glob": ".corpus/cloud-platform/terraform/aws-accounts/*/vpc/eks/*/*",
+      "origin": "published deployment"
+    },
+    {
       "glob": ".corpus/cloud-platform/terraform/global-resources",
       "origin": "published deployment"
     },
@@ -627,8 +652,96 @@
       "commit": "b2425d125f94dc0552a8be03015afbfbbf8c3683"
     },
     {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-github-teams-filter.git",
+      "commit": "884b8ab04da1950655e29942cfa4d2adfdb02cb5"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-auth0.git",
+      "commit": "fc8763c92770c6afe3ba28724ab7ddb37564aaf7"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-certmanager.git",
+      "commit": "cd6b602fc0d4ba7c6c426fdb1e3aa3b8838d40c3"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-cluster-autoscaler.git",
+      "commit": "c636ec5b4b1c7af70bcffe81e8685529cd2c62f7"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-concourse.git",
+      "commit": "68ef22be0acb7e7ab05fdd4fc22aa6f11dd4aad1"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-descheduler.git",
+      "commit": "c90dfdb30b6dda5b1bd4616384a20347c7007ef1"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-efs-csi.git",
+      "commit": "64ae652624399f27f27546f60c8fe45aacf29eab"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-eks-add-ons.git",
+      "commit": "ecb151994c709766e6d7990d3f683b21db979231"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-eks-csi.git",
+      "commit": "192e1f99e5bb32bd8c96f32c6631690d7eaff359"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-external-dns.git",
+      "commit": "41d4ca881ed2264d5d2f01c1437da38d69d49496"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-external-secrets-operator.git",
+      "commit": "8a8d38a335bfd33d21f4eef9ca9099f49b083716"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-gatekeeper.git",
+      "commit": "2f1e4fb471c2b94ac09567e9487b8fb1f06fa1cd"
+    },
+    {
       "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-global-resources-auth0.git",
       "commit": "6eeb662df9879f49097e533ef8ea7567f23af600"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-ingress-controller.git",
+      "commit": "818bc8256eb301d47a67670f91e72655694ba1d1"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-ingress-validation-controller.git",
+      "commit": "23a4c7d0ce39b53626cbb221131d2b926adb0680"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-kuberos.git",
+      "commit": "7a1ee3465aeb0bb2de4a813903a351015df357ce"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-label-pods.git",
+      "commit": "81197e05a1cb36cad0da35998a854450d47ca7a0"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-logging.git",
+      "commit": "89214949d38df5342bb4066d3bd98cd1878674d1"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-monitoring.git",
+      "commit": "07162a46ab3197164ae23cbfcbcc4c7ec26dcbff"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-opa.git",
+      "commit": "0f5fbf0b3f842177c4b5f9b5df250da8a0cd3745"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-starter-pack.git",
+      "commit": "075bc52b16de975c80440d95735f36a97195dd34"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-tigera-calico.git",
+      "commit": "e6a64efd4414f4d376a53b101be1c3e456cc5614"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-velero.git",
+      "commit": "40689958e2e09070dd03d5799e4bc3032ba67761"
     }
   ]
 }

@@ -3,9 +3,9 @@
   "generated_by": "go run ./tools/estate-types",
   "method": "static config parsing: internal/live/check.Load (the module-graph loader tools/corpus-fetch and tools/corpus-gen already use) reads each estate's .corpus configuration directory/directories - see spec.go for the directory list and the run.sh line each was traced against - and every instance's managed-resource type is collected across the whole resolved module tree, local and registry alike. A handful of estates whose crossing script writes its own root wiring with a heredoc (rather than deploying a .corpus directory verbatim) add a text scan of that script for literal resource blocks - see estateSpec.ScanScript. No gauntlet run, no docker, no cloud calls: every estate's types come from its committed or fetched configuration, not from a live plan or state file.",
   "totals": {
-    "estates": 38,
-    "distinct_types": 208,
-    "types_in_no_cohort": 130
+    "estates": 39,
+    "distinct_types": 211,
+    "types_in_no_cohort": 133
   },
   "estates": [
     {
@@ -164,6 +164,26 @@
       ],
       "config_dirs": [
         ".corpus/autoscaling/examples/complete"
+      ],
+      "unresolved_modules": 0
+    },
+    {
+      "name": "corpus-cloud-platform-components",
+      "types": [
+        "kubectl_manifest",
+        "kubernetes_cluster_role_binding",
+        "kubernetes_config_map_v1",
+        "kubernetes_manifest",
+        "kubernetes_namespace_v1",
+        "kubernetes_priority_class",
+        "kubernetes_secret_v1",
+        "kubernetes_service_account",
+        "kubernetes_storage_class",
+        "random_password"
+      ],
+      "count": 10,
+      "sources": [
+        "script"
       ],
       "unresolved_modules": 0
     },

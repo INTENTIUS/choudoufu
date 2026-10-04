@@ -38,6 +38,22 @@
       "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
     },
     {
+      "name": "corpus-cloud-platform-components",
+      "source": "ministryofjustice/cloud-platform-infrastructure terraform/aws-accounts/cloud-platform-aws/vpc/eks/core/components (commit 6e1eca7be0, MIT), the Ministry of Justice Cloud Platform's own cluster-components root, top-level resources only: three StorageClasses on the unversioned kubernetes_storage_class, three PriorityClasses, two ClusterRoleBindings, a ServiceAccount in kube-system and kubernetes_manifest.vpa, five VerticalPodAutoscalers keyed by for_each over a static map (the manager workspace's, selected in the configuration); plus the VPA project's own two CRDs (converted by convert.sh) and the three namespaces the VPAs live in, pre-applied - 19 objects over seven kinds. Pruned: the ~15 ministryofjustice module calls (not in .corpus/_modules), the backend, remote states and aws data sources, and storage.tf's kubectl_manifest gp2 default flip, which stock applies on the side from a root of its own",
+      "url": "https://github.com/ministryofjustice/cloud-platform-infrastructure.git",
+      "pin": "6e1eca7be0d4224718a993e82508df8b7b19857d",
+      "lane": "kubernetes",
+      "set": "growing",
+      "pre_apply": [
+        "kubernetes_manifest.customresourcedefinition_verticalpodautoscalercheckpoints_autoscaling_k8s_io",
+        "kubernetes_manifest.customresourcedefinition_verticalpodautoscalers_autoscaling_k8s_io",
+        "kubernetes_namespace_v1.ingress_controllers",
+        "kubernetes_namespace_v1.concourse",
+        "kubernetes_namespace_v1.monitoring"
+      ],
+      "pre_apply_reason": "manager-vpas.tf declares kubernetes_manifest objects of kind VerticalPodAutoscaler (autoscaling.k8s.io/v1), and kubernetes_manifest builds an object's schema at PLAN time, so the root cannot be planned at all against a cluster that does not serve that kind - depends_on does not help and re-running fails identically (#1173). On cloud-platform's own clusters the CRD and the three namespaces the VPAs live in come from module calls this crossing prunes, so the VPA project's two CRDs (root/vpa-crd.tf) and those namespaces (root/vpa-namespaces.tf) go up first, with -target, on every side; the namespaces are in the list because kubernetes_manifest dry-runs a namespaced object at plan time and a dry run into a missing namespace is refused. The five VPAs and the nine typed objects are what the main apply creates"
+    },
+    {
       "name": "corpus-dynamodb-table-basic",
       "source": "terraform-aws-modules/terraform-aws-dynamodb-table, examples/basic (tag v5.5.1, commit 02b2d66ad2396389381c8dbe3423682114ed5350)",
       "url": "https://github.com/terraform-aws-modules/terraform-aws-dynamodb-table.git",

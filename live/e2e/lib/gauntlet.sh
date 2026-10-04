@@ -390,7 +390,7 @@ gauntlet_kind_count() {
   printf '%s\n' "$n"
 }
 
-# gauntlet_kind_day2_replace <adopted-root> <oracle-root> <namespace>:
+# gauntlet_kind_day2_replace <adopted-root> <oracle-root> <namespace> [prior]:
 # day2_replace on the kind substrate (#1541, #1641). A Kubernetes name is
 # unique within its namespace, so the replacement create_before_destroy is
 # used for is a rename: the content-hashed ConfigMap, name = "cfg-<hash>",
@@ -412,8 +412,14 @@ gauntlet_kind_count() {
 # ESTATE. BREAK_REPLACE=1 is the stage's Break line: after the replace it
 # recreates cfg-a carrying the estate label and the block's annotation,
 # and the next plan must propose destroying it rather than nothing.
+#
+# [prior] is optional: a sentence the caller has already measured under the
+# same stage before calling this (corpus-cloud-platform-components replaces
+# a StorageClass and a PriorityClass on an immutable field first, #1881),
+# put in front of this function's own verdict so the one day2_replace line
+# carries both. Empty, the verdict is exactly what it was.
 gauntlet_kind_day2_replace() {
-  local adopted="$1" oracle="$2" ns="$3" block="kubernetes_config_map.hashed"
+  local adopted="$1" oracle="$2" ns="$3" prior="${4:-}" block="kubernetes_config_map.hashed"
   local o_plan r_plan o_apply r_apply created destroying ann b_plan r_replan r_rm o_rm
   _day2_replace_tf() { # $1 dir, $2 the name's suffix
     cat > "$1/day2_replace.tf" <<EOF
@@ -492,9 +498,9 @@ EOF
   kca get configmap cfg-b -n "$ns" >/dev/null 2>&1 && fail "cfg-b still exists after its block was removed"
 
   if [ "${BREAK_REPLACE:-}" = "1" ]; then
-    gauntlet_stage day2_replace pass "BREAK_REPLACE=1 control: after the create_before_destroy rename cfg-a -> cfg-b, cfg-a was recreated by hand carrying tofu-estate=$ESTATE and the annotation naming $block, and the next plan proposes destroying it rather than nothing, so the empty-plan assertion is load-bearing; the real replan check is skipped"
+    gauntlet_stage day2_replace pass "${prior:+$prior }BREAK_REPLACE=1 control: after the create_before_destroy rename cfg-a -> cfg-b, cfg-a was recreated by hand carrying tofu-estate=$ESTATE and the annotation naming $block, and the next plan proposes destroying it rather than nothing, so the empty-plan assertion is load-bearing; the real replan check is skipped"
   else
-    gauntlet_stage day2_replace pass "a create_before_destroy ConfigMap whose content-hashed name changes (cfg-a -> cfg-b) plans as stock's replace: '$block must be replaced', +/- create replacement and then destroy, 1 add and 1 destroy, with no orphan destroy beside it, because cfg-a carries the block's address annotation and the sweep binds it (#1640). At -parallelism=1 the apply log shows cfg-b's creation complete (line $created) before cfg-a's deposed destroy starts (line $destroying), the same order stock's apply shows on the oracle cluster; kubectl confirms cfg-b alone remains, carrying the annotation, and the next plan is empty (#1541). The block is removed from both roots afterwards. BREAK_REPLACE=1 recreates cfg-a carrying the block's annotation and the next plan correctly proposes destroying it"
+    gauntlet_stage day2_replace pass "${prior:+$prior }a create_before_destroy ConfigMap whose content-hashed name changes (cfg-a -> cfg-b) plans as stock's replace: '$block must be replaced', +/- create replacement and then destroy, 1 add and 1 destroy, with no orphan destroy beside it, because cfg-a carries the block's address annotation and the sweep binds it (#1640). At -parallelism=1 the apply log shows cfg-b's creation complete (line $created) before cfg-a's deposed destroy starts (line $destroying), the same order stock's apply shows on the oracle cluster; kubectl confirms cfg-b alone remains, carrying the annotation, and the next plan is empty (#1541). The block is removed from both roots afterwards. BREAK_REPLACE=1 recreates cfg-a carrying the block's annotation and the next plan correctly proposes destroying it"
   fi
 }
 
