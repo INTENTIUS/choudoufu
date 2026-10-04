@@ -1104,6 +1104,17 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		return 1, false, diags
 	}
 
+	// GitHub issue #1191: the field-granular boundary. A planned write
+	// under this estate's field manager over a field another estate's
+	// manager owns is named here, and refused when it sets force = true;
+	// two blocks of this estate patching one object are refused. See
+	// live_plan_kubernetes_fieldowners.go.
+	fieldOwnerDiags := collectKubernetesFieldOwners(ctx, provs.kubernetesSweepers(), config, plan, schemas, resolver.Estate)
+	diags = diags.Append(fieldOwnerDiags)
+	if fieldOwnerDiags.HasErrors() {
+		return 1, false, diags
+	}
+
 	// The ordinary resource-diff rendering is skipped under -json rather
 	// than switched to [views.PlanJSON]'s own general JSON representation:
 	// GitHub issue #788's document below already told a JSON reader

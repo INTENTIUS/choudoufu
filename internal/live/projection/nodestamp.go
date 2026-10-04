@@ -141,6 +141,12 @@ func (n *NodeResolver) adjustConfigValue(_ context.Context, addr addrs.AbsResour
 	if schema.Block == nil {
 		return config, diags
 	}
+	// GitHub issue #1191: a resource that owns fields rather than an
+	// object carries no surface; its marker is the field manager it
+	// writes under. See nodestamp_fieldmanager.go.
+	if fieldGranularOwned(n.providerType(addr), schema) {
+		return n.stampFieldManager(addr, config)
+	}
 	// GitHub issue #1585: the surface is the substrate's answer, the same
 	// one live-mv and live-import ask, and the write below dispatches on
 	// it by name ([NodeResolver.stampSurface]).

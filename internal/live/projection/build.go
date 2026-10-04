@@ -2266,6 +2266,15 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		attrsSeed[name] = val
 	}
 
+	if b.opts.Ownership != nil && fieldGranularOwned("", schema) {
+		// GitHub issue #1191: the prior names this estate's field manager
+		// and none of the fields the block writes, so the provider reads
+		// back exactly the fields that manager owns. After the residue
+		// seed above, which would otherwise put the written fields back.
+		// See nodestamp_fieldmanager.go.
+		attrsSeed = fieldGranularSeed(attrsSeed, b.opts.Ownership.Estate)
+	}
+
 	// GitHub issues #1185 and #1240: one decode of the resource's own
 	// `timeouts` block, read by both carriers - the SDKv2 private meta and
 	// the framework value. See [configuredTimeoutsBlock].
@@ -3936,7 +3945,14 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 			// rather than risk proposing a create for an object it cannot
 			// verify one way or the other. See [noimporter.Diagnostics] for
 			// the population this reaches.
-			if stub, stubOK := noimporter.SynthesizeStub(schema, identityValues); stubOK {
+			stub, stubOK := noimporter.SynthesizeStub(schema, identityValues)
+			if fieldGranularOwned("", schema) {
+				// GitHub issue #1191: the field-granular types read the
+				// patched object's name out of a metadata block and need an
+				// id; see [fieldGranularStub].
+				stub, stubOK = fieldGranularStub(schema, identityValues, importID)
+			}
+			if stubOK {
 				log.Printf("[TRACE] projection: %s has no classic Importer; synthesizing an import stub from its own resolved identity instead of refusing", typeName)
 				obj := &states.ResourceInstanceObject{Status: states.ObjectReady, Value: stub}
 				return readImported(ctx, provider, schema, typeName, importID, obj, attrsSeed, configMarks, manifestKeys, diags)
@@ -4099,6 +4115,16 @@ func readImported(ctx context.Context, provider providers.Interface, schema prov
 	newVal := objchange.NormalizeObjectFromLegacySDK(readResp.NewState, schema.Block)
 	if !newVal.RawEquals(readResp.NewState) {
 		log.Printf("[WARN] projection: provider produced an invalid new value containing null blocks for %s %q", typeName, importID)
+	}
+
+	// GitHub issue #1191: a field-granular resource exists for this estate
+	// exactly when its field manager owns at least one field of the object
+	// it patches. The read was made under that manager with no written
+	// field in the prior (see [fieldGranularSeed]), so what came back is
+	// what the manager owns; nothing is absence, and the plan proposes the
+	// write as a create, as stock does for a block it has never applied.
+	if fieldGranularOwned("", schema) && !fieldGranularHoldsFields(newVal, schema) {
+		return nil, cty.NilVal, statusAbsent, diags
 	}
 
 	// GitHub issues #1079 and #1177: a manifest-surface prior carries the
