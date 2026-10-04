@@ -355,6 +355,12 @@
       "set": "growing"
     },
     {
+      "name": "reference-k8s-workloads",
+      "source": "hand-written reference shape kept in this repository, the kubernetes lane's workload-breadth estate (#1884, epic #1885): 22 objects in two namespaces declaring every typed workload kind no other estate did - kubernetes_job_v1 (completes), kubernetes_cron_job_v1 (suspended, never fires), kubernetes_daemon_set_v1, kubernetes_ingress_v1, kubernetes_network_policy_v1, kubernetes_horizontal_pod_autoscaler_v2 over a two-replica Deployment, a directly declared kubernetes_persistent_volume_claim_v1, kubernetes_role_v1 and kubernetes_role_binding_v1, kubernetes_limit_range_v1 and kubernetes_resource_quota_v1 - plus the deprecated aliases kubernetes_daemonset, kubernetes_role and kubernetes_network_policy on APIs the cluster still serves. Small multi-arch images, no StorageClass. #1107's fallback rule: the published roots with these kinds use Helm or a cloud provider, or are two to seven objects",
+      "lane": "kubernetes",
+      "set": "growing"
+    },
+    {
       "name": "terralith-scale",
       "source": "tools/terralith-gen, generated at -scale 1 by this estate's own crossing script: a synthetic single-state terralith of stock Terraform - IAM-dominated with deliberate copy-paste duplication, a small ECS layer and a Route53 fan-out, expanded with count, for_each and a module-nested pod (issues #564 and #574). No upstream repository: the artifact is the generator, and \"the same estate at 4x\" is -scale 4 rather than a second fixture.",
       "lane": "reference",

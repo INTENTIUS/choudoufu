@@ -408,7 +408,7 @@
   "lanes": {
     "kubernetes": {
       "label": "kubernetes lane",
-      "estates": 7,
+      "estates": 8,
       "clear": 4,
       "verified": 4,
       "carried": 0,
@@ -416,77 +416,77 @@
         "cold_deploy": {
           "pass": 4,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "day2_count": {
           "pass": 4,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "day2_crash": {
           "pass": 4,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "day2_remove": {
           "pass": 4,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "day2_rename": {
           "pass": 4,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "day2_replace": {
           "pass": 4,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "day2_teardown": {
           "pass": 4,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "drift_reconverge": {
           "pass": 4,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "greenfield": {
           "pass": 4,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "migrate": {
           "pass": 4,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "no_local_state": {
           "pass": 0,
           "fail": 0,
-          "not_run": 7
+          "not_run": 8
         },
         "plan_approval": {
           "pass": 4,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "strict": {
           "pass": 4,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "test_apply": {
           "pass": 4,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "test_plan": {
           "pass": 4,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         }
       }
     },
@@ -4455,6 +4455,33 @@
           "test_plan": 12
         }
       }
+    },
+    {
+      "name": "reference-k8s-workloads",
+      "source": "hand-written reference shape kept in this repository, the kubernetes lane's workload-breadth estate (#1884, epic #1885): 22 objects in two namespaces declaring every typed workload kind no other estate did - kubernetes_job_v1 (completes), kubernetes_cron_job_v1 (suspended, never fires), kubernetes_daemon_set_v1, kubernetes_ingress_v1, kubernetes_network_policy_v1, kubernetes_horizontal_pod_autoscaler_v2 over a two-replica Deployment, a directly declared kubernetes_persistent_volume_claim_v1, kubernetes_role_v1 and kubernetes_role_binding_v1, kubernetes_limit_range_v1 and kubernetes_resource_quota_v1 - plus the deprecated aliases kubernetes_daemonset, kubernetes_role and kubernetes_network_policy on APIs the cluster still serves. Small multi-arch images, no StorageClass. #1107's fallback rule: the published roots with these kinds use Helm or a cloud provider, or are two to seven objects",
+      "lane": "kubernetes",
+      "set": "growing",
+      "substrate": "kind",
+      "script": "live/e2e/reference-k8s-workloads/run.sh",
+      "stages": {
+        "cold_deploy": "not_run",
+        "day2_count": "not_run",
+        "day2_crash": "not_run",
+        "day2_remove": "not_run",
+        "day2_rename": "not_run",
+        "day2_replace": "not_run",
+        "day2_teardown": "not_run",
+        "drift_reconverge": "not_run",
+        "greenfield": "not_run",
+        "migrate": "not_run",
+        "no_local_state": "not_run",
+        "plan_approval": "not_run",
+        "strict": "not_run",
+        "test_apply": "not_run",
+        "test_plan": "not_run"
+      },
+      "clear": false,
+      "protocol": "legacy"
     },
     {
       "name": "terralith-scale",
