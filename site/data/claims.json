@@ -918,7 +918,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Open, and not written: the behaviour does not exist on Kubernetes yet. A data \"terraform_estate_outputs\" read goes through the reading estate's own record store (projection.ReadEstateOutputs). The Kubernetes store's default is one namespace per estate, so the producer's tofu-outputs/<estate>/ key is not in the reader's namespace and the read answers \"no recorded value\"; in a shared namespace, KubernetesStore.Get refuses a Secret labelled as another estate's (ForeignEstateRecordError, #1355). Neither is a declared read with an RBAC grant, so there is nothing yet for a scenario to prove."
+          "note": "Open. The behaviour is built and its draft proof is written, not run: live/smoke/drafts/k8s-an-estate-reads-another-by-declaring-it.sh. On Kubernetes the declaration is the reader's record_store block: reads_outputs_of \"<estate>\" {} (namespace = \"...\" when the producer's records are not in tofu-records-<estate>) opens that estate's namespace through a store that can only get; an undeclared read is refused before anything is sent (\"This estate does not declare that it reads another estate's outputs\"); an RBAC refusal names the Role granting get on the producer's output Secrets by name. The draft's BREAK=1 withholds that Role and requires the denial naming estate network, its namespace and the kubectl line. Before this, a read through the Kubernetes store answered \"no recorded value\" from the reader's own namespace, or ForeignEstateRecordError in a shared one (#1355)."
         }
       }
     },
