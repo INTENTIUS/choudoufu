@@ -213,6 +213,12 @@ sed_i() { local f="$1"; shift; local t; t="$(mktemp)"; sed "$@" "$f" > "$t" && m
 # its first run against a plan that was, in fact, exactly the zero churn the
 # oracle exists to establish - a stale assertion, not a defect (HANDOFF's
 # "when an assertion breaks right after a fix lands").
+plan_is_noop() {
+  grep -qF 'No changes. Your infrastructure matches the configuration.' <<< "$1" && return 0
+  grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$1" && return 0
+  return 1
+}
+
 # nls_api_call_total <debug log> - the number of provider-mediated AWS
 # API requests in one TF_LOG=DEBUG capture, by the same rule
 # live/live-cert/terralith-scale.sh's analyze_api_calls uses and every call
@@ -232,12 +238,6 @@ nls_api_call_total() {
     { entry = entry " " $0 }
     END { flush(); printf "%d\n", total + 0 }
   ' "$f"
-}
-
-plan_is_noop() {
-  grep -qF 'No changes. Your infrastructure matches the configuration.' <<< "$1" && return 0
-  grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$1" && return 0
-  return 1
 }
 
 # addr_type_counts turns a list of resource addresses on stdin into sorted
