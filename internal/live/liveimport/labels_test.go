@@ -343,3 +343,66 @@ func TestRatify_LabelSurfaceTypeIsStamped(t *testing.T) {
 		t.Errorf("second approve outcomes = %+v, want one ALREADY_STAMPED", rep2.Outcomes)
 	}
 }
+
+// jobSchema is configMapSchema with metadata.labels Optional+Computed, the
+// way hashicorp/kubernetes declares kubernetes_job_v1 and kubernetes_job
+// (jobMetadataSchema: the API server copies a Job's pod-template labels
+// onto the Job, so the provider lets the server fill them in).
+func jobSchema() providers.Schema {
+	s := configMapSchema()
+	labels := *s.Block.BlockTypes["metadata"].Block.Attributes["labels"]
+	labels.Computed = true
+	s.Block.BlockTypes["metadata"].Block.Attributes["labels"] = &labels
+	return s
+}
+
+// The least-claim synthetic configuration nulls every computed attribute,
+// and before markers.AssertMetadataMaps that included a Job's
+// Optional+Computed labels. objchange.ProposedNew then answered the prior
+// labels, the plan changed nothing, was accepted as a clean labels-only
+// change, and the apply wrote nothing while the report said STAMPED:
+// reference-k8s-workloads' migrate stage read 22 stamped and 21 labelled,
+// and test_plan refused the unlabelled Job at refk8swl-batch/migrate (epic
+// #1885).
+//
+// Proving it red: drop the AssertMetadataMaps call from syntheticConfigs
+// and the applied object carries no tofu-estate label.
+func TestApproveLabel_OptionalComputedLabelsAreWritten(t *testing.T) {
+	e, p := configMapEligible(map[string]string{"app": "migrate"})
+	e.schema = jobSchema()
+	e.typeName = "kubernetes_job_v1"
+	out := approveOne(context.Background(), testEstate, mustAddr(t, "kubernetes_job_v1.migrate"), e, "")
+	if out.Outcome != OutcomeStamped {
+		t.Fatalf("outcome = %s (%s), want STAMPED", out.Outcome, out.Detail)
+	}
+	got, ok := markers.LabelsOf(p.appliedObject)
+	if !ok || got[markers.TagEstate] != testEstate || got["app"] != "migrate" || len(got) != 2 {
+		t.Fatalf("applied labels = %v, want app=migrate plus tofu-estate=%s", got, testEstate)
+	}
+	ann, _ := markers.AnnotationsOf(p.appliedObject)
+	if ann[markers.AddressAnnotation] != "kubernetes_job_v1.migrate" {
+		t.Errorf("applied annotations = %v, want the address annotation", ann)
+	}
+}
+
+// A write the provider reports as a success but whose read-back lacks the
+// label is a FAILED stamp, never a STAMPED one with a warning in its
+// detail: the Kubernetes provider reads the object back after every
+// write, so the returned object is the cluster's answer.
+//
+// Proving it red: restore the warning-only read-back in approveLabel and
+// the outcome is STAMPED.
+func TestApproveLabel_AWriteThatDidNotLandIsAFailure(t *testing.T) {
+	e, p := configMapEligible(map[string]string{"app": "web"})
+	p.ApplyResourceChangeFn = func(r providers.ApplyResourceChangeRequest) providers.ApplyResourceChangeResponse {
+		p.applyCount++
+		return providers.ApplyResourceChangeResponse{NewState: r.PriorState}
+	}
+	out := approveOne(context.Background(), testEstate, mustAddr(t, "kubernetes_config_map.app"), e, "")
+	if out.Outcome != OutcomeFailed || !strings.Contains(out.Detail, "did not land") {
+		t.Fatalf("outcome = %s (%s), want FAILED saying the label did not land", out.Outcome, out.Detail)
+	}
+	if p.applyCount != 1 {
+		t.Errorf("applied %d times, want 1", p.applyCount)
+	}
+}

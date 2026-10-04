@@ -151,3 +151,38 @@ func TestLabelsOf(t *testing.T) {
 		t.Error("a null object was reported as having labels")
 	}
 }
+
+// TestAssertMetadataMaps: the labels and annotations come from desired
+// verbatim (a null stays null), everything else in cfg is untouched, and a
+// block without the label surface gets cfg back as it was.
+func TestAssertMetadataMaps(t *testing.T) {
+	block := kubernetesMetadataBlock()
+	obj := func(labels, annotations, name cty.Value) cty.Value {
+		return cty.ObjectVal(map[string]cty.Value{
+			"data": cty.NullVal(cty.Map(cty.String)),
+			"id":   cty.NullVal(cty.String),
+			"metadata": cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{
+				"annotations": annotations,
+				"labels":      labels,
+				"name":        name,
+				"namespace":   cty.StringVal("ns"),
+				"uid":         cty.NullVal(cty.String),
+			})}),
+		})
+	}
+	nullMap := cty.NullVal(cty.Map(cty.String))
+	want := cty.MapVal(map[string]cty.Value{TagEstate: cty.StringVal("acme")})
+	desired := obj(want, nullMap, cty.StringVal("migrate"))
+	cfg := obj(nullMap, cty.MapValEmpty(cty.String), cty.NullVal(cty.String))
+
+	got := AssertMetadataMaps(block, cfg, desired)
+	if w := obj(want, nullMap, cty.NullVal(cty.String)); !got.RawEquals(w) {
+		t.Errorf("got %#v\nwant %#v", got, w)
+	}
+
+	tagged := &configschema.Block{Attributes: map[string]*configschema.Attribute{"tags": {Type: cty.Map(cty.String), Optional: true}}}
+	tcfg := cty.ObjectVal(map[string]cty.Value{"tags": nullMap})
+	if got := AssertMetadataMaps(tagged, tcfg, cty.ObjectVal(map[string]cty.Value{"tags": want})); !got.RawEquals(tcfg) {
+		t.Errorf("a tag-surface config changed: %#v", got)
+	}
+}
