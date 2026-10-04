@@ -109,7 +109,7 @@ func FieldGranularEnvWrite(after cty.Value, kind string) (kubesweep.FieldWrite, 
 	root := kubesweep.EnvRoot(kind, container, init)
 	write := kubesweep.FieldWrite{Root: root}
 	envs := after.GetAttr("env")
-	if envs.IsNull() || !envs.IsKnown() || !envs.CanIterateElements() {
+	if envs.IsMarked() || envs.IsNull() || !envs.IsKnown() || !envs.CanIterateElements() {
 		return write, false
 	}
 	for it := envs.ElementIterator(); it.Next(); {
@@ -129,7 +129,7 @@ func FieldGranularEnvWrite(after cty.Value, kind string) (kubesweep.FieldWrite, 
 func FieldGranularTaintWrite(after cty.Value) (kubesweep.FieldWrite, bool) {
 	write := kubesweep.FieldWrite{Root: kubesweep.TaintsRoot}
 	taints := after.GetAttr("taint")
-	if taints.IsNull() || !taints.IsKnown() || !taints.CanIterateElements() {
+	if taints.IsMarked() || taints.IsNull() || !taints.IsKnown() || !taints.CanIterateElements() {
 		return write, false
 	}
 	for it := taints.ElementIterator(); it.Next(); {
@@ -149,13 +149,13 @@ func fgSingleBlock(obj cty.Value, name string) (cty.Value, bool) {
 		return cty.NilVal, false
 	}
 	v := obj.GetAttr(name)
-	if v.IsNull() || !v.IsKnown() || !v.CanIterateElements() || v.LengthInt() != 1 {
+	if v.IsMarked() || v.IsNull() || !v.IsKnown() || !v.CanIterateElements() || v.LengthInt() != 1 {
 		return cty.NilVal, false
 	}
 	it := v.ElementIterator()
 	it.Next()
 	_, elem := it.Element()
-	if elem.IsNull() || !elem.IsKnown() || !elem.Type().IsObjectType() {
+	if elem.IsMarked() || elem.IsNull() || !elem.IsKnown() || !elem.Type().IsObjectType() {
 		return cty.NilVal, false
 	}
 	return elem, true
@@ -163,11 +163,11 @@ func fgSingleBlock(obj cty.Value, name string) (cty.Value, bool) {
 
 // fgString is a known string attribute of obj, or "".
 func fgString(obj cty.Value, name string) string {
-	if obj.IsNull() || !obj.IsKnown() || !obj.Type().IsObjectType() || !obj.Type().HasAttribute(name) {
+	if obj.IsMarked() || obj.IsNull() || !obj.IsKnown() || !obj.Type().IsObjectType() || !obj.Type().HasAttribute(name) {
 		return ""
 	}
 	v := obj.GetAttr(name)
-	if v.IsNull() || !v.IsKnown() || v.Type() != cty.String {
+	if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String {
 		return ""
 	}
 	return v.AsString()
@@ -177,6 +177,12 @@ func fgString(obj cty.Value, name string) string {
 // is not known yet.
 func fgMapKeys(obj cty.Value, name string) ([]string, bool) {
 	v := obj.GetAttr(name)
+	if v.IsMarked() {
+		// The written fields are unmarked where this file takes the value
+		// in ([FieldGranularWriteOf]); a marked map here is refused rather
+		// than read.
+		return nil, false
+	}
 	if v.IsNull() {
 		return nil, true
 	}
@@ -186,7 +192,7 @@ func fgMapKeys(obj cty.Value, name string) ([]string, bool) {
 	var out []string
 	for it := v.ElementIterator(); it.Next(); {
 		k, _ := it.Element()
-		if !k.IsKnown() || k.IsNull() {
+		if k.IsMarked() || !k.IsKnown() || k.IsNull() {
 			return nil, false
 		}
 		out = append(out, k.AsString())

@@ -131,7 +131,7 @@ func fieldGranularRecordFor(schema *providers.Schema, typeName string, ri *state
 		return nil, false
 	}
 	v, _ := obj.Value.UnmarkDeep()
-	if v.IsNull() || !v.IsKnown() || !v.Type().IsObjectType() {
+	if v.IsMarked() || v.IsNull() || !v.IsKnown() || !v.Type().IsObjectType() {
 		return nil, false
 	}
 	str := func(name string) string {
@@ -139,7 +139,7 @@ func fieldGranularRecordFor(schema *providers.Schema, typeName string, ri *state
 			return ""
 		}
 		a := v.GetAttr(name)
-		if a.IsNull() || !a.IsKnown() || a.Type() != cty.String {
+		if a.IsMarked() || a.IsNull() || !a.IsKnown() || a.Type() != cty.String {
 			return ""
 		}
 		return a.AsString()
