@@ -261,6 +261,13 @@ var estateSpecs = []estateSpec{
 		Note: `The kubernetes lane's StorageClass, PriorityClass and for_each-over-a-CRD estate (#1881): ministryofjustice/cloud-platform-infrastructure's cluster-components root at 6e1eca7be0. ConfigDirs is nil on purpose: the directory carries ~15 github.com/ministryofjustice/* module calls not in .corpus/_modules, an S3 backend, remote states and aws data sources, and live/e2e/corpus-cloud-platform-components/run.sh's write_root() copies only three of its files - storage.tf (three kubernetes_storage_class, and the kubectl_manifest gp2 flip, which the script moves to a stock-side root of its own), rbac.tf (three kubernetes_priority_class, two kubernetes_cluster_role_binding, a kubernetes_service_account) and manager-vpas.tf (kubernetes_manifest.vpa, for_each) - plus the two committed files root/vpa-crd.tf (two kubernetes_manifest CRDs, converted by convert.sh) and root/vpa-namespaces.tf (three kubernetes_namespace_v1), so ScanFiles names exactly those five. ScanScript adds the script's own day2_count kubernetes_manifest, day2_crash's kubernetes_secret_v1 and kubernetes_config_map_v1, and its strict_block() heredoc's random_password; live/e2e/lib/gauntlet.sh's day2_replace and crash-rename blocks are kubernetes_config_map and are in the library, not scanned.`,
 	},
 	{
+		Name:       "corpus-k8s-metrics-server",
+		ConfigDirs: nil,
+		ScanScript: true,
+		ScanFiles:  []string{".corpus/k8s-io/infra/aws/terraform/kops-infra-ci/metrics-server.tf"},
+		Note:       `kubernetes/k8s.io's metrics-server installation (#1880): live/e2e/corpus-k8s-metrics-server/run.sh's write_root() copies ONE file, infra/aws/terraform/kops-infra-ci/metrics-server.tf, out of .corpus and writes its own providers.tf, so the rest of kops-infra-ci (VPC, EKS, IAM, ECR, S3, the aws providers) is never part of the estate and ConfigDirs, which would load the whole directory, is nil. ScanFiles reads that one file: nine hashicorp/kubernetes resources on the non-_v1 type names, kubernetes_api_service among them. ScanScript adds the stage additions the script declares itself: day2_count's kubernetes_config_map_v1, day2_crash's kubernetes_secret_v1 and kubernetes_config_map_v1 pair, and the strict scratch estate's random_password.`,
+	},
+	{
 		Name:       "reference-eks",
 		ConfigDirs: nil,
 		ScanScript: true,

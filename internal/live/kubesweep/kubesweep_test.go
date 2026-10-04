@@ -26,6 +26,9 @@ func TestKindOfType(t *testing.T) {
 		versioned bool
 		ok        bool
 	}{
+		// #1880: the join reads "ApiService"; the server lists APIService.
+		"kubernetes_api_service": {"APIService", false, true},
+
 		"kubernetes_config_map":                        {"ConfigMap", false, true},
 		"kubernetes_config_map_v1":                     {"ConfigMap", true, true},
 		"kubernetes_horizontal_pod_autoscaler_v2":      {"HorizontalPodAutoscaler", true, true},
