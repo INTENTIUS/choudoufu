@@ -369,11 +369,19 @@ func AssertMetadataMaps(block *configschema.Block, cfg, desired cty.Value) cty.V
 	if !ok {
 		return cfg
 	}
+	// sole already refused marked values; these are the guards
+	// internal/live/marksafe can see in this function's own body.
+	if to.IsMarked() {
+		return cfg
+	}
 	elemAttrs := to.AsValueMap()
 	for _, name := range []string{LabelSurfaceAttr, AnnotationSurfaceAttr} {
 		if _, has := nested.Block.Attributes[name]; has && from.Type().HasAttribute(name) && to.Type().HasAttribute(name) {
 			elemAttrs[name] = from.GetAttr(name)
 		}
+	}
+	if cfg.IsMarked() {
+		return cfg
 	}
 	vals := cfg.AsValueMap()
 	vals[LabelSurfaceBlock] = cty.ListVal([]cty.Value{cty.ObjectVal(elemAttrs)})
