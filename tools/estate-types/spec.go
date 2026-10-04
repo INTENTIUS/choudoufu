@@ -242,6 +242,19 @@ var estateSpecs = []estateSpec{
 		Note:       `The kubernetes lane's first published estate (#1067): grafana/quickpizza's own deployments/terraform root at v0.15.28, copied out of .corpus verbatim by live/e2e/corpus-quickpizza/run.sh with three deltas (the provider block's minikube kubeconfig lines dropped; placeholder values for the two Grafana Cloud secrets; wait_for_rollout = false on Alloy's Deployment, whose pod cannot become ready without a real token). 27 hashicorp/kubernetes resources over eight kinds plus a helm_release behind count = 0. ScanScript adds the two-instance count ConfigMap the script itself declares for day2_count, and its strict_block() heredoc's random_password.`,
 	},
 	{
+		Name:       "corpus-cloud-platform-components",
+		ConfigDirs: nil,
+		ScanScript: true,
+		ScanFiles: []string{
+			".corpus/cloud-platform/terraform/aws-accounts/cloud-platform-aws/vpc/eks/core/components/storage.tf",
+			".corpus/cloud-platform/terraform/aws-accounts/cloud-platform-aws/vpc/eks/core/components/rbac.tf",
+			".corpus/cloud-platform/terraform/aws-accounts/cloud-platform-aws/vpc/eks/core/components/manager-vpas.tf",
+			"live/e2e/corpus-cloud-platform-components/root/vpa-crd.tf",
+			"live/e2e/corpus-cloud-platform-components/root/vpa-namespaces.tf",
+		},
+		Note: `The kubernetes lane's StorageClass, PriorityClass and for_each-over-a-CRD estate (#1881): ministryofjustice/cloud-platform-infrastructure's cluster-components root at 6e1eca7be0. ConfigDirs is nil on purpose: the directory carries ~15 github.com/ministryofjustice/* module calls not in .corpus/_modules, an S3 backend, remote states and aws data sources, and live/e2e/corpus-cloud-platform-components/run.sh's write_root() copies only three of its files - storage.tf (three kubernetes_storage_class, and the kubectl_manifest gp2 flip, which the script moves to a stock-side root of its own), rbac.tf (three kubernetes_priority_class, two kubernetes_cluster_role_binding, a kubernetes_service_account) and manager-vpas.tf (kubernetes_manifest.vpa, for_each) - plus the two committed files root/vpa-crd.tf (two kubernetes_manifest CRDs, converted by convert.sh) and root/vpa-namespaces.tf (three kubernetes_namespace_v1), so ScanFiles names exactly those five. ScanScript adds the script's own day2_count kubernetes_manifest, day2_crash's kubernetes_secret_v1 and kubernetes_config_map_v1, and its strict_block() heredoc's random_password; live/e2e/lib/gauntlet.sh's day2_replace and crash-rename blocks are kubernetes_config_map and are in the library, not scanned.`,
+	},
+	{
 		Name:       "reference-eks",
 		ConfigDirs: nil,
 		ScanScript: true,
