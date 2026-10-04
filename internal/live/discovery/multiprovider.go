@@ -277,6 +277,14 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 		res.CacheVouchSightings = res.CacheVouchSightings.Union(p.Result.CacheVouchSightings)
 		res.DeclaredSightings = append(res.DeclaredSightings, p.Result.DeclaredSightings...)
 		res.Orphans = append(res.Orphans, p.Result.Orphans...)
+		// #1885: each pass answers only for the instances its own
+		// provider configuration reads, so the union is exact.
+		for a := range p.Result.FieldGranularUnheld {
+			if res.FieldGranularUnheld == nil {
+				res.FieldGranularUnheld = map[string]bool{}
+			}
+			res.FieldGranularUnheld[a] = true
+		}
 		// GitHub issue #1780: a deposed object a pass settled (the AWS
 		// collision's #361 recovery, or the Kubernetes leg's #1683) is
 		// marked handled in that pass - neither bound nor an orphan - and

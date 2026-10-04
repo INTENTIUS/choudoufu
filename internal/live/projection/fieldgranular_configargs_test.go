@@ -235,3 +235,69 @@ func TestFieldGranularReadsCarryTheConfigOnlyArguments(t *testing.T) {
 		}
 	}
 }
+
+// TestFieldGranularUnheldIsAbsentWithoutARead is reference-k8s-shared-
+// objects' day2_teardown (#1885): after app's apply -destroy released its
+// fields, app's re-apply planned by reading each field-granular instance,
+// and hashicorp/kubernetes 3.2.1's kubernetes_env Read panicked on the
+// container its release left with no env, killing the provider and every
+// read after it. Discovery's field-manager sweep already knows the
+// estate's manager owns nothing there; such an instance is absent - the
+// plan creates it, as stock's would with no state - and is never read.
+func TestFieldGranularUnheldIsAbsentWithoutARead(t *testing.T) {
+	const estate = "app"
+	cfg := loadConfig(t, "testdata/fieldgranular-config-args")
+	labels := mustAddr(t, `stub_labels.ns`)
+	env := mustAddr(t, `stub_env.web`)
+	ctx := context.Background()
+
+	p, priors := configArgsProvider(t, "choudoufu:app")
+	inner := p.ReadResourceFn
+	envReads := 0
+	p.ReadResourceFn = func(r providers.ReadResourceRequest) providers.ReadResourceResponse {
+		if r.TypeName == "stub_env" {
+			envReads++
+			var resp providers.ReadResourceResponse
+			resp.Diagnostics = resp.Diagnostics.Append(tfdiags.Sourceless(tfdiags.Error, "Plugin did not respond", "The plugin encountered an error, and failed to respond to the plugin6.(*GRPCProvider).ReadResource call."))
+			return resp
+		}
+		return inner(r)
+	}
+	provAddr := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("stub")}
+	res, diags := BuildWith(ctx, cfg, []identity.Resolution{
+		{Addr: labels, Class: identity.ClassConcrete, ImportID: "apiVersion=v1,kind=Namespace,name=shared",
+			IdentityValues: map[string]string{"api_version": "v1", "kind": "Namespace", "name": "shared"}},
+		{Addr: env, Class: identity.ClassConcrete, ImportID: "apiVersion=apps/v1,kind=Deployment,namespace=shared,name=web",
+			IdentityValues: map[string]string{"api_version": "apps/v1", "kind": "Deployment", "namespace": "shared", "name": "web"}},
+	}, SingleProvider(provAddr, p), Options{Ownership: &Ownership{Estate: estate, FieldGranularUnheld: map[string]bool{env.String(): true}}})
+	assertNoErrors(t, diags)
+	if envReads != 0 {
+		t.Errorf("stub_env.web was read %d time(s); the estate's manager owns nothing there, so it is absent without a read", envReads)
+	}
+	assertMaterialized(t, res, []string{`stub_labels.ns`})
+	assertOmitted(t, res, map[string]Reason{`stub_env.web`: ReasonAbsent})
+	if len(*priors) != 1 {
+		t.Errorf("%d reads reached the provider, want 1 (stub_labels.ns alone)", len(*priors))
+	}
+}
+
+// TestReadFailedDetailSaysTheProviderCrashed (#1885): a read the provider
+// process never answered is reported as a provider crash, with its panic
+// output when the plugin logger recorded one; any other failure keeps the
+// old sentence.
+func TestReadFailedDetailSaysTheProviderCrashed(t *testing.T) {
+	crashed := tfdiags.Diagnostics(nil).Append(tfdiags.Sourceless(tfdiags.Error, providerCrashedSummary, "The plugin encountered an error, and failed to respond to the plugin6.(*GRPCProvider).ReadResource call."))
+	got := readFailedDetail("kubernetes_env", "id", crashed, []string{"panic: interface conversion: interface {} is nil, not []interface {}"})
+	for _, want := range []string{"The provider crashed while reading the kubernetes_env", "panic: interface conversion"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("detail lacks %q:\n%s", want, got)
+		}
+	}
+	if got := readFailedDetail("kubernetes_env", "id", crashed, nil); !strings.Contains(got, "provider crashed") || !strings.Contains(got, "TF_LOG") {
+		t.Errorf("with no recorded panic the detail must still say the provider crashed and where its output is:\n%s", got)
+	}
+	other := tfdiags.Diagnostics(nil).Append(tfdiags.Sourceless(tfdiags.Error, "Forbidden", "no"))
+	if got := readFailedDetail("kubernetes_env", "id", other, []string{"panic: x"}); strings.Contains(got, "crashed") {
+		t.Errorf("an ordinary failure was called a crash:\n%s", got)
+	}
+}

@@ -335,6 +335,14 @@ func (leg KubernetesSweep) sweepFieldGranular(ctx context.Context, req Request, 
 	declared := map[string]bool{}
 	var pending []string
 	declaredCount := map[string]int{}
+	// owned is the declared instances this pass's provider configuration
+	// reads, by the object each patches: the population
+	// [Result.FieldGranularUnheld] answers for (#1885).
+	type ownedInstance struct {
+		addr     string
+		typeName string
+	}
+	owned := map[string][]ownedInstance{}
 	for _, r := range req.Resolutions {
 		t, ok := byType[r.Addr.Resource.Resource.Type]
 		if !ok || r.Undeclared {
@@ -349,8 +357,12 @@ func (leg KubernetesSweep) sweepFieldGranular(ctx context.Context, req Request, 
 			pending = append(pending, r.Addr.String())
 			continue
 		}
-		declared[fieldGranularObjectKey(apiVersion, kind, namespace, name)] = true
+		key := fieldGranularObjectKey(apiVersion, kind, namespace, name)
+		declared[key] = true
 		declaredCount[t.TypeName]++
+		if ownsInstance(req, r.Addr) {
+			owned[key] = append(owned[key], ownedInstance{addr: r.Addr.String(), typeName: t.TypeName})
+		}
 	}
 
 	// Gate and scope (GitHub issue #1863's follow-up ruling): the scan is
@@ -382,6 +394,8 @@ func (leg KubernetesSweep) sweepFieldGranular(ctx context.Context, req Request, 
 	var unclassified []string
 	listedAll := true
 	seen := map[string]bool{}
+	listedKinds := map[string]bool{}
+	heldOn := map[string]map[string]bool{}
 	for _, k := range kinds {
 		if seen[k.GVR.String()] || !wantKinds[k.GVR.Group+"|"+k.Kind] {
 			continue
@@ -404,8 +418,15 @@ func (leg KubernetesSweep) sweepFieldGranular(ctx context.Context, req Request, 
 			}
 			continue
 		}
+		listedKinds[k.GVR.Group+"|"+k.Kind] = true
 		for _, o := range objs {
-			if declared[fieldGranularObjectKey(o.APIVersion, o.Kind, o.Namespace, o.Name)] {
+			if key := fieldGranularObjectKey(o.APIVersion, o.Kind, o.Namespace, o.Name); declared[key] {
+				for _, m := range matchFieldGranular(leg.FieldGranular, o.APIVersion, o.Kind, o.Fields) {
+					if heldOn[key] == nil {
+						heldOn[key] = map[string]bool{}
+					}
+					heldOn[key][m.t.TypeName] = true
+				}
 				continue
 			}
 			matches := matchFieldGranular(leg.FieldGranular, o.APIVersion, o.Kind, o.Fields)
@@ -424,6 +445,31 @@ func (leg KubernetesSweep) sweepFieldGranular(ctx context.Context, req Request, 
 			default:
 				orphans = append(orphans, found{obj: o, match: matches[0]})
 			}
+		}
+	}
+
+	// #1885: a declared instance whose object's kind was listed, and on
+	// which the estate's manager owns no field this type writes - never
+	// written, or released (an apply of the empty map leaves the manager's
+	// entry owning only the empty container) - is absent, and the
+	// projection plans its create without reading it. hashicorp/kubernetes
+	// 3.2.1's kubernetes_env Read panics on a container with no env
+	// (getResponseEnvs' unchecked container["env"].([]interface{})), which
+	// is exactly what a released env leaves, and the crash takes every
+	// other read on the same provider with it.
+	for key, insts := range owned {
+		parts := strings.SplitN(key, "|", 3)
+		if !listedKinds[parts[0]+"|"+parts[1]] {
+			continue
+		}
+		for _, in := range insts {
+			if heldOn[key][in.typeName] {
+				continue
+			}
+			if res.FieldGranularUnheld == nil {
+				res.FieldGranularUnheld = map[string]bool{}
+			}
+			res.FieldGranularUnheld[in.addr] = true
 		}
 	}
 

@@ -155,6 +155,12 @@ type readPrep struct {
 	attrsSeed      map[string]cty.Value
 	attrsSeedMarks []cty.PathValueMarks
 
+	// unheld is #1885's answer from the field-manager sweep: a declared
+	// field-granular instance on whose object the estate's manager owns no
+	// field ([Ownership.FieldGranularUnheld]). It is absent, and no read
+	// is made.
+	unheld bool
+
 	// timeouts is the resource's own `timeouts` block, decoded to
 	// nanoseconds - GitHub issue #1185. Unlike attrsSeed it is not sent to
 	// the provider on the way IN: it is merged into the private blob the
@@ -446,6 +452,10 @@ func (b *builder) startRecordFirstPrefetch(ctx context.Context, resolutions []id
 // but the entry it was handed, and reads nothing from the builder.
 func runReadFetch(ctx context.Context, e *readFetch) {
 	p := e.prep
+	if p.unheld {
+		e.status = statusAbsent
+		return
+	}
 	e.obj, e.importStub, e.status, e.diags = importAndRead(
 		ctx, p.entry.provider, p.schema, e.want.addr.Resource.Resource.Type,
 		p.target, e.want.importID, e.want.values, p.attrsSeed, p.attrsSeedMarks,
