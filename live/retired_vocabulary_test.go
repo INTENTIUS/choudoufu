@@ -93,7 +93,7 @@ func TestRetiredVocabulary(t *testing.T) {
 		if strings.Contains(strings.ToLower(p), retiredWord) {
 			violations = append(violations, p+": the path itself contains "+retiredWord)
 		}
-		data, err := os.ReadFile(filepath.Join(root, p))
+		data, err := trackedContent(filepath.Join(root, p))
 		if err != nil {
 			if os.IsNotExist(err) {
 				// Deleted in the working tree but not yet staged.
@@ -127,6 +127,21 @@ func TestRetiredVocabulary(t *testing.T) {
 	for _, v := range violations {
 		t.Error(v)
 	}
+}
+
+// trackedContent is what git stores for a tracked path: the file's bytes,
+// or for a symlink the target it names (the tree has symlinks to
+// directories, which os.ReadFile cannot read).
+func trackedContent(path string) ([]byte, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		target, err := os.Readlink(path)
+		return []byte(target), err
+	}
+	return os.ReadFile(path)
 }
 
 // retiredWordVerdict returns "" when path may carry lines matching lines,
