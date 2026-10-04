@@ -54,8 +54,17 @@ procedure this implies.
 
 ## On Kubernetes
 
-Open. `live/GAUNTLET.md` stage 10 (day2_crash) kills an apply between one
-object's create and the next on kind, and the next plan must bind the
-created object by its label, namespace and name; it passes on every
-kind-lane gauntlet estate. That proof is the gauntlet's, with its own
-oracle and control, not a scenario here.
+### k8s-recovery-is-a-rerun
+
+    just smoke k8s-recovery-is-a-rerun
+    BREAK=1 just smoke k8s-recovery-is-a-rerun
+
+Needs `kind` and `kubectl`. An apply is SIGKILLed between one ConfigMap's
+create and the next one's. The first object exists and carries the label;
+the second was never sent; nothing was written that remembers either. The
+next plan binds the first by its label, namespace and name and proposes
+only what the killed run left undone; one re-run adds it, keeps the first
+object's uid, and replans empty. `BREAK=1` strips the label after the
+kill, and the plan must refuse the object by name. `live/GAUNTLET.md`
+stage 10 (day2_crash) measures the same property on every kind-lane
+gauntlet estate.

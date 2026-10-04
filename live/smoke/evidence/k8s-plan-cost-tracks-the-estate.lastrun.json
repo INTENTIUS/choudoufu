@@ -1,0 +1,16 @@
+{
+  "claim": "k8s-plan-cost-tracks-the-estate",
+  "provider": "kubernetes",
+  "target": "kind v0.32.0, Server Version: v1.37.0, one cluster per run, deleted afterwards",
+  "date": "2026-10-04",
+  "commit": "20bc8ccbcf5000878b084ea56ca5442cd11a2e79",
+  "command": "just smoke k8s-plan-cost-tracks-the-estate",
+  "verdict": "PASS: smoke scenario 'k8s-plan-cost-tracks-the-estate' - every claim held (smoke v1.0.0)",
+  "break_commit": "20bc8ccbcf5000878b084ea56ca5442cd11a2e79",
+  "break_command": "BREAK=1 just smoke k8s-plan-cost-tracks-the-estate",
+  "break_verdict": "PASS: smoke scenario 'k8s-plan-cost-tracks-the-estate' - the control (BREAK) caught what it broke, 1 proof line(s) (smoke v1.0.0)",
+  "break_controls": [
+    "caught: objects that are this estate's cost requests (74 -> 154), so the counter sees them, and step 3's equality is a comparison that can fail."
+  ],
+  "note": "The scenario's first run, both arms, on a developer machine and not CI, while it was still under live/smoke/drafts/ (run by the same smoke.sh, which falls back to drafts/). Every field but this note is copied from the two logs by a script. .github/workflows/k8s-smoke.yml runs this scenario and its BREAK=1 control nightly, so a green there is the continuous check and this file is the point-in-time record. It is stale the moment the scenario or the provider changes underneath it."
+}

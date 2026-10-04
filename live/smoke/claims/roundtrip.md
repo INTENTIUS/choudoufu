@@ -48,3 +48,21 @@ The steps as they print:
 The `BREAK=1` run skips the one command. The plan must then propose
 building a duplicate estate beside the real one, because turning on the
 live block never binds resources by itself - the markers do.
+
+## On Kubernetes
+
+### k8s-roundtrip
+
+    just smoke k8s-roundtrip
+    BREAK=1 just smoke k8s-roundtrip
+
+Needs `kind`, `kubectl` and `terraform`. Stock Terraform stands four
+objects up with a plain state file; one `live-import` labels them and
+leaves the state file byte for byte; the state file is deleted and the
+estate plans from labels. On the way out the cache is copied to
+`terraform.tfstate`, its provider address rewritten once with `terraform
+state replace-provider` (Terraform resolves `hashicorp/kubernetes`
+against its own registry), and stock's first plan may only remove the
+label and the annotation. Stock then converges and destroys all four.
+`BREAK=1` skips the `live-import`, and the live plan must refuse the
+unlabelled objects by name.

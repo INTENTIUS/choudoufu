@@ -38,3 +38,18 @@ cache on `-refresh=false`, vouched by the estate sweep, so one estate of a
 terralith plans at the speed of reading a file. `BREAK=1` deletes a
 resource out of band; the sweep no longer vouches it and the plan must
 surface it.
+
+## On Kubernetes
+
+### k8s-unchanged-is-free
+
+    just smoke k8s-unchanged-is-free
+    BREAK=1 just smoke k8s-unchanged-is-free
+
+Needs `kind` and `kubectl`. An unchanged estate is planned with
+`-refresh=false` through `live/smoke/k8sproxy.py`, under the default and
+under `CHOUDOUFU_READS=full`. The default serves the objects the label
+sweep vouched for from the cache and skips their reads (65 requests
+against 74 on the first run), and the two plans print the same answer.
+`BREAK=1` deletes the cache first, and the plan must serve nothing and pay
+the full price.
