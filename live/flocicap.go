@@ -120,6 +120,21 @@
 // ok=false only for the first two; picking the right mechanism argument for
 // the third is the caller's job, and [FlociTypeCapability]'s own doc comment
 // says which mechanism answers which question.
+//
+// The manifest describes the pinned image and nothing else (#697). It used
+// to keep every digest ever probed - 58 entries, 23MB, all of it embedded
+// here - while every lookup in the tree asks about exactly one digest, the
+// one live/floci-image pins. The 57 historical entries are emulator
+// description, which belongs beside the emulator rather than in the product
+// repository; the last commit that carried them is named in
+// live/FLOCI.md. tools/floci-capability-gen -mode=prune carves the file
+// back to the pin after a repin, and the top-level "image" field it writes
+// is registered in live/flociimage_test.go's flociImageFields, so a
+// manifest that has not caught up with a moved pin fails the same guard as
+// every other measured artifact. A digest other than the pin (a
+// FLOCI_IMAGE override) therefore finds no entry, which reads as "not yet
+// investigated" - the answer it would have got for any digest nobody had
+// probed.
 package residue
 
 import (
@@ -219,6 +234,7 @@ type flociImageArtifact struct {
 
 type flociCapabilitiesArtifact struct {
 	GeneratedBy string               `json:"generated_by"`
+	Image       string               `json:"image,omitempty"`
 	Images      []flociImageArtifact `json:"images"`
 }
 
