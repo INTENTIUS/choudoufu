@@ -522,8 +522,8 @@ func TestClassifyResidueStillRejectsGenuineDriftOnANonComputedAttribute(t *testi
 // which is aws_db_instance.password's shape reduced to this file's fixture:
 // a settable argument the provider marks sensitive, on a type whose other
 // arguments are ordinary. It is what GitHub issue #365's secrets setting is
-// about at both granularities at once - the attribute itself, and the
-// whole-type identity.CredentialMaterial veto its presence triggers.
+// about: the attribute itself, which refuse drops while keeping its
+// ordinary siblings (GitHub issue #1873 retired the whole-type veto).
 func secretLambdaSchema() providers.Schema {
 	s := lambdaLikeSchema()
 	s.Block.Attributes["filename"] = &configschema.Attribute{Type: cty.String, Optional: true, Sensitive: true}
@@ -554,9 +554,14 @@ func TestResidueCandidatesUnderSecretsStore(t *testing.T) {
 		}
 	})
 
-	t.Run("secrets=refuse takes the whole type back out", func(t *testing.T) {
-		if got := residueCandidates(secretLambdaSchema(), secretLambdaApplied(), strict.Refuse); len(got) != 0 {
-			t.Fatalf("candidates under secrets=refuse: %v, want none", got)
+	t.Run("secrets=refuse takes the sensitive attribute out and leaves the type's ordinary ones", func(t *testing.T) {
+		// GitHub issue #1873: refuse used to drop the whole type, which left
+		// an ordinary config-only argument beside a secret re-proposed on
+		// every plan. Exactly filename goes, nothing else does.
+		got := residueCandidates(secretLambdaSchema(), secretLambdaApplied(), strict.Refuse)
+		want := []string{"arn", "description", "function_name", "publish", "source_code_hash"}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("candidates under secrets=refuse: %v, want %v", got, want)
 		}
 	})
 
@@ -695,11 +700,19 @@ func TestResidueCandidatesExcludeSecretsAndIdentity(t *testing.T) {
 		}
 	})
 
-	t.Run("credential material excludes the whole type under secrets=refuse", func(t *testing.T) {
+	t.Run("credential material drops the secret, not the type, under secrets=refuse", func(t *testing.T) {
+		// Reversed by GitHub issue #1873: this used to assert that a
+		// sensitive attribute anywhere emptied the whole set. The secret
+		// itself must still be absent; its ordinary siblings must not be.
 		s := lambdaLikeSchema()
 		s.Block.Attributes["secret"] = &configschema.Attribute{Type: cty.String, Optional: true, Sensitive: true}
-		if got := residueCandidates(s, lambdaApplied(), strict.Refuse); len(got) != 0 {
-			t.Fatalf("a type carrying secret material produced candidates %v under secrets=refuse. The whole-type form of identity.CredentialMaterial is what that setting turns on.", got)
+		attrs := lambdaApplied().AsValueMap()
+		attrs["secret"] = cty.StringVal("hunter2")
+		applied := markSchemaSensitive(cty.ObjectVal(attrs), s.Block)
+		got := residueCandidates(s, applied, strict.Refuse)
+		want := []string{"arn", "description", "filename", "function_name", "publish", "source_code_hash"}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("candidates under secrets=refuse for a type carrying secret material: %v, want %v (the secret out, every ordinary argument in)", got, want)
 		}
 	})
 

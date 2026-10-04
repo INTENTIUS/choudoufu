@@ -421,14 +421,11 @@ const SummaryResidueUnreadable = "Residue record could not be read"
 // this function alone. The filter exists to keep the question small and to
 // keep three populations out of it entirely:
 //
-//   - Credential material, by [identity.CredentialMaterial] - the whole-type
-//     form, re-asked here rather than restated, so that a type whose schema
-//     grows a secret drops out the day it does. Under
-//     `strict { secrets = "store" }`, which is the default, this one does
-//     NOT apply: see "What the secrets setting moves here" below.
-//   - Sensitive attributes individually, which is the same rule at attribute
-//     granularity, and which the secrets setting moves with the whole-type
-//     form.
+//   - Sensitive attributes, individually, under
+//     `strict { secrets = "refuse" }`. Under `secrets = "store"`, which is
+//     the default, they are admitted: see "What the secrets setting moves
+//     here" below. The type that holds them is never dropped wholesale -
+//     see "Refuse drops the secret, not the type".
 //   - Write-only attributes, ALWAYS, whatever the secrets setting says. See
 //     below.
 //   - The identity: "id" and every attribute the provider's identity schema
@@ -443,8 +440,38 @@ const SummaryResidueUnreadable = "Residue record could not be read"
 // what stock OpenTofu does: an argument the provider never gives back is
 // remembered whether or not the provider marks it sensitive, because stock's
 // state file remembers it either way. [strict.Refuse] is what this file did
-// before the toggle existed, and it is exactly the two sensitivity
-// exclusions above.
+// before the toggle existed, and it is exactly the sensitivity exclusion
+// above.
+//
+// # Refuse drops the secret, not the type
+//
+// Until GitHub issue #1873 the refusing setting also dropped the WHOLE type
+// the moment [identity.CredentialMaterial] found a sensitive attribute
+// anywhere in its schema, so nothing at all was recorded for it.
+// kubernetes_secret_v1 is the case that showed the cost: its
+// `wait_for_service_account_token` is an ordinary boolean that only
+// configuration ever sets and the provider's Read never sources, so with no
+// record for it the estate proposed `+ wait_for_service_account_token` on
+// every plan and never converged. Nothing about that boolean is secret.
+//
+// The whole-type veto bought no safety the per-attribute one does not
+// already give. Every place a secret value can sit is refused on its own:
+// a sensitive flat attribute by the Sensitive check below; a sensitive
+// leaf at any depth by [residueLeafPathCandidates]'s identical per-leaf
+// check; a nested block with anything sensitive inside it by
+// [residueEligibleBlock], under both settings; a nested object attribute
+// by being out of scope entirely; and a value marked sensitive by anything
+// OTHER than the schema - a `sensitive = true` variable feeding an
+// otherwise ordinary argument - by [residueMarkRecoverable], which admits
+// a marked value only when the attribute itself is schema-Sensitive, and
+// that attribute is already gone. So under refuse no sensitive value can
+// reach this list, and what does reach it is exactly what the type would
+// record if its secrets were not there.
+//
+// A RECORD_BACKED type whose whole prior is the secret
+// ([identity.TypeIdentity.SecretMaterial]) is a different question and is
+// not asked here: under refuse it is refused at lint, at the resolver and
+// at live-import, before any residue is ever classified for it.
 //
 // Two things the setting does not reach, and they are not the same kind of
 // thing.
@@ -590,10 +617,10 @@ func residueCandidates(schema providers.Schema, applied cty.Value, secrets stric
 	if schema.Block == nil || applied == cty.NilVal || applied.IsNull() || !applied.Type().IsObjectType() {
 		return nil
 	}
+	// Under `secrets = "refuse"` the sensitive attributes are dropped one
+	// by one below, never the whole type: see "Refuse drops the secret, not
+	// the type" in this function's doc comment (GitHub issue #1873).
 	storing := strict.StoresSecrets(secrets)
-	if !storing && identity.CredentialMaterial(schema.Block) {
-		return nil
-	}
 	identityAttrs := residueStubIdentityAttrs(schema)
 
 	var out []string
@@ -709,10 +736,9 @@ func residueLeafPathCandidates(schema providers.Schema, applied cty.Value, secre
 	if schema.Block == nil || applied == cty.NilVal || applied.IsNull() || !applied.Type().IsObjectType() {
 		return nil
 	}
+	// Per leaf, never per type, under either setting: see
+	// [residueCandidates]'s "Refuse drops the secret, not the type".
 	storing := strict.StoresSecrets(secrets)
-	if !storing && identity.CredentialMaterial(schema.Block) {
-		return nil
-	}
 	var out []residuePathCandidate
 	for name, blk := range schema.Block.BlockTypes {
 		if blk == nil || !applied.Type().HasAttribute(name) {
