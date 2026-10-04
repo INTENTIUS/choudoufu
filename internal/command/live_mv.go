@@ -255,6 +255,17 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 			return nil, diags
 		}
 		recordStore = store
+		// GitHub issue #1859: the data-read phase below reads
+		// terraform_estate_outputs through the same store when an identity
+		// needs one (GitHub issue #1575), exactly as live-plan's does. A
+		// store this command went on without refuses every such read,
+		// naming why, rather than answering "needs a live block" to a
+		// configuration that has one.
+		unavailable := ""
+		if store == nil {
+			unavailable = "this live-mv could not open the record store (see the warning about it)"
+		}
+		c.liveEstateOutputs().open(store, config.Module.Live.RecordStore, estate, unavailable)
 	}
 
 	coreOpts, err := c.contextOpts(ctx)
