@@ -179,8 +179,8 @@ func TestArtifactAgreesWithManifest(t *testing.T) {
 			if key == "core" && r.Set != SetCore {
 				continue
 			}
-			if r.Substrate != "" {
-				continue // the two bars are the emulator's; a kind row is counted in its lane (#1067)
+			if !RunsOnFloci(r.Substrate) {
+				continue // the two bars are the emulator's, floci-eks included (#1113); a kind row is counted in its lane (#1067)
 			}
 			n++
 			if r.Clear {
@@ -472,7 +472,7 @@ func TestBoardWideEmulatorClaimMatchesRows(t *testing.T) {
 		// records SubstrateImage instead (#1594); emulatorGroups excludes
 		// it from the banner the same way, so the claim is judged over
 		// emulator rows only.
-		if r.LastRun == nil || r.Substrate != "" {
+		if r.LastRun == nil || !RunsOnFloci(r.Substrate) {
 			continue
 		}
 		seen[r.LastRun.Emulator]++

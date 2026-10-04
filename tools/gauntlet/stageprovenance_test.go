@@ -701,7 +701,7 @@ func TestCommittedTallyAgreesWithTheBoard(t *testing.T) {
 	for key := range SetLabels {
 		key := key
 		check(key, a.Sets[key], func(r EstateResult) bool {
-			if r.Substrate != "" {
+			if !RunsOnFloci(r.Substrate) {
 				return false
 			}
 			return key != "core" || r.Set == SetCore
