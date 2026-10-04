@@ -126,7 +126,7 @@ func KindOfType(typeName string) (kind string, versioned bool, ok bool) {
 		r[0] = unicode.ToUpper(r[0])
 		b.WriteString(string(r))
 	}
-	return b.String(), versioned, true
+	return builtinKindSpelling(b.String()), versioned, true
 }
 
 // KindTypes groups provider resource type names by the kind they manage:

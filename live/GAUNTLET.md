@@ -31,7 +31,7 @@ change that lowers the bars until estates catch up; a non-headline stage
 moving either bar.
 
 A headline stage marked "tier-1 gated" below (#999) activates on tier-1
-fixture evidence (`live/behaviors.json`, #522's ruling) rather than on 36
+fixture evidence (`live/behaviors.json`, #522's ruling) rather than on 37
 hand-written per-estate sections: an estate that has never been asked to
 run it reads `not_run` and stays clear, while a genuine `fail` on it still
 breaks clear, exactly as any other headline stage.
@@ -423,7 +423,7 @@ Check `live/estate-types.json` (`go run ./tools/estate-types`, issue #435)
 before proposing one: it lists, from real committed or fetched
 configuration and no gauntlet run, every resource type each estate in the
 manifest already exercises. As of that artifact's last run, it reports
-36 estates exercising 196 distinct types between them, of which 118 no
+37 estates exercising 206 distinct types between them, of which 128 no
 cohort fixture covers yet (`totals.estates`, `totals.distinct_types`,
 `totals.types_in_no_cohort`; these figures are rendered from the
 artifact by `gauntlet render`, so they can only be as current as the
