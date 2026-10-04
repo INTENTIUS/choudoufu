@@ -192,6 +192,12 @@ func (b *builder) fillResidueFor(ctx context.Context, addr addrs.AbsResourceInst
 	if !residueFound {
 		return
 	}
+	if b.opts.Ownership != nil && fieldGranularMarked(b.opts.Ownership.Estate) && fieldGranularOwned("", schema) {
+		// #1885: the read was made under the estate's field manager, which
+		// the provider echoes and never reads back; a record of the stock
+		// manager must not replace it. See fieldgranular_configargs.go.
+		attrs = withoutEstateManagerResidue(attrs)
+	}
 
 	secrets := identity.SecretsFor(b.cfg)
 	filled, n := fillResidue(obj.Value, schema.Block, attrs, secrets, importStub)
