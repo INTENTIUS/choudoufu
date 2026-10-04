@@ -83,6 +83,29 @@ const INSTALL_GH =
   `install /tmp/gh_${GH_VERSION}_linux_amd64/bin/gh /usr/local/bin/gh && gh --version`;
 
 /**
+ * The tools `backend-prepare` needs and no other job does: the AWS CLI and
+ * jq, which `examples/record-store-bucket`'s `just up` reads the live bucket
+ * with, and `just` itself. `scripts/backend-prepare.sh` calls that project's
+ * recipes rather than carrying a copy of them, so the job needs what the
+ * recipes need (#1832).
+ *
+ * `awscli` and `jq` come from the image's own Debian archive, whose packages
+ * apt verifies against the archive's signing key; neither ships a release
+ * checksum to pin the way choudoufu and `gh` are pinned above, and AWS
+ * publishes none for its CLI bundle. `just` does publish one, and is pinned
+ * by version and by the SHA256 its release's `SHA256SUMS` names.
+ */
+const JUST_VERSION = "1.58.0";
+const JUST_SHA256 = "4a5cc2f53e6f0f8c59092a6cc38291eb729d46a7dd95d3ae582008881b84931d";
+const JUST_ASSET = `just-${JUST_VERSION}-x86_64-unknown-linux-musl.tar.gz`;
+const INSTALL_BACKEND_TOOLS =
+  `apt-get update -qq && apt-get install -y -qq --no-install-recommends awscli jq > /dev/null && ` +
+  `curl -fsSL -o /tmp/${JUST_ASSET} https://github.com/casey/just/releases/download/${JUST_VERSION}/${JUST_ASSET} && ` +
+  `echo "${JUST_SHA256}  /tmp/${JUST_ASSET}" | sha256sum -c - && ` +
+  `tar -xzf /tmp/${JUST_ASSET} -C /usr/local/bin just && ` +
+  `aws --version && jq --version && just --version`;
+
+/**
  * The job image. `node:22-slim`, the generator's own default, carries neither
  * curl nor git, so neither the install line above nor `actions/checkout`'s
  * git path works in it. `node:22` carries curl, git, tar and sha256sum, and
@@ -152,7 +175,7 @@ const OIDC: ScheduledOpSpec["permissions"] = { "id-token": "write" };
  * so the one job every pull request runs is the one job that cannot print a
  * credential - the whole point of #1028.
  */
-function forgejoKeyPair(name: "PLAN" | "ADOPT" | "APPLY"): NonNullable<ScheduledOpSpec["variables"]> {
+function forgejoKeyPair(name: "PLAN" | "ADOPT" | "APPLY" | "BACKEND"): NonNullable<ScheduledOpSpec["variables"]> {
   return {
     AWS_ACCESS_KEY_ID: `\${{ secrets.CHOUDOUFU_${name}_ACCESS_KEY_ID }}`,
     AWS_SECRET_ACCESS_KEY: `\${{ secrets.CHOUDOUFU_${name}_SECRET_ACCESS_KEY }}`,
@@ -160,13 +183,15 @@ function forgejoKeyPair(name: "PLAN" | "ADOPT" | "APPLY"): NonNullable<Scheduled
 }
 
 /**
- * The five Ops, as the jobs a governance policy can name.
+ * The six Ops, as the jobs a governance policy can name.
  *
  * The per-environment dial is which Op an environment runs, not three copies
  * of the root: dev observes on every pull request (`live-check`, `live-plan`),
  * staging reconciles behind its gate (`live-adopt`, on a push to `staging`),
  * production applies behind its gate (`live-apply`, on a push to `main`), and
  * `live-discover` sweeps the account on its own cron regardless.
+ * `backend-prepare` sits underneath all of them: it stands up the record
+ * store bucket the other five read and write, on a push to `bootstrap`.
  */
 export function specs(): ScheduledOpSpec[] {
   const github = forge === "github";
@@ -243,6 +268,29 @@ export function specs(): ScheduledOpSpec[] {
         ? { setup: [...assumeRole("CHOUDOUFU_PLAN_ROLE_ARN"), ...ghSetup], permissions: OIDC }
         : forgejo
           ? { variables: forgejoKeyPair("PLAN") }
+          : {}),
+    },
+    {
+      // #1832, #1244 ruling 3. A push to `bootstrap`, not `main`: standing a
+      // bucket up is rare and deliberate, and a gate on every merge is a gate
+      // people learn to click through. See backend-prepare.op.ts.
+      name: "backend-prepare",
+      trigger: { kind: "push", branches: ["bootstrap"] },
+      findingMode: "report",
+      // Its own role, not the apply role. Creating a bucket and writing its
+      // policy is a strictly larger permission than anything else in this
+      // project holds, and the apply role must never hold it: a role that can
+      // rewrite the bucket policy can lock every run out of its own records.
+      // Likewise its own Forgejo key pair. No `environment`: chant's own gate
+      // inside the Op is unconditional, and the one protected environment
+      // this example declares is production's.
+      ...(oidcForge
+        ? {
+            setup: [...assumeRole("CHOUDOUFU_BACKEND_ROLE_ARN"), { run: INSTALL_BACKEND_TOOLS }],
+            permissions: OIDC,
+          }
+        : forgejo
+          ? { setup: [{ run: INSTALL_BACKEND_TOOLS }], variables: forgejoKeyPair("BACKEND") }
           : {}),
     },
   ];
