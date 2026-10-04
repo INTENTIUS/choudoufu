@@ -3140,7 +3140,13 @@ const (
 	// internal/live/identity/testdata/module-count-sensitive and
 	// module-count-ephemeral with a ./user child each. The ephemeral pair
 	// refuses, so it adds no rows; the sensitive pair adds two.
-	identityGoldenPinDirs = 688
+	//
+	// 688 -> 689 for #1575: one fixture directory,
+	// internal/live/dataread/testdata/estate-outputs-read. Its one
+	// instance's identity needs a data read the golden's schema-less sweep
+	// does not perform, so it adds no row: instances and body-sha256 are
+	// unchanged. fixture-dirs 657 -> 658 on the same row.
+	identityGoldenPinDirs = 689
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).
