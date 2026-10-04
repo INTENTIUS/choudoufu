@@ -320,7 +320,7 @@ type contentVerdict int
 
 const (
 	// contentUnknown is the usual answer, and the reason content is optional:
-	// the type has no identity-bearing arguments stateless mode will match on, or
+	// the type has no identity-bearing arguments live mode will match on, or
 	// the declared instance's argument comes from each.value and cannot be
 	// read from configuration alone, or the provider sent no object.
 	contentUnknown contentVerdict = iota

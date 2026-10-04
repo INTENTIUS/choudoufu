@@ -15,6 +15,7 @@
 //	go run ./tools/gauntlet import-legacy          # one-time seed from live/corpus-crossing-manifest.json
 //	go run ./tools/gauntlet snapshot <version>     # copy the artifact to live/history/<version>.json
 //	go run ./tools/gauntlet notes <old.json> <new.json> # release-highlights markdown from a snapshot diff
+//	go run ./tools/gauntlet set-notes -estate <name> -file <path> # replace one row's free-text notes and nothing else (#1374)
 //	go run ./tools/gauntlet check                  # exit 1 if a rendered file is stale; always prints which rows predate their own estate script (#1264, reported, never fatal)
 //	go run ./tools/gauntlet estates [-set core|all] [-json] [name...] # the estates one CI run measures, from the manifest: the matrix the board is sharded over (#1550)
 //	go run ./tools/gauntlet combine-shards -shards <dir> [-set core|all | -estates 'a b'] [-kind-image DIGEST] # fold one shard-per-estate CI run back into one live/gauntlet.json (#1550)
@@ -71,6 +72,8 @@ func main() {
 		fatalIf(cmdSnapshot(root, os.Args[2]))
 	case "notes":
 		fatalIf(cmdNotes(root, os.Args[2:]))
+	case "set-notes":
+		fatalIf(cmdSetNotes(root, os.Args[2:], os.Stdout))
 	case "merge-rendered":
 		fatalIf(cmdMergeRendered(os.Args[2:], os.Stdout))
 	case "merge-artifact":
@@ -111,7 +114,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | live-cert-state <estate> [-commit SHA] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | estates [-set core|all] [-json] [name...] | combine-shards -shards <dir> [-set core|all] [-estates 'a b'] [-commit SHA] [-emulator DIGEST] [-kind-image DIGEST] [-out path] | merge-artifact <base> <ours> <theirs> | merge-rendered <path> <ours-file> | scale-backfill [rev...] | scale-import-slice [-estate name] <slice_out.json> | scale-patch-seconds -estate E -target T -scale N [-stage id=seconds]... [-note text] [-accounting-inconsistent] | backfill-stage-provenance [-n] | check")
+	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | live-cert-state <estate> [-commit SHA] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | set-notes -estate <name> -file <path> | estates [-set core|all] [-json] [name...] | combine-shards -shards <dir> [-set core|all] [-estates 'a b'] [-commit SHA] [-emulator DIGEST] [-kind-image DIGEST] [-out path] | merge-artifact <base> <ours> <theirs> | merge-rendered <path> <ours-file> | scale-backfill [rev...] | scale-import-slice [-estate name] <slice_out.json> | scale-patch-seconds -estate E -target T -scale N [-stage id=seconds]... [-note text] [-accounting-inconsistent] | backfill-stage-provenance [-n] | check")
 }
 
 // cmdNext prints the next unit(s) of work, deterministically, from the

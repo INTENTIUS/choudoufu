@@ -88,13 +88,13 @@ type Local struct {
 	// If this is nil, local performs normal state loading and storage.
 	Backend backend.Backend
 
-	// Stateless, if non-nil, puts this backend into the fork's stateless
+	// LiveRun, if non-nil, puts this backend into the fork's live
 	// mode: the state manager persists no AUTHORITATIVE state (only the
 	// disposable cache, issue #685) and the prior state is a
 	// projection of the live system. See live.go. Nil - the case for
 	// every configuration without a "live" block - leaves every code
 	// path below exactly as it was.
-	Stateless StatelessRun
+	LiveRun LiveRun
 
 	// opLock locks operations
 	opLock sync.Mutex
@@ -262,8 +262,8 @@ func (b *Local) StateMgr(ctx context.Context, name string) (statemgr.Full, error
 	// allowed to be stale or missing. This is deliberately the first thing
 	// here: everything below creates something in the workspace directory
 	// on disk.
-	if b.Stateless != nil {
-		return b.Stateless.StateMgr(), nil
+	if b.LiveRun != nil {
+		return b.LiveRun.StateMgr(), nil
 	}
 
 	// If we have a backend handling state, delegate to that.

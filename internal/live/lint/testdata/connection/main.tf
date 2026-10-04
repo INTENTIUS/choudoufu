@@ -2,7 +2,7 @@
 # provisioner block at all, so the rule has to catch the connection on its own.
 
 resource "aws_s3_bucket" "data" {
-  bucket = "tofu-stateless-lint-data"
+  bucket = "tofu-live-lint-data"
 
   connection {
     type = "ssh"

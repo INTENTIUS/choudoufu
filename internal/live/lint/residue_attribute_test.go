@@ -239,7 +239,7 @@ resource "aws_vpc" "main" {
 // TestResidueAttributesCannotSeeS3ObjectContent documents the blind spot
 // rather than papering over it: aws_s3_object.content is the founding
 // example of issue #126 - the provider's Read never fetches an object body,
-// so a stateless replan re-proposes `content` forever - and it produces NO
+// so a live replan re-proposes `content` forever - and it produces NO
 // warning here, asserted on purpose. Its schema reads
 // optional/not-sensitive/not-write-only, indistinguishable from any
 // ordinary argument; the unreadability is provider behavior the schema

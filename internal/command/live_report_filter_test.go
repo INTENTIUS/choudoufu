@@ -124,8 +124,8 @@ func TestLivePlanFilterDocument(t *testing.T) {
 	full := views.LivePlanDocument{
 		Estate:    "app",
 		Bound:     []views.LivePlanBound{{Addr: "aws_s3_bucket.a"}},
-		Omissions: []views.StatelessOmission{{Addr: "aws_vpc.x", Reason: "NEEDS_DISCOVERY"}},
-		Unowned:   []views.StatelessUnowned{{Addr: "aws_s3_bucket.b"}},
+		Omissions: []views.LiveOmission{{Addr: "aws_vpc.x", Reason: "NEEDS_DISCOVERY"}},
+		Unowned:   []views.LiveUnowned{{Addr: "aws_s3_bucket.b"}},
 		Adoptable: []views.LivePlanAdoptable{},
 		Foreign:   nil,
 		Swept:     []string{"aws_s3_bucket"},

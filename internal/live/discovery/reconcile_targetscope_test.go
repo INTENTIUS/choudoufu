@@ -32,7 +32,7 @@ func reconcileScopeCloud() *fakeCloud {
 // scopeKeepingReconcileTargeted keeps the two candidates whose synthetic
 // address names an import ID containing "targeted". It is deliberately a
 // scope that answers TRUE for something, which no scope
-// [statelessTargetScope] builds ever does for a reconciliation candidate -
+// [liveTargetScope] builds ever does for a reconciliation candidate -
 // see [ReconcileRequest.inScope]. A test that only ever used a real scope
 // could not tell "narrows correctly" from "goes silent whenever narrowed",
 // because both produce an empty roster.

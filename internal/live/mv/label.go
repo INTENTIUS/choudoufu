@@ -330,7 +330,7 @@ func (m *mover) relabel(ctx context.Context, prior *states.ResourceInstanceObjec
 	}
 
 	m.res.Written = true
-	log.Printf("[TRACE] stateless/mv: rewrote the markers on %s %s: tofu-estate %q -> %q, %s -> %q",
+	log.Printf("[TRACE] live/mv: rewrote the markers on %s %s: tofu-estate %q -> %q, %s -> %q",
 		m.res.TypeName, m.res.LiveID, m.sourceEstate(), m.req.Estate, markers.AddressAnnotation, m.res.NewMarker)
 
 	return diags.Append(m.verifyLabel(newState))

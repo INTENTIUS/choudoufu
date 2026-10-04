@@ -15,7 +15,7 @@ import (
 // LogicalClass is the record-backed classification of a logical, store-only
 // resource type: what its whole existence turns on, and therefore whether
 // GitHub issue #73's persisted micro-state record could ever stand in for
-// the authoritative state a stateless run has none of.
+// the authoritative state a live run has none of.
 //
 // Replaces logicalTypePrefixes' plain "which prefix matched" answer with a
 // policy-grade one, per type name rather than per family, so that the #73

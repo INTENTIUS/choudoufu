@@ -237,7 +237,7 @@ For example, execute the command to run integration tests with s3 backend:
 make test-s3
 ```
 
-The stateless mode has an integration tier of its own. It runs the built
+Live mode has an integration tier of its own. It runs the built
 binary against floci (`floci/floci:latest`), a local AWS emulator in a Docker
 container, applying real estates and reading them back with the AWS CLI
 rather than through tofu: what it covers is discovery, marker stamping,

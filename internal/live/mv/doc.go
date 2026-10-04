@@ -3,7 +3,7 @@
 // Copyright (c) 2023 HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-// Package mv performs the rename operation stateless mode has instead of
+// Package mv performs the rename operation live mode has instead of
 // `moved` blocks and state surgery: it rewrites the tofu-address ownership
 // marker on one live resource.
 //

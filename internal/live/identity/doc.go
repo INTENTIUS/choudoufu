@@ -5,7 +5,7 @@
 
 // Package identity classifies the identity of every managed resource
 // instance in a configuration, using nothing but the configuration itself.
-// It is the first half of stateless mode's answer to "what already exists":
+// It is the first half of live mode's answer to "what already exists":
 // before anything is read from the cloud, this package decides which
 // resources OpenTofu can already name, which ones it can name once their
 // parents are known, and which ones only a discovery pass can find.

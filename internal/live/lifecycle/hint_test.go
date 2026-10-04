@@ -18,12 +18,12 @@ import (
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 )
 
-// TestStatelessHintAgainstFloci is issue #109's live half: it drives the
-// same two plain commands as [TestStatelessLifecycleAgainstFloci] against a
+// TestLiveHintAgainstFloci is issue #109's live half: it drives the
+// same two plain commands as [TestLiveLifecycleAgainstFloci] against a
 // real (emulated) cloud, but with a "record_store" block in the live block,
 // and checks the three claims the guided-discovery hint makes:
 //
-//	TF_FLOCI_TEST=1 go test ./internal/live/lifecycle/ -run TestStatelessHintAgainstFloci -v
+//	TF_FLOCI_TEST=1 go test ./internal/live/lifecycle/ -run TestLiveHintAgainstFloci -v
 //
 //	1. An apply with a record_store persists the hint into that store,
 //	   after the run, naming the estate and the resource types the run
@@ -41,8 +41,8 @@ import (
 // It runs on its own floci container on its own port, entirely independent
 // of P4.1's lifecycle test, so the two can run concurrently without
 // colliding.
-func TestStatelessHintAgainstFloci(t *testing.T) {
-	flocitest.Gate(t, "stateless hint")
+func TestLiveHintAgainstFloci(t *testing.T) {
+	flocitest.Gate(t, "live hint")
 	flocitest.RequireBinary(t, "docker")
 	flocitest.RequireBinary(t, "aws")
 	flocitest.RequireBinary(t, "go")

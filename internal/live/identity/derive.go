@@ -27,7 +27,7 @@ import (
 // property of the type, and concrete-versus-parent-derived is a property
 // of the instance, decided by [Resolve] from the argument's expression.
 //
-// Nor does derivability say a type belongs in the stateless subset. An
+// Nor does derivability say a type belongs in the live-mode subset. An
 // aws_iam_access_key is derivable in the weaker sense that a live read
 // could name it, and is excluded from the subset anyway, because the
 // secret half is unreadable after create (the hand exclusion the retired

@@ -53,8 +53,8 @@ func (c StateShowCommand) Execute(args *arguments.StateShow, view views.State) i
 
 	ctx := c.CommandContext()
 
-	// See statelessStateGuard: refused before anything reaches a state manager.
-	if guardDiags := c.statelessStateGuard(ctx, "show"); guardDiags.HasErrors() {
+	// See liveStateGuard: refused before anything reaches a state manager.
+	if guardDiags := c.liveStateGuard(ctx, "show"); guardDiags.HasErrors() {
 		view.Diagnostics(diags.Append(guardDiags))
 		return 1
 	}

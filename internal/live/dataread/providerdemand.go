@@ -26,7 +26,7 @@ import (
 //
 // The wall it closes: "provider.kubernetes { host = data.aws_eks_cluster.
 // cluster.endpoint }" is refused today not by anything in this package, but
-// by internal/command's statelessProviders.providerConfigValue decoding the
+// by internal/command's projectionProviders.providerConfigValue decoding the
 // block through the module's bare StaticEvaluator - no data lookup, no
 // module-output lookup, nothing this phase already built for every OTHER
 // static-context caller. This class makes the same demand-then-read
@@ -51,7 +51,7 @@ import (
 // Fatality is the SAME as [AnalyzeRootOutputs], for the same reason: a
 // source this class cannot read is SCOPED, never fatal. A provider whose
 // configuration cannot be resolved this way is not a new failure mode -
-// internal/command's statelessProviders.ConfiguredProvider already reports
+// internal/command's projectionProviders.ConfiguredProvider already reports
 // "Provider unavailable" for it, unchanged, the moment something tries to
 // use it. Making THIS phase fatal over the same gap would only turn one
 // clear diagnostic into two.
@@ -110,7 +110,7 @@ func AnalyzeProviderConfigs(ctx context.Context, cfg *configs.Config, opts Optio
 // Fatality is unchanged by this function: it records demand and nothing
 // else. Whether a provider whose block refers to a cluster that does not
 // exist yet can be configured is decided where it always has been,
-// [statelessProviders.providerConfigValue] in internal/command.
+// [projectionProviders.providerConfigValue] in internal/command.
 func (an *analyzer) providerManagedDemand(cfg *configs.Config) {
 	record := func(d *hcl.Diagnostic) {
 		if d == nil {
@@ -261,7 +261,7 @@ func ReadProviderConfigsMemo(ctx context.Context, cfg *configs.Config, analysis 
 
 // providerConfigDataDemand walks every provider block declared anywhere in
 // the module tree - [configs.Module.ProviderConfigs], root and every
-// descendant, the same population [statelessProviders.providerConfigValue]
+// descendant, the same population [projectionProviders.providerConfigValue]
 // itself may decode a block from - and returns every data resource its own
 // arguments can reach, module and neededBy included. Deterministic: modules
 // in path order, provider configs within a module sorted by local name then

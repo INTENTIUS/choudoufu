@@ -217,7 +217,7 @@ log "  untouched records (random_pet, time_static) are byte-identical; the repla
 
 # ── 6. destroy, by removing the resource blocks and re-applying ─────────
 # `choudoufu destroy` (-destroy planning mode) is refused outright under
-# live resource markers today (statelessRejections, internal/command/
+# live resource markers today (liveRejections, internal/command/
 # live_mode.go): "removing a resource from the configuration is the tested
 # way to have it destroyed." So that is what this step does, exactly the
 # way live/e2e/run.sh's own removal steps do: emptying the resource blocks

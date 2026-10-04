@@ -43,7 +43,7 @@ const (
 	awsRegion = "us-east-1"
 
 	// terraformBin stands the estate up. Stock terraform on purpose: the
-	// estate this classification runs over must be one stateless mode did
+	// estate this classification runs over must be one live mode did
 	// not create.
 	terraformBin = "terraform"
 
@@ -116,7 +116,7 @@ func TestForeignAgainstFloci(t *testing.T) {
 	if vpcID == "" || vpcID == "None" {
 		t.Fatalf("the estate's VPC could not be found by its marker")
 	}
-	foreignName := fmt.Sprintf("stateless-e2e-foreign-%d", os.Getpid())
+	foreignName := fmt.Sprintf("live-e2e-foreign-%d", os.Getpid())
 	foreignSG := flocitest.AWSCLI(t, flociPort, "ec2", "create-security-group",
 		"--group-name", foreignName,
 		"--description", "unmanaged, no tofu-estate marker",
@@ -152,7 +152,7 @@ func TestForeignAgainstFloci(t *testing.T) {
 	//
 	// TOFU_LIVE_COLLECT_UNCLAIMED=1 rather than -adoption-only, because the
 	// adoption-only view drops the Foreign section this test reads
-	// (views.StatelessAdoptionHuman.Foreign is a no-op), and it is the
+	// (views.LiveAdoptionHuman.Foreign is a no-op), and it is the
 	// question, not the renderer, that the ruling put behind a switch.
 	output := runLivePlan(t, tofuBin, dir, []string{collectUnclaimedEnv + "=1"})
 

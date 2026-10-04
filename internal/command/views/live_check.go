@@ -14,7 +14,7 @@ import (
 // LiveCheckReport is one configuration's verdict, in a form this package can
 // render without importing internal/live/check.
 //
-// It follows [StatelessMvReport]'s convention for the same reason: the
+// It follows [LiveMvReport]'s convention for the same reason: the
 // analysis package decides what is true, and this package decides how it
 // reads. The fields are already-decided facts - the ranking, the site cap
 // and the type summarization all happen before a report gets here.

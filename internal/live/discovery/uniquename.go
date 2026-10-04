@@ -308,7 +308,7 @@ func (idx *uniqueNameIndex) bind(req Request, typeName string, scan *TypeScan, r
 			}
 			entries[0].claimants = append(entries[0].claimants, c)
 			scan.NameBound++
-			log.Printf("[DEBUG] stateless/discovery: bound %s to the live %s named %q (Cloud Control identifier %q), read from %s; the name is documented unique per account and region",
+			log.Printf("[DEBUG] live/discovery: bound %s to the live %s named %q (Cloud Control identifier %q), read from %s; the name is documented unique per account and region",
 				entries[0].res.Addr, typeName, name, found[0].identifier, idx.property)
 		default:
 			diags = diags.Append(problemDiag(res, Problem{

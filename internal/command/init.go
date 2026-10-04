@@ -241,7 +241,7 @@ To initialize the configuration already in this working directory, omit the
 		//
 		// Leaving back nil skips all of it, including the "use the state as
 		// a source of provider dependencies" step below - correct, because a
-		// stateless run derives every resource's provider from the
+		// live run derives every resource's provider from the
 		// configuration on each run, so there is no state-only provider for
 		// that step to find.
 		//

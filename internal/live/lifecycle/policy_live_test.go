@@ -66,7 +66,7 @@ func TestPolicyMatrixAgainstFloci(t *testing.T) {
 	//
 	// This is what makes aws_vpc.main declared_tagged going into step 1: an
 	// estate with today's fixed behavior, exactly like
-	// TestStatelessLifecycleAgainstFloci, so that "untag" has a marker to
+	// TestLiveLifecycleAgainstFloci, so that "untag" has a marker to
 	// release rather than one this test planted by hand.
 	writeFixture(t, dir, pmFixture(true, "", nil))
 	flocitest.Run(t, dir, tofuBin, "init", "-input=false", "-no-color")

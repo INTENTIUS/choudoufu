@@ -137,7 +137,7 @@ func TestRefuseWritesNoStateCacheEndToEnd(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				const anchor = "    estate = \"stateless-unit\"\n"
+				const anchor = "    estate = \"live-unit\"\n"
 				if !strings.Contains(string(raw), anchor) {
 					t.Fatalf("the fixture no longer has the line this test edits: %q", anchor)
 				}
@@ -151,11 +151,11 @@ func TestRefuseWritesNoStateCacheEndToEnd(t *testing.T) {
 			t.Setenv("TF_DATA_DIR", dataDir)
 			t.Setenv(EnvStateCache, "")
 
-			cloud := newStatelessTestCloud()
+			cloud := newLiveTestCloud()
 			view, done := testView(t)
 			c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
-			var captured *statelessRunner
-			defer statelessRunnerTestHook(func(r *statelessRunner) { captured = r })()
+			var captured *liveRunner
+			defer liveRunnerTestHook(func(r *liveRunner) { captured = r })()
 
 			code := c.Run([]string{"-no-color", "-auto-approve"})
 			output := done(t)

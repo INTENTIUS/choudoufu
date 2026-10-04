@@ -7,7 +7,7 @@
 // the escaping rule that lets a resource address live in a tag value, and the
 // reading of those tags off a live object.
 //
-// It is a leaf package with no stateless-mode dependencies on purpose. The
+// It is a leaf package with no live-mode dependencies on purpose. The
 // marker vocabulary is the one integration surface the whole fork - and
 // anything outside it that honors the spec - agrees on, so every package that
 // writes a marker (stamp), reads one (discovery, projection) or rewrites one
@@ -34,7 +34,7 @@ import (
 
 // The three marker tag keys, from live/MARKERS.md. They are the entire
 // integration surface between this package and anything else that manages
-// resources in a stateless estate.
+// resources in a live-mode estate.
 const (
 	// TagEstate names the estate that owns the resource.
 	TagEstate = "tofu-estate"

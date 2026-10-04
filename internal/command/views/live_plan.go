@@ -14,7 +14,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/format"
 )
 
-// StatelessOmission is one resource instance that the stateless projection
+// LiveOmission is one resource instance that the live projection
 // could not read from the live system, in a form this package can render
 // without importing the projection builder.
 //
@@ -27,13 +27,13 @@ import (
 // type, per the issue's own text ("marshal these same structs...rather than
 // re-deriving the data") - it was already exactly the JSON-ready shape the
 // issue asks for, just without tags naming the keys.
-type StatelessOmission struct {
+type LiveOmission struct {
 	Addr   string `json:"addr"`
 	Reason string `json:"reason"`
 	Detail string `json:"detail"`
 }
 
-// StatelessForeign is the foreign classification of one discovery pass, in a
+// LiveForeign is the foreign classification of one discovery pass, in a
 // form this package can render without importing the classifier.
 //
 // The fields correspond to foreign.Result: the live resources nobody claims,
@@ -41,43 +41,43 @@ type StatelessOmission struct {
 // adoption, the counts belonging to other estates, and - the part that must
 // never be dropped for being boring - which resource types the sweep can
 // speak for at all.
-type StatelessForeign struct {
+type LiveForeign struct {
 	// Estate is the estate the classification was drawn around.
 	Estate string
 
 	// Items are the foreign resources: report only, never deletion
 	// candidates.
-	Items []StatelessForeignItem
+	Items []LiveForeignItem
 
 	// Candidates are the adoptable ones, each naming the declared address it
 	// matches and the command that would claim it.
-	Candidates []StatelessBindCandidate
+	Candidates []LiveBindCandidate
 
 	// Removals are the live resources this estate owns at addresses the
 	// configuration no longer declares, which the plan below proposes
 	// destroying. Unlike everything else in this report they are not
 	// report-only: each one is in the prior state the plan ran against.
-	Removals []StatelessRemoval
+	Removals []LiveRemoval
 
 	// SweepGaps are the resource types the removal sweep could not
 	// enumerate, and SweepCovered the ones it did. An empty Removals list
 	// means "nothing undeclared was found among SweepCovered" and nothing
 	// more.
-	SweepGaps    []StatelessSweepGap
+	SweepGaps    []LiveSweepGap
 	SweepCovered []string
 
 	// Renames are the live resources this estate owns whose marker names a
 	// for_each key the configuration no longer declares, paired with the
 	// declared instance they are probably the same resource as.
-	Renames []StatelessRename
+	Renames []LiveRename
 
 	// AmbiguousRenames are the resource blocks where such a pairing exists
 	// but is not one-to-one, so no rename is offered.
-	AmbiguousRenames []StatelessRenameAmbiguity
+	AmbiguousRenames []LiveRenameAmbiguity
 
 	// OtherEstates are the per-estate counts. An empty Estate means the
 	// resources were counted without their estate being recorded.
-	OtherEstates []StatelessEstateCount
+	OtherEstates []LiveEstateCount
 
 	// Swept are the resource types that were listed in full.
 	Swept []string
@@ -99,7 +99,7 @@ type StatelessForeign struct {
 
 	// Unswept are the types this classification cannot speak for, with a
 	// reason code and a sentence each.
-	Unswept []StatelessUnsweptType
+	Unswept []LiveUnsweptType
 
 	// ParentReads are the untaggable children a parent read found (issue
 	// #60): resources with no marker and no declared block of their own,
@@ -107,7 +107,7 @@ type StatelessForeign struct {
 	// says whether it also became a removal - the plan's own resource diff
 	// carries the destroy itself for those, and this list is what says a
 	// parent read is why.
-	ParentReads []StatelessParentRead
+	ParentReads []LiveParentRead
 
 	// ControllerHeld are the live resources a controller holds rather than
 	// a block, on either substrate, with the holder named
@@ -117,12 +117,12 @@ type StatelessForeign struct {
 	// are never foreign, never adoptable and never destroyed here, and are
 	// rendered so that markers on them read as what they are rather than
 	// as nothing.
-	ControllerHeld []StatelessControllerHeld
+	ControllerHeld []LiveControllerHeld
 }
 
-// StatelessControllerHeld is one controller-held live resource, AWS or
+// LiveControllerHeld is one controller-held live resource, AWS or
 // Kubernetes, in one shape.
-type StatelessControllerHeld struct {
+type LiveControllerHeld struct {
 	TypeName    string
 	LiveID      string
 	DisplayName string
@@ -145,8 +145,8 @@ type StatelessControllerHeld struct {
 	Addr string
 }
 
-// StatelessParentRead is one live child a parent read found.
-type StatelessParentRead struct {
+// LiveParentRead is one live child a parent read found.
+type LiveParentRead struct {
 	TypeName    string
 	Parent      string
 	ParentAddr  string
@@ -162,26 +162,26 @@ type StatelessParentRead struct {
 	Withheld string
 }
 
-// StatelessForeignItem is one live resource nobody claims.
-type StatelessForeignItem struct {
+// LiveForeignItem is one live resource nobody claims.
+type LiveForeignItem struct {
 	TypeName    string
 	LiveID      string
 	DisplayName string
-	Tags        []StatelessTag
+	Tags        []LiveTag
 	Why         string
 }
 
-// StatelessBindCandidate is one live resource offered for adoption.
-type StatelessBindCandidate struct {
+// LiveBindCandidate is one live resource offered for adoption.
+type LiveBindCandidate struct {
 	Addr        string
 	TypeName    string
 	LiveID      string
 	DisplayName string
-	Tags        []StatelessTag
+	Tags        []LiveTag
 
 	// Matched are the identity-bearing arguments the live resource and the
 	// declared instance agreed on exactly.
-	Matched []StatelessTag
+	Matched []LiveTag
 
 	// MarkerEstate and MarkerAddress are the tofu-estate and tofu-address
 	// values that would adopt the resource.
@@ -189,15 +189,15 @@ type StatelessBindCandidate struct {
 	MarkerAddress string
 
 	// Hint is a one-line command that writes those two tags, empty for a
-	// type stateless mode has no command for.
+	// type live mode has no command for.
 	Hint string
 }
 
-// StatelessLookalike is one lookalike guard warning: a declared instance the
+// LiveLookalike is one lookalike guard warning: a declared instance the
 // plan actually proposes to create, beside a live resource this estate does
 // not own that might be the very thing being duplicated. The fields
 // correspond to [foreign.Lookalike].
-type StatelessLookalike struct {
+type LiveLookalike struct {
 	// Addr is the declared instance the plan proposes to create - the same
 	// address the resource diff's own "will be created" line names.
 	Addr     string
@@ -210,7 +210,7 @@ type StatelessLookalike struct {
 
 	// Matched are the identity-bearing arguments that confirmed the match,
 	// empty for the generic, cardinality-only warning.
-	Matched []StatelessTag
+	Matched []LiveTag
 
 	// MarkerEstate and MarkerAddress are the tofu-estate and tofu-address
 	// values that adopt the live resource instead of creating a duplicate.
@@ -223,16 +223,16 @@ type StatelessLookalike struct {
 
 	// HeldBy is set when the live resource this create matches is
 	// controller-held (GitHub issue #1628): the controller and its object,
-	// as [StatelessControllerHeld.HeldBy] names it. MarkerEstate,
+	// as [LiveControllerHeld.HeldBy] names it. MarkerEstate,
 	// MarkerAddress and Hint are all empty in this case - #1604 ruled a
 	// controller-held resource is never offered for adoption, so this
 	// warning names it and stops there.
 	HeldBy string
 }
 
-// StatelessRemoval is one live resource this estate owns and no longer
+// LiveRemoval is one live resource this estate owns and no longer
 // declares, which the plan proposes destroying.
-type StatelessRemoval struct {
+type LiveRemoval struct {
 	// Addr is where it sits in the prior state, which is the address the
 	// plan's own destroy line names.
 	Addr string
@@ -256,16 +256,16 @@ type StatelessRemoval struct {
 	Why string
 }
 
-// StatelessSweepGap is one resource type the removal sweep could not cover.
-type StatelessSweepGap struct {
+// LiveSweepGap is one resource type the removal sweep could not cover.
+type LiveSweepGap struct {
 	TypeName string
 	Reason   string
 	Detail   string
 }
 
-// StatelessRename is one live resource that may have moved to a new for_each
+// LiveRename is one live resource that may have moved to a new for_each
 // key, with the command that would move its marker.
-type StatelessRename struct {
+type LiveRename struct {
 	// OldAddr is the address the live marker claims and NewAddr the declared
 	// instance nothing claimed, both unescaped.
 	OldAddr string
@@ -279,9 +279,9 @@ type StatelessRename struct {
 	Command string
 }
 
-// StatelessRenameAmbiguity is one resource block whose orphans and unclaimed
+// LiveRenameAmbiguity is one resource block whose orphans and unclaimed
 // declared instances do not pair one-to-one.
-type StatelessRenameAmbiguity struct {
+type LiveRenameAmbiguity struct {
 	Block string
 
 	// Live are the orphaned live resources, as "marker (live ID)".
@@ -294,28 +294,28 @@ type StatelessRenameAmbiguity struct {
 	Detail string
 }
 
-// StatelessEstateCount is how many live resources another estate owns.
-type StatelessEstateCount struct {
+// LiveEstateCount is how many live resources another estate owns.
+type LiveEstateCount struct {
 	Estate string
 	Count  int
 	Types  []string
 }
 
-// StatelessUnsweptType is one resource type whose live population is unknown.
-type StatelessUnsweptType struct {
+// LiveUnsweptType is one resource type whose live population is unknown.
+type LiveUnsweptType struct {
 	TypeName string
 	Reason   string
 	Detail   string
 }
 
-// StatelessTag is one key/value pair: a resource tag, or an argument a
+// LiveTag is one key/value pair: a resource tag, or an argument a
 // content match was made on.
-type StatelessTag struct {
+type LiveTag struct {
 	Key   string
 	Value string
 }
 
-// StatelessUnowned is one live resource the projection refused to admit: it
+// LiveUnowned is one live resource the projection refused to admit: it
 // sits at the identity a declared resource names and carries no ownership
 // marker for this estate. The fields correspond to projection.Unowned, plus
 // the two tag values that would adopt it, worked out by the caller.
@@ -334,7 +334,7 @@ type StatelessTag struct {
 // itself a new read, which is out of this issue's own file scope
 // (live_plan.go, live_plan_test.go, this file) and a bigger change than a
 // JSON tag.
-type StatelessUnowned struct {
+type LiveUnowned struct {
 	// Addr is the declared instance whose identity found it.
 	Addr string `json:"addr"`
 
@@ -357,11 +357,11 @@ type StatelessUnowned struct {
 	MarkerAddress string `json:"adopt_tofu_address,omitempty"`
 }
 
-// StatelessPolicyDeclared is one declared instance whose admission or tag
+// LivePolicyDeclared is one declared instance whose admission or tag
 // handling GitHub issue #67's policy governed with a non-default verb -
 // projection.PolicyOutcome, in a form this package can render without
 // importing the projection builder.
-type StatelessPolicyDeclared struct {
+type LivePolicyDeclared struct {
 	Addr     string
 	TypeName string
 
@@ -372,11 +372,11 @@ type StatelessPolicyDeclared struct {
 	Verb string
 }
 
-// StatelessPolicyWithheld is one owned-but-undeclared resource
+// LivePolicyWithheld is one owned-but-undeclared resource
 // (undeclared_tagged) a non-default policy verb kept out of the removal
 // sweep - discovery.OwnedResource with a PolicyVerb set, mirrored into
-// StatelessRemoval's shape plus the verb and the withheld sentence.
-type StatelessPolicyWithheld struct {
+// LiveRemoval's shape plus the verb and the withheld sentence.
+type LivePolicyWithheld struct {
 	TypeName    string
 	LiveID      string
 	DisplayName string
@@ -385,30 +385,30 @@ type StatelessPolicyWithheld struct {
 	Withheld    string
 }
 
-// StatelessUntagged is one resource instance a declared_tagged = "untag"
+// LiveUntagged is one resource instance a declared_tagged = "untag"
 // verb released a tag key from - projection.UntagRelease, in this package's
 // own shape. Per instance, not per block: the node writer decides each
 // instance on its own, so a count or for_each block can have some instances
 // here and some not (GitHub issue #1002).
-type StatelessUntagged struct {
+type LiveUntagged struct {
 	Addr         string
 	Key          string
 	EstateMarker bool
 }
 
-// StatelessReleased is one owned-but-undeclared resource GitHub issue #67's
+// LiveReleased is one owned-but-undeclared resource GitHub issue #67's
 // undeclared_tagged = "untag" verb released a tag key from for real, during
 // apply - internal/live/untag.Outcome, in this package's own shape.
 //
-// Distinct from [StatelessUntagged]: that type reports a declared_tagged
+// Distinct from [LiveUntagged]: that type reports a declared_tagged
 // block's tag removal from the plan that proposes it, since the ordinary
 // apply graph performs the write and a plan showing it is a true
 // prediction. This resource has no configuration block and no graph node,
-// so there is nothing to predict - only [statelessRunner.AfterApply]'s own
+// so there is nothing to predict - only [liveRunner.AfterApply]'s own
 // report, after a real apply, of what actually happened. OK false means
 // the resource was left exactly as it was found; nothing here ever falls
 // back to destroying it.
-type StatelessReleased struct {
+type LiveReleased struct {
 	TypeName     string
 	LiveID       string
 	DisplayName  string
@@ -419,11 +419,11 @@ type StatelessReleased struct {
 	Detail       string
 }
 
-// StatelessReconcileCandidate is one live resource GitHub issue #67's
+// LiveReconcileCandidate is one live resource GitHub issue #67's
 // undeclared_untagged = "delete" scoped account reconciliation would
 // destroy - discovery.ReconcileCandidate, rendered with identity evidence
 // per the issue's "no aggregate count without the roster" rule.
-type StatelessReconcileCandidate struct {
+type LiveReconcileCandidate struct {
 	TypeName    string
 	LiveID      string
 	DisplayName string
@@ -436,50 +436,50 @@ type StatelessReconcileCandidate struct {
 	Withheld string
 }
 
-// StatelessReconcileGap is one scope-selected type the reconciliation pass
+// LiveReconcileGap is one scope-selected type the reconciliation pass
 // could not enumerate.
-type StatelessReconcileGap struct {
+type LiveReconcileGap struct {
 	TypeName string
 	Reason   string
 	Detail   string
 }
 
-// StatelessReconcile is the outcome of one scoped account-reconciliation
+// LiveReconcile is the outcome of one scoped account-reconciliation
 // pass, when the resolved policy asked for one.
-type StatelessReconcile struct {
+type LiveReconcile struct {
 	Ran               bool
-	Roster            []StatelessReconcileCandidate
-	Gaps              []StatelessReconcileGap
+	Roster            []LiveReconcileCandidate
+	Gaps              []LiveReconcileGap
 	Threshold         int
 	ThresholdExceeded bool
 }
 
-// StatelessPolicyReport is everything GitHub issue #67's policy block did
+// LivePolicyReport is everything GitHub issue #67's policy block did
 // this run beyond today's fixed behavior. Every field is empty on a run
 // with no policy block, or one that only ever names default verbs - which
 // is what makes "omitted policy = byte-identical current behavior" visible
 // in the rendered output and not only in the underlying data.
-type StatelessPolicyReport struct {
-	Declared  []StatelessPolicyDeclared
-	Withheld  []StatelessPolicyWithheld
-	Untagged  []StatelessUntagged
-	Released  []StatelessReleased
-	Reconcile StatelessReconcile
+type LivePolicyReport struct {
+	Declared  []LivePolicyDeclared
+	Withheld  []LivePolicyWithheld
+	Untagged  []LiveUntagged
+	Released  []LiveReleased
+	Reconcile LiveReconcile
 }
 
 // Empty reports whether there is nothing to render.
-func (r StatelessPolicyReport) Empty() bool {
+func (r LivePolicyReport) Empty() bool {
 	return len(r.Declared) == 0 && len(r.Withheld) == 0 && len(r.Untagged) == 0 && len(r.Released) == 0 && !r.Reconcile.Ran
 }
 
-// StatelessProgress is one discovery heartbeat, already throttled by the
+// LiveProgress is one discovery heartbeat, already throttled by the
 // caller: how many resource types have been scanned in total and how many
 // live resources scanning has found, as of the type named in TypeName. It
 // mirrors [discovery.ProgressEvent] rather than importing that package,
 // the same way every other type in this file carries the projection and
 // foreign packages' data across without importing them - see this file's
-// other Stateless* types.
-type StatelessProgress struct {
+// other Live* types.
+type LiveProgress struct {
 	TypeName       string
 	TypesScanned   int
 	ResourcesFound int
@@ -503,7 +503,7 @@ const (
 	// the plan found it. This is the tag-governed path IAM can condition on.
 	//
 	// More precisely, it means the sweep is what this instance was WAITING
-	// on: [statelessBoundReport in package command] classifies by the
+	// on: [liveBoundReport in package command] classifies by the
 	// pre-sweep identity.ClassNeedsDiscovery set, which is the only thing
 	// left once binding has rewritten the resolution. An instance the
 	// sweep did not bind can still be materialized from its record by
@@ -535,7 +535,7 @@ const (
 	// estate's own record store rather than from a tag on the object
 	// itself (identity.ClassRecordBacked / identity.ClassRecordLocated -
 	// GitHub issues #73 and #270). Never produced by
-	// [statelessBoundReport in package command]'s own "-estate" form,
+	// [liveBoundReport in package command]'s own "-estate" form,
 	// which has no live block and therefore never opens a record store -
 	// see that function's own doc comment for why the value stays defined
 	// here anyway.
@@ -615,11 +615,11 @@ type LivePlanBound struct {
 //
 // Deliberately NOT the stock plan-representation JSON format ("choudoufu
 // show -json" of a saved plan, internal/command/jsonplan): this command
-// refuses -out (statelessRejections, live_mode.go) and so never has a
+// refuses -out (liveRejections, live_mode.go) and so never has a
 // saved plan to represent that way, and the issue's own text says as much
 // - "the stock plan's -json...can stay separate. This is about the live
 // sections that stock has no equivalent of." This document is printed on
-// its own by [StatelessPlanJSON.Document], the same way
+// its own by [LivePlanJSON.Document], the same way
 // [VersionMixed.printJsonVersion] prints the version command's own single
 // JSON object rather than a line of [NewJSONView]'s general UI-message
 // stream - see that method's own doc comment for why mixing the two
@@ -628,7 +628,7 @@ type LivePlanDocument struct {
 	// Estate is this run's estate name, exactly as [LivePlanBound],
 	// omissions and unowned were all computed against - empty only when
 	// the run had none to search by, which every other section already
-	// degrades gracefully for (see statelessEstateFor's own callers).
+	// degrades gracefully for (see liveEstateFor's own callers).
 	Estate string `json:"estate"`
 
 	// ChoudoufuVersion is this fork's own release tag (tfversion.Fork),
@@ -654,13 +654,13 @@ type LivePlanDocument struct {
 
 	// Omissions is every declared instance the plan could not read from
 	// the live system, and why - the same value the human-readable
-	// "Omissions" section already renders as prose ([StatelessOmission]).
-	Omissions []StatelessOmission `json:"omissions"`
+	// "Omissions" section already renders as prose ([LiveOmission]).
+	Omissions []LiveOmission `json:"omissions"`
 
 	// Unowned is every live resource found at a declared identity without
 	// this estate's marker - the same value the human-readable "Unowned"
-	// section already renders as prose ([StatelessUnowned]).
-	Unowned []StatelessUnowned `json:"unowned"`
+	// section already renders as prose ([LiveUnowned]).
+	Unowned []LiveUnowned `json:"unowned"`
 
 	// Foreign is every live resource the estate-wide sweep found that nobody
 	// claims - the machine-readable half of the "Not swept" / unclaimed prose
@@ -686,7 +686,7 @@ type LivePlanDocument struct {
 	// declared instance BY CONTENT - the identity-bearing arguments agree
 	// exactly, and the object carries no marker for this estate - the
 	// same rows the human-readable "Adoptable" section renders
-	// ([StatelessBindCandidate]). GitHub issue #962: a declared aws_vpc
+	// ([LiveBindCandidate]). GitHub issue #962: a declared aws_vpc
 	// whose identity the server assigns lands in Omissions as
 	// NEEDS_DISCOVERY, and until this field existed the document had no
 	// row for the live VPC the sweep had already matched to it, while the
@@ -729,7 +729,7 @@ type LivePlanDocument struct {
 	// provider version skew warning, and so on. It exists so that -json
 	// can be the ONLY thing printed on a successful run without silently
 	// dropping something [Run] would otherwise have told a human: see
-	// [StatelessPlanJSON.Document]'s own caller
+	// [LivePlanJSON.Document]'s own caller
 	// (LivePlanCommand.livePlan's jsonRequested branch) for why the
 	// ordinary human-readable diagnostic rendering is skipped precisely
 	// when this document exists to carry the same information instead.
@@ -740,14 +740,14 @@ type LivePlanDocument struct {
 }
 
 // LivePlanAdoptable is one content-matched live resource in
-// [LivePlanDocument.Adoptable]: [StatelessBindCandidate] in the wire form
+// [LivePlanDocument.Adoptable]: [LiveBindCandidate] in the wire form
 // INTENTIUS/chant's terraform lexicon reads (chant #2168), which is why the
-// field names follow [StatelessUnowned]'s rather than the Go type's - a
+// field names follow [LiveUnowned]'s rather than the Go type's - a
 // consumer that already handles an unowned row handles this one with the
 // same code, plus the match.
 // LivePlanForeign is one live resource nobody claims, in the shape a machine
 // reader consumes. Field names follow [LivePlanAdoptable]'s for the same
-// reason that one follows [StatelessUnowned]'s: a consumer that already
+// reason that one follows [LiveUnowned]'s: a consumer that already
 // handles an unowned or adoptable row handles this one with the same code.
 //
 // The difference from [LivePlanAdoptable] is the whole point of the category:
@@ -765,7 +765,7 @@ type LivePlanForeign struct {
 	DisplayName string `json:"display_name,omitempty"`
 
 	// HeldBy is the tofu-estate marker the resource carries, empty when it
-	// carries none - the same field [StatelessUnowned] uses under the same
+	// carries none - the same field [LiveUnowned] uses under the same
 	// name, read the same way. A foreign resource carries no marker for THIS
 	// estate by construction; a non-empty value here means another estate
 	// owns it, which is exactly what a reader chasing a mis-owned resource
@@ -812,14 +812,14 @@ type LivePlanAdoptable struct {
 	Matched []LivePlanMatchedArgument `json:"matched"`
 
 	// MarkerEstate and MarkerAddress are the tofu-estate and tofu-address
-	// values that adopt the resource, the same pair [StatelessUnowned]
+	// values that adopt the resource, the same pair [LiveUnowned]
 	// carries under the same names.
 	MarkerEstate  string `json:"adopt_tofu_estate"`
 	MarkerAddress string `json:"adopt_tofu_address"`
 
 	// AdoptCommand is the one-line AWS CLI command that writes those two
 	// tags, exactly as the human render prints it after "adopt with:",
-	// empty for a type stateless mode has no command for. Informational: a
+	// empty for a type live mode has no command for. Informational: a
 	// consumer that writes markers itself uses the two fields above.
 	AdoptCommand string `json:"adopt_command,omitempty"`
 }
@@ -847,31 +847,31 @@ type LivePlanDiagnostic struct {
 	Detail   string `json:"detail,omitempty"`
 }
 
-// StatelessPlan renders the parts of live-plan's output that have no
+// LivePlan renders the parts of live-plan's output that have no
 // equivalent in a stock plan. The plan itself is rendered by the ordinary
 // [Plan] view, so that live-plan and plan produce identical output for
 // the part they have in common.
-type StatelessPlan interface {
+type LivePlan interface {
 	// Progress reports one discovery heartbeat. It is the only method on
 	// this interface that writes to stderr rather than stdout: a heartbeat
 	// exists to prove a slow, silent sweep is still running, not to become
 	// part of the plan's own output, and it must never appear in anything a
 	// script reads from this command's stdout. The caller decides how often
 	// to call it; every call here is rendered.
-	Progress(p StatelessProgress)
+	Progress(p LiveProgress)
 
 	// Omissions reports the instances that are missing from the projection,
 	// which is why the plan that follows proposes to create them.
-	Omissions(oms []StatelessOmission)
+	Omissions(oms []LiveOmission)
 
 	// Unowned reports the live resources found at declared identities
 	// without this estate's marker: which of them a tag write adopts, and
 	// which are simply in the way of the create the plan proposes.
-	Unowned(items []StatelessUnowned)
+	Unowned(items []LiveUnowned)
 
 	// Foreign reports the live resources the estate does not own: what was
 	// found, what could be adopted, and which types the sweep covered.
-	Foreign(rep StatelessForeign)
+	Foreign(rep LiveForeign)
 
 	// Policy reports what GitHub issue #67's policy block did this run:
 	// which declared instances a non-default verb governed, which
@@ -879,7 +879,7 @@ type StatelessPlan interface {
 	// sweep, which resources released a tag key, and the scoped
 	// account-reconciliation roster when undeclared_untagged = "delete"
 	// ran. A no-op when rep.Empty().
-	Policy(rep StatelessPolicyReport)
+	Policy(rep LivePolicyReport)
 
 	// GuidedFallback reports why a pass that had guided discovery
 	// configured (issue #64) fell back to today's full sweep instead of
@@ -899,7 +899,7 @@ type StatelessPlan interface {
 	// naming the resource and the adoption remedy. Printed last, immediately
 	// above the plan itself, so the warning sits right next to the create it
 	// is about.
-	Lookalikes(items []StatelessLookalike)
+	Lookalikes(items []LiveLookalike)
 
 	// KubernetesDryRun reports the server-side dry run of every planned
 	// kubernetes_manifest create or update (GitHub issue #1081, item 3):
@@ -908,14 +908,14 @@ type StatelessPlan interface {
 	// beside the creates and updates it is evidence about. An empty list
 	// renders nothing: a plan with no such object has nothing to report,
 	// and a plan the server refused is a diagnostic, not a section.
-	KubernetesDryRun(items []StatelessKubernetesDryRun)
+	KubernetesDryRun(items []LiveKubernetesDryRun)
 
 	// Adoption reports the whole adoption question - what can be adopted,
 	// what cannot, and why - for GitHub issue #587's "-adoption-only" mode.
-	// The pipeline calls it on every stateless run; only
-	// [StatelessAdoptionHuman] renders it, and that view renders nothing
+	// The pipeline calls it on every live run; only
+	// [LiveAdoptionHuman] renders it, and that view renders nothing
 	// else. See live_adoption.go.
-	Adoption(rep StatelessAdoption)
+	Adoption(rep LiveAdoption)
 
 	// Document prints GitHub issue #788's live-plan "-json" output: one
 	// object carrying the estate name, this fork's and OpenTofu's own
@@ -925,7 +925,7 @@ type StatelessPlan interface {
 	// though two of them (Omissions, Unowned) already carry exactly this
 	// data.
 	//
-	// Every implementation but [StatelessPlanJSON] no-ops here: a human or
+	// Every implementation but [LivePlanJSON] no-ops here: a human or
 	// adoption-ledger run has nothing to marshal and nowhere in its own
 	// output this document would belong. It returns whether the print
 	// succeeded, the same convention [Version.PrintVersion] uses for the
@@ -935,17 +935,17 @@ type StatelessPlan interface {
 	Document(doc LivePlanDocument) bool
 }
 
-// NewStatelessPlan returns the human-readable implementation. GitHub issue
+// NewLivePlan returns the human-readable implementation. GitHub issue
 // #788's document (LivePlanCommand.livePlan's own jsonRequested branch) uses
-// [NewStatelessPlanJSON] instead; this constructor's own Document method is
+// [NewLivePlanJSON] instead; this constructor's own Document method is
 // a no-op, since nothing about a human-readable run ever calls it.
-func NewStatelessPlan(view *View) StatelessPlan {
-	return &StatelessPlanHuman{view: view}
+func NewLivePlan(view *View) LivePlan {
+	return &LivePlanHuman{view: view}
 }
 
-// NewStatelessPlanFiltered is [NewStatelessPlan] narrowed to the report
+// NewLivePlanFiltered is [NewLivePlan] narrowed to the report
 // categories filter names (GitHub issue #1197's -filter). An empty filter is
-// exactly [NewStatelessPlan].
+// exactly [NewLivePlan].
 //
 // Only the three category sections are narrowed - Unowned, Adoptable and the
 // foreign items - and a selected category with nothing in it says so in a
@@ -953,24 +953,24 @@ func NewStatelessPlan(view *View) StatelessPlan {
 // Everything else the report prints (omissions, removals, sweep gaps, renames,
 // policy, lookalikes) and the resource diff itself are untouched: a filter
 // narrows the report, never the plan.
-func NewStatelessPlanFiltered(view *View, filter arguments.ReportFilter) StatelessPlan {
-	return &StatelessPlanHuman{view: view, filter: filter}
+func NewLivePlanFiltered(view *View, filter arguments.ReportFilter) LivePlan {
+	return &LivePlanHuman{view: view, filter: filter}
 }
 
-// StatelessPlanHuman writes the omissions section as a titled block above the
+// LivePlanHuman writes the omissions section as a titled block above the
 // plan, in the same stream and with the same width and colouring rules as the
 // plan renderer itself.
-type StatelessPlanHuman struct {
+type LivePlanHuman struct {
 	view *View
 
 	// filter is -filter's category set; empty renders every category. See
-	// [NewStatelessPlanFiltered].
+	// [NewLivePlanFiltered].
 	filter arguments.ReportFilter
 }
 
-var _ StatelessPlan = (*StatelessPlanHuman)(nil)
+var _ LivePlan = (*LivePlanHuman)(nil)
 
-// NewStatelessPlanJSON returns live-plan -json's own renderer (GitHub issue
+// NewLivePlanJSON returns live-plan -json's own renderer (GitHub issue
 // #788). Every method but Document is a no-op: the prose those other
 // methods print (Progress's heartbeat, Foreign, Policy, GuidedFallback,
 // Lookalikes, and Omissions/Unowned themselves - their DATA reaches a
@@ -982,11 +982,11 @@ var _ StatelessPlan = (*StatelessPlanHuman)(nil)
 // that wants foreign/policy/lookalike detail as data does not have it from
 // this command yet; #788's own Ask is bound/omissions/unowned, and that is
 // everything Document carries.
-func NewStatelessPlanJSON(view *View) StatelessPlan {
-	return &StatelessPlanJSON{view: view}
+func NewLivePlanJSON(view *View) LivePlan {
+	return &LivePlanJSON{view: view}
 }
 
-// StatelessPlanJSON marshals and prints [LivePlanDocument] as one
+// LivePlanJSON marshals and prints [LivePlanDocument] as one
 // indented JSON object, the same way [VersionMixed.printJsonVersion]
 // prints the version command's own single object - not through
 // [NewJSONView]'s hclog-based UI-message stream every OTHER "-json" view
@@ -997,21 +997,21 @@ func NewStatelessPlanJSON(view *View) StatelessPlan {
 // directly, once, is both simpler and matches what a renderer reading
 // exactly this document (behold, the issue's own named consumer) actually
 // wants: one parse, one object, done.
-type StatelessPlanJSON struct {
+type LivePlanJSON struct {
 	view *View
 }
 
-var _ StatelessPlan = (*StatelessPlanJSON)(nil)
+var _ LivePlan = (*LivePlanJSON)(nil)
 
-func (v *StatelessPlanJSON) Progress(StatelessProgress)                   {}
-func (v *StatelessPlanJSON) Omissions([]StatelessOmission)                {}
-func (v *StatelessPlanJSON) Unowned([]StatelessUnowned)                   {}
-func (v *StatelessPlanJSON) Foreign(StatelessForeign)                     {}
-func (v *StatelessPlanJSON) Policy(StatelessPolicyReport)                 {}
-func (v *StatelessPlanJSON) GuidedFallback(string)                        {}
-func (v *StatelessPlanJSON) Lookalikes([]StatelessLookalike)              {}
-func (v *StatelessPlanJSON) KubernetesDryRun([]StatelessKubernetesDryRun) {}
-func (v *StatelessPlanJSON) Adoption(StatelessAdoption)                   {}
+func (v *LivePlanJSON) Progress(LiveProgress)                   {}
+func (v *LivePlanJSON) Omissions([]LiveOmission)                {}
+func (v *LivePlanJSON) Unowned([]LiveUnowned)                   {}
+func (v *LivePlanJSON) Foreign(LiveForeign)                     {}
+func (v *LivePlanJSON) Policy(LivePolicyReport)                 {}
+func (v *LivePlanJSON) GuidedFallback(string)                   {}
+func (v *LivePlanJSON) Lookalikes([]LiveLookalike)              {}
+func (v *LivePlanJSON) KubernetesDryRun([]LiveKubernetesDryRun) {}
+func (v *LivePlanJSON) Adoption(LiveAdoption)                   {}
 
 // Document is this view's whole reason to exist: marshal doc and print it,
 // exactly once. Modeled on [VersionMixed.printJsonVersion] down to the
@@ -1021,7 +1021,7 @@ func (v *StatelessPlanJSON) Adoption(StatelessAdoption)                   {}
 // structs; there is no channel, func or cyclic pointer anywhere in this
 // type for MarshalIndent to choke on), so this is defensive rather than an
 // expected failure mode.
-func (v *StatelessPlanJSON) Document(doc LivePlanDocument) bool {
+func (v *LivePlanJSON) Document(doc LivePlanDocument) bool {
 	b, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		_, _ = v.view.streams.Eprintln(fmt.Sprintf("\nError marshalling JSON: %s", err))
@@ -1040,7 +1040,7 @@ func (v *StatelessPlanJSON) Document(doc LivePlanDocument) bool {
 //
 // The wording says "so far" and names the type still being scanned rather
 // than reading as a finished tally (issue #229): the caller's throttle
-// (statelessProgress) always lets the very first event through
+// (liveProgress) always lets the very first event through
 // unconditionally, and a fast run - a small emulator estate finishes well
 // under the 500ms throttle window - can end up printing only that one
 // event. Before this fix that line was "discovering: 1 type scanned, 1 live
@@ -1049,7 +1049,7 @@ func (v *StatelessPlanJSON) Document(doc LivePlanDocument) bool {
 // discovery only looked at one type, when in fact hundreds more had been
 // scanned by the time the plan finished - this is the running count as of
 // one type partway through, not the total.
-func (v *StatelessPlanHuman) Progress(p StatelessProgress) {
+func (v *LivePlanHuman) Progress(p LiveProgress) {
 	noun := "resource"
 	if p.ResourcesFound != 1 {
 		noun = "resources"
@@ -1064,9 +1064,9 @@ func (v *StatelessPlanHuman) Progress(p StatelessProgress) {
 	)))
 }
 
-const statelessOmissionsIntro = `A live-markers run builds prior state by reading the live system. It could not read the following resource instances, so they are absent from the prior state and the plan below proposes to create them. This is not a claim that they do not exist: each line says why the instance could not be read.`
+const liveOmissionsIntro = `A live-markers run builds prior state by reading the live system. It could not read the following resource instances, so they are absent from the prior state and the plan below proposes to create them. This is not a claim that they do not exist: each line says why the instance could not be read.`
 
-func (v *StatelessPlanHuman) Omissions(oms []StatelessOmission) {
+func (v *LivePlanHuman) Omissions(oms []LiveOmission) {
 	if len(oms) == 0 {
 		return
 	}
@@ -1081,7 +1081,7 @@ func (v *StatelessPlanHuman) Omissions(oms []StatelessOmission) {
 		"\n[reset][bold]Not read from the live system: %d resource %s[reset]\n\n",
 		len(oms), noun,
 	)))
-	v.view.streams.Print(format.WordWrap(statelessOmissionsIntro, cols) + "\n\n")
+	v.view.streams.Print(format.WordWrap(liveOmissionsIntro, cols) + "\n\n")
 
 	for _, om := range oms {
 		v.view.streams.Print(v.view.colorize.Color(fmt.Sprintf(
@@ -1101,7 +1101,7 @@ func (v *StatelessPlanHuman) Omissions(oms []StatelessOmission) {
 // sentence to say, about the run as a whole rather than about any particular
 // resource, so a heading-plus-intro-plus-list shape would be a lot of
 // scaffolding around one line.
-func (v *StatelessPlanHuman) GuidedFallback(reason string) {
+func (v *LivePlanHuman) GuidedFallback(reason string) {
 	if reason == "" {
 		return
 	}
@@ -1116,9 +1116,9 @@ func (v *StatelessPlanHuman) GuidedFallback(reason string) {
 	v.view.outputHorizRule()
 }
 
-// StatelessKubernetesDryRun is one planned Kubernetes object's server-side
+// LiveKubernetesDryRun is one planned Kubernetes object's server-side
 // dry run, [discovery.DryRunEvidence] in the view's wire format.
-type StatelessKubernetesDryRun struct {
+type LiveKubernetesDryRun struct {
 	Addr      string
 	Kind      string
 	Namespace string
@@ -1138,7 +1138,7 @@ type StatelessKubernetesDryRun struct {
 // kind's schema, defaulted and admitted by every admission policy the
 // cluster runs, with nothing written; the defaulted count says how much
 // the server would add on write.
-func (v *StatelessPlanHuman) KubernetesDryRun(items []StatelessKubernetesDryRun) {
+func (v *LivePlanHuman) KubernetesDryRun(items []LiveKubernetesDryRun) {
 	if len(items) == 0 {
 		return
 	}
@@ -1163,7 +1163,7 @@ func (v *StatelessPlanHuman) KubernetesDryRun(items []StatelessKubernetesDryRun)
 	}
 	colored("\n[reset][bold]Server-side dry run: %d of %d planned Kubernetes %s accepted by the API server[reset]\n\n",
 		accepted, len(items), noun(len(items), "object", "objects"))
-	wrapped(statelessKubernetesDryRunIntro, 0)
+	wrapped(liveKubernetesDryRunIntro, 0)
 	out("\n")
 
 	for _, it := range items {
@@ -1186,7 +1186,7 @@ func (v *StatelessPlanHuman) KubernetesDryRun(items []StatelessKubernetesDryRun)
 	v.view.outputHorizRule()
 }
 
-const statelessKubernetesDryRunIntro = `Each planned kubernetes_manifest create or update was sent to the API server exactly as the apply would write it, with dryRun=All: the server validated it against the kind's schema, applied its defaults and ran every admission policy, and persisted nothing. Built-in types (kubernetes_config_map and the rest) are not submitted: the mapping from their block shape to the API object is the provider's own.`
+const liveKubernetesDryRunIntro = `Each planned kubernetes_manifest create or update was sent to the API server exactly as the apply would write it, with dryRun=All: the server validated it against the kind's schema, applied its defaults and ran every admission policy, and persisted nothing. Built-in types (kubernetes_config_map and the rest) are not submitted: the mapping from their block shape to the API object is the provider's own.`
 
 // naturalKey is NAMESPACE/NAME, or NAME for a cluster-scoped object; the
 // join key every Kubernetes line in this view names an object by.
@@ -1197,7 +1197,7 @@ func naturalKey(namespace, name string) string {
 	return namespace + "/" + name
 }
 
-const statelessUnownedIntro = `Each of these is a live resource sitting at the identity a declared resource names, without this estate's ownership marker on it. They are the plan's [UNOWNED] omissions, gathered here by what resolves each one. None of them is in the prior state this plan ran against, so nothing in the plan changes or destroys them, and the plan proposes creating what the configuration declares - a create the cloud will refuse while the live resource holds the identity. An [ADOPTABLE] entry becomes this estate's by writing the two tags shown, on purpose; an [IN_THE_WAY] entry is not this run's to claim.`
+const liveUnownedIntro = `Each of these is a live resource sitting at the identity a declared resource names, without this estate's ownership marker on it. They are the plan's [UNOWNED] omissions, gathered here by what resolves each one. None of them is in the prior state this plan ran against, so nothing in the plan changes or destroys them, and the plan proposes creating what the configuration declares - a create the cloud will refuse while the live resource holds the identity. An [ADOPTABLE] entry becomes this estate's by writing the two tags shown, on purpose; an [IN_THE_WAY] entry is not this run's to claim.`
 
 // Unowned renders the projection's refusals as their own section, between the
 // omissions and the foreign report, so that "this needs adopting" and
@@ -1205,7 +1205,7 @@ const statelessUnownedIntro = `Each of these is a live resource sitting at the i
 // out of the omission prose. Nothing renders when there is nothing to say:
 // unlike the sweep behind the foreign section, this check runs on every
 // instance the projection reads, so an empty list is not a coverage question.
-func (v *StatelessPlanHuman) Unowned(items []StatelessUnowned) {
+func (v *LivePlanHuman) Unowned(items []LiveUnowned) {
 	if !v.filter.Shows(arguments.ReportUnowned) {
 		return
 	}
@@ -1250,7 +1250,7 @@ func (v *StatelessPlanHuman) Unowned(items []StatelessUnowned) {
 		len(items),
 		noun(len(items), "resource holds an identity", "resources hold identities"),
 		strings.Join(parts, ", "))
-	wrapped(statelessUnownedIntro, 0)
+	wrapped(liveUnownedIntro, 0)
 	out("\n")
 
 	for _, u := range items {
@@ -1286,35 +1286,35 @@ func (v *StatelessPlanHuman) Unowned(items []StatelessUnowned) {
 	v.view.outputHorizRule()
 }
 
-const statelessForeignIntro = `These live resources carry no ownership marker for this estate. This run reports them and does nothing else: nothing unowned is in the prior state this plan ran against, so no plan can propose destroying any of them. Adopting one means stamping its markers deliberately.`
+const liveForeignIntro = `These live resources carry no ownership marker for this estate. This run reports them and does nothing else: nothing unowned is in the prior state this plan ran against, so no plan can propose destroying any of them. Adopting one means stamping its markers deliberately.`
 
-const statelessAdoptIntro = `Each of these matches a declared resource that discovery could not find, exactly, on the arguments that identify that resource type. None of them was bound: ownership is the tofu-estate and tofu-address tag pair and nothing else, so claiming one is a tag write you make on purpose.`
+const liveAdoptIntro = `Each of these matches a declared resource that discovery could not find, exactly, on the arguments that identify that resource type. None of them was bound: ownership is the tofu-estate and tofu-address tag pair and nothing else, so claiming one is a tag write you make on purpose.`
 
-const statelessSweepIntro = `A classification is only as wide as the sweep behind it. These resource types were not enumerated, so nothing above says whether foreign resources of these types exist.`
+const liveSweepIntro = `A classification is only as wide as the sweep behind it. These resource types were not enumerated, so nothing above says whether foreign resources of these types exist.`
 
-const statelessRemovalIntro = `Each of these carries this estate's ownership marker for an address the configuration no longer declares. They are in the prior state this plan ran against, at the address their marker names, so the plan below proposes destroying them the same way it would destroy any resource whose configuration was deleted. Nothing unowned is here: a resource with no marker for this estate is never in the prior state and can never be planned for destruction.`
+const liveRemovalIntro = `Each of these carries this estate's ownership marker for an address the configuration no longer declares. They are in the prior state this plan ran against, at the address their marker names, so the plan below proposes destroying them the same way it would destroy any resource whose configuration was deleted. Nothing unowned is here: a resource with no marker for this estate is never in the prior state and can never be planned for destruction.`
 
-const statelessControllerHeldIntro = `A controller made these from an object of its own, not a block, so they are controller-held: on AWS, a resource carrying ACK's or Crossplane's tags; on Kubernetes, an object carrying Helm's release annotation. This run never proposes destroying one and never offers one for adoption, whatever markers it carries. To change or remove one, change or remove the object that holds it.`
+const liveControllerHeldIntro = `A controller made these from an object of its own, not a block, so they are controller-held: on AWS, a resource carrying ACK's or Crossplane's tags; on Kubernetes, an object carrying Helm's release annotation. This run never proposes destroying one and never offers one for adoption, whatever markers it carries. To change or remove one, change or remove the object that holds it.`
 
-// statelessControllerHeldHelm is added under the intro when a Helm release
+// liveControllerHeldHelm is added under the intro when a Helm release
 // holds any of them: the estate's label on such an object came from the
 // chart's values, and these are the two ways out.
-const statelessControllerHeldHelm = `An object a Helm release holds got this estate's label from the chart's values. To stop listing it, take tofu-estate out of the chart's values; to own it, render the chart into kubernetes_manifest blocks. helm_release itself is refused in a live root.`
+const liveControllerHeldHelm = `An object a Helm release holds got this estate's label from the chart's values. To stop listing it, take tofu-estate out of the chart's values; to own it, render the chart into kubernetes_manifest blocks. helm_release itself is refused in a live root.`
 
-const statelessSweepGapIntro = `Finding a resource whose block was deleted means listing its type and reading the markers off what comes back, and these types could not be searched. This estate may own resources of them that no plan will propose destroying. An empty removal list is a statement about the types that were swept and about nothing else.`
+const liveSweepGapIntro = `Finding a resource whose block was deleted means listing its type and reading the markers off what comes back, and these types could not be searched. This estate may own resources of them that no plan will propose destroying. An empty removal list is a statement about the types that were swept and about nothing else.`
 
-// statelessSweepGapReasons is the one paragraph each standing gap gets,
+// liveSweepGapReasons is the one paragraph each standing gap gets,
 // written once for the group rather than once per type.
-var statelessSweepGapReasons = map[string]string{
+var liveSweepGapReasons = map[string]string{
 	"TYPE_NOT_LISTABLE": "The provider cannot list these types at all, so nothing of them can be enumerated and a resource of one of them whose block was deleted stays live and unplanned. Destroy it before removing its block, or delete it out of band.",
 	"TYPE_NOT_TAGGABLE": "These types carry no tags, so they can carry no ownership marker and there is nothing for a sweep to search on. A resource of one of them is found by an identity built from its own configuration, which means deleting its resource block deletes the only record of which resource it was. Destroy it before removing its block, or delete it out of band.",
 }
 
-const statelessRenameIntro = `Each line below is a live resource this estate owns whose ownership marker names a for_each key the configuration no longer declares, beside the one declared instance of the same resource block that nothing claimed. They are probably the same resource under a new key. Nothing was renamed and the plan is unchanged by this: it still proposes creating the new key, and the live resource is still owned at an address nothing declares. Run the command if the pairing is right - rewriting that tag is the whole move.`
+const liveRenameIntro = `Each line below is a live resource this estate owns whose ownership marker names a for_each key the configuration no longer declares, beside the one declared instance of the same resource block that nothing claimed. They are probably the same resource under a new key. Nothing was renamed and the plan is unchanged by this: it still proposes creating the new key, and the live resource is still owned at an address nothing declares. Run the command if the pairing is right - rewriting that tag is the whole move.`
 
-const statelessParentReadIntro = `Each of these carries no tags and no ownership marker of its own, and no resource block declares it either. It was found by reading a marked, admitted parent's own identity instead: a bucket policy's identity is the bucket's own name, and so on for the other types below (see live/LIMITATIONS.md, "Some untaggable types are swept via a parent read instead"). REPORT ONLY means this pass can see it but does not yet trust the read to remove it; WILL BE DESTROYED means it does, and the destroy itself is in the resource diff above this section, the same as any other planned removal.`
+const liveParentReadIntro = `Each of these carries no tags and no ownership marker of its own, and no resource block declares it either. It was found by reading a marked, admitted parent's own identity instead: a bucket policy's identity is the bucket's own name, and so on for the other types below (see live/LIMITATIONS.md, "Some untaggable types are swept via a parent read instead"). REPORT ONLY means this pass can see it but does not yet trust the read to remove it; WILL BE DESTROYED means it does, and the destroy itself is in the resource diff above this section, the same as any other planned removal.`
 
-const statelessRenameAmbiguousIntro = `The resource blocks below have live resources this estate owns at for_each keys the configuration no longer declares, and declared instances of the same block that nothing claimed - but not one of each, so which live resource became which key is not something a marker answers. Nothing is offered and the plan is unchanged: it proposes creating the new keys, and the live resources are still owned at addresses nothing declares. Rename them one at a time with "choudoufu live-mv" if you know which is which.`
+const liveRenameAmbiguousIntro = `The resource blocks below have live resources this estate owns at for_each keys the configuration no longer declares, and declared instances of the same block that nothing claimed - but not one of each, so which live resource became which key is not something a marker answers. Nothing is offered and the plan is unchanged: it proposes creating the new keys, and the live resources are still owned at addresses nothing declares. Rename them one at a time with "choudoufu live-mv" if you know which is which.`
 
 // Foreign renders the classification of the live resources this estate does
 // not own, below the omissions and above the plan.
@@ -1323,7 +1323,7 @@ const statelessRenameAmbiguousIntro = `The resource blocks below have live resou
 // nothing: "swept and found none" and "nothing was swept" are different
 // answers, and only saying something when resources turn up would make them
 // indistinguishable.
-func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
+func (v *LivePlanHuman) Foreign(rep LiveForeign) {
 	cols := v.view.outputColumns()
 
 	out := func(s string) { v.view.streams.Print(s) }
@@ -1346,7 +1346,7 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 	case len(rep.Items) > 0:
 		colored("\n[reset][bold]Foreign resources: %d live %s not owned by estate %s[reset]\n\n",
 			len(rep.Items), noun(len(rep.Items), "resource", "resources"), rep.Estate)
-		wrapped(statelessForeignIntro, 0)
+		wrapped(liveForeignIntro, 0)
 		out("\n")
 		for _, item := range rep.Items {
 			colored("  [bold]%s %s[reset]%s\n", item.TypeName, liveIDOrNone(item.LiveID), displaySuffix(item.DisplayName, item.LiveID))
@@ -1393,7 +1393,7 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 	case len(rep.Candidates) > 0:
 		colored("\n[reset][bold]Adoptable: %d live %s matches a declared resource[reset]\n\n",
 			len(rep.Candidates), noun(len(rep.Candidates), "resource", "resources"))
-		wrapped(statelessAdoptIntro, 0)
+		wrapped(liveAdoptIntro, 0)
 		out("\n")
 		for _, c := range rep.Candidates {
 			colored("  [bold]%s[reset] <- %s %s%s\n", c.Addr, c.TypeName, liveIDOrNone(c.LiveID), displaySuffix(c.DisplayName, c.LiveID))
@@ -1412,7 +1412,7 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 	if len(rep.Removals) > 0 {
 		colored("\n[reset][bold]Owned and undeclared: %d live %s will be destroyed[reset]\n\n",
 			len(rep.Removals), noun(len(rep.Removals), "resource", "resources"))
-		wrapped(statelessRemovalIntro, 0)
+		wrapped(liveRemovalIntro, 0)
 		out("\n")
 		for _, rm := range rep.Removals {
 			colored("  [bold]%s[reset] <- %s %s%s\n",
@@ -1426,11 +1426,11 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 	if len(rep.ControllerHeld) > 0 {
 		colored("\n[reset][bold]Controller-held: %d live %s held by a controller, not a block[reset]\n\n",
 			len(rep.ControllerHeld), noun(len(rep.ControllerHeld), "resource", "resources"))
-		wrapped(statelessControllerHeldIntro, 0)
+		wrapped(liveControllerHeldIntro, 0)
 		for _, h := range rep.ControllerHeld {
 			if h.Controller == "Helm" { // kubesweep.ControllerHelm, not imported into views
 				out("\n")
-				wrapped(statelessControllerHeldHelm, 0)
+				wrapped(liveControllerHeldHelm, 0)
 				break
 			}
 		}
@@ -1456,7 +1456,7 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 		// that reason.
 		byReason := make(map[string][]string)
 		var order []string
-		var itemized []StatelessSweepGap
+		var itemized []LiveSweepGap
 		for _, g := range rep.SweepGaps {
 			if g.Reason != "TYPE_NOT_LISTABLE" && g.Reason != "TYPE_NOT_TAGGABLE" {
 				itemized = append(itemized, g)
@@ -1470,7 +1470,7 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 
 		colored("\n[reset][bold]Not swept for removal: %d resource %s[reset]\n\n",
 			len(rep.SweepGaps), noun(len(rep.SweepGaps), "type", "types"))
-		wrapped(statelessSweepGapIntro, 0)
+		wrapped(liveSweepGapIntro, 0)
 		out("\n")
 		// A list call that failed is this run's own news and is never
 		// collapsed: it is itemized above regardless of -verbose. The
@@ -1487,7 +1487,7 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 		case v.view.verbose:
 			for _, reason := range order {
 				colored("  [bold]%s[reset] [%s]\n", strings.Join(byReason[reason], ", "), reason)
-				wrapped(statelessSweepGapReasons[reason], 6)
+				wrapped(liveSweepGapReasons[reason], 6)
 			}
 		case len(order) > 0:
 			var collapsed int
@@ -1504,7 +1504,7 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 	if len(rep.ParentReads) > 0 {
 		colored("\n[reset][bold]Swept via parent read: %d resource %s[reset]\n\n",
 			len(rep.ParentReads), noun(len(rep.ParentReads), "type", "types"))
-		wrapped(statelessParentReadIntro, 0)
+		wrapped(liveParentReadIntro, 0)
 		out("\n")
 		for _, f := range rep.ParentReads {
 			status := "REPORT ONLY"
@@ -1524,9 +1524,9 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 	if len(rep.Renames) > 0 || len(rep.AmbiguousRenames) > 0 {
 		colored("\n[reset][bold]Renamed keys? %s[reset]\n\n", renameHeadline(rep))
 		if len(rep.Renames) > 0 {
-			wrapped(statelessRenameIntro, 0)
+			wrapped(liveRenameIntro, 0)
 		} else {
-			wrapped(statelessRenameAmbiguousIntro, 0)
+			wrapped(liveRenameAmbiguousIntro, 0)
 		}
 		out("\n")
 		for _, r := range rep.Renames {
@@ -1562,7 +1562,7 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 
 	if len(rep.Unswept) > 0 {
 		var notScanned []string
-		var itemized []StatelessUnsweptType
+		var itemized []LiveUnsweptType
 		for _, u := range rep.Unswept {
 			if u.Reason == "NOT_SCANNED" {
 				notScanned = append(notScanned, u.TypeName)
@@ -1573,7 +1573,7 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 
 		colored("\n[reset][bold]Not swept: %d resource %s[reset]\n\n",
 			len(rep.Unswept), noun(len(rep.Unswept), "type", "types"))
-		wrapped(statelessSweepIntro, 0)
+		wrapped(liveSweepIntro, 0)
 		out("\n")
 		for _, u := range itemized {
 			colored("  [bold]%s[reset] [%s]\n", u.TypeName, u.Reason)
@@ -1588,21 +1588,21 @@ func (v *StatelessPlanHuman) Foreign(rep StatelessForeign) {
 	v.view.outputHorizRule()
 }
 
-const statelessPolicyDeclaredIntro = `GitHub issue #67's policy block assigned a non-default verb to these declared instances. Each line names the quadrant the instance fell in (declared_tagged: already carries this estate's marker; declared_untagged: does not) and the verb that governed it.`
+const livePolicyDeclaredIntro = `GitHub issue #67's policy block assigned a non-default verb to these declared instances. Each line names the quadrant the instance fell in (declared_tagged: already carries this estate's marker; declared_untagged: does not) and the verb that governed it.`
 
-const statelessPolicyWithheldIntro = `These live resources carry this estate's ownership marker for an address the configuration no longer declares, and a policy verb kept them out of the removal sweep: they are not in the prior state this plan ran against, and nothing below proposes destroying them.`
+const livePolicyWithheldIntro = `These live resources carry this estate's ownership marker for an address the configuration no longer declares, and a policy verb kept them out of the removal sweep: they are not in the prior state this plan ran against, and nothing below proposes destroying them.`
 
-const statelessUntaggedIntro = `declared_tagged = "untag" released the named tag key from these resources' desired configuration. Each is otherwise stamped and managed exactly as it would be under converge; only the named key is affected. A resource marked "leaves management" released its own tofu-estate marker: this run's marker discovery can no longer find it by that marker, so a later plan will treat it as declared_untagged rather than converging it.`
+const liveUntaggedIntro = `declared_tagged = "untag" released the named tag key from these resources' desired configuration. Each is otherwise stamped and managed exactly as it would be under converge; only the named key is affected. A resource marked "leaves management" released its own tofu-estate marker: this run's marker discovery can no longer find it by that marker, so a later plan will treat it as declared_untagged rather than converging it.`
 
-const statelessReleasedIntro = `undeclared_tagged = "untag" released the named tag key from these live resources after a real apply changed the cloud - an orphan has no configuration block for the ordinary plan graph to hang an update off of, so this happens once, outside the graph, and is reported here rather than predicted in the plan above. RELEASED means the tag is confirmed gone by a read that followed the write; the resource itself was never destroyed or replaced. FAILED means the resource was left exactly as it was found - read the detail line for why.`
+const liveReleasedIntro = `undeclared_tagged = "untag" released the named tag key from these live resources after a real apply changed the cloud - an orphan has no configuration block for the ordinary plan graph to hang an update off of, so this happens once, outside the graph, and is reported here rather than predicted in the plan above. RELEASED means the tag is confirmed gone by a read that followed the write; the resource itself was never destroyed or replaced. FAILED means the resource was left exactly as it was found - read the detail line for why.`
 
-const statelessReconcileIntro = `undeclared_untagged = "delete" is scoped account reconciliation: every live resource of an admitted, enumerable type in this policy's scope that carries no estate marker and no preservation tag is planned for destruction, individually, with its identity evidence. This list is never a claim that the account is clean - see the gaps below for what this pass could not look at.`
+const liveReconcileIntro = `undeclared_untagged = "delete" is scoped account reconciliation: every live resource of an admitted, enumerable type in this policy's scope that carries no estate marker and no preservation tag is planned for destruction, individually, with its identity evidence. This list is never a claim that the account is clean - see the gaps below for what this pass could not look at.`
 
 // Policy renders GitHub issue #67's policy report as its own section,
 // between Foreign and the plan. A no-op when rep.Empty(), so a run with no
 // policy block - or one that only ever names default verbs - prints nothing
 // new at all.
-func (v *StatelessPlanHuman) Policy(rep StatelessPolicyReport) {
+func (v *LivePlanHuman) Policy(rep LivePolicyReport) {
 	if rep.Empty() {
 		return
 	}
@@ -1621,7 +1621,7 @@ func (v *StatelessPlanHuman) Policy(rep StatelessPolicyReport) {
 	if len(rep.Declared) > 0 {
 		colored("\n[reset][bold]Policy: %d declared %s governed by a non-default verb[reset]\n\n",
 			len(rep.Declared), noun(len(rep.Declared), "instance", "instances"))
-		wrapped(statelessPolicyDeclaredIntro, 0)
+		wrapped(livePolicyDeclaredIntro, 0)
 		out("\n")
 		for _, d := range rep.Declared {
 			quadrant := "declared_untagged"
@@ -1635,7 +1635,7 @@ func (v *StatelessPlanHuman) Policy(rep StatelessPolicyReport) {
 	if len(rep.Withheld) > 0 {
 		colored("\n[reset][bold]Policy kept: %d owned %s withheld from the sweep[reset]\n\n",
 			len(rep.Withheld), noun(len(rep.Withheld), "resource", "resources"))
-		wrapped(statelessPolicyWithheldIntro, 0)
+		wrapped(livePolicyWithheldIntro, 0)
 		out("\n")
 		for _, w := range rep.Withheld {
 			colored("  [bold]%s %s[reset]%s [undeclared_tagged=%s]\n",
@@ -1649,7 +1649,7 @@ func (v *StatelessPlanHuman) Policy(rep StatelessPolicyReport) {
 	if len(rep.Untagged) > 0 {
 		colored("\n[reset][bold]Policy untag: %d resource %s releasing a tag[reset]\n\n",
 			len(rep.Untagged), noun(len(rep.Untagged), "instance", "instances"))
-		wrapped(statelessUntaggedIntro, 0)
+		wrapped(liveUntaggedIntro, 0)
 		out("\n")
 		for _, u := range rep.Untagged {
 			status := ""
@@ -1674,7 +1674,7 @@ func (v *StatelessPlanHuman) Policy(rep StatelessPolicyReport) {
 			colored("\n[reset][bold]Policy untag (applied): %d %s released a tag[reset]\n\n",
 				len(rep.Released), noun(len(rep.Released), "resource", "resources"))
 		}
-		wrapped(statelessReleasedIntro, 0)
+		wrapped(liveReleasedIntro, 0)
 		out("\n")
 		for _, u := range rep.Released {
 			status := "[bold][green]RELEASED[reset]"
@@ -1712,7 +1712,7 @@ func (v *StatelessPlanHuman) Policy(rep StatelessPolicyReport) {
 		} else {
 			colored("\n[reset][bold]Policy delete: %d live %s will be destroyed (scoped account reconciliation)[reset]\n\n",
 				n, noun(n, "resource", "resources"))
-			wrapped(statelessReconcileIntro, 0)
+			wrapped(liveReconcileIntro, 0)
 		}
 		out("\n")
 		for _, c := range rep.Reconcile.Roster {
@@ -1745,17 +1745,17 @@ func (v *StatelessPlanHuman) Policy(rep StatelessPolicyReport) {
 // is a whole-run summary of what the sections above already say instance by
 // instance, so printing it here as well would restate the same verdicts a
 // second time in a report GitHub issue #587 exists because it is already too
-// long. [StatelessAdoptionHuman] is the view that renders it, and it renders
+// long. [LiveAdoptionHuman] is the view that renders it, and it renders
 // nothing else.
-func (v *StatelessPlanHuman) Adoption(StatelessAdoption) {}
+func (v *LivePlanHuman) Adoption(LiveAdoption) {}
 
 // Document renders nothing here: GitHub issue #788's document is
-// [StatelessPlanJSON]'s own output, printed instead of a human-readable
+// [LivePlanJSON]'s own output, printed instead of a human-readable
 // run's prose sections rather than beside them - see
 // [LivePlanCommand.livePlan]'s jsonRequested branch, which is the only
-// caller of this method and never holds a *StatelessPlanHuman when it
+// caller of this method and never holds a *LivePlanHuman when it
 // calls it.
-func (v *StatelessPlanHuman) Document(LivePlanDocument) bool { return true }
+func (v *LivePlanHuman) Document(LivePlanDocument) bool { return true }
 
 func noun(n int, one, many string) string {
 	if n == 1 {
@@ -1766,7 +1766,7 @@ func noun(n int, one, many string) string {
 
 // renameHeadline is the "Renamed keys?" subsection's one-line count: what can
 // be offered, what cannot, or both.
-func renameHeadline(rep StatelessForeign) string {
+func renameHeadline(rep LiveForeign) string {
 	var parts []string
 	if n := len(rep.Renames); n > 0 {
 		parts = append(parts, fmt.Sprintf("%d live %s may have moved to a new key",
@@ -1805,7 +1805,7 @@ func displaySuffix(displayName, liveID string) string {
 
 // tagSummary renders at most n pairs as "k=v", with a count of the rest.
 // n <= 0 renders all of them.
-func tagSummary(tags []StatelessTag, n int) string {
+func tagSummary(tags []LiveTag, n int) string {
 	if len(tags) == 0 {
 		return "(none)"
 	}
@@ -1825,7 +1825,7 @@ func tagSummary(tags []StatelessTag, n int) string {
 	return s
 }
 
-const statelessLookalikeIntro = `Each of these is an instance the plan below proposes to create, beside a live resource this estate does not own that might be the very thing being duplicated - most often because its tofu-estate and tofu-address tags were stripped or never written. This is a warning, not a block: the create may be genuinely intended, and nothing about the plan below is changed by it. If the create does duplicate the live resource, adopt it instead of applying this plan: write the two tags shown, or run the command, then re-run.`
+const liveLookalikeIntro = `Each of these is an instance the plan below proposes to create, beside a live resource this estate does not own that might be the very thing being duplicated - most often because its tofu-estate and tofu-address tags were stripped or never written. This is a warning, not a block: the create may be genuinely intended, and nothing about the plan below is changed by it. If the create does duplicate the live resource, adopt it instead of applying this plan: write the two tags shown, or run the command, then re-run.`
 
 // Lookalikes renders the lookalike guard's findings, last of the
 // live-plan-only sections and immediately above the plan diff itself, so
@@ -1836,7 +1836,7 @@ const statelessLookalikeIntro = `Each of these is an instance the plan below pro
 // is not a sweep-coverage question with its own thing to report when
 // empty - a plan with nothing to warn about is simply a plan with nothing to
 // warn about.
-func (v *StatelessPlanHuman) Lookalikes(items []StatelessLookalike) {
+func (v *LivePlanHuman) Lookalikes(items []LiveLookalike) {
 	if len(items) == 0 {
 		return
 	}
@@ -1855,7 +1855,7 @@ func (v *StatelessPlanHuman) Lookalikes(items []StatelessLookalike) {
 
 	colored("\n[reset][bold]Possible duplicates: %d planned %s may duplicate a live resource this estate does not own[reset]\n\n",
 		len(items), noun(len(items), "create", "creates"))
-	wrapped(statelessLookalikeIntro, 0)
+	wrapped(liveLookalikeIntro, 0)
 	out("\n")
 
 	for _, l := range items {

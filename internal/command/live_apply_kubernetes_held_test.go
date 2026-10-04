@@ -82,9 +82,9 @@ func heldTestRun(t *testing.T, sweeper kubesweep.Sweeper, changes []*plans.Resou
 	for _, c := range changes {
 		sync.AppendResourceInstanceChange(c)
 	}
-	provs := &statelessProviders{}
+	provs := &projectionProviders{}
 	provs.rememberKubernetesSweeper(provider, sweeper)
-	r := &statelessRunner{
+	r := &liveRunner{
 		labelListSweepers: provs.kubernetesSweepers(),
 		resolver: &projection.NodeResolver{
 			Estate:      "smoke-k8s",

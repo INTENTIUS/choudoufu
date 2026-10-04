@@ -61,7 +61,7 @@ func kubernetesTypeUniverse(schema providers.ProviderSchema) (types []string, ma
 	return types, manifestType
 }
 
-// statelessKubernetesDeletes reads the plan's deletes that went through a
+// liveKubernetesDeletes reads the plan's deletes that went through a
 // provider configuration the sweep holds a cluster client for, keyed the
 // way the clients are. Holding a client is what makes a provider
 // configuration one whose objects are label-swept; every other provider's
@@ -79,7 +79,7 @@ func kubernetesTypeUniverse(schema providers.ProviderSchema) (types []string, ma
 //
 // Nil when the plan deletes nothing such, which is what keeps AfterApply
 // from asking any cluster anything.
-func statelessKubernetesDeletes(sweepers map[string]kubesweep.Sweeper, plan *plans.Plan, schemas *tofu.Schemas, identities map[string]providers.ImportTarget) map[string]*kubernetesDeleteSet {
+func liveKubernetesDeletes(sweepers map[string]kubesweep.Sweeper, plan *plans.Plan, schemas *tofu.Schemas, identities map[string]providers.ImportTarget) map[string]*kubernetesDeleteSet {
 	if plan == nil || plan.Changes == nil || schemas == nil || len(sweepers) == 0 {
 		return nil
 	}
@@ -117,13 +117,13 @@ func statelessKubernetesDeletes(sweepers map[string]kubesweep.Sweeper, plan *pla
 	return out
 }
 
-// statelessHeldKubernetesDeletes asks each cluster about the deletes that
+// liveHeldKubernetesDeletes asks each cluster about the deletes that
 // went through it and returns the one warning, or nothing. A cluster that
 // cannot answer is logged and not reported: this check is a courtesy over
 // an apply that already succeeded, the next plan lists the same objects
 // and says so loudly if it cannot, and a second warning here would be one
 // about this check rather than about the estate.
-func statelessHeldKubernetesDeletes(ctx context.Context, sweepers map[string]kubesweep.Sweeper, deletes map[string]*kubernetesDeleteSet, estate string) tfdiags.Diagnostics {
+func liveHeldKubernetesDeletes(ctx context.Context, sweepers map[string]kubesweep.Sweeper, deletes map[string]*kubernetesDeleteSet, estate string) tfdiags.Diagnostics {
 	if len(deletes) == 0 || estate == "" {
 		return nil
 	}

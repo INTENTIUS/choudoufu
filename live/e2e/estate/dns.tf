@@ -10,7 +10,7 @@
 # nothing here anyway.
 
 resource "aws_route53_zone" "main" {
-  name = "stateless-e2e.example.com"
+  name = "live-e2e.example.com"
 
   tags = {
     tofu-estate  = local.estate_tag
@@ -27,7 +27,7 @@ resource "aws_route53_zone" "main" {
 # grammar. #19's second slice.
 resource "aws_route53_record" "app" {
   zone_id = aws_route53_zone.main.zone_id
-  name    = "app.stateless-e2e.example.com"
+  name    = "app.live-e2e.example.com"
   type    = "A"
   ttl     = 300
   records = ["10.42.0.10"]

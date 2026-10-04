@@ -181,7 +181,7 @@ func renderScopeDiags(diags tfdiags.Diagnostics) string {
 // for_each reads the excluded one resolve to nothing, with no diagnostic
 // at all - a refusal turned into silence.
 //
-// No scope [statelessTargetScope] computes can hold "mirror" and drop
+// No scope [liveTargetScope] computes can hold "mirror" and drop
 // "cert_validation", because the reference is the very edge targeting
 // follows; the scope here is hand-built to be exactly that inconsistent,
 // which is the case [resolver.walkOutOfScope]'s doc promises "the

@@ -14,7 +14,7 @@ import (
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
-// Rule identifies which stateless-mode rule an [Issue] reports. It is a stable
+// Rule identifies which live-mode rule an [Issue] reports. It is a stable
 // string so that callers can filter, group, or suppress by rule without
 // matching prose, and so tests assert on the rule rather than the message.
 type Rule string
@@ -480,7 +480,7 @@ func (r Rule) Severity() Severity {
 }
 
 // Issue is a single rejection: one construct in one configuration that puts
-// the configuration outside the stateless subset.
+// the configuration outside the live-mode subset.
 type Issue struct {
 	// Rule is which rule fired.
 	Rule Rule

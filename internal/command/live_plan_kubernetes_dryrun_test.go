@@ -137,14 +137,14 @@ func crontabManifest(name string, replicas cty.Value) cty.Value {
 	})
 }
 
-// TestStatelessKubernetesDryRunSubmitsPlannedManifests: a create and an
+// TestLiveKubernetesDryRunSubmitsPlannedManifests: a create and an
 // update of a manifest-shaped instance are submitted, with the verb the
 // plan proposed and the planned manifest as JSON values (the stamped
 // label present, a number a number); a delete, a built-in metadata-shaped
 // type and an instance under a provider with no client are not; a
 // manifest with a value unknown until apply is reported, never sent; and
 // the server's rejection is the refusal by name.
-func TestStatelessKubernetesDryRunSubmitsPlannedManifests(t *testing.T) {
+func TestLiveKubernetesDryRunSubmitsPlannedManifests(t *testing.T) {
 	provider := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("kubernetes")}
 	other := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("kubernetes"), Alias: "unreachable"}
 	const manifestType, metadataType, namespaceType = "kubernetes_manifest", "kubernetes_config_map", "kubernetes_namespace_v1"
@@ -177,10 +177,10 @@ func TestStatelessKubernetesDryRunSubmitsPlannedManifests(t *testing.T) {
 	plan := &plans.Plan{Changes: changes}
 
 	sweeper := &dryRunStubSweeper{reject: map[string]string{"changed": `CronTab.stable.example.com "changed" is invalid: spec.replicas: Invalid value: "string": spec.replicas in body must be of type integer`}}
-	provs := &statelessProviders{}
+	provs := &projectionProviders{}
 	provs.rememberKubernetesSweeper(provider, sweeper)
 
-	evidence, diags := statelessKubernetesDryRun(context.Background(), provs.kubernetesSweepers(), nil, plan, schemas)
+	evidence, diags := liveKubernetesDryRun(context.Background(), provs.kubernetesSweepers(), nil, plan, schemas)
 
 	if len(sweeper.submitted) != 3 {
 		t.Fatalf("submitted %d objects, want 3 (the create, the update and the Namespace manifest): %v", len(sweeper.submitted), sweeper.submitted)
@@ -239,15 +239,15 @@ func TestStatelessKubernetesDryRunSubmitsPlannedManifests(t *testing.T) {
 	}
 }
 
-// TestStatelessKubernetesDryRunNothingToDo: no client kept, or no plan,
+// TestLiveKubernetesDryRunNothingToDo: no client kept, or no plan,
 // says nothing at all.
-func TestStatelessKubernetesDryRunNothingToDo(t *testing.T) {
-	if ev, diags := statelessKubernetesDryRun(context.Background(), nil, nil, &plans.Plan{Changes: plans.NewChanges()}, &tofu.Schemas{}); ev != nil || len(diags) != 0 {
+func TestLiveKubernetesDryRunNothingToDo(t *testing.T) {
+	if ev, diags := liveKubernetesDryRun(context.Background(), nil, nil, &plans.Plan{Changes: plans.NewChanges()}, &tofu.Schemas{}); ev != nil || len(diags) != 0 {
 		t.Errorf("with no client: %+v %v", ev, diags)
 	}
-	provs := &statelessProviders{}
+	provs := &projectionProviders{}
 	provs.rememberKubernetesSweeper(addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("kubernetes")}, &dryRunStubSweeper{})
-	if ev, diags := statelessKubernetesDryRun(context.Background(), provs.kubernetesSweepers(), nil, nil, &tofu.Schemas{}); ev != nil || len(diags) != 0 {
+	if ev, diags := liveKubernetesDryRun(context.Background(), provs.kubernetesSweepers(), nil, nil, &tofu.Schemas{}); ev != nil || len(diags) != 0 {
 		t.Errorf("with no plan: %+v %v", ev, diags)
 	}
 }

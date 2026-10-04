@@ -104,8 +104,8 @@ func TestBeforeApplyAssertsTheBucketContract(t *testing.T) {
 	const estate = "prod"
 	plain := &configs.LiveRecordStore{Type: "s3", Bucket: "the-bucket"}
 
-	runnerOver := func(store staterecord.Store, rs *configs.LiveRecordStore) *statelessRunner {
-		return &statelessRunner{rawStore: store, recordStoreCfg: rs, recordEstate: estate}
+	runnerOver := func(store staterecord.Store, rs *configs.LiveRecordStore) *liveRunner {
+		return &liveRunner{rawStore: store, recordStoreCfg: rs, recordEstate: estate}
 	}
 
 	t.Run("a bucket that passes says nothing", func(t *testing.T) {
@@ -233,7 +233,7 @@ func TestBeforeApplyAssertsTheBucketContract(t *testing.T) {
 	})
 
 	t.Run("no record store at all", func(t *testing.T) {
-		if diags := (&statelessRunner{}).BeforeApply(ctx); len(diags) != 0 {
+		if diags := (&liveRunner{}).BeforeApply(ctx); len(diags) != 0 {
 			t.Errorf("a run with no record store produced %d diagnostic(s)", len(diags))
 		}
 		store := &contractCheckingStore{Store: localStoreForTest(t), findings: passingFindings()}
@@ -293,8 +293,8 @@ func TestBeforeApplyAssertsTheClusterContract(t *testing.T) {
 	const estate = "prod"
 	plain := &configs.LiveRecordStore{Type: "kubernetes", Namespace: testNamespace, NamespaceSet: true}
 
-	runnerOver := func(store staterecord.Store, rs *configs.LiveRecordStore) *statelessRunner {
-		return &statelessRunner{rawStore: store, recordStoreCfg: rs, recordEstate: estate}
+	runnerOver := func(store staterecord.Store, rs *configs.LiveRecordStore) *liveRunner {
+		return &liveRunner{rawStore: store, recordStoreCfg: rs, recordEstate: estate}
 	}
 	clusterFindings := func(f staterecord.Finding) []staterecord.Finding {
 		var out []staterecord.Finding

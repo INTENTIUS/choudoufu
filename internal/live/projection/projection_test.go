@@ -60,75 +60,75 @@ func TestBuildEstate(t *testing.T) {
 	resolutions := resolveOrFail(t, cfg)
 
 	cloud := newFakeCloud()
-	cloud.put("aws_s3_bucket", "tofu-stateless-e2e-data", map[string]string{
-		"id": "tofu-stateless-e2e-data", "bucket": "tofu-stateless-e2e-data",
-		"arn": "arn:aws:s3:::tofu-stateless-e2e-data",
+	cloud.put("aws_s3_bucket", "tofu-live-e2e-data", map[string]string{
+		"id": "tofu-live-e2e-data", "bucket": "tofu-live-e2e-data",
+		"arn": "arn:aws:s3:::tofu-live-e2e-data",
 	})
-	cloud.put("aws_s3_bucket_policy", "tofu-stateless-e2e-data", map[string]string{
-		"id": "tofu-stateless-e2e-data", "bucket": "tofu-stateless-e2e-data",
+	cloud.put("aws_s3_bucket_policy", "tofu-live-e2e-data", map[string]string{
+		"id": "tofu-live-e2e-data", "bucket": "tofu-live-e2e-data",
 		"policy": `{"Version":"2012-10-17"}`,
 	})
-	cloud.put("aws_iam_role", "tofu-stateless-e2e-app", map[string]string{
-		"id": "tofu-stateless-e2e-app", "name": "tofu-stateless-e2e-app",
-		"arn": "arn:aws:iam::000000000000:role/tofu-stateless-e2e-app",
+	cloud.put("aws_iam_role", "tofu-live-e2e-app", map[string]string{
+		"id": "tofu-live-e2e-app", "name": "tofu-live-e2e-app",
+		"arn": "arn:aws:iam::000000000000:role/tofu-live-e2e-app",
 	})
-	cloud.put("aws_iam_role_policy_attachment", "tofu-stateless-e2e-app/arn:aws:iam::aws:policy/ReadOnlyAccess", map[string]string{
-		"id": "tofu-stateless-e2e-app-20260811", "role": "tofu-stateless-e2e-app",
+	cloud.put("aws_iam_role_policy_attachment", "tofu-live-e2e-app/arn:aws:iam::aws:policy/ReadOnlyAccess", map[string]string{
+		"id": "tofu-live-e2e-app-20260811", "role": "tofu-live-e2e-app",
 		"policy_arn": "arn:aws:iam::aws:policy/ReadOnlyAccess",
 	})
-	cloud.put("aws_cloudwatch_log_group", "/stateless-e2e/app", map[string]string{
-		"id": "/stateless-e2e/app", "name": "/stateless-e2e/app",
+	cloud.put("aws_cloudwatch_log_group", "/live-e2e/app", map[string]string{
+		"id": "/live-e2e/app", "name": "/live-e2e/app",
 	})
-	cloud.put("aws_cloudwatch_log_group", "/stateless-e2e/optional", map[string]string{
-		"id": "/stateless-e2e/optional", "name": "/stateless-e2e/optional",
+	cloud.put("aws_cloudwatch_log_group", "/live-e2e/optional", map[string]string{
+		"id": "/live-e2e/optional", "name": "/live-e2e/optional",
 	})
-	cloud.put("aws_ssm_parameter", "/tofu-receipts/stateless-e2e/demo-effect", map[string]string{
-		"id": "/tofu-receipts/stateless-e2e/demo-effect", "name": "/tofu-receipts/stateless-e2e/demo-effect",
+	cloud.put("aws_ssm_parameter", "/tofu-receipts/live-e2e/demo-effect", map[string]string{
+		"id": "/tofu-receipts/live-e2e/demo-effect", "name": "/tofu-receipts/live-e2e/demo-effect",
 		"type": "String",
 	})
-	cloud.put("aws_ssm_parameter", "/tofu-receipts/stateless-e2e/demo-existence", map[string]string{
-		"id": "/tofu-receipts/stateless-e2e/demo-existence", "name": "/tofu-receipts/stateless-e2e/demo-existence",
+	cloud.put("aws_ssm_parameter", "/tofu-receipts/live-e2e/demo-existence", map[string]string{
+		"id": "/tofu-receipts/live-e2e/demo-existence", "name": "/tofu-receipts/live-e2e/demo-existence",
 		"type": "String",
 	})
-	cloud.put("aws_dynamodb_table", "tofu-stateless-e2e-events", map[string]string{
-		"id": "tofu-stateless-e2e-events", "name": "tofu-stateless-e2e-events",
-		"arn": "arn:aws:dynamodb:us-east-1:000000000000:table/tofu-stateless-e2e-events",
+	cloud.put("aws_dynamodb_table", "tofu-live-e2e-events", map[string]string{
+		"id": "tofu-live-e2e-events", "name": "tofu-live-e2e-events",
+		"arn": "arn:aws:dynamodb:us-east-1:000000000000:table/tofu-live-e2e-events",
 	})
 	// The cluster is keyed by its import ID (the name), while its id
 	// attribute carries the ARN — the split the identity table records.
-	cloud.put("aws_ecs_cluster", "tofu-stateless-e2e-cluster", map[string]string{
-		"id":   "arn:aws:ecs:us-east-1:000000000000:cluster/tofu-stateless-e2e-cluster",
-		"name": "tofu-stateless-e2e-cluster",
-		"arn":  "arn:aws:ecs:us-east-1:000000000000:cluster/tofu-stateless-e2e-cluster",
+	cloud.put("aws_ecs_cluster", "tofu-live-e2e-cluster", map[string]string{
+		"id":   "arn:aws:ecs:us-east-1:000000000000:cluster/tofu-live-e2e-cluster",
+		"name": "tofu-live-e2e-cluster",
+		"arn":  "arn:aws:ecs:us-east-1:000000000000:cluster/tofu-live-e2e-cluster",
 	})
 	// The four S3 bucket children (#19's second slice): each keyed by the
 	// parent bucket's name, which is its whole import ID.
-	cloud.put("aws_s3_bucket_versioning", "tofu-stateless-e2e-data", map[string]string{
-		"id": "tofu-stateless-e2e-data", "bucket": "tofu-stateless-e2e-data",
+	cloud.put("aws_s3_bucket_versioning", "tofu-live-e2e-data", map[string]string{
+		"id": "tofu-live-e2e-data", "bucket": "tofu-live-e2e-data",
 	})
-	cloud.put("aws_s3_bucket_public_access_block", "tofu-stateless-e2e-data", map[string]string{
-		"id": "tofu-stateless-e2e-data", "bucket": "tofu-stateless-e2e-data",
+	cloud.put("aws_s3_bucket_public_access_block", "tofu-live-e2e-data", map[string]string{
+		"id": "tofu-live-e2e-data", "bucket": "tofu-live-e2e-data",
 	})
-	cloud.put("aws_s3_bucket_server_side_encryption_configuration", "tofu-stateless-e2e-data", map[string]string{
-		"id": "tofu-stateless-e2e-data", "bucket": "tofu-stateless-e2e-data",
+	cloud.put("aws_s3_bucket_server_side_encryption_configuration", "tofu-live-e2e-data", map[string]string{
+		"id": "tofu-live-e2e-data", "bucket": "tofu-live-e2e-data",
 	})
-	cloud.put("aws_s3_bucket_lifecycle_configuration", "tofu-stateless-e2e-data", map[string]string{
-		"id": "tofu-stateless-e2e-data", "bucket": "tofu-stateless-e2e-data",
+	cloud.put("aws_s3_bucket_lifecycle_configuration", "tofu-live-e2e-data", map[string]string{
+		"id": "tofu-live-e2e-data", "bucket": "tofu-live-e2e-data",
 	})
 	// Same slice: the inline role policy is keyed by its role:name import
 	// ID (which is also its id attribute), the alias by its full alias/...
 	// name.
-	cloud.put("aws_iam_role_policy", "tofu-stateless-e2e-app:tofu-stateless-e2e-app-inline", map[string]string{
-		"id":   "tofu-stateless-e2e-app:tofu-stateless-e2e-app-inline",
-		"role": "tofu-stateless-e2e-app", "name": "tofu-stateless-e2e-app-inline",
+	cloud.put("aws_iam_role_policy", "tofu-live-e2e-app:tofu-live-e2e-app-inline", map[string]string{
+		"id":   "tofu-live-e2e-app:tofu-live-e2e-app-inline",
+		"role": "tofu-live-e2e-app", "name": "tofu-live-e2e-app-inline",
 		"policy": `{"Version":"2012-10-17"}`,
 	})
-	cloud.put("aws_kms_alias", "alias/tofu-stateless-e2e-main", map[string]string{
-		"id": "alias/tofu-stateless-e2e-main", "name": "alias/tofu-stateless-e2e-main",
+	cloud.put("aws_kms_alias", "alias/tofu-live-e2e-main", map[string]string{
+		"id": "alias/tofu-live-e2e-main", "name": "alias/tofu-live-e2e-main",
 		"target_key_id": "00000000-0000-0000-0000-000000000000",
 	})
-	cloud.put("aws_cloudwatch_metric_alarm", "tofu-stateless-e2e-cpu", map[string]string{
-		"id": "tofu-stateless-e2e-cpu", "alarm_name": "tofu-stateless-e2e-cpu",
+	cloud.put("aws_cloudwatch_metric_alarm", "tofu-live-e2e-cpu", map[string]string{
+		"id": "tofu-live-e2e-cpu", "alarm_name": "tofu-live-e2e-cpu",
 	})
 
 	res, diags := Build(context.Background(), cfg, resolutions, cloud.providers(t))
@@ -206,17 +206,17 @@ func TestBuildEstateObjects(t *testing.T) {
 	resolutions := resolveOrFail(t, cfg)
 
 	cloud := newFakeCloud()
-	cloud.put("aws_s3_bucket", "tofu-stateless-e2e-data", map[string]string{
-		"id": "tofu-stateless-e2e-data", "bucket": "tofu-stateless-e2e-data",
-		"arn": "arn:aws:s3:::tofu-stateless-e2e-data",
+	cloud.put("aws_s3_bucket", "tofu-live-e2e-data", map[string]string{
+		"id": "tofu-live-e2e-data", "bucket": "tofu-live-e2e-data",
+		"arn": "arn:aws:s3:::tofu-live-e2e-data",
 	})
-	cloud.put("aws_s3_bucket_policy", "tofu-stateless-e2e-data", map[string]string{
-		"id": "tofu-stateless-e2e-data", "bucket": "tofu-stateless-e2e-data",
+	cloud.put("aws_s3_bucket_policy", "tofu-live-e2e-data", map[string]string{
+		"id": "tofu-live-e2e-data", "bucket": "tofu-live-e2e-data",
 		"policy": `{"Version":"2012-10-17"}`,
 	})
-	cloud.put("aws_iam_role", "tofu-stateless-e2e-app", map[string]string{
-		"id": "tofu-stateless-e2e-app", "name": "tofu-stateless-e2e-app",
-		"arn": "arn:aws:iam::000000000000:role/tofu-stateless-e2e-app",
+	cloud.put("aws_iam_role", "tofu-live-e2e-app", map[string]string{
+		"id": "tofu-live-e2e-app", "name": "tofu-live-e2e-app",
+		"arn": "arn:aws:iam::000000000000:role/tofu-live-e2e-app",
 	})
 
 	res, diags := Build(context.Background(), cfg, resolutions, cloud.providers(t))
@@ -226,7 +226,7 @@ func TestBuildEstateObjects(t *testing.T) {
 	if is == nil || is.Current == nil {
 		t.Fatal("aws_s3_bucket.data is not in the projection")
 	}
-	if got, want := string(is.Current.AttrsJSON), `"arn:aws:s3:::tofu-stateless-e2e-data"`; !strings.Contains(got, want) {
+	if got, want := string(is.Current.AttrsJSON), `"arn:aws:s3:::tofu-live-e2e-data"`; !strings.Contains(got, want) {
 		t.Errorf("the bucket's attributes do not carry the value the provider read:\n%s", got)
 	}
 	if is.Current.Status != 'R' {

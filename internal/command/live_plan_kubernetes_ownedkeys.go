@@ -19,7 +19,7 @@ import (
 )
 
 // The command layer's half of GitHub issue #1211: the one cluster read
-// that tells a stateless plan which metadata.labels and
+// that tells a live plan which metadata.labels and
 // metadata.annotations keys its own field manager owns on a live
 // kubernetes_manifest object.
 //
@@ -34,12 +34,12 @@ import (
 //
 // It lives here for the same reason the server-side dry run does: the
 // cluster client is the marker sweep's, built from the provider block at
-// the plan's first cluster contact and kept on statelessProviders, and
+// the plan's first cluster contact and kept on projectionProviders, and
 // internal/live/projection has no Kubernetes client and should not grow
 // one. The projection declares the question
 // ([projection.ManifestOwnedKeysFunc]); this answers it.
 
-// statelessManifestOwnedKeys builds the hook, or returns nil when there
+// liveManifestOwnedKeys builds the hook, or returns nil when there
 // is nothing to build it from.
 //
 // Nil is not a silent degradation: the projection warns whenever it has
@@ -52,7 +52,7 @@ import (
 // marker sweep builds a cluster client at its FIRST contact with a
 // cluster and this hook is built before the sweep has necessarily made
 // one.
-func statelessManifestOwnedKeys(config *configs.Config, provs *statelessProviders) projection.ManifestOwnedKeysFunc {
+func liveManifestOwnedKeys(config *configs.Config, provs *projectionProviders) projection.ManifestOwnedKeysFunc {
 	if config == nil || provs == nil {
 		return nil
 	}

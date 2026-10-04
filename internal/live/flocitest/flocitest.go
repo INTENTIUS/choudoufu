@@ -156,7 +156,7 @@ func EstateDir(t *testing.T) string {
 }
 
 // LimitsDir returns the path of the limits fixture, one directory per
-// construct the stateless mode does not serve.
+// construct live mode does not serve.
 func LimitsDir(t *testing.T) string {
 	t.Helper()
 	return fixtureDir(t, filepath.Join("live", "e2e", "limits"))
@@ -448,7 +448,7 @@ func removeAged(t *testing.T, prefix string) {
 	t.Helper()
 
 	// The ^ anchors the filter to the start of the name and the trailing -
-	// stops "tofu-stateless-p2" from reaching "tofu-stateless-p21"'s
+	// stops "tofu-live-p2" from reaching "tofu-live-p21"'s
 	// containers.
 	out, err := exec.Command("docker", "ps", "-a", "--filter", "name=^"+prefix+"-",
 		"--format", "{{.ID}}\t{{.Names}}\t{{.CreatedAt}}").Output()

@@ -77,7 +77,7 @@ import (
 // #69's account.
 //
 // An estate whose managed resources span N distinct provider configurations
-// (internal/command/live_plan.go's statelessDiscover, looping the sweep
+// (internal/command/live_plan.go's liveDiscover, looping the sweep
 // once per configuration and merging with [Merge]) pays this budget's
 // sweep-side cost up to N times over, not once: sweepTypes's per-type list
 // calls (the "GET ?bucket-region&max-buckets&x-id"-style estate-wide scan,
@@ -200,7 +200,7 @@ type scaleReport struct {
 }
 
 // benchProviders satisfies dataread.Providers over the benchmark's one
-// launched provider process, the way the command layer's statelessProviders
+// launched provider process, the way the command layer's projectionProviders
 // does over its plugin cache.
 type benchProviders struct {
 	provider providers.Interface

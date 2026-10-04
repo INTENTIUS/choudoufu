@@ -48,5 +48,5 @@ resource "aws_subnet" "from_local" {
 resource "aws_s3_bucket" "punctuation" {
   for_each = toset(["ok-key", "bad%key"])
 
-  bucket = "tofu-stateless-lint-${each.key}"
+  bucket = "tofu-live-lint-${each.key}"
 }

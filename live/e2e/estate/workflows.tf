@@ -14,8 +14,8 @@
 # segment is floci's fixed 000000000000, which the harness already relies on
 # throughout.
 resource "aws_sfn_state_machine" "pipeline" {
-  name     = "tofu-stateless-e2e-pipeline"
-  role_arn = "arn:aws:iam::000000000000:role/tofu-stateless-e2e-app"
+  name     = "tofu-live-e2e-pipeline"
+  role_arn = "arn:aws:iam::000000000000:role/tofu-live-e2e-app"
 
   definition = jsonencode({
     StartAt = "Done"

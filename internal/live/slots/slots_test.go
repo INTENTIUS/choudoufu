@@ -213,7 +213,7 @@ func TestMatchDeficitMintsAboveTheHighWaterMark(t *testing.T) {
 }
 
 // TestMatchMintingNeverReusesALiveSlot is the never-reuse rule as far as a
-// stateless run can enforce it: nothing minted may collide with anything
+// live run can enforce it: nothing minted may collide with anything
 // live, including a member that is on its way out.
 func TestMatchMintingNeverReusesALiveSlot(t *testing.T) {
 	// One live member holding a high slot, and three indices to fill.

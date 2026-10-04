@@ -158,7 +158,7 @@ set -uo pipefail
 # THE ROOT VOLUME IS GENUINELY FOREIGN, not a bug. `root_block_device` is an
 # inline attribute of `aws_instance`, not a separate Terraform resource -
 # stock's own state never tracks that volume as its own object either, so a
-# stateless replan correctly reports it as a live object with no declared
+# live replan correctly reports it as a live object with no declared
 # resource behind it. Combined with floci's own default-VPC bootstrap
 # (`ensureDefaultResources`: one default VPC's IGW, route table, security
 # group and three subnets, real AWS's own out-of-the-box account shape),
@@ -604,7 +604,7 @@ log "=== PART GREENFIELD: 2. markers, read through the AWS CLI directly ==="
 # writes no terraform.tfstate at all under the live block (record-based),
 # and "output -raw" against that came back "No outputs found" when this
 # was first tried live - a real, separate finding about the output command
-# under a stateless record-backed run, not this stage's own subject, so
+# under a live record-backed run, not this stage's own subject, so
 # it is routed around here rather than chased. $GREEN_ENDPOINT is a brand
 # new namespace with only this one apply's objects in it, so the single
 # running/pending instance is unambiguous.
@@ -924,7 +924,7 @@ grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT" \
 # sweep".
 #
 # WHICH PLAN IS ASKED, AND WHY THIS IS NOW TWO PLANS. Until 2026-08-30 an
-# ordinary stateless plan always asked the account-inventory question
+# ordinary live plan always asked the account-inventory question
 # ("what is in my account this estate does not know about"), so the count
 # above fell out of the plan this stage already ran.
 # the CollectUnclaimed ruling (#604)
@@ -951,7 +951,7 @@ grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT" \
 # On failure, print the WHOLE plan, not the "Foreign resources:" header
 # line alone. That line carries only a count; the objects it counted -
 # type, live id, tags, why - are printed directly beneath it by
-# StatelessPlanHuman.Foreign (internal/command/views/live_plan.go), and a
+# LivePlanHuman.Foreign (internal/command/views/live_plan.go), and a
 # bare `grep -E '^Foreign resources:'` discards exactly that section. Same
 # defect PR #1129 fixed for terralith-scale's day2_remove, where three runs
 # read as silence because the printer greped away the plan's "Not swept for
@@ -1790,7 +1790,7 @@ COUNTEOF
     # all under the live block (record-based), and "output -raw" against
     # that is a real, separate, already-documented finding (PART
     # GREENFIELD's own note, above) - "No outputs found" under a
-    # stateless record-backed run. Found by its marker instead: the new
+    # live record-backed run. Found by its marker instead: the new
     # instance is the one carrying the SAME tofu-address in running/
     # pending state, in an account with only one other (now-terminated)
     # instance under that estate ever having claimed it.

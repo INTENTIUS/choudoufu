@@ -37,7 +37,7 @@ const defaultRecordDirName = ".tofu-records"
 //
 // moduleDir is the directory the "local" backend's relative path (rs.Path,
 // or the default) is resolved against - ordinarily the module directory a
-// stateless run's live block was read from. estate names the key namespace
+// live run's live block was read from. estate names the key namespace
 // the "s3" backend defaults to when rs.KeyPrefix is unset; see
 // [RecordKeyPrefix].
 //

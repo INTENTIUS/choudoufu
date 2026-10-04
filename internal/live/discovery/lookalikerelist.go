@@ -166,11 +166,11 @@ func relistOneForLookalikes(ctx context.Context, req Request, schemas listclient
 	}
 	config, cfgDiags := ts.BuildConfig(vals)
 	if cfgDiags.HasErrors() {
-		log.Printf("[WARN] stateless/discovery: the lookalike guard's widened list configuration for %s could not be built (%s); the plan's create of it goes unchecked against unmarked live resources", typeName, cfgDiags.Err())
+		log.Printf("[WARN] live/discovery: the lookalike guard's widened list configuration for %s could not be built (%s); the plan's create of it goes unchecked against unmarked live resources", typeName, cfgDiags.Err())
 		return diags
 	}
 
-	log.Printf("[DEBUG] stateless/discovery: %s has a declared instance nothing claimed, so the plan proposes creating one; listing the type unfiltered once so the lookalike guard can see a stripped marker (issue #1480)", typeName)
+	log.Printf("[DEBUG] live/discovery: %s has a declared instance nothing claimed, so the plan proposes creating one; listing the type unfiltered once so the lookalike guard can see a stripped marker (issue #1480)", typeName)
 
 	// Everything of this type the first listing already filed. A
 	// config-driven scan (sweep=false) files an unmarked object into
@@ -190,7 +190,7 @@ func relistOneForLookalikes(ctx context.Context, req Request, schemas listclient
 
 	results, listDiags := listclient.List(ctx, req.Provider, typeName, config, true)
 	if listDiags.HasErrors() {
-		log.Printf("[WARN] stateless/discovery: the lookalike guard's widened list of %s failed (%s); the plan's create of it goes unchecked against unmarked live resources", typeName, listDiags.Err())
+		log.Printf("[WARN] live/discovery: the lookalike guard's widened list of %s failed (%s); the plan's create of it goes unchecked against unmarked live resources", typeName, listDiags.Err())
 		return diags
 	}
 

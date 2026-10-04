@@ -686,7 +686,7 @@ Records and the record store:
 
 - #1124: claim 1's step 6 reads the admission table, and its last green run is recorded (PR #1210)
 - #1142, #1149, #1187: a tool that cannot measure says so, and a scale record is published where it is written (PR #1221)
-- #1172: record the stateless* ruling in live.go and drop the hedge (PR #1243)
+- #1172: record the ruling on the internal live-mode identifiers in live.go and drop the hedge (PR #1243)
 - #1145: the s3 record store is checked, named and torn down (PR #1250)
 - #1233: an estate with no scale ladder records its refusal on a shelf beside the ladder (PR #1273)
 - #1283: chunk a long record key across segments instead of one filename (PR #1286)
@@ -733,7 +733,7 @@ Plan, apply and targeting:
 Site, docs and wording:
 
 - #1171, #1172: stop saying a live block removes or has no state file (PR #1225)
-- #1172 item 1: the word "stateless" leaves the strings a user reads (PR #1241)
+- #1172 item 1: the fork's old name for live mode leaves the strings a user reads (PR #1241)
 - #1242: one ownership sentence, shared, and true for a resource with no tags (PR #1251)
 - #1325: a recovery runbook, and two corrections it turned up (PR #1330)
 
@@ -1070,7 +1070,7 @@ ENGINE WORK:
   held a record, and a `lifecycle.destroy = false` create all produce that
   same fact and destroy nothing, so a displaced object still wearing the old
   marker was pruned as "destroyed by an earlier apply of this estate" while
-  it was running. The signal now comes from the plan: `StatelessRun.WriteBack`
+  it was running. The signal now comes from the plan: `LiveRun.WriteBack`
   is handed the addresses whose action is `DeleteThenCreate` or
   `CreateThenDelete`, an entry is written only when the plan names the
   address and the identity moved, and import and live-mv write nothing, so a
@@ -1699,7 +1699,7 @@ FORK WORK:
 
 - **`internal/command/e2etest` now gates something** (#755, PRs #836 and
   #856). `TestStaticPlanVariables` was red on main: `unlock.go` called the
-  stateless guard before parsing variables, so the guard's own config load
+  live-mode guard before parsing variables, so the guard's own config load
   could not see a `-var` the backend depended on, while the other four
   guarded commands parse first. A four-day-old fork defect sat behind a
   package no tier ran, so per the maintainer's 2026-09-05 ruling the package
@@ -2316,7 +2316,7 @@ ENHANCEMENTS:
 
 UPGRADE NOTES:
 
-- The Go module path is now `github.com/intentius/choudoufu`, not `github.com/opentofu/opentofu`, and the fork's own tree moved from `internal/stateless` and `stateless/` to `internal/live` and `live/`. Every path and import in this repository and in the docs moved with it; `tools/rename-phase/rename.sh`, in git history at `492490cc2`, records the transformation.
+- The Go module path is now `github.com/intentius/choudoufu`, not `github.com/opentofu/opentofu`, and the fork's own tree moved from its original top-level directory and the matching `internal/` package (both named for the mode's first name) to `internal/live` and `live/`. Every path and import in this repository and in the docs moved with it; `tools/rename-phase/rename.sh`, in git history at `492490cc2`, records the transformation.
 
 ENHANCEMENTS:
 
@@ -2335,7 +2335,7 @@ UPGRADE NOTES:
 
 EXPERIMENTS:
 
-- **Live resource markers** - fork-only, experimental: no state file, backend, or lock; prior state is rebuilt from the live system each run via ownership tags (tofu-estate/tofu-address/tofu-slot). Opt in with a `live` block; new `choudoufu live-plan` and `choudoufu live-mv` commands, EXPERIMENTAL in their help. At v0.1.0 this covered AWS only, 16 types, and the root module only; the admitted list and the module shapes have grown in every release since. The current limits are [`live/LIMITATIONS.md`](live/LIMITATIONS.md); the marker format is [`live/MARKERS.md`](live/MARKERS.md); the [documentation site](https://intentius.io/choudoufu/docs/) is the narrative version. (Through v0.4.0 this entry said "stateless mode" and pointed at a "Stateless Mode docs page" that has never existed under either name.)
+- **Live resource markers** - fork-only, experimental: no state file, backend, or lock; prior state is rebuilt from the live system each run via ownership tags (tofu-estate/tofu-address/tofu-slot). Opt in with a `live` block; new `choudoufu live-plan` and `choudoufu live-mv` commands, EXPERIMENTAL in their help. At v0.1.0 this covered AWS only, 16 types, and the root module only; the admitted list and the module shapes have grown in every release since. The current limits are [`live/LIMITATIONS.md`](live/LIMITATIONS.md); the marker format is [`live/MARKERS.md`](live/MARKERS.md); the [documentation site](https://intentius.io/choudoufu/docs/) is the narrative version. (Through v0.4.0 this entry used the mode's first name and pointed at a docs page under that name that has never existed under either name.)
 - Unowned live resources are rendered as their own section of the plan, rather than being invisible.
 - The marker lint refusals shipped with the release: the 256-character marker address cap, receipt hash-only values and secrets discipline, and the unadmitted-type rule.
 

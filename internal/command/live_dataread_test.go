@@ -19,7 +19,7 @@ import (
 )
 
 // This file is the command layer's own test for the two data-read call sites,
-// [statelessDataReads] and [statelessRootOutputDataReads].
+// [liveDataReads] and [liveRootOutputDataReads].
 //
 // It exists because an adversarial audit on 2026-08-21 found that the older
 // of the two - the identity class, and the one live/LIMITATIONS.md measures in
@@ -40,7 +40,7 @@ import (
 type recordingDataReadProviders struct {
 	asked []string
 
-	// declared is what [statelessProviders.managedTypesByProvider] measures
+	// declared is what [projectionProviders.managedTypesByProvider] measures
 	// off each provider's own GetProviderSchema on a real run: the external
 	// provider serves data sources and nothing else, and the aws provider
 	// serves the managed type this fixture declares.
@@ -111,7 +111,7 @@ func newDataReadSeam(t *testing.T) (*recordingDataReadProviders, *regionReadingP
 	}, prov
 }
 
-// TestStatelessDataReadsNeverConfiguresALocalExecutionProvider is the audit's
+// TestLiveDataReadsNeverConfiguresALocalExecutionProvider is the audit's
 // first and most serious finding, pinned at the call site it was found in.
 //
 // The fixture puts data.external's result in an identity-bearing position,
@@ -123,11 +123,11 @@ func newDataReadSeam(t *testing.T) (*recordingDataReadProviders, *regionReadingP
 // "a wrong marker outranks a missing one" ranks a named refusal above a marker
 // computed from a program this fork ran during a plan, and the run refuses
 // before a single provider process is started.
-func TestStatelessDataReadsNeverConfiguresALocalExecutionProvider(t *testing.T) {
-	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", "live-dataread-local-execution"))
+func TestLiveDataReadsNeverConfiguresALocalExecutionProvider(t *testing.T) {
+	cfg := liveTestLoadConfig(t, filepath.Join("testdata", "live-dataread-local-execution"))
 	seam, prov := newDataReadSeam(t)
 
-	results, diags := statelessDataReads(t.Context(), cfg, seam, nil, nil)
+	results, diags := liveDataReads(t.Context(), cfg, seam, nil, nil)
 	if !diags.HasErrors() {
 		t.Fatalf("the identity read class accepted a configuration whose identity is built on a local-execution data source; results: %v", results)
 	}
@@ -150,7 +150,7 @@ func TestStatelessDataReadsNeverConfiguresALocalExecutionProvider(t *testing.T) 
 	}
 }
 
-// TestStatelessDataReadsStillReadsTheEstatesOwnProvider is the control, and
+// TestLiveDataReadsStillReadsTheEstatesOwnProvider is the control, and
 // without it the test above passes for a phase that reads nothing at all.
 //
 // It also pins the line this fork chose. Confining the identity class to the
@@ -159,11 +159,11 @@ func TestStatelessDataReadsNeverConfiguresALocalExecutionProvider(t *testing.T) 
 // manage anything with, none of which can run a program, all of which stock
 // OpenTofu plans without complaint. data.aws_region here stands for that
 // whole population, and it must still be read.
-func TestStatelessDataReadsStillReadsTheEstatesOwnProvider(t *testing.T) {
-	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", "live-dataread-region-only"))
+func TestLiveDataReadsStillReadsTheEstatesOwnProvider(t *testing.T) {
+	cfg := liveTestLoadConfig(t, filepath.Join("testdata", "live-dataread-region-only"))
 	seam, prov := newDataReadSeam(t)
 
-	results, diags := statelessDataReads(t.Context(), cfg, seam, nil, nil)
+	results, diags := liveDataReads(t.Context(), cfg, seam, nil, nil)
 	if diags.HasErrors() {
 		t.Fatalf("the phase refused a configuration whose only data source is an ordinary cloud read: %s", diags.Err())
 	}
@@ -175,7 +175,7 @@ func TestStatelessDataReadsStillReadsTheEstatesOwnProvider(t *testing.T) {
 	}
 }
 
-// TestStatelessRootOutputDataReadsNeverConfiguresALocalExecutionProvider is
+// TestLiveRootOutputDataReadsNeverConfiguresALocalExecutionProvider is
 // the same wiring assertion for the second call site. That one has been
 // confined since it was written, so this is a ratchet rather than a fix: it
 // fails the day someone hands [dataread.ReadForOutputs] the raw provider pool
@@ -183,11 +183,11 @@ func TestStatelessDataReadsStillReadsTheEstatesOwnProvider(t *testing.T) {
 //
 // This class is scoped rather than fatal, so nothing is refused: the output
 // simply keeps no prior value and renders as "+".
-func TestStatelessRootOutputDataReadsNeverConfiguresALocalExecutionProvider(t *testing.T) {
-	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", "live-dataread-local-execution"))
+func TestLiveRootOutputDataReadsNeverConfiguresALocalExecutionProvider(t *testing.T) {
+	cfg := liveTestLoadConfig(t, filepath.Join("testdata", "live-dataread-local-execution"))
 	seam, prov := newDataReadSeam(t)
 
-	results, diags := statelessRootOutputDataReads(t.Context(), cfg, seam, nil, nil)
+	results, diags := liveRootOutputDataReads(t.Context(), cfg, seam, nil, nil)
 	if diags.HasErrors() {
 		t.Fatalf("the root-output read class refused a run; it is scoped and must never do that: %s", diags.Err())
 	}

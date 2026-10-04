@@ -34,7 +34,7 @@ const stampUnmarkedApplyRecordBackedFixture = "../../command/testdata/live-plan-
 // a real provider schema shape (a type the hand-curated markerless table
 // has never heard of, but with nowhere to write a marker anyway), the same
 // caricature internal/command's own live_plan_test.go builds
-// (statelessTestSchemasWithout) for the same fixture.
+// (liveTestSchemasWithout) for the same fixture.
 func stampUnmarkedApplyRecordBackedSchemas() map[string]providers.Schema {
 	return map[string]providers.Schema{
 		"aws_vpc": {Block: &configschema.Block{
@@ -85,7 +85,7 @@ func hasSummary(diags tfdiags.Diagnostics, summary string) bool {
 
 // TestNodeStampUnmarkedApply_recordBackedInstanceIsExempt is GitHub issue
 // #950's own regression guard on the exemption
-// [statelessUnmarkedApplyGaps] (internal/command/live_plan.go) needs:
+// [liveUnmarkedApplyGaps] (internal/command/live_plan.go) needs:
 // #364's record store already holding an identity for a needs-discovery,
 // untaggable instance must suppress this refusal, or the fix would refuse
 // every estate #364 already made safe.

@@ -271,7 +271,7 @@ func scanTypeLocatedFallback(ctx context.Context, req Request, decl *declared, t
 		found++
 	}
 
-	log.Printf("[DEBUG] stateless/discovery: %s has no tags argument and no list route; the estate's record store had an identity for %d of %d declared instance(s)", typeName, found, len(decl.types[typeName]))
+	log.Printf("[DEBUG] live/discovery: %s has no tags argument and no list route; the estate's record store had an identity for %d of %d declared instance(s)", typeName, found, len(decl.types[typeName]))
 
 	res.Scans = append(res.Scans, TypeScan{
 		TypeName:  typeName,

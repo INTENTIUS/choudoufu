@@ -79,7 +79,7 @@ func TestLivePlan_sweepSignsAsEachProviderConfiguration(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
 	t.Setenv("AWS_REGION", "us-east-1")
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	cloud.putMarked("aws_s3_bucket", "tofu-two-accounts-home", "two-accounts-unit", "aws_s3_bucket.home", map[string]string{
 		"id": "tofu-two-accounts-home", "bucket": "tofu-two-accounts-home",
 	})

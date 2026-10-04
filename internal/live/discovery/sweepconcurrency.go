@@ -20,7 +20,7 @@ import (
 
 // GitHub issue #605. The estate-wide sweep makes one list call per admitted
 // type, and against a real account that is very nearly the whole of a
-// stateless plan's wall clock. #578's certification run, scale 1, 79
+// live plan's wall clock. #578's certification run, scale 1, 79
 // resources, us-east-2, three runs a side, every plan empty: stock 3s/4s/3s
 // against this fork's 203s/211s/200s. The sweep is 558 of those calls, so
 // the 201.3s mean difference over stock is 0.36s per sweep call - one
@@ -612,7 +612,7 @@ func (pf *sweepPrefetch) takeNative(typeName string, config cty.Value) ([]listcl
 		pf.mu.Lock()
 		pf.mismatched++
 		pf.mu.Unlock()
-		log.Printf("[WARN] stateless/discovery: the sweep prefetched %s with a list configuration the scan then disagreed with; listing it again", typeName)
+		log.Printf("[WARN] live/discovery: the sweep prefetched %s with a list configuration the scan then disagreed with; listing it again", typeName)
 		return nil, nil, false
 	}
 	return e.results, e.diags, true
@@ -632,7 +632,7 @@ func (pf *sweepPrefetch) takeCloudControl(typeName, cfnType string) ([]cloudcont
 		pf.mu.Lock()
 		pf.mismatched++
 		pf.mu.Unlock()
-		log.Printf("[WARN] stateless/discovery: the sweep prefetched %s as CFN type %s and the scan then asked for %s; listing it again", typeName, e.cfnType, cfnType)
+		log.Printf("[WARN] live/discovery: the sweep prefetched %s as CFN type %s and the scan then asked for %s; listing it again", typeName, e.cfnType, cfnType)
 		return nil, nil, false
 	}
 	return e.descs, e.err, true
@@ -661,7 +661,7 @@ func (pf *sweepPrefetch) recordUnplanned(typeName string, planned, asked sweepFe
 	pf.mu.Lock()
 	pf.unplanned = append(pf.unplanned, typeName)
 	pf.mu.Unlock()
-	log.Printf("[WARN] stateless/discovery: the sweep planned %s for %s and the scan then asked for %s, so the call was made sequentially and the prefetch bought nothing", planned, typeName, asked)
+	log.Printf("[WARN] live/discovery: the sweep planned %s for %s and the scan then asked for %s, so the call was made sequentially and the prefetch bought nothing", planned, typeName, asked)
 }
 
 // unplannedCalls is the types whose list call the scan made and the mirror
@@ -717,7 +717,7 @@ func (pf *sweepPrefetch) finish() []string {
 	}
 	pf.wg.Wait()
 	for _, typeName := range wasted {
-		log.Printf("[WARN] stateless/discovery: the sweep prefetched a list of %s that the scan never asked for", typeName)
+		log.Printf("[WARN] live/discovery: the sweep prefetched a list of %s that the scan never asked for", typeName)
 	}
 	return wasted
 }

@@ -23,7 +23,7 @@ type Layer string
 
 const (
 	// LayerLint is [lint.CheckWith]: is this configuration inside the
-	// stateless subset at all.
+	// live-mode subset at all.
 	LayerLint Layer = "lint"
 
 	// LayerIdentity is [identity.ResolveWith]: can every managed resource

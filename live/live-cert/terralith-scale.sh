@@ -1619,8 +1619,8 @@ analyze_api_calls() {
 
   # One line per GetResource refinement, printed beside scan.Refined++.
   refined="$(grep -cF 'refined with GetResource' "$f" 2>/dev/null || true)"
-  listings="$(grep -cE 'stateless/discovery: listing .* via Cloud Control' "$f" 2>/dev/null || true)"
-  tagsweeps="$(grep -cE 'stateless/discovery: sweeping .* via the Tagging API' "$f" 2>/dev/null || true)"
+  listings="$(grep -cE 'live/discovery: listing .* via Cloud Control' "$f" 2>/dev/null || true)"
+  tagsweeps="$(grep -cE 'live/discovery: sweeping .* via the Tagging API' "$f" 2>/dev/null || true)"
   joins="$(grep -cF 'joined one from the estate' "$f" 2>/dev/null || true)"
 
   log "  ${label}: ${total:-0} provider-mediated AWS API request(s) (exact, from rpc.method entries)"
@@ -1641,7 +1641,7 @@ analyze_api_calls() {
   if [ "${refined:-0}" -gt 0 ]; then
     log "    refinements by type:"
     grep -F 'refined with GetResource' "$f" \
-      | sed -E 's/.*stateless\/discovery: ([a-z0-9_]+) identifier .*/\1/' \
+      | sed -E 's/.*live\/discovery: ([a-z0-9_]+) identifier .*/\1/' \
       | sort | uniq -c | sort -rn | head -25 | sed 's/^/      /'
   fi
   API_CALL_REPORT="${API_CALL_REPORT}${API_CALL_REPORT:+

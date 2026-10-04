@@ -29,7 +29,7 @@ import (
 // configuration carrying a live block, against the same mock cloud the
 // live-plan tests use. What they are checking, together, is that the
 // block is the only switch: nothing here passes a flag that asks for
-// stateless behaviour, and the last test in the file checks that a
+// live-mode behaviour, and the last test in the file checks that a
 // configuration without the block still writes its state file exactly as it
 // always did.
 
@@ -37,10 +37,10 @@ import (
 // Plan
 // ---------------------------------------------------------------------------
 
-// TestStatelessMode_plainPlan: "choudoufu plan", no flags, runs the pipeline -
+// TestLiveMode_plainPlan: "choudoufu plan", no flags, runs the pipeline -
 // discovery binds the marker-identified VPC, the projection reads both
 // resources, and the plan is empty.
-func TestStatelessMode_plainPlan(t *testing.T) {
+func TestLiveMode_plainPlan(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block"), td)
 	t.Chdir(td)
@@ -64,7 +64,7 @@ func TestStatelessMode_plainPlan(t *testing.T) {
 	assertNoStateArtifacts(t, td)
 }
 
-// TestStatelessMode_planVerboseSweepGaps: the getting-started tutorial's
+// TestLiveMode_planVerboseSweepGaps: the getting-started tutorial's
 // entry point is plain "choudoufu plan"/"apply" against a live block, not
 // "choudoufu live-plan" - GitHub issue #78 was filed after walking exactly
 // that path on a fresh two-resource estate and hitting a "Not swept for
@@ -72,7 +72,7 @@ func TestStatelessMode_plainPlan(t *testing.T) {
 // (internal/command/arguments/view.go), not one of live-plan's own, for
 // exactly this reason: it has to reach this alias too, or the fix would miss
 // the path the bug was actually found on.
-func TestStatelessMode_planVerboseSweepGaps(t *testing.T) {
+func TestLiveMode_planVerboseSweepGaps(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block"), td)
 	t.Chdir(td)
@@ -115,11 +115,11 @@ func TestStatelessMode_planVerboseSweepGaps(t *testing.T) {
 	}
 }
 
-// TestStatelessMode_planParity: the plan a live block produces is the
+// TestLiveMode_planParity: the plan a live block produces is the
 // plan "choudoufu live-plan -estate=..." produces for the same estate. The
 // two fixtures differ only by the block, so any difference in the rendered
 // plan would be a difference in the pipeline.
-func TestStatelessMode_planParity(t *testing.T) {
+func TestLiveMode_planParity(t *testing.T) {
 	viaBlock := func() string {
 		td := t.TempDir()
 		testCopyDir(t, testFixturePath("live-block"), td)
@@ -139,24 +139,24 @@ func TestStatelessMode_planParity(t *testing.T) {
 		t.Chdir(td)
 
 		c, done := newLivePlanCommand(t, liveBlockCloud())
-		if code := c.Run([]string{"-no-color", "-estate=stateless-unit"}); code != 0 {
+		if code := c.Run([]string{"-no-color", "-estate=live-unit"}); code != 0 {
 			out := done(t)
 			t.Fatalf("live-plan exit code %d, want 0\n%s\n%s", code, out.Stdout(), out.Stderr())
 		}
 		return done(t).Stdout()
 	}()
 
-	if got, want := statelessPlanBody(viaBlock), statelessPlanBody(viaCommand); got != want {
+	if got, want := livePlanBody(viaBlock), livePlanBody(viaCommand); got != want {
 		t.Errorf("plain plan and live-plan disagree.\n--- plain plan ---\n%s\n--- live-plan ---\n%s", got, want)
 	}
 }
 
-// statelessPlanBody is the part of a plan's output the two entry points must
+// livePlanBody is the part of a plan's output the two entry points must
 // agree on: everything up to the summary line. What follows is the next-step
 // hint, which differs because only one of the two commands can save a plan
 // file, and that difference is the point of the -out rejection rather than a
 // pipeline difference.
-func statelessPlanBody(out string) string {
+func livePlanBody(out string) string {
 	lines := strings.Split(out, "\n")
 	for i, line := range lines {
 		if strings.HasPrefix(strings.TrimSpace(line), "Plan:") || strings.Contains(line, "No changes.") {
@@ -166,10 +166,10 @@ func statelessPlanBody(out string) string {
 	return out
 }
 
-// TestStatelessMode_livePlanIsAnAlias: with the block present,
+// TestLiveMode_livePlanIsAnAlias: with the block present,
 // "choudoufu live-plan" is "choudoufu plan", and the -estate flag the block
 // replaces is refused rather than silently winning.
-func TestStatelessMode_livePlanIsAnAlias(t *testing.T) {
+func TestLiveMode_livePlanIsAnAlias(t *testing.T) {
 	t.Run("delegates", func(t *testing.T) {
 		td := t.TempDir()
 		testCopyDir(t, testFixturePath("live-block"), td)
@@ -246,10 +246,10 @@ func TestStatelessMode_livePlanIsAnAlias(t *testing.T) {
 	})
 }
 
-// TestStatelessMode_lintFatal mirrors TestLivePlan_lintFatal for the live
-// block's own entry point: a configuration outside the stateless subset
+// TestLiveMode_lintFatal mirrors TestLivePlan_lintFatal for the live
+// block's own entry point: a configuration outside the live-mode subset
 // stops before any provider reads the live system, and the rule that
-// rejected it is named. This exercises statelessRunner.PriorState's lint
+// rejected it is named. This exercises liveRunner.PriorState's lint
 // call rather than live-plan's own, which is the half of #45 this issue
 // (#50) brings the live block up to.
 //
@@ -261,12 +261,12 @@ func TestStatelessMode_livePlanIsAnAlias(t *testing.T) {
 // needs, and the fixture stopped being rejected at all. See the fixture's own
 // header for what a replacement has to satisfy (no second provider, no
 // provider schema).
-func TestStatelessMode_lintFatal(t *testing.T) {
+func TestLiveMode_lintFatal(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block-lint"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	c, done := newLiveBlockPlanCommand(t, cloud)
 
 	code := c.Run([]string{"-no-color"})
@@ -298,7 +298,7 @@ func TestStatelessMode_lintFatal(t *testing.T) {
 // Apply, and the no-persistence proof
 // ---------------------------------------------------------------------------
 
-// TestStatelessMode_plainApply is the fork's first real apply: a plain
+// TestLiveMode_plainApply is the fork's first real apply: a plain
 // "choudoufu apply -auto-approve" that creates a resource in the (mock) cloud with
 // the ownership markers stamping put on it, and writes no state anywhere.
 //
@@ -309,19 +309,19 @@ func TestStatelessMode_lintFatal(t *testing.T) {
 // actually called: the run did take the code path that writes state, and that
 // path wrote nothing. Without it, "no file appeared" would also be satisfied
 // by an apply that never got as far as persisting.
-func TestStatelessMode_plainApply(t *testing.T) {
+func TestLiveMode_plainApply(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block"), td)
 	t.Chdir(td)
 
 	// An empty estate: nothing exists yet, so the apply creates both.
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 
 	view, done := testView(t)
 	c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
 
-	var captured *statelessRunner
-	defer statelessRunnerTestHook(func(r *statelessRunner) { captured = r })()
+	var captured *liveRunner
+	defer liveRunnerTestHook(func(r *liveRunner) { captured = r })()
 
 	code := c.Run([]string{"-no-color", "-auto-approve"})
 	output := done(t)
@@ -342,8 +342,8 @@ func TestStatelessMode_plainApply(t *testing.T) {
 		if tags == nil {
 			t.Fatalf("%s was never applied; applied: %v", addr, cloud.applied)
 		}
-		if got := tags["tofu-estate"]; got != "stateless-unit" {
-			t.Errorf("%s was created with tofu-estate %q, want %q", addr, got, "stateless-unit")
+		if got := tags["tofu-estate"]; got != "live-unit" {
+			t.Errorf("%s was created with tofu-estate %q, want %q", addr, got, "live-unit")
 		}
 		if got := tags["tofu-address"]; got != addr {
 			t.Errorf("%s was created with tofu-address %q, want %q", addr, got, addr)
@@ -363,7 +363,7 @@ func TestStatelessMode_plainApply(t *testing.T) {
 	}
 
 	if captured == nil {
-		t.Fatal("no stateless runner was installed, so this apply was not stateless")
+		t.Fatal("no live runner was installed, so this apply did not run in live mode")
 	}
 	if n := captured.mgr.Persists(); n == 0 {
 		t.Error("PersistState was never called, so the persistence path was not exercised")
@@ -373,19 +373,19 @@ func TestStatelessMode_plainApply(t *testing.T) {
 	}
 }
 
-// TestStatelessMode_cacheOffSwitch pins the opt-out: CHOUDOUFU_STATE_CACHE=off
+// TestLiveMode_cacheOffSwitch pins the opt-out: CHOUDOUFU_STATE_CACHE=off
 // must leave no cache file anywhere, for the run that may not write one (an
 // audit from a read-only working copy). The literal "off" rather than empty
 // is deliberate: empty means "the default path", so forgetting the variable
 // can never silently disable the cache the way forgetting a flag used to
 // silently change where state went.
-func TestStatelessMode_cacheOffSwitch(t *testing.T) {
+func TestLiveMode_cacheOffSwitch(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block"), td)
 	t.Chdir(td)
 	t.Setenv(EnvStateCache, "off")
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	view, done := testView(t)
 	c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
 	if code := c.Run([]string{"-no-color", "-auto-approve"}); code != 0 {
@@ -400,12 +400,12 @@ func TestStatelessMode_cacheOffSwitch(t *testing.T) {
 	}
 }
 
-// TestStatelessMode_applyDestroy is GitHub issue #320's mechanism, ruled in
+// TestLiveMode_applyDestroy is GitHub issue #320's mechanism, ruled in
 // #425: "choudoufu apply -destroy" against a live block is a generalization
 // of the existing orphan sweep rather than a separate mechanism, so it is no
-// longer refused (live_mode.go's statelessRejections). liveBlockCloud starts
+// longer refused (live_mode.go's liveRejections). liveBlockCloud starts
 // with both fixture resources already existing and marked - the "estate as
-// it looks once applied" shape TestStatelessMode_plainPlan also uses for its
+// it looks once applied" shape TestLiveMode_plainPlan also uses for its
 // empty-plan case - which is what lets a single "apply -destroy" here plan
 // against a real prior state rather than an empty one: DestroyMode still
 // needs PriorState to include what it is asked to tear down, exactly like
@@ -418,7 +418,7 @@ func TestStatelessMode_cacheOffSwitch(t *testing.T) {
 // same way NormalMode's is: both instances present regardless of how their
 // identity was resolved, not just the ones a naive "walk the config" pass
 // would find.
-func TestStatelessMode_applyDestroy(t *testing.T) {
+func TestLiveMode_applyDestroy(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block"), td)
 	t.Chdir(td)
@@ -469,7 +469,7 @@ func TestStatelessMode_applyDestroy(t *testing.T) {
 	assertNoStateArtifacts(t, td)
 }
 
-// TestStatelessMode_destroyAlias is TestStatelessMode_applyDestroy's twin
+// TestLiveMode_destroyAlias is TestLiveMode_applyDestroy's twin
 // for "choudoufu destroy" itself: ApplyCommand{Destroy: true}, which
 // arguments.ParseApplyDestroy routes to plans.DestroyMode with no "-destroy"
 // flag ever typed (cmd/choudoufu/commands.go). The original refusal this
@@ -479,7 +479,7 @@ func TestStatelessMode_applyDestroy(t *testing.T) {
 // covered by the "apply -destroy" case alone. It also renders differently:
 // "Destroy complete!", not "Apply complete!" (views/apply.go's ApplyHuman
 // keys off c.Destroy, a separate flag from the plan mode itself).
-func TestStatelessMode_destroyAlias(t *testing.T) {
+func TestLiveMode_destroyAlias(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block"), td)
 	t.Chdir(td)
@@ -505,30 +505,30 @@ func TestStatelessMode_destroyAlias(t *testing.T) {
 	assertNoStateArtifacts(t, td)
 }
 
-// TestStatelessBegin_nodeResolveDefaultOn is GitHub issue #388's stamp half
+// TestLiveBegin_nodeResolveDefaultOn is GitHub issue #388's stamp half
 // (nodestamp.go's AdjustConfigValue) getting the identical on-by-default
 // contract the resolver now has (default flip 2026-08-25, this comment
 // thread's two flag-on sweeps plus the alb-flagon refresh): with
-// CHOUDOUFU_NODE_RESOLVE unset, statelessBegin must construct r.resolver
+// CHOUDOUFU_NODE_RESOLVE unset, liveBegin must construct r.resolver
 // and set BOTH local.ContextOpts.ResourceIdentityResolver and
 // local.ContextOpts.ConfigValueAdjuster from it - the two fields are only
 // ever set from that one object (live_mode.go's nodeResolveEnabled block
 // sets them together). This is
-// TestStatelessMode_plainPlan_NodeResolveIsStillANoOp's own claim, checked
+// TestLiveMode_plainPlan_NodeResolveIsStillANoOp's own claim, checked
 // here with nothing set in the environment instead of an explicit "1", so
 // the default itself - not merely the flag's old spelling - is what is
 // pinned.
-func TestStatelessBegin_nodeResolveDefaultOn(t *testing.T) {
+func TestLiveBegin_nodeResolveDefaultOn(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	view, done := testView(t)
 	c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
 
-	var captured *statelessRunner
-	defer statelessRunnerTestHook(func(r *statelessRunner) { captured = r })()
+	var captured *liveRunner
+	defer liveRunnerTestHook(func(r *liveRunner) { captured = r })()
 
 	code := c.Run([]string{"-no-color", "-auto-approve"})
 	done(t)
@@ -537,7 +537,7 @@ func TestStatelessBegin_nodeResolveDefaultOn(t *testing.T) {
 	}
 
 	if captured == nil {
-		t.Fatal("no stateless runner was installed")
+		t.Fatal("no live runner was installed")
 	}
 	if !captured.nodeResolve {
 		t.Error("nodeResolve is false with CHOUDOUFU_NODE_RESOLVE unset; the default flipped 2026-08-25 and should be on")
@@ -547,8 +547,8 @@ func TestStatelessBegin_nodeResolveDefaultOn(t *testing.T) {
 	}
 }
 
-// TestStatelessBegin_nodeResolveOptOut is
-// TestStatelessBegin_nodeResolveDefaultOn's opposite: CHOUDOUFU_NODE_RESOLVE=0
+// TestLiveBegin_nodeResolveOptOut is
+// TestLiveBegin_nodeResolveDefaultOn's opposite: CHOUDOUFU_NODE_RESOLVE=0
 // is the opt-out the default flip left in place (nodeResolveEnabled's own
 // doc comment), and it must still select the static identity path - which
 // is what the flag has always named and all it names now.
@@ -560,23 +560,23 @@ func TestStatelessBegin_nodeResolveDefaultOn(t *testing.T) {
 // a run that creates every resource with no ownership marker at all -
 // silently, and unrecoverably for anything a marker is the only handle on.
 // So the resolver IS constructed, and this test pins both halves: the
-// identity path is off (nodeResolve false, and statelessBegin therefore
+// identity path is off (nodeResolve false, and liveBegin therefore
 // never sets ContextOpts.ResourceIdentityResolver - the engine side of a
 // nil resolver is TestContext2Plan_resourceIdentityResolverNilContract),
 // while the writer is on.
-func TestStatelessBegin_nodeResolveOptOut(t *testing.T) {
+func TestLiveBegin_nodeResolveOptOut(t *testing.T) {
 	t.Setenv("CHOUDOUFU_NODE_RESOLVE", "0")
 
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	view, done := testView(t)
 	c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
 
-	var captured *statelessRunner
-	defer statelessRunnerTestHook(func(r *statelessRunner) { captured = r })()
+	var captured *liveRunner
+	defer liveRunnerTestHook(func(r *liveRunner) { captured = r })()
 
 	code := c.Run([]string{"-no-color", "-auto-approve"})
 	done(t)
@@ -585,7 +585,7 @@ func TestStatelessBegin_nodeResolveOptOut(t *testing.T) {
 	}
 
 	if captured == nil {
-		t.Fatal("no stateless runner was installed")
+		t.Fatal("no live runner was installed")
 	}
 	if captured.nodeResolve {
 		t.Error("nodeResolve is true with CHOUDOUFU_NODE_RESOLVE=0")
@@ -603,8 +603,8 @@ func TestStatelessBegin_nodeResolveOptOut(t *testing.T) {
 	}
 }
 
-// TestStatelessMode_plainPlan_NodeResolveIsStillANoOp is
-// TestStatelessMode_plainPlan with CHOUDOUFU_NODE_RESOLVE=1: an estate
+// TestLiveMode_plainPlan_NodeResolveIsStillANoOp is
+// TestLiveMode_plainPlan with CHOUDOUFU_NODE_RESOLVE=1: an estate
 // already fully applied, marked exactly as internal/live/stamp's HCL
 // rewrite would have left it, planned again with the node's
 // ConfigValueAdjuster wired in ADDITION to (not instead of) that HCL
@@ -615,7 +615,7 @@ func TestStatelessBegin_nodeResolveOptOut(t *testing.T) {
 // would show an in-place "~ tags" update. It does not: the two mechanisms
 // agree by value, byte for byte, on an already-owned estate.
 //
-// This does NOT use TestStatelessMode_plainApply's greenfield "-auto-approve
+// This does NOT use TestLiveMode_plainApply's greenfield "-auto-approve
 // create both resources" fixture: on a never-applied estate, aws_s3_bucket
 // is config-identified (its bucket name is derivable from configuration
 // alone), so NodeResolver's step (c) confidently proposes an import target
@@ -625,7 +625,7 @@ func TestStatelessBegin_nodeResolveOptOut(t *testing.T) {
 // the flag"), unrelated to this unit's marker-stamping work and out of its
 // scope. liveBlockCloud is already-applied, so the resolver's record/marker
 // steps answer directly and step (c)'s risky guess is never reached.
-func TestStatelessMode_plainPlan_NodeResolveIsStillANoOp(t *testing.T) {
+func TestLiveMode_plainPlan_NodeResolveIsStillANoOp(t *testing.T) {
 	t.Setenv("CHOUDOUFU_NODE_RESOLVE", "1")
 
 	td := t.TempDir()
@@ -635,8 +635,8 @@ func TestStatelessMode_plainPlan_NodeResolveIsStillANoOp(t *testing.T) {
 	cloud := liveBlockCloud()
 	c, done := newLiveBlockPlanCommand(t, cloud)
 
-	var captured *statelessRunner
-	defer statelessRunnerTestHook(func(r *statelessRunner) { captured = r })()
+	var captured *liveRunner
+	defer liveRunnerTestHook(func(r *liveRunner) { captured = r })()
 
 	code := c.Run([]string{"-no-color"})
 	output := done(t)
@@ -657,12 +657,12 @@ func TestStatelessMode_plainPlan_NodeResolveIsStillANoOp(t *testing.T) {
 	}
 }
 
-// TestStatelessMode_priorStateRunsOncePlan is the plan half of the same
+// TestLiveMode_priorStateRunsOncePlan is the plan half of the same
 // pin: "choudoufu plan" reaches PriorState through opPlan rather than
 // opApply (internal/backend/local/backend_plan.go), a different call site
 // with its own chance to double-invoke, so it earns its own assertion
 // rather than riding on the apply test alone.
-func TestStatelessMode_priorStateRunsOncePlan(t *testing.T) {
+func TestLiveMode_priorStateRunsOncePlan(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block"), td)
 	t.Chdir(td)
@@ -670,8 +670,8 @@ func TestStatelessMode_priorStateRunsOncePlan(t *testing.T) {
 	cloud := liveBlockCloud()
 	c, done := newLiveBlockPlanCommand(t, cloud)
 
-	var captured *statelessRunner
-	defer statelessRunnerTestHook(func(r *statelessRunner) { captured = r })()
+	var captured *liveRunner
+	defer liveRunnerTestHook(func(r *liveRunner) { captured = r })()
 
 	code := c.Run([]string{"-no-color"})
 	output := done(t)
@@ -680,25 +680,25 @@ func TestStatelessMode_priorStateRunsOncePlan(t *testing.T) {
 	}
 
 	if captured == nil {
-		t.Fatal("no stateless runner was installed, so this plan was not stateless")
+		t.Fatal("no live runner was installed, so this plan did not run in live mode")
 	}
 	if n := captured.PriorStateCalls(); n != 1 {
 		t.Errorf("PriorState ran %d times for one plan, want exactly 1 (GitHub issue #80)", n)
 	}
 }
 
-// TestStatelessMode_plainApplyWritesHint is issue #109's wiring proof: a
+// TestLiveMode_plainApplyWritesHint is issue #109's wiring proof: a
 // live block with a record_store makes a plain "choudoufu apply" persist
 // guided discovery's hint into that store after the run, naming the estate
 // this run resolved and the resource types it applied - and the record
 // directory is the only artifact left behind; the no-persistence proof from
-// TestStatelessMode_plainApply still has to hold beside it.
-func TestStatelessMode_plainApplyWritesHint(t *testing.T) {
+// TestLiveMode_plainApply still has to hold beside it.
+func TestLiveMode_plainApplyWritesHint(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block-record-store"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 
 	view, done := testView(t)
 	c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
@@ -720,12 +720,12 @@ func TestStatelessMode_plainApplyWritesHint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("opening the record store the apply should have written into: %s", err)
 	}
-	hint, err := projection.ReadHintStore(context.Background(), store, "stateless-unit")
+	hint, err := projection.ReadHintStore(context.Background(), store, "live-unit")
 	if err != nil {
 		t.Fatalf("no hint was persisted by the apply: %s", err)
 	}
-	if hint.Estate != "stateless-unit" {
-		t.Errorf("estate is %q, want %q", hint.Estate, "stateless-unit")
+	if hint.Estate != "live-unit" {
+		t.Errorf("estate is %q, want %q", hint.Estate, "live-unit")
 	}
 	if hint.WrittenAt.IsZero() {
 		t.Error("writtenAt is zero")
@@ -741,17 +741,17 @@ func TestStatelessMode_plainApplyWritesHint(t *testing.T) {
 	assertNoStateArtifacts(t, td)
 }
 
-// TestStatelessMode_applyRejections: the options stateless mode v0 removes
+// TestLiveMode_applyRejections: the options live mode v0 removes
 // the ground for, refused rather than ignored. "-destroy" is deliberately
 // absent from this table since GitHub issue #320 (ruled in #425): see
-// TestStatelessMode_applyDestroy for the positive case that mode now has.
+// TestLiveMode_applyDestroy for the positive case that mode now has.
 // "refresh-only" stays here because it is a genuinely different operation
 // with no meaning under live markers - both sides of its comparison are the
 // live system - not a verification gap the orphan-sweep generalization
 // closes. A saved plan file left this table with GitHub issue #878, ruled
 // 2026-09-05: "apply <planfile>" is admitted under a live block, re-plans
 // live and compares - see live_approval_test.go for both halves of that.
-func TestStatelessMode_applyRejections(t *testing.T) {
+func TestLiveMode_applyRejections(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		args []string
@@ -767,7 +767,7 @@ func TestStatelessMode_applyRejections(t *testing.T) {
 			t.Chdir(td)
 
 			view, done := testView(t)
-			c := &ApplyCommand{Meta: liveBlockMeta(view, newStatelessTestCloud())}
+			c := &ApplyCommand{Meta: liveBlockMeta(view, newLiveTestCloud())}
 
 			code := c.Run(append([]string{"-no-color"}, tc.args...))
 			output := done(t)
@@ -784,7 +784,7 @@ func TestStatelessMode_applyRejections(t *testing.T) {
 	}
 }
 
-// TestStatelessMode_planRejections is the plan half of the same list.
+// TestLiveMode_planRejections is the plan half of the same list.
 // "-out" left it with GitHub issue #878: under a live block it writes
 // stock's own plan file, and TestApproval_planOutWritesAnArtifact is the
 // positive case. It stays refused on live-plan's "-estate" form, where plain
@@ -798,7 +798,7 @@ func TestStatelessMode_applyRejections(t *testing.T) {
 // (live_plan_test.go) is the positive case. It stays refused for an APPLY,
 // which has no document, and the sibling table above still covers that.
 // "-json-into" is refused on both, and stays here.
-func TestStatelessMode_planRejections(t *testing.T) {
+func TestLiveMode_planRejections(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		args []string
@@ -813,7 +813,7 @@ func TestStatelessMode_planRejections(t *testing.T) {
 			testCopyDir(t, testFixturePath("live-block"), td)
 			t.Chdir(td)
 
-			c, done := newLiveBlockPlanCommand(t, newStatelessTestCloud())
+			c, done := newLiveBlockPlanCommand(t, newLiveTestCloud())
 
 			code := c.Run(append([]string{"-no-color"}, tc.args...))
 			output := done(t)
@@ -828,10 +828,10 @@ func TestStatelessMode_planRejections(t *testing.T) {
 	}
 }
 
-// TestStatelessMode_refreshRefused: "choudoufu refresh" writes a state file as
-// its entire purpose, so a stateless configuration is refused rather than
+// TestLiveMode_refreshRefused: "choudoufu refresh" writes a state file as
+// its entire purpose, so a live-mode configuration is refused rather than
 // left to produce one from a command that changes nothing.
-func TestStatelessMode_refreshRefused(t *testing.T) {
+func TestLiveMode_refreshRefused(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block"), td)
 	t.Chdir(td)
@@ -850,13 +850,13 @@ func TestStatelessMode_refreshRefused(t *testing.T) {
 	assertNoStateArtifacts(t, td)
 }
 
-// TestStatelessMode_forceUnlockRefused: under a live block there is no lock
+// TestLiveMode_forceUnlockRefused: under a live block there is no lock
 // to force open, and the refusal must say so - before this guard, the
 // command fell through to stock's local-backend path and reported "State
 // locked by another local process" for a lock that never existed, which is
 // exactly the misleading answer the no-locks claim forbids. Found by the
 // claim scenario's own probe.
-func TestStatelessMode_forceUnlockRefused(t *testing.T) {
+func TestLiveMode_forceUnlockRefused(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block"), td)
 	t.Chdir(td)
@@ -878,15 +878,15 @@ func TestStatelessMode_forceUnlockRefused(t *testing.T) {
 	assertNoStateArtifacts(t, td)
 }
 
-// TestStatelessMode_backendConflict: a configuration asking for both is
+// TestLiveMode_backendConflict: a configuration asking for both is
 // refused by the decoder, which is the earliest wall and the one every
 // command passes through.
-func TestStatelessMode_backendConflict(t *testing.T) {
+func TestLiveMode_backendConflict(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block-backend"), td)
 	t.Chdir(td)
 
-	c, done := newLiveBlockPlanCommand(t, newStatelessTestCloud())
+	c, done := newLiveBlockPlanCommand(t, newLiveTestCloud())
 
 	code := c.Run([]string{"-no-color"})
 	output := done(t)
@@ -903,13 +903,13 @@ func TestStatelessMode_backendConflict(t *testing.T) {
 // The invariant: no block, no change
 // ---------------------------------------------------------------------------
 
-// TestStatelessMode_stockModeUnchanged is the guard the whole fork rides on.
+// TestLiveMode_stockModeUnchanged is the guard the whole fork rides on.
 // A configuration without a live block applies exactly as it always did:
 // a state file is written, in the default place, with the applied resource in
 // it. The rest of this package's test suite says the same thing at greater
 // length; this one says it about the specific code path P4.1 added a branch
 // to.
-func TestStatelessMode_stockModeUnchanged(t *testing.T) {
+func TestLiveMode_stockModeUnchanged(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("apply"), td)
 	t.Chdir(td)
@@ -924,8 +924,8 @@ func TestStatelessMode_stockModeUnchanged(t *testing.T) {
 		},
 	}
 
-	var captured *statelessRunner
-	defer statelessRunnerTestHook(func(r *statelessRunner) { captured = r })()
+	var captured *liveRunner
+	defer liveRunnerTestHook(func(r *liveRunner) { captured = r })()
 
 	code := c.Run([]string{"-no-color", "-auto-approve"})
 	output := done(t)
@@ -934,7 +934,7 @@ func TestStatelessMode_stockModeUnchanged(t *testing.T) {
 	}
 
 	if captured != nil {
-		t.Fatal("a configuration without a live block was run statelessly")
+		t.Fatal("a configuration without a live block was run in live mode")
 	}
 
 	state := testStateRead(t, filepath.Join(td, "terraform.tfstate"))
@@ -950,11 +950,11 @@ func TestStatelessMode_stockModeUnchanged(t *testing.T) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-// statelessRunnerTestHook installs fn as the runner hook and returns the
+// liveRunnerTestHook installs fn as the runner hook and returns the
 // function that removes it again.
-func statelessRunnerTestHook(fn func(*statelessRunner)) func() {
-	testStatelessRunner = fn
-	return func() { testStatelessRunner = nil }
+func liveRunnerTestHook(fn func(*liveRunner)) func() {
+	testLiveRunner = fn
+	return func() { testLiveRunner = nil }
 }
 
 // assertNoStateArtifacts fails if anything under root looks like state.
@@ -1004,21 +1004,21 @@ func assertNoStateArtifacts(t *testing.T, root string) {
 // liveBlockCloud is the estate as it looks once it has been applied
 // once: both resources exist and carry their markers, so a plan over it is
 // empty.
-func liveBlockCloud() *statelessTestCloud {
-	cloud := newStatelessTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+func liveBlockCloud() *liveTestCloud {
+	cloud := newLiveTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
-	cloud.putMarked("aws_vpc", "vpc-owned", "stateless-unit", "aws_vpc.main", map[string]string{
+	cloud.putMarked("aws_vpc", "vpc-owned", "live-unit", "aws_vpc.main", map[string]string{
 		"id": "vpc-owned", "cidr_block": "10.42.0.0/16",
 	})
 	cloud.list("aws_vpc", "vpc-owned", "the estate's VPC",
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_vpc.main"},
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_vpc.main"},
 		map[string]string{"cidr_block": "10.42.0.0/16"})
 	return cloud
 }
 
-func liveBlockMeta(view *views.View, cloud *statelessTestCloud) Meta {
+func liveBlockMeta(view *views.View, cloud *liveTestCloud) Meta {
 	return Meta{
 		WorkingDir: workdir.NewDir("."),
 		View:       view,
@@ -1030,22 +1030,22 @@ func liveBlockMeta(view *views.View, cloud *statelessTestCloud) Meta {
 	}
 }
 
-func newLiveBlockPlanCommand(t *testing.T, cloud *statelessTestCloud) (*PlanCommand, func(*testing.T) *terminal.TestOutput) {
+func newLiveBlockPlanCommand(t *testing.T, cloud *liveTestCloud) (*PlanCommand, func(*testing.T) *terminal.TestOutput) {
 	t.Helper()
 	view, done := testView(t)
 	return &PlanCommand{Meta: liveBlockMeta(view, cloud)}, done
 }
 
-// TestStatelessMode_stateCacheWrittenEndToEnd is the end-to-end half of issue
+// TestLiveMode_stateCacheWrittenEndToEnd is the end-to-end half of issue
 // #685. The unit tests in internal/live/projection prove the writer works;
 // this proves the wiring reaches it from a real apply, which is the link that
 // would otherwise be untested and is exactly where a cache silently becomes a
 // no-op again.
 //
-// It is a sibling of TestStatelessMode_plainApply rather than a change to it,
+// It is a sibling of TestLiveMode_plainApply rather than a change to it,
 // because the no-persistence default has to keep being proved: a run that does
 // not ask for a cache must still write nothing anywhere.
-func TestStatelessMode_stateCacheWrittenEndToEnd(t *testing.T) {
+func TestLiveMode_stateCacheWrittenEndToEnd(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block"), td)
 	t.Chdir(td)
@@ -1056,12 +1056,12 @@ func TestStatelessMode_stateCacheWrittenEndToEnd(t *testing.T) {
 	cachePath := filepath.Join(t.TempDir(), "cache", "terraform.tfstate")
 	t.Setenv(EnvStateCache, cachePath)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	view, done := testView(t)
 	c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
 
-	var captured *statelessRunner
-	defer statelessRunnerTestHook(func(r *statelessRunner) { captured = r })()
+	var captured *liveRunner
+	defer liveRunnerTestHook(func(r *liveRunner) { captured = r })()
 
 	code := c.Run([]string{"-no-color", "-auto-approve"})
 	output := done(t)
@@ -1069,7 +1069,7 @@ func TestStatelessMode_stateCacheWrittenEndToEnd(t *testing.T) {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
 	}
 	if captured == nil {
-		t.Fatal("no stateless runner was installed, so this apply was not stateless")
+		t.Fatal("no live runner was installed, so this apply did not run in live mode")
 	}
 	if n := captured.mgr.Persists(); n == 0 {
 		t.Fatal("PersistState was never called, so the cache write was never reached")
@@ -1109,7 +1109,7 @@ func TestStatelessMode_stateCacheWrittenEndToEnd(t *testing.T) {
 	}
 }
 
-// TestStatelessMode_stateCacheWrittenThenUsed is the whole of issue #685 in
+// TestLiveMode_stateCacheWrittenThenUsed is the whole of issue #685 in
 // one run: an apply writes the cache, and a second operation over the same
 // estate answers from it instead of reading, with the tag index confirming
 // each instance first.
@@ -1117,7 +1117,7 @@ func TestStatelessMode_stateCacheWrittenEndToEnd(t *testing.T) {
 // This is the proof that "the cache got used", as distinct from "a cache file
 // exists". A cache that is written and never consulted is the state this fork
 // shipped for months while its documentation described a cache.
-func TestStatelessMode_stateCacheWrittenThenUsed(t *testing.T) {
+func TestLiveMode_stateCacheWrittenThenUsed(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block"), td)
 	t.Chdir(td)
@@ -1125,7 +1125,7 @@ func TestStatelessMode_stateCacheWrittenThenUsed(t *testing.T) {
 	cachePath := filepath.Join(t.TempDir(), "terraform.tfstate")
 	t.Setenv(EnvStateCache, cachePath)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 
 	// Run 1: apply. Creates both resources and writes the cache.
 	{
@@ -1144,8 +1144,8 @@ func TestStatelessMode_stateCacheWrittenThenUsed(t *testing.T) {
 	// Run 2: plan over the same estate. The cache is now present, and the
 	// resources the apply created carry their markers in the fake cloud, so
 	// the sweep verifies them and the cache answers for them.
-	var captured *statelessRunner
-	defer statelessRunnerTestHook(func(r *statelessRunner) { captured = r })()
+	var captured *liveRunner
+	defer liveRunnerTestHook(func(r *liveRunner) { captured = r })()
 
 	view, done := testView(t)
 	p := &PlanCommand{Meta: liveBlockMeta(view, cloud)}
@@ -1156,7 +1156,7 @@ func TestStatelessMode_stateCacheWrittenThenUsed(t *testing.T) {
 	done(t)
 
 	if captured == nil {
-		t.Fatal("no stateless runner was installed, so the second run was not stateless")
+		t.Fatal("no live runner was installed, so the second run did not run in live mode")
 	}
 	// What this level CAN prove: the second run loaded the cache and the hit
 	// count is reported. What it cannot is a hit, because a hit additionally
@@ -1348,13 +1348,13 @@ func TestLintGateAgreesAcrossEntryPoints1268(t *testing.T) {
 	type run struct {
 		code     int
 		combined string
-		cloud    *statelessTestCloud
+		cloud    *liveTestCloud
 	}
 	viaLivePlan := func(t *testing.T, body string) run {
 		td := t.TempDir()
 		lintGateFixture1268(t, td, false, body)
 		t.Chdir(td)
-		cloud := newStatelessTestCloud()
+		cloud := newLiveTestCloud()
 		c, done := newLivePlanCommand(t, cloud)
 		code := c.Run([]string{"-no-color", "-estate=lint-gate-unit"})
 		out := done(t)
@@ -1364,7 +1364,7 @@ func TestLintGateAgreesAcrossEntryPoints1268(t *testing.T) {
 		td := t.TempDir()
 		lintGateFixture1268(t, td, true, body)
 		t.Chdir(td)
-		cloud := newStatelessTestCloud()
+		cloud := newLiveTestCloud()
 		c, done := newLiveBlockPlanCommand(t, cloud)
 		code := c.Run([]string{"-no-color"})
 		out := done(t)
@@ -1374,7 +1374,7 @@ func TestLintGateAgreesAcrossEntryPoints1268(t *testing.T) {
 		td := t.TempDir()
 		lintGateFixture1268(t, td, true, body)
 		t.Chdir(td)
-		cloud := newStatelessTestCloud()
+		cloud := newLiveTestCloud()
 		view, done := testView(t)
 		c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
 		code := c.Run([]string{"-no-color", "-auto-approve"})
@@ -1424,7 +1424,7 @@ func TestLintGateAgreesAcrossEntryPoints1268(t *testing.T) {
 		if block.code != command.code {
 			t.Fatalf("plan under a live block exited %d, live-plan -estate exited %d", block.code, command.code)
 		}
-		if got, want := statelessPlanBody(block.combined), statelessPlanBody(command.combined); got != want {
+		if got, want := livePlanBody(block.combined), livePlanBody(command.combined); got != want {
 			t.Errorf("the two entry points plan the same configuration differently.\n--- plan under a live block ---\n%s\n--- live-plan -estate ---\n%s", got, want)
 		}
 	})

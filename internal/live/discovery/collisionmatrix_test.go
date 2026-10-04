@@ -161,7 +161,7 @@ type collisionCell struct {
 	id1, id2 string
 
 	// recordOnly marks addr in Request.RecordBackedAddrs and requests the
-	// sweep+CollectUnclaimed shape statelessDiscover's real callers always
+	// sweep+CollectUnclaimed shape liveDiscover's real callers always
 	// use (internal/command/live_plan.go) - the shape that makes a
 	// record-backed instance's own live objects still get scanned at all
 	// (see TestDiscover_recordBackedWholeTypeStillCollectsUnclaimed in

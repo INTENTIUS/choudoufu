@@ -16,7 +16,7 @@ import (
 
 // TestProviderConfigFixpointReadsEachSourceOncePerRequest is GitHub issue
 // #1537's instrument, counting ReadDataSource calls PER PASS of
-// [statelessProviderDataReads] rather than in total.
+// [liveProviderDataReads] rather than in total.
 //
 // The fixture is live-target-provider-work, the one the issue measured on:
 // two provider-configuration sources, data.aws_region.current (no
@@ -37,12 +37,12 @@ import (
 // second pass, carried from the memo. A fix that simply stopped analyzing
 // or reading on the second pass would pass the count and fail here.
 func TestProviderConfigFixpointReadsEachSourceOncePerRequest(t *testing.T) {
-	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", targetWorkFixture))
+	cfg := liveTestLoadConfig(t, filepath.Join("testdata", targetWorkFixture))
 
 	resolveCloud := newTargetWorkCloud()
-	resolutions, resolveDiags := statelessResolve(t.Context(), cfg, resolveCloud, nil, nil, nil)
+	resolutions, resolveDiags := liveResolve(t.Context(), cfg, resolveCloud, nil, nil, nil)
 	if n := errorCount(resolveDiags); n != 0 {
-		t.Fatalf("statelessResolve refused with %d error(s): %v", n, renderDiags(resolveDiags))
+		t.Fatalf("liveResolve refused with %d error(s): %v", n, renderDiags(resolveDiags))
 	}
 
 	cloud := newTargetWorkCloud()
@@ -54,7 +54,7 @@ func TestProviderConfigFixpointReadsEachSourceOncePerRequest(t *testing.T) {
 		wrapPassLog(m, &mu, &passes)
 	}
 
-	results, _, diags := statelessProviderDataReads(t.Context(), cfg, cloud, nil, resolutions, nil, 1, nil, nil)
+	results, _, diags := liveProviderDataReads(t.Context(), cfg, cloud, nil, resolutions, nil, 1, nil, nil)
 	if diags.HasErrors() {
 		t.Fatalf("the provider-configuration fixpoint raised an error: %v", renderDiags(diags))
 	}

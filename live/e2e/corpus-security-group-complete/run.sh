@@ -124,7 +124,7 @@ set -uo pipefail
 # resources. That was never an architecture question: live-plan has read
 # data sources through a real ReadDataSource RPC since #179
 # (internal/live/dataread, wired at internal/command/live_plan.go's
-# statelessDataReads). The value simply could not CROSS a module call.
+# liveDataReads). The value simply could not CROSS a module call.
 # internal/live/identity's resolver.callerVariables rebuilt a module
 # instance's var.* closure only when some call on the path carried its own
 # count or for_each; module "vpc" carries neither, so var.azs was answered
@@ -1726,7 +1726,7 @@ log "  2 on the immediately following no-op apply's own internal replan -"
 log "  same two objects, same shape, moments apart, same pinned image."
 log "  live-plan and a live estate's apply share the IDENTICAL discovery +"
 log "  projection.BuildWith code path (internal/command/live_mode.go's own"
-log "  doc comment: a stateless run replaces only the state manager and the"
+log "  doc comment: a live run replaces only the state manager and the"
 log "  prior state, nothing else) - so that split is not "one path read"
 log "  something stale the other did not." Both did an independent, fresh"
 log "  live read, moments apart, of the same two objects, and got different"

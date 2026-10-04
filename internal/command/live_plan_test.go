@@ -50,13 +50,13 @@ func TestLivePlan_noChanges(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	// Marked, because an unmarked live resource at a declared name is not
 	// this estate's to plan against at all: the projection leaves it alone
 	// and the plan proposes creating what the configuration declares. See
 	// TestLivePlan_unownedNameIsNotAdopted for that half.
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
@@ -65,7 +65,7 @@ func TestLivePlan_noChanges(t *testing.T) {
 	// so it is the only one that can show "no changes" yet. The VPC is
 	// targeted out for the same reason the P1.5 harness step targets the
 	// concrete set only.
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-target=aws_s3_bucket.data"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "-target=aws_s3_bucket.data"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -75,7 +75,7 @@ func TestLivePlan_noChanges(t *testing.T) {
 	if !strings.Contains(stdout, "No changes.") {
 		t.Errorf("plan is not empty:\n%s", stdout)
 	}
-	if !cloud.imported("aws_s3_bucket", "tofu-stateless-unit-data") {
+	if !cloud.imported("aws_s3_bucket", "tofu-live-unit-data") {
 		t.Errorf("the bucket was never read from the live system; imports were %v", cloud.imports)
 	}
 
@@ -108,9 +108,9 @@ func TestLivePlan_sidecarOnlyConfig(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan-sidecar"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud := newLiveTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
@@ -123,7 +123,7 @@ func TestLivePlan_sidecarOnlyConfig(t *testing.T) {
 	if !strings.Contains(output.Stdout(), "No changes.") {
 		t.Errorf("plan is not empty:\n%s", output.Stdout())
 	}
-	if !cloud.imported("aws_s3_bucket", "tofu-stateless-unit-data") {
+	if !cloud.imported("aws_s3_bucket", "tofu-live-unit-data") {
 		t.Errorf("the bucket was never read from the live system; imports were %v", cloud.imports)
 	}
 }
@@ -131,14 +131,14 @@ func TestLivePlan_sidecarOnlyConfig(t *testing.T) {
 // TestLivePlan_sidecarConflictsWithEstateFlag: the -estate flag is refused
 // when the configuration already names an estate, and the sidecar counts as
 // the configuration for that rule - which is also the command-level proof
-// that the sidecar reaches statelessSettings' SelectiveLoadBackend load, the
+// that the sidecar reaches liveSettings' SelectiveLoadBackend load, the
 // same load the backend wall depends on.
 func TestLivePlan_sidecarConflictsWithEstateFlag(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-plan-sidecar"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	c, done := newLivePlanCommand(t, cloud)
 
 	code := c.Run([]string{"-no-color", "-estate=other-estate"})
@@ -159,14 +159,14 @@ func TestLivePlan_proposesCreate(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud := newLiveTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-detailed-exitcode"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "-detailed-exitcode"})
 	output := done(t)
 	if code != 2 {
 		t.Fatalf("exit code %d, want 2 (changes present, -detailed-exitcode)\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -242,14 +242,14 @@ func TestLivePlan_providerVersionSkewWarns(t *testing.T) {
 
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud := newLiveTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-target=aws_s3_bucket.data"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "-target=aws_s3_bucket.data"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0 (a version skew warns, it does not fail the run)\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -285,14 +285,14 @@ func TestLivePlan_providerVersionMatchIsSilent(t *testing.T) {
 
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud := newLiveTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-target=aws_s3_bucket.data"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "-target=aws_s3_bucket.data"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -311,7 +311,7 @@ func TestLivePlan_lintFatal(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan-lint"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	c, done := newLivePlanCommand(t, cloud)
 
 	code := c.Run([]string{"-no-color"})
@@ -347,7 +347,7 @@ func TestLivePlan_lintFatal(t *testing.T) {
 // to a warning (identity.DowngradeForNodeResolution, #364 unit B's landing
 // note), so OpenTofu's ordinary Validate pass runs for the first time -
 // which needs a real provider schema for aws_iam_group, hence this
-// package's own statelessTestSchemas() carries one now - and the node
+// package's own liveTestSchemas() carries one now - and the node
 // resolver's own step (c) refuses instead, with #365's "No source for this
 // instance's identity" (aws_iam_group is config-identified: a table row,
 // neither ServerAssigned nor RecordBacked, whose derivation failed for this
@@ -366,7 +366,7 @@ func TestLivePlan_identityFatal(t *testing.T) {
 		testCopyDir(t, testFixturePath("live-plan-no-identity"), td)
 		t.Chdir(td)
 
-		cloud := newStatelessTestCloud()
+		cloud := newLiveTestCloud()
 		c, done := newLivePlanCommand(t, cloud)
 
 		code := c.Run([]string{"-no-color"})
@@ -409,9 +409,9 @@ func TestLivePlan_ignoresStateFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cloud := newStatelessTestCloud()
-	cloud.put("aws_s3_bucket", "tofu-stateless-unit-data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud := newLiveTestCloud()
+	cloud.put("aws_s3_bucket", "tofu-live-unit-data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
@@ -428,14 +428,14 @@ func TestLivePlan_ignoresStateFile(t *testing.T) {
 
 	got, err := os.ReadFile(statePath)
 	if err != nil {
-		t.Fatalf("the state file is gone after a stateless plan: %s", err)
+		t.Fatalf("the state file is gone after a live plan: %s", err)
 	}
 	if string(got) != "this is not a state file\n" {
-		t.Errorf("the state file was rewritten by a stateless plan:\n%s", got)
+		t.Errorf("the state file was rewritten by a live plan:\n%s", got)
 	}
 }
 
-// TestLivePlan_rejectsStateOptions checks that the options stateless
+// TestLivePlan_rejectsStateOptions checks that the options live
 // mode cannot honor fail loudly instead of being ignored.
 func TestLivePlan_rejectsStateOptions(t *testing.T) {
 	td := t.TempDir()
@@ -452,12 +452,12 @@ func TestLivePlan_rejectsStateOptions(t *testing.T) {
 		// -json is deliberately absent from this table: GitHub issue #788
 		// gave it a document of its own instead of a refusal - see
 		// TestLivePlan_jsonDocument below, this table's opposite number.
-		// -json-into stays refused, and TestStatelessRejections_surfacesAgree
+		// -json-into stays refused, and TestLiveRejections_surfacesAgree
 		// (live_rejections_test.go) already covers that exhaustively at the
-		// statelessRejections level, so it is not repeated here.
+		// liveRejections level, so it is not repeated here.
 	} {
 		t.Run(tc.args[0], func(t *testing.T) {
-			cloud := newStatelessTestCloud()
+			cloud := newLiveTestCloud()
 			c, done := newLivePlanCommand(t, cloud)
 
 			code := c.Run(append([]string{"-no-color"}, tc.args...))
@@ -479,12 +479,12 @@ func TestLivePlan_rejectsStateOptions(t *testing.T) {
 // time the way the sibling tests above each do.
 //
 // This drives the existing "live-plan" fixture and mock cloud
-// (newLivePlanCommand/newStatelessTestCloud, this file's own harness -
+// (newLivePlanCommand/newLiveTestCloud, this file's own harness -
 // TestLivePlan_unownedNameIsNotAdopted and
 // TestLivePlan_needsDiscoveryBindsThroughItsOwnProvider are this test's
 // own two halves, combined into one run) rather than live/e2e/estate
 // directly: live/e2e/estate's ~30 real AWS resource types have no entry in
-// statelessTestIdentitySchemas/statelessTestSchemas (six types, hand-built
+// liveTestIdentitySchemas/liveTestSchemas (six types, hand-built
 // for the fixtures this package already uses), and building a plannable
 // mock schema for all of them - identity fields, nested blocks, every
 // attribute every one of that fixture's 20 files references - is a
@@ -492,7 +492,7 @@ func TestLivePlan_rejectsStateOptions(t *testing.T) {
 // wrong fake schema hiding a real bug rather than proving anything. That
 // fixture's own identity-resolution coverage is exercised directly,
 // without a mock cloud, by TestLivePlan_estateName's subtests
-// (statelessTestLoadConfig(t, "../../live/e2e/estate")). What this test
+// (liveTestLoadConfig(t, "../../live/e2e/estate")). What this test
 // proves - the JSON document's three sections agree with the text's own
 // counts and content, over a run that exercises all three - is the same
 // claim regardless of which admitted fixture produces the data.
@@ -501,15 +501,15 @@ func TestLivePlan_jsonDocument(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	// The bucket: somebody else's object at the name this configuration
 	// declares, no ownership marker at all - TestLivePlan_unownedNameIsNotAdopted's
 	// own setup. Client-named, so the projection reads it back directly
 	// with no sweep involved; being unowned keeps it out of prior state,
 	// so it is both this run's one "unowned" entry and (since nothing
 	// materialized it) its one "omission".
-	cloud.put("aws_s3_bucket", "tofu-stateless-unit-data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.put("aws_s3_bucket", "tofu-live-unit-data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 	// The VPC: this estate's own object, found and bound by the marker
 	// sweep - putMarked (for the later import/read) plus list (for the
@@ -518,18 +518,18 @@ func TestLivePlan_jsonDocument(t *testing.T) {
 	// entry, and its source has to be "marker": aws_vpc's identity is
 	// server-assigned, so nothing about it is derivable from configuration
 	// alone.
-	cloud.putMarked("aws_vpc", "vpc-42", "stateless-unit", "aws_vpc.main", map[string]string{
+	cloud.putMarked("aws_vpc", "vpc-42", "live-unit", "aws_vpc.main", map[string]string{
 		"id": "vpc-42", "cidr_block": "10.42.0.0/16",
 	})
 	cloud.list("aws_vpc", "vpc-42", "the estate's own VPC",
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_vpc.main"},
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_vpc.main"},
 		map[string]string{"cidr_block": "10.42.0.0/16"})
 
 	// The human-mode run first, so this test has the text's own counts to
 	// cross-check the document against rather than asserting a number
 	// against itself.
 	human, doneHuman := newLivePlanCommand(t, cloud)
-	humanCode := human.Run([]string{"-no-color", "-estate=stateless-unit", "-detailed-exitcode"})
+	humanCode := human.Run([]string{"-no-color", "-estate=live-unit", "-detailed-exitcode"})
 	humanOut := doneHuman(t).Stdout()
 	if humanCode != 2 {
 		t.Fatalf("human-mode exit code %d, want 2 (the bucket create is a change)\nstdout:\n%s", humanCode, humanOut)
@@ -550,7 +550,7 @@ func TestLivePlan_jsonDocument(t *testing.T) {
 
 	// -json against the identical cloud and estate.
 	jsonCmd, doneJSON := newLivePlanCommand(t, cloud)
-	jsonCode := jsonCmd.Run([]string{"-no-color", "-estate=stateless-unit", "-detailed-exitcode", "-json"})
+	jsonCode := jsonCmd.Run([]string{"-no-color", "-estate=live-unit", "-detailed-exitcode", "-json"})
 	jsonOut := doneJSON(t)
 	if jsonCode != 2 {
 		t.Fatalf("-json exit code %d, want 2\nstdout:\n%s\nstderr:\n%s", jsonCode, jsonOut.Stdout(), jsonOut.Stderr())
@@ -564,8 +564,8 @@ func TestLivePlan_jsonDocument(t *testing.T) {
 		t.Fatalf("-json's stdout does not parse as one JSON document: %s\nstdout:\n%s", err, jsonOut.Stdout())
 	}
 
-	if doc.Estate != "stateless-unit" {
-		t.Errorf("document estate = %q, want %q", doc.Estate, "stateless-unit")
+	if doc.Estate != "live-unit" {
+		t.Errorf("document estate = %q, want %q", doc.Estate, "live-unit")
 	}
 	if doc.UpstreamVersion == "" {
 		t.Error("document's upstream_version is empty")
@@ -609,12 +609,12 @@ func TestLivePlan_jsonDocument(t *testing.T) {
 	if un.Addr != "aws_s3_bucket.data" || un.TypeName != "aws_s3_bucket" {
 		t.Errorf("unowned[0] = %+v, want aws_s3_bucket.data/aws_s3_bucket", un)
 	}
-	if un.LiveID != "tofu-stateless-unit-data" {
-		t.Errorf("unowned[0].identity = %q, want %q", un.LiveID, "tofu-stateless-unit-data")
+	if un.LiveID != "tofu-live-unit-data" {
+		t.Errorf("unowned[0].identity = %q, want %q", un.LiveID, "tofu-live-unit-data")
 	}
-	if un.MarkerEstate != "stateless-unit" || un.MarkerAddress != "aws_s3_bucket.data" {
+	if un.MarkerEstate != "live-unit" || un.MarkerAddress != "aws_s3_bucket.data" {
 		t.Errorf("unowned[0]'s exact tag write = (tofu_estate=%q, tofu_address=%q), want (%q, %q)",
-			un.MarkerEstate, un.MarkerAddress, "stateless-unit", "aws_s3_bucket.data")
+			un.MarkerEstate, un.MarkerAddress, "live-unit", "aws_s3_bucket.data")
 	}
 }
 
@@ -636,28 +636,28 @@ func TestLivePlan_undeclaredIsDestroyed(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud := newLiveTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
-	cloud.putMarked("aws_vpc", "vpc-owned", "stateless-unit", "aws_vpc.main", map[string]string{
+	cloud.putMarked("aws_vpc", "vpc-owned", "live-unit", "aws_vpc.main", map[string]string{
 		"id": "vpc-owned", "cidr_block": "10.42.0.0/16",
 	})
 	cloud.list("aws_vpc", "vpc-owned", "the estate's own VPC",
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_vpc.main"},
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_vpc.main"},
 		map[string]string{"cidr_block": "10.42.0.0/16"})
 
 	// The deleted block's resource: owned, and declared nowhere.
-	cloud.putMarked("aws_subnet", "subnet-gone", "stateless-unit", "aws_subnet.gone", map[string]string{
+	cloud.putMarked("aws_subnet", "subnet-gone", "live-unit", "aws_subnet.gone", map[string]string{
 		"id": "subnet-gone", "cidr_block": "10.42.1.0/24",
 	})
 	cloud.list("aws_subnet", "subnet-gone", "the deleted block's subnet",
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_subnet.gone"},
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_subnet.gone"},
 		map[string]string{"cidr_block": "10.42.1.0/24"})
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -704,20 +704,20 @@ func TestLivePlan_sweepGapsAreReported(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud := newLiveTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
-	cloud.putMarked("aws_vpc", "vpc-owned", "stateless-unit", "aws_vpc.main", map[string]string{
+	cloud.putMarked("aws_vpc", "vpc-owned", "live-unit", "aws_vpc.main", map[string]string{
 		"id": "vpc-owned", "cidr_block": "10.42.0.0/16",
 	})
 	cloud.list("aws_vpc", "vpc-owned", "the estate's own VPC",
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_vpc.main"},
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_vpc.main"},
 		map[string]string{"cidr_block": "10.42.0.0/16"})
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -768,20 +768,20 @@ func TestLivePlan_sweepGapsVerboseListsEveryType(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud := newLiveTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
-	cloud.putMarked("aws_vpc", "vpc-owned", "stateless-unit", "aws_vpc.main", map[string]string{
+	cloud.putMarked("aws_vpc", "vpc-owned", "live-unit", "aws_vpc.main", map[string]string{
 		"id": "vpc-owned", "cidr_block": "10.42.0.0/16",
 	})
 	cloud.list("aws_vpc", "vpc-owned", "the estate's own VPC",
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_vpc.main"},
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_vpc.main"},
 		map[string]string{"cidr_block": "10.42.0.0/16"})
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-verbose", "-estate=stateless-unit"})
+	code := c.Run([]string{"-no-color", "-verbose", "-estate=live-unit"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -822,20 +822,20 @@ func TestLivePlan_foreignIsProtected(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	// Both of the estate's own resources already carry their markers, so
 	// stamping them is a no-op and this test stays about destroys. The
 	// fixture's configuration declares no tags at all; the markers reach it
 	// through stamping, which is exactly why a plan over an already-stamped
 	// estate is empty.
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
-	cloud.putMarked("aws_vpc", "vpc-owned", "stateless-unit", "aws_vpc.main", map[string]string{
+	cloud.putMarked("aws_vpc", "vpc-owned", "live-unit", "aws_vpc.main", map[string]string{
 		"id": "vpc-owned", "cidr_block": "10.42.0.0/16",
 	})
 	cloud.list("aws_vpc", "vpc-owned", "the estate's own VPC",
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_vpc.main"},
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_vpc.main"},
 		map[string]string{"cidr_block": "10.42.0.0/16"})
 	cloud.list("aws_vpc", "vpc-foreign", "somebody else's VPC",
 		map[string]string{"Name": "legacy-network", "owner": "platform"},
@@ -843,7 +843,7 @@ func TestLivePlan_foreignIsProtected(t *testing.T) {
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -851,7 +851,7 @@ func TestLivePlan_foreignIsProtected(t *testing.T) {
 	stdout := output.Stdout()
 
 	// Half one: it is reported, by type, live ID and tags, in its own section.
-	if !strings.Contains(stdout, "Foreign resources: 1 live resource not owned by estate stateless-unit") {
+	if !strings.Contains(stdout, "Foreign resources: 1 live resource not owned by estate live-unit") {
 		t.Errorf("no foreign section naming the estate:\n%s", stdout)
 	}
 	if !strings.Contains(stdout, "aws_vpc vpc-foreign") {
@@ -904,9 +904,9 @@ func TestLivePlan_bindCandidateIsOfferedNotTaken(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud := newLiveTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 	// Nothing carries a marker, and this one's CIDR is exactly the declared
 	// VPC's.
@@ -915,7 +915,7 @@ func TestLivePlan_bindCandidateIsOfferedNotTaken(t *testing.T) {
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-detailed-exitcode"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "-detailed-exitcode"})
 	output := done(t)
 	if code != 2 {
 		t.Fatalf("exit code %d, want 2 (a create is proposed)\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -964,7 +964,7 @@ func TestLivePlan_estateName(t *testing.T) {
 		testCopyDir(t, testFixturePath("live-plan"), td)
 		t.Chdir(td)
 
-		cloud := newStatelessTestCloud()
+		cloud := newLiveTestCloud()
 		c, done := newLivePlanCommand(t, cloud)
 
 		code := c.Run([]string{"-no-color", "-estate=Not_An_Estate"})
@@ -982,9 +982,9 @@ func TestLivePlan_estateName(t *testing.T) {
 		testCopyDir(t, testFixturePath("live-plan"), td)
 		t.Chdir(td)
 
-		cloud := newStatelessTestCloud()
-		cloud.put("aws_s3_bucket", "tofu-stateless-unit-data", map[string]string{
-			"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+		cloud := newLiveTestCloud()
+		cloud.put("aws_s3_bucket", "tofu-live-unit-data", map[string]string{
+			"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 		})
 		c, done := newLivePlanCommand(t, cloud)
 
@@ -1015,24 +1015,24 @@ func TestLivePlan_estateName(t *testing.T) {
 		// The P0.1 estate fixture, which stamps tofu-estate on every taggable
 		// resource, is the case the harness runs: no flag, and the name comes
 		// out of the configuration.
-		cfg := statelessTestLoadConfig(t, "../../live/e2e/estate")
+		cfg := liveTestLoadConfig(t, "../../live/e2e/estate")
 		resolutions, diags := identity.Resolve(t.Context(), cfg)
 		if diags.HasErrors() {
 			t.Fatalf("resolving the estate fixture: %s", diags.Err())
 		}
 
-		got, estateDiags := statelessEstateName(t.Context(), "", cfg, resolutions.NeedsDiscovery())
+		got, estateDiags := liveEstateName(t.Context(), "", cfg, resolutions.NeedsDiscovery())
 		if estateDiags.HasErrors() {
 			t.Fatalf("deriving the estate name: %s", estateDiags.Err())
 		}
-		if got != "stateless-e2e" {
-			t.Errorf("derived estate name %q, want stateless-e2e", got)
+		if got != "live-e2e" {
+			t.Errorf("derived estate name %q, want live-e2e", got)
 		}
 	})
 
 	t.Run("an explicit flag wins over the configuration", func(t *testing.T) {
-		cfg := statelessTestLoadConfig(t, "../../live/e2e/estate")
-		got, diags := statelessEstateName(t.Context(), "other-estate", cfg, nil)
+		cfg := liveTestLoadConfig(t, "../../live/e2e/estate")
+		got, diags := liveEstateName(t.Context(), "other-estate", cfg, nil)
 		if diags.HasErrors() {
 			t.Fatalf("unexpected diagnostics: %s", diags.Err())
 		}
@@ -1056,22 +1056,22 @@ func TestLivePlan_stampsMissingMarkers(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	// Owned by this estate and missing the address half of its marker, which
 	// is the shape a resource stamped by an older run has. An estate's own
 	// resource is the only kind whose markers can arrive as an in-place
 	// update: one carrying no estate marker at all is not this estate's to
 	// update, and the pass that used to adopt it is audit finding C1.
-	cloud.put("aws_s3_bucket", "tofu-stateless-unit-data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.put("aws_s3_bucket", "tofu-live-unit-data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
-	cloud.tags["aws_s3_bucket/tofu-stateless-unit-data"] = map[string]string{
-		"tofu-estate": "stateless-unit",
+	cloud.tags["aws_s3_bucket/tofu-live-unit-data"] = map[string]string{
+		"tofu-estate": "live-unit",
 	}
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-detailed-exitcode"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "-detailed-exitcode"})
 	output := done(t)
 	if code != 2 {
 		t.Fatalf("exit code %d, want 2 (the markers are a change)\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -1086,7 +1086,7 @@ func TestLivePlan_stampsMissingMarkers(t *testing.T) {
 	}
 	for _, want := range []string{
 		`+ "tofu-address" = "aws_s3_bucket.data"`,
-		`+ "tofu-estate"  = "stateless-unit"`,
+		`+ "tofu-estate"  = "live-unit"`,
 		`+ "tofu-address" = "aws_vpc.main"`,
 		`~ tags`,
 	} {
@@ -1130,16 +1130,16 @@ func TestLivePlan_unownedNameIsNotAdopted(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	// Somebody else's bucket, at the name this configuration declares. No
 	// markers on it: that is what "not ours" looks like.
-	cloud.put("aws_s3_bucket", "tofu-stateless-unit-data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.put("aws_s3_bucket", "tofu-live-unit-data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-target=aws_s3_bucket.data", "-detailed-exitcode"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "-target=aws_s3_bucket.data", "-detailed-exitcode"})
 	output := done(t)
 	if code != 2 {
 		t.Fatalf("exit code %d, want 2 (the create is a change)\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -1165,16 +1165,16 @@ func TestLivePlan_unownedNameIsNotAdopted(t *testing.T) {
 	if !strings.Contains(stdout, "Unowned: 1 live resource holds an identity this configuration declares (1 adoptable)") {
 		t.Errorf("no Unowned section heading:\n%s", stdout)
 	}
-	if !strings.Contains(stdout, "aws_s3_bucket.data [ADOPTABLE] <- aws_s3_bucket tofu-stateless-unit-data") {
+	if !strings.Contains(stdout, "aws_s3_bucket.data [ADOPTABLE] <- aws_s3_bucket tofu-live-unit-data") {
 		t.Errorf("the Unowned section does not offer the resource as adoptable:\n%s", stdout)
 	}
-	if !strings.Contains(stdout, "adopt by writing: tofu-estate=stateless-unit tofu-address=aws_s3_bucket.data") {
+	if !strings.Contains(stdout, "adopt by writing: tofu-estate=live-unit tofu-address=aws_s3_bucket.data") {
 		t.Errorf("the Unowned section does not carry the exact tag values to write:\n%s", stdout)
 	}
 	if !strings.Contains(stdout, "Live resource outside this estate") {
 		t.Errorf("no warning about the unowned resource:\n%s", stdout)
 	}
-	for _, want := range []string{"tofu-estate", "stateless-unit", "tofu-stateless-unit-data"} {
+	for _, want := range []string{"tofu-estate", "live-unit", "tofu-live-unit-data"} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("the report does not name %q, so it cannot be acted on:\n%s", want, stdout)
 		}
@@ -1190,14 +1190,14 @@ func TestLivePlan_otherEstatesResourceIsNotAdopted(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "somebody-elses-estate", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud := newLiveTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "somebody-elses-estate", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-target=aws_s3_bucket.data", "-detailed-exitcode"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "-target=aws_s3_bucket.data", "-detailed-exitcode"})
 	output := done(t)
 	if code != 2 {
 		t.Fatalf("exit code %d, want 2\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -1212,7 +1212,7 @@ func TestLivePlan_otherEstatesResourceIsNotAdopted(t *testing.T) {
 	}
 	// The Unowned section says at a glance that this one is not adoptable
 	// here: it is in the way, and its holder is named.
-	if !strings.Contains(stdout, "aws_s3_bucket.data [IN_THE_WAY] <- aws_s3_bucket tofu-stateless-unit-data") {
+	if !strings.Contains(stdout, "aws_s3_bucket.data [IN_THE_WAY] <- aws_s3_bucket tofu-live-unit-data") {
 		t.Errorf("the Unowned section does not report the resource as in the way:\n%s", stdout)
 	}
 	if !strings.Contains(stdout, `held by estate "somebody-elses-estate"`) {
@@ -1231,9 +1231,9 @@ func TestLivePlan_stampingNeedsAnEstateName(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	cloud.put("aws_s3_bucket", "tofu-stateless-unit-data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud := newLiveTestCloud()
+	cloud.put("aws_s3_bucket", "tofu-live-unit-data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
@@ -1265,14 +1265,14 @@ func TestLivePlan_markerConflictIsFatal(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan-marker-conflict"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	cloud.put("aws_s3_bucket", "tofu-stateless-unit-data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud := newLiveTestCloud()
+	cloud.put("aws_s3_bucket", "tofu-live-unit-data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit"})
 	output := done(t)
 	if code != 1 {
 		t.Fatalf("exit code %d, want 1\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -1320,7 +1320,7 @@ func TestLivePlan_undeclaredProviderAliasIsRefused(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan-undeclared-provider-alias"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	cloud.putMarked("aws_s3_bucket", "tofu-undeclared-alias-east", "undeclared-alias-unit", "aws_s3_bucket.east", map[string]string{
 		"id": "tofu-undeclared-alias-east", "bucket": "tofu-undeclared-alias-east",
 	})
@@ -1362,7 +1362,7 @@ func TestLivePlan_residueAttributeWarningIsWired(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan-residue-attr"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	cloud.putMarked("aws_s3_bucket", "tofu-residue-attr-bucket", "residue-attr-unit", "aws_s3_bucket.app", map[string]string{
 		"id": "tofu-residue-attr-bucket", "bucket": "tofu-residue-attr-bucket",
 	})
@@ -1411,7 +1411,7 @@ func TestLivePlan_provisionerTaintIsRead(t *testing.T) {
 	t.Chdir(td)
 
 	const estate = "provisioner-taint-unit"
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	cloud.putMarked("aws_s3_bucket", "tofu-provisioner-taint-bucket", estate, "aws_s3_bucket.app", map[string]string{
 		"id": "tofu-provisioner-taint-bucket", "bucket": "tofu-provisioner-taint-bucket",
 	})
@@ -1485,7 +1485,7 @@ func TestLivePlan_markersRecordPreservesExistingMarker(t *testing.T) {
 	t.Chdir(td)
 
 	const estate = "markers-record-unit"
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	// The live object as it looks right after migrating onto this
 	// selection: an ordinary run stamped it before strict { markers
 	// "record" } existed for it, so it still carries both marker tags.
@@ -1555,7 +1555,7 @@ func TestLivePlan_markersRecordPreservesExistingMarker_NodeResolve(t *testing.T)
 	t.Chdir(td)
 
 	const estate = "markers-record-unit"
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	cloud.putMarked("aws_vpc", "vpc-existing", estate, "aws_vpc.main", map[string]string{
 		"id": "vpc-existing", "cidr_block": "10.42.0.0/16",
 	})
@@ -1614,7 +1614,7 @@ func TestLivePlan_multiProviderSweepSucceeds(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan-multi-provider"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	cloud.allowRegion("us-west-2")
 	cloud.putMarked("aws_s3_bucket", "tofu-multi-provider-east", "multi-provider-unit", "aws_s3_bucket.east", map[string]string{
 		"id": "tofu-multi-provider-east", "bucket": "tofu-multi-provider-east",
@@ -1661,9 +1661,9 @@ func TestLivePlan_multiProviderSweepSucceeds(t *testing.T) {
 // and neither can be found any way but by listing. Placing them in different
 // regions is what makes a pass that lists through the wrong provider
 // configuration measurably different from one that lists through the right
-// one - see [statelessTestCloud.regionOf].
-func twoRegionNeedsDiscoveryCloud() *statelessTestCloud {
-	cloud := newStatelessTestCloud()
+// one - see [liveTestCloud.regionOf].
+func twoRegionNeedsDiscoveryCloud() *liveTestCloud {
+	cloud := newLiveTestCloud()
 
 	cloud.putMarked("aws_vpc", "vpc-in-east", "multi-provider-unit", "aws_vpc.east", map[string]string{
 		"id": "vpc-in-east", "cidr_block": "10.0.0.0/16",
@@ -1704,7 +1704,7 @@ func twoRegionNeedsDiscoveryCloud() *statelessTestCloud {
 //
 // Mutation: route every pass through the default provider configuration -
 // pass sweepProviders[0], or the default's own address, as both providerAddr
-// and scopeProvider in statelessDiscover's loop - and the aliased
+// and scopeProvider in liveDiscover's loop - and the aliased
 // configuration's VPC is never listed at all, so aws_vpc.west comes back
 // unbound and is proposed as a create.
 func TestLivePlan_needsDiscoveryBindsThroughItsOwnProvider(t *testing.T) {
@@ -1785,7 +1785,7 @@ func TestLivePlan_needsDiscoveryBindsThroughItsOwnProvider(t *testing.T) {
 // strict { provider_change = "recreate" }: see
 // internal/live/discovery/outofscope_test.go, which exercises both settings.
 //
-// Mutation: drop ScopeProvider from statelessDiscover's multi-provider loop
+// Mutation: drop ScopeProvider from liveDiscover's multi-provider loop
 // (pass addrs.AbsProviderConfig{} as scopeProvider, the single-provider
 // path's own value) and the aliased configuration's pass binds
 // aws_vpc.east to vpc-misplaced - which is a binding, not a stranding, so
@@ -1796,7 +1796,7 @@ func TestLivePlan_needsDiscoveryDoesNotBindAcrossProviders(t *testing.T) {
 	// marker in the region only the ALIASED configuration reaches.
 	// providerChange, when non-empty, is written into a live block as the
 	// strict toggle for the arm that exercises it.
-	misplacedEstate := func(t *testing.T, providerChange string) *statelessTestCloud {
+	misplacedEstate := func(t *testing.T, providerChange string) *liveTestCloud {
 		t.Helper()
 		td := t.TempDir()
 		testCopyDir(t, testFixturePath("live-plan-multi-provider-needs-discovery"), td)
@@ -1817,7 +1817,7 @@ func TestLivePlan_needsDiscoveryDoesNotBindAcrossProviders(t *testing.T) {
 		}
 		t.Chdir(td)
 
-		cloud := newStatelessTestCloud()
+		cloud := newLiveTestCloud()
 
 		// aws_vpc.west's own object, where it belongs.
 		cloud.putMarked("aws_vpc", "vpc-in-west", "multi-provider-unit", "aws_vpc.west", map[string]string{
@@ -1921,7 +1921,7 @@ func TestLivePlan_needsDiscoveryDoesNotBindAcrossProviders(t *testing.T) {
 // renderer happened to wrap it at.
 func collapseSpace(s string) string { return strings.Join(strings.Fields(s), " ") }
 
-// TestStatelessTestCloud_recordsEveryImportUnderConcurrency is GitHub issue
+// TestLiveTestCloud_recordsEveryImportUnderConcurrency is GitHub issue
 // #629's guard, and it guards the HARNESS rather than the product: the mock
 // cloud every live-plan test asserts against has to record every call made
 // to it, including the ones two provider instances make at the same time.
@@ -1929,7 +1929,7 @@ func collapseSpace(s string) string { return strings.Join(strings.Fields(s), " "
 // It exists because the thing that made
 // TestLivePlan_needsDiscoveryBindsThroughItsOwnProvider fail 16 times in
 // 5000 runs was not a wrong bind - the plan was correct in all sixteen - but
-// a lost append on statelessTestCloud.imports. tofu.MockProvider's own mutex
+// a lost append on liveTestCloud.imports. tofu.MockProvider's own mutex
 // does not cover it: newLivePlanCommand hands out one instance per provider
 // configuration, so a multi-provider fixture has two instances with two
 // mutexes writing one shared slice, and projection's read prefetch calls
@@ -1938,14 +1938,14 @@ func collapseSpace(s string) string { return strings.Join(strings.Fields(s), " "
 // Mutation: drop the c.mu.Lock/Unlock pair around the append in
 // ImportResourceStateFn and this test loses records on essentially every
 // run, with or without -race.
-func TestStatelessTestCloud_recordsEveryImportUnderConcurrency(t *testing.T) {
+func TestLiveTestCloud_recordsEveryImportUnderConcurrency(t *testing.T) {
 	const (
 		instances  = 2
 		goroutines = 8
 		perRoutine = 250
 	)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	cloud.allowRegion("us-west-2")
 
 	// One provider instance per configuration, exactly as
@@ -2006,9 +2006,9 @@ func TestStatelessTestCloud_recordsEveryImportUnderConcurrency(t *testing.T) {
 
 // TestLivePlan_unmarkedApplyOfAMarkerOnlyResourceRefuses is GitHub issue
 // #950's repro and fix: the retired HCL-rewrite stamp's own plan-time
-// "Unstamped marker-only resource" error (statelessStampGaps, deleted by
+// "Unstamped marker-only resource" error (liveStampGaps, deleted by
 // GitHub issue #644/#944) has a node-path equivalent now
-// ([statelessUnmarkedApplyGaps], live_plan.go), and this is the fixture
+// ([liveUnmarkedApplyGaps], live_plan.go), and this is the fixture
 // that shows the gap was real before it existed.
 //
 // aws_vpc.unmarkable is ClassNeedsDiscovery (server-assigned identity,
@@ -2016,7 +2016,7 @@ func TestStatelessTestCloud_recordsEveryImportUnderConcurrency(t *testing.T) {
 // twoRegionNeedsDiscoveryCloud's own doc comment) and its DiscoveryCause
 // does not bind by name, so it can ONLY ever be found again by its
 // ownership marker. cloud.schemas strips "tags" from aws_vpc's schema
-// (statelessTestSchemasWithout), simulating a real provider schema that
+// (liveTestSchemasWithout), simulating a real provider schema that
 // has nowhere to write one - for a type NOT in
 // internal/live/identity/markerless_generated.go's hand-curated list, so
 // internal/live/lint's markerless-type veto never sees it and the block is
@@ -2031,7 +2031,7 @@ func TestStatelessTestCloud_recordsEveryImportUnderConcurrency(t *testing.T) {
 // has always been able to say so (`choudoufu live-check`, GitHub issue
 // #454): the plan below proposed CREATING the instance clean, with no
 // error, warning, or refusal anywhere. Reverting the two
-// statelessUnmarkedApplyGaps call sites (live_plan.go, live_mode.go)
+// liveUnmarkedApplyGaps call sites (live_plan.go, live_mode.go)
 // reproduces that: this test then finds "will be created" with exit 0 and
 // no "Unmarked apply" text.
 func TestLivePlan_unmarkedApplyOfAMarkerOnlyResourceRefuses(t *testing.T) {
@@ -2039,8 +2039,8 @@ func TestLivePlan_unmarkedApplyOfAMarkerOnlyResourceRefuses(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan-stampgaps-unmarked-apply-950"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	cloud.schemas = statelessTestSchemasWithout("aws_vpc")
+	cloud := newLiveTestCloud()
+	cloud.schemas = liveTestSchemasWithout("aws_vpc")
 
 	c, done := newLivePlanCommand(t, cloud)
 
@@ -2076,7 +2076,7 @@ func TestLivePlan_unmarkedApplyOfAMarkerOnlyResourceRefuses(t *testing.T) {
 // parameter for why the exemption checks EVERY instance of a block rather
 // than any one of them.
 
-func statelessTestLoadConfig(t *testing.T, dir string) *configs.Config {
+func liveTestLoadConfig(t *testing.T, dir string) *configs.Config {
 	t.Helper()
 
 	parser := configs.NewParser(nil)
@@ -2107,7 +2107,7 @@ func statelessTestLoadConfig(t *testing.T, dir string) *configs.Config {
 // A mock AWS provider with a cloud behind it.
 // ---------------------------------------------------------------------------
 
-func newLivePlanCommand(t *testing.T, cloud *statelessTestCloud) (*LivePlanCommand, func(*testing.T) *terminal.TestOutput) {
+func newLivePlanCommand(t *testing.T, cloud *liveTestCloud) (*LivePlanCommand, func(*testing.T) *terminal.TestOutput) {
 	t.Helper()
 
 	view, done := testView(t)
@@ -2122,7 +2122,7 @@ func newLivePlanCommand(t *testing.T, cloud *statelessTestCloud) (*LivePlanComma
 					// one instance per provider CONFIGURATION, so a fresh
 					// instance is what a real run has, and it is what lets
 					// each configuration remember the region it was
-					// configured with (statelessTestProvider.region). The
+					// configured with (liveTestProvider.region). The
 					// cloud behind them is still the single shared one, so
 					// every existing test's cloud.imports, cloud.applied and
 					// cloud.objects read exactly as before.
@@ -2136,11 +2136,11 @@ func newLivePlanCommand(t *testing.T, cloud *statelessTestCloud) (*LivePlanComma
 	return c, done
 }
 
-// statelessTestCloud is the same shape as the projection package's fake
+// liveTestCloud is the same shape as the projection package's fake
 // cloud: a map of live objects keyed by type and import identity, served
 // through a mock provider that speaks the import/read pair the projection
 // builder uses and the plan/read pair the plan engine uses.
-type statelessTestCloud struct {
+type liveTestCloud struct {
 	// mu guards this cloud's three RECORDING fields - imports, applied and
 	// destroyed - which the mock provider's callbacks write while the
 	// command under test is running. GitHub issue #629.
@@ -2183,7 +2183,7 @@ type statelessTestCloud struct {
 	// listed holds what the list protocol serves, per type, which is where
 	// ownership markers live: discovery reads tags off listed objects, and
 	// the projection reads objects back through import/read.
-	listed map[string][]statelessTestListed
+	listed map[string][]liveTestListed
 
 	// applied records the tags each address was created or updated with,
 	// keyed by the tofu-address marker the object carries. It is what an
@@ -2245,40 +2245,40 @@ type statelessTestCloud struct {
 	// concurrently and owns its own synchronisation.
 	onImport func(entering bool)
 
-	// schemas overrides [statelessTestSchemas]'s caricature for this one
+	// schemas overrides [liveTestSchemas]'s caricature for this one
 	// cloud, when non-nil. GitHub issue #950's own fixture is the reason
 	// this exists: it needs a real, admission-table-classified
 	// needs-discovery type (aws_vpc, exactly as [twoRegionNeedsDiscoveryCloud]
 	// already uses it) with its "tags" attribute REMOVED, to reproduce a
 	// type the hand-curated markerless table has never heard of but whose
 	// real provider schema still has nowhere to write a marker - see
-	// [statelessTestSchemasWithout]. Every existing fixture leaves this nil
-	// and reads statelessTestSchemas() unchanged, exactly as before this
+	// [liveTestSchemasWithout]. Every existing fixture leaves this nil
+	// and reads liveTestSchemas() unchanged, exactly as before this
 	// field existed.
 	schemas map[string]providers.Schema
 }
 
 // schemasOrDefault is what every schema-consulting point in
-// [statelessTestCloud.provider] and [statelessTestProvider.ListResourceStream]
-// reads instead of calling [statelessTestSchemas] directly, so a test that
+// [liveTestCloud.provider] and [liveTestProvider.ListResourceStream]
+// reads instead of calling [liveTestSchemas] directly, so a test that
 // sets c.schemas sees that override applied consistently everywhere a
 // schema is served from - the identity schema wrapper
-// ([statelessTestIdentitySchemas]) included.
-func (c *statelessTestCloud) schemasOrDefault() map[string]providers.Schema {
+// ([liveTestIdentitySchemas]) included.
+func (c *liveTestCloud) schemasOrDefault() map[string]providers.Schema {
 	if c.schemas != nil {
 		return c.schemas
 	}
-	return statelessTestSchemas()
+	return liveTestSchemas()
 }
 
-// statelessTestSchemasWithout is [statelessTestSchemas]'s caricature, minus
+// liveTestSchemasWithout is [liveTestSchemas]'s caricature, minus
 // the "tags" attribute on the named types - the shape a real provider
 // schema takes for a type genuinely markerless in fact but not (yet, or
 // ever) in internal/live/identity/markerless_generated.go's hand-curated
-// list. See [statelessTestCloud.schemas]'s own doc comment for why a test
+// list. See [liveTestCloud.schemas]'s own doc comment for why a test
 // needs this rather than the real generated table.
-func statelessTestSchemasWithout(typeNames ...string) map[string]providers.Schema {
-	out := statelessTestSchemas()
+func liveTestSchemasWithout(typeNames ...string) map[string]providers.Schema {
+	out := liveTestSchemas()
 	strip := make(map[string]bool, len(typeNames))
 	for _, n := range typeNames {
 		strip[n] = true
@@ -2305,23 +2305,23 @@ func statelessTestSchemasWithout(typeNames ...string) map[string]providers.Schem
 // allowRegion widens the set of regions this cloud's mock provider accepts
 // being configured with, for a test whose fixture declares more than one
 // provider configuration (issue #69's multi-provider sweep).
-func (c *statelessTestCloud) allowRegion(region string) {
+func (c *liveTestCloud) allowRegion(region string) {
 	c.allowedRegions[region] = true
 }
 
-// statelessTestListed is one live resource as the list protocol serves it.
-type statelessTestListed struct {
+// liveTestListed is one live resource as the list protocol serves it.
+type liveTestListed struct {
 	id          string
 	displayName string
 	tags        map[string]string
 	attrs       map[string]string
 }
 
-func newStatelessTestCloud() *statelessTestCloud {
-	return &statelessTestCloud{
+func newLiveTestCloud() *liveTestCloud {
+	return &liveTestCloud{
 		objects:        make(map[string]map[string]string),
 		tags:           make(map[string]map[string]string),
-		listed:         make(map[string][]statelessTestListed),
+		listed:         make(map[string][]liveTestListed),
 		applied:        make(map[string]map[string]string),
 		allowedRegions: map[string]bool{"us-east-1": true},
 		regionOf:       make(map[string]string),
@@ -2329,13 +2329,13 @@ func newStatelessTestCloud() *statelessTestCloud {
 }
 
 // inRegion places an already-stored object in one region, so only a provider
-// configured for that region enumerates it. See [statelessTestCloud.regionOf].
-func (c *statelessTestCloud) inRegion(typeName, id, region string) {
+// configured for that region enumerates it. See [liveTestCloud.regionOf].
+func (c *liveTestCloud) inRegion(typeName, id, region string) {
 	c.regionOf[typeName+"/"+id] = region
 	c.allowedRegions[region] = true
 }
 
-func (c *statelessTestCloud) put(typeName, importID string, attrs map[string]string) {
+func (c *liveTestCloud) put(typeName, importID string, attrs map[string]string) {
 	c.objects[typeName+"/"+importID] = attrs
 }
 
@@ -2343,7 +2343,7 @@ func (c *statelessTestCloud) put(typeName, importID string, attrs map[string]str
 // ownership markers - the shape every resource has once a stamped plan has
 // been applied to it. Stamping such a resource again changes nothing, so a
 // test that wants a clean plan uses this rather than put.
-func (c *statelessTestCloud) putMarked(typeName, importID, estate, addr string, attrs map[string]string) {
+func (c *liveTestCloud) putMarked(typeName, importID, estate, addr string, attrs map[string]string) {
 	c.put(typeName, importID, attrs)
 	c.tags[typeName+"/"+importID] = map[string]string{
 		"tofu-estate":  estate,
@@ -2352,13 +2352,13 @@ func (c *statelessTestCloud) putMarked(typeName, importID, estate, addr string, 
 }
 
 // list adds a live resource the provider will enumerate.
-func (c *statelessTestCloud) list(typeName, id, displayName string, tags, attrs map[string]string) {
-	c.listed[typeName] = append(c.listed[typeName], statelessTestListed{
+func (c *liveTestCloud) list(typeName, id, displayName string, tags, attrs map[string]string) {
+	c.listed[typeName] = append(c.listed[typeName], liveTestListed{
 		id: id, displayName: displayName, tags: tags, attrs: attrs,
 	})
 }
 
-func (c *statelessTestCloud) imported(typeName, importID string) bool {
+func (c *liveTestCloud) imported(typeName, importID string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	want := typeName + "/" + importID
@@ -2370,9 +2370,9 @@ func (c *statelessTestCloud) imported(typeName, importID string) bool {
 	return false
 }
 
-// statelessTestSchemas is a caricature of the AWS provider: the two resource
+// liveTestSchemas is a caricature of the AWS provider: the two resource
 // types the fixtures use, with the attributes their bodies set.
-func statelessTestSchemas() map[string]providers.Schema {
+func liveTestSchemas() map[string]providers.Schema {
 	schema := func(names ...string) providers.Schema {
 		attrs := map[string]*configschema.Attribute{
 			"tags": {Type: cty.Map(cty.String), Optional: true},
@@ -2428,10 +2428,10 @@ func statelessTestSchemas() map[string]providers.Schema {
 	return base
 }
 
-// statelessTestListSchemas is the list-protocol half of the caricature: the
+// liveTestListSchemas is the list-protocol half of the caricature: the
 // EC2-shaped list configuration (a region and repeatable filter blocks) for
 // the one type in the fixture whose identity is server-assigned.
-func statelessTestListSchemas() map[string]providers.Schema {
+func liveTestListSchemas() map[string]providers.Schema {
 	return map[string]providers.Schema{
 		// aws_eip's real list schema has no filter argument, so its estate
 		// filter is applied client-side. Modelled here rather than smoothed
@@ -2477,17 +2477,17 @@ func statelessTestListSchemas() map[string]providers.Schema {
 	}
 }
 
-func statelessTestIdentitySchemas() map[string]providers.Schema {
-	return statelessTestIdentitySchemasFrom(statelessTestSchemas())
+func liveTestIdentitySchemas() map[string]providers.Schema {
+	return liveTestIdentitySchemasFrom(liveTestSchemas())
 }
 
-// statelessTestIdentitySchemasFrom is [statelessTestIdentitySchemas]'s own
+// liveTestIdentitySchemasFrom is [liveTestIdentitySchemas]'s own
 // wrapping, applied to an arbitrary base map rather than always
-// [statelessTestSchemas]'s own - the hook [statelessTestCloud.provider]
+// [liveTestSchemas]'s own - the hook [liveTestCloud.provider]
 // uses so a cloud with c.schemas set (GitHub issue #950's own override, see
 // that field's doc comment) gets an identity-schema-wrapped copy of ITS
 // base, not the unmodified caricature.
-func statelessTestIdentitySchemasFrom(base map[string]providers.Schema) map[string]providers.Schema {
+func liveTestIdentitySchemasFrom(base map[string]providers.Schema) map[string]providers.Schema {
 	out := make(map[string]providers.Schema, len(base))
 	for name, schema := range base {
 		schema.IdentitySchema = &configschema.Object{
@@ -2502,12 +2502,12 @@ func statelessTestIdentitySchemasFrom(base map[string]providers.Schema) map[stri
 	return out
 }
 
-// statelessTestProvider is the mock plus the list protocol. Listing is not
-// part of providers.Interface - the stateless list client asks for it by
+// liveTestProvider is the mock plus the list protocol. Listing is not
+// part of providers.Interface - the live-mode list client asks for it by
 // assertion - so it is added here rather than on the mock itself.
-type statelessTestProvider struct {
+type liveTestProvider struct {
 	*tofu.MockProvider
-	cloud *statelessTestCloud
+	cloud *liveTestCloud
 
 	// region is what THIS instance was configured with. One instance is
 	// created per provider configuration (see newLivePlanCommand's factory),
@@ -2516,7 +2516,7 @@ type statelessTestProvider struct {
 	region string
 }
 
-func (p *statelessTestProvider) ListResourceStream(_ context.Context, req providers.ListResourceRequest, emit func(providers.ListResourceEvent) bool) tfdiags.Diagnostics {
+func (p *liveTestProvider) ListResourceStream(_ context.Context, req providers.ListResourceRequest, emit func(providers.ListResourceEvent) bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	schema := p.cloud.schemasOrDefault()[req.TypeName]
@@ -2542,7 +2542,7 @@ func (p *statelessTestProvider) ListResourceStream(_ context.Context, req provid
 			}),
 		}
 		if req.IncludeResourceObject {
-			ev.ResourceObject = statelessTestObjectWithTags(schema, attrs, o.tags)
+			ev.ResourceObject = liveTestObjectWithTags(schema, attrs, o.tags)
 		}
 		if !emit(ev) {
 			break
@@ -2551,12 +2551,12 @@ func (p *statelessTestProvider) ListResourceStream(_ context.Context, req provid
 	return diags
 }
 
-func (c *statelessTestCloud) provider() providers.Interface {
+func (c *liveTestCloud) provider() providers.Interface {
 	// inst is built first so ConfigureProviderFn below can record the region
 	// THIS instance was configured with on it. One instance exists per
 	// provider configuration, which is what lets ListResourceStream serve
 	// each configuration only its own region's objects.
-	inst := &statelessTestProvider{cloud: c}
+	inst := &liveTestProvider{cloud: c}
 
 	p := &tofu.MockProvider{
 		GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{
@@ -2585,8 +2585,8 @@ func (c *statelessTestCloud) provider() providers.Interface {
 					},
 				},
 			}},
-			ResourceTypes:     statelessTestIdentitySchemasFrom(c.schemasOrDefault()),
-			ListResourceTypes: statelessTestListSchemas(),
+			ResourceTypes:     liveTestIdentitySchemasFrom(c.schemasOrDefault()),
+			ListResourceTypes: liveTestListSchemas(),
 		},
 	}
 
@@ -2630,7 +2630,7 @@ func (c *statelessTestCloud) provider() providers.Interface {
 		schema := c.schemasOrDefault()[req.TypeName]
 		resp.ImportedResources = []providers.ImportedResource{{
 			TypeName: req.TypeName,
-			State:    statelessTestObject(schema, map[string]string{"id": id}),
+			State:    liveTestObject(schema, map[string]string{"id": id}),
 		}}
 		return resp
 	}
@@ -2644,7 +2644,7 @@ func (c *statelessTestCloud) provider() providers.Interface {
 			resp.NewState = cty.NullVal(schema.Block.ImpliedType())
 			return resp
 		}
-		resp.NewState = statelessTestObjectWithTags(schema, attrs, c.tags[key])
+		resp.NewState = liveTestObjectWithTags(schema, attrs, c.tags[key])
 		return resp
 	}
 
@@ -2663,7 +2663,7 @@ func (c *statelessTestCloud) provider() providers.Interface {
 		if req.PlannedState.IsNull() {
 			// A destroy. PlannedState carries nothing to key off, so the
 			// address comes from what was there before.
-			key := statelessTestTagsOf(req.PriorState)["tofu-address"]
+			key := liveTestTagsOf(req.PriorState)["tofu-address"]
 			if key == "" {
 				key = req.TypeName
 			}
@@ -2672,7 +2672,7 @@ func (c *statelessTestCloud) provider() providers.Interface {
 			c.mu.Unlock()
 			return resp
 		}
-		tags := statelessTestTagsOf(req.PlannedState)
+		tags := liveTestTagsOf(req.PlannedState)
 		key := tags["tofu-address"]
 		if key == "" {
 			key = req.TypeName
@@ -2687,9 +2687,9 @@ func (c *statelessTestCloud) provider() providers.Interface {
 	return inst
 }
 
-// statelessTestTagsOf reads a resource object's tags map back out as plain
+// liveTestTagsOf reads a resource object's tags map back out as plain
 // strings, skipping anything unknown or null.
-func statelessTestTagsOf(obj cty.Value) map[string]string {
+func liveTestTagsOf(obj cty.Value) map[string]string {
 	out := make(map[string]string)
 	if obj.IsNull() || !obj.Type().IsObjectType() || !obj.Type().HasAttribute("tags") {
 		return out
@@ -2706,11 +2706,11 @@ func statelessTestTagsOf(obj cty.Value) map[string]string {
 	return out
 }
 
-func statelessTestObject(schema providers.Schema, attrs map[string]string) cty.Value {
-	return statelessTestObjectWithTags(schema, attrs, nil)
+func liveTestObject(schema providers.Schema, attrs map[string]string) cty.Value {
+	return liveTestObjectWithTags(schema, attrs, nil)
 }
 
-func statelessTestObjectWithTags(schema providers.Schema, attrs, tags map[string]string) cty.Value {
+func liveTestObjectWithTags(schema providers.Schema, attrs, tags map[string]string) cty.Value {
 	vals := make(map[string]cty.Value, len(schema.Block.Attributes))
 	for name, at := range schema.Block.Attributes {
 		if v, ok := attrs[name]; ok && at.Type == cty.String {
@@ -2732,38 +2732,38 @@ func statelessTestObjectWithTags(schema providers.Schema, attrs, tags map[string
 	return cty.ObjectVal(vals)
 }
 
-// progressRecordingView is a minimal views.StatelessPlan stub that records
+// progressRecordingView is a minimal views.LivePlan stub that records
 // every call to Progress and discards everything else, for testing
-// statelessProgress's throttling in isolation from any real rendering.
+// liveProgress's throttling in isolation from any real rendering.
 type progressRecordingView struct {
-	progress []views.StatelessProgress
+	progress []views.LiveProgress
 }
 
-var _ views.StatelessPlan = (*progressRecordingView)(nil)
+var _ views.LivePlan = (*progressRecordingView)(nil)
 
-func (v *progressRecordingView) Progress(p views.StatelessProgress) {
+func (v *progressRecordingView) Progress(p views.LiveProgress) {
 	v.progress = append(v.progress, p)
 }
-func (v *progressRecordingView) Omissions([]views.StatelessOmission)                {}
-func (v *progressRecordingView) Unowned([]views.StatelessUnowned)                   {}
-func (v *progressRecordingView) Foreign(views.StatelessForeign)                     {}
-func (v *progressRecordingView) Policy(views.StatelessPolicyReport)                 {}
-func (v *progressRecordingView) GuidedFallback(string)                              {}
-func (v *progressRecordingView) Lookalikes([]views.StatelessLookalike)              {}
-func (v *progressRecordingView) KubernetesDryRun([]views.StatelessKubernetesDryRun) {}
-func (v *progressRecordingView) Adoption(views.StatelessAdoption)                   {}
-func (v *progressRecordingView) Document(views.LivePlanDocument) bool               { return true }
+func (v *progressRecordingView) Omissions([]views.LiveOmission)                {}
+func (v *progressRecordingView) Unowned([]views.LiveUnowned)                   {}
+func (v *progressRecordingView) Foreign(views.LiveForeign)                     {}
+func (v *progressRecordingView) Policy(views.LivePolicyReport)                 {}
+func (v *progressRecordingView) GuidedFallback(string)                         {}
+func (v *progressRecordingView) Lookalikes([]views.LiveLookalike)              {}
+func (v *progressRecordingView) KubernetesDryRun([]views.LiveKubernetesDryRun) {}
+func (v *progressRecordingView) Adoption(views.LiveAdoption)                   {}
+func (v *progressRecordingView) Document(views.LivePlanDocument) bool          { return true }
 
-// TestStatelessProgress_throttlesButAlwaysShowsTheFirstEvent pins
-// statelessProgress's whole job: discovery reports every type it scans,
+// TestLiveProgress_throttlesButAlwaysShowsTheFirstEvent pins
+// liveProgress's whole job: discovery reports every type it scans,
 // which for a fast-listing provider is too fine-grained to print, so this
 // is where "how often" is decided. The first event has to pass through
 // unthrottled - it is a reader's first evidence the run has not hung - and
-// anything arriving within statelessProgressInterval of the last one shown
+// anything arriving within liveProgressInterval of the last one shown
 // has to be dropped.
-func TestStatelessProgress_throttlesButAlwaysShowsTheFirstEvent(t *testing.T) {
+func TestLiveProgress_throttlesButAlwaysShowsTheFirstEvent(t *testing.T) {
 	rec := &progressRecordingView{}
-	report := statelessProgress(rec)
+	report := liveProgress(rec)
 
 	report(discovery.ProgressEvent{TypeName: "aws_vpc", TypesScanned: 1, ResourcesFound: 1})
 	report(discovery.ProgressEvent{TypeName: "aws_subnet", TypesScanned: 2, ResourcesFound: 3})
@@ -2775,7 +2775,7 @@ func TestStatelessProgress_throttlesButAlwaysShowsTheFirstEvent(t *testing.T) {
 		t.Errorf("the event that passed through is %q, want the first one", rec.progress[0].TypeName)
 	}
 
-	time.Sleep(statelessProgressInterval + 50*time.Millisecond)
+	time.Sleep(liveProgressInterval + 50*time.Millisecond)
 	report(discovery.ProgressEvent{TypeName: "aws_eip", TypesScanned: 3, ResourcesFound: 5})
 
 	if len(rec.progress) != 2 {
@@ -2786,7 +2786,7 @@ func TestStatelessProgress_throttlesButAlwaysShowsTheFirstEvent(t *testing.T) {
 	}
 }
 
-// TestLivePlan_targetScopesTheStatelessPipeline is GitHub issue #352, at the
+// TestLivePlan_targetScopesTheLivePipeline is GitHub issue #352, at the
 // level the report was written from: the whole live-plan pipeline, over a
 // configuration holding one resource whose identity this fork cannot resolve.
 //
@@ -2801,19 +2801,19 @@ func TestStatelessProgress_throttlesButAlwaysShowsTheFirstEvent(t *testing.T) {
 // the data-read phase, discovery and stamping all walked the whole
 // configuration regardless of -target, so this exited 1 with the identity
 // refusal below while a plain "tofu plan" over the same -target set exited 0.
-func TestLivePlan_targetScopesTheStatelessPipeline(t *testing.T) {
+func TestLivePlan_targetScopesTheLivePipeline(t *testing.T) {
 	run := func(t *testing.T, args ...string) (int, *terminal.TestOutput) {
 		t.Helper()
 		td := t.TempDir()
 		testCopyDir(t, testFixturePath("live-plan-target-scope"), td)
 		t.Chdir(td)
 
-		cloud := newStatelessTestCloud()
-		cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-			"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+		cloud := newLiveTestCloud()
+		cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+			"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 		})
 		c, done := newLivePlanCommand(t, cloud)
-		code := c.Run(append([]string{"-no-color", "-estate=stateless-unit"}, args...))
+		code := c.Run(append([]string{"-no-color", "-estate=live-unit"}, args...))
 		return code, done(t)
 	}
 
@@ -2878,9 +2878,9 @@ func TestLivePlan_jsonDocumentCarriesTheContentMatch(t *testing.T) {
 	// stays empty, which is the document saying "this run did not ask".
 	t.Setenv(collectUnclaimedEnvVar, "1")
 
-	cloud := newStatelessTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud := newLiveTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 	cloud.list("aws_vpc", "vpc-unmarked", "", nil,
 		map[string]string{"cidr_block": "10.42.0.0/16"})
@@ -2888,7 +2888,7 @@ func TestLivePlan_jsonDocumentCarriesTheContentMatch(t *testing.T) {
 	// The human run first, so the document is checked against what the
 	// text says rather than against itself.
 	human, doneHuman := newLivePlanCommand(t, cloud)
-	if code := human.Run([]string{"-no-color", "-estate=stateless-unit", "-detailed-exitcode"}); code != 2 {
+	if code := human.Run([]string{"-no-color", "-estate=live-unit", "-detailed-exitcode"}); code != 2 {
 		t.Fatalf("human-mode exit code %d, want 2", code)
 	}
 	humanOut := doneHuman(t).Stdout()
@@ -2898,7 +2898,7 @@ func TestLivePlan_jsonDocumentCarriesTheContentMatch(t *testing.T) {
 	}
 
 	jsonCmd, doneJSON := newLivePlanCommand(t, cloud)
-	if code := jsonCmd.Run([]string{"-no-color", "-estate=stateless-unit", "-detailed-exitcode", "-json"}); code != 2 {
+	if code := jsonCmd.Run([]string{"-no-color", "-estate=live-unit", "-detailed-exitcode", "-json"}); code != 2 {
 		t.Fatalf("-json exit code %d, want 2", code)
 	}
 	raw := doneJSON(t).Stdout()
@@ -2925,8 +2925,8 @@ func TestLivePlan_jsonDocumentCarriesTheContentMatch(t *testing.T) {
 	if len(got.Matched) != 1 || got.Matched[0].Attribute != "cidr_block" || got.Matched[0].Value != "10.42.0.0/16" {
 		t.Errorf("adoptable[0].matched = %+v, want exactly cidr_block=10.42.0.0/16, the argument the human run printed after \"matched on:\"", got.Matched)
 	}
-	if got.MarkerEstate != "stateless-unit" || got.MarkerAddress != "aws_vpc.main" {
-		t.Errorf("adoptable[0] markers = %q/%q, want stateless-unit/aws_vpc.main - the two values a consumer writes to adopt", got.MarkerEstate, got.MarkerAddress)
+	if got.MarkerEstate != "live-unit" || got.MarkerAddress != "aws_vpc.main" {
+		t.Errorf("adoptable[0] markers = %q/%q, want live-unit/aws_vpc.main - the two values a consumer writes to adopt", got.MarkerEstate, got.MarkerAddress)
 	}
 	if !strings.Contains(got.AdoptCommand, "aws ec2 create-tags --resources 'vpc-unmarked'") {
 		t.Errorf("adoptable[0].adopt_command = %q, want the same create-tags command the human run prints", got.AdoptCommand)
@@ -2950,7 +2950,7 @@ func TestLivePlan_jsonDocumentCarriesTheContentMatch(t *testing.T) {
 
 	// The match is not also an unowned row: that section is for objects
 	// read at a DECLARED identity, and a VPC declares none.
-	var unowned []views.StatelessUnowned
+	var unowned []views.LiveUnowned
 	if err := json.Unmarshal(doc["unowned"], &unowned); err != nil {
 		t.Fatalf("unowned does not decode: %s", err)
 	}
@@ -2996,7 +2996,7 @@ func TestLivePlan_jsonDocumentReachesADeclaredEstate(t *testing.T) {
 		t.Chdir(td)
 
 		c, done := newLivePlanCommand(t, liveBlockCloud())
-		code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-json"})
+		code := c.Run([]string{"-no-color", "-estate=live-unit", "-json"})
 		out := done(t)
 		if code != 0 {
 			t.Fatalf("the -estate form exited %d, want 0 - this test's reference is broken\nstdout:\n%s\nstderr:\n%s", code, out.Stdout(), out.Stderr())
@@ -3012,7 +3012,7 @@ func TestLivePlan_jsonDocumentReachesADeclaredEstate(t *testing.T) {
 		fixture string
 		// run is the command under test, taking the same arguments every
 		// route gets and returning its exit code.
-		run func(t *testing.T, cloud *statelessTestCloud) (int, *terminal.TestOutput)
+		run func(t *testing.T, cloud *liveTestCloud) (int, *terminal.TestOutput)
 		// sameAsReference is false for the sidecar fixture, which declares
 		// only the bucket and so cannot produce the same document as a
 		// fixture declaring bucket and VPC.
@@ -3021,7 +3021,7 @@ func TestLivePlan_jsonDocumentReachesADeclaredEstate(t *testing.T) {
 		{
 			name:    "live-plan over a live block",
 			fixture: "live-block",
-			run: func(t *testing.T, cloud *statelessTestCloud) (int, *terminal.TestOutput) {
+			run: func(t *testing.T, cloud *liveTestCloud) (int, *terminal.TestOutput) {
 				view, done := testView(t)
 				c := &LivePlanCommand{Meta: liveBlockMeta(view, cloud)}
 				return c.Run([]string{"-no-color", "-json"}), done(t)
@@ -3031,7 +3031,7 @@ func TestLivePlan_jsonDocumentReachesADeclaredEstate(t *testing.T) {
 		{
 			name:    "plan over a live block",
 			fixture: "live-block",
-			run: func(t *testing.T, cloud *statelessTestCloud) (int, *terminal.TestOutput) {
+			run: func(t *testing.T, cloud *liveTestCloud) (int, *terminal.TestOutput) {
 				c, done := newLiveBlockPlanCommand(t, cloud)
 				return c.Run([]string{"-no-color", "-json"}), done(t)
 			},
@@ -3040,7 +3040,7 @@ func TestLivePlan_jsonDocumentReachesADeclaredEstate(t *testing.T) {
 		{
 			name:    "live-plan over an estate.chdf.hcl sidecar",
 			fixture: "live-plan-sidecar",
-			run: func(t *testing.T, cloud *statelessTestCloud) (int, *terminal.TestOutput) {
+			run: func(t *testing.T, cloud *liveTestCloud) (int, *terminal.TestOutput) {
 				view, done := testView(t)
 				c := &LivePlanCommand{Meta: liveBlockMeta(view, cloud)}
 				return c.Run([]string{"-no-color", "-json"}), done(t)
@@ -3049,7 +3049,7 @@ func TestLivePlan_jsonDocumentReachesADeclaredEstate(t *testing.T) {
 		{
 			name:    "plan over an estate.chdf.hcl sidecar",
 			fixture: "live-plan-sidecar",
-			run: func(t *testing.T, cloud *statelessTestCloud) (int, *terminal.TestOutput) {
+			run: func(t *testing.T, cloud *liveTestCloud) (int, *terminal.TestOutput) {
 				c, done := newLiveBlockPlanCommand(t, cloud)
 				return c.Run([]string{"-no-color", "-json"}), done(t)
 			},
@@ -3073,8 +3073,8 @@ func TestLivePlan_jsonDocumentReachesADeclaredEstate(t *testing.T) {
 			if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
 				t.Fatalf("stdout does not parse as one JSON document: %s\nstdout:\n%s", err, stdout)
 			}
-			if doc.Estate != "stateless-unit" {
-				t.Errorf("document estate = %q, want %q - the estate name did not come from the configuration", doc.Estate, "stateless-unit")
+			if doc.Estate != "live-unit" {
+				t.Errorf("document estate = %q, want %q - the estate name did not come from the configuration", doc.Estate, "live-unit")
 			}
 			if doc.UpstreamVersion == "" {
 				t.Error("document's upstream_version is empty")
@@ -3184,7 +3184,7 @@ func TestLivePlan_jsonStdoutCarriesOnlyTheDocument(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-block"), td)
 	t.Chdir(td)
 
-	c, done := newLiveBlockPlanCommand(t, newStatelessTestCloud())
+	c, done := newLiveBlockPlanCommand(t, newLiveTestCloud())
 	code := c.Run([]string{"-no-color", "-json"})
 	out := done(t)
 	if code != 0 {
@@ -3204,8 +3204,8 @@ func TestLivePlan_jsonStdoutCarriesOnlyTheDocument(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
 		t.Fatalf("stdout does not parse as one JSON document - something printed beside it: %s\nstdout:\n%s", err, stdout)
 	}
-	if doc.Estate != "stateless-unit" {
-		t.Errorf("document estate = %q, want %q", doc.Estate, "stateless-unit")
+	if doc.Estate != "live-unit" {
+		t.Errorf("document estate = %q, want %q", doc.Estate, "live-unit")
 	}
 	if len(doc.Omissions) != 2 {
 		t.Errorf("omissions has %d entries, want 2 (nothing exists in this cloud): %#v", len(doc.Omissions), doc.Omissions)

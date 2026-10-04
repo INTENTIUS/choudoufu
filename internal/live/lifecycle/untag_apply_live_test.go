@@ -30,7 +30,7 @@ import (
 //	evidence and an explanatory note, apply does not perform it yet).
 //
 // internal/live/untag is that release, run once from
-// internal/backend/local's StatelessRun.AfterApply after a real apply -
+// internal/backend/local's LiveRun.AfterApply after a real apply -
 // never a plan - has finished changing the live system. This test drives it
 // end to end:
 //

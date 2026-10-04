@@ -45,30 +45,30 @@ import (
 	"github.com/intentius/choudoufu/internal/tofu"
 )
 
-// This file turns plain "choudoufu plan" and plain "choudoufu apply" stateless when the
+// This file turns plain "choudoufu plan" and plain "choudoufu apply" into live mode when the
 // configuration says so, and leaves both of them exactly as they were when it
 // does not.
 //
 // The activation is a configuration block and never a flag. See
 // [configs.Live] for why. The consequence for the code here is that
-// every entry point has to answer "is this a stateless configuration" before
-// it does anything else with state, which is what statelessSettings is for.
+// every entry point has to answer "is this a live-mode configuration" before
+// it does anything else with state, which is what liveSettings is for.
 //
 // # The seam
 //
-// A stateless run is an ordinary local run with two things replaced, both
-// through [backendLocal.StatelessRun]:
+// A live run is an ordinary local run with two things replaced, both
+// through [backendLocal.LiveRun]:
 //
 //   - the state manager, replaced with [projection.Manager], which persists
 //     nothing and locks nothing;
 //   - the prior state, replaced with a projection built by reading the live
-//     system, supplied by [statelessRunner.PriorState] at the one moment the
+//     system, supplied by [liveRunner.PriorState] at the one moment the
 //     configuration and the OpenTofu context both exist and nothing has been
 //     planned yet.
 //
 // Everything else - the plan renderer, the approval prompt, the apply hooks
 // and progress counts, interrupt handling, the resource-count summary - is
-// stock, because a stateless run differs from an ordinary one only in where
+// stock, because a live run differs from an ordinary one only in where
 // prior state comes from and where the result goes (nowhere).
 //
 // # The provider double-launch
@@ -89,7 +89,7 @@ import (
 // [plugins.Library] the plan will use, so the provider schemas are fetched
 // once.
 
-// statelessSettings reads the "live" block from the root module, or nil
+// liveSettings reads the "live" block from the root module, or nil
 // if this is an ordinary configuration.
 //
 // Loading is the same selective load that finds the backend block, so this
@@ -99,9 +99,9 @@ import (
 //
 // tolerateLoadErrors is for callers that have another source of
 // configuration, namely an apply given a saved plan file: for those, a
-// working directory that will not load is not evidence about stateless mode
+// working directory that will not load is not evidence about live mode
 // and is not this function's error to report.
-func (m *Meta) statelessSettings(ctx context.Context, tolerateLoadErrors bool) (*configs.Live, tfdiags.Diagnostics) {
+func (m *Meta) liveSettings(ctx context.Context, tolerateLoadErrors bool) (*configs.Live, tfdiags.Diagnostics) {
 	mod, diags := m.loadSingleModule(ctx, ".", configs.SelectiveLoadBackend)
 	if diags.HasErrors() {
 		if tolerateLoadErrors {
@@ -118,15 +118,15 @@ func (m *Meta) statelessSettings(ctx context.Context, tolerateLoadErrors bool) (
 	return mod.Live, nil
 }
 
-// statelessBegin prepares a plan or apply operation to run statelessly, and
+// liveBegin prepares a plan or apply operation to run in live mode, and
 // is called only when the configuration has a live block.
 //
-// It refuses everything stateless mode v0 cannot honor (see
-// statelessRejections), replaces the operation's state manager and prior
+// It refuses everything live mode v0 cannot honor (see
+// liveRejections), replaces the operation's state manager and prior
 // state through the backend's seam, and makes the state lock a no-op at the
 // CLI layer as well as at the manager - two independent reasons no lock file
 // can appear, because one of them being wrong should not be enough.
-func statelessBegin(
+func liveBegin(
 	be backend.Enhanced,
 	opReq *backend.Operation,
 	settings *configs.Live,
@@ -198,10 +198,10 @@ func statelessBegin(
 	cachePath, cacheOffForSecrets := stateCachePathFor(secretsSetting)
 	if cachePath != "" {
 		mgr.EnableStateCache(cachePath)
-		log.Printf("[DEBUG] stateless: state cache enabled at %s", cachePath)
+		log.Printf("[DEBUG] live: state cache enabled at %s", cachePath)
 	}
 	if cacheOffForSecrets {
-		log.Printf("[INFO] stateless: strict { secrets = %q } is set, so no state cache is written or read; set %s to a path to keep one on purpose", secretsSetting, EnvStateCache)
+		log.Printf("[INFO] live: strict { secrets = %q } is set, so no state cache is written or read; set %s to a path to keep one on purpose", secretsSetting, EnvStateCache)
 		diags = diags.Append(stateCacheOffForSecretsDiags(secretsSetting))
 	}
 
@@ -211,10 +211,10 @@ func statelessBegin(
 	// so once rather than leaving a flag user to wonder why nothing hit.
 	readsSelective := readsPolicyFor(settings.Reads) != "full"
 	if !readsSelective && !opReq.PlanRefresh {
-		log.Printf("[INFO] stateless: reads=\"full\" is set for this estate, so -refresh=false serves nothing from the state cache on this run")
+		log.Printf("[INFO] live: reads=\"full\" is set for this estate, so -refresh=false serves nothing from the state cache on this run")
 	}
 
-	runner := &statelessRunner{
+	runner := &liveRunner{
 		settings: settings,
 		// Issue #712: -refresh=false is the only door to cache-served
 		// reads; a default plan or apply (PlanRefresh true) reads every
@@ -234,7 +234,7 @@ func statelessBegin(
 		// different renderer. Both implement the same interface and the
 		// pipeline calls the same methods either way, so nothing below
 		// this line knows which mode it is in.
-		view:         statelessPlanView(view, adoptionOnly, filter),
+		view:         livePlanView(view, adoptionOnly, filter),
 		filter:       filter,
 		adoptionOnly: adoptionOnly,
 		// GitHub issue #352. The operation carries the run's -target and
@@ -247,10 +247,10 @@ func statelessBegin(
 		// is open, and read by terraform_estate_outputs during the walk.
 		estateOutputs: estateOutputs,
 	}
-	if testStatelessRunner != nil {
-		testStatelessRunner(runner)
+	if testLiveRunner != nil {
+		testLiveRunner(runner)
 	}
-	local.Stateless = runner
+	local.LiveRun = runner
 
 	// GitHub issue #388's plan-node seam, behind its migration flag (see
 	// [nodeResolveEnabled]). The resolver is constructed HERE, empty, and
@@ -334,7 +334,7 @@ func statelessBegin(
 // Any other value, including "1" (the flag's old
 // spelling from when it defaulted off, kept working so nobody's existing
 // override silently changes meaning) and unset, resolves to the node path.
-// Read once per statelessBegin so a single CLI invocation cannot see the
+// Read once per liveBegin so a single CLI invocation cannot see the
 // flag change mid-run.
 //
 // It is an environment variable and not a live-block toggle for the same
@@ -353,7 +353,7 @@ func nodeResolveEnabled() bool {
 // nodeResolverUnownedSet builds a [projection.NodeResolver.Unowned] set from
 // a completed projection's own [projection.Result.Unowned] list, keyed by
 // [addrs.AbsResourceInstance.String] - the shared helper both
-// statelessBegin (live_mode.go) and LivePlanCommand's "-estate" form
+// liveBegin (live_mode.go) and LivePlanCommand's "-estate" form
 // (live_plan.go) call once projResult exists, at the two population sites
 // that field's own doc comment points to.
 func nodeResolverUnownedSet(unowned []projection.Unowned) map[string]bool {
@@ -370,7 +370,7 @@ func nodeResolverUnownedSet(unowned []projection.Unowned) map[string]bool {
 // nodeResolverUntagMap builds a [projection.NodeResolver.PolicyUntag] map
 // from a completed projection's own [projection.Result.Policy] outcomes,
 // keyed by [addrs.AbsResourceInstance.String] - the shared helper both
-// statelessBegin (live_mode.go) and LivePlanCommand's "-estate" form
+// liveBegin (live_mode.go) and LivePlanCommand's "-estate" form
 // (live_plan.go) call once projResult exists, mirroring
 // [nodeResolverUnownedSet] immediately above.
 //
@@ -379,11 +379,11 @@ func nodeResolverUnownedSet(unowned []projection.Unowned) map[string]bool {
 // GitHub issue #67's declared_tagged = "untag" - the quadrant #949 ports -
 // never the undeclared_tagged reading the same verb carries for a sweep
 // orphan, which reaches the live system through
-// internal/command's statelessUntagTargets/AfterApply instead and was never
+// internal/command's liveUntagTargets/AfterApply instead and was never
 // something a resource block's own configuration could stamp in the first
 // place. tagKey is the single key the run's policy names for every governed
 // instance - [policy.Policy.TagKey], resolved once by
-// [statelessPolicyTagKey] - not a per-outcome value, because one Policy has
+// [livePolicyTagKey] - not a per-outcome value, because one Policy has
 // exactly one TagKey for the whole run.
 func nodeResolverUntagMap(outcomes []projection.PolicyOutcome, tagKey string) map[string]string {
 	if len(outcomes) == 0 || tagKey == "" {
@@ -402,26 +402,26 @@ func nodeResolverUntagMap(outcomes []projection.PolicyOutcome, tagKey string) ma
 	return out
 }
 
-// testStatelessRunner, when set, is handed every runner as it is built. It
+// testLiveRunner, when set, is handed every runner as it is built. It
 // exists so that a test can assert about the state manager afterwards - in
 // particular that PersistState was called and still wrote nothing, which is
 // the half of the no-persistence proof that walking the filesystem cannot
 // make. Nil in every real run.
-var testStatelessRunner func(*statelessRunner)
+var testLiveRunner func(*liveRunner)
 
-// statelessSurface names which of the fork's two live-markers entry points is
-// asking [statelessRejections] for its refusals.
+// liveSurface names which of the fork's two live-markers entry points is
+// asking [liveRejections] for its refusals.
 //
 // There are two because there are two PIPELINES, not two judgements. A
 // configuration carrying a live block runs the ordinary plan/apply command,
-// which hands a backend.Operation to the local backend; [statelessBegin]
+// which hands a backend.Operation to the local backend; [liveBegin]
 // swaps the state manager underneath it and the operation's own PlanMode is
 // what reaches tofu.Context.Plan. "choudoufu live-plan -estate=name" has no
 // such operation: [LivePlanCommand.livePlan] assembles the pipeline in
 // process and calls tofu.Context.Plan itself. Everything either surface
 // refuses, it refuses for the same reason - and the one clause below that
 // reads this value says exactly why it is the exception.
-type statelessSurface int
+type liveSurface int
 
 // stateCachePathFor resolves where this run's state cache lives.
 //
@@ -520,16 +520,16 @@ func loadStateCache(secrets strict.Secrets) *states.State {
 	}
 	f, err := os.Open(path)
 	if err != nil {
-		log.Printf("[DEBUG] stateless: no state cache at %s (%s); the projection will read live", path, err)
+		log.Printf("[DEBUG] live: no state cache at %s (%s); the projection will read live", path, err)
 		return nil
 	}
 	defer f.Close()
 	sf, err := statefile.Read(f, encryption.StateEncryptionDisabled())
 	if err != nil || sf == nil || sf.State == nil {
-		log.Printf("[WARN] stateless: the state cache at %s could not be read (%v); the projection will read live", path, err)
+		log.Printf("[WARN] live: the state cache at %s could not be read (%v); the projection will read live", path, err)
 		return nil
 	}
-	log.Printf("[DEBUG] stateless: loaded the state cache from %s", path)
+	log.Printf("[DEBUG] live: loaded the state cache from %s", path)
 	return sf.State
 }
 
@@ -544,7 +544,7 @@ const (
 	// configuration carrying a live block. This is the surface the product
 	// promise is written against: an existing configuration, run with the
 	// commands its operators already run.
-	surfaceLiveBlock statelessSurface = iota
+	surfaceLiveBlock liveSurface = iota
 
 	// surfaceEstateFlag is LivePlanCommand.livePlan's own pipeline: the
 	// planner called directly, with no operation, no backend and no plan
@@ -573,7 +573,7 @@ const (
 	surfaceEstateFlag
 )
 
-// statelessRejections lists the options a live-markers run cannot honor, in
+// liveRejections lists the options a live-markers run cannot honor, in
 // the shared vocabulary of the plan and apply flag sets. Everything here is
 // refused with an explanation rather than accepted and quietly ignored.
 //
@@ -584,7 +584,7 @@ const (
 // before every caller was made to delegate to one definition, and it is why
 // the surface is a parameter here rather than a second function: a divergence
 // has to be written down as a clause that names its reason, where
-// TestStatelessRejections_surfacesAgree can see it.
+// TestLiveRejections_surfacesAgree can see it.
 //
 // planOut and planFile were the two the fork thought hardest about, and both
 // are now admitted under a live block - GitHub issue #878, ruled 2026-09-05.
@@ -599,7 +599,7 @@ const (
 // live-plan's "-estate" form, where plain apply in the same directory is an
 // ordinary state-backed command and the file it wrote would be applied by
 // something that has never heard of the estate.
-func statelessRejections(surface statelessSurface, op *arguments.Operation, state *arguments.State, viewOpts *arguments.View, planOut, generateConfigOut, planFile string) tfdiags.Diagnostics {
+func liveRejections(surface liveSurface, op *arguments.Operation, state *arguments.State, viewOpts *arguments.View, planOut, generateConfigOut, planFile string) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	reject := func(summary, detail string) {
@@ -613,7 +613,7 @@ func statelessRejections(surface statelessSurface, op *arguments.Operation, stat
 	// -json through. surfaceLiveBlock is still deliberately NOT included,
 	// and for the reason it always was rather than a stale one: plain
 	// "choudoufu plan"/"apply" under a live block run through
-	// statelessBegin/backend_local.go's StatelessRun seam, which has no
+	// liveBegin/backend_local.go's LiveRun seam, which has no
 	// hook that builds or prints that document, so accepting -json here
 	// would promise something nothing renders.
 	//
@@ -671,7 +671,7 @@ func statelessRejections(surface statelessSurface, op *arguments.Operation, stat
 		// configuration for those instances is still present"
 		// (plans.DestroyMode's doc comment) - asks for exactly that same
 		// merge applied to every owned instance the projection built,
-		// declared or not. Nothing downstream of statelessBegin branches
+		// declared or not. Nothing downstream of liveBegin branches
 		// on PlanMode: PriorState builds the same projection of every
 		// owned instance regardless of mode, and the plan and apply that
 		// follow are stock, so it is stock's own destroy-graph walker -
@@ -688,7 +688,7 @@ func statelessRejections(surface statelessSurface, op *arguments.Operation, stat
 		// prevent, so refusing is the only honest answer while that call
 		// site ignores the flag. Delete this clause the run after that
 		// call site takes args.Operation.PlanMode; nothing else has to
-		// move with it, and TestStatelessRejections_surfacesAgree's
+		// move with it, and TestLiveRejections_surfacesAgree's
 		// expectation is the one line to update.
 		case op.PlanMode != plans.NormalMode && surface == surfaceEstateFlag:
 			reject("Only the normal planning mode is available under live resource markers yet",
@@ -707,9 +707,9 @@ func statelessRejections(surface statelessSurface, op *arguments.Operation, stat
 // The runner
 // ---------------------------------------------------------------------------
 
-// statelessRunner is the stateless pipeline, wearing the interface the local
+// liveRunner is the live pipeline, wearing the interface the local
 // backend calls it through. One runner serves one operation.
-type statelessRunner struct {
+type liveRunner struct {
 	// estateOutputs is the command's terraform_estate_outputs holder
 	// (GitHub issue #1371), opened over this run's record store in
 	// PriorState. Nil only in a test that builds a runner by hand.
@@ -718,14 +718,14 @@ type statelessRunner struct {
 	// settings is the live block this run was started from. The whole block
 	// is kept, not just its estate name, so that a diagnostic raised once the
 	// run is under way can still point at the configuration that asked for
-	// stateless mode - which is the thing at fault when the estate cannot be
+	// live mode - which is the thing at fault when the estate cannot be
 	// settled.
 	settings *configs.Live
 
 	// policy is the live block's optional policy block, resolved to a
 	// [policy.Policy] once the estate name is settled below. It is GitHub
 	// issue #67's config/lint half only: nothing in this struct's own
-	// methods reads it yet. See [statelessPolicy].
+	// methods reads it yet. See [livePolicy].
 	policy *policy.Policy
 
 	// untagGroups, untagKey and untagConfig are GitHub issue
@@ -749,7 +749,7 @@ type statelessRunner struct {
 
 	lib  plugins.Library
 	mgr  *projection.Manager
-	view views.StatelessPlan
+	view views.LivePlan
 
 	// labelListSweepers is the label-list sweep's client
 	// ([substrate.SweepLabelList], the Kubernetes cluster client) per provider
@@ -780,7 +780,7 @@ type statelessRunner struct {
 	// filter is GitHub issue #1197's -filter, kept as well as folded into
 	// view above for one reason: a run that swept nothing never calls
 	// view.Foreign, and a filter that asked for adoptable or foreign must
-	// still get an answer rather than silence. See [statelessNoSweepAnswer].
+	// still get an answer rather than silence. See [liveNoSweepAnswer].
 	filter arguments.ReportFilter
 
 	// envelopeVouch is issue #692 increment 2's capture of the operation
@@ -797,7 +797,7 @@ type statelessRunner struct {
 	// cacheServesReads is issue #712's capture of the operation's refresh
 	// setting: true only when the user passed -refresh=false, which is the
 	// sole condition under which the state cache may stand in for a
-	// verified instance's per-instance read. Captured at [statelessBegin]
+	// verified instance's per-instance read. Captured at [liveBegin]
 	// from opReq.PlanRefresh because the runner never sees the operation
 	// again - the same reason targets and excludes below are copied.
 	cacheServesReads bool
@@ -809,7 +809,7 @@ type statelessRunner struct {
 
 	// targets and excludes are this operation's -target and -exclude
 	// addresses (GitHub issue #352), copied out of the backend operation at
-	// [statelessBegin] because the runner never sees it again. Both empty
+	// [liveBegin] because the runner never sees it again. Both empty
 	// for an untargeted run, which is what makes the scope below nil and the
 	// whole pipeline byte-identical to what it was.
 	targets  []addrs.Targetable
@@ -847,7 +847,7 @@ type statelessRunner struct {
 	// [projection.RecordStore]'s envelope.
 	rawStore staterecord.Store
 
-	// recordStoreCfg and recordEstate are what [statelessRunner.BeforeApply]
+	// recordStoreCfg and recordEstate are what [liveRunner.BeforeApply]
 	// needs to assert the bucket contract (#1339) against the same store,
 	// bucket and namespaces this run opened. Nil / "" with no record_store.
 	recordStoreCfg *configs.LiveRecordStore
@@ -874,7 +874,7 @@ type statelessRunner struct {
 
 	// unmarkedApplyAddrs is GitHub issue #1743's write-back signal: every
 	// instance #1637's writable-store exemption let this run create with
-	// no marker, from [statelessUnmarkedApplyGaps]. Passed to WriteBack as
+	// no marker, from [liveUnmarkedApplyGaps]. Passed to WriteBack as
 	// [projection.WriteBackRequest.UnmarkedApplyAddrs].
 	unmarkedApplyAddrs []addrs.AbsResourceInstance
 
@@ -893,7 +893,7 @@ type statelessRunner struct {
 	// rootOutputData holds the live data-source values PriorState read for
 	// the configuration's root outputs (GitHub issue #349's sub-problem 2),
 	// keyed by absolute resource instance address. Set by PriorState, read
-	// once by the caller through [statelessRunner.RootOutputData] at the one
+	// once by the caller through [liveRunner.RootOutputData] at the one
 	// moment root outputs are evaluated - which is after PriorState has
 	// returned and the provider instances that produced these values are
 	// closed, which is the whole reason the values are carried on the runner
@@ -910,7 +910,7 @@ type statelessRunner struct {
 
 	// recordedRootOutputs is what rootOutputStore held for the outputs this
 	// configuration declares, read by PriorState and handed to the caller
-	// through [statelessRunner.RecordedRootOutputs] at the one moment root
+	// through [liveRunner.RecordedRootOutputs] at the one moment root
 	// outputs are evaluated. Carried on the runner for rootOutputData's
 	// reason: it is read where the store is open and used a step later.
 	recordedRootOutputs map[string]cty.Value
@@ -930,29 +930,29 @@ type statelessRunner struct {
 	cacheHits       int
 
 	// nodeResolve and resolver are GitHub issue #388's plan-node seam,
-	// set once in statelessBegin from [nodeResolveEnabled] and populated
+	// set once in liveBegin from [nodeResolveEnabled] and populated
 	// at the end of PriorState. resolver is nil whenever nodeResolve is
 	// false (the default), which is also when it is never installed on
-	// ContextOpts at all - see statelessBegin's own comment on why the
+	// ContextOpts at all - see liveBegin's own comment on why the
 	// two are set together, in that order, before tofu.NewContext runs.
 	nodeResolve bool
 	resolver    *projection.NodeResolver
 }
 
-var _ backendLocal.StatelessRun = (*statelessRunner)(nil)
+var _ backendLocal.LiveRun = (*liveRunner)(nil)
 
-// StateMgr implements [backendLocal.StatelessRun].
-func (r *statelessRunner) StateMgr() statemgr.Full {
+// StateMgr implements [backendLocal.LiveRun].
+func (r *liveRunner) StateMgr() statemgr.Full {
 	return r.mgr
 }
 
-// RootOutputData implements [backendLocal.StatelessRun].
-func (r *statelessRunner) RootOutputData() map[string]cty.Value {
+// RootOutputData implements [backendLocal.LiveRun].
+func (r *liveRunner) RootOutputData() map[string]cty.Value {
 	return r.rootOutputData
 }
 
-// RecordedRootOutputs implements [backendLocal.StatelessRun].
-func (r *statelessRunner) RecordedRootOutputs() map[string]cty.Value {
+// RecordedRootOutputs implements [backendLocal.LiveRun].
+func (r *liveRunner) RecordedRootOutputs() map[string]cty.Value {
 	return r.recordedRootOutputs
 }
 
@@ -963,14 +963,14 @@ func (r *statelessRunner) RecordedRootOutputs() map[string]cty.Value {
 // answered from the state cache instead of a provider read. Issue #685's
 // proof surface: a cache that is written, loaded and then ignored is
 // indistinguishable from a working one without this number.
-func (r *statelessRunner) CacheHitsForTest() int { return r.cacheHits }
+func (r *liveRunner) CacheHitsForTest() int { return r.cacheHits }
 
-func (r *statelessRunner) PriorStateCalls() int {
+func (r *liveRunner) PriorStateCalls() int {
 	return r.priorStateCalls
 }
 
-// PriorState implements [backendLocal.StatelessRun]: it runs the whole
-// stateless pipeline and returns the projection.
+// PriorState implements [backendLocal.LiveRun]: it runs the whole
+// live pipeline and returns the projection.
 //
 // The order is the one internal/command/live_plan.go documents and for
 // the same reasons - lint before anything reads the cloud, the estate name
@@ -983,7 +983,7 @@ func (r *statelessRunner) PriorStateCalls() int {
 // [lint.CheckWith]. The difference from live-plan is the ending: instead of
 // planning here, the projection is handed back and the ordinary operation
 // plans (and applies) with it.
-func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config, core *tofu.Context) (*states.State, tfdiags.Diagnostics) {
+func (r *liveRunner) PriorState(ctx context.Context, config *configs.Config, core *tofu.Context) (*states.State, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	r.priorStateCalls++
@@ -991,7 +991,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// GitHub issue #626's knob, resolved once here for the same two reasons
 	// live-plan's own call resolves it at the top of livePlan: this function
 	// has two read paths that each build a [projection.Options] - the
-	// projection below and [statelessProviderDataReads]'s own
+	// projection below and [liveProviderDataReads]'s own
 	// [projection.ReadInstances] calls - and resolving at each construction
 	// site would report a bad setting twice; and a setting this run cannot
 	// honour should be refused before a provider process is started or a
@@ -1013,28 +1013,28 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// GitHub issue #352's targeting scope, nil unless this run passed
 	// -target or -exclude, and read off the same core context that will
 	// build the real plan graph a moment from now. See
-	// [statelessTargetScope].
-	scope, scopeDiags := statelessTargetScope(ctx, core, config, r.targets, r.excludes)
+	// [liveTargetScope].
+	scope, scopeDiags := liveTargetScope(ctx, core, config, r.targets, r.excludes)
 	diags = diags.Append(scopeDiags)
 	if scopeDiags.HasErrors() {
 		return nil, diags
 	}
 
-	provs := newStatelessProviders(config, r.lib)
+	provs := newProjectionProviders(config, r.lib)
 
 	// Read once and handed to both the subset check and resolution below, so
 	// that a type the schemas admit reads the same answer at both points. See
 	// internal/command/live_plan.go, which does the same.
 	resourceSchemas := provs.resourceSchemas(ctx)
 
-	// Subset check first: a configuration outside the stateless subset has to
+	// Subset check first: a configuration outside the live-mode subset has to
 	// fail with an explanation, and it has to fail before anything is read
 	// from or written to the cloud. It runs after the providers are launched
 	// now, schemas in hand, so a type with no admission-table row can still
 	// pass when the provider's own identity schema describes it completely
 	// enough, and a type schemas do refuse is explained in the identity
 	// layer's own words. See [lint.CheckWith]. Nothing above this point reads
-	// or writes the live system: newStatelessProviders only builds the
+	// or writes the live system: newProjectionProviders only builds the
 	// struct, and resourceSchemas reads unconfigured provider schemas, the
 	// same schema-only call live-plan makes ahead of its own lint check.
 	// GitHub issue #1256's half of the scope: the per-resource rules narrow
@@ -1069,7 +1069,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// Resolved now that lint has passed and the estate name is settled, so
 	// that any verb here is already known valid for its quadrant.
 	if config.Module != nil {
-		r.policy = statelessPolicy(config.Module.Live, estate)
+		r.policy = livePolicy(config.Module.Live, estate)
 	}
 
 	// GitHub issue #73's record store, built now that lint has already
@@ -1146,7 +1146,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// the apply's final persist onward, the estate's type roster and a
 		// timestamp land at [projection.HintKey](estate), where the next
 		// run's guided sweep reads them back. Enabled here rather than in
-		// statelessBegin because the store and the settled estate name both
+		// liveBegin because the store and the settled estate name both
 		// exist only now. A plan never persists, so a plan never writes one.
 		// The exception is an interrupted plan: the local backend's opWait
 		// (internal/backend/local/backend.go) answers a stop signal with a
@@ -1165,7 +1165,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// data-source values that identity resolution demands are read now,
 	// from the same configured provider instances the projection uses.
 	// Fatal when a demanded source cannot be read; free when none is.
-	dataResults, drDiags := statelessDataReads(ctx, config, provs, resourceSchemas, scope)
+	dataResults, drDiags := liveDataReads(ctx, config, provs, resourceSchemas, scope)
 	diags = diags.Append(drDiags)
 	if drDiags.HasErrors() {
 		diags = diags.Append(provs.close(ctx))
@@ -1177,8 +1177,8 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// when the provider's own identity schema describes it completely enough.
 	// See [identity.SynthesizeTypeIdentity].
 	// The same two-pass resolution live-plan runs, through the same helper:
-	// see [statelessResolve].
-	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, scope)
+	// see [liveResolve].
+	resolutions, idDiags := liveResolve(ctx, config, provs, resourceSchemas, dataResults, scope)
 	if r.nodeResolve {
 		// GitHub issue #388's plan-node seam, #364 unit B's own landing
 		// note (item 3): a per-instance refusal here is the static
@@ -1212,13 +1212,13 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// read a data source - which may itself read a managed resource this
 	// estate already owns - gets exactly the same value stock OpenTofu's
 	// ordinary plan graph would supply once prior state exists. See
-	// [statelessProviderDataReads]'s own doc comment for the mechanism and
+	// [liveProviderDataReads]'s own doc comment for the mechanism and
 	// for corpus-eks-basic, the estate this closes: this call was missing
 	// here entirely until now - live-plan's own "-estate" form
 	// (LivePlanCommand.livePlan) has carried it since 1c1b00324f, but a
 	// configuration WITH a live block, which is what plain "choudoufu plan"/
 	// "apply" and "live-plan" both run through for such a configuration
-	// (LivePlanCommand.Execute's own alias, above statelessBegin), reaches this
+	// (LivePlanCommand.Execute's own alias, above liveBegin), reaches this
 	// function instead, and nothing here ever called it. r.recordStore is
 	// opened unconditionally above whenever the live block names a
 	// record_store, regardless of the migration flag - unlike
@@ -1228,9 +1228,9 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// already names as a parent is not the #388 migration's concern.
 	// GitHub issue #1113: a failed read of a cluster a provider block reads
 	// directly is an error, by the maintainer's ruling - see
-	// [statelessProviderDataReads].
+	// [liveProviderDataReads].
 	var pdDiags tfdiags.Diagnostics
-	provs.providerDataResults, provs.providerManagedResults, pdDiags = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, r.recordStore, readPar, scope, nil)
+	provs.providerDataResults, provs.providerManagedResults, pdDiags = liveProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, r.recordStore, readPar, scope, nil)
 	diags = diags.Append(pdDiags)
 	if pdDiags.HasErrors() {
 		diags = diags.Append(provs.close(ctx))
@@ -1241,10 +1241,10 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// GitHub issue #388's plan-node seam, edge 3: r.recordStore is opened
 	// unconditionally above whenever the live block names a record_store,
 	// regardless of the migration flag, so it is gated here rather than at
-	// that assignment - only a flag-on run passes it to statelessDiscover
+	// that assignment - only a flag-on run passes it to liveDiscover
 	// at all, which is what keeps a flag-off run's sweep demand
 	// byte-identical no matter what the record store holds. See
-	// statelessRecordBackedNeedsDiscoveryAddrs's own doc comment.
+	// liveRecordBackedNeedsDiscoveryAddrs's own doc comment.
 	var recordShrinkStore *projection.RecordStore
 	if r.nodeResolve {
 		recordShrinkStore = r.recordStore
@@ -1284,7 +1284,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// would inherit the listing's failure modes with no benefit.
 		cacheVouchTypes = cacheVouchTypesFor(stateCache, merged)
 	}
-	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, nodeRefusedAddrs(r.resolver.StaticRefusals), estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords, cacheVouchTypes, r.adoptionOnly, scope)
+	disco, discoProvider, undeclaredProviders, discoDiags := liveDiscover(ctx, config, resolutions, nodeRefusedAddrs(r.resolver.StaticRefusals), estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords, cacheVouchTypes, r.adoptionOnly, scope)
 	diags = diags.Append(discoDiags)
 	r.labelListSweepers = provs.kubernetesSweepers()
 	if discoDiags.HasErrors() {
@@ -1298,14 +1298,14 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	}
 
 	// GitHub issue #388's plan-node seam: the resolver was constructed
-	// empty in statelessBegin (before tofu.NewContext existed to be handed
+	// empty in liveBegin (before tofu.NewContext existed to be handed
 	// it) and is populated now, the first moment both of its data sources
 	// exist - r.recordStore (open or nil a few lines above) and the
 	// marker sweep's own resolutions, snapshotted into an address-keyed
 	// index because the sweep itself has already finished by the time
 	// anything calls the resolver. Since GitHub issue #644 the resolver is
 	// built for every run, because it is the marker writer as well as the
-	// identity resolver (see statelessBegin), so this block is
+	// identity resolver (see liveBegin), so this block is
 	// unconditional too: an opted-out run needs Estate, Selection and
 	// Slots to stamp with, and the three identity fields it does not need
 	// are read only from a method it never installs.
@@ -1342,13 +1342,13 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// orphan handling, with no synthetic configuration needed. A threshold
 	// refusal stops the run here, after the report below has a chance to
 	// show the roster that tripped it.
-	reconcile, reconcileExtra, reconcileVerified, reconcileDiags := statelessPolicyReconcile(ctx, estate, r.policy, provs, discoProvider, scope)
+	reconcile, reconcileExtra, reconcileVerified, reconcileDiags := livePolicyReconcile(ctx, estate, r.policy, provs, discoProvider, scope)
 	diags = diags.Append(reconcileDiags)
 	if len(reconcileExtra) > 0 {
 		merged = append(merged, reconcileExtra...)
 	}
 	if reconcileDiags.HasErrors() {
-		r.view.Policy(statelessPolicyReport(nil, disco, reconcile, nil))
+		r.view.Policy(livePolicyReport(nil, disco, reconcile, nil))
 		diags = diags.Append(provs.close(ctx))
 		return nil, diags
 	}
@@ -1377,7 +1377,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// coverage line for the instance being created in its place says so
 		// instead of promising that marker discovery will find it.
 		StrandedByProviderChange: disco.StrandedByProviderChange(),
-		Ownership:                statelessOwnershipWith(estate, disco, r.policy, reconcileVerified),
+		Ownership:                liveOwnershipWith(estate, disco, r.policy, reconcileVerified),
 		// GitHub issue #1176: the same [identity.Scope] resolution and
 		// discovery were given. Nil for an untargeted run. An instance
 		// the plan graph will not hold is omitted rather than read, so a
@@ -1391,7 +1391,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// Issue #712: only -refresh=false lets the cache stand in for
 		// the per-instance reads; a default plan reads, so drift on a
 		// verified instance is always visible. opReq.PlanRefresh is
-		// captured at statelessBegin.
+		// captured at liveBegin.
 		CacheServesReads: r.cacheServesReads,
 		// Issue #692 increment 2: the listing pass's unmarked sightings
 		// of the cache-vouch types, and the plan-shaped-operation gate
@@ -1399,7 +1399,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		CacheVouchSightings: cacheVouchSightings(disco),
 		EnvelopeVouchServes: r.envelopeVouch,
 		RecordStore:         r.recordStore,
-		// dataResults (statelessDataReads, above) is issue #179's own
+		// dataResults (liveDataReads, above) is issue #179's own
 		// data-read phase output - already read, already paid for. See
 		// [projection.Options.DataResults]'s doc comment for why the
 		// projection's own tags/attrs seeding wants it too.
@@ -1427,7 +1427,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// apply side needs - server-side apply then removes exactly the
 		// keys our manager owns and spares everyone else's, which is
 		// measured on #1211.
-		ManifestOwnedKeys: statelessManifestOwnedKeys(config, provs),
+		ManifestOwnedKeys: liveManifestOwnedKeys(config, provs),
 	})
 	// GitHub issue #349's root-output data reads, taken here because this is
 	// the last moment the provider instances that read the live system are
@@ -1435,7 +1435,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// returns, by which point they are closed. Scoped: whatever this cannot
 	// read costs one root output its prior value and nothing else, so its
 	// diagnostics are collected and the run continues regardless.
-	outputData, outputDataDiags := statelessRootOutputDataReads(ctx, config, provs, resourceSchemas, scope)
+	outputData, outputDataDiags := liveRootOutputDataReads(ctx, config, provs, resourceSchemas, scope)
 	diags = diags.Append(outputDataDiags)
 	r.rootOutputData = outputData
 
@@ -1456,8 +1456,8 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	}
 	r.cacheHits = projResult.CacheHits()
 
-	r.view.Omissions(statelessOmissions(projResult))
-	r.view.Unowned(statelessUnownedReport(projResult, estate))
+	r.view.Omissions(liveOmissions(projResult))
+	r.view.Unowned(liveUnownedReport(projResult, estate))
 
 	// GitHub issue #388's plan-node seam: r.resolver's ownership guard
 	// (NodeResolver.Unowned, noderesolver.go step (c)'s own doc comment)
@@ -1476,7 +1476,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// [projection.NodeResolver.PolicyUntag]'s own doc comment for what a
 	// governed instance's key gets and internal/command's
 	// nodeResolverUntagMap for how the map is built.
-	r.resolver.PolicyUntag = nodeResolverUntagMap(projResult.Policy, statelessPolicyTagKey(r.policy))
+	r.resolver.PolicyUntag = nodeResolverUntagMap(projResult.Policy, livePolicyTagKey(r.policy))
 
 	var classified *foreign.Result
 	if disco != nil {
@@ -1496,19 +1496,19 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		if foreignDiags.HasErrors() {
 			return nil, diags
 		}
-		r.view.Foreign(statelessForeignReport(classified, disco))
+		r.view.Foreign(liveForeignReport(classified, disco))
 		r.view.GuidedFallback(disco.GuidedFallback)
 	} else {
-		statelessNoSweepAnswer(r.view, r.filter)
+		liveNoSweepAnswer(r.view, r.filter)
 	}
 
 	// GitHub issue #587's adoption ledger, built from the three values just
 	// rendered above rather than from anything of its own. Called on every
 	// run; only the adoption-only view renders it.
-	r.view.Adoption(statelessAdoptionReport(
+	r.view.Adoption(liveAdoptionReport(
 		projResult,
-		statelessForeignReport(classified, disco),
-		statelessUnownedReport(projResult, estate),
+		liveForeignReport(classified, disco),
+		liveUnownedReport(projResult, estate),
 		resourceSchemas,
 		r.resolver.Config,
 		estate,
@@ -1518,28 +1518,28 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// The marker writer's estate name, said out loud when there is not one.
 	// Writing the markers themselves is [projection.NodeResolver.AdjustConfigValue]'s
 	// job, per instance, during the plan walk; this is the one thing that
-	// seam cannot say for itself. See [statelessMarkerEstate], and GitHub
+	// seam cannot say for itself. See [liveMarkerEstate], and GitHub
 	// issue #644 for what used to be here.
-	diags = diags.Append(statelessMarkerEstate(ctx, config, estate))
+	diags = diags.Append(liveMarkerEstate(ctx, config, estate))
 	if diags.HasErrors() {
 		return nil, diags
 	}
 
 	// GitHub issue #950: the node-path equivalent of the retired
-	// statelessStampGaps' plan-time "Unstamped marker-only resource"
-	// error. See [statelessUnmarkedApplyGaps]'s own doc comment
+	// liveStampGaps' plan-time "Unstamped marker-only resource"
+	// error. See [liveUnmarkedApplyGaps]'s own doc comment
 	// (live_plan.go). r.recordStore, unlike recordShrinkStore
 	// (line ~1004 above), is read unconditionally - this check is not
 	// gated on [nodeResolveEnabled] the way edge 3's sweep-demand shrink
 	// is.
-	gapDiags, unmarkedApplyAddrs := statelessUnmarkedApplyGaps(ctx, config, resolutions, resourceSchemas, r.recordStore, estate, scope)
+	gapDiags, unmarkedApplyAddrs := liveUnmarkedApplyGaps(ctx, config, resolutions, resourceSchemas, r.recordStore, estate, scope)
 	diags = diags.Append(gapDiags)
 	if diags.HasErrors() {
 		return nil, diags
 	}
 	r.unmarkedApplyAddrs = unmarkedApplyAddrs
 
-	r.view.Policy(statelessPolicyReport(projResult, disco, reconcile, nil))
+	r.view.Policy(livePolicyReport(projResult, disco, reconcile, nil))
 
 	// GitHub issue #67's undeclared_tagged = "untag" verb: the resources
 	// applyOrphanPolicy withheld from the sweep because a non-default verb
@@ -1547,24 +1547,24 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// "untag" rather than "keep" or "report". Captured here, for
 	// AfterApply, rather than acted on now: this method also runs for a
 	// plan, and a plan must never write to the live system.
-	r.captureUntag(statelessUntagTargets(disco), statelessPolicyTagKey(r.policy), statelessPolicyTagValue(r.policy), config)
+	r.captureUntag(liveUntagTargets(disco), livePolicyTagKey(r.policy), livePolicyTagValue(r.policy), config)
 
 	return projResult.State, diags
 }
 
 // captureUntag records the untag verb's apply-time work for AfterApply:
 // each target under the provider configuration whose sweep found it
-// ([statelessUntagTargets]). Not the estate's primary provider
+// ([liveUntagTargets]). Not the estate's primary provider
 // configuration, which is what this used before GitHub issue #1657 and
 // which cannot reach an orphan in another region, account or cluster.
-func (r *statelessRunner) captureUntag(groups []untagGroup, key, value string, config *configs.Config) {
+func (r *liveRunner) captureUntag(groups []untagGroup, key, value string, config *configs.Config) {
 	r.untagGroups = groups
 	r.untagKey = key
 	r.untagValue = value
 	r.untagConfig = config
 }
 
-// WriteBack implements [backendLocal.StatelessRun]: GitHub issue #73's
+// WriteBack implements [backendLocal.LiveRun]: GitHub issue #73's
 // write-back, delegated straight to [projection.WriteBack] with the store,
 // namespace and plan-time versions PriorState settled. A run with no
 // record_store block (r.recordStore nil) is a no-op, the same "nothing
@@ -1577,7 +1577,7 @@ func (r *statelessRunner) captureUntag(groups []untagGroup, key, value string, c
 // anything it does see: the record-side evidence it holds ("the identity
 // changed") is exactly the evidence that cannot tell a replace from an
 // import or a live-mv, which is the defect #854 fixes.
-func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy, wholeDestroy bool) tfdiags.Diagnostics {
+func (r *liveRunner) WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy, wholeDestroy bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	// Issue #275's residue classifier is the one write-back half that needs
@@ -1585,9 +1585,9 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 	// opens its own and closes them again - exactly what AfterApply already
 	// does below and for the same reason. Only when there is a record
 	// store to write to: a run with no record_store pays nothing.
-	var provs *statelessProviders
+	var provs *projectionProviders
 	if r.recordStore != nil && r.liveConfig != nil {
-		provs = newStatelessProviders(r.liveConfig, r.lib)
+		provs = newProjectionProviders(r.liveConfig, r.lib)
 	}
 
 	var provAccess projection.Providers
@@ -1643,7 +1643,7 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 	return diags
 }
 
-// AfterApply implements [backendLocal.StatelessRun]: the untag verb's
+// AfterApply implements [backendLocal.LiveRun]: the untag verb's
 // apply-time release, run once a real apply - never a plan - has finished
 // changing the live system. See this type's untagGroups field for why the
 // work was captured during PriorState rather than computed here, and
@@ -1651,10 +1651,10 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 //
 // The providers PriorState listed through are already closed by the time
 // this runs (see this file's "The provider double-launch" doc comment), so
-// this launches its own, exactly the way [statelessPolicyReconcile]'s
+// this launches its own, exactly the way [livePolicyReconcile]'s
 // caller already does for the same reason - and closes it again before
 // returning, since nothing after this point needs it.
-func (r *statelessRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
+func (r *liveRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	// GitHub issue #1184: which of this run's Kubernetes deletes the
@@ -1662,7 +1662,7 @@ func (r *statelessRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
 	// an error, and no request at all when the plan deleted nothing there.
 	// See live_apply_kubernetes_held.go.
 	if r.resolver != nil {
-		diags = diags.Append(statelessHeldKubernetesDeletes(ctx, r.labelListSweepers, r.sweeperDeletes, r.resolver.Estate))
+		diags = diags.Append(liveHeldKubernetesDeletes(ctx, r.labelListSweepers, r.sweeperDeletes, r.resolver.Estate))
 	}
 
 	if len(r.untagGroups) == 0 {
@@ -1673,7 +1673,7 @@ func (r *statelessRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
 	// target, each releasing only what it found (GitHub issue #1657). A
 	// configuration that cannot be used fails its own targets and no
 	// others.
-	provs := newStatelessProviders(r.untagConfig, r.lib)
+	provs := newProjectionProviders(r.untagConfig, r.lib)
 	result := &untag.Result{Key: r.untagKey}
 	for _, g := range r.untagGroups {
 		if g.Provider.Provider.Type == "" {
@@ -1703,7 +1703,7 @@ func (r *statelessRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
 		// is the sweep's own for the same configuration (GitHub issue
 		// #1656): a manifest-shape orphan's markers are released by an API
 		// patch through it.
-		groupResult, releaseDiags := untag.Release(ctx, provider, statelessUntagCluster(r.labelListSweepers, g.Provider), r.untagKey, r.untagValue, g.Targets)
+		groupResult, releaseDiags := untag.Release(ctx, provider, liveUntagCluster(r.labelListSweepers, g.Provider), r.untagKey, r.untagValue, g.Targets)
 		diags = diags.Append(releaseDiags)
 		if groupResult != nil {
 			result.Outcomes = append(result.Outcomes, groupResult.Outcomes...)
@@ -1712,13 +1712,13 @@ func (r *statelessRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
 	diags = diags.Append(provs.close(ctx))
 
 	if len(result.Outcomes) > 0 {
-		r.view.Policy(statelessReleasedReport(result))
+		r.view.Policy(liveReleasedReport(result))
 	}
 
 	return diags
 }
 
-// estateName settles which estate this run is about, from the stateless
+// estateName settles which estate this run is about, from the live
 // block or from the tofu-estate tags the configuration stamps.
 //
 // Unlike "choudoufu live-plan", where no estate name is a warning and the run
@@ -1727,9 +1727,9 @@ func (r *statelessRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
 // has no state, and the only thing standing in for state is the markers; a
 // run that proceeded without an estate name would create live resources
 // carrying no ownership record, which the next run would report as foreign.
-// That is not a degraded stateless run, it is a broken estate.
-func (r *statelessRunner) estateName(ctx context.Context, config *configs.Config) (string, tfdiags.Diagnostics) {
-	estate, declared, diags := statelessEstateFor(ctx, r.settings.Estate, config)
+// That is not a degraded live run, it is a broken estate.
+func (r *liveRunner) estateName(ctx context.Context, config *configs.Config) (string, tfdiags.Diagnostics) {
+	estate, declared, diags := liveEstateFor(ctx, r.settings.Estate, config)
 	if diags.HasErrors() {
 		return "", diags
 	}
@@ -1780,7 +1780,7 @@ func (r *statelessRunner) estateName(ctx context.Context, config *configs.Config
 // the name before they ran. The argument case is here so that the rule is the
 // one stated on [configs.Live.EstateRange] rather than one this file happens
 // to get away with.
-func (r *statelessRunner) settingsRange() *hcl.Range {
+func (r *liveRunner) settingsRange() *hcl.Range {
 	if r.settings == nil {
 		return nil
 	}
@@ -1873,7 +1873,7 @@ func readsPolicyFor(configured string) string {
 		return v
 	case "":
 	default:
-		log.Printf("[WARN] stateless: %s=%q is not a reads policy (\"selective\" or \"full\"); using the configuration's setting", EnvReads, v)
+		log.Printf("[WARN] live: %s=%q is not a reads policy (\"selective\" or \"full\"); using the configuration's setting", EnvReads, v)
 	}
 	if configured == "full" {
 		return "full"

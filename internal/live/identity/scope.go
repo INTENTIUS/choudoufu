@@ -109,7 +109,7 @@ func (r *resolver) walkOutOfScope(rc *configs.Resource, result *Result) {
 // SILENTLY ([resolver.resolveResourceRef]'s parentExp branch), on the
 // understanding that the diagnostic is already on r.diags. Here it is not:
 // it was just rolled back. An in-scope block whose for_each reads this one
-// - which a scope [statelessTargetScope] computes cannot produce, since the
+// - which a scope [liveTargetScope] computes cannot produce, since the
 // reference is the graph edge targeting follows, but a hand-built scope can
 // - must re-evaluate the expansion and raise the refusal afresh, in its
 // own context, rather than resolve to nothing with no diagnostic at all.

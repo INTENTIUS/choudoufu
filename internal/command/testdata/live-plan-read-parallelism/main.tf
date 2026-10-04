@@ -20,7 +20,7 @@ terraform {
 # read pass's own bound is the only thing left that can hold these calls apart.
 #
 # The regions differ only because the mock insists a provider block name one it
-# was told to accept (statelessTestCloud.allowedRegions). Read-back is
+# was told to accept (liveTestCloud.allowedRegions). Read-back is
 # deliberately not region-partitioned, so all four objects are readable through
 # any of them.
 provider "aws" {
@@ -50,20 +50,20 @@ provider "aws" {
 # way, which is what lets a test assert the sequential pass reads them in loop
 # order rather than only one at a time.
 resource "aws_s3_bucket" "a" {
-  bucket = "tofu-stateless-read-a"
+  bucket = "tofu-live-read-a"
 }
 
 resource "aws_s3_bucket" "b" {
   provider = aws.b
-  bucket   = "tofu-stateless-read-b"
+  bucket   = "tofu-live-read-b"
 }
 
 resource "aws_s3_bucket" "c" {
   provider = aws.c
-  bucket   = "tofu-stateless-read-c"
+  bucket   = "tofu-live-read-c"
 }
 
 resource "aws_s3_bucket" "d" {
   provider = aws.d
-  bucket   = "tofu-stateless-read-d"
+  bucket   = "tofu-live-read-d"
 }

@@ -126,7 +126,7 @@ func TestSweepParallelismRefusesInStocksOwnWords(t *testing.T) {
 // a behavioral test cannot hold this and this one reads the source.
 //
 // It is deliberately structural rather than a string match: it requires that
-// the field is set from an identifier that statelessDiscoverOne RECEIVES, and
+// the field is set from an identifier that liveDiscoverOne RECEIVES, and
 // that every call site passes what sweepParallelismSetting returned. A
 // hard-coded constant, a dropped argument or a second local would each fail
 // it, which "the file contains SweepParallelism" would not.
@@ -137,7 +137,7 @@ func TestSweepParallelismReachesTheDiscoveryRequest(t *testing.T) {
 		t.Fatalf("parsing live_plan.go: %v", err)
 	}
 
-	one := findFuncDecl(t, file, "statelessDiscoverOne")
+	one := findFuncDecl(t, file, "liveDiscoverOne")
 	params := paramNames(one)
 
 	// The field is set, and it is set from one of the function's own
@@ -145,7 +145,7 @@ func TestSweepParallelismReachesTheDiscoveryRequest(t *testing.T) {
 	fieldExpr := requestFieldValue(t, one, "SweepParallelism")
 	ident, ok := fieldExpr.(*ast.Ident)
 	if !ok {
-		t.Fatalf("discovery.Request.SweepParallelism is set from a %T, not from a parameter of statelessDiscoverOne. Issue #612 is about this value coming from the run rather than from a constant.", fieldExpr)
+		t.Fatalf("discovery.Request.SweepParallelism is set from a %T, not from a parameter of liveDiscoverOne. Issue #612 is about this value coming from the run rather than from a constant.", fieldExpr)
 	}
 	paramIndex := -1
 	for i, name := range params {
@@ -155,12 +155,12 @@ func TestSweepParallelismReachesTheDiscoveryRequest(t *testing.T) {
 		}
 	}
 	if paramIndex < 0 {
-		t.Fatalf("discovery.Request.SweepParallelism is set from %q, which is not a parameter of statelessDiscoverOne (parameters: %v). Issue #612's knob has to arrive from the caller.", ident.Name, params)
+		t.Fatalf("discovery.Request.SweepParallelism is set from %q, which is not a parameter of liveDiscoverOne (parameters: %v). Issue #612's knob has to arrive from the caller.", ident.Name, params)
 	}
 
 	// The caller resolves it from the environment, once, and hands it to
 	// every pass.
-	discover := findFuncDecl(t, file, "statelessDiscover")
+	discover := findFuncDecl(t, file, "liveDiscover")
 	resolved := ""
 	ast.Inspect(discover, func(n ast.Node) bool {
 		assign, ok := n.(*ast.AssignStmt)
@@ -180,7 +180,7 @@ func TestSweepParallelismReachesTheDiscoveryRequest(t *testing.T) {
 		return false
 	})
 	if resolved == "" {
-		t.Fatalf("statelessDiscover no longer calls sweepParallelismSetting. It is the single funnel every entry point that sweeps goes through - live-plan's -estate form and live_mode.go's live-block path - so nothing else can carry %s to the engine.", sweepParallelismEnvVar)
+		t.Fatalf("liveDiscover no longer calls sweepParallelismSetting. It is the single funnel every entry point that sweeps goes through - live-plan's -estate form and live_mode.go's live-block path - so nothing else can carry %s to the engine.", sweepParallelismEnvVar)
 	}
 
 	calls := 0
@@ -190,22 +190,22 @@ func TestSweepParallelismReachesTheDiscoveryRequest(t *testing.T) {
 			return true
 		}
 		fn, ok := call.Fun.(*ast.Ident)
-		if !ok || fn.Name != "statelessDiscoverOne" {
+		if !ok || fn.Name != "liveDiscoverOne" {
 			return true
 		}
 		calls++
 		if paramIndex >= len(call.Args) {
-			t.Errorf("a statelessDiscoverOne call at %s passes %d arguments, too few to carry %s", fset.Position(call.Pos()), len(call.Args), params[paramIndex])
+			t.Errorf("a liveDiscoverOne call at %s passes %d arguments, too few to carry %s", fset.Position(call.Pos()), len(call.Args), params[paramIndex])
 			return true
 		}
 		arg, ok := call.Args[paramIndex].(*ast.Ident)
 		if !ok || arg.Name != resolved {
-			t.Errorf("the statelessDiscoverOne call at %s passes %s for %s, not the %q that sweepParallelismSetting resolved", fset.Position(call.Pos()), exprText(call.Args[paramIndex]), params[paramIndex], resolved)
+			t.Errorf("the liveDiscoverOne call at %s passes %s for %s, not the %q that sweepParallelismSetting resolved", fset.Position(call.Pos()), exprText(call.Args[paramIndex]), params[paramIndex], resolved)
 		}
 		return true
 	})
 	if calls == 0 {
-		t.Fatal("no calls to statelessDiscoverOne found in live_plan.go; this test is measuring nothing")
+		t.Fatal("no calls to liveDiscoverOne found in live_plan.go; this test is measuring nothing")
 	}
 }
 
@@ -239,13 +239,13 @@ func TestLivePlan_sweepParallelismIsReachableFromTheCommandLine(t *testing.T) {
 		testCopyDir(t, testFixturePath("live-plan"), td)
 		t.Chdir(td)
 
-		cloud := newStatelessTestCloud()
-		cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-			"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+		cloud := newLiveTestCloud()
+		cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+			"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 		})
 
 		c, done := newLivePlanCommand(t, cloud)
-		code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-target=aws_s3_bucket.data"})
+		code := c.Run([]string{"-no-color", "-estate=live-unit", "-target=aws_s3_bucket.data"})
 		output := done(t)
 		return code, output.Stdout() + output.Stderr()
 	}

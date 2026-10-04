@@ -26,7 +26,7 @@ import (
 // the provider itself - handed the same value over RPC, unmarked by
 // internal/plugins/provider.go - read the cluster fine.
 //
-// The rule these arguments copied belongs to statelessProviders.region,
+// The rule these arguments copied belongs to projectionProviders.region,
 // and that function's own comment says where it stops: "Refused rather
 // than unmarked, unlike the seams that put a value to a provider: this
 // answer becomes an operator-facing hint string, and a secret does not

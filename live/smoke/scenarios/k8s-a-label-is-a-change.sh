@@ -12,7 +12,7 @@
 # holding no record of its own removes the same label when the estate shares
 # its records, as Secrets in the cluster or as objects in a bucket.
 #
-# GitHub issue #1177, and the one place a stateless run pays for having no
+# GitHub issue #1177, and the one place a live run pays for having no
 # last-applied value.
 #
 # kubernetes_manifest declares its whole object in one dynamic `manifest`
@@ -55,7 +55,7 @@
 # same question as an edited one and it cannot be answered from the
 # object - "this configuration used to declare this key" is a fact about
 # the estate's history, and the object holds no copy of it. What stock
-# reads out of its last-applied manifest, a stateless run has to record:
+# reads out of its last-applied manifest, a live run has to record:
 # the estate's residue record carries the label and annotation keys each
 # apply declared, and the removal set is (recorded) minus (currently
 # declared). metadata.managedFields was tried as the source first and
@@ -1016,7 +1016,7 @@ explain \
   "\"The configuration was edited\" and \"the live object drifted\" are" \
   "the same observation - configuration differs from live - unless you" \
   "have a last-applied value to tell them apart. A state file has one;" \
-  "a stateless run does not. So making step 3 visible necessarily makes" \
+  "a live run does not. So making step 3 visible necessarily makes" \
   "this visible too: an out-of-band change to a key the configuration" \
   "DECLARES reads as a difference and the plan proposes writing the" \
   "configuration back, where stock's computed_fields takes the live" \

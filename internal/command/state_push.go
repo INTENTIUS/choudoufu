@@ -60,9 +60,9 @@ func (c StatePushCommand) Execute(args *arguments.StatePush, view views.State) i
 
 	ctx := c.CommandContext()
 
-	// See statelessStateGuard: refused before the source state is even read,
+	// See liveStateGuard: refused before the source state is even read,
 	// and well before anything reaches a state manager.
-	if guardDiags := c.statelessStateGuard(ctx, "push"); guardDiags.HasErrors() {
+	if guardDiags := c.liveStateGuard(ctx, "push"); guardDiags.HasErrors() {
 		view.Diagnostics(diags.Append(guardDiags))
 		return 1
 	}

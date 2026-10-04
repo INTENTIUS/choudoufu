@@ -114,7 +114,7 @@ shape as the License Manager grant and Organizations singleton above.
 identity (`tag_option_id:resource_id`, colon-joined, corrected from
 needs-hand-separator the same way the portfolio share above is) is
 mechanically sound on its own terms, but with `aws_servicecatalog_tag_option`
-itself carrying no admission path, a stateless configuration could never
+itself carrying no admission path, a live-mode configuration could never
 contain an admitted `aws_servicecatalog_tag_option` resource to reference
 - deferred alongside `tag_option` rather than admitted on that
 technicality. `aws_servicecatalog_principal_portfolio_association` and

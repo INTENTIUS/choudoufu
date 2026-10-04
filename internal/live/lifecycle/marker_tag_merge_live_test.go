@@ -136,7 +136,7 @@ resource "aws_s3_bucket" "b" {
 
 	// A local aws-CLI helper rather than the package's shared awsJSON/
 	// awsOutput: those hardcode the package-level flociPort var, which
-	// belongs to TestStatelessLifecycleAgainstFloci's own container
+	// belongs to TestLiveLifecycleAgainstFloci's own container
 	// ("no other test in this package touches them", by that var's own
 	// doc comment) and is wired to a bare "http://localhost:PORT" endpoint
 	// besides - exactly the shape this test exists to avoid, since it

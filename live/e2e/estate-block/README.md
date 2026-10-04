@@ -7,14 +7,14 @@ and the main estate must not.
 ## Why this is a separate directory, not a flag on the main estate
 
 The contract is that plain `choudoufu plan`/`choudoufu apply` go
-stateless only when a configuration's `terraform` block contains a
+into live mode only when a configuration's `terraform` block contains a
 `live` block — never behind a CLI flag, so a team cannot fall back to a
 state file by forgetting one. The main estate's `standup` step
 (`live/e2e/run.sh`, step 2) needs the opposite: a stock `choudoufu apply`
 that writes a plain `terraform.tfstate`, which is what `adopt` (step 3) then
 deletes to demonstrate the "nothing but a marker sweep gets you back" claim.
 Adding a `live` block to `live/e2e/estate/` would turn `standup`'s
-own apply stateless and it would stop producing a state file, breaking the
+own apply into live mode and it would stop producing a state file, breaking the
 demo that step exists for. So the two fixtures live apart: `estate/` proves
 adoption from a stock state file, `estate-block/` proves the config-block
 path plain plan/apply take once there is no state file to begin with.
@@ -61,9 +61,9 @@ produces comes from stamping, which is itself part of what step 11 checks.
 
 ## Estate name and identifier separation
 
-Every identifier in this fixture (`stateless-e2e-block` estate name, VPC/
+Every identifier in this fixture (`live-e2e-block` estate name, VPC/
 subnet CIDRs, bucket name, log group name, security group name) is distinct
-from the main estate's (`stateless-e2e`), so the two can stand up in the same
+from the main estate's (`live-e2e`), so the two can stand up in the same
 floci account without either estate's plan seeing the other's resources —
 step 11 (`live/e2e/run.sh`) asserts exactly that: the main estate's
 resource counts are unchanged before and after this fixture's apply.

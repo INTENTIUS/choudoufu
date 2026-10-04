@@ -22,7 +22,7 @@ import (
 // GitHub issue #619's guard.
 //
 // The fork used to answer "which stock options can a live-markers run not
-// honor" out of TWO functions - statelessRejections for plan and apply,
+// honor" out of TWO functions - liveRejections for plan and apply,
 // livePlanRejectUnsupported for live-plan - and they had already drifted:
 // #320 (ruled in #425) lifted the -destroy refusal from the first and not the
 // second, and live-plan's help text described neither. That is the shape
@@ -39,8 +39,8 @@ import (
 // HasErrors boolean, because the thing that drifted last time was the wording
 // as much as the verdict: live-plan's -out diagnostic asserted "this
 // configuration has no live block" over configurations that had one.
-func renderRejections(surface statelessSurface, op *arguments.Operation, state *arguments.State, viewOpts *arguments.View, planOut, generateConfigOut, planFile string) map[string]string {
-	diags := statelessRejections(surface, op, state, viewOpts, planOut, generateConfigOut, planFile)
+func renderRejections(surface liveSurface, op *arguments.Operation, state *arguments.State, viewOpts *arguments.View, planOut, generateConfigOut, planFile string) map[string]string {
+	diags := liveRejections(surface, op, state, viewOpts, planOut, generateConfigOut, planFile)
 	out := make(map[string]string, len(diags))
 	for _, d := range diags {
 		out[d.Description().Summary] = format.DiagnosticPlain(d, nil, 78)
@@ -72,7 +72,7 @@ const (
 	jsonOutputSummary       = "Machine-readable output is not available under live resource markers yet"
 )
 
-// TestStatelessRejections_surfacesAgree walks the function's entire input
+// TestLiveRejections_surfacesAgree walks the function's entire input
 // space - every planning mode including no operation at all, every view
 // selection, both settings of each of the three path arguments, and each of
 // the three state paths - and asserts for all 384 combinations that the two
@@ -83,7 +83,7 @@ const (
 // A hand-picked table only catches a new surface-conditional clause if
 // somebody thought to add the case that fires it; this catches one whatever
 // input it keys on, because the function takes nothing else.
-func TestStatelessRejections_surfacesAgree(t *testing.T) {
+func TestLiveRejections_surfacesAgree(t *testing.T) {
 	modes := []struct {
 		name string
 		op   *arguments.Operation
@@ -229,13 +229,13 @@ func withoutKey(keys []string, drop string) []string {
 	return out
 }
 
-// TestStatelessRejections_divergencesSayWhy pins the CONTENT of the three
+// TestLiveRejections_divergencesSayWhy pins the CONTENT of the three
 // divergences above, so that "the surfaces differ here" cannot decay into
 // differing for a reason nobody can read. The test above proves there are
 // exactly three; this one proves each still explains itself, and that the
 // one thing GitHub issue #878 removed outright - the plan-file refusal - is
 // gone from both surfaces rather than moved.
-func TestStatelessRejections_divergencesSayWhy(t *testing.T) {
+func TestLiveRejections_divergencesSayWhy(t *testing.T) {
 	human := &arguments.View{ViewType: arguments.ViewHuman}
 
 	t.Run("destroy names the mechanical reason, not a principle", func(t *testing.T) {
@@ -243,7 +243,7 @@ func TestStatelessRejections_divergencesSayWhy(t *testing.T) {
 		// The refusal survives only while live-plan's own call site
 		// hardcodes the mode. It must say that, and it must not repeat the
 		// old claim that a live-markers destroy is unverified - #320 lifted
-		// that and TestStatelessMode_destroyAlias exercises it.
+		// that and TestLiveMode_destroyAlias exercises it.
 		for _, want := range []string{
 			"calling the planner directly in the normal planning mode",
 			"run this same pipeline in destroy mode",
@@ -284,7 +284,7 @@ func TestStatelessRejections_divergencesSayWhy(t *testing.T) {
 	t.Run("a plan file is refused on neither surface", func(t *testing.T) {
 		for _, surface := range []struct {
 			name string
-			s    statelessSurface
+			s    liveSurface
 		}{{"live block", surfaceLiveBlock}, {"-estate", surfaceEstateFlag}} {
 			got := renderRejections(surface.s, nil, nil, human, "", "", "saved.tfplan")
 			if len(got) != 0 {
@@ -325,7 +325,7 @@ func TestStatelessRejections_divergencesSayWhy(t *testing.T) {
 	})
 }
 
-// TestStatelessMode_aliasUsesTheLiveBlockSurface is the end-to-end half of
+// TestLiveMode_aliasUsesTheLiveBlockSurface is the end-to-end half of
 // GitHub issue #619, and the defect it pins is the one the divergence caused
 // rather than the divergence itself.
 //
@@ -336,7 +336,7 @@ func TestStatelessRejections_divergencesSayWhy(t *testing.T) {
 // was refused in a directory where "plan -destroy" ran, and "live-plan -out"
 // answered with a diagnostic asserting the configuration has no live block
 // over one that does.
-func TestStatelessMode_aliasUsesTheLiveBlockSurface(t *testing.T) {
+func TestLiveMode_aliasUsesTheLiveBlockSurface(t *testing.T) {
 	t.Run("-destroy delegates and plans the same destroy", func(t *testing.T) {
 		viaBlock := func() string {
 			td := t.TempDir()
@@ -376,7 +376,7 @@ func TestStatelessMode_aliasUsesTheLiveBlockSurface(t *testing.T) {
 		if !strings.Contains(viaBlock, "2 to destroy") {
 			t.Fatalf("the fixture did not produce a destroy plan under plain plan, so this test proves nothing:\n%s", viaBlock)
 		}
-		if got, want := statelessPlanBody(viaCommand), statelessPlanBody(viaBlock); got != want {
+		if got, want := livePlanBody(viaCommand), livePlanBody(viaBlock); got != want {
 			t.Errorf("live-plan -destroy and plan -destroy disagree over the same live block.\n--- plan -destroy ---\n%s\n--- live-plan -destroy ---\n%s", want, got)
 		}
 	})
@@ -411,12 +411,12 @@ func TestStatelessMode_aliasUsesTheLiveBlockSurface(t *testing.T) {
 	})
 }
 
-// TestStatelessRejections_oneList is the structural half: the refusal
+// TestLiveRejections_oneList is the structural half: the refusal
 // vocabulary lives in one function, and there is no second copy of it to
 // drift from. It reads the source rather than the behavior, because the
 // failure it guards against is a NEW function being introduced beside this
 // one - which no behavioral test over the existing entry points can see.
-func TestStatelessRejections_oneList(t *testing.T) {
+func TestLiveRejections_oneList(t *testing.T) {
 	// Every diagnostic summary the single list can produce. If a second
 	// implementation appears, it will almost certainly reuse this wording,
 	// so this is the string to hunt for.
@@ -447,7 +447,7 @@ func TestStatelessRejections_oneList(t *testing.T) {
 				continue
 			}
 			if name != "live_mode.go" {
-				t.Errorf("%s carries the refusal summary %q, which belongs to statelessRejections in live_mode.go alone. "+
+				t.Errorf("%s carries the refusal summary %q, which belongs to liveRejections in live_mode.go alone. "+
 					"GitHub issue #619: a second copy of this list is how the -destroy refusal came to be lifted from one surface and not the other.",
 					name, summary)
 			}
@@ -456,9 +456,9 @@ func TestStatelessRejections_oneList(t *testing.T) {
 }
 
 // Compile-time reminder that these tests are about a real signature: if
-// statelessRejections stops taking a surface, this stops building and
+// liveRejections stops taking a surface, this stops building and
 // whoever removed it has to decide deliberately what happens to the two
 // divergences above.
-var _ = func(surface statelessSurface) tfdiags.Diagnostics {
-	return statelessRejections(surface, nil, nil, &arguments.View{ViewType: arguments.ViewHuman}, "", "", "")
+var _ = func(surface liveSurface) tfdiags.Diagnostics {
+	return liveRejections(surface, nil, nil, &arguments.View{ViewType: arguments.ViewHuman}, "", "", "")
 }

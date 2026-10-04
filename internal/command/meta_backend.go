@@ -755,7 +755,7 @@ func (m *Meta) backendFromConfig(ctx context.Context, opts *BackendOpts, enc enc
 // "unsetting a backend" scenario, where "tofu init -migrate-state" (or
 // -force-copy, which implies it) copied the previous backend's state into
 // the working directory as a real v4 terraform.tfstate. Nothing afterwards
-// noticed: stateless mode's own guards all sit at plan and apply, and by
+// noticed: live mode's own guards all sit at plan and apply, and by
 // then the file was already on disk, in a directory whose configuration says
 // there is no state. Removing the live block later would have promoted it to
 // truth.
@@ -786,9 +786,9 @@ func (m *Meta) liveBackendGuard(ctx context.Context, prev *clistate.BackendState
 	var diags tfdiags.Diagnostics
 
 	// Load errors are tolerated: a working directory that will not parse is
-	// not evidence about stateless mode, and whatever is wrong with it will
+	// not evidence about live mode, and whatever is wrong with it will
 	// be reported by the caller that can say something useful about it.
-	settings, _ := m.statelessSettings(ctx, true)
+	settings, _ := m.liveSettings(ctx, true)
 	if settings == nil {
 		return false, nil
 	}

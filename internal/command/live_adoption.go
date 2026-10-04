@@ -57,9 +57,9 @@ func planRejectAdoptionOnly(adoptionOnly, live bool) tfdiags.Diagnostics {
 // So the anti-duplication rule is honoured a rung lower down, where it
 // actually bites. Every verdict below is READ, never recomputed:
 //
-//   - adoptable / in the way comes from [statelessUnownedReport], the same
+//   - adoptable / in the way comes from [liveUnownedReport], the same
 //     value the "Unowned" section renders;
-//   - the content-matched adoptions come from [statelessForeignReport], the
+//   - the content-matched adoptions come from [liveForeignReport], the
 //     same value the "Adoptable" section renders, hint and all;
 //   - every other class comes from the projection's own omission reason;
 //   - "can this carry a marker" is [substrate.SurfaceOf] over the schema
@@ -72,17 +72,17 @@ func planRejectAdoptionOnly(adoptionOnly, live bool) tfdiags.Diagnostics {
 // Nothing here decides anything about a resource that some other stage has
 // not already decided.
 
-// statelessPlanView picks the renderer for a stateless run: the ordinary one,
+// livePlanView picks the renderer for a live run: the ordinary one,
 // or GitHub issue #587's adoption-only one. Both satisfy
-// [views.StatelessPlan], so this is the only branch either mode needs.
-func statelessPlanView(view *views.View, adoptionOnly bool, filter arguments.ReportFilter) views.StatelessPlan {
+// [views.LivePlan], so this is the only branch either mode needs.
+func livePlanView(view *views.View, adoptionOnly bool, filter arguments.ReportFilter) views.LivePlan {
 	if adoptionOnly {
-		return views.NewStatelessAdoption(view)
+		return views.NewLiveAdoption(view)
 	}
-	return views.NewStatelessPlanFiltered(view, filter)
+	return views.NewLivePlanFiltered(view, filter)
 }
 
-// statelessAdoptionReport builds the adoption ledger for one run.
+// liveAdoptionReport builds the adoption ledger for one run.
 //
 // projResult is the projection; foreignRep and unowned are the already-built
 // view values for the two sections that carry adoption information today;
@@ -91,27 +91,27 @@ func statelessPlanView(view *views.View, adoptionOnly bool, filter arguments.Rep
 // each block under (GitHub issue #1742; nil asks every family); estate is
 // the settled estate name, empty when
 // the run has none.
-func statelessAdoptionReport(
+func liveAdoptionReport(
 	projResult *projection.Result,
-	foreignRep views.StatelessForeign,
-	unowned []views.StatelessUnowned,
+	foreignRep views.LiveForeign,
+	unowned []views.LiveUnowned,
 	schemas map[string]providers.Schema,
 	cfg *configs.Config,
 	estate string,
 	swept bool,
-) views.StatelessAdoption {
-	rep := views.StatelessAdoption{Estate: estate, Swept: swept}
+) views.LiveAdoption {
+	rep := views.LiveAdoption{Estate: estate, Swept: swept}
 	if projResult == nil {
 		return rep
 	}
 
 	// The two indexes of already-decided adoption verdicts, keyed by the
 	// declared instance address each one is about.
-	unownedByAddr := make(map[string]views.StatelessUnowned, len(unowned))
+	unownedByAddr := make(map[string]views.LiveUnowned, len(unowned))
 	for _, u := range unowned {
 		unownedByAddr[u.Addr] = u
 	}
-	candidateByAddr := make(map[string]views.StatelessBindCandidate, len(foreignRep.Candidates))
+	candidateByAddr := make(map[string]views.LiveBindCandidate, len(foreignRep.Candidates))
 	for _, c := range foreignRep.Candidates {
 		candidateByAddr[c.Addr] = c
 	}
@@ -136,7 +136,7 @@ func statelessAdoptionReport(
 	// Materialized first: the projection read it and this estate owns it.
 	for _, addr := range projResult.Materialized {
 		typeName := addr.Resource.Resource.Type
-		rep.Rows = append(rep.Rows, views.StatelessAdoptionRow{
+		rep.Rows = append(rep.Rows, views.LiveAdoptionRow{
 			Addr:           addr.String(),
 			TypeName:       typeName,
 			Class:          views.AdoptionMarked,
@@ -147,7 +147,7 @@ func statelessAdoptionReport(
 	for _, om := range projResult.Omitted {
 		addr := om.Addr.String()
 		typeName := om.Addr.Resource.Resource.Type
-		row := views.StatelessAdoptionRow{
+		row := views.LiveAdoptionRow{
 			Addr:           addr,
 			TypeName:       typeName,
 			CanCarryMarker: canCarryMarker(om.Addr),
@@ -212,6 +212,6 @@ func statelessAdoptionReport(
 // sortAdoptionRows puts the ledger in address order, the order every other
 // section in this package uses, so two runs over the same estate produce the
 // same report.
-func sortAdoptionRows(rows []views.StatelessAdoptionRow) {
+func sortAdoptionRows(rows []views.LiveAdoptionRow) {
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Addr < rows[j].Addr })
 }

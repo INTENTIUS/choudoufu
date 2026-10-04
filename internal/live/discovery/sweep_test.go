@@ -242,7 +242,7 @@ func TestSweepLeavesDeclaredClientNamedResourcesAlone(t *testing.T) {
 	cloud := newFakeCloud()
 	ownWholeEstate(cloud)
 	cloud.listable("aws_s3_bucket")
-	cloud.own("aws_s3_bucket", "tofu-stateless-e2e-data", `aws_s3_bucket.data`)
+	cloud.own("aws_s3_bucket", "tofu-live-e2e-data", `aws_s3_bucket.data`)
 
 	res, diags := discoverFixture(t, cloud, Request{Sweep: true})
 	assertNoErrors(t, diags)

@@ -145,7 +145,7 @@ type planRun struct {
 }
 
 // legSplit is the three-leg split. tagging + native + read is the whole of
-// what a stateless plan's projection costs, apart from the config-driven
+// what a live plan's projection costs, apart from the config-driven
 // scan (which stock's own refresh is the analogue of) and the post-sweep
 // legs (bind, orphan classification, parent-read, fold-child).
 type legSplit struct {
@@ -848,7 +848,7 @@ func crossRefsFor(blocks []tfBlock, assignment []sliceAssign) []crossRef {
 // writeSlice materializes one slice as a runnable root module. estate is
 // empty for the stock copy and names the estate for the choudoufu copy,
 // which also gets a live block with a record store (so guided discovery is
-// eligible - see internal/command/statelessApplyGuidedDiscovery).
+// eligible - see internal/command/liveApplyGuidedDiscovery).
 func writeSlice(t *testing.T, base, dir string, blocks []tfBlock, sl sliceAssign, st *stateFile, estate string) []crossRef {
 	t.Helper()
 

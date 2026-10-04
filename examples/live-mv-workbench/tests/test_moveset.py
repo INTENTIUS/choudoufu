@@ -2,7 +2,7 @@
 
 All pure. The preview's source is the document ``live-mv -json`` prints, and
 the fixtures below are that document field for field
-(views.StatelessMvJSONReport): ``resource``/``from``/``to``, ``found_by`` as
+(views.LiveMvJSONReport): ``resource``/``from``/``to``, ``found_by`` as
 mv.Path's own "LIST" or "IDENTITY", ``followers`` omitted rather than empty
 when there are none, and ``refusal`` carrying mv.RefusalCode's stable code
 beside the prose. The text block is still here as the fallback parser's
@@ -38,7 +38,7 @@ def dry_run_block(frm: str, to: str, addr: str, rtype: str = "aws_iam_policy", l
 
 
 # The document -json prints, field for field. Written from
-# views.StatelessMvJSONReport's own JSON tags, not from the parser.
+# views.LiveMvJSONReport's own JSON tags, not from the parser.
 def json_report(frm: str, to: str, addr: str, new_addr: str | None = None,
                 rtype: str = "aws_iam_policy", live_id: str = "arn:aws:iam::354867293429:policy/p",
                 followers: list | None = None, found_by: str = "LIST") -> dict:
@@ -159,7 +159,7 @@ class ParseDryRun(unittest.TestCase):
 
 class ParseJSONReport(unittest.TestCase):
     """The document is what the preview reads now. Every field below is
-    views.StatelessMvJSONReport's own JSON name, and the vocabulary is the
+    views.LiveMvJSONReport's own JSON name, and the vocabulary is the
     document's: found_by is "LIST", never the sentence the human report wraps
     it in and never the workbench's old invented "tagging"."""
 

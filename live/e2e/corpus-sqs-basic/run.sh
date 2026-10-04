@@ -239,8 +239,8 @@ set -uo pipefail
 #                  rename    rename module unencrypted_sqs (day2_rename's D1)
 #                            WITHOUT a moved block, so the plan must propose
 #                            ONLY a create for the renamed address, no
-#                            destroy of the old one - a genuinely stateless
-#                            live-plan walks the CURRENT config's addresses
+#                            destroy of the old one - a live-plan that reads no prior
+#                            from disk walks the CURRENT config's addresses
 #                            alone, so an address no longer declared is
 #                            never visited, instead of the zero-churn plan
 #                            a moved block or live-mv produces.
@@ -1012,7 +1012,7 @@ log "    $UNENCRYPTED_QUEUE_URL -> tofu-address=$GOT_UNENCRYPTED_ADDR"
 # below, used to be the assertion). With Request.Config now threaded
 # through from the command layer to Ratify (gauntlet/sumaform-record),
 # [Ratification.instanceNeedsDiscovery] resolves the same identity a
-# stateless replan would and gate 4 admits these four queues at STAMP TIME
+# live replan would and gate 4 admits these four queues at STAMP TIME
 # - tofu-slot=0 is written by the same live-import -approve above, asserted
 # here BY VALUE and not inferred from the plan staying empty, per HANDOFF's
 # safety rule.
@@ -1354,7 +1354,7 @@ if [ "$BREAK_AT" = "rename" ]; then
   # without a moved block does not come back as a clean destroy + create
   # the way corpus-eks-basic's security group does, nor as
   # corpus-hongbomiao-labelbox's IAM-role refusal. This is a genuinely
-  # stateless live-plan (no local state, ever - see stage 3/4): it walks
+  # live-plan (no local state, ever - see stage 3/4): it walks
   # only the addresses the CURRENT config declares, so an address no
   # longer declared (the old module.unencrypted_sqs) is never visited at
   # all - there is nothing to propose destroying, and the marker it still
@@ -1373,7 +1373,7 @@ if [ "$BREAK_AT" = "rename" ]; then
     && { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=rename: the old, no-longer-declared address unexpectedly still appears in the plan - this stage's check is not load-bearing"; }
   grep -qE '^  # module\.unencrypted_sqs_renamed\.aws_sqs_queue\.this\[0\] will be created' <<< "$BREAK_PLAN_OUT" \
     || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=rename: renaming without a moved block did not propose creating the renamed queue - this stage's check is not load-bearing"; }
-  log "  BREAK=rename: correctly proposes ONLY a create for the renamed address, no destroy of the old (no-longer-declared) one - the real, precisely-named outcome for a stateless live-plan over a client-named type with no moved block, not the literal destroy-and-create the stage's own Break text describes; see header - the moved-block and live-mv checks below are skipped"
+  log "  BREAK=rename: correctly proposes ONLY a create for the renamed address, no destroy of the old (no-longer-declared) one - the real, precisely-named outcome for a live-plan over a client-named type with no moved block, not the literal destroy-and-create the stage's own Break text describes; see header - the moved-block and live-mv checks below are skipped"
 else
   log "=== D1. choudoufu, moved block: module default_sqs -> default_sqs_renamed ==="
   sed -i.bak 's/module "default_sqs" {/module "default_sqs_renamed" {/' "$EST/main.tf"
@@ -1706,7 +1706,7 @@ EOF
     # inferred from the apply having succeeded (HANDOFF's safety rule). A
     # count instance's tofu-address is colon-escaped (live/MARKERS.md:
     # aws_eip.this[2] -> aws_eip.this:2), and tofu-slot is the per-instance
-    # marker that makes this block resolvable by a stateless plan at all -
+    # marker that makes this block resolvable by a live plan at all -
     # the same marker the header's TOFU-SLOT FINDING is about, here carrying
     # two DIFFERENT values for the first time in this estate.
     G_CT0_ADDR="$(awsl sqs list-queue-tags --queue-url "$CT0_URL" --query "Tags.\"tofu-address\"" --output text)"
@@ -1729,7 +1729,7 @@ EOF
     [ "$G_NOOP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$G_NOOP_PLAN" | tail -30; fail "the post-add plan exited $G_NOOP_PLAN_RC"; }
     grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$G_NOOP_PLAN" \
       && { printf '%s\n' "$G_NOOP_PLAN" | grep -E '^  # .+ will be'; fail "the plan right after adding the count block proposes a resource change - the two new instances did not bind their own markers cleanly"; }
-    log "  no resource action proposed - both new instances bind immediately, statelessly, off their own slot markers"
+    log "  no resource action proposed - both new instances bind immediately, from the live system, off their own slot markers"
 
     log "=== G1. scale count down: 2 -> 1 ==="
     count_test_block 1 > "$EST/day2_count.tf"

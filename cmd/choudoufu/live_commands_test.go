@@ -61,7 +61,7 @@ func TestCommandMainRoutesLiveCommands(t *testing.T) {
 // TestCommandMainRunsLiveCommands runs commands end to end through
 // commandToCli, the function commandMain hands os.Args to, over the
 // live-block fixture: live-check -json, which needs neither a cloud nor a
-// provider, and force-unlock, which statelessCommandGuard must refuse before
+// provider, and force-unlock, which liveCommandGuard must refuse before
 // any backend is opened. Neither path consults the legacy commands map.
 func TestCommandMainRunsLiveCommands(t *testing.T) {
 	fixture, err := filepath.Abs(filepath.Join("..", "..", "internal", "command", "testdata", "live-block"))

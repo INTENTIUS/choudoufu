@@ -297,7 +297,7 @@ func (r *Resource) Apply(
 			return nil, nil
 		}
 
-		// Reset the data to be stateless since we just destroyed
+		// Reset the data to hold no state since we just destroyed
 		data, err = schemaMap(r.Schema).Data(nil, d)
 		// data was reset, need to re-apply the parsed timeouts
 		data.timeouts = &rt

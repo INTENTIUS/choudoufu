@@ -773,7 +773,7 @@ func (o OwnedResource) String() string {
 // longer decides what the gap SAYS. A false "this type can carry no
 // ownership marker" does not become harmless by being suppressed: it travels
 // into [Result.SweepGaps], into internal/live/foreign's report and into
-// views.StatelessSweepGap, where it is the recorded reason a destroy was not
+// views.LiveSweepGap, where it is the recorded reason a destroy was not
 // proposed for an object that is in fact marked.
 func noRegistryRowOrUntaggable(typeName, cfnType string, known, schemaTaggable bool) SweepGap {
 	if !known {

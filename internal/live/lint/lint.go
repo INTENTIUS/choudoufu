@@ -23,11 +23,11 @@ import (
 	residue "github.com/intentius/choudoufu/live"
 )
 
-// Check runs the stateless subset rules over a loaded configuration and
+// Check runs the live-mode subset rules over a loaded configuration and
 // returns every construct that puts it outside the subset.
 //
 // An empty result means the configuration can be planned with no authoritative
-// state, as far as v0 can tell. A non-empty result is fatal to a stateless
+// state, as far as v0 can tell. A non-empty result is fatal to a live
 // operation: the caller should render it (see [Diagnostics]) and stop, before
 // identity resolution or projection building begins.
 //
@@ -66,7 +66,7 @@ type Context struct {
 
 	// Scope is which resource blocks this run's -target / -exclude
 	// filtering leaves in the plan graph, as
-	// internal/command's statelessTargetScope computes it from the graph
+	// internal/command's liveTargetScope computes it from the graph
 	// itself (GitHub issue #352). Nil is the default and means every block
 	// is in scope, which is what every untargeted run passes and what
 	// every offline caller - [CheckContext], internal/live/check's
@@ -451,7 +451,7 @@ func checkStateBackends(mod *configs.Module, path addrs.Module, issues *[]Issue)
 // stays silent about the ones it can (GitHub issue #198).
 //
 // A moved block edits a stored record of which address owns which object.
-// Stateless mode keeps that record on the object itself, as a tag, so the
+// Live mode keeps that record on the object itself, as a tag, so the
 // same statement reads as "a live resource carrying the old address is the
 // object the new address names" - and internal/live/discovery indexes the
 // marker under both addresses, after which the ordinary tags diff rewrites
@@ -483,7 +483,7 @@ func checkStateBackends(mod *configs.Module, path addrs.Module, issues *[]Issue)
 // rather than a resource block, while [identity.Scope]'s unit is the
 // [addrs.ConfigResource]; and the OLD address by construction names nothing
 // the configuration still declares, so the plan graph
-// [statelessTargetScope] reads has no vertex for it and would answer false
+// [liveTargetScope] reads has no vertex for it and would answer false
 // for every targeted run.
 func checkMovedBlocks(cfg *configs.Config, mod *configs.Module, path addrs.Module, issues *[]Issue) {
 	for _, stmt := range moved.StatementsIn(mod, path) {

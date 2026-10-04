@@ -57,7 +57,7 @@ type Request struct {
 	// CHOUDOUFU_NODE_RESOLVE=1, [projection.NodeResolver]'s own record step
 	// answers it directly, at plan-node time, from the same estate record
 	// this set is built from (see internal/command's
-	// statelessRecordBackedNeedsDiscoveryAddrs). The instance still
+	// liveRecordBackedNeedsDiscoveryAddrs). The instance still
 	// contributes to [declared.declares] - see the first loop in
 	// [declaredInstances] - so it is never misread as an orphan by this or
 	// any other pass; only the wasted binding ATTEMPT is skipped.
@@ -303,7 +303,7 @@ type Request struct {
 	// and the parent-read leg - to the ones whose resource block uses this
 	// provider configuration. It exists for issue #69's multi-provider
 	// sweep ([Merge], run by internal/command/live_plan.go's
-	// statelessDiscover once per distinct provider configuration among an
+	// liveDiscover once per distinct provider configuration among an
 	// estate's managed resources): a pass must never bind a needs-discovery
 	// instance, or read a parent-derived child, through the wrong account.
 	//
@@ -363,7 +363,7 @@ type Request struct {
 	// instead of paying one List call per admitted type on every plan.
 	// Default off in this package: a direct caller of [Discover] that
 	// never sets this gets exactly today's full enumeration, unchanged.
-	// The fork's own commands (internal/command's statelessDiscover) turn
+	// The fork's own commands (internal/command's liveDiscover) turn
 	// it on automatically instead of leaving it at the zero value - see
 	// the policy note in guided.go's file doc comment for exactly when,
 	// and with what defaults.
@@ -424,7 +424,7 @@ type Request struct {
 	// when a fresh hint would otherwise narrow the routine sweep - the
 	// "periodic or flagged full sweep" that re-verifies the hint set, so a
 	// resource of a hinted type created out of band still surfaces. Discover
-	// is stateless between calls; a caller owns the cadence (e.g. "every
+	// is holds nothing between calls; a caller owns the cadence (e.g. "every
 	// 10th plan" or an explicit -verify flag) and sets this when that
 	// cadence says so. Ignored when Guided is false.
 	GuidedVerify bool
@@ -435,7 +435,7 @@ type Request struct {
 	// effect as GuidedVerify, but decided from the hint's own age rather
 	// than a caller-tracked cadence. Zero disables it, which leaves
 	// GuidedVerify as the only lever and matches every behavior this field
-	// did not exist to change. See internal/command's statelessDiscover for
+	// did not exist to change. See internal/command's liveDiscover for
 	// the default this fork's own commands set when they turn guided
 	// discovery on automatically - the "drift never hides longer than a
 	// day" half of that policy is this field, not GuidedMaxAge.
@@ -584,7 +584,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// [declared.bindTypeNames] - and decl.typeNames() (the scan loop just
 	// below) is unchanged, so the config-driven scan itself still runs zero
 	// iterations for such a type. It is not skipped forever, though: when
-	// req.Sweep is also set (every real stateless-plan caller sets it
+	// req.Sweep is also set (every real live-plan caller sets it
 	// alongside req.CollectUnclaimed), the sweep loops below still list a
 	// type in this state - see [partitionSweepTypes] and the per-type
 	// collectUnclaimed argument to [scanTypeReporting] in both sweep legs.
@@ -652,7 +652,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			delete(decl.unscanned, typeName)
 		}
 		if vdiags.HasErrors() || len(vres.Problems) > 0 {
-			log.Printf("[INFO] stateless/discovery: cache-vouch listing for %s produced %d problem(s) and error=%v; dropped - no vouches for the type, its instances read as if there were no cache", typeName, len(vres.Problems), vdiags.HasErrors())
+			log.Printf("[INFO] live/discovery: cache-vouch listing for %s produced %d problem(s) and error=%v; dropped - no vouches for the type, its instances read as if there were no cache", typeName, len(vres.Problems), vdiags.HasErrors())
 		}
 		res.VerifiedDeclared = append(res.VerifiedDeclared, vres.VerifiedDeclared...)
 		for _, u := range vres.Unclaimed {
@@ -800,7 +800,7 @@ func DeclaredDiagnostics(ctx context.Context, req Request) tfdiags.Diagnostics {
 }
 
 // sweepTypes is the estate-wide sweep's type universe: every type the
-// stateless admission table covers that the config-driven scan did not
+// live-mode admission table covers that the config-driven scan did not
 // already list.
 //
 // The admission table is the right source and the only one available. There
@@ -809,7 +809,7 @@ func DeclaredDiagnostics(ctx context.Context, req Request) tfdiags.Diagnostics {
 // be answered from a rule rather than from memory. The rule the whole fork
 // already runs on is admission: lint refuses a configuration that declares a
 // type outside the table, so every resource an estate acquired through
-// stateless mode is of an admitted type. Sweeping the admission table is
+// live mode is of an admitted type. Sweeping the admission table is
 // therefore complete over everything this tool can have created, and it
 // costs a bounded, small number of list calls (twenty-six types today) rather
 // than the ~180 a whole-provider sweep would take.
@@ -1428,7 +1428,7 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 			// is how the shrink is measured against a migrated estate,
 			// the same way the two DEBUG lines a few hundred lines below
 			// already narrate this pass's other per-instance decisions.
-			log.Printf("[DEBUG] stateless/discovery: %s excluded from the binding demand: identity already recorded", r.Addr)
+			log.Printf("[DEBUG] live/discovery: %s excluded from the binding demand: identity already recorded", r.Addr)
 			typeName := r.Type()
 			escaped := EscapeAddress(r.Addr.String())
 			if d.recordBacked[typeName] == nil {
@@ -2042,7 +2042,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 	}
 
 	if scan.Filtering == FilterClientSide {
-		log.Printf("[DEBUG] stateless/discovery: listing %s unfiltered (%s)", typeName, scan.FilterReason)
+		log.Printf("[DEBUG] live/discovery: listing %s unfiltered (%s)", typeName, scan.FilterReason)
 	}
 
 	// The full object is always requested: the markers are resource tags,
@@ -2218,7 +2218,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				// TestTaggingSweepAgainstFloci's removal-or-gap subtest
 				// asserts on the recovered branch.
 				markerReadWorked = true
-				log.Printf("[DEBUG] stateless/discovery: %s %q came back from the list call with no ownership marker; joined one from the estate's tag index", typeName, importID)
+				log.Printf("[DEBUG] live/discovery: %s %q came back from the list call with no ownership marker; joined one from the estate's tag index", typeName, importID)
 			case joinAmbiguous:
 				diags = diags.Append(problemDiag(res, Problem{
 					Kind:     ProblemAmbiguousTagJoin,
@@ -3212,7 +3212,7 @@ const (
 //     configuration ([declared.declares], never [declared.entryFor]): the
 //     two disagree exactly for a companion pair split across
 //     [Request.ScopeProvider] passes (issue #69's multi-provider sweep,
-//     GitHub issue #396), and declares is the one [statelessDiscover]'s own
+//     GitHub issue #396), and declares is the one [liveDiscover]'s own
 //     doc comment already promises callers - "Request.ScopeProvider is what
 //     keeps a pass from *binding* through the wrong account while still
 //     letting it recognize (via declared.declares, built from every
@@ -3610,7 +3610,7 @@ func typeTaggable(schemas listclient.Schemas, typeName string) bool {
 
 // markerCapable reports whether a resource type can carry the ownership
 // markers at all, read from the provider's own schema for the type rather
-// than from a list in stateless mode: a type with no tags attribute has nowhere
+// than from a list in live mode: a type with no tags attribute has nowhere
 // to put a tofu-estate tag, so no sweep of it could ever find anything.
 func markerCapable(ts listclient.TypeSchema) bool {
 	if ts.Resource == nil {
@@ -3855,7 +3855,7 @@ func classifyOrphans(ctx context.Context, req Request, schemas listclient.Schema
 		// thing suppressed is the PROPOSAL.
 		//
 		// The bound, stated because it is a divergence from stock and not a
-		// small one. [statelessTargetScope] builds the scope from the
+		// small one. [liveTargetScope] builds the scope from the
 		// configuration's own plan graph over an EMPTY state, so it can only
 		// answer for blocks the configuration still has. An orphan whose
 		// block is gone from configuration entirely is therefore never in
@@ -4568,7 +4568,7 @@ func bind(ctx context.Context, req Request, decl *declared, res *Result) tfdiags
 	// the instance addresses just above the declared count, which is how a
 	// shrunken count's leftovers appear in a stock run's prior state - and
 	// from there the plan engine's own orphan handling proposes destroying
-	// them, with nothing in stateless mode teaching it anything about slots.
+	// them, with nothing in live mode teaching it anything about slots.
 	for _, s := range res.Surplus {
 		res.Resolutions = append(res.Resolutions, identity.Resolution{
 			Addr:     s.Addr,

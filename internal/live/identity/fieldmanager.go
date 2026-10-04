@@ -19,7 +19,7 @@ import (
 // The block and attribute a kubernetes_manifest resource names its
 // server-side-apply field manager in. internal/live/liveimport reads the
 // same pair off a migrated state's object value; [ManifestFieldManager]
-// reads it off the configuration, because a stateless run has no state to
+// reads it off the configuration, because a live run has no state to
 // read.
 const (
 	ManifestFieldManagerBlock = "field_manager"

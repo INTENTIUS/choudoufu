@@ -34,7 +34,7 @@ func reconcileCandidate(importID, withheld string) discovery.ReconcileCandidate 
 // GitHub issue #1257, and the half that decides whether the threshold fix
 // is a fix or a hole.
 //
-// [statelessPolicyReconcile] does two things with one roster: it raises a
+// [livePolicyReconcile] does two things with one roster: it raises a
 // threshold error over a count, and it merges candidates in as synthetic
 // resolutions the plan engine turns into destroy proposals. Narrowing one
 // without the other is worse than narrowing neither - a run whose destroys

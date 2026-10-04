@@ -16,10 +16,10 @@ import (
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 )
 
-// TestStatelessExactnessAgainstFloci is P5.1's live half: the two claims the
+// TestLiveExactnessAgainstFloci is P5.1's live half: the two claims the
 // phase is named for, made against a real cloud rather than a fake one.
 //
-//	TF_FLOCI_TEST=1 go test ./internal/live/lifecycle/ -run TestStatelessExactnessAgainstFloci -v
+//	TF_FLOCI_TEST=1 go test ./internal/live/lifecycle/ -run TestLiveExactnessAgainstFloci -v
 //
 // Removal exactness: deleting a whole resource block destroys that block's
 // live resource and nothing else. This is the gap P4.1 recorded and could not
@@ -38,8 +38,8 @@ import (
 //
 // It runs on its own floci container on its own port, so it is independent of
 // the P4.1 lifecycle test and of the hint test beside it.
-func TestStatelessExactnessAgainstFloci(t *testing.T) {
-	flocitest.Gate(t, "stateless exactness")
+func TestLiveExactnessAgainstFloci(t *testing.T) {
+	flocitest.Gate(t, "live exactness")
 	flocitest.RequireBinary(t, "docker")
 	flocitest.RequireBinary(t, "aws")
 	flocitest.RequireBinary(t, "go")
@@ -532,7 +532,7 @@ func exUnexpectedAttrs(block, want string, unserved []string) []string {
 
 // exRenameLine matches the rename hint the plan prints. The command is
 // "choudoufu live-mv" since RN.1 (it was "tofu live-mv" since PN.1, and
-// before that this regex still said "stateless-mv" and so killed the test
+// before that this regex still said "live-mv" and so killed the test
 // at the rename section, before it ever reached removal exactness - the two
 // claims P5.1 is named for).
 var exRenameLine = regexp.MustCompile(`rename with: (choudoufu live-mv .*)$`)

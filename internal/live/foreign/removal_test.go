@@ -167,7 +167,7 @@ resource "aws_security_group" "web" {
   description = "content fixture"
 
   tags = {
-    tofu-estate  = "stateless-e2e"
+    tofu-estate  = "live-e2e"
     tofu-address = "aws_security_group.web:${each.key}"
   }
 }

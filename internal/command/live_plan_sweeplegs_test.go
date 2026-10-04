@@ -38,15 +38,15 @@ func TestEverySubstrateSweepHasALeg(t *testing.T) {
 // family claims is TestUnclaimedProviderGetsNoAWSLegs's.
 func TestSweepLegsChosenBySweepProperty(t *testing.T) {
 	ctx := context.Background()
-	p := &statelessProviders{}
+	p := &projectionProviders{}
 	addr := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("aws")}
 
-	legs, sweep, diags := p.statelessSweepLegs(ctx, substrate.AWS, true, addr)
+	legs, sweep, diags := p.liveSweepLegs(ctx, substrate.AWS, true, addr)
 	if diags.HasErrors() || !sweep || len(legs) != 1 || legs[0].Leg() != substrate.SweepTaggingIndex {
 		t.Errorf("AWS family: legs %v, sweep %v, diags %v; want the tagging-index leg with Sweep on", legs, sweep, diags.Err())
 	}
 
-	legs, sweep, _ = p.statelessSweepLegs(ctx, graphFamily{substrate.AWS}, true, addr)
+	legs, sweep, _ = p.liveSweepLegs(ctx, graphFamily{substrate.AWS}, true, addr)
 	if sweep || len(legs) != 1 {
 		t.Fatalf("family with no leg: legs %v, sweep %v; want one NoSweepLeg with Sweep off", legs, sweep)
 	}
@@ -91,7 +91,7 @@ func TestUnclaimedProviderGetsNoAWSLegs(t *testing.T) {
 			ResourceTypes: types,
 		}})
 	}
-	p := newStatelessProviders(nil, plugins.NewLibrary(plugins.ProviderFactories{
+	p := newProjectionProviders(nil, plugins.NewLibrary(plugins.ProviderFactories{
 		azure.Provider: schemaOf(map[string]providers.Schema{"azurerm_resource_group": tagged}),
 		helm.Provider:  schemaOf(map[string]providers.Schema{"helm_release": plain}),
 	}, nil))
@@ -102,7 +102,7 @@ func TestUnclaimedProviderGetsNoAWSLegs(t *testing.T) {
 		}
 	}
 
-	legs, sweep, diags := p.statelessSweepLegs(ctx, nil, false, azure)
+	legs, sweep, diags := p.liveSweepLegs(ctx, nil, false, azure)
 	if diags.HasErrors() {
 		t.Fatalf("unclaimed provider with a tagged type: %v", diags.Err())
 	}
@@ -117,7 +117,7 @@ func TestUnclaimedProviderGetsNoAWSLegs(t *testing.T) {
 		t.Errorf("unclaimed provider with a tagged type got %#v, want a NoSweepLeg naming %s and no family sweep", legs[0], azure.Provider.ForDisplay())
 	}
 
-	legs, sweep, diags = p.statelessSweepLegs(ctx, nil, false, helm)
+	legs, sweep, diags = p.liveSweepLegs(ctx, nil, false, helm)
 	if diags.HasErrors() {
 		t.Fatalf("unclaimed provider with no marked type: %v", diags.Err())
 	}

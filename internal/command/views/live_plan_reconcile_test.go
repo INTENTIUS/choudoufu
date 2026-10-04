@@ -14,10 +14,10 @@ import (
 
 // renderReconcilePolicy renders one policy report's reconciliation section
 // and hands back everything the human view wrote.
-func renderReconcilePolicy(t *testing.T, rep StatelessPolicyReport) string {
+func renderReconcilePolicy(t *testing.T, rep LivePolicyReport) string {
 	t.Helper()
 	streams, done := terminal.StreamsForTesting(t)
-	NewStatelessPlan(NewView(streams)).Policy(rep)
+	NewLivePlan(NewView(streams)).Policy(rep)
 	return done(t).All()
 }
 
@@ -32,11 +32,11 @@ func renderReconcilePolicy(t *testing.T, rep StatelessPolicyReport) string {
 // counting the roster fails "one withheld" on the headline, and dropping
 // withheld candidates from the list fails it on the roster.
 func TestReconcileSectionCountsWhatThisRunWillDestroy(t *testing.T) {
-	report := func(withheld string) StatelessPolicyReport {
-		return StatelessPolicyReport{Reconcile: StatelessReconcile{
+	report := func(withheld string) LivePolicyReport {
+		return LivePolicyReport{Reconcile: LiveReconcile{
 			Ran:       true,
 			Threshold: 10,
-			Roster: []StatelessReconcileCandidate{
+			Roster: []LiveReconcileCandidate{
 				{TypeName: "aws_security_group", LiveID: "sg-kept"},
 				{TypeName: "aws_security_group", LiveID: "sg-gone", Withheld: withheld},
 			},

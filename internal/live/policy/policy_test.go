@@ -204,7 +204,7 @@ func TestPolicyString(t *testing.T) {
 
 // TestBuildMaintainerExample is issue #67's pin: the maintainer's exact
 // example policy block, loaded through the real configuration decoder and
-// bridged into a [Raw] the same way internal/command's statelessPolicy
+// bridged into a [Raw] the same way internal/command's livePolicy
 // does, has to Build into the expected [Policy] - untag/converge/keep/delete
 // across the four quadrants, the estate marker as the default tag, and no
 // scope or threshold, since the example sets neither.

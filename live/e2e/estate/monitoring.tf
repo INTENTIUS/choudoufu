@@ -8,7 +8,7 @@
 # config-only attributes (live/LIMITATIONS.md).
 
 resource "aws_cloudwatch_metric_alarm" "cpu" {
-  alarm_name          = "tofu-stateless-e2e-cpu"
+  alarm_name          = "tofu-live-e2e-cpu"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
   metric_name         = "CPUUtilization"

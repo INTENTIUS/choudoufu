@@ -253,7 +253,7 @@ explain \
   "something it does not grant, is a defect in the policy. There is" \
   "exactly one call on the second side and it is the point of this claim:" \
   "the sentinel write, denied and survived."
-USED="$(grep 'stateless/recordstore: HTTP Request Sent' "$SMOKE_WORKROOT/logs/roplan-plan.log" | grep -oE 'rpc.method=[A-Za-z0-9]+' | cut -d= -f2 | sort -u)"
+USED="$(grep 'live/recordstore: HTTP Request Sent' "$SMOKE_WORKROOT/logs/roplan-plan.log" | grep -oE 'rpc.method=[A-Za-z0-9]+' | cut -d= -f2 | sort -u)"
 [ -n "$USED" ] || fail "readonlyplan" "the reader's request log holds no record store requests, so nothing was reconciled"
 # The same mapping claim 37 uses, so the two reconciliations agree on what a
 # call costs. A PutObject choudoufu sends carries the estate tag, so AWS
@@ -275,7 +275,7 @@ ONLY_GRANTED="$(comm -13 <(echo "$USED_ACTIONS") <(echo "$GRANTED"))"
 # the read-only rendering does not give it.
 [ "$ONLY_USED" = "s3:PutObject s3:PutObjectTagging" ] \
   || fail "readonlyplan" "the reader's plan used [$ONLY_USED] and the read-only policy grants none of it; the only call this claim expects to be denied is the sentinel write"
-grep 'stateless/recordstore: HTTP Request Sent' "$SMOKE_WORKROOT/logs/roplan-plan.log" \
+grep 'live/recordstore: HTTP Request Sent' "$SMOKE_WORKROOT/logs/roplan-plan.log" \
   | grep 'rpc.method=PutObject' | grep -q '\.store-sentinel' \
   || fail "readonlyplan" "the PutObject the reader sent was not the sentinel write, so something else in this plan tried to write to the bucket"
 # The bucket contract reads, by their absence. They are the three actions

@@ -34,7 +34,7 @@ import (
 //	(keys the configuration declares) ∪ (keys it USED to declare and no longer does)
 //
 // and the second half is a fact about this estate's own history, which is
-// what a stock state file's last-applied manifest holds and a stateless
+// what a stock state file's last-applied manifest holds and a live
 // run has to record for itself.
 //
 // # Why the record, and not metadata.managedFields

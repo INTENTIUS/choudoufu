@@ -67,11 +67,11 @@ func (c RefreshCommand) Execute(args *arguments.Refresh, view views.Refresh) int
 	}
 
 	// Refresh is the one remaining operation whose whole purpose is to write
-	// a state file, so a stateless configuration is refused here rather than
+	// a state file, so a live-mode configuration is refused here rather than
 	// left to produce one as a side effect of a command that changes nothing.
-	// What it would do is what a stateless plan does anyway: read the live
+	// What it would do is what a live plan does anyway: read the live
 	// system.
-	if guardDiags := c.statelessCommandGuard(ctx, "refresh"); len(guardDiags) > 0 {
+	if guardDiags := c.liveCommandGuard(ctx, "refresh"); len(guardDiags) > 0 {
 		diags = diags.Append(guardDiags)
 		if guardDiags.HasErrors() {
 			view.Diagnostics(diags)

@@ -14,7 +14,7 @@ import (
 	"testing"
 )
 
-// The stateless mode's only integration surface is the marker specification
+// Live mode's only integration surface is the marker specification
 // in live/MARKERS.md: anything that reads the markers this mode writes
 // does so from that document, and nothing in this tree may depend on such a
 // reader. Naming one in a comment is a citation and is fine; importing one is
@@ -25,8 +25,8 @@ import (
 // for.
 
 const (
-	statelessGo   = "."
-	statelessSpec = "../../live"
+	liveGo   = "."
+	liveSpec = "../../live"
 )
 
 // importLine matches an import path in Go source: the quoted string in an
@@ -34,16 +34,16 @@ const (
 // parser, and a false positive here is a conversation rather than a bug.
 var importLine = regexp.MustCompile(`^\s*(?:[A-Za-z_][A-Za-z0-9_]*\s+)?"([^"]+)"\s*$`)
 
-// TestStatelessImportsNoExternalTooling walks every Go file under
+// TestLiveImportsNoExternalTooling walks every Go file under
 // internal/live and fails on any import of an outside reader of the
 // marker spec.
-func TestStatelessImportsNoExternalTooling(t *testing.T) {
+func TestLiveImportsNoExternalTooling(t *testing.T) {
 	var offenders []string
 
 	// The Go tree: imports are the coupling that matters, because they are
 	// the ones the compiler enforces and the ones that would put chant in
 	// this fork's go.mod.
-	err := filepath.Walk(statelessGo, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(liveGo, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -83,7 +83,7 @@ func TestStatelessImportsNoExternalTooling(t *testing.T) {
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("walking %s: %v", statelessGo, err)
+		t.Fatalf("walking %s: %v", liveGo, err)
 	}
 
 	if len(offenders) > 0 {
@@ -100,8 +100,8 @@ func TestStatelessImportsNoExternalTooling(t *testing.T) {
 // something outside this repository is required for any of this to work. The
 // spec is meant to be implementable by anyone who reads it.
 func TestSpecDirectoryOnlyCitesExternalTooling(t *testing.T) {
-	if _, err := os.Stat(statelessSpec); os.IsNotExist(err) {
-		t.Skipf("%s does not exist from this package's directory", statelessSpec)
+	if _, err := os.Stat(liveSpec); os.IsNotExist(err) {
+		t.Skipf("%s does not exist from this package's directory", liveSpec)
 	}
 
 	// Phrases that would turn a citation into a dependency.
@@ -113,7 +113,7 @@ func TestSpecDirectoryOnlyCitesExternalTooling(t *testing.T) {
 		"provided by chant",
 	}
 
-	err := filepath.Walk(statelessSpec, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(liveSpec, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -134,6 +134,6 @@ func TestSpecDirectoryOnlyCitesExternalTooling(t *testing.T) {
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("walking %s: %v", statelessSpec, err)
+		t.Fatalf("walking %s: %v", liveSpec, err)
 	}
 }

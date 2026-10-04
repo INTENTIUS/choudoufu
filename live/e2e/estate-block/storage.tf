@@ -4,5 +4,5 @@
 # estate already covers (README.md, "Subset chosen").
 
 resource "aws_s3_bucket" "data" {
-  bucket = "tofu-stateless-e2e-block-data"
+  bucket = "tofu-live-e2e-block-data"
 }

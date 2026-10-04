@@ -106,7 +106,7 @@ func TestManager_transientRoundTrip(t *testing.T) {
 // TestManager_isNotAuthoritative: the interfaces the manager deliberately
 // does not implement are the ones that make a stored state authoritative.
 // Snapshot metadata is what a saved plan's staleness check compares, and
-// migration is state surgery; a stateless run has no use for either, and
+// migration is state surgery; a live run has no use for either, and
 // implementing them would invite a caller to trust this snapshot as a record.
 func TestManager_isNotAuthoritative(t *testing.T) {
 	var m any = NewManager()

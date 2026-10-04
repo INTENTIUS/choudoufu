@@ -1,5 +1,5 @@
 # The count-expanded call's target. Its own contents are inside the
-# stateless subset, and since issue #195 the call itself - "counted" in
+# live-mode subset, and since issue #195 the call itself - "counted" in
 # ../main.tf - is admitted too: its count (a literal 1) is statically
 # evaluable and none of the call's own arguments read count.index, so
 # RuleChildModule no longer reports it, and the five walkers traverse into

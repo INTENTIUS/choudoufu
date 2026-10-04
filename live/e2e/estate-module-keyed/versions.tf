@@ -4,7 +4,7 @@
 # lint/identity fixture material only (see its own README's Gating section)
 # and is never applied; this one is a real floci-driven estate
 # (internal/live/lifecycle/module_keyed_live_test.go), so it needs the block
-# that turns plain "choudoufu plan"/"choudoufu apply" stateless. The estate
+# that turns plain "choudoufu plan"/"choudoufu apply" into live mode. The estate
 # name matches wrapped/locals.tf's estate_tag exactly: the "live" block is
 # what plain plan/apply read, and estate_tag is what each resource's own
 # tofu-estate tag (in wrapped/ec2-module-keyed.tf) reads, and the two have

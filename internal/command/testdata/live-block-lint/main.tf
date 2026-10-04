@@ -1,11 +1,11 @@
 # The same estate as testdata/live-block, with a construct outside the
-# stateless subset added on top: lifecycle { ignore_changes = all }, which
+# live-mode subset added on top: lifecycle { ignore_changes = all }, which
 # discards the very update that writes the ownership markers.
 #
 # It is used rather than a second resource type (e.g. random_pet)
 # so that this fixture needs no provider beyond the "aws" one the test
 # harness already stands in for - the ordinary dependency lock check every
-# plan and apply runs ahead of the stateless pipeline would otherwise reject
+# plan and apply runs ahead of the live pipeline would otherwise reject
 # an unmocked provider before lint ever ran, which is not the property this
 # fixture exists to test. It needs no provider SCHEMA either, which a
 # count.index or admission-table refusal would.
@@ -23,7 +23,7 @@
 # exactly as "tofu live-plan" does.
 terraform {
   live {
-    estate = "stateless-unit"
+    estate = "live-unit"
   }
 
   required_providers {
@@ -38,7 +38,7 @@ provider "aws" {
 }
 
 resource "aws_s3_bucket" "data" {
-  bucket = "tofu-stateless-unit-data"
+  bucket = "tofu-live-unit-data"
 
   lifecycle {
     ignore_changes = all

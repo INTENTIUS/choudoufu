@@ -177,7 +177,7 @@ type Request struct {
 }
 
 // Clusters is [Request.Clusters]'s interface: internal/command's
-// statelessProviders implements it for live-import already.
+// projectionProviders implements it for live-import already.
 type Clusters interface {
 	LabelPatcher(ctx context.Context, addr addrs.AbsProviderConfig) (kubesweep.LabelPatcher, error)
 }

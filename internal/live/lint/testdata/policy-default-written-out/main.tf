@@ -14,7 +14,7 @@
 # needs a scope: undeclared_tagged's delete is the ordinary orphan sweep
 # over resources already carrying this estate's ownership marker, which is
 # its own scope. See internal/live/discovery/policy.go's DefaultVerb
-# no-op branch and statelessPolicyReconcile's gate on UndeclaredUntagged.
+# no-op branch and livePolicyReconcile's gate on UndeclaredUntagged.
 
 terraform {
   live {

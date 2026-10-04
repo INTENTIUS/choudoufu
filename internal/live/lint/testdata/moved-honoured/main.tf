@@ -15,7 +15,7 @@ variable "create" {
 }
 
 resource "aws_s3_bucket" "new" {
-  bucket = "tofu-stateless-lint-data"
+  bucket = "tofu-live-lint-data"
 }
 
 resource "aws_s3_bucket_versioning" "this" {

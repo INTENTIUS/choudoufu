@@ -19,14 +19,14 @@ import (
 // supplied to internal/live/liveimport through its [liveimport.Clusters]
 // seam.
 //
-// It is the same client [statelessProviders.kubernetesClient] builds for
+// It is the same client [projectionProviders.kubernetesClient] builds for
 // the estate sweep (#1065) and the server-side dry run (#1081 item 3),
 // from the same provider block's own connection arguments, so a migration
 // writes under exactly the credential a plan reads under and the
 // admission policy of live/kubernetes/estate-boundary.yaml judges the
 // write the way it judges kubectl's.
 
-var _ liveimport.Clusters = (*statelessProviders)(nil)
+var _ liveimport.Clusters = (*projectionProviders)(nil)
 
 // labelPatcher is the cached client per provider configuration, and the
 // error that stood in the way of building one. Cached because a
@@ -46,7 +46,7 @@ type labelPatcher struct {
 // type. A client that is set only on the success path below keeps the
 // field a nil interface otherwise, so the caller's "no client, say why"
 // path runs.
-func (p *statelessProviders) LabelPatcher(ctx context.Context, addr addrs.AbsProviderConfig) (kubesweep.LabelPatcher, error) {
+func (p *projectionProviders) LabelPatcher(ctx context.Context, addr addrs.AbsProviderConfig) (kubesweep.LabelPatcher, error) {
 	key := providerCacheKey(addr)
 
 	p.mu.Lock()

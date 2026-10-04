@@ -59,9 +59,9 @@ func (c WorkspaceNewCommand) Execute(args *arguments.WorkspaceNew, view views.Wo
 	workspace := args.WorkspaceName
 
 	// A live block makes a new workspace both meaningless and harmful: see
-	// Meta.statelessWorkspaceGuard. Refused here, before a backend is
+	// Meta.liveWorkspaceGuard. Refused here, before a backend is
 	// prepared, so nothing is created and nothing is selected.
-	if guardDiags := c.statelessWorkspaceGuard(ctx, "new", workspace); guardDiags.HasErrors() {
+	if guardDiags := c.liveWorkspaceGuard(ctx, "new", workspace); guardDiags.HasErrors() {
 		view.Diagnostics(diags.Append(guardDiags))
 		return 1
 	}

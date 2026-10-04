@@ -192,15 +192,15 @@ func TestReadParallelismReachesEveryProjectionOptions(t *testing.T) {
 
 	// The third site is in a helper, so the value has to arrive as an
 	// argument, and every caller has to pass its own resolved local.
-	helper := findAnyFuncDecl(t, planFile, "statelessProviderDataReads")
+	helper := findAnyFuncDecl(t, planFile, "liveProviderDataReads")
 	params := paramNames(helper)
 	values := projectionOptionsField(helper, "ReadParallelism")
 	if len(values) != 1 {
-		t.Fatalf("statelessProviderDataReads builds %d projection.Options that set ReadParallelism, want exactly 1", len(values))
+		t.Fatalf("liveProviderDataReads builds %d projection.Options that set ReadParallelism, want exactly 1", len(values))
 	}
 	ident, ok := values[0].(*ast.Ident)
 	if !ok {
-		t.Fatalf("statelessProviderDataReads sets projection.Options.ReadParallelism from a %T (%s), not from a parameter", values[0], exprText(values[0]))
+		t.Fatalf("liveProviderDataReads sets projection.Options.ReadParallelism from a %T (%s), not from a parameter", values[0], exprText(values[0]))
 	}
 	paramIndex := -1
 	for i, name := range params {
@@ -210,7 +210,7 @@ func TestReadParallelismReachesEveryProjectionOptions(t *testing.T) {
 		}
 	}
 	if paramIndex < 0 {
-		t.Fatalf("statelessProviderDataReads sets ReadParallelism from %q, which is not one of its parameters (parameters: %v). Issue #626's knob has to arrive from the caller, so that one run cannot read at two different widths.", ident.Name, params)
+		t.Fatalf("liveProviderDataReads sets ReadParallelism from %q, which is not one of its parameters (parameters: %v). Issue #626's knob has to arrive from the caller, so that one run cannot read at two different widths.", ident.Name, params)
 	}
 
 	callers := map[string]string{"live_plan.go": resolvedIn["livePlan"], "live_mode.go": resolvedIn["PriorState"]}
@@ -225,23 +225,23 @@ func TestReadParallelismReachesEveryProjectionOptions(t *testing.T) {
 				return true
 			}
 			fn, ok := call.Fun.(*ast.Ident)
-			if !ok || fn.Name != "statelessProviderDataReads" {
+			if !ok || fn.Name != "liveProviderDataReads" {
 				return true
 			}
 			calls++
 			if paramIndex >= len(call.Args) {
-				t.Errorf("a statelessProviderDataReads call at %s passes %d arguments, too few to carry %s", fset.Position(call.Pos()), len(call.Args), params[paramIndex])
+				t.Errorf("a liveProviderDataReads call at %s passes %d arguments, too few to carry %s", fset.Position(call.Pos()), len(call.Args), params[paramIndex])
 				return true
 			}
 			arg, ok := call.Args[paramIndex].(*ast.Ident)
 			if !ok || arg.Name != callers[f.name] {
-				t.Errorf("the statelessProviderDataReads call at %s passes %s for %s, not the %q that readParallelismSetting resolved in that function", fset.Position(call.Pos()), exprText(call.Args[paramIndex]), params[paramIndex], callers[f.name])
+				t.Errorf("the liveProviderDataReads call at %s passes %s for %s, not the %q that readParallelismSetting resolved in that function", fset.Position(call.Pos()), exprText(call.Args[paramIndex]), params[paramIndex], callers[f.name])
 			}
 			return true
 		})
 	}
 	if calls != 2 {
-		t.Errorf("found %d calls to statelessProviderDataReads across live_plan.go and live_mode.go, want 2 - one per entry point. A caller this test cannot see is a read pass this variable does not reach.", calls)
+		t.Errorf("found %d calls to liveProviderDataReads across live_plan.go and live_mode.go, want 2 - one per entry point. A caller this test cannot see is a read pass this variable does not reach.", calls)
 	}
 
 	// The fourth entry point, GitHub issue #640's. live-mv builds no
@@ -700,10 +700,10 @@ func TestLivePlan_readParallelismBoundsTheReadPass(t *testing.T) {
 	// The four buckets the fixture declares, in the address order the read
 	// pass materializes them in.
 	wantImports := []string{
-		"aws_s3_bucket/tofu-stateless-read-a",
-		"aws_s3_bucket/tofu-stateless-read-b",
-		"aws_s3_bucket/tofu-stateless-read-c",
-		"aws_s3_bucket/tofu-stateless-read-d",
+		"aws_s3_bucket/tofu-live-read-a",
+		"aws_s3_bucket/tofu-live-read-b",
+		"aws_s3_bucket/tofu-live-read-c",
+		"aws_s3_bucket/tofu-live-read-d",
 	}
 
 	run := func(t *testing.T, rec *readWidthRecorder) (int, string, []string) {
@@ -712,22 +712,22 @@ func TestLivePlan_readParallelismBoundsTheReadPass(t *testing.T) {
 		testCopyDir(t, testFixturePath("live-plan-read-parallelism"), td)
 		t.Chdir(td)
 
-		cloud := newStatelessTestCloud()
+		cloud := newLiveTestCloud()
 		// One region per provider block in the fixture. See its own comment
 		// for why there are four of them rather than one.
 		for _, region := range []string{"us-east-2", "us-west-1", "us-west-2"} {
 			cloud.allowRegion(region)
 		}
 		for _, name := range []string{"a", "b", "c", "d"} {
-			id := "tofu-stateless-read-" + name
-			cloud.putMarked("aws_s3_bucket", id, "stateless-unit", fmt.Sprintf("aws_s3_bucket.%s", name), map[string]string{
+			id := "tofu-live-read-" + name
+			cloud.putMarked("aws_s3_bucket", id, "live-unit", fmt.Sprintf("aws_s3_bucket.%s", name), map[string]string{
 				"id": id, "bucket": id,
 			})
 		}
 		cloud.onImport = rec.hook
 
 		c, done := newLivePlanCommand(t, cloud)
-		code := c.Run([]string{"-no-color", "-estate=stateless-unit"})
+		code := c.Run([]string{"-no-color", "-estate=live-unit"})
 		output := done(t)
 		cloud.mu.Lock()
 		imports := append([]string(nil), cloud.imports...)
@@ -819,7 +819,7 @@ type readWidthRecorder struct {
 	released chan struct{}
 }
 
-// hook is what [statelessTestCloud.onImport] is set to: true on entry to a
+// hook is what [liveTestCloud.onImport] is set to: true on entry to a
 // provider read, false as it returns.
 func (r *readWidthRecorder) hook(entering bool) {
 	if !entering {

@@ -41,7 +41,7 @@ type Plan struct {
 	// small estate in the not-swept type list"). It lives on Plan itself,
 	// not added by [BindLivePlan] the way -estate is (see that
 	// function's own comment), because -verbose does nothing to a stock
-	// plan rather than naming a stateless-only concept, and because it also
+	// plan rather than naming a live-only concept, and because it also
 	// needs to reach "choudoufu apply" against a live block
 	// (arguments.Apply.Verbose), where -estate has no equivalent need
 	// (arguments.Apply has none either).
@@ -57,7 +57,7 @@ type Plan struct {
 	// live-markers pipeline (LivePlanCommand.Execute delegates to PlanCommand),
 	// and only [ParsePlan] parses that command's flags; -estate needs the
 	// opposite, since a live block naming the estate is precisely when -estate
-	// must be refused. Unlike -verbose it does name a stateless-only concept,
+	// must be refused. Unlike -verbose it does name a live-only concept,
 	// so a stock, state-backed plan refuses it outright rather than ignoring
 	// it - see planRejectAdoptionOnly in the command package. Registering it
 	// here and refusing it there is what makes "choudoufu plan

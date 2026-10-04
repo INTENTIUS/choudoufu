@@ -27,7 +27,7 @@ import (
 // side of a match is a real configuration: a security group named in
 // configuration, a VPC with a literal CIDR, and two for_each subnets whose
 // arguments come out of each.value.
-const estateName = "stateless-e2e"
+const estateName = "live-e2e"
 
 func estateDir(t *testing.T) string {
 	return flocitest.EstateDir(t)
@@ -118,9 +118,9 @@ func TestClassifyTypesWithNoDistinguishingArguments(t *testing.T) {
 // and is not bound, which is the part the marker spec insists on.
 func TestClassifyBindCandidate(t *testing.T) {
 	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_security_group", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")}, Unclaimed: []discovery.UnclaimedResource{
-		live("aws_security_group", "sg-0abc", "stateless-e2e-main",
-			map[string]string{"Name": "stateless-e2e-main"},
-			map[string]string{"name": "stateless-e2e-main", "description": "estate fixture security group"}),
+		live("aws_security_group", "sg-0abc", "live-e2e-main",
+			map[string]string{"Name": "live-e2e-main"},
+			map[string]string{"name": "live-e2e-main", "description": "estate fixture security group"}),
 	}}})
 
 	if len(res.Candidates) != 1 {
@@ -133,7 +133,7 @@ func TestClassifyBindCandidate(t *testing.T) {
 	if c.LiveID != "sg-0abc" {
 		t.Errorf("candidate names live ID %q", c.LiveID)
 	}
-	if len(c.Matched) != 1 || c.Matched[0].Attr != "name" || c.Matched[0].Value != "stateless-e2e-main" {
+	if len(c.Matched) != 1 || c.Matched[0].Attr != "name" || c.Matched[0].Value != "live-e2e-main" {
 		t.Errorf("candidate matched on %v, want the name argument only", c.Matched)
 	}
 	if c.MarkerEstate != estateName || c.MarkerAddress != "aws_security_group.main" {
@@ -156,8 +156,8 @@ func TestClassifyBindCandidate(t *testing.T) {
 func TestClassifyAdoptionHintIsPasteable(t *testing.T) {
 	disco := func() *discovery.Result {
 		return &discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_security_group", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")}, Unclaimed: []discovery.UnclaimedResource{
-			live("aws_security_group", "sg-0abc", "stateless-e2e-main",
-				nil, map[string]string{"name": "stateless-e2e-main"}),
+			live("aws_security_group", "sg-0abc", "live-e2e-main",
+				nil, map[string]string{"name": "live-e2e-main"}),
 		}}}
 	}
 
@@ -176,7 +176,7 @@ func TestClassifyAdoptionHintIsPasteable(t *testing.T) {
 			t.Fatalf("want exactly one bind candidate, got:\n%s", res)
 		}
 		want := "aws ec2 create-tags --resources 'sg-0abc'" +
-			" --tags 'Key=tofu-estate,Value=stateless-e2e' 'Key=tofu-address,Value=aws_security_group.main'" +
+			" --tags 'Key=tofu-estate,Value=live-e2e' 'Key=tofu-address,Value=aws_security_group.main'" +
 			" --region 'eu-west-1' --endpoint-url 'http://localhost:4600'"
 		if got := res.Candidates[0].Hint; got != want {
 			t.Errorf("adoption hint is\n  %q\nwant\n  %q", got, want)
@@ -196,7 +196,7 @@ func TestClassifyAdoptionHintIsPasteable(t *testing.T) {
 			t.Fatalf("want exactly one bind candidate, got:\n%s", res)
 		}
 		want := "aws ec2 create-tags --resources 'sg-0abc'" +
-			" --tags 'Key=tofu-estate,Value=stateless-e2e' 'Key=tofu-address,Value=aws_security_group.main'"
+			" --tags 'Key=tofu-estate,Value=live-e2e' 'Key=tofu-address,Value=aws_security_group.main'"
 		if got := res.Candidates[0].Hint; got != want {
 			t.Errorf("adoption hint is\n  %q\nwant\n  %q", got, want)
 		}
@@ -291,9 +291,9 @@ func TestClassifyVPCBindCandidate(t *testing.T) {
 func TestClassifyNearMissStaysForeign(t *testing.T) {
 	for name, obj := range map[string]discovery.UnclaimedResource{
 		"a suffix on the name": live("aws_security_group", "sg-old", "",
-			nil, map[string]string{"name": "stateless-e2e-main-old"}),
+			nil, map[string]string{"name": "live-e2e-main-old"}),
 		"a different case": live("aws_security_group", "sg-case", "",
-			nil, map[string]string{"name": "Stateless-E2E-Main"}),
+			nil, map[string]string{"name": "Live-E2E-Main"}),
 		"no name at all": live("aws_security_group", "sg-unnamed", "",
 			nil, map[string]string{"description": "estate fixture security group"}),
 	} {
@@ -371,8 +371,8 @@ func TestClassifyKeyedInstancesAreNeverCandidates(t *testing.T) {
 // and the report names the other one so an operator can tell them apart.
 func TestClassifyAmbiguousMatchStaysForeign(t *testing.T) {
 	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_security_group", 2)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")}, Unclaimed: []discovery.UnclaimedResource{
-		live("aws_security_group", "sg-one", "", nil, map[string]string{"name": "stateless-e2e-main"}),
-		live("aws_security_group", "sg-two", "", nil, map[string]string{"name": "stateless-e2e-main"}),
+		live("aws_security_group", "sg-one", "", nil, map[string]string{"name": "live-e2e-main"}),
+		live("aws_security_group", "sg-two", "", nil, map[string]string{"name": "live-e2e-main"}),
 	}}})
 
 	if len(res.Candidates) != 0 {

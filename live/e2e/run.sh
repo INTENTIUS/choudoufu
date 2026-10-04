@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Stateless mode E2E harness.
+# Live mode E2E harness.
 #
 # This is the feature's demo as much as its test — run it and watch: a real
 # estate stands up against a local AWS emulator with plain local state, the
 # state file is deleted in front of you (`adopt`, nothing else happens), and
-# then the claims stateless mode makes about that same live estate get proven
+# then the claims live mode makes about that same live estate get proven
 # live, one by one — empty plans against markers alone, exact drift (one
 # mutation per estate type), foreign-resource protection, exact removal
 # (delete a whole block, exactly its live resource goes), count scale-down
@@ -83,7 +83,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ESTATE_SRC="$ROOT/live/e2e/estate"
 BLOCK_SRC="$ROOT/live/e2e/estate-block"
 FLOCI_PORT="${FLOCI_PORT:-4601}"
-FLOCI_NAME="${FLOCI_NAME:-tofu-stateless-e2e-$$}"
+FLOCI_NAME="${FLOCI_NAME:-tofu-live-e2e-$$}"
 # See the note above docker run in step 1 for why this is lex00/floci, not
 # upstream floci/floci, and why it is pinned by digest. The pin's single
 # source of truth is live/floci-image (#98); internal/live/flocitest and the
@@ -220,7 +220,7 @@ evaluate_expect() {
 
 # skip is for missing tooling, never for a claim that failed. Without
 # --expect it is a clean exit: the harness is a progress bar, and no Docker
-# on the box is not a false claim about stateless mode. With --expect the
+# on the box is not a false claim about live mode. With --expect the
 # caller asked for a verdict on a phase and did not get one, so the exit code
 # must not say the expectation was met - it exits 2 instead, distinct from
 # both 0 (met) and 1 (checked and false). Before this, `--expect 5` on a box
@@ -658,14 +658,14 @@ else
   echo "  built $TOFU from $ROOT (branch $(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?'))"
 fi
 
-# ── 0b. probe for stateless-mode subcommands ────────────────────────────────
+# ── 0b. probe for live-mode subcommands ────────────────────────────────
 # GATING: steps 5-9 used to gate on bare HAVE_LIVE_PLAN,
 # so landing live-plan before its later dependencies (P2.4's foreign
 # classification, P3.3's live-mv, P5.1's exactness work) made those steps
 # attempt real runs against unimplemented machinery instead of reporting
 # NOT IMPLEMENTED. Every later step's gate below is a probe of the specific
 # surface it needs, never the bare presence of live-plan alone.
-echo "=== 0b. probing for stateless-mode subcommands ==="
+echo "=== 0b. probing for live-mode subcommands ==="
 HAVE_LIVE_PLAN=0
 "$TOFU" live-plan -help >/dev/null 2>&1 && HAVE_LIVE_PLAN=1
 HAVE_LIVE_MV=0
@@ -680,7 +680,7 @@ grep -q -- '-estate' <<< "$LIVE_PLAN_HELP" && HAVE_LIVE_ESTATE=1
 LIVE_E2E_EXACTNESS="${LIVE_E2E_EXACTNESS:-1}"
 
 # P4.3's probe: the "live" block that puts plain plan/apply into
-# stateless mode (P4.1) is a config-decoder feature, not a subcommand, so
+# live mode (P4.1) is a config-decoder feature, not a subcommand, so
 # none of the probes above tell us whether this build supports it. The
 # clean, cheap check: decode a minimal config carrying nothing but the block
 # (no provider, no resources -- there is nothing here for `choudoufu validate` to
@@ -754,10 +754,10 @@ cp -R "$ESTATE_SRC/." "$MAIN/"
   || fail "standup" "choudoufu init/apply against floci did not succeed"
 [ -f "$MAIN/terraform.tfstate" ] \
   || fail "standup" "apply produced no terraform.tfstate — standup is supposed to be stock plain-local-state apply"
-VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=stateless-e2e" \
+VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=live-e2e" \
   --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo None)"
 [ -n "$VPC_ID" ] && [ "$VPC_ID" != "None" ] \
-  || fail "standup" "no VPC tagged tofu-estate=stateless-e2e found via the AWS CLI after apply"
+  || fail "standup" "no VPC tagged tofu-estate=live-e2e found via the AWS CLI after apply"
 # DECLARED_INSTANCES is read off the fixture itself, not hardcoded (#48): the
 # plain-state apply above is the one point in this run where a state file
 # lists every instance the estate fixture declares, count/for_each expansion
@@ -767,7 +767,7 @@ VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=stateles
 DECLARED_INSTANCES="$(cd "$MAIN" && "$TOFU" state list | wc -l | tr -d ' ')"
 [ "$DECLARED_INSTANCES" -gt 0 ] 2>/dev/null \
   || fail "standup" "could not read the estate's declared instance count off its own state ($MAIN)"
-echo "  applied; VPC $VPC_ID carries tofu-estate=stateless-e2e; $DECLARED_INSTANCES declared instances"
+echo "  applied; VPC $VPC_ID carries tofu-estate=live-e2e; $DECLARED_INSTANCES declared instances"
 record_step "standup" pass
 
 # ── 3. adopt — delete the state; nothing else changes ───────────────────────
@@ -838,9 +838,9 @@ else
     SLOT="$(head -n1 <<< "$SLOT_MATCHES" | grep -oE '[0-9]+')"
     [ -n "$SLOT" ] || fail "slot-migration" "$ADDR's diff proposes no tofu-slot tag: $BLOCK"
 
-    ALLOC_ID="$(awk -v est="stateless-e2e" -v want="aws_eip.pool:$i" '$2==est && $3==want {print $1; exit}' <<< "$LIVE_EIPS")"
+    ALLOC_ID="$(awk -v est="live-e2e" -v want="aws_eip.pool:$i" '$2==est && $3==want {print $1; exit}' <<< "$LIVE_EIPS")"
     [ -n "$ALLOC_ID" ] \
-      || fail "slot-migration" "no live EIP tagged tofu-estate=stateless-e2e tofu-address=aws_eip.pool:$i"
+      || fail "slot-migration" "no live EIP tagged tofu-estate=live-e2e tofu-address=aws_eip.pool:$i"
 
     awsl ec2 create-tags --resources "$ALLOC_ID" --tags "Key=tofu-slot,Value=$SLOT" >/dev/null \
       || fail "slot-migration" "could not write tofu-slot=$SLOT onto $ALLOC_ID ($ADDR)"
@@ -881,8 +881,8 @@ fi
 # standing residue #26 retired instead, by switching FLOCI_IMAGE to a fork
 # build carrying lex00/floci#24. #10 (this step's SSM gap) is unrelated and
 # still open, which is why the by-hand adoption below stays.
-RECEIPT_PARAM="/tofu-receipts/stateless-e2e/demo-effect"
-EXISTENCE_PARAM="/tofu-receipts/stateless-e2e/demo-existence"
+RECEIPT_PARAM="/tofu-receipts/live-e2e/demo-effect"
+EXISTENCE_PARAM="/tofu-receipts/live-e2e/demo-existence"
 
 # adopt_ssm_receipt writes and verifies the ownership markers on one SSM
 # parameter receipt: $1 its parameter name, $2 its resource address. Shared
@@ -898,11 +898,11 @@ adopt_ssm_receipt() {
   tags_before="$(awsl ssm list-tags-for-resource --resource-type Parameter \
     --resource-id "$param" --query 'TagList[?Key==`tofu-estate`]|[0].Value' \
     --output text 2>/dev/null || echo None)"
-  if [ "$tags_before" = "stateless-e2e" ]; then
+  if [ "$tags_before" = "live-e2e" ]; then
     echo "  $addr already carries tofu-estate (floci-gaps #10 appears fixed); nothing to adopt"
   else
     awsl ssm add-tags-to-resource --resource-type Parameter --resource-id "$param" \
-      --tags "Key=tofu-estate,Value=stateless-e2e" "Key=tofu-address,Value=$addr" >/dev/null \
+      --tags "Key=tofu-estate,Value=live-e2e" "Key=tofu-address,Value=$addr" >/dev/null \
       || fail "receipt-adoption" "could not write the ownership markers onto $param"
     echo "  wrote tofu-estate/tofu-address onto $param (floci-gaps #10: PutParameter dropped the inline set)"
   fi
@@ -916,8 +916,8 @@ adopt_ssm_receipt() {
   # shellcheck disable=SC2016 # single-quoted: JMESPath backtick literals, not shell interpolation
   addr_tag="$(awsl ssm list-tags-for-resource --resource-type Parameter \
     --resource-id "$param" --query 'TagList[?Key==`tofu-address`]|[0].Value' --output text 2>/dev/null || echo None)"
-  [ "$estate_tag" = "stateless-e2e" ] \
-    || fail "receipt-adoption" "the live tofu-estate tag on $param reads '$estate_tag', want stateless-e2e"
+  [ "$estate_tag" = "live-e2e" ] \
+    || fail "receipt-adoption" "the live tofu-estate tag on $param reads '$estate_tag', want live-e2e"
   [ "$addr_tag" = "$addr" ] \
     || fail "receipt-adoption" "the live tofu-address tag on $param reads '$addr_tag', want $addr"
 }
@@ -958,7 +958,7 @@ fi
 readopt_receipt() {
   local step="$1"
   awsl ssm add-tags-to-resource --resource-type Parameter --resource-id "$RECEIPT_PARAM" \
-    --tags "Key=tofu-estate,Value=stateless-e2e" "Key=tofu-address,Value=aws_ssm_parameter.demo_effect" >/dev/null \
+    --tags "Key=tofu-estate,Value=live-e2e" "Key=tofu-address,Value=aws_ssm_parameter.demo_effect" >/dev/null \
     || fail "$step" "could not restore the receipt's ownership markers after an out-of-band value write"
 }
 
@@ -1080,16 +1080,16 @@ if [ "$HAVE_LIVE_ESTATE" -eq 0 ] || [ "$HAVE_LIVE_MV" -eq 0 ] || [ "$LIVE_E2E_EX
 else
   STEP6_T0=$(date +%s)
 
-  D_VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=stateless-e2e" \
+  D_VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=live-e2e" \
     --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo None)"
   [ -n "$D_VPC_ID" ] && [ "$D_VPC_ID" != "None" ] || fail "drift-exact" "could not find the estate's VPC"
   D_SUBNET_ID="$(awsl ec2 describe-subnets \
-    --filters "Name=tag:tofu-estate,Values=stateless-e2e" "Name=tag:tofu-address,Values=aws_subnet.this:a" \
+    --filters "Name=tag:tofu-estate,Values=live-e2e" "Name=tag:tofu-address,Values=aws_subnet.this:a" \
     --query 'Subnets[0].SubnetId' --output text 2>/dev/null || echo None)"
   [ -n "$D_SUBNET_ID" ] && [ "$D_SUBNET_ID" != "None" ] \
     || fail "drift-exact" "could not find aws_subnet.this[\"a\"] via its tofu-address tag"
   # shellcheck disable=SC2016 # single-quoted: JMESPath backtick literal, not shell interpolation
-  D_SG_ID="$(awsl ec2 describe-security-groups --filters "Name=tag:tofu-estate,Values=stateless-e2e" \
+  D_SG_ID="$(awsl ec2 describe-security-groups --filters "Name=tag:tofu-estate,Values=live-e2e" \
     --query 'SecurityGroups[?GroupName!=`default`]|[0].GroupId' --output text 2>/dev/null || echo None)"
   [ -n "$D_SG_ID" ] && [ "$D_SG_ID" != "None" ] \
     || fail "drift-exact" "could not find the estate's security group via its tofu-estate tag"
@@ -1100,7 +1100,7 @@ else
   D_LIVE_EIPS="$(awsl ec2 describe-addresses \
     --query 'Addresses[].[AllocationId,Tags[?Key==`tofu-estate`]|[0].Value,Tags[?Key==`tofu-address`]|[0].Value]' \
     --output text 2>/dev/null)" || true
-  D_EIP_ID="$(awk -v est="stateless-e2e" -v want="aws_eip.pool:0" '$2==est && $3==want {print $1; exit}' <<< "$D_LIVE_EIPS")"
+  D_EIP_ID="$(awk -v est="live-e2e" -v want="aws_eip.pool:0" '$2==est && $3==want {print $1; exit}' <<< "$D_LIVE_EIPS")"
   [ -n "$D_EIP_ID" ] || fail "drift-exact" "could not find aws_eip.pool[0] via its tofu-address tag"
 
   DRIFT_NAMES=(vpc subnet sg eip bucket log-group-tag log-group-retention)
@@ -1143,14 +1143,14 @@ else
         awsl ec2 create-tags --resources "$D_EIP_ID" --tags "Key=$D_ATTR,Value=yes" >/dev/null \
           || fail "drift-exact" "could not tag the EIP out of band" ;;
       bucket)
-        awsl s3api put-bucket-tagging --bucket tofu-stateless-e2e-data --tagging \
-          '{"TagSet":[{"Key":"tofu-estate","Value":"stateless-e2e"},{"Key":"tofu-address","Value":"aws_s3_bucket.data"},{"Key":"Drifted","Value":"yes"}]}' >/dev/null \
+        awsl s3api put-bucket-tagging --bucket tofu-live-e2e-data --tagging \
+          '{"TagSet":[{"Key":"tofu-estate","Value":"live-e2e"},{"Key":"tofu-address","Value":"aws_s3_bucket.data"},{"Key":"Drifted","Value":"yes"}]}' >/dev/null \
           || fail "drift-exact" "could not tag the bucket out of band" ;;
       log-group-tag)
-        awsl logs tag-log-group --log-group-name /stateless-e2e/app --tags Drifted=yes >/dev/null \
+        awsl logs tag-log-group --log-group-name /live-e2e/app --tags Drifted=yes >/dev/null \
           || fail "drift-exact" "could not tag the log group out of band" ;;
       log-group-retention)
-        awsl logs put-retention-policy --log-group-name /stateless-e2e/app --retention-in-days 7 >/dev/null \
+        awsl logs put-retention-policy --log-group-name /live-e2e/app --retention-in-days 7 >/dev/null \
           || fail "drift-exact" "could not set the log group retention out of band" ;;
     esac
 
@@ -1175,12 +1175,12 @@ else
                  || fail "drift-exact" "could not revert the security group tag" ;;
       eip)     awsl ec2 delete-tags --resources "$D_EIP_ID" --tags "Key=$D_ATTR" >/dev/null \
                  || fail "drift-exact" "could not revert the EIP tag" ;;
-      bucket)  awsl s3api put-bucket-tagging --bucket tofu-stateless-e2e-data --tagging \
-                 '{"TagSet":[{"Key":"tofu-estate","Value":"stateless-e2e"},{"Key":"tofu-address","Value":"aws_s3_bucket.data"}]}' >/dev/null \
+      bucket)  awsl s3api put-bucket-tagging --bucket tofu-live-e2e-data --tagging \
+                 '{"TagSet":[{"Key":"tofu-estate","Value":"live-e2e"},{"Key":"tofu-address","Value":"aws_s3_bucket.data"}]}' >/dev/null \
                  || fail "drift-exact" "could not revert the bucket tag" ;;
-      log-group-tag)       awsl logs untag-log-group --log-group-name /stateless-e2e/app --tags "$D_ATTR" >/dev/null \
+      log-group-tag)       awsl logs untag-log-group --log-group-name /live-e2e/app --tags "$D_ATTR" >/dev/null \
                  || fail "drift-exact" "could not revert the log group tag" ;;
-      log-group-retention) awsl logs put-retention-policy --log-group-name /stateless-e2e/app --retention-in-days 1 >/dev/null \
+      log-group-retention) awsl logs put-retention-policy --log-group-name /live-e2e/app --retention-in-days 1 >/dev/null \
                  || fail "drift-exact" "could not revert the log group retention" ;;
     esac
 
@@ -1194,10 +1194,10 @@ else
   # The live identities must be the ones the matrix started with: a drift
   # that was corrected by replacing a resource would satisfy every check
   # above and still be a bug.
-  D_VPC_ID_AFTER="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=stateless-e2e" \
+  D_VPC_ID_AFTER="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=live-e2e" \
     --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo None)"
   # shellcheck disable=SC2016 # single-quoted: JMESPath backtick literal, not shell interpolation
-  D_SG_ID_AFTER="$(awsl ec2 describe-security-groups --filters "Name=tag:tofu-estate,Values=stateless-e2e" \
+  D_SG_ID_AFTER="$(awsl ec2 describe-security-groups --filters "Name=tag:tofu-estate,Values=live-e2e" \
     --query 'SecurityGroups[?GroupName!=`default`]|[0].GroupId' --output text 2>/dev/null || echo None)"
   [ "$D_VPC_ID_AFTER" = "$D_VPC_ID" ] && [ "$D_SG_ID_AFTER" = "$D_SG_ID" ] \
     || fail "drift-exact" "the drift matrix replaced a resource: VPC $D_VPC_ID -> $D_VPC_ID_AFTER, SG $D_SG_ID -> $D_SG_ID_AFTER"
@@ -1212,10 +1212,10 @@ echo "=== 7. foreign-protected — an unmanaged SG is reported, never proposed f
 if [ "$HAVE_LIVE_ESTATE" -eq 0 ]; then
   not_implemented "foreign-protected" 2 "foreign classification is P2.3/P2.4 (tag-filtered discovery + protection, probed via -estate in live-plan -help); wired green in P2.5"
 else
-  VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=stateless-e2e" \
+  VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=live-e2e" \
     --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo None)"
   [ -n "$VPC_ID" ] && [ "$VPC_ID" != "None" ] || fail "foreign-protected" "could not find the estate's VPC"
-  FOREIGN_SG="$(awsl ec2 create-security-group --group-name "stateless-e2e-foreign-$$" \
+  FOREIGN_SG="$(awsl ec2 create-security-group --group-name "live-e2e-foreign-$$" \
     --description "unmanaged, no tofu-estate marker" --vpc-id "$VPC_ID" --query 'GroupId' --output text)"
   [ -n "$FOREIGN_SG" ] || fail "foreign-protected" "could not create the unmarked security group"
 
@@ -1333,10 +1333,10 @@ else
   COPY="$(mktemp -d)"
   cp -R "$MAIN/." "$COPY/"
 
-  R_VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=stateless-e2e" \
+  R_VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=live-e2e" \
     --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo None)"
   [ -n "$R_VPC_ID" ] && [ "$R_VPC_ID" != "None" ] || fail "removal-exact" "could not find the estate's VPC"
-  R_VOL_ID="$(awsl ec2 describe-volumes --filters "Name=tag:tofu-estate,Values=stateless-e2e" \
+  R_VOL_ID="$(awsl ec2 describe-volumes --filters "Name=tag:tofu-estate,Values=live-e2e" \
     --query 'Volumes[0].VolumeId' --output text 2>/dev/null || echo None)"
   [ -n "$R_VOL_ID" ] && [ "$R_VOL_ID" != "None" ] || fail "removal-exact" "could not find the estate's EBS volume"
 
@@ -1380,7 +1380,7 @@ else
     || fail "removal-exact" "the EBS volume $R_VOL_ID is still live after the removal apply (describe returned $R_VOL_AFTER)"
 
   # 5. The rest of the estate is untouched.
-  R_VPC_ID_AFTER="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=stateless-e2e" \
+  R_VPC_ID_AFTER="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=live-e2e" \
     --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo None)"
   [ "$R_VPC_ID_AFTER" = "$R_VPC_ID" ] \
     || fail "removal-exact" "the removal disturbed the rest of the estate: VPC $R_VPC_ID -> $R_VPC_ID_AFTER"
@@ -1410,7 +1410,7 @@ else
   # specifications at create time round-trip fine, which is also the path
   # the provider itself takes.
   R_NEW_VOL_ID="$(awsl ec2 create-volume --availability-zone "us-east-1a" --size 1 \
-    --tag-specifications 'ResourceType=volume,Tags=[{Key=tofu-estate,Value=stateless-e2e},{Key=tofu-address,Value=aws_ebs_volume.data}]' \
+    --tag-specifications 'ResourceType=volume,Tags=[{Key=tofu-estate,Value=live-e2e},{Key=tofu-address,Value=aws_ebs_volume.data}]' \
     --query 'VolumeId' --output text)"
   [ -n "$R_NEW_VOL_ID" ] && [ "$R_NEW_VOL_ID" != "None" ] \
     || fail "removal-exact" "could not recreate the EBS volume to restore \$MAIN's live estate"
@@ -1457,11 +1457,11 @@ else
   LIVE_SLOTS="$(awsl ec2 describe-addresses \
     --query 'Addresses[].[AllocationId,Tags[?Key==`tofu-estate`]|[0].Value,Tags[?Key==`tofu-slot`]|[0].Value]' \
     --output text 2>/dev/null)" || true
-  SLOT0_ID="$(awk -v est="stateless-e2e" '$2==est && $3=="0" {print $1; exit}' <<< "$LIVE_SLOTS")"
-  SLOT1_ID="$(awk -v est="stateless-e2e" '$2==est && $3=="1" {print $1; exit}' <<< "$LIVE_SLOTS")"
-  SLOT2_ID="$(awk -v est="stateless-e2e" '$2==est && $3=="2" {print $1; exit}' <<< "$LIVE_SLOTS")"
+  SLOT0_ID="$(awk -v est="live-e2e" '$2==est && $3=="0" {print $1; exit}' <<< "$LIVE_SLOTS")"
+  SLOT1_ID="$(awk -v est="live-e2e" '$2==est && $3=="1" {print $1; exit}' <<< "$LIVE_SLOTS")"
+  SLOT2_ID="$(awk -v est="live-e2e" '$2==est && $3=="2" {print $1; exit}' <<< "$LIVE_SLOTS")"
   [ -n "$SLOT0_ID" ] && [ -n "$SLOT1_ID" ] && [ -n "$SLOT2_ID" ] \
-    || fail "count-scale-down" "could not find all three live slot-tagged EIPs (slots 0, 1, 2) for estate stateless-e2e -- the slot-migration sub-step must have run first"
+    || fail "count-scale-down" "could not find all three live slot-tagged EIPs (slots 0, 1, 2) for estate live-e2e -- the slot-migration sub-step must have run first"
 
   FOUND_EIP=0
   for f in "$COPY"/*.tf; do
@@ -1540,7 +1540,7 @@ else
   [ -n "$NEW_ALLOC_ID" ] && [ "$NEW_ALLOC_ID" != "None" ] \
     || fail "count-scale-down" "could not allocate a replacement EIP to restore \$MAIN's live estate to its declared count of 3"
   awsl ec2 create-tags --resources "$NEW_ALLOC_ID" --tags \
-    "Key=tofu-estate,Value=stateless-e2e" "Key=tofu-address,Value=aws_eip.pool:2" "Key=tofu-slot,Value=2" >/dev/null \
+    "Key=tofu-estate,Value=live-e2e" "Key=tofu-address,Value=aws_eip.pool:2" "Key=tofu-slot,Value=2" >/dev/null \
     || fail "count-scale-down" "could not tag the replacement EIP $NEW_ALLOC_ID"
   run_tf "$MAIN" live-plan -input=false -no-color
   RESTORE_OUT="$TF_OUT"
@@ -1573,7 +1573,7 @@ else
 
   OLD_ADDR="aws_cloudwatch_log_group.app"
   NEW_ADDR="aws_cloudwatch_log_group.renamed"
-  LOG_GROUP_NAME="/stateless-e2e/app"
+  LOG_GROUP_NAME="/live-e2e/app"
 
   # Both the resource label and every hand-written tofu-address value naming
   # the old address have to move, or stamping reports a marker conflict and
@@ -1648,7 +1648,7 @@ fi
 # fixture (live/e2e/estate-block/, its own README explains why it is a
 # separate directory from $ESTATE_SRC) is used instead of $MAIN because
 # adding the block to the main estate would make its own standup (step 2)
-# stateless and stop it from producing the terraform.tfstate that step 2/3
+# run in live mode and stop it from producing the terraform.tfstate that step 2/3
 # demonstrate adopting.
 echo "=== 11. plain-plan-works — plain choudoufu plan/apply against a live-block estate ==="
 if [ "$HAVE_LIVE_BLOCK" -eq 0 ]; then
@@ -1663,14 +1663,14 @@ else
   # Baseline: the main estate's own resources, read before this step touches
   # anything, so "the estate-block apply did not touch the main estate" is a
   # before/after comparison, not an assumption. Its own estate name
-  # (stateless-e2e) is distinct from estate-block's (stateless-e2e-block),
+  # (live-e2e) is distinct from estate-block's (live-e2e-block),
   # so neither apply/plan below should ever see the other's resources.
-  MAIN_VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=stateless-e2e" \
+  MAIN_VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=live-e2e" \
     --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo None)"
   [ -n "$MAIN_VPC_ID" ] && [ "$MAIN_VPC_ID" != "None" ] \
     || fail "plain-plan-works" "could not find the main estate's VPC before step 11"
   MAIN_EIP_COUNT_BEFORE="$(awsl ec2 describe-addresses \
-    --query "length(Addresses[?Tags[?Key=='tofu-estate' && Value=='stateless-e2e']])" --output text)"
+    --query "length(Addresses[?Tags[?Key=='tofu-estate' && Value=='live-e2e']])" --output text)"
 
   # 1. choudoufu init, then a plain "choudoufu apply -auto-approve" -- no -estate flag
   #    (it does not exist on plain apply; P4.1's contract), no state file.
@@ -1691,12 +1691,12 @@ else
     || fail "plain-plan-works" "terraform.tfstate exists after a plain choudoufu apply -- a live-block estate must never write one"
 
   # The main estate is untouched: same VPC id, same live EIP count.
-  MAIN_VPC_ID_AFTER="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=stateless-e2e" \
+  MAIN_VPC_ID_AFTER="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=live-e2e" \
     --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo None)"
   [ "$MAIN_VPC_ID_AFTER" = "$MAIN_VPC_ID" ] \
     || fail "plain-plan-works" "the main estate's VPC id changed after the estate-block apply: $MAIN_VPC_ID -> $MAIN_VPC_ID_AFTER"
   MAIN_EIP_COUNT_AFTER="$(awsl ec2 describe-addresses \
-    --query "length(Addresses[?Tags[?Key=='tofu-estate' && Value=='stateless-e2e']])" --output text)"
+    --query "length(Addresses[?Tags[?Key=='tofu-estate' && Value=='live-e2e']])" --output text)"
   [ "$MAIN_EIP_COUNT_AFTER" = "$MAIN_EIP_COUNT_BEFORE" ] \
     || fail "plain-plan-works" "the main estate's EIP count changed after the estate-block apply: $MAIN_EIP_COUNT_BEFORE -> $MAIN_EIP_COUNT_AFTER"
   echo "  plain apply: 7 added; main estate untouched (VPC $MAIN_VPC_ID, EIP count $MAIN_EIP_COUNT_AFTER unchanged); no authoritative state file"
@@ -1728,7 +1728,7 @@ else
   # 2. Live markers, read via the AWS CLI, never via choudoufu: the claim is that
   # the ownership record is on the resource, so asking choudoufu to confirm its
   # own story would prove nothing. At least the VPC and one EIP slot.
-  BLOCK_VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=stateless-e2e-block" \
+  BLOCK_VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=live-e2e-block" \
     --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo None)"
   [ -n "$BLOCK_VPC_ID" ] && [ "$BLOCK_VPC_ID" != "None" ] \
     || fail "plain-plan-works" "the estate-block VPC was not created"
@@ -1736,8 +1736,8 @@ else
     --query 'Tags[0].Value' --output text)"
   VPC_ADDR_TAG="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$BLOCK_VPC_ID" "Name=key,Values=tofu-address" \
     --query 'Tags[0].Value' --output text)"
-  [ "$VPC_ESTATE_TAG" = "stateless-e2e-block" ] \
-    || fail "plain-plan-works" "$BLOCK_VPC_ID carries tofu-estate=$VPC_ESTATE_TAG live, want stateless-e2e-block"
+  [ "$VPC_ESTATE_TAG" = "live-e2e-block" ] \
+    || fail "plain-plan-works" "$BLOCK_VPC_ID carries tofu-estate=$VPC_ESTATE_TAG live, want live-e2e-block"
   [ "$VPC_ADDR_TAG" = "aws_vpc.main" ] \
     || fail "plain-plan-works" "$BLOCK_VPC_ID carries tofu-address=$VPC_ADDR_TAG live, want aws_vpc.main"
 
@@ -1747,7 +1747,7 @@ else
   BLOCK_EIPS="$(awsl ec2 describe-addresses \
     --query 'Addresses[].[AllocationId,Tags[?Key==`tofu-estate`]|[0].Value,Tags[?Key==`tofu-slot`]|[0].Value]' \
     --output text 2>/dev/null)" || true
-  BLOCK_EIP_SLOT0="$(awk -v est="stateless-e2e-block" '$2==est && $3=="0" {print $1; exit}' <<< "$BLOCK_EIPS")"
+  BLOCK_EIP_SLOT0="$(awk -v est="live-e2e-block" '$2==est && $3=="0" {print $1; exit}' <<< "$BLOCK_EIPS")"
   [ -n "$BLOCK_EIP_SLOT0" ] || fail "plain-plan-works" "no live EIP for estate-block carrying tofu-slot=0: $BLOCK_EIPS"
   echo "  live markers confirmed via aws CLI: VPC $BLOCK_VPC_ID (tofu-address=aws_vpc.main), EIP slot 0 -> $BLOCK_EIP_SLOT0"
 
@@ -1819,26 +1819,26 @@ else
   echo "  rejected-flag spot check: plan -out and refresh both refused with their named errors"
 
   # 6. Teardown via the AWS CLI: "choudoufu apply -destroy" is a named rejection
-  # under a live block in v0 (statelessRejections, internal/command/
+  # under a live block in v0 (liveRejections, internal/command/
   # live_mode.go), and emptying the config hits the whole-block-
   # removal gap (a deleted block leaves the live resource standing).
   # The AWS CLI is the only correct
   # v0 teardown story, documented the same way in estate-block/README.md.
   for ALLOC in $(awsl ec2 describe-addresses \
-    --query "Addresses[?Tags[?Key=='tofu-estate' && Value=='stateless-e2e-block']].AllocationId" --output text); do
+    --query "Addresses[?Tags[?Key=='tofu-estate' && Value=='live-e2e-block']].AllocationId" --output text); do
     awsl ec2 release-address --allocation-id "$ALLOC" >/dev/null \
       || fail "plain-plan-works" "teardown: could not release EIP $ALLOC"
   done
-  awsl logs delete-log-group --log-group-name "/stateless-e2e-block/app" >/dev/null 2>&1 \
+  awsl logs delete-log-group --log-group-name "/live-e2e-block/app" >/dev/null 2>&1 \
     || fail "plain-plan-works" "teardown: could not delete the log group"
-  awsl s3api delete-bucket --bucket "tofu-stateless-e2e-block-data" >/dev/null 2>&1 \
+  awsl s3api delete-bucket --bucket "tofu-live-e2e-block-data" >/dev/null 2>&1 \
     || fail "plain-plan-works" "teardown: could not delete the bucket"
-  BLOCK_SG_ID="$(awsl ec2 describe-security-groups --filters "Name=tag:tofu-estate,Values=stateless-e2e-block" \
+  BLOCK_SG_ID="$(awsl ec2 describe-security-groups --filters "Name=tag:tofu-estate,Values=live-e2e-block" \
     --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null || echo None)"
   [ -n "$BLOCK_SG_ID" ] && [ "$BLOCK_SG_ID" != "None" ] \
     && { awsl ec2 delete-security-group --group-id "$BLOCK_SG_ID" >/dev/null \
       || fail "plain-plan-works" "teardown: could not delete the security group"; }
-  BLOCK_SUBNET_ID="$(awsl ec2 describe-subnets --filters "Name=tag:tofu-estate,Values=stateless-e2e-block" \
+  BLOCK_SUBNET_ID="$(awsl ec2 describe-subnets --filters "Name=tag:tofu-estate,Values=live-e2e-block" \
     --query 'Subnets[0].SubnetId' --output text 2>/dev/null || echo None)"
   [ -n "$BLOCK_SUBNET_ID" ] && [ "$BLOCK_SUBNET_ID" != "None" ] \
     && { awsl ec2 delete-subnet --subnet-id "$BLOCK_SUBNET_ID" >/dev/null \
@@ -1846,7 +1846,7 @@ else
   awsl ec2 delete-vpc --vpc-id "$BLOCK_VPC_ID" >/dev/null \
     || fail "plain-plan-works" "teardown: could not delete the VPC"
 
-  GONE_CHECK="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=stateless-e2e-block" \
+  GONE_CHECK="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=live-e2e-block" \
     --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo None)"
   [ "$GONE_CHECK" = "None" ] || fail "plain-plan-works" "teardown: the estate-block VPC is still live: $GONE_CHECK"
 
@@ -1977,7 +1977,7 @@ if [ "$HAVE_LIVE_ESTATE" -eq 0 ] || [ "$LIVE_E2E_EXACTNESS" != "1" ]; then
   not_implemented "receipt-cycle-existence" 5 "same gating as receipt-cycle: needs full-estate live-plan (-estate probe, RA.6's second receipt fixture) and P5.1's exactness work (LIVE_E2E_EXACTNESS=1, P5.2 flips the default to 1)"
 else
   STEP12B_T0=$(date +%s)
-  EXISTENCE_PARAM="/tofu-receipts/stateless-e2e/demo-existence"
+  EXISTENCE_PARAM="/tofu-receipts/live-e2e/demo-existence"
   EXISTENCE_ADDR="aws_ssm_parameter.demo_existence"
 
   # 1. The receipt exists with its constant value (RECEIPTS.md's existence
@@ -2037,11 +2037,11 @@ else
   EXISTENCE_TAGS_AFTER="$(awsl ssm list-tags-for-resource --resource-type Parameter \
     --resource-id "$EXISTENCE_PARAM" --query 'TagList[?Key==`tofu-estate`]|[0].Value' \
     --output text 2>/dev/null || echo None)"
-  if [ "$EXISTENCE_TAGS_AFTER" = "stateless-e2e" ]; then
+  if [ "$EXISTENCE_TAGS_AFTER" = "live-e2e" ]; then
     echo "  the recreated receipt already carries tofu-estate (floci-gaps #10 appears fixed); nothing to adopt"
   else
     awsl ssm add-tags-to-resource --resource-type Parameter --resource-id "$EXISTENCE_PARAM" \
-      --tags "Key=tofu-estate,Value=stateless-e2e" "Key=tofu-address,Value=$EXISTENCE_ADDR" >/dev/null \
+      --tags "Key=tofu-estate,Value=live-e2e" "Key=tofu-address,Value=$EXISTENCE_ADDR" >/dev/null \
       || fail "receipt-cycle-existence" "could not restore the recreated receipt's ownership markers"
     echo "  wrote tofu-estate/tofu-address onto the recreated $EXISTENCE_PARAM (floci-gaps #10: PutParameter dropped the inline set)"
   fi
@@ -2077,11 +2077,11 @@ fi
 #
 # Plain plan/apply need a "live" block, and $MAIN must stay free of one:
 # adding it to live/e2e/estate/ would make standup's own apply (step 2)
-# stateless and stop it from producing the terraform.tfstate adopt (step 3)
+# run in live mode and stop it from producing the terraform.tfstate adopt (step 3)
 # exists to delete. So this step works against $DO_DIR, a mktemp copy of
 # $MAIN's current on-disk config plus one additional file adding the live
 # block — a phase-local estate copy, never a second standup: $DO_DIR names
-# the SAME estate ($MAIN's "stateless-e2e") and declares the SAME resources
+# the SAME estate ($MAIN's "live-e2e") and declares the SAME resources
 # $MAIN already applied, so its own baseline apply below adopts what
 # standup already created rather than creating anything new. The AWS CLI
 # mutations below land on those same shared live resources, so every other
@@ -2098,14 +2098,14 @@ else
   cp -R "$MAIN/." "$DO_DIR/"
 
   # The one addition that turns $DO_DIR's plain "choudoufu plan"/"apply"
-  # stateless: a second terraform{} block — merges fine alongside the
+  # run in live mode: a second terraform{} block — merges fine alongside the
   # copied versions.tf's own terraform{} block, the same way a real module
   # splitting required_providers from a live block across files would —
   # naming the SAME estate $MAIN already owns.
   cat > "$DO_DIR/live_block.tf" <<'DOEOF'
 terraform {
   live {
-    estate = "stateless-e2e"
+    estate = "live-e2e"
   }
 }
 DOEOF
@@ -2127,9 +2127,9 @@ DOEOF
   # ── Inject three drifts out of band, one of each shape: (a) an
   # attribute the plan reads back, (b) a plain tag beside the marker on a
   # marked resource, (c) a whole marked, taggable resource deleted.
-  DO_LOG_NAME="/stateless-e2e/app"
-  DO_ALARM_NAME="tofu-stateless-e2e-cpu"
-  DO_VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=stateless-e2e" \
+  DO_LOG_NAME="/live-e2e/app"
+  DO_ALARM_NAME="tofu-live-e2e-cpu"
+  DO_VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=live-e2e" \
     --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo None)"
   [ -n "$DO_VPC_ID" ] && [ "$DO_VPC_ID" != "None" ] || fail "drift-reconverge" "could not find the estate's VPC"
 
@@ -2494,7 +2494,7 @@ cloud-block:state-backend"
 fi
 
 echo
-echo "PASS: stateless-mode E2E harness reached the end."
+echo "PASS: live-mode E2E harness reached the end."
 
 # --expect's verdict (task PE.2): reached only if nothing above called fail()
 # (which already exits nonzero on its own, satisfying "any fail anywhere is

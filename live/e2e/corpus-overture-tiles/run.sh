@@ -1415,7 +1415,7 @@ for idx, (i, addr, verb) in enumerate(headers):
             # A tofu-side-only behaviour flag EC2 never stores (live/e2e/
             # run.sh's own DRIFT_UNSERVED list, live/LIMITATIONS.md #328,
             # corpus-vpc-complete's own day2 notes on this exact "+
-            # revoke_rules_on_delete = false" line): every stateless replan
+            # revoke_rules_on_delete = false" line): every live replan
             # of an aws_security_group shows it, moved or not, because
             # there is no live value to compare against, only the
             # provider's own default. Not a real change on this or any
@@ -1746,7 +1746,7 @@ else
   # See the D-ORACLE comment above stage 2 for why both mechanisms run on the
   # SAME module. Unlike stock's one module-level block, choudoufu's own legs
   # need one moved block PER TAGGABLE child (16): each carries its own marker,
-  # and only an explicit moved block tells choudoufu's stateless live-plan
+  # and only an explicit moved block tells choudoufu's live-plan
   # which old tag address maps to which new declared one - the same finding
   # corpus-lambda-simple made for its own 3 taggable children, generalized to
   # 16. The 9 untaggable/config-derived children and the 1 UNADMITTED_TYPE OAC
@@ -1793,7 +1793,7 @@ else
     BREAK_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
     [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=2 rename-without-moved plan exited $BREAK_PLAN_RC"; }
     # Verified directly (measured, not guessed - this is NOT the uniform
-    # "create only, no destroy" stateless-replan shape iam-read-only-policy
+    # "create only, no destroy" live-replan shape iam-read-only-policy
     # and simpleinfra-dns show elsewhere in this batch): different
     # resources in THIS module resolve differently once nothing bridges
     # the rename. The VPC, subnet, security group and a few others show
@@ -2535,7 +2535,7 @@ EOF
     [ "$COUNT_NOOP_PLAN_RC" -eq 0 ] || { printf '%s\n' "$COUNT_NOOP_PLAN_OUT" | tail -40; fail "the post-add plan exited $COUNT_NOOP_PLAN_RC"; }
     grep -qE 'No changes\.' <<< "$COUNT_NOOP_PLAN_OUT" \
       || { grep -E '^Plan: |^  # .+ will be' <<< "$COUNT_NOOP_PLAN_OUT"; fail "the plan right after adding the count block is not empty - the new instances did not bind their own markers cleanly"; }
-    log "  No changes - both new instances bind straight off their own markers on the next stateless live-plan"
+    log "  No changes - both new instances bind straight off their own markers on the next live-plan"
 
     log "=== G2. scale count down: 2 -> 1 ==="
     perl -pi -e 's/^  count       = 2$/  count       = 1/' "$ESTATE/main.tf"
@@ -2625,7 +2625,7 @@ EOF
 
       log ""
       log "PART G (day2_count): PASS"
-      gauntlet_stage day2_count pass "choudoufu: scaling aws_security_group.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live GroupId ($SG0_ID) and its tofu-address marker (aws_security_group.count_test:0, colon-escaped per live/MARKERS.md) unchanged, both read back through the AWS CLI; scaling back from 1 to 2 created exactly count_test[1] (1 add, 0 change, 0 destroy) under a NEW GroupId ($SG1_ID -> $SG1_NEW_ID) carrying tofu-address=aws_security_group.count_test:1, while count_test[0] stayed untouched throughout; every absence check reads length(SecurityGroups) through a group-id FILTER, because describe-security-groups --group-ids on a deleted id returns an empty list with exit 0 on this emulator pin; the next stateless live-plan is empty. Stock oracle (G0): the identical 2-instance block stood up with plain tofu in its own working directory against the same idle endpoint shows the identical shape - destroy the higher index only (0 add, 0 change, 1 destroy), create the higher index back under a new GroupId (1 add, 0 change, 0 destroy), the lower index's GroupId unchanged both times - then torn down (3 destroyed) before the choudoufu side ran. SYNTHETIC BLOCK, and why: every count this module declares is a boolean create toggle (create_vpc x7, create_s3_bucket x4, create_cloudfront_distribution x2, three launch_template variants gated on existing_id == null), never a scalable set, so scaling one is the day2_remove shape this script already runs, not a shape with a survivor; and its one real for_each (aws_batch_job_definition.tiles over toset(var.themes)) is scoped by this crossing's own root config to a single theme from stage 1 onward, so it has nothing to scale down to and widening it would move every earlier stage's counted assertions (26 resources, 16 stamped, 16 tagged objects, day2_rename's own 16-address list). What shrinking that set would plan is not claimed: it was never measured, because it was never a usable option. Sanctioned fallback per live/GAUNTLET.md #8, precedent reference-ec2-vpc Part F and corpus-iam-policy Part G. It reuses a type this estate already exercises (aws_security_group.batch), sits at a root address nothing else names, and runs entirely after day2_remove, so no earlier stage's assertions move. BREAK_COUNT=1 asserts the WRONG instance (count_test[0]) was destroyed and correctly reports fail."
+      gauntlet_stage day2_count pass "choudoufu: scaling aws_security_group.count_test from 2 to 1 destroyed exactly count_test[1] (0 add, 0 change, 1 destroy), leaving count_test[0]'s live GroupId ($SG0_ID) and its tofu-address marker (aws_security_group.count_test:0, colon-escaped per live/MARKERS.md) unchanged, both read back through the AWS CLI; scaling back from 1 to 2 created exactly count_test[1] (1 add, 0 change, 0 destroy) under a NEW GroupId ($SG1_ID -> $SG1_NEW_ID) carrying tofu-address=aws_security_group.count_test:1, while count_test[0] stayed untouched throughout; every absence check reads length(SecurityGroups) through a group-id FILTER, because describe-security-groups --group-ids on a deleted id returns an empty list with exit 0 on this emulator pin; the next live-plan is empty. Stock oracle (G0): the identical 2-instance block stood up with plain tofu in its own working directory against the same idle endpoint shows the identical shape - destroy the higher index only (0 add, 0 change, 1 destroy), create the higher index back under a new GroupId (1 add, 0 change, 0 destroy), the lower index's GroupId unchanged both times - then torn down (3 destroyed) before the choudoufu side ran. SYNTHETIC BLOCK, and why: every count this module declares is a boolean create toggle (create_vpc x7, create_s3_bucket x4, create_cloudfront_distribution x2, three launch_template variants gated on existing_id == null), never a scalable set, so scaling one is the day2_remove shape this script already runs, not a shape with a survivor; and its one real for_each (aws_batch_job_definition.tiles over toset(var.themes)) is scoped by this crossing's own root config to a single theme from stage 1 onward, so it has nothing to scale down to and widening it would move every earlier stage's counted assertions (26 resources, 16 stamped, 16 tagged objects, day2_rename's own 16-address list). What shrinking that set would plan is not claimed: it was never measured, because it was never a usable option. Sanctioned fallback per live/GAUNTLET.md #8, precedent reference-ec2-vpc Part F and corpus-iam-policy Part G. It reuses a type this estate already exercises (aws_security_group.batch), sits at a root address nothing else names, and runs entirely after day2_remove, so no earlier stage's assertions move. BREAK_COUNT=1 asserts the WRONG instance (count_test[0]) was destroyed and correctly reports fail."
       log ""
     fi
     gauntlet_end_stage

@@ -30,7 +30,7 @@ APPLY_OUT="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color
   || fail "orphans" "apply failed: $APPLY_OUT"
 grep -E 'Apply complete!' <<< "$APPLY_OUT" | evidence
 ADDED="$(grep -oE 'Resources: [0-9]+ added' <<< "$APPLY_OUT" | grep -oE '[0-9]+')"
-VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=stateless-e2e-block" --query 'Vpcs[0].VpcId' --output text)"
+VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:tofu-estate,Values=live-e2e-block" --query 'Vpcs[0].VpcId' --output text)"
 proof "$ADDED resources, each carrying its ownership markers from the create call."
 
 step "2. the crash shape - a resource created, then everyone forgot"
@@ -45,7 +45,7 @@ CRASHED="$(awsl ec2 create-subnet --vpc-id "$VPC_ID" --cidr-block 10.0.99.0/24 -
 [ -n "$CRASHED" ] || fail "orphans" "could not create the crash-shaped subnet"
 if [ "${BREAK:-0}" != "1" ]; then
   awsl ec2 create-tags --resources "$CRASHED" \
-    --tags "Key=tofu-estate,Value=stateless-e2e-block" "Key=tofu-address,Value=aws_subnet.crashed" \
+    --tags "Key=tofu-estate,Value=live-e2e-block" "Key=tofu-address,Value=aws_subnet.crashed" \
     || fail "orphans" "could not mark the crash-shaped subnet"
   echo "created $CRASHED, marked as aws_subnet.crashed - and no run has ever heard of it" | evidence
 else

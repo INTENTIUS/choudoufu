@@ -66,8 +66,8 @@ func (c StateMvCommand) Execute(args *arguments.StateMv, view views.State) int {
 	//  arguments.State in such way to be reused with/without the stateOut.
 	c.Meta.stateArgs.StateOutPath = ""
 
-	// See statelessStateGuard: refused before anything reaches a state manager.
-	if guardDiags := c.statelessStateGuard(ctx, "mv"); guardDiags.HasErrors() {
+	// See liveStateGuard: refused before anything reaches a state manager.
+	if guardDiags := c.liveStateGuard(ctx, "mv"); guardDiags.HasErrors() {
 		view.Diagnostics(diags.Append(guardDiags))
 		return 1
 	}

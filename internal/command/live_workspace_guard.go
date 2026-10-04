@@ -13,8 +13,8 @@ import (
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
-// statelessWorkspaceGuard refuses the workspace commands that would put a
-// stateless working directory into a workspace it cannot run in, and is a
+// liveWorkspaceGuard refuses the workspace commands that would put a
+// live-mode working directory into a workspace it cannot run in, and is a
 // no-op for every other configuration.
 //
 // The hole this closes (audit finding F-WS): a live directory refused a
@@ -41,11 +41,11 @@ import (
 // exists, which is cleanup rather than stranding, and it cannot run against
 // the selected workspace anyway.
 //
-// Like the other stateless guards, this runs before a backend is prepared,
+// Like the other live-mode guards, this runs before a backend is prepared,
 // so a refused command cannot leave a state file, a workspace directory or a
 // lock behind.
-func (m *Meta) statelessWorkspaceGuard(ctx context.Context, subcommand string, workspace string) tfdiags.Diagnostics {
-	settings, diags := m.statelessSettings(ctx, false)
+func (m *Meta) liveWorkspaceGuard(ctx context.Context, subcommand string, workspace string) tfdiags.Diagnostics {
+	settings, diags := m.liveSettings(ctx, false)
 	if diags.HasErrors() || settings == nil {
 		return diags
 	}
@@ -55,15 +55,15 @@ func (m *Meta) statelessWorkspaceGuard(ctx context.Context, subcommand string, w
 	}
 	// Same shape as the other two guards: the summary is a noun phrase and
 	// the command that was refused opens the detail. See
-	// [Meta.statelessStateGuard] for why.
+	// [Meta.liveStateGuard] for why.
 	return diags.Append(tfdiags.Sourceless(
 		tfdiags.Error,
 		"Command not available under live resource markers",
-		statelessWorkspaceDetail(subcommand),
+		liveWorkspaceDetail(subcommand),
 	))
 }
 
-func statelessWorkspaceDetail(subcommand string) string {
+func liveWorkspaceDetail(subcommand string) string {
 	shared := fmt.Sprintf("\"choudoufu workspace %s\" is not available here. ", subcommand) +
 		"A workspace is a second state file under a different name, and this configuration's live block says there is no first one. " +
 		"The unit of ownership under live resource markers is the estate, named by the live block and recorded on the resources themselves as the tofu-estate marker (live/MARKERS.md). " +

@@ -23,7 +23,7 @@ import (
 	"github.com/intentius/choudoufu/internal/tofu"
 )
 
-// Manager is the state manager a stateless run uses: the roadmap's
+// Manager is the state manager a live run uses: the roadmap's
 // statemgr.Projection. It satisfies [statemgr.Full] so that the ordinary
 // plan and apply operations in internal/backend/local can run unchanged,
 // and it has no persistent side at all.
@@ -34,10 +34,10 @@ import (
 //     final state to it. Refusing to hold that would break the operation
 //     without removing any authority.
 //   - RefreshState is a no-op. There is nothing persistent to read from, and
-//     the prior state a stateless run plans against does not arrive this way:
+//     the prior state a live run plans against does not arrive this way:
 //     it is a projection built from the live system by the run's own
 //     pipeline and handed to the operation (see internal/backend/local's
-//     StatelessRun seam). A projection needs the configuration and configured
+//     LiveRun seam). A projection needs the configuration and configured
 //     providers to build, and the state manager interface offers neither.
 //   - PersistState writes nothing authoritative, anywhere, and cannot fail
 //     the operation. It is not a "write to /dev/null" adapter over a file
@@ -240,7 +240,7 @@ func (m *Manager) Persists() int {
 // Not calling this method at all is the manager's half of "no record_store
 // in the live block -> nothing written, ever": there is no default store a
 // Manager falls back to, and nothing else in this package can turn the
-// hint write on. The caller (internal/command's stateless runner) calls it
+// hint write on. The caller (internal/command's live runner) calls it
 // once the estate name is settled and the live block's record store is
 // open, which is why the estate here is always the settled name, never a
 // placeholder filled in later.
@@ -361,7 +361,7 @@ func (m *Manager) GetRootOutputValues(context.Context) (map[string]*states.Outpu
 // Unlock with the wrong id is impossible to construct: there is only one
 // possible id, and it unlocks nothing.
 func (m *Manager) Lock(context.Context, *statemgr.LockInfo) (string, error) {
-	return "stateless", nil
+	return "live", nil
 }
 
 // Unlock implements [statemgr.Locker] without releasing anything.

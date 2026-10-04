@@ -119,7 +119,7 @@ func newK8sCluster(labels map[string]string) *k8sCluster {
 	return c
 }
 
-// ListResourceStream is the list protocol the stateless list client asks
+// ListResourceStream is the list protocol the live-mode list client asks
 // for by assertion; the provider serves no list schema, so it is never
 // called.
 func (*k8sCluster) ListResourceStream(context.Context, providers.ListResourceRequest, func(providers.ListResourceEvent) bool) tfdiags.Diagnostics {

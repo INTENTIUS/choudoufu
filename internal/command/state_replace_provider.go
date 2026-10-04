@@ -52,8 +52,8 @@ func (c StateReplaceProviderCommand) Execute(args *arguments.StateReplaceProvide
 
 	ctx := c.CommandContext()
 
-	// See statelessStateGuard: refused before anything reaches a state manager.
-	if guardDiags := c.statelessStateGuard(ctx, "replace-provider"); guardDiags.HasErrors() {
+	// See liveStateGuard: refused before anything reaches a state manager.
+	if guardDiags := c.liveStateGuard(ctx, "replace-provider"); guardDiags.HasErrors() {
 		view.Diagnostics(diags.Append(guardDiags))
 		return 1
 	}

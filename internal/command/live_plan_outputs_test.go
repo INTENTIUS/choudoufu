@@ -20,23 +20,23 @@ import (
 // changing zero resources. See internal/live/projection/outputs.go's
 // ApplyRootOutputValues, which evaluates the root module's output
 // expressions against the projected prior state before the plan runs - the
-// stateless equivalent of what a normal refresh does before diffing "prior"
+// live-mode equivalent of what a normal refresh does before diffing "prior"
 // output values against "planned" ones.
 func TestLivePlan_rootOutputsNoOpWhenUnchanged(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-plan-outputs"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id":     "tofu-stateless-unit-data",
-		"bucket": "tofu-stateless-unit-data",
-		"arn":    "arn:aws:s3:::tofu-stateless-unit-data",
+	cloud := newLiveTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id":     "tofu-live-unit-data",
+		"bucket": "tofu-live-unit-data",
+		"arn":    "arn:aws:s3:::tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -67,11 +67,11 @@ func TestLivePlan_rootOutputsChangeWhenResourceIsCreated(t *testing.T) {
 	t.Chdir(td)
 
 	// Nothing put in the cloud: the bucket does not exist yet.
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-detailed-exitcode"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "-detailed-exitcode"})
 	output := done(t)
 	if code != 2 {
 		t.Fatalf("exit code %d, want 2 (changes present, -detailed-exitcode)\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())

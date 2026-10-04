@@ -77,7 +77,7 @@ func TestNoStateAbsenceClaims(t *testing.T) {
 
 	// Phrases that are wrong everywhere: no file in this tree has a
 	// legitimate reason to say live mode removes or eliminates state, or
-	// that a stateless run has no state to put anywhere. Matched
+	// that a live run has no state to put anywhere. Matched
 	// case-insensitively as fixed strings (not regexes) against every
 	// tracked file, git's own exclusions (.gitignore, binary detection)
 	// apply automatically via `git grep`.

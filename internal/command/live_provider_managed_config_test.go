@@ -33,7 +33,7 @@ import (
 // The design comment's reading of the code was that this is red without the
 // fix: [dataread.AnalyzeProviderConfigs] collected only the data sources a
 // provider block reaches, so nothing demanded the cluster, and
-// [statelessProviders.providerConfigValue] decoded the block through an
+// [projectionProviders.providerConfigValue] decoded the block through an
 // evaluator that refuses every managed and module-output reference. The
 // sweep then read the cluster as unreachable on an estate whose cluster
 // exists. corpus-eks-basic never hit it because v9.0.0 goes through
@@ -73,12 +73,12 @@ func TestProviderBlockReadsAManagedValue(t *testing.T) {
 			cfg := providerManagedLoadConfig(t, filepath.Join("testdata", tc.fixture))
 			cloud := newProviderManagedCloud()
 
-			resolutions, resolveDiags := statelessResolve(t.Context(), cfg, cloud, nil, nil, nil)
+			resolutions, resolveDiags := liveResolve(t.Context(), cfg, cloud, nil, nil, nil)
 			if n := errorCount(resolveDiags); n != 0 {
-				t.Fatalf("statelessResolve refused with %d error(s): %v", n, renderDiags(resolveDiags))
+				t.Fatalf("liveResolve refused with %d error(s): %v", n, renderDiags(resolveDiags))
 			}
 
-			dataResults, managed, readDiags := statelessProviderDataReads(t.Context(), cfg, cloud, nil, resolutions, nil, 1, nil, nil)
+			dataResults, managed, readDiags := liveProviderDataReads(t.Context(), cfg, cloud, nil, resolutions, nil, 1, nil, nil)
 			if readDiags.HasErrors() {
 				t.Fatalf("the provider-configuration fixpoint raised an error: %v", renderDiags(readDiags))
 			}
@@ -138,13 +138,13 @@ func TestProviderBlockReadsAManagedValueFromPriorState(t *testing.T) {
 			cfg := providerManagedLoadConfig(t, filepath.Join("testdata", tc.fixture))
 			cloud := newProviderManagedCloud()
 
-			resolutions, resolveDiags := statelessResolve(t.Context(), cfg, cloud, nil, nil, nil)
+			resolutions, resolveDiags := liveResolve(t.Context(), cfg, cloud, nil, nil, nil)
 			if n := errorCount(resolveDiags); n != 0 {
-				t.Fatalf("statelessResolve refused with %d error(s): %v", n, renderDiags(resolveDiags))
+				t.Fatalf("liveResolve refused with %d error(s): %v", n, renderDiags(resolveDiags))
 			}
 			prior := map[string]cty.Value{tc.cluster: providerManagedClusterObject("demo", "https://from-state.example")}
 
-			dataResults, managed, readDiags := statelessProviderDataReads(t.Context(), cfg, cloud, nil, resolutions, nil, 1, nil, prior)
+			dataResults, managed, readDiags := liveProviderDataReads(t.Context(), cfg, cloud, nil, resolutions, nil, 1, nil, prior)
 			if readDiags.HasErrors() {
 				t.Fatalf("the provider-configuration fixpoint raised an error: %v", renderDiags(readDiags))
 			}
@@ -163,7 +163,7 @@ func TestProviderBlockReadsAManagedValueFromPriorState(t *testing.T) {
 // TestProviderBlockOverAClusterNotCreatedYet is the ruling's first half: a
 // cluster that does not exist reads as empty, stock's order. The fixpoint
 // raises nothing and the provider is not evaluable, which is the condition
-// [statelessDiscoverProviderUnavailable] already downgrades for a sweep no
+// [liveDiscoverProviderUnavailable] already downgrades for a sweep no
 // needs-discovery instance depends on.
 func TestProviderBlockOverAClusterNotCreatedYet(t *testing.T) {
 	for _, tc := range providerManagedFixtures {
@@ -172,8 +172,8 @@ func TestProviderBlockOverAClusterNotCreatedYet(t *testing.T) {
 			cloud := newProviderManagedCloud()
 			cloud.absent = true
 
-			resolutions, _ := statelessResolve(t.Context(), cfg, cloud, nil, nil, nil)
-			dataResults, managed, readDiags := statelessProviderDataReads(t.Context(), cfg, cloud, nil, resolutions, nil, 1, nil, nil)
+			resolutions, _ := liveResolve(t.Context(), cfg, cloud, nil, nil, nil)
+			dataResults, managed, readDiags := liveProviderDataReads(t.Context(), cfg, cloud, nil, resolutions, nil, 1, nil, nil)
 			if readDiags.HasErrors() {
 				t.Fatalf("a cluster that does not exist yet raised an error: %v", renderDiags(readDiags))
 			}
@@ -181,7 +181,7 @@ func TestProviderBlockOverAClusterNotCreatedYet(t *testing.T) {
 				t.Errorf("the fixpoint holds a value for %s, which does not exist", tc.cluster)
 			}
 
-			p := &statelessProviders{config: cfg, providerDataResults: dataResults, providerManagedResults: managed}
+			p := &projectionProviders{config: cfg, providerDataResults: dataResults, providerManagedResults: managed}
 			_, diags := p.providerConfigValue(t.Context(), providerManagedKubernetes, providerManagedKubernetesSchema().DecoderSpec())
 			if !diags.HasErrors() {
 				t.Errorf("the kubernetes provider was configured over a cluster that does not exist")
@@ -200,8 +200,8 @@ func TestProviderBlockOverAnUnreadableCluster(t *testing.T) {
 			cloud := newProviderManagedCloud()
 			cloud.failRead = true
 
-			resolutions, _ := statelessResolve(t.Context(), cfg, cloud, nil, nil, nil)
-			_, _, readDiags := statelessProviderDataReads(t.Context(), cfg, cloud, nil, resolutions, nil, 1, nil, nil)
+			resolutions, _ := liveResolve(t.Context(), cfg, cloud, nil, nil, nil)
+			_, _, readDiags := liveProviderDataReads(t.Context(), cfg, cloud, nil, resolutions, nil, 1, nil, nil)
 			found := false
 			for _, d := range readDiags {
 				if d.Severity() == tfdiags.Error && d.Description().Summary == summaryProviderConfigManagedReadFailed {
@@ -242,7 +242,7 @@ func TestProviderBlockManagedDemandIsOfflineAndGated(t *testing.T) {
 // #1113. live-target-provider-work's kubernetes block reads only data
 // sources, and its aws block is literal.
 func TestProviderConfigEvaluatorLeavesOtherBlocksAlone(t *testing.T) {
-	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", targetWorkFixture))
+	cfg := liveTestLoadConfig(t, filepath.Join("testdata", targetWorkFixture))
 	for _, pc := range cfg.Module.ProviderConfigs {
 		if got := dataread.ProviderConfigEvaluator(t.Context(), cfg, addrs.RootModule, pc, nil, nil); got != nil {
 			t.Errorf("provider %q got the live evaluator, but reaches no managed value or module output", pc.Name)
@@ -382,7 +382,7 @@ func newProviderManagedCloud() *providerManagedCloud {
 // ConfiguredProvider does, from the fixpoint's own two result maps.
 func providerManagedDecode(t *testing.T, cfg *configs.Config, _ *providerManagedCloud, dataResults, managed map[string]cty.Value) cty.Value {
 	t.Helper()
-	p := &statelessProviders{config: cfg, providerDataResults: dataResults, providerManagedResults: managed}
+	p := &projectionProviders{config: cfg, providerDataResults: dataResults, providerManagedResults: managed}
 	val, diags := p.providerConfigValue(t.Context(), providerManagedKubernetes, providerManagedKubernetesSchema().DecoderSpec())
 	if diags.HasErrors() {
 		t.Fatalf("the kubernetes provider block did not decode: %v", renderDiags(diags))
@@ -398,7 +398,7 @@ func providerManagedKeys(m map[string]cty.Value) []string {
 	return out
 }
 
-// providerManagedLoadConfig is [statelessTestLoadConfig] for a fixture that
+// providerManagedLoadConfig is [liveTestLoadConfig] for a fixture that
 // calls a local module, resolved relative to the calling module's own
 // directory.
 func providerManagedLoadConfig(t *testing.T, dir string) *configs.Config {

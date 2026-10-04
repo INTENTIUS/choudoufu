@@ -1165,7 +1165,7 @@ if [ "${BREAK:-}" = "rename" ]; then
   # under the new name). The managed policy takes an entirely different
   # route: "[NEEDS_DISCOVERY]" because aws_iam_policy's import identity is
   # the whole ARN as one opaque provider-required string, not one this
-  # stateless walk resolves the old marked object through here, so it is
+  # live walk resolves the old marked object through here, so it is
   # simply proposed as a fresh create with no destroy of its own old address
   # at all - never treated as a collision. A dependent untaggable child
   # (aws_iam_role_policy_attachment) is also proposed as a create, since it

@@ -22,12 +22,12 @@ import (
 
 // CheckResidueAttributes warns, once per resource block and attribute path,
 // when a configuration sets an argument whose value can never round-trip a
-// stateless replan: a write-only attribute, whose value the plugin protocol
+// live replan: a write-only attribute, whose value the plugin protocol
 // forbids the provider ever returning, or - under
 // `strict { secrets = "refuse" }` only - a sensitive settable attribute,
 // which that setting keeps out of every marker and record even when a cloud
 // read would echo it. Either way no memory of the value survives a run, so
-// every stateless plan re-proposes sending it - exactly what stock
+// every live plan re-proposes sending it - exactly what stock
 // `terraform import` produces for the same arguments. The configuration
 // still works; the warning exists so the perpetual diff is set knowingly
 // rather than discovered.

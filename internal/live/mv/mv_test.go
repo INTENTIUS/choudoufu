@@ -57,11 +57,11 @@ const (
 	awsRegion = "us-east-1"
 
 	// estateName is the estate the P0.1 fixture stamps on everything.
-	estateName = "stateless-e2e"
+	estateName = "live-e2e"
 
 	// estateBucket is the fixture's bucket, whose name is its identity and
 	// which the rename below deliberately does not change.
-	estateBucket = "tofu-stateless-e2e-data"
+	estateBucket = "tofu-live-e2e-data"
 
 	// terraformBin stands the estate up. Stock terraform on purpose: what is
 	// renamed has to be something this fork did not create.
@@ -69,7 +69,7 @@ const (
 
 	// estateLogGroup is the fixture's log group, the client-named type this
 	// test renames for a gap-free proof of that path.
-	estateLogGroup = "/stateless-e2e/app"
+	estateLogGroup = "/live-e2e/app"
 
 	// flociPolicyChild is the untaggable child of a bucket, and the one
 	// tolerated shape here that is not an emulator gap at all.
@@ -181,7 +181,7 @@ func TestMvAgainstFloci(t *testing.T) {
 
 	// The baseline: whatever this estate plans to before anything is renamed
 	// is what "no churn" has to mean afterwards.
-	assertCleanPlan(t, "baseline", statelessPlan(t, tofuBin, dir))
+	assertCleanPlan(t, "baseline", livePlan(t, tofuBin, dir))
 
 	sgID := flocitest.AWSCLI(t, flociPort, "ec2", "describe-security-groups",
 		"--filters", "Name=tag:tofu-estate,Values="+estateName,
@@ -199,7 +199,7 @@ func TestMvAgainstFloci(t *testing.T) {
 		})
 
 		// A dry run first: it reports the same rewrite and writes nothing.
-		dry := statelessMv(t, tofuBin, dir, "-dry-run", "aws_security_group.main", "aws_security_group.renamed")
+		dry := liveMv(t, tofuBin, dir, "-dry-run", "aws_security_group.main", "aws_security_group.renamed")
 		if !strings.Contains(dry, "Nothing was written (-dry-run)") {
 			t.Errorf("the dry run does not say it wrote nothing:\n%s", dry)
 		}
@@ -207,7 +207,7 @@ func TestMvAgainstFloci(t *testing.T) {
 			t.Fatalf("-dry-run changed the live tag: tofu-address = %q", got)
 		}
 
-		out := statelessMv(t, tofuBin, dir, "aws_security_group.main", "aws_security_group.renamed")
+		out := liveMv(t, tofuBin, dir, "aws_security_group.main", "aws_security_group.renamed")
 		if !strings.Contains(out, "This was a cloud write.") {
 			t.Errorf("the rename does not report a cloud write:\n%s", out)
 		}
@@ -223,7 +223,7 @@ func TestMvAgainstFloci(t *testing.T) {
 			t.Errorf("the estate marker on %s reads %q, want %s", sgID, got, estateName)
 		}
 
-		assertCleanPlan(t, "after the security group rename", statelessPlan(t, tofuBin, dir))
+		assertCleanPlan(t, "after the security group rename", livePlan(t, tofuBin, dir))
 	})
 
 	// --- The client-named path: aws_cloudwatch_log_group ------------------
@@ -233,7 +233,7 @@ func TestMvAgainstFloci(t *testing.T) {
 			"aws_cloudwatch_log_group.app":              "aws_cloudwatch_log_group.renamed",
 		})
 
-		out := statelessMv(t, tofuBin, dir, "aws_cloudwatch_log_group.app", "aws_cloudwatch_log_group.renamed")
+		out := liveMv(t, tofuBin, dir, "aws_cloudwatch_log_group.app", "aws_cloudwatch_log_group.renamed")
 		if !strings.Contains(out, "This was a cloud write.") {
 			t.Errorf("the rename does not report a cloud write:\n%s", out)
 		}
@@ -249,7 +249,7 @@ func TestMvAgainstFloci(t *testing.T) {
 			t.Errorf("the estate marker on %s reads %q, want %s", estateLogGroup, got, estateName)
 		}
 
-		assertCleanPlan(t, "after the log group rename", statelessPlan(t, tofuBin, dir))
+		assertCleanPlan(t, "after the log group rename", livePlan(t, tofuBin, dir))
 	})
 
 	// --- The same path over the type with the emulator's tagging gap ------
@@ -259,7 +259,7 @@ func TestMvAgainstFloci(t *testing.T) {
 			"aws_s3_bucket.data":              "aws_s3_bucket.archive",
 		})
 
-		out := statelessMv(t, tofuBin, dir, "aws_s3_bucket.data", "aws_s3_bucket.archive")
+		out := liveMv(t, tofuBin, dir, "aws_s3_bucket.data", "aws_s3_bucket.archive")
 		if !strings.Contains(out, "This was a cloud write.") {
 			t.Errorf("the rename does not report a cloud write:\n%s", out)
 		}
@@ -281,7 +281,7 @@ func TestMvAgainstFloci(t *testing.T) {
 			t.Logf("known emulator gap: %s lost its tofu-estate tag (%q) because the emulator's S3 Control TagResource replaces the tag set instead of merging", estateBucket, got)
 		}
 
-		assertCleanPlan(t, "after the bucket rename", statelessPlan(t, tofuBin, dir), flociS3TagGap)
+		assertCleanPlan(t, "after the bucket rename", livePlan(t, tofuBin, dir), flociS3TagGap)
 	})
 
 	// Nothing was written to disk by any of it.
@@ -482,7 +482,7 @@ func unownedInstances(output string) []string {
 // Running the commands
 // ---------------------------------------------------------------------------
 
-func statelessPlan(t *testing.T, tofuBin, dir string, args ...string) string {
+func livePlan(t *testing.T, tofuBin, dir string, args ...string) string {
 	t.Helper()
 
 	full := append([]string{"live-plan", "-no-color", "-input=false"}, args...)
@@ -493,7 +493,7 @@ func statelessPlan(t *testing.T, tofuBin, dir string, args ...string) string {
 	return out
 }
 
-func statelessMv(t *testing.T, tofuBin, dir string, args ...string) string {
+func liveMv(t *testing.T, tofuBin, dir string, args ...string) string {
 	t.Helper()
 
 	full := append([]string{"live-mv", "-no-color"}, args...)

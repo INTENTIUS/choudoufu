@@ -13,7 +13,7 @@
 //
 // Two callers need exactly this, on two different paths to the same
 // provider RPC: internal/live/projection/build.go's pre-walk projection
-// (importAndRead, for `choudoufu live-plan`'s stateless report) and
+// (importAndRead, for `choudoufu live-plan`'s live report) and
 // internal/tofu/node_resource_plan_instance.go's plan-node seam (issue
 // #388's ResourceIdentityResolver hook, importState). Neither may import
 // the other - internal/tofu must never import the fork's live-mode

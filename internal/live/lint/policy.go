@@ -33,7 +33,7 @@ import (
 // per-module (internal/configs/module.go) and child modules are admitted
 // since issue #59, so the old claim that RuleChildModule refuses them first
 // is false. What is true is that nothing outside the root's block is acted
-// on: statelessSettings reads the root module's Live only, and
+// on: liveSettings reads the root module's Live only, and
 // recordStoreConfiguredIn is documented as read once from the root and
 // threaded. So this rule still fires on whatever it finds, which is the
 // conservative direction, but a policy block in a child module is enforced

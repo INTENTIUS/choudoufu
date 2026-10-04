@@ -14,10 +14,10 @@ provider "aws" {
 # stamping pass will not rewrite it: that is a rename, and a rename is
 # live-mv's job.
 resource "aws_s3_bucket" "data" {
-  bucket = "tofu-stateless-unit-data"
+  bucket = "tofu-live-unit-data"
 
   tags = {
-    tofu-estate  = "stateless-unit"
+    tofu-estate  = "live-unit"
     tofu-address = "aws_s3_bucket.old_name"
   }
 }

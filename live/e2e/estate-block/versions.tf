@@ -11,14 +11,14 @@ terraform {
   required_version = ">= 1.5.0"
 
   # This is the block under test: its presence is what turns plain "choudoufu
-  # plan"/"choudoufu apply" stateless. "stateless-e2e-block" is
-  # deliberately NOT "stateless-e2e" (the main estate's name, live/e2e/
+  # plan"/"choudoufu apply" into live mode. "live-e2e-block" is
+  # deliberately NOT "live-e2e" (the main estate's name, live/e2e/
   # estate/locals.tf) — a distinct estate name means this fixture's resources
   # are foreign to the main estate and vice versa, so the two can stand up in
   # the same account without either plan seeing the other's resources as its
   # own.
   live {
-    estate = "stateless-e2e-block"
+    estate = "live-e2e-block"
   }
 
   required_providers {

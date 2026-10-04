@@ -55,8 +55,8 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 // configuration that names its own estate, asked for -json, is asking for
 // GitHub issue #788's document, and LivePlanCommand.livePlan is the only
 // pipeline in the fork that builds one. Nothing in Execute can -
-// statelessBegin and backend_local.go's StatelessRun have no hook that
-// renders it, which is what statelessRejections' "Machine-readable output is
+// liveBegin and backend_local.go's LiveRun have no hook that
+// renders it, which is what liveRejections' "Machine-readable output is
 // not available under live resource markers yet" has always been saying - so
 // the choice is to delegate or to keep refusing, and #894 is the report of a
 // consumer who could not get the document for the configuration shape the
@@ -78,13 +78,13 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 // with no representation on either pipeline, and it keeps its refusal from
 // the one shared list in Execute.
 //
-// statelessSettings resolves the root module call, which is cached and which
+// liveSettings resolves the root module call, which is cached and which
 // needs the -var values; RunCli has set those on Meta before this runs. Load
 // errors are tolerated here, as in LivePlanCommand.Execute's own alias: the
 // ordinary path reports them in its own voice.
 func (c PlanCommand) run(args *arguments.Plan) int {
 	if args.View.ViewType == arguments.ViewJSON && args.View.JSONInto == nil {
-		if settings, _ := c.statelessSettings(c.CommandContext(), true); settings != nil {
+		if settings, _ := c.liveSettings(c.CommandContext(), true); settings != nil {
 			return (&LivePlanCommand{Meta: c.Meta}).Execute(&arguments.LivePlan{Plan: args})
 		}
 	}
@@ -122,22 +122,22 @@ func (c PlanCommand) Execute(args *arguments.Plan, view views.Plan) int {
 		return 1
 	}
 
-	// Stateless mode is switched on by a "live" block in the
+	// Live mode is switched on by a "live" block in the
 	// configuration, never by a flag, so that a run cannot fall back to
 	// writing a state file by forgetting one. Without the block this is nil
 	// and nothing below changes.
-	statelessCfg, statelessDiags := c.statelessSettings(ctx, false)
-	diags = diags.Append(statelessDiags)
-	if statelessDiags.HasErrors() {
+	liveCfg, liveDiags := c.liveSettings(ctx, false)
+	diags = diags.Append(liveDiags)
+	if liveDiags.HasErrors() {
 		view.Diagnostics(diags)
 		return 1
 	}
 
 	// GitHub issue #587: -adoption-only is a live-markers concept, so a
 	// state-backed plan refuses it rather than ignoring it. Checked here
-	// because statelessSettings, immediately above, is what says whether
+	// because liveSettings, immediately above, is what says whether
 	// this run is a live one, and before the view is wrapped below.
-	if moreDiags := planRejectAdoptionOnly(args.AdoptionOnly, statelessCfg != nil); moreDiags.HasErrors() {
+	if moreDiags := planRejectAdoptionOnly(args.AdoptionOnly, liveCfg != nil); moreDiags.HasErrors() {
 		diags = diags.Append(moreDiags)
 		view.Diagnostics(diags)
 		return 1
@@ -149,7 +149,7 @@ func (c PlanCommand) Execute(args *arguments.Plan, view views.Plan) int {
 	// does not.
 	// GitHub issue #1197's -filter, refused where it would do nothing. See
 	// planRejectReportFilter.
-	if moreDiags := planRejectReportFilter(args.Filter, args.AdoptionOnly, statelessCfg != nil); moreDiags.HasErrors() {
+	if moreDiags := planRejectReportFilter(args.Filter, args.AdoptionOnly, liveCfg != nil); moreDiags.HasErrors() {
 		diags = diags.Append(moreDiags)
 		view.Diagnostics(diags)
 		return 1
@@ -174,9 +174,9 @@ func (c PlanCommand) Execute(args *arguments.Plan, view views.Plan) int {
 		return 1
 	}
 
-	if statelessCfg != nil {
-		moreDiags := statelessBegin(be, opReq, statelessCfg, c.View, args.AdoptionOnly, args.Filter, c.liveEstateOutputs(),
-			statelessRejections(surfaceLiveBlock, args.Operation, args.State, args.View, args.OutPath, args.GenerateConfigPath, ""))
+	if liveCfg != nil {
+		moreDiags := liveBegin(be, opReq, liveCfg, c.View, args.AdoptionOnly, args.Filter, c.liveEstateOutputs(),
+			liveRejections(surfaceLiveBlock, args.Operation, args.State, args.View, args.OutPath, args.GenerateConfigPath, ""))
 		diags = diags.Append(moreDiags)
 		if moreDiags.HasErrors() {
 			view.Diagnostics(diags)

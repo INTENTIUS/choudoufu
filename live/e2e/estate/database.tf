@@ -3,7 +3,7 @@
 # attribute equals it). First slice of the survey's client-named cohort (#19).
 
 resource "aws_dynamodb_table" "events" {
-  name         = "tofu-stateless-e2e-events"
+  name         = "tofu-live-e2e-events"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "pk"
 

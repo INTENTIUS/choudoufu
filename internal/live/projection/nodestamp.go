@@ -122,7 +122,7 @@ func (n *NodeResolver) adjustConfigValue(_ context.Context, addr addrs.AbsResour
 
 	if n.Estate == "" {
 		// No estate name: parity with internal/live/stamp's own guard
-		// (statelessStamp's estate=="" branch, internal/command/live_plan.go),
+		// (liveStamp's estate=="" branch, internal/command/live_plan.go),
 		// which already returns a nil *stamp.Result plus a single
 		// "Ownership markers not stamped" warning and writes nothing -
 		// both call sites run that pass unconditionally today, flag on or
@@ -225,7 +225,7 @@ func (n *NodeResolver) stampSurface(surface markers.Surface, addr addrs.AbsResou
 			// whose labels or manifest surface answers true here has the
 			// same conflict check above and the same withholding below
 			// that #1084 gave the tags surface alone.
-			log.Printf("[DEBUG] stateless/projection: %s: markers withheld from the create call; written after the create", addr)
+			log.Printf("[DEBUG] live/projection: %s: markers withheld from the create call; written after the create", addr)
 			return config, diags
 		}
 		configElems[markers.LabelSurfaceBlock] = newMeta
@@ -248,7 +248,7 @@ func (n *NodeResolver) stampSurface(surface markers.Surface, addr addrs.AbsResou
 				return config, diags
 			}
 			// GitHub issue #1653: see the SurfaceLabels arm above.
-			log.Printf("[DEBUG] stateless/projection: %s: markers withheld from the create call; written after the create", addr)
+			log.Printf("[DEBUG] live/projection: %s: markers withheld from the create call; written after the create", addr)
 			return config, diags
 		}
 		configElems[markers.ManifestSurfaceAttr] = newManifest
@@ -276,7 +276,7 @@ func (n *NodeResolver) stampSurface(surface markers.Surface, addr addrs.AbsResou
 			// The conflict check above still ran: a hand-written marker that
 			// disagrees with this run is refused whether or not this pass
 			// would have written its own.
-			log.Printf("[DEBUG] stateless/projection: %s: markers withheld from the create call (tag_on_create false); written after the create", addr)
+			log.Printf("[DEBUG] live/projection: %s: markers withheld from the create call (tag_on_create false); written after the create", addr)
 			return config, diags
 		}
 

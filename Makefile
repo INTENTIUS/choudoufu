@@ -245,7 +245,7 @@ test-kubernetes-clean: ## Cleans environment after `test-kubernetes`.
 	@ test -s /tmp/tofu-k8s-config && rm /tmp/tofu-k8s-config || echo "" > /dev/null
 	@ test -s /tmp/tofuk8s && (/tmp/tofuk8s -q delete cluster --name tofu-kubernetes && rm /tmp/tofuk8s) || echo "" > /dev/null
 
-# integration test for the stateless mode, against the floci AWS emulator
+# integration test for live mode, against the floci AWS emulator
 .PHONY: test-floci test-floci-clean
 
 # The pinned emulator image; live/floci-image is the single source (#98).
@@ -272,7 +272,7 @@ define infoTestFloci
 
 endef
 
-test-floci: ## Runs the stateless-mode tests against the floci AWS emulator.
+test-floci: ## Runs the live-mode tests against the floci AWS emulator.
 	@ $(info $(infoTestFloci))
 	@ TF_FLOCI_TEST=1 go test -count=1 -timeout 60m ./internal/live/... ./internal/command/... ./tools/estate-gen/... ./tools/survey-gen/... ./tools/terralith-gen/...
 	@ TF_FLOCI_TEST=1 go test -count=1 -timeout 10m -run 'TestFlociSweepSelftestPasses' ./live/

@@ -157,7 +157,7 @@ inside it and that five-minute timer would hide the answer.
 edit to `metadata.labels` or `metadata.annotations` used to be invisible:
 the plan said `No changes.` and the apply wrote nothing, silently. The
 provider's `computed_fields` default takes the LIVE value at those paths
-unless the configuration differs from the PRIOR MANIFEST, and a stateless
+unless the configuration differs from the PRIOR MANIFEST, and a live
 run was seeding that prior from the current configuration - so the
 comparison compared the configuration with itself. Stock reproduces it
 exactly when handed the same prior. Step 2 measures what stock proposes for

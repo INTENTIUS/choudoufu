@@ -13,7 +13,7 @@ import (
 
 // ReadMemo is GitHub issue #1537's cross-pass answer cache for one run's
 // provider-configuration fixpoint (internal/command's
-// statelessProviderDataReads). That fixpoint analyzes and reads, reads the
+// liveProviderDataReads). That fixpoint analyzes and reads, reads the
 // managed values the analysis demanded, then analyzes and reads again with
 // those values in hand, up to its pass cap. Before this type every pass
 // re-read every source it classified, so a source the first pass had

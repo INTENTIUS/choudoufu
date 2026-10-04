@@ -53,8 +53,8 @@ func (c StatePullCommand) Execute(args *arguments.StatePull, view views.State) i
 	var diags tfdiags.Diagnostics
 	ctx := c.CommandContext()
 
-	// See statelessStateGuard: refused before anything reaches a state manager.
-	if guardDiags := c.statelessStateGuard(ctx, "pull"); guardDiags.HasErrors() {
+	// See liveStateGuard: refused before anything reaches a state manager.
+	if guardDiags := c.liveStateGuard(ctx, "pull"); guardDiags.HasErrors() {
 		view.Diagnostics(diags.Append(guardDiags))
 		return 1
 	}

@@ -12,7 +12,7 @@
 // forked from? Everything measured about this fork so far has been measured
 // with a live block present, so "choudoufu plan takes 200s and terraform
 // plan takes 3s" has never been separable into "the fork costs this" and
-// "statelessness costs this". Those are different claims with different
+// "the live block costs this". Those are different claims with different
 // consequences, and only one of them is a reason not to adopt the binary.
 //
 // The comparison is four plan columns over the same generated terralith
@@ -22,9 +22,9 @@
 //	stock terraform, state file, no live block   - the baseline
 //	stock tofu, state file, no live block        - the fork's own upstream
 //	choudoufu, state file, no live block         - the question
-//	choudoufu, live block, migrated, no state    - the stateless path
+//	choudoufu, live block, migrated, no state    - the live path
 //
-// The third column exists to isolate the fork from statelessness; the
+// The third column exists to isolate the fork from the live block; the
 // second exists to isolate the fork from OpenTofu, because choudoufu is an
 // OpenTofu fork and Terraform 1.15 is not OpenTofu. Without it, any
 // difference between columns one and three is unattributable.

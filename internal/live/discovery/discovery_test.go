@@ -37,7 +37,7 @@ func estateDir(t *testing.T) string {
 	return flocitest.EstateDir(t)
 }
 
-const estateName = "stateless-e2e"
+const estateName = "live-e2e"
 
 // The twenty-one needs-discovery instances the fixture declares, sorted the
 // way discovery reports them.
@@ -154,12 +154,12 @@ func TestValidMarkerAddress(t *testing.T) {
 }
 
 func TestValidEstateName(t *testing.T) {
-	for _, s := range []string{"stateless-e2e", "a", "e2e-1"} {
+	for _, s := range []string{"live-e2e", "a", "e2e-1"} {
 		if !ValidEstateName(s) {
 			t.Errorf("ValidEstateName(%q) = false", s)
 		}
 	}
-	for _, s := range []string{"", "Stateless", "1abc", "has_underscore", "has.dot"} {
+	for _, s := range []string{"", "Live", "1abc", "has_underscore", "has.dot"} {
 		if ValidEstateName(s) {
 			t.Errorf("ValidEstateName(%q) = true", s)
 		}
@@ -215,7 +215,7 @@ func TestDiscoverBindsWholeEstate(t *testing.T) {
 			t.Errorf("%s came out of discovery with no identity object, only the import ID %q", addr, r.ImportID)
 		}
 	}
-	if r := byAddr[`aws_s3_bucket.data`]; r.Class != identity.ClassConcrete || r.ImportID != "tofu-stateless-e2e-data" {
+	if r := byAddr[`aws_s3_bucket.data`]; r.Class != identity.ClassConcrete || r.ImportID != "tofu-live-e2e-data" {
 		t.Errorf("a statically resolved instance was rewritten: %s", r)
 	}
 	if r := byAddr[`aws_route.internet_gateway`]; r.Class != identity.ClassParentDerived {

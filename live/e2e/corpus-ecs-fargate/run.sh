@@ -370,7 +370,7 @@ set -uo pipefail
 #      configuration in hand to ask. The remainder gives it one:
 #      Ratification.resolved (internal/live/liveimport/ratify.go) resolves
 #      Request.Config once through identity.ResolveWith - the same function,
-#      and for a table-admitted type the same ANSWER, a stateless live-plan's
+#      and for a table-admitted type the same ANSWER, a live-plan's
 #      own resolution would reach for the identical configuration - and
 #      instanceNeedsDiscovery (slot.go) asks it per instance rather than
 #      guessing from the type alone. The five here were the module's own IAM

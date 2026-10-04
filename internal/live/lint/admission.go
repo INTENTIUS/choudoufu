@@ -13,7 +13,7 @@ import (
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
-// admittedTypesV0 is every provider-local resource type a stateless
+// admittedTypesV0 is every provider-local resource type a live-mode
 // configuration may name: exactly [identity.DefaultTable]'s key set minus its
 // RecordBacked rows (the RECORD_ADMITTED types, which lint refuses by class
 // before identity resolution ever runs).
@@ -46,7 +46,7 @@ func deriveAdmittedTypes(table map[string]identity.TypeIdentity) map[string]stru
 }
 
 // admitted reports whether the given provider-local resource type may appear
-// in a stateless configuration: first by the generated table, then by
+// in a live-mode configuration: first by the generated table, then by
 // [identity.MarkerlessTypes]' standing veto, and - only when the caller
 // supplied provider schemas and the veto did not fire - by whatever
 // [identity.SynthesizeTypeIdentity] can derive from those schemas and the

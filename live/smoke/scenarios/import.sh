@@ -53,11 +53,11 @@ explain \
   "command. Any tool that can write two tags can perform an adoption;" \
   "the tag pair IS the ownership contract."
 cmd "aws ssm add-tags-to-resource ... tofu-estate=... tofu-address=..."
-for pair in "/tofu-receipts/stateless-e2e/demo-effect:aws_ssm_parameter.demo_effect" \
-            "/tofu-receipts/stateless-e2e/demo-existence:aws_ssm_parameter.demo_existence"; do
+for pair in "/tofu-receipts/live-e2e/demo-effect:aws_ssm_parameter.demo_effect" \
+            "/tofu-receipts/live-e2e/demo-existence:aws_ssm_parameter.demo_existence"; do
   PARAM="${pair%%:*}"; ADDR="${pair#*:}"
   awsl ssm add-tags-to-resource --resource-type Parameter --resource-id "$PARAM" \
-    --tags "Key=tofu-estate,Value=stateless-e2e" "Key=tofu-address,Value=$ADDR" \
+    --tags "Key=tofu-estate,Value=live-e2e" "Key=tofu-address,Value=$ADDR" \
     || fail "import" "could not adopt $PARAM"
   echo "adopted $PARAM as $ADDR" | evidence
 done
@@ -121,7 +121,7 @@ cmd "add the live block to versions.tf"
 cat >> "$SMOKE_WORK/versions.tf" <<'TFEOF'
 terraform {
   live {
-    estate = "stateless-e2e"
+    estate = "live-e2e"
   }
 }
 TFEOF

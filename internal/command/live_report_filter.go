@@ -49,20 +49,20 @@ func planRejectReportFilter(filter arguments.ReportFilter, adoptionOnly, live bo
 	return diags
 }
 
-// statelessNoSweepAnswer answers an adoptable or foreign filter on a run whose
+// liveNoSweepAnswer answers an adoptable or foreign filter on a run whose
 // estate-wide sweep did not run at all, and so never reached view.Foreign.
 // Unfiltered that run prints no foreign section, as it always has; a run that
 // asked for one of those categories by name gets the section's own "nothing
 // was swept" answer instead of silence, which is what keeps a filter matching
 // nothing distinguishable from a filter that did nothing.
-func statelessNoSweepAnswer(view views.StatelessPlan, filter arguments.ReportFilter) {
+func liveNoSweepAnswer(view views.LivePlan, filter arguments.ReportFilter) {
 	if !filter.Active() {
 		return
 	}
 	if !filter.Shows(arguments.ReportForeign) && !filter.Shows(arguments.ReportAdoptable) {
 		return
 	}
-	view.Foreign(views.StatelessForeign{})
+	view.Foreign(views.LiveForeign{})
 }
 
 // livePlanFilterDocument narrows live-plan's -json document to filter's
@@ -94,7 +94,7 @@ func livePlanFilterDocument(doc views.LivePlanDocument, filter arguments.ReportF
 		doc.Foreign = []views.LivePlanForeign{}
 	}
 	if filter.Shows(arguments.ReportUnowned) && doc.Unowned == nil {
-		doc.Unowned = []views.StatelessUnowned{}
+		doc.Unowned = []views.LiveUnowned{}
 	}
 	if filter.Shows(arguments.ReportAdoptable) && doc.Adoptable == nil {
 		doc.Adoptable = []views.LivePlanAdoptable{}

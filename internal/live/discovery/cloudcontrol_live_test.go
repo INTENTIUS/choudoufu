@@ -64,7 +64,7 @@ func TestDiscoverCloudControlFallbackAgainstFloci(t *testing.T) {
 
 	cfg := loadConfig(t, dir)
 	// aws_glue_registry has no row in identity.DefaultTable (it is not part
-	// of the v0 stateless subset otherwise), so the resolution is built by
+	// of the v0 live-mode subset otherwise), so the resolution is built by
 	// hand rather than through identity.Resolve, exactly as
 	// cloudcontrol_test.go's fake-server tests do: the point of this run is
 	// what Discover does once something is already classified as

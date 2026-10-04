@@ -15,7 +15,7 @@ provider "aws" {
 # ClassNeedsDiscovery, findable only by its ownership marker - exactly like
 # every other aws_vpc fixture in this package (see
 # twoRegionNeedsDiscoveryCloud). GitHub issue #950's own point is that the
-# test schema behind THIS fixture (statelessTestSchemasWithout("aws_vpc"),
+# test schema behind THIS fixture (liveTestSchemasWithout("aws_vpc"),
 # also reused by internal/live/check's
 # nodestamp_recordbacked_test.go - see its own doc comment for why it
 # points here instead of a second copy under its own testdata) has no

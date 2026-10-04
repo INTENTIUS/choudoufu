@@ -103,20 +103,20 @@ func (c ApplyCommand) Execute(args *arguments.Apply, view views.Apply) int {
 		return 1
 	}
 
-	// Stateless mode is switched on by a "live" block in the
+	// Live mode is switched on by a "live" block in the
 	// configuration, never by a flag, so that a run cannot fall back to
 	// writing a state file by forgetting one. Without the block this is nil
 	// and nothing below changes.
 	//
 	// It is read before the plan file is loaded because the two are
-	// incompatible whatever the file turns out to contain, and a stateless
+	// incompatible whatever the file turns out to contain, and a live-mode
 	// configuration should hear why rather than hear that its plan file will
 	// not parse. For the same reason a working directory that will not load
 	// is tolerated when a plan file was named: the file carries its own
 	// configuration, so the directory is not evidence about this run.
-	statelessCfg, statelessDiags := c.statelessSettings(ctx, args.PlanPath != "")
-	diags = diags.Append(statelessDiags)
-	if statelessDiags.HasErrors() {
+	liveCfg, liveDiags := c.liveSettings(ctx, args.PlanPath != "")
+	diags = diags.Append(liveDiags)
+	if liveDiags.HasErrors() {
 		view.Diagnostics(diags)
 		return 1
 	}
@@ -130,9 +130,9 @@ func (c ApplyCommand) Execute(args *arguments.Apply, view views.Apply) int {
 	// See internal/command/live_approval.go.
 	var approved *approvedPlan
 	approvalRefused := false
-	if statelessCfg != nil && args.PlanPath != "" {
+	if liveCfg != nil && args.PlanPath != "" {
 		var approvalDiags tfdiags.Diagnostics
-		approved, approvalDiags = c.readApprovedPlan(ctx, args.PlanPath, statelessCfg, enc)
+		approved, approvalDiags = c.readApprovedPlan(ctx, args.PlanPath, liveCfg, enc)
 		diags = diags.Append(approvalDiags)
 		if approvalDiags.HasErrors() {
 			view.Diagnostics(diags)
@@ -151,7 +151,7 @@ func (c ApplyCommand) Execute(args *arguments.Apply, view views.Apply) int {
 	// already read everything it wants from the file and must not hand it to
 	// the operation, so this stays nil there.
 	planPath := args.PlanPath
-	if statelessCfg != nil {
+	if liveCfg != nil {
 		planPath = ""
 	}
 	planFile, planDiags := c.LoadPlanFile(planPath, enc)
@@ -174,13 +174,13 @@ func (c ApplyCommand) Execute(args *arguments.Apply, view views.Apply) int {
 	opReq, opDiags := c.OperationRequest(ctx, be, view, args, planFile, enc)
 	diags = diags.Append(opDiags)
 
-	if statelessCfg != nil && !diags.HasErrors() {
+	if liveCfg != nil && !diags.HasErrors() {
 		// Never adoption-only: GitHub issue #587's flag is a way of READING
 		// a plan, and there is no such thing as applying only the adoption
 		// question. arguments.Apply does not carry it and this passes false
 		// rather than plumbing one.
-		diags = diags.Append(statelessBegin(be, opReq, statelessCfg, c.View, false, nil, c.liveEstateOutputs(),
-			statelessRejections(surfaceLiveBlock, args.Operation, args.State, args.View, "", "", "")))
+		diags = diags.Append(liveBegin(be, opReq, liveCfg, c.View, false, nil, c.liveEstateOutputs(),
+			liveRejections(surfaceLiveBlock, args.Operation, args.State, args.View, "", "", "")))
 		diags = diags.Append(c.checkAWSProviderVersionSkew())
 		if approved != nil {
 			opReq.PlanGuard = approvalGuard(approved, &approvalRefused)

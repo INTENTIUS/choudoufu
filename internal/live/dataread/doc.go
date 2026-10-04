@@ -27,7 +27,7 @@
 //     exactly this and nothing else, keeping its no-cloud-calls contract.
 //   - [Read] performs the reads, in [Analyze]'s order, against the same
 //     configured provider instances the projection builder already uses
-//     (statelessProviders.ConfiguredProvider) - ReadDataSource is the third
+//     (projectionProviders.ConfiguredProvider) - ReadDataSource is the third
 //     pre-plan cloud call in the pipeline, reusing the second's plumbing.
 //
 // Results enter resolution through [identity.Context.DataResults]; this

@@ -4935,7 +4935,7 @@ above), which is a separate rule about identity resolution and is
 unaffected.
 
 **A multi-configuration estate's adoption hint may name the wrong region.**
-Marker discovery itself is per provider configuration. `statelessDiscover`
+Marker discovery itself is per provider configuration. `liveDiscover`
 runs one `discovery.Discover` pass per configuration among the estate's
 managed resources and the ones its discovery-needing resources use, and
 `discovery.Merge` combines them; `discovery.Request.ScopeProvider` narrows
@@ -4957,8 +4957,8 @@ provider needs a larger change to `internal/live/foreign`. Materializing
 undeclared instances does not go through the hint: callers use the
 per-address provider map instead, so an undeclared instance is created
 through whichever configuration found it.
-(`internal/command/live_plan.go`, `statelessDiscover`'s second and third
-return values; `statelessDiscoveryPassProviders` for the pass set.
+(`internal/command/live_plan.go`, `liveDiscover`'s second and third
+return values; `liveDiscoveryPassProviders` for the pass set.
 Multi-configuration behavior is pinned by `internal/live/discovery`'s
 `TestAliasedProvidersAgainstFloci`, fixture at
 `internal/live/discovery/testdata/alias-e2e/`, and at the command level by
@@ -4968,7 +4968,7 @@ Multi-configuration behavior is pinned by `internal/live/discovery`'s
 **An out-of-band change to a `kubernetes_manifest` label or annotation the
 configuration declares churns the plan, where stock swallows it; one the
 configuration has stopped declaring is never removed.** Both follow from the
-same fact, and both are what a stateless run costs on this one type. The
+same fact, and both are what a live run costs on this one type. The
 provider's `computed_fields` argument (default `metadata.annotations` and
 `metadata.labels`) tells it to take the LIVE object's value at those paths
 unless the configuration differs from the PRIOR MANIFEST, which in a

@@ -18,13 +18,13 @@ variable "db_password_version_id" {
 }
 
 resource "aws_ssm_parameter" "hashes_the_secret" {
-  name  = "/tofu-receipts/stateless-e2e/hashes-the-secret"
+  name  = "/tofu-receipts/live-e2e/hashes-the-secret"
   type  = "String"
   value = sha256(var.db_password)
 }
 
 resource "aws_ssm_parameter" "hashes_the_pointer" {
-  name  = "/tofu-receipts/stateless-e2e/hashes-the-pointer"
+  name  = "/tofu-receipts/live-e2e/hashes-the-pointer"
   type  = "String"
   value = sha256(var.db_password_version_id)
 }

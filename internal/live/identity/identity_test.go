@@ -46,55 +46,55 @@ func TestResolveEstate(t *testing.T) {
 
 	want := map[string]string{
 		// Client-named: the name in config is the import ID.
-		`aws_s3_bucket.data`:           `CONCRETE tofu-stateless-e2e-data`,
-		`aws_iam_role.app`:             `CONCRETE tofu-stateless-e2e-app`,
-		`aws_cloudwatch_log_group.app`: `CONCRETE /stateless-e2e/app`,
+		`aws_s3_bucket.data`:           `CONCRETE tofu-live-e2e-data`,
+		`aws_iam_role.app`:             `CONCRETE tofu-live-e2e-app`,
+		`aws_cloudwatch_log_group.app`: `CONCRETE /live-e2e/app`,
 
 		// count = var.enabled ? 1 : 0 with enabled defaulting to true, so
 		// exactly one instance, at index 0.
-		`aws_cloudwatch_log_group.optional[0]`: `CONCRETE /stateless-e2e/optional`,
+		`aws_cloudwatch_log_group.optional[0]`: `CONCRETE /live-e2e/optional`,
 
 		// Named singleton child: bucket = aws_s3_bucket.data.id, and the
 		// bucket's id is its (client-named) bucket name, so this collapses
 		// to a literal instead of becoming a formula.
-		`aws_s3_bucket_policy.data`: `CONCRETE tofu-stateless-e2e-data`,
+		`aws_s3_bucket_policy.data`: `CONCRETE tofu-live-e2e-data`,
 
 		// The four S3 bucket children (#19's second slice): the same
 		// named-singleton-child collapse as the bucket policy above.
-		`aws_s3_bucket_versioning.data`:                           `CONCRETE tofu-stateless-e2e-data`,
-		`aws_s3_bucket_public_access_block.data`:                  `CONCRETE tofu-stateless-e2e-data`,
-		`aws_s3_bucket_server_side_encryption_configuration.data`: `CONCRETE tofu-stateless-e2e-data`,
-		`aws_s3_bucket_lifecycle_configuration.data`:              `CONCRETE tofu-stateless-e2e-data`,
+		`aws_s3_bucket_versioning.data`:                           `CONCRETE tofu-live-e2e-data`,
+		`aws_s3_bucket_public_access_block.data`:                  `CONCRETE tofu-live-e2e-data`,
+		`aws_s3_bucket_server_side_encryption_configuration.data`: `CONCRETE tofu-live-e2e-data`,
+		`aws_s3_bucket_lifecycle_configuration.data`:              `CONCRETE tofu-live-e2e-data`,
 
 		// Same slice: a concrete composite (both halves client-chosen,
 		// joined by the provider's documented colon) and a client-named
 		// alias whose name argument is the whole import ID.
-		`aws_iam_role_policy.app`: `CONCRETE tofu-stateless-e2e-app:tofu-stateless-e2e-app-inline`,
-		`aws_kms_alias.main`:      `CONCRETE alias/tofu-stateless-e2e-main`,
+		`aws_iam_role_policy.app`: `CONCRETE tofu-live-e2e-app:tofu-live-e2e-app-inline`,
+		`aws_kms_alias.main`:      `CONCRETE alias/tofu-live-e2e-main`,
 
 		// Same slice: an alarm named by its alarm_name argument.
-		`aws_cloudwatch_metric_alarm.cpu`: `CONCRETE tofu-stateless-e2e-cpu`,
+		`aws_cloudwatch_metric_alarm.cpu`: `CONCRETE tofu-live-e2e-cpu`,
 
 		// Same slice, via #20's zone: name and type are config data, the
 		// Z-ID is live, and the provider's import syntax joins the three
 		// with underscores.
-		`aws_route53_record.app`: `PARENT_DERIVED ${aws_route53_zone.main.zone_id}_app.stateless-e2e.example.com_A`,
+		`aws_route53_record.app`: `PARENT_DERIVED ${aws_route53_zone.main.zone_id}_app.live-e2e.example.com_A`,
 
 		// Attachment composite: role name comes from the concrete role,
 		// policy ARN is a literal, so the whole composite is concrete.
-		`aws_iam_role_policy_attachment.app`: `CONCRETE tofu-stateless-e2e-app/arn:aws:iam::aws:policy/ReadOnlyAccess`,
+		`aws_iam_role_policy_attachment.app`: `CONCRETE tofu-live-e2e-app/arn:aws:iam::aws:policy/ReadOnlyAccess`,
 
 		// Receipts (PE.3, RA.6): client-named the same way a bucket or role
 		// is — the name argument is a literal parameter path. Two flavors,
 		// same identity shape.
-		`aws_ssm_parameter.demo_effect`:    `CONCRETE /tofu-receipts/stateless-e2e/demo-effect`,
-		`aws_ssm_parameter.demo_existence`: `CONCRETE /tofu-receipts/stateless-e2e/demo-existence`,
+		`aws_ssm_parameter.demo_effect`:    `CONCRETE /tofu-receipts/live-e2e/demo-effect`,
+		`aws_ssm_parameter.demo_existence`: `CONCRETE /tofu-receipts/live-e2e/demo-existence`,
 
 		// First slice of the survey's client-named cohort (#19): a table
 		// named by its name argument, and a cluster whose import ID is the
 		// name even though the provider's id attribute is the ARN.
-		`aws_dynamodb_table.events`: `CONCRETE tofu-stateless-e2e-events`,
-		`aws_ecs_cluster.app`:       `CONCRETE tofu-stateless-e2e-cluster`,
+		`aws_dynamodb_table.events`: `CONCRETE tofu-live-e2e-events`,
+		`aws_ecs_cluster.app`:       `CONCRETE tofu-live-e2e-cluster`,
 
 		// Parent-derived: the route table ID is live, the destination is
 		// config data, and the provider's import syntax joins them with an
@@ -357,7 +357,7 @@ func TestFormulaRender(t *testing.T) {
 		`aws_route_table.main` + "\x00id":     "rtb-0a1b2c3d",
 		`aws_subnet.this["a"]` + "\x00id":     "subnet-1111",
 		`aws_subnet.this["b"]` + "\x00id":     "subnet-2222",
-		`aws_lb_target_group.app` + "\x00arn": "arn:aws:elasticloadbalancing:us-east-1:000000000000:targetgroup/tofu-stateless-e2e-tg/73d2c",
+		`aws_lb_target_group.app` + "\x00arn": "arn:aws:elasticloadbalancing:us-east-1:000000000000:targetgroup/tofu-live-e2e-tg/73d2c",
 	}
 	lookup := func(parent addrs.AbsResourceInstance, attr string) (string, bool) {
 		v, ok := live[parent.String()+"\x00"+attr]
@@ -368,7 +368,7 @@ func TestFormulaRender(t *testing.T) {
 		`aws_route.internet_gateway`:            "rtb-0a1b2c3d_0.0.0.0/0",
 		`aws_route_table_association.this["a"]`: "subnet-1111/rtb-0a1b2c3d",
 		`aws_route_table_association.this["b"]`: "subnet-2222/rtb-0a1b2c3d",
-		`aws_lb_target_group_attachment.app`:    "arn:aws:elasticloadbalancing:us-east-1:000000000000:targetgroup/tofu-stateless-e2e-tg/73d2c,10.42.1.55,80",
+		`aws_lb_target_group_attachment.app`:    "arn:aws:elasticloadbalancing:us-east-1:000000000000:targetgroup/tofu-live-e2e-tg/73d2c,10.42.1.55,80",
 	}
 	for addr, want := range tests {
 		res, ok := result.Get(mustAddr(t, addr))
@@ -409,7 +409,7 @@ func TestResolveInCloudContext(t *testing.T) {
 	assertNoErrors(t, diags)
 
 	want := map[string]string{
-		`aws_sns_topic.alerts`: `arn:aws:sns:us-east-1:000000000000:tofu-stateless-e2e-alerts`,
+		`aws_sns_topic.alerts`: `arn:aws:sns:us-east-1:000000000000:tofu-live-e2e-alerts`,
 	}
 	for addr, wantID := range want {
 		res, ok := result.Get(mustAddr(t, addr))
@@ -622,12 +622,12 @@ func TestStaticModuleTraversal(t *testing.T) {
 	assertNoErrors(t, diags)
 
 	assertClassifications(t, result, map[string]string{
-		`aws_s3_bucket.root`: `CONCRETE tofu-stateless-static-module-root`,
+		`aws_s3_bucket.root`: `CONCRETE tofu-live-static-module-root`,
 
-		`module.net.aws_s3_bucket.data`:        `CONCRETE tofu-stateless-static-module-net-data`,
-		`module.net.aws_s3_bucket_policy.data`: `CONCRETE tofu-stateless-static-module-net-data`,
+		`module.net.aws_s3_bucket.data`:        `CONCRETE tofu-live-static-module-net-data`,
+		`module.net.aws_s3_bucket_policy.data`: `CONCRETE tofu-live-static-module-net-data`,
 
-		`module.net.module.inner.aws_s3_bucket.leaf`: `CONCRETE tofu-stateless-static-module-inner-leaf`,
+		`module.net.module.inner.aws_s3_bucket.leaf`: `CONCRETE tofu-live-static-module-inner-leaf`,
 	})
 }
 

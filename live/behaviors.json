@@ -371,7 +371,7 @@
       "runnable": false,
       "runnable_note": "embedded as the \"plain-plan-works\" step inside live/e2e/run.sh (see BLOCK_SRC and the step's own comment starting near its 'terraform { live { estate = ... } }' note); has no run.sh of its own",
       "runner": false,
-      "seam": "6 resources (compute.tf, logs.tf, network.tf, storage.tf) forming a second, independent estate (tofu-estate=stateless-e2e-block) stood up, drifted, tagged-checked, and torn down entirely through a bare `live { estate = \"...\" }` block with no live-import ever run against it - the 'plain plan/apply, no live-prefixed command in sight' claim - inside live/e2e/run.sh's plain-plan-works step, alongside but never touching the main estate fixture. Not independently runnable: it is one step of a much larger legacy script, not a script of its own, and extracting it would be re-authoring an existing script, which the #522 ruling's 'fold in AS-IS' forecloses for this foundation unit.",
+      "seam": "6 resources (compute.tf, logs.tf, network.tf, storage.tf) forming a second, independent estate (tofu-estate=live-e2e-block) stood up, drifted, tagged-checked, and torn down entirely through a bare `live { estate = \"...\" }` block with no live-import ever run against it - the 'plain plan/apply, no live-prefixed command in sight' claim - inside live/e2e/run.sh's plain-plan-works step, alongside but never touching the main estate fixture. Not independently runnable: it is one step of a much larger legacy script, not a script of its own, and extracting it would be re-authoring an existing script, which the #522 ruling's 'fold in AS-IS' forecloses for this foundation unit.",
       "shapes": [
         "scalar"
       ],
@@ -387,7 +387,7 @@
       "category": "legacy-demo",
       "runnable": true,
       "runner": false,
-      "seam": "The original, pre-protocol, pre-board 'stateless mode' demo (P0-P5): standup, adopt (delete the state file live), drift-reconverge (3 simultaneous drifts of different shapes), exact removal, count scale-down, rename, a plain plan/apply under a live block with the estate-block fixture (see the estate-block entry above), a receipts cycle, and teardown - almost the full stage list, in one script, against one estate (live/e2e/estate/). Superseded for headline purposes by reference-ec2-vpc (which speaks the stage protocol) and by the shape fixtures above (which isolate one seam each); live-markers.md's own verification-budget section records this script at 'several minutes' alone. Catalogued for completeness, not run by `gauntlet behaviors`'s default matrix: it alone would blow the five-minute bar.",
+      "seam": "The original, pre-protocol, pre-board 'live mode' demo (P0-P5): standup, adopt (delete the state file live), drift-reconverge (3 simultaneous drifts of different shapes), exact removal, count scale-down, rename, a plain plan/apply under a live block with the estate-block fixture (see the estate-block entry above), a receipts cycle, and teardown - almost the full stage list, in one script, against one estate (live/e2e/estate/). Superseded for headline purposes by reference-ec2-vpc (which speaks the stage protocol) and by the shape fixtures above (which isolate one seam each); live-markers.md's own verification-budget section records this script at 'several minutes' alone. Catalogued for completeness, not run by `gauntlet behaviors`'s default matrix: it alone would blow the five-minute bar.",
       "shapes": [
         "count",
         "for_each",

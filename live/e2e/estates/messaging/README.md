@@ -130,7 +130,7 @@ kept it out of this batch rather than in it.
 | File | Contents |
 |---|---|
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
-| `locals.tf` | `estate_tag` — `"messaging-cohort"`, distinct from the demo estate's `"stateless-e2e"` and the lambda cohort's `"lambda-cohort"`. |
+| `locals.tf` | `estate_tag` — `"messaging-cohort"`, distinct from the demo estate's `"live-e2e"` and the lambda cohort's `"lambda-cohort"`. |
 | `iam.tf` | `aws_iam_role.messaging`, supporting infrastructure for the metric stream's role — not a coverage row; `aws_iam_role` is already covered by `live/e2e/estate/`. |
 | `messaging.tf` | The six ratified types, plus `aws_sns_topic.app`, supporting infrastructure for `aws_sns_topic_policy.app` — not a coverage row; `aws_sns_topic` is already covered by `internal/live/lint/admission.go`'s original account-derived section. |
 
@@ -200,7 +200,7 @@ form real AWS returns. A plain `apply` never notices, because Terraform
 just stores whatever `id` the create call handed back and reads through
 that same string on every later refresh; nothing at this layer ever
 re-derives or re-parses it. The gap bites only in the path this fork's own
-stateless marker discovery takes: a context-less run reconstructs the
+live-mode marker discovery takes: a context-less run reconstructs the
 canonical URL to hand the provider's importer (`internal/live/identity`'s
 `aws_sqs_queue` entry expresses that exact template), the AWS provider's
 own importer accepts only the `amazonaws.com` form, and floci's URL fails
@@ -311,7 +311,7 @@ From `messaging.tf`:
 From `locals.tf`:
 
 > The marker's estate value (live/MARKERS.md, P0.3), distinct from the
-> demo estate's "stateless-e2e" and the lambda cohort's "lambda-cohort"
+> demo estate's "live-e2e" and the lambda cohort's "lambda-cohort"
 > so all three never collide if ever applied against the same account
 > side by side.
 

@@ -71,7 +71,7 @@ import (
 // The Kubernetes listing (GitHub issue #1081) is the one part that does
 // need DIR, because the substrate is learned from the configuration's
 // provider blocks and the cluster client is built from one of them, the
-// way live-plan's own sweep builds it ([statelessProviders.kubernetesClient]).
+// way live-plan's own sweep builds it ([projectionProviders.kubernetesClient]).
 // What it lists is what the sweep lists - one cluster-wide, label-selected
 // list per kind the cluster serves, controller-made objects excluded
 // ([kubesweep.Client]) - and what it calls declared is what the sweep
@@ -339,7 +339,7 @@ func liveLsRootRegion(ctx context.Context, configDir string, config *configs.Con
 	}
 
 	var regions, names []string
-	for _, addr := range statelessManagedResourceProviders(config) {
+	for _, addr := range liveManagedResourceProviders(config) {
 		if sub, ok := substrate.ForProvider(addr.Provider.Type); !ok || sub.Sweep() != substrate.SweepTaggingIndex {
 			continue
 		}
@@ -685,7 +685,7 @@ func pollConsistentEvery(ctx context.Context, read func(ctx context.Context) ([]
 // Every failure along the way downgrades to a warning and an empty result
 // rather than failing the whole command: the cloud listing above is this
 // command's primary deliverable and does not need a configuration to exist
-// at all, so a configuration that will not load, is outside the stateless
+// at all, so a configuration that will not load, is outside the live-mode
 // subset, or cannot be resolved is news worth printing, never a reason to
 // withhold the listing that already succeeded.
 //
@@ -741,7 +741,7 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 		))
 	}
 
-	provs := newStatelessProviders(config, lib)
+	provs := newProjectionProviders(config, lib)
 	closeProviders := func() {
 		if cd := provs.close(ctx); cd.HasErrors() {
 			log.Printf("[WARN] live-ls: closing providers after the declared-instance comparison: %s", cd.Err())
@@ -774,13 +774,13 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 		return skip(fmt.Sprintf("%s is outside the subset a live run can plan (%d issue(s)); run \"choudoufu live-check %s\" for the detail.", dir, len(issues), dir))
 	}
 
-	dataResults, drDiags := statelessDataReads(ctx, config, provs, resourceSchemas, nil)
+	dataResults, drDiags := liveDataReads(ctx, config, provs, resourceSchemas, nil)
 	if drDiags.HasErrors() {
 		closeProviders()
 		return skip(fmt.Sprintf("the data-read phase could not complete: %s.", drDiags.Err()))
 	}
 
-	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, nil)
+	resolutions, idDiags := liveResolve(ctx, config, provs, resourceSchemas, dataResults, nil)
 	// GitHub issue #1677: a per-instance refusal the plan's node-resolve
 	// seam takes over (#1539's shape) is exactly the case the Kubernetes
 	// address-binding join needs to know about, the same way the plan
@@ -801,7 +801,7 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 
 	// The cluster listing runs with the providers still open: the client
 	// is built from the provider block's evaluated arguments, which
-	// [statelessProviders.ConfiguredProvider] is what evaluates.
+	// [projectionProviders.ConfiguredProvider] is what evaluates.
 	var kube []views.LiveLsItem
 	if kubernetes {
 		var kubeDiags tfdiags.Diagnostics
@@ -898,11 +898,11 @@ func liveLsNotListed(estate string, set liveLsSubstrateSet) tfdiags.Diagnostics 
 
 // liveLsUnclaimedNotListed is the warning for the provider configurations
 // in unclaimed whose schema has a type a marker is written onto
-// ([statelessProviders.mayCarryMarkers]): no family claims them, so
+// ([projectionProviders.mayCarryMarkers]): no family claims them, so
 // nothing lists what the estate marked through them. A provider whose
 // schema has no such type holds nothing a listing could find, and is not
 // named.
-func liveLsUnclaimedNotListed(ctx context.Context, estate string, provs *statelessProviders, unclaimed []addrs.AbsProviderConfig) tfdiags.Diagnostics {
+func liveLsUnclaimedNotListed(ctx context.Context, estate string, provs *projectionProviders, unclaimed []addrs.AbsProviderConfig) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	var names []string
 	seen := map[string]bool{}
@@ -930,7 +930,7 @@ func (s liveLsSubstrateSet) has(sw substrate.Sweep) bool { return s.sweeps[sw] }
 // liveLsSubstrates reads the substrates off a configuration the way the
 // estate-wide sweep picks its provider passes: every distinct provider
 // configuration among the managed resources
-// ([statelessManagedResourceProviders], which falls back to the root's
+// ([liveManagedResourceProviders], which falls back to the root's
 // declared provider blocks when nothing is declared), each asked for its
 // own [substrate.Substrate.Sweep] rather than switched on by name. A
 // third substrate registered in [substrate.All] is in the set the moment a
@@ -953,7 +953,7 @@ func liveLsSubstrates(config *configs.Config, cfgDiags tfdiags.Diagnostics) live
 	}
 	set := liveLsSubstrateSet{sweeps: map[substrate.Sweep]bool{}}
 	named := map[string]bool{}
-	for _, addr := range statelessManagedResourceProviders(config) {
+	for _, addr := range liveManagedResourceProviders(config) {
 		sub, ok := substrate.ForProvider(addr.Provider.Type)
 		if !ok {
 			set.unclaimed = append(set.unclaimed, addr)
@@ -976,16 +976,16 @@ func liveLsSubstrates(config *configs.Config, cfgDiags tfdiags.Diagnostics) live
 // liveLsKubernetes lists the estate's objects through every kubernetes
 // provider configuration DIR's managed resources use, one cluster each:
 // the client from the block's own connection arguments, exactly as
-// live-plan's sweep builds it ([statelessProviders.kubernetesClient]), so
+// live-plan's sweep builds it ([projectionProviders.kubernetesClient]), so
 // the inventory reads the cluster the plan would. A block this run cannot
 // configure or connect with is one warning - the sweep's own summary,
 // [discovery.SummaryKubernetesSweepUnavailable] - and the listing goes on
 // without it, the same way an unreachable tagging index leaves the AWS
 // listing a warning rather than a failure.
-func (c *LiveLsCommand) liveLsKubernetes(ctx context.Context, estate string, config *configs.Config, provs *statelessProviders, resolutions []identity.Resolution, nodeRefused map[string]bool) ([]views.LiveLsItem, tfdiags.Diagnostics) {
+func (c *LiveLsCommand) liveLsKubernetes(ctx context.Context, estate string, config *configs.Config, provs *projectionProviders, resolutions []identity.Resolution, nodeRefused map[string]bool) ([]views.LiveLsItem, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	var items []views.LiveLsItem
-	for _, addr := range statelessManagedResourceProviders(config) {
+	for _, addr := range liveManagedResourceProviders(config) {
 		if sub, ok := substrate.ForProvider(addr.Provider.Type); !ok || sub.Sweep() != substrate.SweepLabelList {
 			continue
 		}

@@ -94,7 +94,7 @@ func refusedHookupCluster() *liveLsStubSweeper {
 func refusedHookupStubLeg(t *testing.T, cluster kubesweep.Sweeper) {
 	t.Helper()
 	orig := sweepLegBuilders[substrate.SweepLabelList]
-	sweepLegBuilders[substrate.SweepLabelList] = func(ctx context.Context, p *statelessProviders, sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, bool, tfdiags.Diagnostics) {
+	sweepLegBuilders[substrate.SweepLabelList] = func(ctx context.Context, p *projectionProviders, sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, bool, tfdiags.Diagnostics) {
 		p.rememberKubernetesSweeper(addr, cluster)
 		return discovery.KubernetesSweep{Client: cluster, Types: []string{"kubernetes_config_map"}}, false, nil
 	}
@@ -102,7 +102,7 @@ func refusedHookupStubLeg(t *testing.T, cluster kubesweep.Sweeper) {
 }
 
 // refusedHookupK8s is a kubernetes provider that speaks the list protocol
-// the stateless list client asks for by assertion, serving no list schema,
+// the live-mode list client asks for by assertion, serving no list schema,
 // as newK8sCluster's does.
 type refusedHookupK8s struct{ *tofu.MockProvider }
 
@@ -195,14 +195,14 @@ func TestNodeRefusedHookup_plainPlan(t *testing.T) {
 	refusedHookupStubLeg(t, refusedHookupCluster())
 	m, done := refusedHookupMeta(t, refusedHookupProvider())
 
-	var captured *statelessRunner
-	defer statelessRunnerTestHook(func(r *statelessRunner) { captured = r })()
+	var captured *liveRunner
+	defer liveRunnerTestHook(func(r *liveRunner) { captured = r })()
 
 	c := &PlanCommand{Meta: m}
 	code := c.Run([]string{"-no-color"})
 	out := done(t)
 	if captured == nil {
-		t.Fatal("no stateless runner was installed, so this plan did not take the live-block path")
+		t.Fatal("no live runner was installed, so this plan did not take the live-block path")
 	}
 	// The premise: the static evaluator refused the reader, so it reached
 	// the node rather than the resolutions. Without this the test would

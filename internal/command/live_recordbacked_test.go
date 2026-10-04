@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-// TestStatelessManagedResourceProvidersIgnoresRecordBacked pins a bug a
+// TestLiveManagedResourceProvidersIgnoresRecordBacked pins a bug a
 // real end-to-end run against live/e2e/record-store/ caught: the
 // estate-wide sweep's provider candidate set used to treat every managed
 // resource in the whole configuration - including GitHub issue #73's
@@ -25,7 +25,7 @@ import (
 // resources and therefore nothing a marker sweep could ever find - even
 // though a record-backed resource has no marker and was never going to be
 // swept for at all.
-func TestStatelessManagedResourceProvidersIgnoresRecordBacked(t *testing.T) {
+func TestLiveManagedResourceProvidersIgnoresRecordBacked(t *testing.T) {
 	dir := t.TempDir()
 	const src = `
 resource "aws_s3_bucket" "data" {
@@ -49,9 +49,9 @@ resource "random_pet" "name" {}
 	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
 		t.Fatalf("writing fixture: %s", err)
 	}
-	cfg := statelessTestLoadConfig(t, dir)
+	cfg := liveTestLoadConfig(t, dir)
 
-	providers := statelessManagedResourceProviders(cfg)
+	providers := liveManagedResourceProviders(cfg)
 	if len(providers) != 1 {
 		t.Fatalf("providers = %v, want exactly one (aws) - null/terraform/time/random must be excluded", providers)
 	}

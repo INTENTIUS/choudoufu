@@ -81,7 +81,7 @@ func (c *LiveImportCommand) Execute(args *arguments.LiveImport) int {
 	diags = diags.Append(ratDiags)
 
 	if rat != nil {
-		views.NewStatelessImport(c.View).Ratification(liveImportReport(args.StatePath, rat))
+		views.NewLiveImport(c.View).Ratification(liveImportReport(args.StatePath, rat))
 	}
 	if diags.HasErrors() || rat == nil {
 		if closeProviders != nil {
@@ -105,7 +105,7 @@ func (c *LiveImportCommand) Execute(args *arguments.LiveImport) int {
 	diags = diags.Append(stampDiags)
 	diags = diags.Append(closeProviders())
 	if stampRep != nil {
-		views.NewStatelessImport(c.View).Stamped(liveImportStampReport(stampRep))
+		views.NewLiveImport(c.View).Stamped(liveImportStampReport(stampRep))
 	}
 	c.View.Diagnostics(diags)
 	if diags.HasErrors() {
@@ -165,10 +165,10 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		return nil, noop, diags
 	}
 
-	provs := newStatelessProviders(config, coreOpts.Plugins)
+	provs := newProjectionProviders(config, coreOpts.Plugins)
 	closer := func() tfdiags.Diagnostics { return provs.close(ctx) }
 
-	// GitHub issue #327: the same record_store a stateless plan or apply
+	// GitHub issue #327: the same record_store a live plan or apply
 	// would open, opened here too, so Approve can classify and record
 	// residue (issue #275) from the real object this run reads - see
 	// [projection.RecordResidueForInstance]'s doc comment for why a migrate
@@ -216,7 +216,7 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 	// GitHub issue #1543: the provider-configuration data-read phase, which
 	// the plan paths have run since GitHub issue #313 and this one never
 	// did. Placed here because it must be complete before the first
-	// [statelessProviders.ConfiguredProvider] call, and Ratify's own first
+	// [projectionProviders.ConfiguredProvider] call, and Ratify's own first
 	// instance makes one.
 	liveImportProviderDataReads(ctx, config, provs, recordStore, stateFile.State)
 
@@ -232,7 +232,7 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		Providers: provs,
 		// GitHub issue #1109: the cluster client a manifest-shape
 		// resource's tofu-estate label is written through. The same
-		// statelessProviders the reads go through, so the write lands
+		// projectionProviders the reads go through, so the write lands
 		// under the credential the provider block names. See
 		// live_import_kubernetes.go.
 		Clusters: provs,
@@ -256,7 +256,7 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 // configuration data-read phase on the migrate path, which until GitHub
 // issue #1543 only live-plan (live_plan.go:678) and a plan or apply under a
 // live block (live_mode.go:1164) ran. Without it
-// [statelessProviders.providerConfigValue] decodes a provider block through
+// [projectionProviders.providerConfigValue] decodes a provider block through
 // the module's bare static evaluator, so `provider "kubernetes" { host =
 // data.aws_eks_cluster.cluster.endpoint }` - corpus-eks-basic's own shape -
 // refuses with "Dynamic value in static context", [ratifyOne]'s
@@ -298,14 +298,14 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 //
 // The read-parallelism setting is read for its value and not for its
 // refusal: [projection.ReadInstances] materializes sequentially at every
-// setting (see [statelessProviderDataReads]'s own note), so raising it here
+// setting (see [liveProviderDataReads]'s own note), so raising it here
 // would add a refusal to live-import over a knob that cannot change what
 // live-import does. The plan paths still refuse it, where it is load-bearing.
 //
 // The nil [identity.Scope] is live-import having no -target or -exclude flag
 // to honour, and nil means every block is in scope - the same value
 // live-mv and live-ls pass for the same reason.
-func liveImportProviderDataReads(ctx context.Context, config *configs.Config, provs *statelessProviders, recordStore *projection.RecordStore, state *states.State) {
+func liveImportProviderDataReads(ctx context.Context, config *configs.Config, provs *projectionProviders, recordStore *projection.RecordStore, state *states.State) {
 	if !dataread.AnalyzeProviderConfigs(ctx, config, dataread.Options{}).Demands() {
 		return
 	}
@@ -318,12 +318,12 @@ func liveImportProviderDataReads(ctx context.Context, config *configs.Config, pr
 	// that resource through the resolution map, so an identity that needs a
 	// data source of its own has to be resolvable before the chain can be
 	// followed.
-	dataResults, drDiags := statelessDataReads(ctx, config, provs, resourceSchemas, nil)
+	dataResults, drDiags := liveDataReads(ctx, config, provs, resourceSchemas, nil)
 	for _, d := range drDiags {
 		log.Printf("[TRACE] live-import: identity data reads: %s", d.Description().Summary)
 	}
 
-	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, nil)
+	resolutions, idDiags := liveResolve(ctx, config, provs, resourceSchemas, dataResults, nil)
 	for _, d := range idDiags {
 		log.Printf("[TRACE] live-import: identity resolution for the provider-configuration data reads: %s", d.Description().Summary)
 	}
@@ -341,7 +341,7 @@ func liveImportProviderDataReads(ctx context.Context, config *configs.Config, pr
 	// this function's doc comment gives; a state-held instance is seeded,
 	// never read, so it cannot produce one.
 	var pdDiags tfdiags.Diagnostics
-	provs.providerDataResults, provs.providerManagedResults, pdDiags = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, recordStore, readPar, nil, liveImportPriorManagedValues(state, resourceSchemas))
+	provs.providerDataResults, provs.providerManagedResults, pdDiags = liveProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, recordStore, readPar, nil, liveImportPriorManagedValues(state, resourceSchemas))
 	for _, d := range pdDiags {
 		log.Printf("[TRACE] live-import: provider-configuration reads: %s", d.Description().Summary)
 	}
@@ -349,7 +349,7 @@ func liveImportProviderDataReads(ctx context.Context, config *configs.Config, pr
 
 // liveImportPriorManagedValues is the state file being migrated, decoded into
 // [projection.ReadInstances]' own output shape - every managed instance in it,
-// keyed by absolute instance address - for [statelessProviderDataReads]'
+// keyed by absolute instance address - for [liveProviderDataReads]'
 // priorManaged argument.
 //
 // It is the migrate path's whole answer to a question the plan path never has
@@ -364,7 +364,7 @@ func liveImportProviderDataReads(ctx context.Context, config *configs.Config, pr
 //
 // The state is also the RIGHT source rather than a convenient one. It is the
 // prior state stock OpenTofu would hand its own plan graph for this
-// configuration, which is exactly what [statelessProviderDataReads]' doc
+// configuration, which is exactly what [liveProviderDataReads]' doc
 // comment says the phase reproduces, and it is the file this command's whole
 // job is to migrate from.
 //
@@ -404,13 +404,13 @@ func liveImportPriorManagedValues(state *states.State, schemas map[string]provid
 	return out
 }
 
-func liveImportReport(statePath string, rat *liveimport.Ratification) views.StatelessImportReport {
-	rep := views.StatelessImportReport{
+func liveImportReport(statePath string, rat *liveimport.Ratification) views.LiveImportReport {
+	rep := views.LiveImportReport{
 		Estate:    rat.Estate,
 		StatePath: statePath,
 	}
 	for _, e := range rat.Entries {
-		rep.Entries = append(rep.Entries, views.StatelessImportEntry{
+		rep.Entries = append(rep.Entries, views.LiveImportEntry{
 			Addr:     e.Addr.String(),
 			TypeName: e.TypeName,
 			Status:   string(e.Status),
@@ -422,10 +422,10 @@ func liveImportReport(statePath string, rat *liveimport.Ratification) views.Stat
 	return rep
 }
 
-func liveImportStampReport(rep *liveimport.StampReport) views.StatelessImportStamped {
-	out := views.StatelessImportStamped{Estate: rep.Estate, IdentitiesRecorded: rep.IdentitiesRecorded}
+func liveImportStampReport(rep *liveimport.StampReport) views.LiveImportStamped {
+	out := views.LiveImportStamped{Estate: rep.Estate, IdentitiesRecorded: rep.IdentitiesRecorded}
 	for _, o := range rep.Outcomes {
-		out.Outcomes = append(out.Outcomes, views.StatelessImportOutcome{
+		out.Outcomes = append(out.Outcomes, views.LiveImportOutcome{
 			Addr:     o.Addr.String(),
 			TypeName: o.TypeName,
 			Outcome:  string(o.Outcome),

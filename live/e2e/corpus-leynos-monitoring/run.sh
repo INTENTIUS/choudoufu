@@ -49,10 +49,10 @@ set -uo pipefail
 # capabilities.json records for both under its own "cloudcontrol-list"
 # mechanism is a different code path (floci's generic AWS::CloudFormation-
 # schema Cloud Control passthrough, used by tools/floci-capability-gen's own
-# sweep and by choudoufu's stateless orphan-discovery scan) from the native
+# sweep and by choudoufu's live-mode orphan-discovery scan) from the native
 # CloudWatch service API the AWS provider's own hand-written Read/Create
 # functions actually call for these two resource types, and this crossing
-# never invokes stateless discovery - every stage below drives choudoufu
+# never invokes live-mode discovery - every stage below drives choudoufu
 # from an explicit state file or a marker, never a Cloud-Control-backed
 # scan. This is a real floci gap for aws_budgets_budget alone, not a
 # choudoufu one and not this script's to route around: excluded with
@@ -64,10 +64,10 @@ set -uo pipefail
 # identical.
 #
 # UPDATE 2026-08-21 (a): `-target` scoped cold deploy and the final core
-# plan fine, but did NOT scope choudoufu's stateless live-plan identity
+# plan fine, but did NOT scope choudoufu's live-plan identity
 # resolution/discovery/stamping passes at all: args.Operation.Targets was
-# threaded only into the final tfCtx.Plan() call, after statelessResolve/
-# statelessDataReads/statelessDiscover/statelessStamp had already walked the
+# threaded only into the final tfCtx.Plan() call, after liveResolve/
+# liveDataReads/liveDiscover/liveStamp had already walked the
 # entire configs.Config. Those passes hit aws_budgets_budget's own identity
 # requirement (account_id has no value anywhere in this module, by design -
 # AWS defaults it to the caller's account) and refused hard with "Identity
@@ -78,7 +78,7 @@ set -uo pipefail
 # untargeted resource out of the graph before anything ever evaluates it.
 # HANDOFF.md label 2, "OpenTofu succeeds, choudoufu refuses". Filed as
 # https://github.com/INTENTIUS/choudoufu/issues/352 and FIXED there: the
-# stateless pipeline now reads which resource blocks survive -target /
+# live pipeline now reads which resource blocks survive -target /
 # -exclude off the plan graph's own TargetingTransformer
 # (tofu.Context.TargetedResources) and hands that scope to resolution and
 # the data-read phase, so a block the graph dropped can no longer refuse the
@@ -135,7 +135,7 @@ set -uo pipefail
 # internal/command/live_plan.go by making originalArgs an explicit copy
 # (`append([]string(nil), rawArgs...)`); regression-tested in
 # internal/command/live_mode_test.go
-# (TestStatelessMode_livePlanIsAnAlias/delegates_with_-target), confirmed to
+# (TestLiveMode_livePlanIsAnAlias/delegates_with_-target), confirmed to
 # fail without the fix (raw ANSI escapes reach the alias's output) and pass
 # with it.
 #

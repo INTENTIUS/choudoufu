@@ -444,7 +444,7 @@ func apiErrorCode(err error) string {
 }
 
 // BucketContractRefusal is the headline and the paragraph for one failed
-// finding, in internal/command's statelessCommandRefusals shape: what was
+// finding, in internal/command's liveCommandRefusals shape: what was
 // refused, then what it protects against and what to do instead. Empty for a
 // finding that passed.
 func BucketContractRefusal(bucket string, f Finding) (summary, detail string) {

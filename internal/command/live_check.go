@@ -150,7 +150,7 @@ func (c *LiveCheckCommand) liveCheck(ctx context.Context, dir string) check.Repo
 		// stdout, in front of the document a parser reads.
 		log.Printf("[WARN] live-check: reading the provider cache for %s: %s", dir, err)
 	}
-	provs := newStatelessProviders(load.Config, lib)
+	provs := newProjectionProviders(load.Config, lib)
 	schemas := provs.resourceSchemas(ctx)
 	// managedTypes is the same read, attributed per provider rather than
 	// merged: it is what lets this instrument draw the data-read phase's

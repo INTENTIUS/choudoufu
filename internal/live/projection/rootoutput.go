@@ -32,7 +32,7 @@ import (
 // the one it recomputes, and an output whose inputs did not change renders
 // as nothing at all.
 //
-// [ApplyRootOutputValues] (issue #348) reproduces that for a stateless run by
+// [ApplyRootOutputValues] (issue #348) reproduces that for a live run by
 // RECOMPUTING each output against the projection, which works for every
 // output whose value is a function of things the projection can materialize.
 // Two rungs of #349 widened what that reaches: [withZeroInstanceBlocks] made
@@ -375,7 +375,7 @@ func ReadRootOutputValues(ctx context.Context, store *RootOutputStore, config *c
 }
 
 // WriteRootOutputValues remembers the root output values a state settled, so
-// the next stateless plan has the "before" side stock reads out of its state
+// the next live plan has the "before" side stock reads out of its state
 // file. Both writers go through it: `live-import`, whose state is the stock
 // tfstate a migration was pointed at, and [WriteBack], whose state is the one
 // an apply just produced.
@@ -582,7 +582,7 @@ func PruneRootOutputValues(ctx context.Context, store *RootOutputStore, config *
 }
 
 // writeBackRootOutputs is [WriteBack]'s root-output half: the apply that just
-// finished settled these values, so the next stateless plan should diff
+// finished settled these values, so the next live plan should diff
 // against them rather than call every one of them new.
 //
 // It is the sibling of writeBackLocated, writeBackResidue and

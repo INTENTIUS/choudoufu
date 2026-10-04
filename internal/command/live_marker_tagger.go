@@ -28,16 +28,16 @@ import (
 // never by the provider type string (GitHub issue #1587): the family is
 // looked up the way every other family question is, and a write this build
 // has no client for is refused by name.
-func (p *statelessProviders) markerTagger(addr addrs.AbsProviderConfig, write substrate.Write) (projection.MarkerWriter, error) {
+func (p *projectionProviders) markerTagger(addr addrs.AbsProviderConfig, write substrate.Write) (projection.MarkerWriter, error) {
 	sub, known := substrate.ForProvider(addr.Provider.Type)
 	return p.markerWriterFor(sub, known, addr, write)
 }
 
-// markerWriterFor is [statelessProviders.markerTagger] for a family already
+// markerWriterFor is [projectionProviders.markerTagger] for a family already
 // looked up (known false when no family claims the provider). Every refusal
 // names what it could not serve, and [projection.NodeResolver.WriteAppliedMarkers]
 // puts it in the "Created object is not marked" error.
-func (p *statelessProviders) markerWriterFor(sub substrate.Substrate, known bool, addr addrs.AbsProviderConfig, write substrate.Write) (projection.MarkerWriter, error) {
+func (p *projectionProviders) markerWriterFor(sub substrate.Substrate, known bool, addr addrs.AbsProviderConfig, write substrate.Write) (projection.MarkerWriter, error) {
 	if !known {
 		return nil, fmt.Errorf("provider %s belongs to no provider family this fork can write a marker through after a create", addr.Provider)
 	}
@@ -56,10 +56,10 @@ func (p *statelessProviders) markerWriterFor(sub substrate.Substrate, known bool
 // client for (GitHub issue #1587). TestEveryPostCreateWriteHasAWriter holds
 // it to [substrate.All]; a family whose write has no entry here is refused
 // by name at the create it could not mark.
-var markerWriters = map[substrate.Write]func(*statelessProviders, addrs.AbsProviderConfig) projection.MarkerWriter{
+var markerWriters = map[substrate.Write]func(*projectionProviders, addrs.AbsProviderConfig) projection.MarkerWriter{
 	// The Resource Groups Tagging API client, signed as the provider
 	// configuration's own principal exactly as the discovery sweep's
-	// clients are (GitHub issue #957, [statelessProviders.credentials]).
+	// clients are (GitHub issue #957, [projectionProviders.credentials]).
 	//
 	// It is NOT behind [cloudControlTarget]'s opt-in the way the sweep
 	// clients are. That gate exists because an unconditional sweep client
@@ -72,7 +72,7 @@ var markerWriters = map[substrate.Write]func(*statelessProviders, addrs.AbsProvi
 	//
 	// The client is wrapped in [projection.TaggingAPIWriter], which derives
 	// the ARN from the created instance (GitHub issue #1638).
-	substrate.WriteTaggingAPI: func(p *statelessProviders, addr addrs.AbsProviderConfig) projection.MarkerWriter {
+	substrate.WriteTaggingAPI: func(p *projectionProviders, addr addrs.AbsProviderConfig) projection.MarkerWriter {
 		ep, _ := cloudControlTarget()
 		creds, explicit := p.credentials(addr, ep)
 		return projection.TaggingAPIWriter{Tagger: cloudcontrol.NewTagging(cloudcontrol.Config{

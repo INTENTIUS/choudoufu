@@ -47,7 +47,7 @@ log lines suggest: on the 745-resource estate, listing one client-side-
 filtered type fans out into hundreds of provider calls that are still arriving
 while the read pass has started.
 
-A log with no `stateless/discovery:` lines at all (stock terraform) reports
+A log with no `live/discovery:` lines at all (stock terraform) reports
 one undivided pass, named "graph walk", because stock has no sweep to
 attribute anything to.
 
@@ -112,10 +112,10 @@ def report(label, path, minlen):
     span = (ev[-1][0] - t0).total_seconds()
     sent = sum(1 for _, k in ev if k > 0)
 
-    # The sweep is the only thing that logs stateless/discovery lines.
+    # The sweep is the only thing that logs live/discovery lines.
     sweep_end = None
     for t, l in lines:
-        if "stateless/discovery:" in l:
+        if "live/discovery:" in l:
             sweep_end = t
     sweep_s = (sweep_end - t0).total_seconds() if sweep_end else None
 
@@ -153,7 +153,7 @@ def report(label, path, minlen):
         print("  passes                         : one undivided pass (no sweep in this log)")
     else:
         print(
-            f"  last stateless/discovery line  : t={sweep_s:.1f}s "
+            f"  last live/discovery line  : t={sweep_s:.1f}s "
             f"(informational; stalls are attributed by tf_rpc, not by this)"
         )
 

@@ -825,7 +825,7 @@ func TestCheckEstate(t *testing.T) {
 
 	issues := CheckContext(t.Context(), cfg)
 	for _, issue := range issues {
-		t.Errorf("estate fixture is outside the stateless subset: %s", issue)
+		t.Errorf("estate fixture is outside the live-mode subset: %s", issue)
 	}
 }
 
@@ -873,7 +873,7 @@ func TestDiagnostics(t *testing.T) {
 }
 
 // TestStateBackendIsWarningSeverity is GitHub issue #210's ruling: a
-// terraform-block state backend or cloud block no longer blocks a stateless
+// terraform-block state backend or cloud block no longer blocks a live
 // run. It checks both ends - the rule's own [Rule.Severity] and what
 // [Diagnostics] does with an issue that rule produced - against the two
 // fixtures that trip [RuleStateBackend] in its two HCL forms.

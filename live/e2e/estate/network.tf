@@ -27,7 +27,7 @@ resource "aws_subnet" "this" {
 }
 
 resource "aws_security_group" "main" {
-  name        = "stateless-e2e-main"
+  name        = "live-e2e-main"
   description = "estate fixture security group"
   vpc_id      = aws_vpc.main.id
 

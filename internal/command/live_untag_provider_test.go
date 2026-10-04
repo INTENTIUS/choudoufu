@@ -146,10 +146,10 @@ func untagFakeProvider(cloud *untagCloud, schema providers.GetProviderSchemaResp
 
 type untagRecordingView struct {
 	progressRecordingView
-	reports []views.StatelessPolicyReport
+	reports []views.LivePolicyReport
 }
 
-func (v *untagRecordingView) Policy(r views.StatelessPolicyReport) { v.reports = append(v.reports, r) }
+func (v *untagRecordingView) Policy(r views.LivePolicyReport) { v.reports = append(v.reports, r) }
 
 var (
 	untagAWS  = addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("aws")}
@@ -168,9 +168,9 @@ func untagOrphan(typeName, importID string) discovery.OwnedResource {
 	}
 }
 
-// untagRun merges the passes the way statelessDiscover does, captures the
+// untagRun merges the passes the way liveDiscover does, captures the
 // untag work the way PriorState does, and runs AfterApply. Before #1657 the
-// capture also took statelessDiscover's "primary" provider configuration
+// capture also took liveDiscover's "primary" provider configuration
 // (the first in address order, untagAWS in both tests below) and released
 // every target through it.
 func untagRun(t *testing.T, cloud *untagCloud, passes []discovery.Pass) (*untagRecordingView, []string) {
@@ -204,8 +204,8 @@ provider "kubernetes" {}
 	}
 
 	view := &untagRecordingView{}
-	r := &statelessRunner{lib: lib, view: view}
-	r.captureUntag(statelessUntagTargets(merged), markers.TagEstate, untagProviderEstate, config)
+	r := &liveRunner{lib: lib, view: view}
+	r.captureUntag(liveUntagTargets(merged), markers.TagEstate, untagProviderEstate, config)
 	applyDiags := r.AfterApply(context.Background())
 
 	var errs []string
@@ -288,8 +288,8 @@ func TestUntagRefusesAnUnattributedTarget(t *testing.T) {
 	}}
 	disco := &discovery.Result{Estate: "prod", Verdicts: discovery.Verdicts{Orphans: []discovery.OwnedResource{untagOrphan("aws_sqs_queue", "east-q")}}}
 	view := &untagRecordingView{}
-	r := &statelessRunner{lib: plugins.NewLibrary(plugins.ProviderFactories{}, nil), view: view}
-	r.captureUntag(statelessUntagTargets(disco), markers.TagEstate, untagProviderEstate, liveLsLoadConfig(t, `provider "aws" {}`))
+	r := &liveRunner{lib: plugins.NewLibrary(plugins.ProviderFactories{}, nil), view: view}
+	r.captureUntag(liveUntagTargets(disco), markers.TagEstate, untagProviderEstate, liveLsLoadConfig(t, `provider "aws" {}`))
 	diags := r.AfterApply(context.Background())
 	if !diags.HasErrors() || !strings.Contains(diags.Err().Error(), "aws_sqs_queue east-q") {
 		t.Fatalf("diagnostics = %v, want an error naming the unattributed target", diags.Err())
@@ -304,15 +304,15 @@ func TestUntagRefusesAnUnattributedTarget(t *testing.T) {
 
 // GitHub issue #1743: the value a release checks the label against is the
 // policy's tag_value, which defaults to the estate name.
-func TestStatelessPolicyTagValueIsTheEstatesValue(t *testing.T) {
-	if got := statelessPolicyTagValue(policy.Build(nil, "prod")); got != "prod" {
+func TestLivePolicyTagValueIsTheEstatesValue(t *testing.T) {
+	if got := livePolicyTagValue(policy.Build(nil, "prod")); got != "prod" {
 		t.Errorf("default tag value = %q, want the estate name %q", got, "prod")
 	}
 	custom := policy.Build(&policy.Raw{TagKey: "keep-me", TagKeySet: true, TagValue: "yes", TagValueSet: true}, "prod")
-	if got := statelessPolicyTagValue(custom); got != "yes" {
+	if got := livePolicyTagValue(custom); got != "yes" {
 		t.Errorf("tag value = %q, want the configured %q", got, "yes")
 	}
-	if got := statelessPolicyTagValue(nil); got != "" {
+	if got := livePolicyTagValue(nil); got != "" {
 		t.Errorf("no policy gave tag value %q", got)
 	}
 }

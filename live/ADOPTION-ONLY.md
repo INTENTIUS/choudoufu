@@ -59,7 +59,7 @@ One thing an ordinary plan prints and this mode does not: the lookalike
 guard's `Possible duplicates` section (`live/MARKERS.md`, "The residual
 risk, and the last line of defense"). `-adoption-only` asks the wider
 question and so has the data, but its renderer has no case for the section
-(`views.StatelessAdoptionHuman.Lookalikes` is a no-op, which is what keeps
+(`views.LiveAdoptionHuman.Lookalikes` is a no-op, which is what keeps
 the mode's output short). Run the plan without the flag to see it.
 
 It needs a `live` block; a state-backed plan refuses it.
