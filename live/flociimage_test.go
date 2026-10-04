@@ -82,10 +82,12 @@ var flociImageFields = map[string]string{
 // shape. live/floci-capabilities.json was re-probed for the digest
 // (-mode=all with -watch networkmanager, then -mode=tagging on a fresh
 // container, then the three hand rows by hand) and no row moves status.
-// substrates.json was regenerated; the large-set records were re-measured
-// at N=5 against the new pin. cohort-acceptance.json and gauntlet.json gain
-// an entry below; each is a multi-estate sweep, not something this repin
-// was ruled to re-run.
+// substrates.json was regenerated, the large-set records were re-measured
+// at N=5 against the new pin, and `go run ./tools/gauntlet render` carried
+// gauntlet.json's emulator field across (the board's rows now read as
+// carried, not verified, until the next board run). cohort-acceptance.json
+// gains an entry below: re-measuring it is the 31-cohort sweep, not
+// something this repin was ruled to re-run.
 //
 // 2026-09-22 repin (issue #1316, lex00/floci#215, main-line PR
 // lex00/floci#214): sha256:6c3d5c2d is the previous pin's source commit
@@ -211,13 +213,6 @@ var staleFlociMeasurements = map[string]string{
 	// cohort-acceptance.json's own re-measurement (its own generated_by
 	// field says so); it cannot be re-measured independently of that file.
 	"cohort-triage.json": "reconciled by hand against cohort-acceptance.json (see this file's own generated_by field); re-measuring depends on that artifact's own re-measurement, which is the entry above",
-	// gauntlet.json's top-level emulator field is what `go run
-	// ./tools/gauntlet render` keeps in step with live/floci-image, and the
-	// earlier repins below ran render to carry it across. #1821 did not:
-	// that unit was ruled to make no write to live/gauntlet.json, and the
-	// field is a declaration about the board's rows, none of which were
-	// re-measured on this pin. A render, or the next board run, retires it.
-	"gauntlet.json": "declares the #1316 pin, one repin back; this repin (#1821) made no write to gauntlet.json. Retiring it costs a `go run ./tools/gauntlet render` (or the next board run); lex00/floci#218 only changes which of two racing same-name IAM creates wins and what the loser is told",
 }
 
 // flociPinRef is live/floci-image's full ref.
