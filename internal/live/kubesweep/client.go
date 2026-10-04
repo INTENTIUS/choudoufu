@@ -201,7 +201,16 @@ type Client struct {
 // is caught: rest.Config.TransportConfig asks the exec credential
 // provider for an authenticator here, so an api_version it does not know
 // fails now rather than at the first request.
+//
+// The server's warning headers are dropped. A sweep lists every kind the
+// cluster serves, deprecated ones included (v1 Endpoints from 1.33), and
+// client-go's default handler prints each warning as a raw klog line on
+// stderr, timestamped, in the middle of a plan the user did not ask about
+// those kinds in. Stock surfaces no such line: the provider's own client
+// logs them, and only under TF_LOG.
 func New(cfg *restclient.Config) (*Client, error) {
+	cfg = restclient.CopyConfig(cfg)
+	cfg.WarningHandler = restclient.NoWarnings{}
 	creds := CredentialsOf(cfg)
 	disc, err := discovery.NewDiscoveryClientForConfig(cfg)
 	if err != nil {
