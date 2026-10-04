@@ -94,6 +94,12 @@ func (kubernetes) Sweep() Sweep { return SweepLabelList }
 // (GitHub issue #1581, [Sweeps]).
 func (kubernetes) SweepFindsUnadmitted() bool { return true }
 
+// MarkerOutlivesObject is false: the tofu-estate label is a field of the
+// object, so nothing lists it once the object is deleted, and a record
+// tombstone would have no reader (live/MARKERS.md, #1188; GitHub issue
+// #1883).
+func (kubernetes) MarkerOutlivesObject() bool { return false }
+
 // NewSweeper is the cluster client the provider block's own connection
 // arguments build ([KubernetesSweepAttrs] mirrors hashicorp/kubernetes'
 // precedence).

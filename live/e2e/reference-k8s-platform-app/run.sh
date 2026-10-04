@@ -563,6 +563,33 @@ PY
 }
 refresh_app_records() { mirror_records "$REC_APP" "$1"; }
 
+# show_records <records-namespace> <estate>: every Secret the estate's store
+# holds there, one line each - its name, its record-namespace label, its
+# record key, and which envelope members its payload carries (object,
+# identity, residue, provisioned, deposed, tombstone, field-granular...) -
+# so a teardown that leaves records says what they are.
+show_records() {
+  local out
+  out="$(kca get secrets -n "$1" -l "tofu-estate=$2" -o json 2>&1)" || { printf 'could not list Secrets in %s: %s\n' "$1" "$out"; return 0; }
+  python3 -c '
+import base64, gzip, json, sys
+for s in json.load(sys.stdin).get("items", []):
+    meta = s.get("metadata") or {}
+    lab = meta.get("labels") or {}
+    ann = meta.get("annotations") or {}
+    members = "-"
+    try:
+        raw = base64.b64decode((s.get("data") or {}).get("tfstate", ""))
+        if ann.get("encoding") == "gzip":
+            raw = gzip.decompress(raw)
+        env = json.loads(raw)
+        members = ",".join(k for k, v in sorted(env.items()) if v not in (None, "", {}, []))
+    except Exception as e:
+        members = "unreadable (%s)" % e
+    print("  %s  record-namespace=%s  key=%s  members=%s" % (meta.get("name"), lab.get("choudoufu.intentius.io/record-namespace", "-"), ann.get("choudoufu.intentius.io/record-key", "-"), members))
+' <<< "$out"
+}
+
 # inventory <kubeconfig>: both estates' objects, normalised to what the
 # configuration declares, labels and annotations never compared.
 inventory() {
@@ -1095,7 +1122,7 @@ T_OUT="$(chdf "$APP_LIVE" apply -destroy -auto-approve -input=false -no-color 2>
 grep -qF "Resources: 0 added, 0 changed, $T_APP destroyed" <<< "$T_OUT" || { printf '%s\n' "$T_OUT" | tail -5; fail "app's destroy did not remove exactly its $T_APP objects"; }
 T_APP_LEFT="$(count_app)"; T_APP_REC="$(record_secrets "$REC_APP" "$APP" tofu-records)"
 [ "$T_APP_LEFT" = "0" ] || fail "$T_APP_LEFT object(s) still carry tofu-estate=$APP after app's destroy"
-[ "$T_APP_REC" = "0" ] || fail "$T_APP_REC record Secret(s) of app's remain in $REC_APP after its destroy"
+[ "$T_APP_REC" = "0" ] || { show_records "$REC_APP" "$APP"; fail "$T_APP_REC record Secret(s) of app's remain in $REC_APP after its destroy"; }
 [ "$(count_net)" = "$T_NET" ] || fail "app's destroy moved network's count ($T_NET -> $(count_net))"
 T_OUT="$(chdf "$NET_LIVE" apply -destroy -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$T_OUT" | tail -20; fail "network's apply -destroy failed"; }
 grep -qF "Resources: 0 added, 0 changed, $T_NET destroyed" <<< "$T_OUT" || { printf '%s\n' "$T_OUT" | tail -5; fail "network's destroy did not remove exactly its $T_NET objects"; }
@@ -1104,7 +1131,7 @@ kca get namespace "$NS_NET" >/dev/null 2>&1 && fail "the $NS_NET namespace still
 kca get namespace "$NS_APP" >/dev/null 2>&1 && fail "the $NS_APP namespace still exists after the destroys"
 [ "$(count_net)" = "0" ] || fail "$(count_net) object(s) still carry tofu-estate=$NET"
 T_NET_REC="$(record_secrets "$REC_NET" "$NET" tofu-records)"; T_NET_OUT="$(record_secrets "$REC_NET" "$NET" tofu-outputs)"
-[ "$T_NET_REC" = "0" ] && [ "$T_NET_OUT" = "0" ] || fail "network's destroy left $T_NET_REC record and $T_NET_OUT output Secret(s) in $REC_NET"
+[ "$T_NET_REC" = "0" ] && [ "$T_NET_OUT" = "0" ] || { show_records "$REC_NET" "$NET"; fail "network's destroy left $T_NET_REC record and $T_NET_OUT output Secret(s) in $REC_NET"; }
 T_HINTS="$(( $(record_secrets "$REC_NET" "$NET" tofu-hints) + $(record_secrets "$REC_APP" "$APP" tofu-hints) ))"
 ran stock_b apply -destroy -auto-approve -input=false -no-color || { shown; fail "stock's destroy of app failed on B"; }
 ran stock_bn apply -destroy -auto-approve -input=false -no-color || { shown; fail "stock's destroy of network failed on B"; }

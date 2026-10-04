@@ -22,6 +22,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/states"
 )
 
@@ -1695,7 +1696,12 @@ func (s *RecordStore) tombstone(ctx context.Context, addr addrs.AbsResourceInsta
 		// independent of the envelope's current one" reasoning
 		// [deposedFields.Provider] already uses.
 		env.Provider = ""
-		addTombstoneEntry(env, identity, providerAddr)
+		// GitHub issue #1883: no entry on a family whose marker dies with
+		// the object, where a tombstone is never read; the envelope then
+		// holds nothing and mergeEnvelope deletes the key.
+		if tombstonesReadFor(providerAddr) {
+			addTombstoneEntry(env, identity, providerAddr)
+		}
 	})
 	return err
 }
@@ -1813,6 +1819,20 @@ func addTombstoneEntry(env *recordEnvelope, identity *identityPayload, providerA
 	}
 	capTombstones(env, tk)
 	return true
+}
+
+// tombstonesReadFor is [substrate.TombstonesRead] for a recorded provider
+// configuration string ([addrs.AbsProviderConfig.String]). A string that
+// does not parse, or names no provider, keeps the tombstone.
+func tombstonesReadFor(providerAddr string) bool {
+	if providerAddr == "" {
+		return true
+	}
+	p, diags := addrs.ParseAbsProviderConfigStr(providerAddr)
+	if diags.HasErrors() || p.Provider.Type == "" {
+		return true
+	}
+	return substrate.TombstonesRead(p.Provider.Type)
 }
 
 // maxTombstonesPerAddress bounds how many destroyed identities one

@@ -335,7 +335,7 @@ rather than missing.
 | `residue` | yes, and load-bearing | the `wait_for_*` arguments, a `timeouts` block, and (#1211) the `metadata.labels` and `metadata.annotations` keys each apply declared, which is what lets a key DELETED from the configuration be proposed for removal |
 | `provisioned` | yes, if the block declares a create-time provisioner | a property of the configuration, not of the substrate |
 | `deposed` | never | a name is unique in its namespace, so nothing is created before the object it replaces is gone and there is no create-before-destroy window |
-| `tombstone` | writable only behind `identity`, never read | the label is a field of the object, so a deleted object leaves no lingering marker to tell from a second claimant; both readers are gated on two claimants sharing one address, which the synthetic orphan address makes impossible |
+| `tombstone` | never (#1883) | the label is a field of the object, so a deleted object leaves no lingering marker to tell from a second claimant; both readers are gated on two claimants sharing one address, which the synthetic orphan address makes impossible. Until #1883 one was written behind `identity` and never read, and it outlived the estate's destroy; the family's `MarkerOutlivesObject` is false, so a destroy now deletes the record instead |
 
 The split in the `identity` row is the ratified row, not the version suffix
 the type is spelled with: `kubernetes_service_account` is unversioned, has

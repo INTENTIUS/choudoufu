@@ -372,9 +372,67 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 	// GitHub issue #1355: a whole destroy re-reads the store and fails if a
 	// record-backed instance's record outlived it.
 	if req.WholeDestroy {
+		diags = diags.Append(clearUnreadRecordsOnWholeDestroy(ctx, req))
 		diags = diags.Append(verifyWholeDestroyLeftNoObjectRecord(ctx, req, deleteFailed))
 	}
 
+	return diags
+}
+
+// clearUnreadRecordsOnWholeDestroy is GitHub issue #1883: when the whole
+// estate is destroyed, its records go with it, including the ones this
+// run's plan never read a version for.
+//
+// The loops above tombstone or delete only keys the plan read. A record
+// written under an address that left the configuration some other way is
+// never one of those: the old address of a `moved` block, a block removed
+// and destroyed at its orphan address, an object handed to another estate
+// by `live-mv -from-estate` (the source's record stays behind by design).
+// Measured on reference-k8s-platform-app's day2_teardown, where app's
+// destroy left 13 record Secrets behind.
+//
+// Each such key gets exactly what an address leaving the final state gets,
+// [RecordStore.tombstone]: an identity is kept as a tombstone where the
+// family's marker can outlive the object, and everything else is deleted.
+// Skipped: a key the loops above already handled (a failed delete there has
+// its own diagnostic), an instance still current in the final state, and a
+// kind=object envelope with an Object, which IS a record-backed instance
+// and is [verifyWholeDestroyLeftNoObjectRecord]'s to name as a survivor.
+// Reads and lists past the run cache, for that guard's reason.
+func clearUnreadRecordsOnWholeDestroy(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if req.Store == nil {
+		return diags
+	}
+	handled := make(map[string]bool, len(req.PriorVersions)+len(req.EnvelopeVersions))
+	for _, rv := range req.PriorVersions {
+		handled[rv.Addr.String()] = true
+	}
+	for _, rv := range req.EnvelopeVersions {
+		handled[rv.Addr.String()] = true
+	}
+	keys, err := staterecord.Fresh(req.Store.store).List(ctx, req.Store.prefix)
+	if err != nil {
+		return diags.Append(tfdiags.Sourceless(tfdiags.Warning, "Cannot clear the destroyed estate's remaining records",
+			fmt.Sprintf("This apply destroyed the whole estate, and listing the record store to remove the records its plan never read failed: %s. Those records are left in place; nothing reads them for an estate with no instances, and a later destroy removes them.", err)))
+	}
+	for _, key := range keys {
+		addr, ok := RecordAddr(req.Store.prefix, key)
+		if !ok || handled[addr.String()] || stillCurrent(req.FinalState, addr) {
+			continue
+		}
+		env, version, exists, err := req.Store.getRawFresh(ctx, addr)
+		if err != nil || !exists {
+			continue
+		}
+		if env.Kind == recordKindObject && env.Object != nil {
+			continue
+		}
+		if err := req.Store.tombstone(ctx, addr, version, nil); err != nil {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, "Cannot clear the destroyed estate's remaining records",
+				fmt.Sprintf("This apply destroyed the whole estate, and removing the record for %s, which its plan never read, failed: %s. The record is left in place; a later destroy removes it.", addr, err)))
+		}
+	}
 	return diags
 }
 

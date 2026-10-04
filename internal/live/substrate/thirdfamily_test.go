@@ -188,6 +188,7 @@ type listingFamily struct {
 func (f listingFamily) Name() string               { return f.name }
 func (f listingFamily) Sweep() Sweep               { return f.sweep }
 func (f listingFamily) SweepFindsUnadmitted() bool { return f.unadmitted }
+func (f listingFamily) MarkerOutlivesObject() bool { return true }
 
 // TestSweepsAsksTheFamily (GitHub issue #1742 item 5): whether a family's
 // sweep finds a type with no admission-table row is the family's answer.
