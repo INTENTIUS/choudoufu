@@ -2224,7 +2224,14 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 	// for the identity rule that makes it decline instead.
 	var manifestOpen []cty.Path
 	if _, seeded := attrsSeed[markers.ManifestSurfaceAttr]; !seeded {
-		if partial, open, ok := partialManifestSeed(ctx, seedEval, modPath, rc, schema); ok {
+		// GitHub issue #1883: an instance the sweep verified completes an
+		// identity leaf configuration cannot evaluate from its import id;
+		// see [partialManifestSeedFor].
+		verifiedImportID := ""
+		if b.opts.Ownership.verified(addr) {
+			verifiedImportID = w.importID
+		}
+		if partial, open, ok := partialManifestSeedFor(ctx, seedEval, modPath, rc, schema, verifiedImportID); ok {
 			if attrsSeed == nil {
 				attrsSeed = make(map[string]cty.Value, 1)
 			}

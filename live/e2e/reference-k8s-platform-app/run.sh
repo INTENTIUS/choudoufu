@@ -1072,9 +1072,9 @@ MV_RERUN="$(chdf "$NET_LIVE" live-mv -no-color -from-estate="$APP" kubernetes_ma
 MV_AFTER="$(markers_held_by_update "$NS_NET" handoff)"
 [ "$MV_AFTER" = "free" ] || fail "after the rerun the markers are $MV_AFTER by an Update entry; the hand-off was not finished (#1858)"
 MV_NET_PLAN="$(chdf "$NET_LIVE" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$MV_NET_PLAN" | tail -20; fail "network's plan after the move failed"; }
-grep -q "No changes." <<< "$MV_NET_PLAN" || { printf '%s\n' "$MV_NET_PLAN" | tail -20; fail "network's plan after the move is not empty: $(plan_line <<< "$MV_NET_PLAN")"; }
+grep -q "No changes." <<< "$MV_NET_PLAN" || { printf -- '--- the whole plan of network after the move ---\n%s\n---\n' "$MV_NET_PLAN"; fail "network's plan after the move is not empty: $(plan_line <<< "$MV_NET_PLAN")"; }
 MV_APP_PLAN="$(chdf "$APP_LIVE" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$MV_APP_PLAN" | tail -20; fail "app's plan after the move failed"; }
-grep -q "No changes." <<< "$MV_APP_PLAN" || { printf '%s\n' "$MV_APP_PLAN" | tail -20; fail "app's plan after the move is not empty: $(plan_line <<< "$MV_APP_PLAN")"; }
+grep -q "No changes." <<< "$MV_APP_PLAN" || { printf -- '--- the whole plan of app after the move ---\n%s\n---\n' "$MV_APP_PLAN"; fail "app's plan after the move is not empty: $(plan_line <<< "$MV_APP_PLAN")"; }
 # A provider apply that writes the markers now has to go through: network's
 # no-op apply reasserts them under its Apply entry with nothing to conflict.
 MV_NET_APPLY="$(chdf "$NET_LIVE" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$MV_NET_APPLY" | tail -20; fail "network's apply after the move failed (a field manager conflict here is #1858's symptom)"; }

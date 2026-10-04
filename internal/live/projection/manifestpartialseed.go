@@ -17,6 +17,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang"
+	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -80,7 +81,10 @@ import (
 // existed: it reads back without a marker map, is refused UNOWNED with the
 // warning that names it, and stays out of the prior. Which object an instance
 // binds to is decided by the resolver's import id alone, before and after
-// this change; nothing here can move it.
+// this change; nothing here can move it. The one exception is an instance
+// the estate sweep has already verified by its markers, whose open identity
+// leaves are taken from that same import id rather than from the read (GitHub
+// issue #1883; see [partialManifestSeedFor]).
 //
 // count.index, each.key, each.value and provider functions keep refusing
 // under the tolerant evaluator (see its own doc comment), so an expanded
@@ -105,6 +109,28 @@ import (
 // It is called only when the strict seed produced no manifest, so it can
 // widen what is seeded and never change a value that was already seeded.
 func partialManifestSeed(ctx context.Context, eval *configs.StaticEvaluator, modPath addrs.Module, rc *configs.Resource, schema providers.Schema) (seed cty.Value, open []cty.Path, ok bool) {
+	return partialManifestSeedFor(ctx, eval, modPath, rc, schema, "")
+}
+
+// partialManifestSeedFor is [partialManifestSeed] with one more input:
+// verifiedImportID, the resolver's import id for an instance whose ownership
+// the caller has already verified ([Ownership.Verified]: the estate sweep
+// found the object by this estate's label and the instance's own address
+// annotation), or "" for every other instance.
+//
+// GitHub issue #1883. For such an instance an identity leaf configuration
+// cannot evaluate - a namespace read from a kubernetes_namespace block, the
+// shape a platform estate writes - is taken from that import id instead of
+// declining the seed. That does not cross the line this file's doc comment
+// draws: the import id is the resolver's statement of which object the
+// instance is, made before the read and independently of whatever the read
+// returned, and the object it names already proved it is this instance's by
+// its markers. Declining instead left the prior with a null manifest, stock's
+// own shape straight after `terraform import`, and the provider planned the
+// whole manifest as an in-place update ("Apply needed after 'import'") on an
+// object nothing had changed. A known identity leaf is never overwritten, and
+// an unverified instance gets "" and declines exactly as before.
+func partialManifestSeedFor(ctx context.Context, eval *configs.StaticEvaluator, modPath addrs.Module, rc *configs.Resource, schema providers.Schema, verifiedImportID string) (seed cty.Value, open []cty.Path, ok bool) {
 	defer func() {
 		if rec := recover(); rec != nil {
 			seed, open, ok = cty.NilVal, nil, false
@@ -144,6 +170,9 @@ func partialManifestSeed(ctx context.Context, eval *configs.StaticEvaluator, mod
 	if manifest.IsNull() || !manifest.IsKnown() || manifest.ContainsMarked() || !manifest.Type().IsObjectType() {
 		return cty.NilVal, nil, false
 	}
+	if verifiedImportID != "" {
+		manifest = fillManifestIdentityFromImportID(manifest, verifiedImportID)
+	}
 	if !manifestIdentityKnown(manifest) {
 		return cty.NilVal, nil, false
 	}
@@ -159,6 +188,52 @@ func partialManifestSeed(ctx context.Context, eval *configs.StaticEvaluator, mod
 		return cty.NilVal, nil, false
 	}
 	return nulled, open, true
+}
+
+// fillManifestIdentityFromImportID gives each identity leaf of manifest that
+// is still unknown - apiVersion, kind, metadata.name, metadata.namespace -
+// the value the import id names for it. Known leaves, and leaves the
+// manifest does not write, are left alone; a metadata value that is itself
+// unknown is left unknown, so [manifestIdentityKnown] still declines it. An
+// import id that does not parse changes nothing.
+func fillManifestIdentityFromImportID(manifest cty.Value, importID string) cty.Value {
+	apiVersion, kind, namespace, name, ok := kubesweep.ParseManifestImportID(importID)
+	if !ok {
+		return manifest
+	}
+	fill := func(attrs map[string]cty.Value, key, val string) bool {
+		cur, has := attrs[key]
+		if !has || cur.IsKnown() || val == "" {
+			return false
+		}
+		if ty := cur.Type(); ty != cty.String && ty != cty.DynamicPseudoType {
+			return false
+		}
+		attrs[key] = cty.StringVal(val)
+		return true
+	}
+	if manifest.IsMarked() || !manifest.Type().IsObjectType() {
+		return manifest
+	}
+	attrs := manifest.AsValueMap()
+	changed := fill(attrs, "apiVersion", apiVersion)
+	changed = fill(attrs, "kind", kind) || changed
+	if meta, has := attrs[markers.LabelSurfaceBlock]; has && !meta.IsNull() && meta.IsKnown() && meta.Type().IsObjectType() {
+		if meta.IsMarked() {
+			return manifest
+		}
+		metaAttrs := meta.AsValueMap()
+		metaChanged := fill(metaAttrs, "name", name)
+		metaChanged = fill(metaAttrs, "namespace", namespace) || metaChanged
+		if metaChanged {
+			attrs[markers.LabelSurfaceBlock] = cty.ObjectVal(metaAttrs)
+			changed = true
+		}
+	}
+	if !changed {
+		return manifest
+	}
+	return cty.ObjectVal(attrs)
 }
 
 // manifestIdentityKnown reports whether configuration alone states which
