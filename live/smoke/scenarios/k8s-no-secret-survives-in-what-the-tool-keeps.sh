@@ -7,8 +7,13 @@
 # which no file the run kept holds the value and no state cache exists;
 # the replan is empty, because the API server gives the data back.
 #
-# DRAFT: written and never run (live/smoke/drafts/README.md). Claim 40's
-# Kubernetes cell stays open until both arms have run green.
+# First run 2026-10-04 failed step 4: the unchanged replan proposed
+# + wait_for_service_account_token on the Secret, because under refuse
+# projection.residueCandidates recorded nothing at all for a type holding a
+# sensitive attribute. Since #1873 refuse drops each sensitive argument and
+# records the rest, and the second run, both arms, was green on kind
+# (Kubernetes v1.37.0): 6 kept files read, none holding the value, and the
+# store arm's scan found it in the state cache.
 #
 # Where this differs from the AWS proof, on purpose. RDS never returns a
 # master password, so under refuse the AWS replan proposes the password

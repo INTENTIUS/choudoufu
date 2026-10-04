@@ -7,7 +7,8 @@
 # since their first runs on 2026-10-04, 3 k8s-staleness-costs-reads, 5
 # k8s-recovery-is-a-rerun, 6 k8s-roundtrip, 8 k8s-stock-when-you-need-it, 9
 # k8s-unchanged-is-free, 14 k8s-plan-cost-tracks-the-estate and 44
-# k8s-an-estate-reads-another-by-declaring-it)
+# k8s-an-estate-reads-another-by-declaring-it; and 40
+# k8s-no-secret-survives-in-what-the-tool-keeps, green since #1873)
 # runs against a kind cluster that
 # live/smoke/lib.sh's cluster_up creates per run, each followed by its
 # BREAK=1 control, so a regression in the label carrier, the sweep, the
@@ -190,6 +191,7 @@ jobs:
           - k8s-unchanged-is-free
           - k8s-plan-cost-tracks-the-estate
           - k8s-an-estate-reads-another-by-declaring-it
+          - k8s-no-secret-survives-in-what-the-tool-keeps
     steps:
       - uses: actions/checkout@v7
         with:

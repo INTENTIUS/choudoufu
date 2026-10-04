@@ -954,8 +954,19 @@
           "note": ""
         },
         "kubernetes": {
-          "status": "open",
-          "note": "Open: the proof is written and its first run (2026-10-04) failed one step. live/smoke/drafts/k8s-no-secret-survives-in-what-the-tool-keeps.sh, under strict { secrets = \"refuse\" }, refuses a random_password by name with nothing written, applies a kubernetes_secret_v1 fed from the environment with no state cache and the value in no kept file (5 files scanned), and its BREAK=1 arm (the same estate under secrets = \"store\") finds the value in the cache, so that control is green. Step 4 fails: the unchanged replan under refuse is Plan: 0 to add, 1 to change, proposing + wait_for_service_account_token = true on the Secret, and it would on every plan. The argument is configuration-only (the API server never returns it), which is what a residue record exists to hold, but projection.residueCandidates records nothing at all for a credential-material type under refuse (identity.CredentialMaterial), not even its non-sensitive arguments, so no apply converges it. Whether refuse should still record a credential type's non-sensitive residue is a ruling (#1873); until it is made the cell stays open and the draft stays in drafts/."
+          "status": "proven",
+          "note": "Under strict { secrets = \"refuse\" } on a kind cluster, a random_password is refused by name with nothing written, a kubernetes_secret_v1 fed from the environment applies with no state cache and the value in no kept file (6 files scanned), and the replan is empty because the API server returns the data; a rotated value is still proposed. The first run (2026-10-04) failed the empty replan on + wait_for_service_account_token, a configuration-only argument refuse used to leave unrecorded on any type holding a secret; since #1873 refuse drops each sensitive argument and records the rest.",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/k8s-no-secret-survives-in-what-the-tool-keeps.sh",
+              "command": "just smoke k8s-no-secret-survives-in-what-the-tool-keeps",
+              "minutes": 3,
+              "break_mode": "BREAK=1 applies the identical estate under secrets = \"store\" and runs the identical scan, which must find the value (it finds it in the state cache); a scan that finds nothing there fails the run, because its zero under refuse would prove nothing",
+              "evidence": [
+                "live/smoke/evidence/k8s-no-secret-survives-in-what-the-tool-keeps.lastrun.json"
+              ]
+            }
+          ]
         }
       }
     },
