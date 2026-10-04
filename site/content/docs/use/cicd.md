@@ -5,8 +5,8 @@ weight: 12
 
 # Running an estate from CI
 
-A choudoufu pipeline is five jobs. Three only read. The two that write run on
-a push, and both stop for an approval first.
+A choudoufu pipeline is six jobs. Three only read. The three that write run on
+a push, and all three stop for an approval first.
 
 | Job | Runs on | What it does |
 |---|---|---|
@@ -15,17 +15,21 @@ a push, and both stop for an approval first.
 | `live-apply` | push to `main` | Plans to a file, waits for approval of the rendered plan, then applies that file |
 | `live-adopt` | push to `staging` | Shows what it would adopt, waits for approval, then writes the two tags on each resource |
 | `live-discover` | a schedule | Lists what carries this estate's marker that nobody declares |
+| `backend-prepare` | push to `bootstrap` | Builds the record store bucket's template, waits for approval of it, then creates or updates the bucket and checks it against the bucket contract |
 
 Give each job the narrowest role that works. `live-check` needs none. The
 plan and discover jobs need a role that can read, including the estate's
-records. Only `live-apply` and `live-adopt` need to write.
+records. Only `live-apply` and `live-adopt` need to write to the estate.
+`backend-prepare` gets a role of its own, because creating the bucket and
+writing its policy is more than any other job may do: a role that can rewrite
+the bucket policy can lock every run out of its own records.
 
 An apply that finds the live system changed since its plan was approved
 refuses with exit status 3, and the job should send it back for review and
 not page anyone.
 
 [`examples/ci-pipelines`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/ci-pipelines/README.md)
-is a working project that generates these five jobs for GitHub, Forgejo and
+is a working project that generates these six jobs for GitHub, Forgejo and
 GitLab, with the generated workflows checked in.
 [`PIPELINE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/ci-pipelines/PIPELINE.md)
 beside it has what differs per forge, the variables and secrets each needs
