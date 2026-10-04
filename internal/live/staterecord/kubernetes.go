@@ -571,6 +571,15 @@ func (s *KubernetesStore) SecretName(key string) string {
 	return secretNameForStoreKey(s.storeKey(key))
 }
 
+// KubernetesSecretName is the Secret name a [KubernetesStore] with no key
+// prefix keeps key's record under. It is [KubernetesStore.SecretName] for a
+// caller that has no store of its own on that namespace, which is what
+// naming a grant on another estate's records needs: a Role may name the
+// exact Secrets it lets an identity get.
+func KubernetesSecretName(key string) string {
+	return secretNameForStoreKey(key)
+}
+
 // secretNameForStoreKey is [KubernetesStore.SecretName] for a key that already
 // carries the store's prefix, which is what a record-key annotation holds.
 func secretNameForStoreKey(storeKey string) string {
