@@ -39,6 +39,13 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.22.0 (Unreleased)
 
+- Emulator repinned from `ghcr.io/lex00/floci@sha256:6c3d5c2d...` to
+  `ghcr.io/lex00/floci@sha256:ff46eb8d...` (lex00/floci#218): concurrent
+  same-name IAM creates (`CreateRole`, `CreateUser`, `CreateGroup`,
+  `CreatePolicy`, `CreateInstanceProfile`, `CreateServiceLinkedRole`) now
+  leave one winner and answer the rest 409 `EntityAlreadyExists`, as AWS
+  does, where the old pin answered every racer 200. This was the claims-smoke
+  nightly's red (#1821).
 - New: `record_store "kubernetes"` takes a `control_plane "eks" | "gke" |
   "aks"` block naming the managed control plane its cluster runs on, and
   `encryption_at_rest` is then read from that provider's API (EKS
