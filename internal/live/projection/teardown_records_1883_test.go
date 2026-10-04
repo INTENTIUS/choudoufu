@@ -123,3 +123,65 @@ func TestWholeDestroyClearsRecordsThePlanNeverRead(t *testing.T) {
 		t.Errorf("the unread AWS identity for %s is still a current identity after the whole destroy", old)
 	}
 }
+
+// The two records day2_teardown still left after the change above, both
+// from the shared kind legs' create_before_destroy replaces (day2_replace's
+// kubernetes_config_map.hashed, day2_crash's crash_rename_read): a replace
+// keeps its address and changes its object, and [supersedeIdentity] (and,
+// for a destroyed deposed object, [tombstoneDestroyedDeposed]) wrote a
+// tombstone entry straight through [addTombstoneEntry], which did not ask
+// the family. At teardown [RecordStore.tombstone] cleared the identity, but
+// the earlier entry kept the envelope non-empty and the key alive.
+func TestKubernetesReplaceLeavesNoTombstoneToOutliveTheDestroy(t *testing.T) {
+	ctx := context.Background()
+	store := NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix("tombstone-estate"))
+	addr := locatedTestAddr(t, "kubernetes_config_map", "hashed")
+
+	// The replace: cfg-a superseded by cfg-b at the same address.
+	version, err := store.mergeEnvelope(ctx, addr, "", func(env *recordEnvelope) {
+		env.Identity = &identityPayload{ImportID: "shop/cfg-a"}
+		env.Provider = k8sProviderString
+		supersedeIdentity(env, &identityPayload{ImportID: "shop/cfg-b"})
+		env.Identity = &identityPayload{ImportID: "shop/cfg-b"}
+	})
+	if err != nil {
+		t.Fatalf("seeding the replaced identity: %s", err)
+	}
+	if tombstones, _, _, _ := store.GetTombstones(ctx, addr); len(tombstones) != 0 {
+		t.Errorf("a Kubernetes replace wrote tombstone entries %#v; on this substrate nothing reads them", tombstones)
+	}
+
+	// The teardown.
+	if err := store.tombstone(ctx, addr, version, nil); err != nil {
+		t.Fatalf("tombstone: %s", err)
+	}
+	if tombstones, _, keyExists, err := store.GetTombstones(ctx, addr); err != nil || keyExists {
+		t.Errorf("the destroyed replace's record outlived the destroy (keyExists=%v, tombstones %#v, err %v)", keyExists, tombstones, err)
+	}
+}
+
+// An envelope an earlier build already wrote with a Kubernetes tombstone in
+// it is cleared by the destroy too, so the leftover does not need a manual
+// cleanup on estates that ran before this fix.
+func TestKubernetesDestroyDropsAnEarlierBuildsTombstone(t *testing.T) {
+	ctx := context.Background()
+	store := NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix("tombstone-estate"))
+	addr := locatedTestAddr(t, "kubernetes_config_map", "crash_rename_read")
+
+	version, err := store.mergeEnvelope(ctx, addr, "", func(env *recordEnvelope) {
+		env.Identity = &identityPayload{ImportID: "shop/crash-read-b"}
+		env.Provider = k8sProviderString
+		env.Tombstone = map[string]*tombstoneFields{
+			"shop/crash-read-a": {Identity: &identityPayload{ImportID: "shop/crash-read-a"}, Provider: k8sProviderString},
+		}
+	})
+	if err != nil {
+		t.Fatalf("seeding: %s", err)
+	}
+	if err := store.tombstone(ctx, addr, version, nil); err != nil {
+		t.Fatalf("tombstone: %s", err)
+	}
+	if tombstones, _, keyExists, err := store.GetTombstones(ctx, addr); err != nil || keyExists {
+		t.Errorf("the destroy kept an earlier build's Kubernetes tombstone (keyExists=%v, tombstones %#v, err %v)", keyExists, tombstones, err)
+	}
+}

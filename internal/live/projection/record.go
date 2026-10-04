@@ -1697,11 +1697,12 @@ func (s *RecordStore) tombstone(ctx context.Context, addr addrs.AbsResourceInsta
 		// [deposedFields.Provider] already uses.
 		env.Provider = ""
 		// GitHub issue #1883: no entry on a family whose marker dies with
-		// the object, where a tombstone is never read; the envelope then
-		// holds nothing and mergeEnvelope deletes the key.
-		if tombstonesReadFor(providerAddr) {
-			addTombstoneEntry(env, identity, providerAddr)
-		}
+		// the object, where a tombstone is never read ([addTombstoneEntry]
+		// asks), and none kept from an earlier replace or an earlier build
+		// either, so the envelope holds nothing and mergeEnvelope deletes
+		// the key.
+		dropUnreadTombstones(env)
+		addTombstoneEntry(env, identity, providerAddr)
 	})
 	return err
 }
@@ -1805,6 +1806,12 @@ func addTombstoneEntry(env *recordEnvelope, identity *identityPayload, providerA
 	if identity.empty() {
 		return false
 	}
+	// GitHub issue #1883: every writer comes through here - a destroy, a
+	// replace's [supersedeIdentity], a destroyed deposed object - so this
+	// is where a family whose marker dies with its object writes nothing.
+	if !tombstonesReadFor(providerAddr) {
+		return false
+	}
 	tk := tombstoneKey(identity)
 	if tk == "" {
 		return false
@@ -1819,6 +1826,21 @@ func addTombstoneEntry(env *recordEnvelope, identity *identityPayload, providerA
 	}
 	capTombstones(env, tk)
 	return true
+}
+
+// dropUnreadTombstones removes every tombstone entry env carries for a
+// family where no tombstone is read: entries a replace wrote before
+// [addTombstoneEntry] asked the family, or an earlier build wrote at all
+// (GitHub issue #1883). An entry for a family that does read them stays.
+func dropUnreadTombstones(env *recordEnvelope) {
+	for k, t := range env.Tombstone {
+		if t != nil && !tombstonesReadFor(t.Provider) {
+			delete(env.Tombstone, k)
+		}
+	}
+	if len(env.Tombstone) == 0 {
+		env.Tombstone = nil
+	}
 }
 
 // tombstonesReadFor is [substrate.TombstonesRead] for a recorded provider
