@@ -61,32 +61,13 @@ right answer but is worth knowing before it happens in front of someone.
 
 ## Protecting the markers
 
-The grants above rest on tags, so a stripped tag is a real hazard. Two AWS
-Organizations mechanisms sound like they cover it. One does not, and the other
-only partly.
-
-**Tag policies enforce values, not survival.** A tag policy
-checks the value a tag is set to, when a tag is written, on types the feature
-supports. Nothing in it inspects a tag removal, and AWS says so directly. It
-cannot be configured to block a tag from being removed. Do not rely on one for
-this.
-
-**SCPs can block the untagging call**, but the block holds only in the
-organization's member accounts and only where the condition key is
-honored. Denying the tag-removal actions for the marker keys, with an exception
-for whichever principal runs choudoufu, is the closest thing to a real
-backstop.
+The grants above rest on tags, so a stripped tag is a real hazard. An AWS
+Organizations tag policy cannot block a tag's removal at all. An SCP can
+deny the untagging call, but only in member accounts and only where the
+condition key is honored, so the last line of defense is the plan: a create
+that matches an unowned live resource of its type gains a
+`[POSSIBLE DUPLICATE]` warning above the plan diff, naming that resource and
+the command that adopts it.
 [live/MARKERS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md#protecting-the-markers)
-carries the policy. Its key list must include the continuation keys
-`tofu-address-2` to `-4`, since `aws:TagKeys` takes no wildcard. It stops a
-marker being removed, not rewritten; the grant's `aws:RequestTag` condition
-covers that.
-
-Even a correct SCP leaves gaps. The management account, a standalone
-account, a misused exemption, a service whose untag action does not honor
-`aws:TagKeys`, or a policy nobody wrote yet. Prevention cannot cover
-every case, so this fork does not rely on it alone. At plan time a create whose
-type matches an unowned live resource gains a
-`[POSSIBLE DUPLICATE]` warning naming that resource and the command
-that adopts it instead, sitting immediately above the plan diff. That is the
-guard which assumes the tags get stripped anyway.
+has the SCP, including the continuation keys `aws:TagKeys` needs, and the
+gaps it leaves.
