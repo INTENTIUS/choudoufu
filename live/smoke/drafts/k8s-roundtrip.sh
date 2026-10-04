@@ -156,7 +156,9 @@ grep -qE 'Plan: 0 to add, [0-9]+ to change, 0 to destroy|No changes.' <<< "$POUT
   || fail "k8s-roundtrip" "the exit plan proposes more than removing the markers: $POUT"
 if ! grep -q "No changes." <<< "$POUT"; then
   # Every changed line in the diff must be the label or the annotation.
-  OTHER="$(grep -E '^ +[-+~] ' <<< "$POUT" | grep -vE 'tofu-estate|tofu-address|^ +[-+~] (resource|metadata|labels|annotations)( |$)' || true)"
+  # Only the diff is read: the symbol legend above it ("~ update in-place")
+  # has the shape of a changed line and is not one.
+  OTHER="$(sed -n '/will perform the following actions:/,$p' <<< "$POUT" | grep -E '^ +[-+~] ' | grep -vE 'tofu-estate|tofu-address|^ +[-+~] (resource|metadata|labels|annotations)( |$)' || true)"
   [ -z "$OTHER" ] || fail "k8s-roundtrip" "the exit plan changes something other than the label and the annotation: $OTHER"
   SA="$(cd "$STOCK" && terraform apply -auto-approve -input=false -no-color 2>&1)" \
     || fail "k8s-roundtrip" "the marker-removal apply failed: $SA"
