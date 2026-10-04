@@ -2870,6 +2870,7 @@ refused, and each says so in its own entry.
 | - | - | projection | The destroy left record-backed instances behind | error | `internal/live/projection` | "The destroy left record-backed instances behind" |
 | - | - | projection | The estate boundary policy refused this run's record write | error | `internal/live/projection` | "The estate boundary policy refused this run's record write" |
 | - | - | projection | The record store contradicts itself about a record | error | `internal/live/projection` | "The record store contradicts itself about a record" |
+| - | - | projection | This estate does not declare that it reads another estate's outputs | error | `internal/live/projection` | "This estate does not declare that it reads another estate's outputs" |
 | - | - | projection | This estate may not read another estate's outputs | error | `internal/live/projection` | "This estate may not read another estate's outputs" |
 | - | - | projection | Unlabelled live object holds the declared name | error | `internal/live/projection` | "Unlabelled live object holds the declared name" |
 | - | - | projection | Unsupported resource type for the provider | error | `internal/live/projection` | "Unsupported resource type for the provider" |
@@ -2877,7 +2878,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**269 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**270 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -4779,9 +4780,17 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### This estate does not declare that it reads another estate's outputs
+
+**What.** A data "terraform_estate_outputs" block reads another estate's outputs through a record_store "kubernetes" block that declares no reads_outputs_of block for that estate. Each estate's records are in a namespace of their own, and another estate's is opened only when the configuration names it, so the read is not attempted. The refusal gives the block to add.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### This estate may not read another estate's outputs
 
-**What.** A data "terraform_estate_outputs" block declares that this estate reads another estate's recorded root outputs, and the record store refused the read by policy. The refusal names the other estate and the grant to add (for an s3 store, render-policy.sh's --reads-outputs-of).
+**What.** A data "terraform_estate_outputs" block declares that this estate reads another estate's recorded root outputs, and the record store refused the read by policy. The refusal names the other estate and the grant to add (for an s3 store, render-policy.sh's --reads-outputs-of; for a kubernetes store, a Role granting get on the other estate's output Secrets by name in its namespace).
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
