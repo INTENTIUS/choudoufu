@@ -111,6 +111,8 @@ func TestEveryRegisteredRefusalHasAStatedSeverity(t *testing.T) {
 		"Invalid estate name":                              true,
 		SummaryKubernetesKindNotServed:                     true,
 		SummaryKubernetesDryRunRejected:                    true,
+		SummaryFieldForceAcrossEstates:                     true,
+		SummaryFieldGranularSameObject:                     true,
 		"No configuration to discover against":             true,
 		"No provider access":                               true,
 		"One marker value for two declared addresses":      true,
@@ -146,6 +148,14 @@ func TestEveryRegisteredRefusalHasAStatedSeverity(t *testing.T) {
 		case r.Summary == SummaryKubernetesDeleteHeld:
 			// GitHub issue #1184: the apply succeeded and its exit code
 			// stands; the cluster has not finished a delete it accepted.
+			if SeverityForRefusal(r.Summary) != SeverityWarning {
+				t.Errorf("%q must be a warning, SeverityForRefusal says %v", r.Summary, SeverityForRefusal(r.Summary))
+			}
+		case r.Summary == SummaryFieldOwnedByEstate, r.Summary == SummaryFieldOwnersUnavailable:
+			// GitHub issue #1191: the API server answers at apply - a
+			// conflict naming the other estate's manager, or whatever it
+			// says about an object this pass could not read - so the plan
+			// stands.
 			if SeverityForRefusal(r.Summary) != SeverityWarning {
 				t.Errorf("%q must be a warning, SeverityForRefusal says %v", r.Summary, SeverityForRefusal(r.Summary))
 			}

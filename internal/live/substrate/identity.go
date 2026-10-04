@@ -91,7 +91,9 @@ func (aws) SynthesizeIdentity(string, providers.Schema) (SynthesizedIdentity, bo
 // SynthesizeIdentity is the Kubernetes natural key, read from one of the
 // family's two carrier shapes: object metadata ([ObjectMetaShape], GitHub
 // issue #1064) or a whole-object manifest ([markers.ManifestSurface],
-// #1079). Neither is keyed on the type name. See
+// #1079); or, for a type that patches fields of an object it does not own,
+// the patched object's key ([FieldGranularShape], #1191). None is keyed on
+// the type name. See
 // internal/live/identity's metadata.go and manifest.go for the rulings.
 func (kubernetes) SynthesizeIdentity(_ string, schema providers.Schema) (SynthesizedIdentity, bool) {
 	if namespaced, ok := ObjectMetaShape(schema.Block); ok {
@@ -99,6 +101,11 @@ func (kubernetes) SynthesizeIdentity(_ string, schema providers.Schema) (Synthes
 	}
 	if markers.ManifestSurface(schema.Block) {
 		return manifestIdentity(), true
+	}
+	// GitHub issue #1191: the field-granular shape, whose identity is the
+	// object it patches. See [FieldGranularShape].
+	if namespaced, ok := FieldGranularShape(schema.Block); ok {
+		return fieldGranularIdentity(schema.Block, namespaced), true
 	}
 	return SynthesizedIdentity{}, false
 }
@@ -191,5 +198,149 @@ func manifestIdentity() SynthesizedIdentity {
 			key("metadata", "name"),
 		},
 		ImportSyntax: ManifestImportSyntax,
+	}
+}
+
+// ---- GitHub issue #1191: the field-granular shape ----
+
+// The schema attributes that make a type field-granular (GitHub issue
+// #1191): a top-level server-side-apply field manager name and the force
+// flag beside it. hashicorp/kubernetes 3.2.1 serves exactly six types with
+// both - kubernetes_labels, kubernetes_annotations, kubernetes_env,
+// kubernetes_config_map_v1_data, kubernetes_secret_v1_data and
+// kubernetes_node_taint - and kubernetes_manifest, the seventh type that
+// can name a field manager, names it in a nested block instead, so it is
+// not this shape.
+const (
+	FieldManagerAttr = "field_manager"
+	FieldForceAttr   = "force"
+)
+
+// FieldGranularShape reports whether block is the field-granular
+// Kubernetes shape (GitHub issue #1191, ruled 2026-10-03): a resource that
+// writes some fields of an object it does not own, under a server-side-apply
+// field manager it names itself. Read from the schema, never from a
+// type-name list, for the same reason [ObjectMetaShape] is:
+//
+//   - a top-level optional string [FieldManagerAttr] and a top-level
+//     optional bool [FieldForceAttr];
+//   - a "metadata" nested list block of at most one item with a settable
+//     string "name", and WITHOUT the computed uid and the labels map
+//     [ObjectMetaShape] requires - the block names the patched object, it
+//     is not this resource's own object metadata.
+//
+// The predicate and [ObjectMetaShape] can therefore never both answer true
+// for one schema.
+//
+// What the shape owns is fields, not an object, so its ownership marker is
+// not a label: it is the field manager every write is made under,
+// [markers.FieldManagerFor]'s "choudoufu:<estate>", and the patched
+// object's own estate label (if it has one) is irrelevant to it.
+func FieldGranularShape(block *configschema.Block) (namespaced bool, ok bool) {
+	if block == nil {
+		return false, false
+	}
+	fm, hasFM := block.Attributes[FieldManagerAttr]
+	if !hasFM || fm == nil || fm.Type != cty.String || !fm.Optional {
+		return false, false
+	}
+	force, hasForce := block.Attributes[FieldForceAttr]
+	if !hasForce || force == nil || force.Type != cty.Bool || !force.Optional {
+		return false, false
+	}
+	nested, has := block.BlockTypes["metadata"]
+	if !has || nested == nil || nested.Nesting != configschema.NestingList || nested.MaxItems != 1 {
+		return false, false
+	}
+	attrs := nested.Block.Attributes
+	name, hasName := attrs["name"]
+	if !hasName || name == nil || name.Type != cty.String || (!name.Optional && !name.Required) {
+		return false, false
+	}
+	if _, hasUID := attrs["uid"]; hasUID {
+		return false, false
+	}
+	if _, hasLabels := attrs["labels"]; hasLabels {
+		return false, false
+	}
+	ns, hasNS := attrs["namespace"]
+	namespaced = hasNS && ns != nil && ns.Type == cty.String && (ns.Optional || ns.Required)
+	return namespaced, true
+}
+
+// FieldGranularNamesKind reports whether a field-granular schema names the
+// patched object's apiVersion and kind in its own configuration (the
+// top-level required api_version and kind of kubernetes_labels,
+// kubernetes_annotations and kubernetes_env). The other three types patch
+// one fixed kind, which the provider hardcodes.
+func FieldGranularNamesKind(block *configschema.Block) bool {
+	if block == nil {
+		return false
+	}
+	for _, name := range []string{"api_version", "kind"} {
+		a, ok := block.Attributes[name]
+		if !ok || a == nil || a.Type != cty.String || !a.Required {
+			return false
+		}
+	}
+	return true
+}
+
+// FieldGranularImportSyntax is the identity string a field-granular type
+// that names its kind renders: the shape hashicorp/kubernetes' own
+// kubernetes_env Read parses its id with (keys in any order; measured
+// against 3.2.1 on 2026-10-03, where an id without apiVersion, kind and
+// name is refused with "ID must contain apiVersion, kind, and name").
+const FieldGranularImportSyntax = "apiVersion=APIVERSION,kind=KIND,[namespace=NAMESPACE,]name=NAME"
+
+// fieldGranularIdentity is the patched object's natural key, read from the
+// block's own configuration. It identifies the OBJECT, not the fields:
+// every field-granular block in one estate writes under the one field
+// manager "choudoufu:<estate>", and server-side apply drops a manager's
+// fields that its next apply leaves out, so two blocks of one estate on one
+// object would erase each other's writes. One block per object per estate
+// is therefore the identity, and a second is refused as the same identity.
+//
+//   - names its kind: apiVersion, kind, the namespace when declared (a
+//     cluster-scoped object has none), and the name, in
+//     [FieldGranularImportSyntax].
+//   - a fixed namespaced kind (ConfigMap, Secret data): NAMESPACE/NAME,
+//     the namespace required, as it is for the object-metadata shape.
+//   - a fixed cluster-scoped kind (a node's taints): NAME.
+//
+// No identity attribute is claimed: these resources' only attributes are
+// the fields they write.
+func fieldGranularIdentity(block *configschema.Block, namespaced bool) SynthesizedIdentity {
+	name := IdentityComponent{Attrs: []string{"name"}, Block: "metadata", SameNameIdentity: true}
+	if FieldGranularNamesKind(block) {
+		return SynthesizedIdentity{
+			NonAWSProvider: true,
+			Components: []IdentityComponent{
+				{Literal: "apiVersion="},
+				{Attrs: []string{"api_version"}, SameNameIdentity: true},
+				{Literal: ",kind="},
+				{Attrs: []string{"kind"}, SameNameIdentity: true},
+				{Attrs: []string{"namespace"}, Block: "metadata", Literal: ",namespace=", OmitIfAbsent: true, SameNameIdentity: true},
+				{Literal: ",name="},
+				name,
+			},
+			ImportSyntax: FieldGranularImportSyntax,
+		}
+	}
+	if !namespaced {
+		return SynthesizedIdentity{
+			NonAWSProvider: true,
+			Components:     []IdentityComponent{name},
+			ImportSyntax:   "NAME",
+		}
+	}
+	return SynthesizedIdentity{
+		NonAWSProvider: true,
+		Components: []IdentityComponent{
+			{Attrs: []string{"namespace"}, Block: "metadata", SameNameIdentity: true},
+			{Literal: "/"},
+			name,
+		},
+		ImportSyntax: "NAMESPACE/NAME",
 	}
 }
