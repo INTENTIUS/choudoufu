@@ -117,6 +117,14 @@
       "set": "growing"
     },
     {
+      "name": "corpus-govuk-cluster-services",
+      "source": "alphagov/govuk-infrastructure terraform/deployments/cluster-services (commit c02504fa4abb439234669e9ea9b662bdb35209e9), GOV.UK's own in-cluster platform services root for its EKS clusters, split into a live slice (namespaces, dex client Secrets, kubernetes_labels and kubernetes_annotations with force) and a recorded stock half of Helm, kubectl and AWS blocks; the first published root driving the field-granular types",
+      "url": "https://github.com/alphagov/govuk-infrastructure.git",
+      "pin": "c02504fa4abb439234669e9ea9b662bdb35209e9",
+      "lane": "kubernetes",
+      "set": "growing"
+    },
+    {
       "name": "corpus-hongbomiao-harbor",
       "source": "hongbo-miao/hongbomiao.com, a third disjoint slice: environments/production/aws/kubernetes/main.tofu's self-contained Harbor section (commit 3f69ab9c37211e163bbd4434bad39780b6d4b92b, same pin as corpus-hongbomiao-labelbox and corpus-hongbomiao-storage)",
       "url": "https://github.com/hongbo-miao/hongbomiao.com.git",
