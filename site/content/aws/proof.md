@@ -13,20 +13,6 @@ deeper:
 
 Two kinds of evidence, never averaged together.
 
-## Real estates through fixed stages
-
-An estate is a real OpenTofu or Terraform configuration, pinned by commit, run
-through every active stage with stock OpenTofu against the pinned emulator,
-and diffed. An estate is clear when every headline stage passes.
-
-{{< gauntlet-bars >}}
-
-The stages cover the whole life of an estate: cold deploy by stock, migrate,
-replan from nothing, no-op apply, drift and reconverge, rename, remove,
-change count, replace, crash between create and destroy, teardown, plan then
-apply, greenfield, and the strict profile. A real-account certification run
-is recorded separately from the bars and counts toward neither.
-
 ## Claims you can run
 
 Each claim is a smoke scenario: Docker plus the local emulator, one to six
@@ -38,6 +24,23 @@ against and passes only by catching it.
 
 Every AWS cell is proven. The Kubernetes column is what the [Kubernetes
 proof page]({{< relref "/kubernetes/proof" >}}) explains.
+
+## Real estates through fixed stages
+
+The claims above are the proof. The estates are the contributors'
+regression net: configurations someone else wrote surface defects no
+scenario anticipates, and the board is re-measured before a release. An
+estate is a real OpenTofu or Terraform configuration, pinned by commit, run
+through every active stage with stock OpenTofu against the pinned emulator,
+and diffed. An estate is clear when every headline stage passes.
+
+{{< gauntlet-bars >}}
+
+The stages cover the whole life of an estate: cold deploy by stock, migrate,
+replan from nothing, no-op apply, drift and reconverge, rename, remove,
+change count, replace, crash between create and destroy, teardown, plan then
+apply, greenfield, and the strict profile. A real-account certification run
+is recorded separately from the bars and counts toward neither.
 
 ## Run one now
 

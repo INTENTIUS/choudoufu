@@ -330,6 +330,12 @@ The Gauntlet workflow has no schedule either (same date): the board is
 re-measured when the maintainer dispatches it, typically before a release,
 and every dispatch waits for the `corpus` environment approval.
 
+What the board is for was ruled in #522 and #643: the claims program is the
+proof surface a prospective user reads, and the gauntlet board is
+contributor and regression status, real-world breadth that catches the
+estate-specific defects no scenario anticipates. The site says so on
+`site/content/docs/progress/_index.md` and leads with the claims everywhere else (#803).
+
 ## Working here
 
 - Worktree off **local** `main` (`git worktree add ../wt/<name> -b

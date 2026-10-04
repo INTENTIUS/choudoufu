@@ -175,7 +175,8 @@ func ParseProtocol(r io.Reader) (*ProtocolResult, error) {
 			res.Seconds[id] = secs
 		}
 		if d, ok := fields["detail"]; ok && d != "" {
-			res.Detail[id] = d
+			// A local temporary path is never committed evidence (#1083).
+			res.Detail[id] = scrubLocalPaths(d)
 		}
 	}
 	if err := sc.Err(); err != nil {
@@ -189,7 +190,7 @@ func ParseProtocol(r io.Reader) (*ProtocolResult, error) {
 // reason a malformed stage line is: a half-spoken refusal would be recorded
 // as a refusal with a missing reason, which is worse than no line at all.
 func parseRefusal(line int, fields map[string]string) (*ProtocolRefusal, error) {
-	ref := &ProtocolRefusal{Reason: strings.TrimSpace(fields["detail"]), Unit: fields["unit"]}
+	ref := &ProtocolRefusal{Reason: scrubLocalPaths(strings.TrimSpace(fields["detail"])), Unit: fields["unit"]}
 	if ref.Reason == "" {
 		return nil, fmt.Errorf("line %d: GAUNTLET refused= carries no detail= - a refusal's whole value is the reason it names, so one without a reason is refused here rather than recorded empty", line)
 	}

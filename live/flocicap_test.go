@@ -6,6 +6,7 @@
 package residue
 
 import (
+	"encoding/json"
 	"os"
 	"strings"
 	"testing"
@@ -214,5 +215,34 @@ func TestNoCloudControlListRowClaimsImplementedOnABareCall(t *testing.T) {
 	}
 	if implemented == seen {
 		t.Errorf("all %d cloudcontrol-list rows read implemented, which is the shape the old bare-call probe produced", seen)
+	}
+}
+
+// TestFlociManifestDescribesOnlyThePin is #697's guard: the committed
+// manifest carries the pinned digest's entry and no other, so it cannot grow
+// back into a 23MB archive of every image ever probed.
+//
+// A repin passes through a window where this is red on purpose: the new
+// digest is probed while the old pin is still in place (so the old entry's
+// hand rows are there to carry across), then live/floci-image moves, and
+// the file holds two entries until -mode=prune runs. The message names that
+// step.
+func TestFlociManifestDescribesOnlyThePin(t *testing.T) {
+	var art flociCapabilitiesArtifact
+	if err := json.Unmarshal(flociCapabilitiesJSONBytes, &art); err != nil {
+		t.Fatalf("decoding the embedded manifest: %v", err)
+	}
+	var digests []string
+	for _, img := range art.Images {
+		digests = append(digests, img.Digest)
+	}
+	if len(digests) != 1 || digests[0] != pinnedDigest {
+		t.Fatalf("live/floci-capabilities.json carries entries for %v; live/floci-image pins %s.\n"+
+			"The manifest describes the pinned emulator only. After probing a new image and moving the "+
+			"pin, run: go run ./tools/floci-capability-gen -mode=prune", digests, pinnedDigest)
+	}
+	if !strings.HasSuffix(art.Image, "@"+pinnedDigest) {
+		t.Errorf("live/floci-capabilities.json's image field is %q, not the pin %s; run "+
+			"go run ./tools/floci-capability-gen -mode=prune", art.Image, pinnedDigest)
 	}
 }

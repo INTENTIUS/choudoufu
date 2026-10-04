@@ -584,6 +584,35 @@ type LiveRecordStoreKubernetes struct {
 	// the client.authentication.k8s.io ExecCredential protocol, which is how
 	// every EKS root authenticates (#1114). Nil when none is declared.
 	Exec *LiveRecordStoreExec
+
+	// ControlPlane is the block's nested `control_plane "<provider>"` block:
+	// which managed control plane (EKS, GKE, AKS) the cluster runs on and
+	// how that provider names it (GitHub issue #1524). The cluster contract
+	// reads encryption at rest from the provider's own API through it,
+	// because on a managed control plane the API server is not a Pod the
+	// cluster can see. Nil when none is declared.
+	ControlPlane *LiveRecordStoreControlPlane
+}
+
+// LiveRecordStoreControlPlane is the `control_plane` block nested in a
+// record_store "kubernetes" block. Its label is the provider, one of
+// [RecordStoreControlPlaneProviders]; which arguments it takes depends on
+// the label, and an argument another provider owns is refused rather than
+// ignored:
+//
+//	control_plane "eks" { name = "prod", region = "us-east-1" }
+//	control_plane "gke" { name = "prod", project = "acme", location = "europe-west1" }
+//	control_plane "aks" { name = "prod", resource_group = "rg", subscription_id = "..." }
+type LiveRecordStoreControlPlane struct {
+	Provider       string
+	Name           string
+	Region         string
+	Project        string
+	Location       string
+	ResourceGroup  string
+	SubscriptionID string
+
+	DeclRange hcl.Range
 }
 
 // LiveRecordStoreExec is the "exec" block nested in a record_store
@@ -815,7 +844,36 @@ var recordStoreBlockSchema = &hcl.BodySchema{
 	},
 	Blocks: []hcl.BlockHeaderSchema{
 		{Type: "exec"},
+		{Type: "control_plane", LabelNames: []string{"provider"}},
 	},
+}
+
+var recordStoreControlPlaneBlockSchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{
+		{Name: "name"},
+		{Name: "region"},
+		{Name: "project"},
+		{Name: "location"},
+		{Name: "resource_group"},
+		{Name: "subscription_id"},
+	},
+}
+
+// RecordStoreControlPlaneProviders is every label a record_store
+// "kubernetes" block's control_plane block takes, in the order the docs list
+// them. internal/live/staterecord spells the same three as
+// ControlPlaneProviders.
+var RecordStoreControlPlaneProviders = []string{"eks", "gke", "aks"}
+
+// recordStoreControlPlaneArgs is, per provider, which control_plane
+// arguments it requires and which it accepts besides. Anything else is
+// another provider's and is refused by name.
+var recordStoreControlPlaneArgs = map[string]struct{ required, optional []string }{
+	// region may be left out: the EKS endpoint's own host carries it, and
+	// failing that the AWS SDK's ordinary region chain does.
+	"eks": {required: []string{"name"}, optional: []string{"region"}},
+	"gke": {required: []string{"name", "project", "location"}},
+	"aks": {required: []string{"name", "resource_group", "subscription_id"}},
 }
 
 var recordStoreExecBlockSchema = &hcl.BodySchema{
@@ -1627,6 +1685,14 @@ func decodeRecordStoreKubernetes(rs *LiveRecordStore, content *hcl.BodyContent) 
 				Subject:  blk.DefRange.Ptr(),
 			})
 		}
+		for _, blk := range content.Blocks.OfType("control_plane") {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Invalid block for the %s record store", rs.Type),
+				Detail:   fmt.Sprintf("A \"control_plane\" block names the managed Kubernetes control plane a cluster runs on and has no meaning for record_store %q. Remove it, or declare record_store \"kubernetes\".", rs.Type),
+				Subject:  blk.DefRange.Ptr(),
+			})
+		}
 		return diags
 	}
 
@@ -1749,7 +1815,101 @@ func decodeRecordStoreKubernetes(rs *LiveRecordStore, content *hcl.BodyContent) 
 		}
 	}
 
+	cpBlocks := content.Blocks.OfType("control_plane")
+	if len(cpBlocks) > 1 {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Duplicate control_plane block",
+			Detail:   "A record_store \"kubernetes\" block may have at most one control_plane block: its records are in one cluster, and that cluster runs on one control plane.",
+			Subject:  cpBlocks[1].DefRange.Ptr(),
+		})
+	}
+	if len(cpBlocks) > 0 {
+		cp, cpDiags := decodeRecordStoreControlPlaneBlock(cpBlocks[0])
+		diags = append(diags, cpDiags...)
+		if !cpDiags.HasErrors() {
+			rs.Kubernetes.ControlPlane = cp
+		}
+	}
+
 	return diags
+}
+
+// decodeRecordStoreControlPlaneBlock decodes a `control_plane "<provider>"`
+// block (GitHub issue #1524). Every argument is a literal string, because it
+// names a cluster before any plan exists to evaluate an expression in.
+func decodeRecordStoreControlPlaneBlock(block *hcl.Block) (*LiveRecordStoreControlPlane, hcl.Diagnostics) {
+	cp := &LiveRecordStoreControlPlane{Provider: block.Labels[0], DeclRange: block.DefRange}
+	content, diags := block.Body.Content(recordStoreControlPlaneBlockSchema)
+
+	args, known := recordStoreControlPlaneArgs[cp.Provider]
+	if !known {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Unknown control_plane provider",
+			Detail: fmt.Sprintf("control_plane %q names no managed control plane this fork can ask. Valid providers are %s; on any other cluster leave the block out, and encryption at rest is read off the API server's own Pod where the cluster shows one.",
+				cp.Provider, `"`+strings.Join(RecordStoreControlPlaneProviders, `", "`)+`"`),
+			Subject: block.LabelRanges[0].Ptr(),
+		})
+		return nil, diags
+	}
+	accepted := map[string]bool{}
+	for _, n := range args.required {
+		accepted[n] = true
+	}
+	for _, n := range args.optional {
+		accepted[n] = true
+	}
+
+	fields := map[string]*string{
+		"name":            &cp.Name,
+		"region":          &cp.Region,
+		"project":         &cp.Project,
+		"location":        &cp.Location,
+		"resource_group":  &cp.ResourceGroup,
+		"subscription_id": &cp.SubscriptionID,
+	}
+	for _, as := range recordStoreControlPlaneBlockSchema.Attributes {
+		attr, exists := content.Attributes[as.Name]
+		if !exists {
+			continue
+		}
+		if !accepted[as.Name] {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Invalid argument for this control_plane",
+				Detail:   fmt.Sprintf("The %q argument has no meaning for control_plane %q, which takes %s.", as.Name, cp.Provider, strings.Join(append(append([]string{}, args.required...), args.optional...), ", ")),
+				Subject:  attr.Expr.Range().Ptr(),
+			})
+			continue
+		}
+		val, valDiags := decodeLiteralString(attr, as.Name)
+		diags = append(diags, valDiags...)
+		if valDiags.HasErrors() {
+			continue
+		}
+		if val == "" {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Empty control_plane %s", as.Name),
+				Detail:   fmt.Sprintf("The %q argument was set to an empty string. Give it a value, or omit the argument entirely.", as.Name),
+				Subject:  attr.Expr.Range().Ptr(),
+			})
+			continue
+		}
+		*fields[as.Name] = val
+	}
+	for _, n := range args.required {
+		if _, exists := content.Attributes[n]; !exists {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Missing control_plane %s", n),
+				Detail:   fmt.Sprintf("control_plane %q requires a %q argument: it is how that provider's API names the cluster.", cp.Provider, n),
+				Subject:  block.DefRange.Ptr(),
+			})
+		}
+	}
+	return cp, diags
 }
 
 func decodeRecordStoreExecBlock(block *hcl.Block) (*LiveRecordStoreExec, hcl.Diagnostics) {

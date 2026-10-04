@@ -61,6 +61,18 @@
 # one tofu-estate label write, which live-mv -from-estate makes through the
 # provider under the caller's own ServiceAccount, so the policy judges it
 # exactly as it judges a plain kubectl label (steps 13 and 14).
+#
+# The same carve on a kubernetes_manifest object (#1104), a ConfigMap
+# declared through a manifest block so no second CRD is needed: the type has
+# no metadata block for the provider to plan, so live-mv -from-estate sends
+# one merge patch of the tofu-estate label and the address annotation
+# through the cluster's API under the same credential, dry run first. Step
+# 13b is the policy refusing it under Alice's credential before the data
+# grant, with the label unchanged; step 14 is the same command passing
+# after it, kubectl reading the label back, and step 15 replans both
+# estates empty. The BREAK arm moves it with the policy gone and requires
+# the move to land, so the refusal in 13b is the policy's and not the
+# tool's.
 
 W="$SMOKE_WORKROOT/k8s-boundary"; APP="$W/app"; NET="$W/net"; DATA="$W/data"; LOGS="$W/logs"
 mkdir -p "$APP" "$NET" "$DATA" "$LOGS"
@@ -109,6 +121,22 @@ resource "kubernetes_config_map" "database" {
     namespace = "boundary"
   }
   data = { greeting = "database" }
+  depends_on = [kubernetes_namespace.boundary]
+}
+TF
+# The manifest-declared object carved beside it (#1104), also in a file of
+# its own. A ConfigMap, so that no CRD is needed for a manifest block.
+cat > "$APP/ledger.tf" <<'TF'
+resource "kubernetes_manifest" "ledger" {
+  manifest = {
+    apiVersion = "v1"
+    kind       = "ConfigMap"
+    metadata = {
+      name      = "ledger"
+      namespace = "boundary"
+    }
+    data = { greeting = "ledger" }
+  }
   depends_on = [kubernetes_namespace.boundary]
 }
 TF
@@ -178,6 +206,7 @@ spec:
 EOF
 }
 labels_of() { kc get configmap "$1" -n "$2" -o jsonpath='{.metadata.labels}{"\n"}'; }
+address_of() { kc get configmap "$1" -n "$2" -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}'; }
 greeting_of() { kc get configmap "$1" -n "$2" -o jsonpath='{.data.greeting}{"\n"}'; }
 # set_greeting rewrites one greeting value in a root's file without sed -i,
 # whose in-place flag differs between BSD and GNU sed.
@@ -454,7 +483,8 @@ proof "two ServiceAccounts hold two estates, and the authorizer answers the exac
 
 step "3. each principal stands its own estate up"
 explain \
-  "Alice applies app: a namespace and two ConfigMaps. Bob applies net: a" \
+  "Alice applies app: a namespace and three ConfigMaps, one of them" \
+  "declared through a kubernetes_manifest block. Bob applies net: a" \
   "namespace and one ConfigMap. Every create carries tofu-estate on the" \
   "object, so admission reads it and asks whether the caller holds that" \
   "estate; each does, and the writes go through."
@@ -463,12 +493,14 @@ logged k8s-the-label-is-the-boundary-app-init "boundary" "init failed in app" --
 logged k8s-the-label-is-the-boundary-net-init "boundary" "init failed in net" -- in_dir "$NET" chdf init -input=false -no-color
 OUT="$(cd "$APP" && as_role alice chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "boundary" "Alice's apply of app failed: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
 grep -E 'Apply complete!' <<< "$OUT" | evidence
-grep -q 'Apply complete! Resources: 3 added' <<< "$OUT" || fail "boundary" "app did not report 3 added: $OUT"
+grep -q 'Apply complete! Resources: 4 added' <<< "$OUT" || fail "boundary" "app did not report 4 added: $OUT"
 OUT="$(cd "$NET" && as_role bob chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "boundary" "Bob's apply of net failed: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
 grep -E 'Apply complete!' <<< "$OUT" | evidence
 grep -q 'Apply complete! Resources: 2 added' <<< "$OUT" || fail "boundary" "net did not report 2 added: $OUT"
 labels_of database boundary | evidence
 grep -q '"tofu-estate":"app"' <<< "$(labels_of database boundary)" || fail "boundary" "the database ConfigMap does not carry tofu-estate=app"
+labels_of ledger boundary | evidence
+grep -q '"tofu-estate":"app"' <<< "$(labels_of ledger boundary)" || fail "boundary" "the ledger ConfigMap (kubernetes_manifest) does not carry tofu-estate=app"
 grep -q '"tofu-estate":"net"' <<< "$(labels_of router net)" || fail "boundary" "the router ConfigMap does not carry tofu-estate=net"
 proof "two estates on one cluster, each stood up by the principal that holds it, and the label the policy reads is on every object."
 
@@ -548,6 +580,21 @@ if [ "${BREAK:-0}" = "1" ]; then
   labels_of database boundary | evidence
   grep -q '"tofu-estate":"data"' <<< "$(labels_of database boundary)" || fail "boundary" "BREAK: Alice's live-mv did not land"
   proof "caught - with the policy gone, live-mv relabelled the object into an estate Alice was never granted. The refusal the main run shows at this step is the policy's, not the tool's."
+
+  step "BREAK control (cont'd) - live-mv of a kubernetes_manifest object into data goes through too"
+  explain \
+    "Step 13b's refusal, with the policy gone: Alice moves the ledger, a" \
+    "ConfigMap declared through a kubernetes_manifest block, into data." \
+    "live-mv sends one label patch through the cluster's API for this" \
+    "shape, dry run first, and with nothing fencing it the patch must land."
+  cmd "git mv app/ledger.tf data/ledger.tf ; choudoufu live-mv -from-estate=app kubernetes_manifest.ledger kubernetes_manifest.ledger   # in data/, as alice, no grant on data, policy gone"
+  sed '/depends_on/d' "$APP/ledger.tf" > "$DATA/ledger.tf" && rm "$APP/ledger.tf" || fail "boundary" "BREAK: the ledger block did not move from app to data"
+  OUT="$(cd "$DATA" && as_role alice chdf live-mv -no-color -from-estate=app kubernetes_manifest.ledger kubernetes_manifest.ledger 2>&1)" || fail "boundary" "BREAK: with no policy, Alice's live-mv of the manifest object was still refused: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
+  denied "$OUT" && fail "boundary" "BREAK: the manifest live-mv succeeded but the output still carries a refusal: $OUT"
+  grep -q 'Relabelled one live object into this estate' <<< "$OUT" || fail "boundary" "BREAK: live-mv did not report the manifest relabel: $OUT"
+  labels_of ledger boundary | evidence
+  grep -q '"tofu-estate":"data"' <<< "$(labels_of ledger boundary)" || fail "boundary" "BREAK: Alice's manifest live-mv did not land"
+  proof "caught - with the policy gone, the label patch moved the manifest object into an estate Alice was never granted. Step 13b's refusal is the policy's, not the tool's."
 
   step "BREAK control (cont'd) - step 10b's two labelled creates go through too"
   for who in addon kube-proxy; do
@@ -1037,6 +1084,28 @@ refusal_line "$OUT" | evidence
 grep -q '"tofu-estate":"app"' <<< "$(labels_of database boundary)" || fail "boundary" "the database left the estate despite the refusals"
 proof "the carve itself was refused, per object, from both sides: the estate being left and the estate being entered - and live-mv met the same refusal a plain kubectl did, because the write it makes is the same write. A state mv has no such moment; nothing evaluates it."
 
+step "13b. a kubernetes_manifest object carves the same way: one label patch, refused by the same policy"
+explain \
+  "The ledger ConfigMap is declared through a kubernetes_manifest block," \
+  "which has no metadata block for the provider to plan a label into: its" \
+  "whole object is one dynamic argument. So live-mv -from-estate sends the" \
+  "move as one merge patch through the cluster's API, setting tofu-estate" \
+  "and the address annotation and nothing else, under Alice's own" \
+  "ServiceAccount, with dryRun=All first. Admission judges the dry run" \
+  "exactly as it judges kubectl label, and Alice does not hold data, so" \
+  "the policy refuses it before anything is written."
+cmd "git mv app/ledger.tf data/ledger.tf ; choudoufu live-mv -from-estate=app kubernetes_manifest.ledger kubernetes_manifest.ledger   # in data/, as alice"
+sed '/depends_on/d' "$APP/ledger.tf" > "$DATA/ledger.tf" && rm "$APP/ledger.tf" || fail "boundary" "the ledger block did not move from app to data"
+grep -q 'kubernetes_manifest" "ledger"' "$DATA/ledger.tf" || fail "boundary" "the ledger block did not land in data"
+OUT="$(cd "$DATA" && as_role alice chdf live-mv -no-color -from-estate=app kubernetes_manifest.ledger kubernetes_manifest.ledger 2>&1 || true)"
+printf '%s\n' "$OUT" > "$LOGS/alice-denied-manifest.live-mv"
+denied "$OUT" || fail "boundary" "Alice's live-mv of the manifest object into data, which she does not hold, was not refused by the policy (full output in $LOGS/alice-denied-manifest.live-mv): $(grep -E 'Error|Relabelled|Moving a manifest' <<< "$OUT" | head -3)"
+grep -q 'kubectl label' <<< "$OUT" && fail "boundary" "live-mv still refused the manifest move by name rather than sending the patch (#1104): $OUT"
+refusal_line "$OUT" | evidence
+labels_of ledger boundary | evidence
+grep -q '"tofu-estate":"app"' <<< "$(labels_of ledger boundary)" || fail "boundary" "the ledger left the estate despite the refusal"
+proof "the manifest object's move met the policy's refusal, in the policy's words, from the server's dry run: the label still reads app. The write live-mv makes for this shape is the same governed write kubectl label makes."
+
 step "14. handover is an RBAC change: grant Alice data, and the same live-mv goes through"
 explain \
   "Nothing on the object and nothing in the policy changes. The cluster" \
@@ -1055,7 +1124,17 @@ grep -E 'Relabelled|tofu-estate' <<< "$OUT" | head -2 | evidence
 cmd "kubectl get configmap database -n boundary -o jsonpath='{.metadata.labels}'"
 labels_of database boundary | evidence
 grep -q '"tofu-estate":"data"' <<< "$(labels_of database boundary)" || fail "boundary" "the database does not carry tofu-estate=data after Alice's live-mv"
-proof "tofu-estate=data, written by live-mv under the one principal a policy lets write it, and read back by kubectl. Where there was one estate there are two, and no state was split."
+cmd "choudoufu live-mv -from-estate=app kubernetes_manifest.ledger kubernetes_manifest.ledger   # in data/, as alice"
+OUT="$(cd "$DATA" && as_role alice chdf live-mv -no-color -from-estate=app kubernetes_manifest.ledger kubernetes_manifest.ledger 2>&1)" || fail "boundary" "Alice's live-mv of the manifest object into data failed after the grant: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
+grep -q 'Relabelled one live object into this estate' <<< "$OUT" || fail "boundary" "live-mv did not report the manifest relabel: $OUT"
+grep -E 'Relabelled|tofu-estate' <<< "$OUT" | head -2 | evidence
+cmd "kubectl get configmap ledger -n boundary -o jsonpath='{.metadata.labels}'"
+labels_of ledger boundary | evidence
+grep -q '"tofu-estate":"data"' <<< "$(labels_of ledger boundary)" || fail "boundary" "the ledger does not carry tofu-estate=data after Alice's live-mv"
+LEDGER_ADDR="$(address_of ledger boundary)"
+[ "$LEDGER_ADDR" = "kubernetes_manifest.ledger" ] || fail "boundary" "after live-mv the ledger's address annotation reads '$LEDGER_ADDR', want kubernetes_manifest.ledger"
+echo "choudoufu.intentius.io/tofu-address: $LEDGER_ADDR" | evidence
+proof "tofu-estate=data, written by live-mv under the one principal a policy lets write it, and read back by kubectl - on the built-in ConfigMap through the provider, and on the manifest-declared one as one label patch. Where there was one estate there are two, and no state was split."
 
 step "15. every estate plans clean, each under its own principal"
 explain \
@@ -1076,12 +1155,12 @@ proof "No changes, three times, each under the principal that holds the estate. 
 
 step "16. teardown - each estate by its own destroy, under its own principal"
 OUT="$(cd "$DATA" && as_role alice chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "boundary" "teardown of data failed: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
-grep -q 'Resources: 0 added, 0 changed, 1 destroyed' <<< "$OUT" || fail "boundary" "data's destroy did not remove exactly one object: $OUT"
+grep -q 'Resources: 0 added, 0 changed, 2 destroyed' <<< "$OUT" || fail "boundary" "data's destroy did not remove exactly two objects: $OUT"
 OUT="$(cd "$APP" && as_role alice chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "boundary" "teardown of app failed: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
 grep -q 'Resources: 0 added, 0 changed, 2 destroyed' <<< "$OUT" || fail "boundary" "app's destroy did not remove exactly two objects: $OUT"
 OUT="$(cd "$NET" && as_role bob chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "boundary" "teardown of net failed: $(grep -E 'Error|Forbidden|denied' <<< "$OUT" | head -3)"
 grep -q 'Resources: 0 added, 0 changed, 2 destroyed' <<< "$OUT" || fail "boundary" "net's destroy did not remove exactly two objects: $OUT"
-proof "1, 2 and 2 destroyed, each through its own configuration and under the principal that holds it. Every delete passed the same policy."
+proof "2, 2 and 2 destroyed, each through its own configuration and under the principal that holds it. Every delete passed the same policy."
 
 echo "  What you watched: two ServiceAccounts hold two estates on one cluster"
 echo "  and are fenced by one admission policy reading the estate label,"
@@ -1093,8 +1172,9 @@ echo "  and the owned create are all refused beside their unowned twins,"
 echo "  while a plain update that leaves the label alone goes through with no"
 echo "  grant, and a labelled pod template still fans out into a labelled"
 echo "  ReplicaSet and Pod. A rename is a config edit: live-mv has"
-echo "  nothing governed to write and says so. Then one object is carved into"
-echo "  a new estate by live-mv -from-estate, one label write the policy"
-echo "  refused from both sides until a binding moved."
+echo "  nothing governed to write and says so. Then two objects are carved into"
+echo "  a new estate by live-mv -from-estate, one label write each - through the"
+echo "  provider for the ConfigMap, as one API patch for the kubernetes_manifest"
+echo "  one - that the policy refused until a binding moved."
 echo "  In stock every one of those moves is a state edit, and nothing in the"
 echo "  cluster can say no to a state edit or knows it happened."

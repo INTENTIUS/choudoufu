@@ -65,15 +65,11 @@ import (
 // A manifest-declared object ([markers.ManifestSurface], the shape every
 // custom resource is declared through) carries the same label and
 // annotation inside manifest.metadata, where no schema types them. Its
-// rename is one annotation merge patch to the API server (manifest.go);
-// its cross-estate move is not built here yet and is refused by name
-// ([SummaryManifestMoveUnsupported]) with the equivalent kubectl write,
-// which the same policy governs.
-
-// SummaryManifestMoveUnsupported is the summary [surfaceOf]'s caller raises
-// for a cross-estate move of a manifest-declared object. Exported for the
-// reason [SummaryLocatedRenameUnsupported] is.
-const SummaryManifestMoveUnsupported = "Moving a manifest-declared object between estates"
+// rename is one annotation merge patch to the API server, and its
+// cross-estate move (GitHub issue #1104) is one merge patch of the label
+// and the annotation together, under the run's own credential, so the
+// admission policy judges it exactly as it judges `kubectl label`
+// (manifest.go).
 
 // surfaceOf reads the marker surface off the resource type's schema, never
 // off its name: [substrate.SurfaceOf], the question live-import's carrier
@@ -99,7 +95,7 @@ func surfaceOf(providerType string, block *configschema.Block) markers.Surface {
 // labels-only plan-then-apply of [mover.relabel] ([substrate.WriteLabelsPlan],
 // the Kubernetes metadata-block shape). Every other surface, and the zero
 // one, takes the tag path; the manifest shape never gets this far (Move
-// refuses it by name first).
+// sends it to [mover.rewriteManifest] first).
 func relabels(surface markers.Surface) bool {
 	return substrate.WritesOf(surface).Adopt == substrate.WriteLabelsPlan
 }
@@ -421,17 +417,4 @@ func changedOutsideLabels(block *configschema.Block, prior, planned cty.Value) [
 		out = append(out, markers.LabelSurfaceBlock+"."+markers.AnnotationSurfaceAttr)
 	}
 	return out
-}
-
-// manifestMoveRefusal is the refusal for a cross-estate move of a
-// manifest-declared object, naming the kubectl write that makes the same
-// governed change.
-func manifestMoveRefusal(typeName string, anchor fmt.Stringer, from, to string) tfdiags.Diagnostic {
-	return tfdiags.Sourceless(
-		tfdiags.Error,
-		SummaryManifestMoveUnsupported,
-		fmt.Sprintf(
-			"%s is a %s, which carries its whole object in one dynamic manifest argument; its ownership label sits inside manifest.metadata.labels, where no schema types it, and live-mv does not rewrite that shape yet. The move is the same one governed label write, made with the cluster's own client under a principal holding both estates: kubectl label <kind> <name> -n <namespace> %s=%s --overwrite. The admission policy in live/kubernetes/estate-boundary.yaml judges that write exactly as it would judge this command's, reading the label as it is (%s) and as it would be (%s). Nothing was read and nothing was written.",
-			anchor, typeName, markers.TagEstate, to, from, to),
-	)
 }

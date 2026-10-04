@@ -17,10 +17,15 @@
 #      emulator before it is ever pointed at a real account, not swapped for
 #      a different code path per target.
 #
-#   2. TEARDOWN ON EVERY EXIT PATH. No script anywhere under live/e2e/ has a
-#      real destroy step (`grep -rl "tofu destroy\|terraform destroy" live/e2e/*/run.sh`
-#      returns nothing); every one relies on `docker rm -f` discarding the
-#      EMULATOR's state. Against real AWS there is no container to discard.
+#   2. TEARDOWN ON EVERY EXIT PATH. Some live/e2e/*/run.sh scripts do run a
+#      real `tofu destroy` / `terraform destroy` (oracle counts in four
+#      corpus crossings, terralith-scale's GREEN destroy; #1303), but only
+#      ever against a loopback emulator endpoint, and `docker rm -f`
+#      discarding the EMULATOR's state backstops every one of them, a
+#      destroy that failed included. Against real AWS there is no
+#      container to discard. live/e2e_destroy_endpoint_test.go holds the
+#      e2e side of that line: a destroy-bearing e2e script sets no endpoint
+#      that is not loopback.
 #      A caller sources this file, sets a trap on EXIT INT TERM to
 #      livecert_teardown (see reference-ec2-vpc.sh for the exact wiring,
 #      including how it stays safe to invoke from a live signal handler
