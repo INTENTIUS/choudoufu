@@ -20,12 +20,12 @@ import (
 	"github.com/intentius/choudoufu/internal/tofu"
 )
 
-// LiveRun is the seam stateless mode enters the ordinary
+// LiveRun is the seam live mode enters the ordinary
 // local operations through. When [Local.LiveRun] is nil - which is every
 // run of a configuration without a "live" block - nothing in this file
 // is reached and the backend behaves exactly as it always has.
 //
-// There are three methods because a stateless run has three things to say to
+// There are three methods because a live run has three things to say to
 // the operation, and they happen at different moments:
 //
 //  1. StateMgr replaces the file-backed state manager, before the operation
@@ -47,7 +47,7 @@ import (
 //  3. AfterApply runs once, only from [Local.opApply] and only after
 //     tofu.Context.Apply has returned with no errors - never from
 //     [Local.opPlan], and never for a trivial apply that never called Apply
-//     at all. It is where a stateless run does whatever a resource that is
+//     at all. It is where a live run does whatever a resource that is
 //     in the prior state but was never a graph node - never declared in
 //     configuration - still needs done to it once real infrastructure has
 //     genuinely changed: GitHub issue #67's undeclared_tagged = "untag"

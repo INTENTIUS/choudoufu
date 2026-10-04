@@ -72,7 +72,7 @@ func planRejectAdoptionOnly(adoptionOnly, live bool) tfdiags.Diagnostics {
 // Nothing here decides anything about a resource that some other stage has
 // not already decided.
 
-// livePlanView picks the renderer for a stateless run: the ordinary one,
+// livePlanView picks the renderer for a live run: the ordinary one,
 // or GitHub issue #587's adoption-only one. Both satisfy
 // [views.LivePlan], so this is the only branch either mode needs.
 func livePlanView(view *views.View, adoptionOnly bool, filter arguments.ReportFilter) views.LivePlan {

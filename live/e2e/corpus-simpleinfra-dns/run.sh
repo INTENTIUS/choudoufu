@@ -1536,7 +1536,7 @@ else
     BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
     [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=2 rename-without-moved plan exited $BREAK_PLAN_RC"; }
     # Verified directly (measured, not guessed): this is a genuinely
-    # stateless live-plan (no local state file, ever), so - like
+    # live-plan (no local state file, ever), so - like
     # corpus-iam-read-only-policy's own BREAK=2 in this same batch - it
     # walks only the addresses the CURRENT config declares. The old,
     # no-longer-declared module.rustaceans_org is never visited at all, so
@@ -1617,7 +1617,7 @@ EOF
       && { grep -E '^  # .+ will be' <<< "$FINAL_PLAN_OUT"; fail "the post-rename plan proposes a resource change"; }
     log "  no resource change proposed. Both renames are complete and invisible to the next plan."
 
-    gauntlet_stage day2_rename pass "moved block: module.rustaceans_org renamed to module.rustaceans_org_moved with zero churn (0 add, 1 change, 0 destroy) - only the zone's own marker rewritten, its 2 record children (A, CNAME) did not move; live-mv: module.cratesio_com (0 records) renamed to module.cratesio_com_final with zero churn, marker rewritten in place; stock oracle over the identical two-module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy), using per-child moved blocks stock's own state-address tracking requires and choudoufu's stateless untaggable-record derivation does not; both live zone ids unchanged, read via the AWS CLI"
+    gauntlet_stage day2_rename pass "moved block: module.rustaceans_org renamed to module.rustaceans_org_moved with zero churn (0 add, 1 change, 0 destroy) - only the zone's own marker rewritten, its 2 record children (A, CNAME) did not move; live-mv: module.cratesio_com (0 records) renamed to module.cratesio_com_final with zero churn, marker rewritten in place; stock oracle over the identical two-module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy), using per-child moved blocks stock's own state-address tracking requires and choudoufu's live-mode untaggable-record derivation does not; both live zone ids unchanged, read via the AWS CLI"
 
     # ══════════════════════════════════════════════════════════════════
     # PART E: REMOVE A BLOCK (day2_remove, active - live/GAUNTLET.md #7)

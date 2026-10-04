@@ -531,7 +531,7 @@ resource "kubernetes_service_v1" "api" {
 }
 
 # Not only StatefulSets: an ordinary Deployment reading both backends, so
-# the root has a stateless half whose own controller-made copies
+# the root has a live-mode half whose own controller-made copies
 # (ReplicaSet, Pod) DO carry ownerReferences and are excluded from the
 # sweep - the contrast day2_remove's PVC probe is measured against.
 resource "kubernetes_deployment_v1" "api" {

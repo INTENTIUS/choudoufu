@@ -343,7 +343,7 @@ func TestDiscover_recordBackedCountBlockShrinkDestroysSurplus(t *testing.T) {
 // Unlike TestDiscover_recordBackedWholeCountBlockStillMintsSlot (which
 // proves the OPPOSITE - zero provider calls - for the ordinary bind/apply
 // shape with CollectUnclaimed unset), this test sets both Sweep and
-// CollectUnclaimed, the shape live-plan's own stateless path always uses,
+// CollectUnclaimed, the shape live-plan's own live path always uses,
 // and a genuinely-foreign sibling live object of the same type must still
 // be found.
 func TestDiscover_recordBackedWholeTypeStillCollectsUnclaimed(t *testing.T) {

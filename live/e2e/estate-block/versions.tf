@@ -11,7 +11,7 @@ terraform {
   required_version = ">= 1.5.0"
 
   # This is the block under test: its presence is what turns plain "choudoufu
-  # plan"/"choudoufu apply" stateless. "live-e2e-block" is
+  # plan"/"choudoufu apply" into live mode. "live-e2e-block" is
   # deliberately NOT "live-e2e" (the main estate's name, live/e2e/
   # estate/locals.tf) — a distinct estate name means this fixture's resources
   # are foreign to the main estate and vice versa, so the two can stand up in

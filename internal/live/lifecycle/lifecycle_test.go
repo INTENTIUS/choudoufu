@@ -27,7 +27,7 @@ import (
 //
 // It starts from an empty account and drives an estate through its whole life
 // with the two plain commands - no live-prefixed subcommand, no flag
-// asking for stateless behaviour, nothing but a "live" block in the
+// asking for live-mode behaviour, nothing but a "live" block in the
 // configuration:
 //
 //  1. tofu apply -auto-approve creates the estate. Nothing in the fixture
@@ -46,7 +46,7 @@ import (
 //     removal gap, which had no fix inside phase 4 - and P5.1's estate-wide
 //     sweep is what turned it round.
 func TestLiveLifecycleAgainstFloci(t *testing.T) {
-	flocitest.Gate(t, "stateless lifecycle")
+	flocitest.Gate(t, "live lifecycle")
 	flocitest.RequireBinary(t, "docker")
 	flocitest.RequireBinary(t, "aws")
 	flocitest.RequireBinary(t, "go")
@@ -373,7 +373,7 @@ func writeFixture(t *testing.T, dir, content string) {
 // .terraform is skipped: it holds the provider plugins and the dependency
 // lock, which "choudoufu init" writes and which are not state. Its own
 // .terraform/terraform.tfstate - the backend record - is checked explicitly,
-// because that one is a state file and a stateless run has no business
+// because that one is a state file and a live run has no business
 // creating it.
 func assertNoState(t *testing.T, dir, when string) {
 	t.Helper()

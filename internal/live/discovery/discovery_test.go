@@ -159,7 +159,7 @@ func TestValidEstateName(t *testing.T) {
 			t.Errorf("ValidEstateName(%q) = false", s)
 		}
 	}
-	for _, s := range []string{"", "Stateless", "1abc", "has_underscore", "has.dot"} {
+	for _, s := range []string{"", "Live", "1abc", "has_underscore", "has.dot"} {
 		if ValidEstateName(s) {
 			t.Errorf("ValidEstateName(%q) = true", s)
 		}

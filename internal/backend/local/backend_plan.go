@@ -146,7 +146,7 @@ func (b *Local) opPlan(
 	runningOp.PlanEmpty = !plan.CanApply()
 
 	// The schemas render the plan below and are read here, ahead of the
-	// plan file, because the stateless run's post-plan step needs them
+	// plan file, because the live run's post-plan step needs them
 	// first.
 	schemas, moreDiags := lr.Core.Schemas(ctx, lr.Config, lr.InputState)
 	diags = diags.Append(moreDiags)
@@ -201,7 +201,7 @@ func (b *Local) opPlan(
 
 		// The schemas were loaded above, and a failure there already ended
 		// the operation (this fork keeps a schema failure fatal before the
-		// save, because the stateless post-plan step needs them), so the
+		// save, because the live post-plan step needs them), so the
 		// saved plan always embeds them for `tofu show` (#1778).
 		schemasForPlanFile := schemas.Providers
 

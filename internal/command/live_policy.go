@@ -228,7 +228,7 @@ func livePolicyTagValue(pol *policy.Policy) string {
 }
 
 // livePolicyReport assembles GitHub issue #67's policy report for the
-// stateless plan view, from every stage that touched a non-default verb:
+// live plan view, from every stage that touched a non-default verb:
 // the projection's declared-quadrant outcomes, discovery's withheld
 // undeclared_tagged orphans, and the scoped reconciliation pass's roster.
 //
@@ -409,7 +409,7 @@ func liveUntagCluster(sweepers map[string]kubesweep.Sweeper, provider addrs.AbsP
 
 // liveReleasedReport turns one [untag.Result] - the apply-time record
 // of what [liveRunner.AfterApply] actually did to every
-// undeclared_tagged = "untag" target - into the stateless view's own
+// undeclared_tagged = "untag" target - into the live-mode view's own
 // shape. Nil-safe: AfterApply skips calling [untag.Release] at all when
 // there was nothing to release, and this function mirrors that by
 // returning an empty report.

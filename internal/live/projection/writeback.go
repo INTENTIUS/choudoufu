@@ -189,7 +189,7 @@ type WriteBackRequest struct {
 	//
 	// The instances it hands back must be configured, exactly as
 	// [Providers] requires for the plan side. A run that closed its
-	// plan-time providers - which internal/command's stateless runner does,
+	// plan-time providers - which internal/command's live runner does,
 	// deliberately, before the plan graph starts - has to open new ones for
 	// this.
 	Providers Providers
@@ -212,7 +212,7 @@ type WriteBackRequest struct {
 
 	// RootOutputStore is where GitHub issue #349's remaining half persists:
 	// the value each root-level `output` block settled on, so the next
-	// stateless plan has the "before" side stock reads out of its state
+	// live plan has the "before" side stock reads out of its state
 	// file. Nil makes that half of [WriteBack] a no-op, the same way a nil
 	// Store does for the record-backed half. See rootoutput.go.
 	//

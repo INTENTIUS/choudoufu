@@ -218,7 +218,7 @@ func TestWriteBackStillSaysCannotPersistARecordForEverythingElse(t *testing.T) {
 // #1452's cluster contract asks the API server whether this identity holds
 // `use` on its estate and fails `estate_boundary` when it does not. That check
 // runs in internal/command's BeforeApply, on every apply. This change refuses
-// when the store is OPENED, which happens in the stateless runner's PriorState
+// when the store is OPENED, which happens in the live runner's PriorState
 // - before the plan graph exists, and so before BeforeApply is reached at all.
 //
 // So an apply by a fenced identity has two refusals available to it and prints

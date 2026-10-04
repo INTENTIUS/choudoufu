@@ -505,7 +505,7 @@ const SummaryResidueUnreadable = "Residue record could not be read"
 // `timeouts { create = "10m" delete = "15m" }` on its security group and
 // its default route table, a block the provider's Read never sources from
 // the remote and only ever preserves from the prior it was handed. A stock
-// state file holds it; a stateless prior state had nowhere to hold it, so
+// state file holds it; a prior state projected from the live system had nowhere to hold it, so
 // every replan after a clean migrate proposed `+ timeouts {...}` on those
 // instances forever, against a stock plan that shows the same block
 // unchanged. Nothing about the rule names a type or a block: `timeouts` is
@@ -2154,7 +2154,7 @@ func identityOnly(obj cty.Value, identityAttrs map[string]bool) (cty.Value, erro
 		// answer about nothing. The caller closes on the error and records
 		// nothing for the instance.
 		//
-		// Reached by internal/command's stateless test provider, whose
+		// Reached by internal/command's live-mode test provider, whose
 		// caricature objects carry no id, and it would be reached by any
 		// real type whose applied object does not either. Such a type could
 		// not be imported by OpenTofu's own import path, so nothing is lost

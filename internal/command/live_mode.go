@@ -45,18 +45,18 @@ import (
 	"github.com/intentius/choudoufu/internal/tofu"
 )
 
-// This file turns plain "choudoufu plan" and plain "choudoufu apply" stateless when the
+// This file turns plain "choudoufu plan" and plain "choudoufu apply" into live mode when the
 // configuration says so, and leaves both of them exactly as they were when it
 // does not.
 //
 // The activation is a configuration block and never a flag. See
 // [configs.Live] for why. The consequence for the code here is that
-// every entry point has to answer "is this a stateless configuration" before
+// every entry point has to answer "is this a live-mode configuration" before
 // it does anything else with state, which is what liveSettings is for.
 //
 // # The seam
 //
-// A stateless run is an ordinary local run with two things replaced, both
+// A live run is an ordinary local run with two things replaced, both
 // through [backendLocal.LiveRun]:
 //
 //   - the state manager, replaced with [projection.Manager], which persists
@@ -68,7 +68,7 @@ import (
 //
 // Everything else - the plan renderer, the approval prompt, the apply hooks
 // and progress counts, interrupt handling, the resource-count summary - is
-// stock, because a stateless run differs from an ordinary one only in where
+// stock, because a live run differs from an ordinary one only in where
 // prior state comes from and where the result goes (nowhere).
 //
 // # The provider double-launch
@@ -99,7 +99,7 @@ import (
 //
 // tolerateLoadErrors is for callers that have another source of
 // configuration, namely an apply given a saved plan file: for those, a
-// working directory that will not load is not evidence about stateless mode
+// working directory that will not load is not evidence about live mode
 // and is not this function's error to report.
 func (m *Meta) liveSettings(ctx context.Context, tolerateLoadErrors bool) (*configs.Live, tfdiags.Diagnostics) {
 	mod, diags := m.loadSingleModule(ctx, ".", configs.SelectiveLoadBackend)
@@ -118,10 +118,10 @@ func (m *Meta) liveSettings(ctx context.Context, tolerateLoadErrors bool) (*conf
 	return mod.Live, nil
 }
 
-// liveBegin prepares a plan or apply operation to run statelessly, and
+// liveBegin prepares a plan or apply operation to run in live mode, and
 // is called only when the configuration has a live block.
 //
-// It refuses everything stateless mode v0 cannot honor (see
+// It refuses everything live mode v0 cannot honor (see
 // liveRejections), replaces the operation's state manager and prior
 // state through the backend's seam, and makes the state lock a no-op at the
 // CLI layer as well as at the manager - two independent reasons no lock file
@@ -707,7 +707,7 @@ func liveRejections(surface liveSurface, op *arguments.Operation, state *argumen
 // The runner
 // ---------------------------------------------------------------------------
 
-// liveRunner is the stateless pipeline, wearing the interface the local
+// liveRunner is the live pipeline, wearing the interface the local
 // backend calls it through. One runner serves one operation.
 type liveRunner struct {
 	// estateOutputs is the command's terraform_estate_outputs holder
@@ -718,7 +718,7 @@ type liveRunner struct {
 	// settings is the live block this run was started from. The whole block
 	// is kept, not just its estate name, so that a diagnostic raised once the
 	// run is under way can still point at the configuration that asked for
-	// stateless mode - which is the thing at fault when the estate cannot be
+	// live mode - which is the thing at fault when the estate cannot be
 	// settled.
 	settings *configs.Live
 
@@ -970,7 +970,7 @@ func (r *liveRunner) PriorStateCalls() int {
 }
 
 // PriorState implements [backendLocal.LiveRun]: it runs the whole
-// stateless pipeline and returns the projection.
+// live pipeline and returns the projection.
 //
 // The order is the one internal/command/live_plan.go documents and for
 // the same reasons - lint before anything reads the cloud, the estate name
@@ -1027,7 +1027,7 @@ func (r *liveRunner) PriorState(ctx context.Context, config *configs.Config, cor
 	// internal/command/live_plan.go, which does the same.
 	resourceSchemas := provs.resourceSchemas(ctx)
 
-	// Subset check first: a configuration outside the stateless subset has to
+	// Subset check first: a configuration outside the live-mode subset has to
 	// fail with an explanation, and it has to fail before anything is read
 	// from or written to the cloud. It runs after the providers are launched
 	// now, schemas in hand, so a type with no admission-table row can still
@@ -1718,7 +1718,7 @@ func (r *liveRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
 	return diags
 }
 
-// estateName settles which estate this run is about, from the stateless
+// estateName settles which estate this run is about, from the live
 // block or from the tofu-estate tags the configuration stamps.
 //
 // Unlike "choudoufu live-plan", where no estate name is a warning and the run
@@ -1727,7 +1727,7 @@ func (r *liveRunner) AfterApply(ctx context.Context) tfdiags.Diagnostics {
 // has no state, and the only thing standing in for state is the markers; a
 // run that proceeded without an estate name would create live resources
 // carrying no ownership record, which the next run would report as foreign.
-// That is not a degraded stateless run, it is a broken estate.
+// That is not a degraded live run, it is a broken estate.
 func (r *liveRunner) estateName(ctx context.Context, config *configs.Config) (string, tfdiags.Diagnostics) {
 	estate, declared, diags := liveEstateFor(ctx, r.settings.Estate, config)
 	if diags.HasErrors() {

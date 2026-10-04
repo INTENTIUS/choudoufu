@@ -30,7 +30,7 @@ import (
 // implementation never consulted identity.SelectionFor, so an instance a
 // live block's `strict { markers "record" }` selected was still tag-stamped
 // during a migrate, and no located record was ever written for it - the
-// resolver then read it ABSENT on the very next stateless plan.
+// resolver then read it ABSENT on the very next live plan.
 //
 // Every claim below is asserted at the record store's own rendered value,
 // never at a verdict alone, per HANDOFF.md's safety rule: convergence is

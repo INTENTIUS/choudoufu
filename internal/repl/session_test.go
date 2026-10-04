@@ -146,7 +146,7 @@ func TestSession_basicState(t *testing.T) {
 	})
 }
 
-func TestSession_stateless(t *testing.T) {
+func TestSession_withoutState(t *testing.T) {
 	t.Run("exit", func(t *testing.T) {
 		testSession(t, testSessionTest{
 			Inputs: []testSessionInput{

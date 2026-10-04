@@ -381,7 +381,7 @@ var terraformBlockSchema = &hcl.BodySchema{
 			Type: "encryption",
 		},
 		{
-			// Fork addition: stateless mode. See live.go.
+			// Fork addition: live mode. See live.go.
 			Type: "live",
 		},
 	},

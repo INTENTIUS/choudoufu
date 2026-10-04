@@ -88,7 +88,7 @@ type Local struct {
 	// If this is nil, local performs normal state loading and storage.
 	Backend backend.Backend
 
-	// Stateless, if non-nil, puts this backend into the fork's stateless
+	// LiveRun, if non-nil, puts this backend into the fork's live
 	// mode: the state manager persists no AUTHORITATIVE state (only the
 	// disposable cache, issue #685) and the prior state is a
 	// projection of the live system. See live.go. Nil - the case for

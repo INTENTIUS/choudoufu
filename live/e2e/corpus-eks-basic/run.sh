@@ -151,7 +151,7 @@ set -uo pipefail
 #                     graph's own dependency order on a first apply) and
 #                     evaluates data.aws_eks_cluster.cluster BEFORE
 #                     provider.kubernetes is ever configured, in one
-#                     coherent walk that choudoufu's stateless discovery
+#                     coherent walk that choudoufu's live-mode discovery
 #                     does not build. This is the exact shape issue #313
 #                     already named and deferred ("live-value-through-
 #                     provider-config boundary") from the OTHER direction
@@ -159,11 +159,11 @@ set -uo pipefail
 #                     the identical data sources at migrate time - see stage
 #                     2 above); this estate is simply the first live crossing
 #                     to reach it from live-plan's side too. Fixing it
-#                     generically would mean teaching the stateless path to
+#                     generically would mean teaching the live path to
 #                     sequence AWS discovery/read ahead of a dependent
 #                     provider's own configuration for ANY provider pair a
 #                     configuration names this way, not a per-type table -
-#                     a real, novel piece of the stateless engine (a
+#                     a real, novel piece of the live engine (a
 #                     provider-configuration dependency order it does not
 #                     have today), not a discovery, stamping or identity
 #                     fix, and not attempted here. See #313.
@@ -1509,7 +1509,7 @@ fi
 #     internal/live/projection/locatedseed.go,
 #     internal/live/liveimport/stamp.go's Approve, plus
 #     discovery.Request.HintStore reaching internal/command/live_plan.go's
-#     stateless path unconditionally). The generic property - no tags
+#     live path unconditionally). The generic property - no tags
 #     argument and no list route of any kind - reaches 215 admitted AWS
 #     types; this is the instance that found it, not a special case of the
 #     fix. No BREAK lever: this is a plain absence check below

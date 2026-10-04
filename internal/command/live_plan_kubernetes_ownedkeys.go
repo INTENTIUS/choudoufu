@@ -19,7 +19,7 @@ import (
 )
 
 // The command layer's half of GitHub issue #1211: the one cluster read
-// that tells a stateless plan which metadata.labels and
+// that tells a live plan which metadata.labels and
 // metadata.annotations keys its own field manager owns on a live
 // kubernetes_manifest object.
 //

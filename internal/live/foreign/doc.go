@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Package foreign classifies the live resources an estate does not own, and
-// is the safety property of stateless mode: a live resource nobody claims is
+// is the safety property of live mode: a live resource nobody claims is
 // surfaced, and is never a deletion candidate.
 //
 // Its input is one [discovery.Result] gathered with
@@ -13,7 +13,7 @@
 // [Classify] never rewrites a resolution, never stamps a marker, and never
 // hands anything to the projection builder. That is not an implementation
 // detail deferred to a later phase - it is how the protection property is
-// made structural. The prior state a stateless plan runs against is built
+// made structural. The prior state a live plan runs against is built
 // from resolutions, resolutions come from declared addresses, and an
 // unclaimed live resource has no declared address, so it can never enter the
 // prior state and the plan engine has nothing to propose destroying. Nothing

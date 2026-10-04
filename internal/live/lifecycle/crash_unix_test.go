@@ -29,7 +29,7 @@ import (
 //
 // The docs page claims, for "crash mid-apply", that a backend leaves a stale
 // lock blocking the team and resources created-but-unrecorded orphaned EVEN
-// WITH the lock held, while stateless mode has "markers rode the create call
+// WITH the lock held, while live mode has "markers rode the create call
 // itself: all discoverable; nothing to unlock or recover". Every other test
 // on this branch runs an apply to completion, so the entire evidence for the
 // row a reader is most likely to care about was prose plus a successful

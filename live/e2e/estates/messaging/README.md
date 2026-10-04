@@ -200,7 +200,7 @@ form real AWS returns. A plain `apply` never notices, because Terraform
 just stores whatever `id` the create call handed back and reads through
 that same string on every later refresh; nothing at this layer ever
 re-derives or re-parses it. The gap bites only in the path this fork's own
-stateless marker discovery takes: a context-less run reconstructs the
+live-mode marker discovery takes: a context-less run reconstructs the
 canonical URL to hand the provider's importer (`internal/live/identity`'s
 `aws_sqs_queue` entry expresses that exact template), the AWS provider's
 own importer accepts only the `amazonaws.com` form, and floci's URL fails

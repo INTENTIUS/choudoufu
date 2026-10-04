@@ -27,7 +27,7 @@ import (
 // boundaries, none of them visible in what the user typed.
 //
 // The live layer needs that closure to be the plan's own. A resource the plan
-// still acts on but the stateless pipeline skipped would have no projection
+// still acts on but the live pipeline skipped would have no projection
 // entry, and a plan with no prior state for a live object proposes creating a
 // second one.
 func TestTargetedResourcesIncludesDependencies(t *testing.T) {
@@ -53,7 +53,7 @@ func TestTargetedResourcesIncludesDependencies(t *testing.T) {
 // TestTargetedResourcesDropsAnUntargetedSibling is the other half: a resource
 // nothing targeted and nothing targeted depends on is absent. That absence is
 // what issue #352's refusal was: aws_budgets_budget was never targeted and
-// nothing needed it, and the stateless pipeline evaluated its identity
+// nothing needed it, and the live pipeline evaluated its identity
 // arguments anyway.
 func TestTargetedResourcesDropsAnUntargetedSibling(t *testing.T) {
 	ctx, m := targetScopeContext(t, "plan-targeted")
@@ -76,7 +76,7 @@ func TestTargetedResourcesDropsAnUntargetedSibling(t *testing.T) {
 
 // TestTargetedResourcesHonorsExclude pins that -exclude reaches the same seam.
 // It has the same defect as -target did and is fixed by the same call:
-// excluding a resource excludes what depends on it, and the stateless
+// excluding a resource excludes what depends on it, and the live
 // pipeline has to see the same set the graph does.
 func TestTargetedResourcesHonorsExclude(t *testing.T) {
 	ctx, m := targetScopeContext(t, "plan-targeted")

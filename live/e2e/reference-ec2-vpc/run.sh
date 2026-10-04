@@ -2178,7 +2178,7 @@ EOF
       #      state this stage's whole assertion set cares about
       #      (current=new, deposed=old) already holds. The record file
       #      itself is written LATER still, once - backend_apply.go's
-      #      opApply calls Stateless.WriteBack exactly once, after
+      #      opApply calls LiveRun.WriteBack exactly once, after
       #      lr.Core.Apply has returned for the whole graph, from whatever
       #      applyState the (possibly interrupted) walk left behind - so
       #      there is no window in which the create half is live but the

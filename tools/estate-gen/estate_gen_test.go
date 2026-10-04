@@ -184,7 +184,7 @@ func TestDeterminism(t *testing.T) {
 // The third case, "s3-module-wrap", is 59b's own bar for the -module-wrap
 // flag: the same s3 types, generated wrapped, validate clean too - proving
 // the generated module call and the child module's own files are legal
-// HCL together, independent of whether stateless mode can plan them (that
+// HCL together, independent of whether live mode can plan them (that
 // is live/e2e/estate-module/'s job, gated on floci). The fourth,
 // "s3-module-keyed", is 59c's own bar for -module-keys: the same shape,
 // keyed over two instances, validating clean with the wrapped module's

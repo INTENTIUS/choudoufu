@@ -685,7 +685,7 @@ func pollConsistentEvery(ctx context.Context, read func(ctx context.Context) ([]
 // Every failure along the way downgrades to a warning and an empty result
 // rather than failing the whole command: the cloud listing above is this
 // command's primary deliverable and does not need a configuration to exist
-// at all, so a configuration that will not load, is outside the stateless
+// at all, so a configuration that will not load, is outside the live-mode
 // subset, or cannot be resolved is news worth printing, never a reason to
 // withhold the listing that already succeeded.
 //

@@ -19,7 +19,7 @@ import (
 // once [TargetingTransformer] has run over it, keyed by
 // [addrs.ConfigResource.String].
 //
-// It exists for the fork's stateless pipeline (GitHub issue #352), which does
+// It exists for the fork's live pipeline (GitHub issue #352), which does
 // its identity resolution, data reads and marker work in front of the plan
 // rather than inside it, and so has no graph of its own to prune. Before this,
 // every one of those passes walked the whole configuration regardless of

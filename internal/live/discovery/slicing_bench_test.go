@@ -145,7 +145,7 @@ type planRun struct {
 }
 
 // legSplit is the three-leg split. tagging + native + read is the whole of
-// what a stateless plan's projection costs, apart from the config-driven
+// what a live plan's projection costs, apart from the config-driven
 // scan (which stock's own refresh is the analogue of) and the post-sweep
 // legs (bind, orphan classification, parent-read, fold-child).
 type legSplit struct {

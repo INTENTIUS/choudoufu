@@ -156,7 +156,7 @@ func EstateDir(t *testing.T) string {
 }
 
 // LimitsDir returns the path of the limits fixture, one directory per
-// construct the stateless mode does not serve.
+// construct live mode does not serve.
 func LimitsDir(t *testing.T) string {
 	t.Helper()
 	return fixtureDir(t, filepath.Join("live", "e2e", "limits"))

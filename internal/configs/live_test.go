@@ -119,7 +119,7 @@ func TestValidateRecordStorePath(t *testing.T) {
 
 // The estate argument is optional: without it the name is derived from the
 // tofu-estate tags the configuration stamps, and the block is still the thing
-// that puts the run into stateless mode.
+// that puts the run into live mode.
 func TestModule_liveWithoutEstate(t *testing.T) {
 	mod, diags := testModuleFromDir("testdata/valid-modules/live-no-estate")
 	if diags.HasErrors() {
@@ -399,7 +399,7 @@ func TestModule_liveSidecar(t *testing.T) {
 // performs before it would reach for a state manager. The sidecar must be
 // visible under that same selective load, or a sidecar user's backend block
 // would sail past the wall and a command would touch state while believing
-// it is stateless.
+// it runs in live mode.
 func TestModule_liveSidecarSelectiveBackendWall(t *testing.T) {
 	parser := NewParser(nil)
 	_, diags := parser.LoadConfigDirSelective("testdata/invalid-modules/live-sidecar-and-backend", SelectiveLoadBackend)
@@ -413,7 +413,7 @@ func TestModule_liveSidecarSelectiveBackendWall(t *testing.T) {
 
 // TestModule_liveSidecarSelectiveBackendVisible is the positive half of the
 // wall test: a selective backend load of a sidecar-only configuration
-// surfaces the Live, which is what puts plain plan and apply into stateless
+// surfaces the Live, which is what puts plain plan and apply into live
 // mode before any state manager is built.
 func TestModule_liveSidecarSelectiveBackendVisible(t *testing.T) {
 	for name, load := range map[string]SelectiveLoader{

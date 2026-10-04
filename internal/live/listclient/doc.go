@@ -3,11 +3,11 @@
 // Copyright (c) 2023 HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-// Package listclient is stateless mode's client for the provider list
+// Package listclient is live mode's client for the provider list
 // protocol: the ListResource server-streaming RPC and the list resource
 // schemas that parameterize it.
 //
-// Listing is how stateless mode recovers the identity of resources whose
+// Listing is how live mode recovers the identity of resources whose
 // identity is not in configuration. Admission path 2 (marker) lists a type
 // filtered by ownership tags and reads the identity off each result;
 // admission path 4 (list and content match) lists a type and binds by

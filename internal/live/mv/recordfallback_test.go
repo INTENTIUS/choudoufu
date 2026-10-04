@@ -27,7 +27,7 @@ import (
 // recordFallbackProvider adds the list protocol's method that
 // providers.Interface itself does not declare (see
 // internal/command/live_mv_test.go's mvProvider, the same shape): the
-// stateless list client asks for it by type assertion
+// live-mode list client asks for it by type assertion
 // (listclient.asLister), so a *tofu.MockProvider alone - which implements
 // providers.Interface but not this - fails that assertion outright rather
 // than answering "not listable". This wrapper's ListResourceStream is never

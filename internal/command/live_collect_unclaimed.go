@@ -68,7 +68,7 @@ const collectUnclaimedEnvVar = "TOFU_LIVE_COLLECT_UNCLAIMED"
 // evidence sources, and the one removal shape it gives up.
 //
 // A plan that did not ask says so rather than implying an answer: the
-// stateless plan view's "Foreign resources" section renders the narrowing
+// live plan view's "Foreign resources" section renders the narrowing
 // (see [views.LiveForeign.NativeSweepSkipped]).
 func collectUnclaimedSetting(adoptionOnly bool) (bool, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics

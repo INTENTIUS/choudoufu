@@ -502,7 +502,7 @@ gauntlet_end_stage
 # drift check already corrupt their assertions and exit through fail()
 # under BREAK=1 before this point) exercises this stage's own break control
 # instead of the real checks: renaming module.read_only_iam_policy WITHOUT
-# a moved block. This estate's live-plan is genuinely stateless throughout
+# a moved block. This estate's live-plan reads no prior from disk at any point
 # (no local state file, ever), so - like corpus-sqs-basic's own module
 # rename, not corpus-eks-basic's - the old, no-longer-declared address is
 # never visited and never proposed for destroying; only a create for the
@@ -1193,8 +1193,8 @@ if [ "${BREAK:-}" = "2" ]; then
     ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "the BREAK=2 rename's reinit failed"; }
   BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
   [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=2 rename-without-moved plan exited $BREAK_PLAN_RC"; }
-  # Verified directly (measured, not guessed): this is a genuinely stateless
-  # live-plan (no local state file, ever - every stage above asserts its
+  # Verified directly (measured, not guessed): this is a live-plan that reads no
+  # prior from disk (no local state file, ever - every stage above asserts its
   # absence), so it walks only the addresses the CURRENT config declares.
   # The old, no-longer-declared module.read_only_iam_policy is never
   # visited at all - there is nothing to propose destroying, and the marker
@@ -1207,7 +1207,7 @@ if [ "${BREAK:-}" = "2" ]; then
     && { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=2: the old, no-longer-declared address unexpectedly still appears in the plan - this stage's check is not load-bearing"; }
   grep -qE '^  # module\.read_only_iam_policy_final\.aws_iam_policy\.policy\[0\] will be created' <<< "$BREAK_PLAN_OUT" \
     || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=2: renaming without a moved block did not propose creating module.read_only_iam_policy_final.aws_iam_policy.policy[0] - this stage's check is not load-bearing"; }
-  log "  BREAK=2: correctly proposes ONLY a create for module.read_only_iam_policy_final.aws_iam_policy.policy[0], no destroy of the old (no-longer-declared, now-orphaned) module.read_only_iam_policy.aws_iam_policy.policy[0] - the real outcome for a stateless live-plan with no moved block, not a literal destroy-and-create; the moved-block and live-mv checks below are skipped"
+  log "  BREAK=2: correctly proposes ONLY a create for module.read_only_iam_policy_final.aws_iam_policy.policy[0], no destroy of the old (no-longer-declared, now-orphaned) module.read_only_iam_policy.aws_iam_policy.policy[0] - the real outcome for a live-plan with no moved block, not a literal destroy-and-create; the moved-block and live-mv checks below are skipped"
 else
   log "=== D1. choudoufu, moved block: module.read_only_iam_policy -> module.read_only_iam_policy_moved ==="
   sed -i.bak 's/module "read_only_iam_policy" {/module "read_only_iam_policy_moved" {/' "$EST/main.tf"

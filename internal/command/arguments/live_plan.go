@@ -32,7 +32,7 @@ type LivePlan struct {
 // command's whole option set, from [BindPlan], plus -estate.
 //
 // -estate is registered here rather than added to [Plan], which would make it
-// an option of "choudoufu plan" as well: a flag naming a stateless concept on
+// an option of "choudoufu plan" as well: a flag naming a live-mode concept on
 // the command that has state files. Registering it on live-plan's own
 // CommandLine keeps the stock plan surface exactly as it was, and still gets
 // -estate the parsing every other option has - end-of-flags handling, the

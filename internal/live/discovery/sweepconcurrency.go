@@ -20,7 +20,7 @@ import (
 
 // GitHub issue #605. The estate-wide sweep makes one list call per admitted
 // type, and against a real account that is very nearly the whole of a
-// stateless plan's wall clock. #578's certification run, scale 1, 79
+// live plan's wall clock. #578's certification run, scale 1, 79
 // resources, us-east-2, three runs a side, every plan empty: stock 3s/4s/3s
 // against this fork's 203s/211s/200s. The sweep is 558 of those calls, so
 // the 201.3s mean difference over stock is 0.36s per sweep call - one

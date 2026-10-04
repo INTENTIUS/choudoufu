@@ -42,11 +42,11 @@ resource "random_pet" "name" {
   length = 2
 }
 
-# Deliberately no output blocks: a stateless run's prior state is rebuilt
+# Deliberately no output blocks: a live run's prior state is rebuilt
 # from the record store on every plan and never carries computed output
 # values across runs (there is no state file to remember them in), so an
 # output here would show as a spurious "+" every single plan regardless of
 # whether anything about the four resources actually changed. That is a
-# pre-existing, out-of-scope property of stateless mode in general, not
+# pre-existing, out-of-scope property of live mode in general, not
 # something this fixture is testing - run.sh verifies resource stability by
 # reading the persisted record files directly instead.

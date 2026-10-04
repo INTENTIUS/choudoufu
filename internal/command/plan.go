@@ -122,7 +122,7 @@ func (c PlanCommand) Execute(args *arguments.Plan, view views.Plan) int {
 		return 1
 	}
 
-	// Stateless mode is switched on by a "live" block in the
+	// Live mode is switched on by a "live" block in the
 	// configuration, never by a flag, so that a run cannot fall back to
 	// writing a state file by forgetting one. Without the block this is nil
 	// and nothing below changes.

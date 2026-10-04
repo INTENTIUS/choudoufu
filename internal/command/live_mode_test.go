@@ -29,7 +29,7 @@ import (
 // configuration carrying a live block, against the same mock cloud the
 // live-plan tests use. What they are checking, together, is that the
 // block is the only switch: nothing here passes a flag that asks for
-// stateless behaviour, and the last test in the file checks that a
+// live-mode behaviour, and the last test in the file checks that a
 // configuration without the block still writes its state file exactly as it
 // always did.
 
@@ -247,7 +247,7 @@ func TestLiveMode_livePlanIsAnAlias(t *testing.T) {
 }
 
 // TestLiveMode_lintFatal mirrors TestLivePlan_lintFatal for the live
-// block's own entry point: a configuration outside the stateless subset
+// block's own entry point: a configuration outside the live-mode subset
 // stops before any provider reads the live system, and the rule that
 // rejected it is named. This exercises liveRunner.PriorState's lint
 // call rather than live-plan's own, which is the half of #45 this issue
@@ -363,7 +363,7 @@ func TestLiveMode_plainApply(t *testing.T) {
 	}
 
 	if captured == nil {
-		t.Fatal("no stateless runner was installed, so this apply was not stateless")
+		t.Fatal("no live runner was installed, so this apply did not run in live mode")
 	}
 	if n := captured.mgr.Persists(); n == 0 {
 		t.Error("PersistState was never called, so the persistence path was not exercised")
@@ -537,7 +537,7 @@ func TestLiveBegin_nodeResolveDefaultOn(t *testing.T) {
 	}
 
 	if captured == nil {
-		t.Fatal("no stateless runner was installed")
+		t.Fatal("no live runner was installed")
 	}
 	if !captured.nodeResolve {
 		t.Error("nodeResolve is false with CHOUDOUFU_NODE_RESOLVE unset; the default flipped 2026-08-25 and should be on")
@@ -585,7 +585,7 @@ func TestLiveBegin_nodeResolveOptOut(t *testing.T) {
 	}
 
 	if captured == nil {
-		t.Fatal("no stateless runner was installed")
+		t.Fatal("no live runner was installed")
 	}
 	if captured.nodeResolve {
 		t.Error("nodeResolve is true with CHOUDOUFU_NODE_RESOLVE=0")
@@ -680,7 +680,7 @@ func TestLiveMode_priorStateRunsOncePlan(t *testing.T) {
 	}
 
 	if captured == nil {
-		t.Fatal("no stateless runner was installed, so this plan was not stateless")
+		t.Fatal("no live runner was installed, so this plan did not run in live mode")
 	}
 	if n := captured.PriorStateCalls(); n != 1 {
 		t.Errorf("PriorState ran %d times for one plan, want exactly 1 (GitHub issue #80)", n)
@@ -741,7 +741,7 @@ func TestLiveMode_plainApplyWritesHint(t *testing.T) {
 	assertNoStateArtifacts(t, td)
 }
 
-// TestLiveMode_applyRejections: the options stateless mode v0 removes
+// TestLiveMode_applyRejections: the options live mode v0 removes
 // the ground for, refused rather than ignored. "-destroy" is deliberately
 // absent from this table since GitHub issue #320 (ruled in #425): see
 // TestLiveMode_applyDestroy for the positive case that mode now has.
@@ -829,7 +829,7 @@ func TestLiveMode_planRejections(t *testing.T) {
 }
 
 // TestLiveMode_refreshRefused: "choudoufu refresh" writes a state file as
-// its entire purpose, so a stateless configuration is refused rather than
+// its entire purpose, so a live-mode configuration is refused rather than
 // left to produce one from a command that changes nothing.
 func TestLiveMode_refreshRefused(t *testing.T) {
 	td := t.TempDir()
@@ -934,7 +934,7 @@ func TestLiveMode_stockModeUnchanged(t *testing.T) {
 	}
 
 	if captured != nil {
-		t.Fatal("a configuration without a live block was run statelessly")
+		t.Fatal("a configuration without a live block was run in live mode")
 	}
 
 	state := testStateRead(t, filepath.Join(td, "terraform.tfstate"))
@@ -1069,7 +1069,7 @@ func TestLiveMode_stateCacheWrittenEndToEnd(t *testing.T) {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
 	}
 	if captured == nil {
-		t.Fatal("no stateless runner was installed, so this apply was not stateless")
+		t.Fatal("no live runner was installed, so this apply did not run in live mode")
 	}
 	if n := captured.mgr.Persists(); n == 0 {
 		t.Fatal("PersistState was never called, so the cache write was never reached")
@@ -1156,7 +1156,7 @@ func TestLiveMode_stateCacheWrittenThenUsed(t *testing.T) {
 	done(t)
 
 	if captured == nil {
-		t.Fatal("no stateless runner was installed, so the second run was not stateless")
+		t.Fatal("no live runner was installed, so the second run did not run in live mode")
 	}
 	// What this level CAN prove: the second run loaded the cache and the hit
 	// count is reported. What it cannot is a hit, because a hit additionally

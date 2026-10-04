@@ -424,7 +424,7 @@ type Request struct {
 	// when a fresh hint would otherwise narrow the routine sweep - the
 	// "periodic or flagged full sweep" that re-verifies the hint set, so a
 	// resource of a hinted type created out of band still surfaces. Discover
-	// is stateless between calls; a caller owns the cadence (e.g. "every
+	// is holds nothing between calls; a caller owns the cadence (e.g. "every
 	// 10th plan" or an explicit -verify flag) and sets this when that
 	// cadence says so. Ignored when Guided is false.
 	GuidedVerify bool
@@ -800,7 +800,7 @@ func DeclaredDiagnostics(ctx context.Context, req Request) tfdiags.Diagnostics {
 }
 
 // sweepTypes is the estate-wide sweep's type universe: every type the
-// stateless admission table covers that the config-driven scan did not
+// live-mode admission table covers that the config-driven scan did not
 // already list.
 //
 // The admission table is the right source and the only one available. There
@@ -809,7 +809,7 @@ func DeclaredDiagnostics(ctx context.Context, req Request) tfdiags.Diagnostics {
 // be answered from a rule rather than from memory. The rule the whole fork
 // already runs on is admission: lint refuses a configuration that declares a
 // type outside the table, so every resource an estate acquired through
-// stateless mode is of an admitted type. Sweeping the admission table is
+// live mode is of an admitted type. Sweeping the admission table is
 // therefore complete over everything this tool can have created, and it
 // costs a bounded, small number of list calls (twenty-six types today) rather
 // than the ~180 a whole-provider sweep would take.
@@ -3610,7 +3610,7 @@ func typeTaggable(schemas listclient.Schemas, typeName string) bool {
 
 // markerCapable reports whether a resource type can carry the ownership
 // markers at all, read from the provider's own schema for the type rather
-// than from a list in stateless mode: a type with no tags attribute has nowhere
+// than from a list in live mode: a type with no tags attribute has nowhere
 // to put a tofu-estate tag, so no sweep of it could ever find anything.
 func markerCapable(ts listclient.TypeSchema) bool {
 	if ts.Resource == nil {
@@ -4568,7 +4568,7 @@ func bind(ctx context.Context, req Request, decl *declared, res *Result) tfdiags
 	// the instance addresses just above the declared count, which is how a
 	// shrunken count's leftovers appear in a stock run's prior state - and
 	// from there the plan engine's own orphan handling proposes destroying
-	// them, with nothing in stateless mode teaching it anything about slots.
+	// them, with nothing in live mode teaching it anything about slots.
 	for _, s := range res.Surplus {
 		res.Resolutions = append(res.Resolutions, identity.Resolution{
 			Addr:     s.Addr,

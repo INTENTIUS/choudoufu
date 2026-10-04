@@ -24,7 +24,7 @@ import (
 // live system - behind a command whose contract is "read the local record",
 // and the answer would differ from run to run because the live system does.
 // The projection is already printed by "choudoufu plan", which is where a
-// stateless configuration asks that question. Refusing all of them keeps one
+// live-mode configuration asks that question. Refusing all of them keeps one
 // answer for the whole subcommand family instead of a rule an operator has to
 // remember the shape of.
 //

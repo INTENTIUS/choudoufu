@@ -14,7 +14,7 @@ import (
 )
 
 // liveWorkspaceGuard refuses the workspace commands that would put a
-// stateless working directory into a workspace it cannot run in, and is a
+// live-mode working directory into a workspace it cannot run in, and is a
 // no-op for every other configuration.
 //
 // The hole this closes (audit finding F-WS): a live directory refused a
@@ -41,7 +41,7 @@ import (
 // exists, which is cleanup rather than stranding, and it cannot run against
 // the selected workspace anyway.
 //
-// Like the other stateless guards, this runs before a backend is prepared,
+// Like the other live-mode guards, this runs before a backend is prepared,
 // so a refused command cannot leave a state file, a workspace directory or a
 // lock behind.
 func (m *Meta) liveWorkspaceGuard(ctx context.Context, subcommand string, workspace string) tfdiags.Diagnostics {

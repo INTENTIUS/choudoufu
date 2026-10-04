@@ -300,7 +300,7 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 
 	// GitHub issue #349: carry the state file's root output values across
 	// too. They are the one thing in a stock state file that had no carrier
-	// on this side, so every migrated estate's next stateless plan called
+	// on this side, so every migrated estate's next live plan called
 	// every output new. Nothing about it is per-entry, which is why it sits
 	// after the loop rather than in it, and nothing about it can fail a
 	// migration - see [projection.WriteRootOutputValues], which reports

@@ -50,7 +50,7 @@ type slotMember struct {
 // there is no second candidate assignment to be wrong about.
 //
 // Without it, every count-expanded instance of a migrated estate plans one tag
-// addition on the first stateless replan - 25 of corpus-ecs-fargate's 29, 22 of
+// addition on the first live replan - 25 of corpus-ecs-fargate's 29, 22 of
 // corpus-rds-complete-postgres's, 27 of corpus-vpc-complete's 29 - and the
 // estate needs a convergence apply before a replan is honestly empty. GitHub
 // issue #372.
@@ -116,7 +116,7 @@ type slotMember struct {
 //     [identity.ResolveWith] into [Ratification.resolved] - the exact
 //     function, and for the types this matters to (already table-admitted,
 //     so [identity.LookupType] settles them without ever consulting
-//     Schemas) the exact ANSWER, that the subsequent stateless live-plan's
+//     Schemas) the exact ANSWER, that the subsequent live-plan's
 //     own [identity.Result] would produce for the identical configuration.
 //     [instanceNeedsDiscovery] asks that Result by address; when it agrees
 //     the instance is ClassNeedsDiscovery, a slot written here is one that
@@ -242,7 +242,7 @@ func (r *Ratification) instanceNeedsDiscovery(addr addrs.AbsResourceInstance) bo
 // comment does not spell out, found by running this change against
 // corpus-ecs-fargate rather than by reading resolve.go: a bare
 // [identity.ResolveWith] call - what Ratify makes, with no ManagedResults -
-// is NOT always the same answer a stateless live-plan's own resolution
+// is NOT always the same answer a live-plan's own resolution
 // settles on, because [liveResolve] (internal/command/live_plan.go) is
 // a TWO-PASS process. Its first pass is exactly what Ratify's bare call
 // reproduces; its second pass, run only when the first refuses something,

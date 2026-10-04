@@ -3,7 +3,7 @@
 // Copyright (c) 2023 HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-// Package discovery finds the live resources of a stateless estate by their
+// Package discovery finds the live resources of a live-mode estate by their
 // ownership markers and binds them to the addresses that declare them.
 //
 // It is admission path 2 (live/MARKERS.md): a resource whose identity
@@ -183,7 +183,7 @@
 // pass: a type the hint already has evidence for is not re-swept this run,
 // so a standing orphan of that type may not resurface on every single plan -
 // only at the next full sweep or the next [Request.GuidedVerify] pass, which
-// a caller schedules on its own cadence (Discover is stateless between
+// a caller schedules on its own cadence (Discover is holds nothing between
 // calls and only honors the flag it is given). That is a cost/latency trade
 // on when a real removal gets proposed, never a change to what gets
 // destroyed once it is - the only thing Guided ever changes is which run

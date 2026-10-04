@@ -34,7 +34,7 @@ import (
 
 // The three marker tag keys, from live/MARKERS.md. They are the entire
 // integration surface between this package and anything else that manages
-// resources in a stateless estate.
+// resources in a live-mode estate.
 const (
 	// TagEstate names the estate that owns the resource.
 	TagEstate = "tofu-estate"

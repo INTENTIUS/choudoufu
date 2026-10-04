@@ -1113,7 +1113,7 @@ func TestIdentityOnlyKeepsTheIdentityAndNothingElse(t *testing.T) {
 	}
 
 	// And an object with no identity at all produces no prior, rather than
-	// one that addresses nothing. internal/command's stateless test
+	// one that addresses nothing. internal/command's live test
 	// provider found this the hard way: its caricature objects carry no id,
 	// and a read with a null-id prior panicked inside the provider before
 	// it could answer anything.
@@ -1292,7 +1292,7 @@ func sgLikeRead(prior cty.Value) (cty.Value, error) {
 // corpus-rds-complete-postgres finding in one assertion. Before this rule,
 // residueCandidates walked schema.Block.Attributes only, so
 // terraform-aws-modules' `timeouts { create = "10m" delete = "15m" }` was
-// never a candidate, never recorded, and every stateless replan after a
+// never a candidate, never recorded, and every live replan after a
 // clean migrate proposed `+ timeouts {...}` on that security group forever -
 // against a stock plan that renders the identical block unchanged.
 //
@@ -2279,7 +2279,7 @@ func asgFlattenRead(prior cty.Value) (cty.Value, error) {
 // Read behavior rather than against a live estate: aws_autoscaling_group's
 // initial_lifecycle_hook is a NestingSet block the provider's own Read
 // never sources from the remote at all (confirmed above, at the pinned
-// provider tag, with no tofu and no emulator in the loop), so a stateless
+// provider tag, with no tofu and no emulator in the loop), so a projected
 // prior has nothing to fill it from and a plan built from that prior
 // proposes "+ initial_lifecycle_hook { # forces replacement }" forever.
 //
@@ -2381,7 +2381,7 @@ func TestResidueCarriesTheAutoscalingLifecycleHookSet(t *testing.T) {
 				t.Fatalf("filled initial_lifecycle_hook = %#v, want %#v", filled.GetAttr("initial_lifecycle_hook"), wantHook)
 			}
 
-			// A stateless replan's own emptiness check - the shape #385's
+			// A live replan's own emptiness check - the shape #385's
 			// repro quotes ("+/- resource ... must be replaced") - is a
 			// mismatch between the filled prior and the planned value. If
 			// fillResidue put the exact applied set back, the prior and a

@@ -107,7 +107,7 @@ jobs:
       #
       # internal/command/e2etest is named on its own, not swept in by the
       # subtree cost above: issue #755 found a fork-authored regression in
-      # unlock.go (a stateless guard wired before variable parsing) that this
+      # unlock.go (a live-mode guard wired before variable parsing) that this
       # package's TestStaticPlanVariables caught, entirely without TF_ACC -
       # #691's exact shape, a test tier that exists but gates nothing. The
       # package builds its own tofu binary in TestMain via e2e.GoBuild, so no

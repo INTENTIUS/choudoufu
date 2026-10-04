@@ -45,7 +45,7 @@
 // too, so a run that shrinks and grows in the same breath cannot hand a
 // departing member's slot to an arriving one.
 //
-// The mark is the highest slot this run can see, and a stateless estate can
+// The mark is the highest slot this run can see, and a live-mode estate can
 // see only what is live: nothing records the slot of a resource that has
 // already been deleted. MARKERS.md's "never reused, even after that instance
 // is deleted" therefore holds exactly as far as the estate's own memory goes,

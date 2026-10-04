@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Package projection materializes an ephemeral prior state by reading the
-// live system. It is the second half of stateless mode's answer to "what
+// live system. It is the second half of live mode's answer to "what
 // already exists": the identity package decides what OpenTofu can name,
 // and this package goes and fetches it.
 //
@@ -64,7 +64,7 @@
 // An instance the projection cannot materialize is simply not in the
 // returned state, which makes the subsequent plan propose creating it.
 // That is the correct answer when the live object really does not exist,
-// and an over-eager answer when the object exists but stateless mode
+// and an over-eager answer when the object exists but live mode
 // cannot yet find it (the needs-discovery case, until P2). Neither is a
 // failure of this package, so neither produces an error diagnostic. What
 // does produce an error diagnostic is a provider misbehaving: an import

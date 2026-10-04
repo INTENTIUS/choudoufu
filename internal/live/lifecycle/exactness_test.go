@@ -39,7 +39,7 @@ import (
 // It runs on its own floci container on its own port, so it is independent of
 // the P4.1 lifecycle test and of the hint test beside it.
 func TestLiveExactnessAgainstFloci(t *testing.T) {
-	flocitest.Gate(t, "stateless exactness")
+	flocitest.Gate(t, "live exactness")
 	flocitest.RequireBinary(t, "docker")
 	flocitest.RequireBinary(t, "aws")
 	flocitest.RequireBinary(t, "go")
