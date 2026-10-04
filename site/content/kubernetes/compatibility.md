@@ -30,17 +30,9 @@ the API server as a dry run and prints the server's verdict. A manifest the
 server would reject refuses the plan, in the server's own words. A block whose
 kind the cluster does not serve is refused by name, with the CRD to install.
 
-### Labels, annotations, env, data and taints on someone else's object
-
-`kubernetes_labels`, `kubernetes_annotations`, `kubernetes_env`,
-`kubernetes_config_map_v1_data`, `kubernetes_secret_v1_data` and
-`kubernetes_node_taint` patch fields of an object they do not own. Their
-marker is the server-side-apply field manager, `choudoufu:<estate>`, which
-the plan sets for you, so two estates can each own one field of the same
-object. A plan that would force a field another estate owns is refused by
-name; force against kubectl or a controller works as usual. Keep each
-object to one of these blocks per estate. Removing a block does not yet
-remove its fields.
+The field-granular types (`kubernetes_labels` and five more) work too: their
+marker is the field manager `choudoufu:<estate>`, so forcing another estate's
+field is refused.
 
 ### Refused
 
