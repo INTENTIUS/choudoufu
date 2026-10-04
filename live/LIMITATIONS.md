@@ -2644,6 +2644,9 @@ refused, and each says so in its own entry.
 | - | - | discovery | Delete accepted, object not gone | warning | `internal/live/discovery` | "Delete accepted, object not gone" |
 | - | - | discovery | Direct read could not settle a tag-index-lagged instance | error | `internal/live/discovery` | "Direct read could not settle a tag-index-lagged instance" |
 | - | - | discovery | Failed to list a resource type | error | `internal/live/discovery` | "Failed to list a resource type" |
+| - | - | discovery | Field owned by another estate | warning | `internal/live/discovery` | "Field owned by another estate" |
+| - | - | discovery | Field owners unavailable | warning | `internal/live/discovery` | "Field owners unavailable" |
+| - | - | discovery | Force refused over another estate's field | error | `internal/live/discovery` | "Force refused over another estate's field" |
 | - | - | discovery | Incomplete sweep for undeclared resources | warning | `internal/live/discovery` | "Incomplete sweep for undeclared resources" |
 | - | - | discovery | Indistinguishable instances without per-instance markers | error | `internal/live/discovery` | "Indistinguishable instances without per-instance markers" |
 | - | - | discovery | Invalid estate name | error | `internal/live/discovery` | "Invalid estate name" |
@@ -2674,6 +2677,7 @@ refused, and each says so in its own entry.
 | - | - | discovery | Removed resource's provider configuration is gone | error | `internal/live/discovery` | "Removed resource's provider configuration is gone" |
 | - | - | discovery | Resolved resource missing from the configuration | error | `internal/live/discovery` | "Resolved resource missing from the configuration" |
 | - | - | discovery | Tagged resource's ARN could not be joined to a resource type | warning | `internal/live/discovery` | "Tagged resource's ARN could not be joined to a resource type" |
+| - | - | discovery | Two field-granular blocks patch one object | error | `internal/live/discovery` | "Two field-granular blocks patch one object" |
 | - | - | discovery | Two live resources claiming one address | error | `internal/live/discovery` | "Two live resources claiming one address" |
 | - | - | discovery | Two live resources claiming one slot | error | `internal/live/discovery` | "Two live resources claiming one slot" |
 | - | - | discovery | Unbound instance with unreadable live markers of its type | warning | `internal/live/discovery` | "Unbound instance with unreadable live markers of its type" |
@@ -2818,6 +2822,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Cannot set ownership markers on an unresolved metadata block | error | `internal/live/projection` | "Cannot set ownership markers on an unresolved metadata block" |
 | - | - | projection | Cannot set ownership markers on an unresolved tags value | error | `internal/live/projection` | "Cannot set ownership markers on an unresolved tags value" |
 | - | - | projection | Cannot set the address annotation on an unresolved annotations value | error | `internal/live/projection` | "Cannot set the address annotation on an unresolved annotations value" |
+| - | - | projection | Cannot set the field manager on an unresolved value | error | `internal/live/projection` | "Cannot set the field manager on an unresolved value" |
 | - | - | projection | Could not write the discovery hint | error | `internal/live/projection` | "Could not write the discovery hint" |
 | - | - | projection | Could not write the state cache | error | `internal/live/projection` | "Could not write the state cache" |
 | - | - | projection | Created object is not marked | error | `internal/live/projection` | "Created object is not marked" |
@@ -2841,6 +2846,7 @@ refused, and each says so in its own entry.
 | - | - | projection | No state returned by the provider | error | `internal/live/projection` | "No state returned by the provider" |
 | - | - | projection | Object would be created without its marker | error | `internal/live/projection` | "Object would be created without its marker" |
 | - | - | projection | Ownership marker conflict | error | `internal/live/projection` | "Ownership marker conflict" |
+| - | - | projection | Ownership marker is not a legal field manager name | error | `internal/live/projection` | "Ownership marker is not a legal field manager name" |
 | - | - | projection | Ownership marker is not a legal label value | error | `internal/live/projection` | "Ownership marker is not a legal label value" |
 | - | - | projection | Ownership marker was not stored | error | `internal/live/projection` | "Ownership marker was not stored" |
 | - | - | projection | Parent-derived identity with no formula | error | `internal/live/projection` | "Parent-derived identity with no formula" |
@@ -2867,7 +2873,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**263 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**269 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -3161,6 +3167,30 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Field owned by another estate
+
+**What.** GitHub issue #1191: a field-granular Kubernetes block (kubernetes_labels, kubernetes_annotations, kubernetes_env, the *_v1_data types, kubernetes_node_taint) plans to write a field another estate's field manager, choudoufu:<other>, owns on the live object. A warning: the API server refuses the apply with a conflict naming that manager, and this names the estate before the apply does.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Field owners unavailable
+
+**What.** GitHub issue #1191: the object a field-granular Kubernetes block patches could not be read back for its metadata.managedFields, so whether the write meets another estate's fields is unknown. A coverage gap: the plan stands and the API server answers at apply.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Force refused over another estate's field
+
+**What.** GitHub issue #1191 and #1106 section 3: a field-granular Kubernetes block sets force = true and plans to write a field another estate's field manager, choudoufu:<other>, owns. Forcing would move the field across the estate boundary with a flag, so the plan stops with nothing applied, naming the owning estate. Force against a manager that is not an estate's keeps its ordinary meaning.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Incomplete sweep for undeclared resources
 
 **What.** The estate-wide sweep could not cover every admitted type, so an owned-but-undeclared resource may exist that this run did not find. A removal plan built on it is not a complete reconciliation. When the cause is the run's own credential - Cloud Control answered AccessDeniedException for a type's list handler - every such type, across every provider configuration the run sweeps through, is reported in one warning naming the count, the first five types and the IAM action pattern to grant, with every denied type, its provider configuration and its action in the log at TF_LOG=WARN (GitHub issues #1052, #1513); a listing that failed for any other reason keeps its own warning.
@@ -3398,6 +3428,14 @@ reserved for the limits wing's fixture directories, and
 #### Tagged resource's ARN could not be joined to a resource type
 
 **What.** A resource carrying this estate's markers was found by tag, but its ARN does not map to a resource type this run knows, so nothing further can be read about it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Two field-granular blocks patch one object
+
+**What.** GitHub issue #1191: two field-granular Kubernetes blocks of one estate plan to patch one object. Both write under the estate's one field manager, choudoufu:<estate>, and server-side apply removes the fields a manager's next apply leaves out, so each apply would erase the other's writes. The plan stops with nothing applied.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
@@ -4385,6 +4423,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Cannot set the field manager on an unresolved value
+
+**What.** GitHub issue #1191: a field-granular Kubernetes resource (kubernetes_labels, kubernetes_annotations, kubernetes_env, the *_v1_data types, kubernetes_node_taint) declares a field_manager whose value is not known until apply. Under a live block the field manager is the ownership marker for a resource that owns fields rather than an object, so the plan stops rather than write under a name it cannot check. Remove the argument and the run writes under choudoufu:<estate>.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Could not write the discovery hint
 
 **What.** Guided discovery's plan-cost hint could not be written to the estate's record store, so the next run pays a full estate sweep instead of a narrowed one.
@@ -4564,6 +4610,14 @@ reserved for the limits wing's fixture directories, and
 #### Ownership marker conflict
 
 **What.** GitHub issue #451's node-path stamp (NodeResolver.AdjustConfigValue) found a resource instance's own configuration already declaring a tofu-estate or tofu-address tag that names a different estate or address than this run resolved. A plan never overwrites a marker naming another estate or address: fix the tag, or - for an address conflict - run live-mv. Ports internal/live/stamp's own SummaryMarkerConflict refusal (stamp/summaries.go) to the node path, with matched text.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Ownership marker is not a legal field manager name
+
+**What.** GitHub issue #1191: the estate name cannot be written as a server-side-apply field manager name - choudoufu:<estate> is over the API server's 128 characters - so the node-path stamp refuses to mark a field-granular Kubernetes resource with it. Rename the estate.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

@@ -529,14 +529,36 @@ func (a *Artifact) pinCurrent(kindImage string) func(EstateResult) bool {
 // this definition either, the same carve-out IsStale documents, and an
 // empty recorded version compares unequal to a real pin for the same
 // reason IsStale's own empty Emulator does.
+//
+// A floci-eks row (#1113) configures both providers and is stale when
+// either recorded version disagrees with its pin.
 func IsProviderStale(r EstateResult, current ProviderVersions) bool {
+	return len(ProviderStaleReasons(r, current)) > 0
+}
+
+// ProviderStaleReasons is IsProviderStale with the reason for each provider
+// that is stale, in the words the board and `next` print: hashicorp/aws for
+// a row that runs on the emulator, hashicorp/kubernetes for a row that
+// configures that provider, both for a floci-eks row (#1113).
+func ProviderStaleReasons(r EstateResult, current ProviderVersions) []string {
 	if r.LastRun == nil {
-		return false
+		return nil
 	}
-	if r.Substrate == SubstrateKind {
-		return r.LastRun.KubernetesProviderVersion != current.Kubernetes
+	var out []string
+	if RunsOnFloci(r.Substrate) && r.LastRun.AWSProviderVersion != current.AWS {
+		out = append(out, fmt.Sprintf("last verified against hashicorp/aws %s; the current pin is %s", orUnrecorded(r.LastRun.AWSProviderVersion), current.AWS))
 	}
-	return r.LastRun.AWSProviderVersion != current.AWS
+	if UsesKubernetesProvider(r.Substrate) && r.LastRun.KubernetesProviderVersion != current.Kubernetes {
+		out = append(out, fmt.Sprintf("last verified against hashicorp/kubernetes %s; the current pin is %s", orUnrecorded(r.LastRun.KubernetesProviderVersion), current.Kubernetes))
+	}
+	return out
+}
+
+func orUnrecorded(v string) string {
+	if v == "" {
+		return "unrecorded"
+	}
+	return v
 }
 
 // SetLabels name the two headline bars. "all" is every estate on the floci
@@ -696,8 +718,9 @@ func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, orac
 	for key, label := range SetLabels {
 		a.Sets[key] = tallyRows(label, rows, a.pinCurrent(kindImage), func(r EstateResult) bool {
 			// The two headline bars are the emulator's: a kind-substrate
-			// row is counted in its lane below and nowhere else (#1067).
-			if r.Substrate != "" {
+			// row is counted in its lane below and nowhere else (#1067). A
+			// floci-eks row (#1113) runs on the emulator and counts here.
+			if !RunsOnFloci(r.Substrate) {
 				return false
 			}
 			return key != "core" || r.Set == SetCore

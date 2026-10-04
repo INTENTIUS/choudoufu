@@ -175,21 +175,8 @@ func nextUnitsAgainst(headline []Stage, a *Artifact, set, kindImage string) []Un
 		// AWSProviderVersion/KubernetesProviderVersion use - a
 		// kind-substrate row's reason names hashicorp/kubernetes, every
 		// other row's names hashicorp/aws.
-		if IsProviderStale(r, a.Providers) {
-			if r.Substrate == SubstrateKind {
-				got := "unrecorded"
-				if r.LastRun != nil && r.LastRun.KubernetesProviderVersion != "" {
-					got = r.LastRun.KubernetesProviderVersion
-				}
-				reasons = append(reasons, fmt.Sprintf("last verified against hashicorp/kubernetes %s; the current pin is %s", got, a.Providers.Kubernetes))
-			} else {
-				got := "unrecorded"
-				if r.LastRun != nil && r.LastRun.AWSProviderVersion != "" {
-					got = r.LastRun.AWSProviderVersion
-				}
-				reasons = append(reasons, fmt.Sprintf("last verified against hashicorp/aws %s; the current pin is %s", got, a.Providers.AWS))
-			}
-		}
+		// A floci-eks row (#1113) can carry both reasons.
+		reasons = append(reasons, ProviderStaleReasons(r, a.Providers)...)
 		if IsEngineStale(r, a.UpstreamVersion) {
 			got := r.LastRun.UpstreamVersion
 			if got == "" {
