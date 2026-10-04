@@ -37,12 +37,12 @@ import (
 // template's, a data map the object's data, an env block one container's
 // env, a taint block the node's taints.
 
-// kubernetesFieldOwners judges every planned create or update of a
+// collectKubernetesFieldOwners judges every planned create or update of a
 // field-granular instance, per cluster, and returns the refusals and
 // warnings discovery.CheckKubernetesFieldOwners and
 // discovery.SameObjectFieldWrites raise. estate "" (a run with no estate
 // name has stamped nothing) checks nothing.
-func kubernetesFieldOwners(ctx context.Context, sweepers map[string]kubesweep.Sweeper, config *configs.Config, plan *plans.Plan, schemas *tofu.Schemas, estate string) tfdiags.Diagnostics {
+func collectKubernetesFieldOwners(ctx context.Context, sweepers map[string]kubesweep.Sweeper, config *configs.Config, plan *plans.Plan, schemas *tofu.Schemas, estate string) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	if estate == "" || plan == nil || plan.Changes == nil || schemas == nil {
 		return diags
