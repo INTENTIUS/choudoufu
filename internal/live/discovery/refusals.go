@@ -126,6 +126,18 @@ var refusals = []Refusal{
 		What:    "The plan proposes to create or update a kubernetes_manifest object and the API server, asked to write exactly that object with dryRun=All (GitHub issue #1081, item 3), refused it: the kind's schema, the server's own validation, or an admission policy such as live/kubernetes/estate-boundary.yaml said no, in the words quoted. Nothing was written. The plan exits non-zero and nothing is applied, since the apply would fail at this object with the same answer after writing whatever came before it. live-check is offline and does not raise it; a built-in type's block is not submitted (the mapping from its schema shape to the API object is the provider's own), so this covers the manifest shape only.",
 	},
 	{
+		Summary: SummaryFieldGranularOrphanUnclassified,
+		What:    "GitHub issue #1863: this estate's field manager, choudoufu:<estate>, owns fields on an object no block of the configuration names, and the fields are not exactly one field-granular type's (they are none of the six types' fields, two types' fields, or env in more than one container). A removal is an apply under that manager, and one planned for the wrong type would release the wrong fields, so nothing is proposed and the objects are named.",
+	},
+	{
+		Summary: SummaryFieldGranularOrphansPending,
+		What:    "GitHub issue #1863: this estate's field manager owns fields no configured block names, and a field-granular block's object cannot be named yet (its name or kind is unknown until apply), so any of those fields may be that block's. No removal is proposed this run; the next plan in which every such block's object is known proposes it.",
+	},
+	{
+		Summary: SummaryFieldHandoverFailed,
+		What:    "GitHub issue #1863: a planned update hands a field-granular Kubernetes instance's fields from stock's default field manager, Terraform, to this estate's, choudoufu:<estate>, and moving the ownership on the live object before the apply failed (the object could not be read or patched). A warning: the apply goes ahead, the estate's write then shares the fields with Terraform as it did before the hand-over existed, and where a value differs the API server's conflict names Terraform.",
+	},
+	{
 		Summary: SummaryFieldGranularSameObject,
 		What:    "GitHub issue #1191: two field-granular Kubernetes blocks of one estate plan to patch one object. Both write under the estate's one field manager, choudoufu:<estate>, and server-side apply removes the fields a manager's next apply leaves out, so each apply would erase the other's writes. The plan stops with nothing applied.",
 	},
@@ -308,7 +320,7 @@ func SeverityForRefusal(summary string) Severity {
 	if kind, ok := problemKindForSummary(summary); ok {
 		return kind.Severity()
 	}
-	if summary == SummaryIncompleteSweep || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesSweepDenied || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable || summary == SummaryKubernetesDeleteHeld || summary == SummaryHelmNotInManifest || summary == SummaryFieldOwnedByEstate || summary == SummaryFieldOwnersUnavailable {
+	if summary == SummaryIncompleteSweep || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesSweepDenied || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable || summary == SummaryKubernetesDeleteHeld || summary == SummaryHelmNotInManifest || summary == SummaryFieldOwnedByEstate || summary == SummaryFieldOwnersUnavailable || summary == SummaryFieldGranularOrphanUnclassified || summary == SummaryFieldGranularOrphansPending || summary == SummaryFieldHandoverFailed {
 		// A gap in coverage, never a wrong plan: the run in front of the
 		// operator is correct and simply did not see everything. The held
 		// delete (GitHub issue #1184) is the same severity for a different

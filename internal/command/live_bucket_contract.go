@@ -114,8 +114,20 @@ func assertRecordStoreContract(ctx context.Context, store staterecord.Store, rs 
 
 // BeforeApply is the apply's call into [assertRecordStoreContract], at the
 // last point before the apply changes anything.
+//
+// GitHub issue #1863: it is also where a migrated field-granular
+// instance's fields are handed from stock's default field manager to this
+// estate's, after approval and before the provider's write. See
+// live_apply_kubernetes_handover.go.
 func (r *liveRunner) BeforeApply(ctx context.Context) tfdiags.Diagnostics {
-	return assertRecordStoreContract(ctx, r.rawStore, r.recordStoreCfg, r.recordEstate, contractRunApply)
+	diags := assertRecordStoreContract(ctx, r.rawStore, r.recordStoreCfg, r.recordEstate, contractRunApply)
+	if diags.HasErrors() {
+		return diags
+	}
+	if r.resolver != nil {
+		diags = diags.Append(runFieldGranularHandovers(ctx, r.labelListSweepers, r.fieldHandovers, r.resolver.Estate))
+	}
+	return diags
 }
 
 // bucketWaiverWarnings is one warning per waived assertion, made from the

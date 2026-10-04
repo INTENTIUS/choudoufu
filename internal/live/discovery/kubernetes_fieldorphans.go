@@ -75,6 +75,12 @@ const SummaryFieldGranularOrphanUnclassified = "Fields owned by this estate's fi
 // named yet, so any of them may still be that block's.
 const SummaryFieldGranularOrphansPending = "Field-granular removals deferred"
 
+// SummaryFieldHandoverFailed is the warning internal/command raises when
+// a planned stock hand-over's ownership move fails before the apply
+// (GitHub issue #1863's second follow-up); the apply still runs and the
+// estate's write then shares the fields with "Terraform".
+const SummaryFieldHandoverFailed = "Field hand-over from Terraform failed"
+
 // FieldGranularType is one provider resource type of the field-granular
 // shape, read off its schema: which object it patches and which fields it
 // writes there.

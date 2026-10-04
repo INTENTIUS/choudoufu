@@ -769,6 +769,13 @@ type liveRunner struct {
 	// Nil for a plan with no such delete, which is what makes that check free.
 	sweeperDeletes map[string]*kubernetesDeleteSet
 
+	// fieldHandovers is GitHub issue #1863's capture: the planned updates
+	// that hand a field-granular instance's fields from stock's default
+	// field manager to this estate's, keyed by provider configuration the
+	// way the sweep's clients are. Read in AfterPlan, carried out in
+	// BeforeApply. See live_apply_kubernetes_handover.go.
+	fieldHandovers map[string][]discovery.FieldGranularWrite
+
 	// adoptionOnly is GitHub issue #587's flag, kept as well as folded
 	// into view above. It selected only the renderer until
 	// the CollectUnclaimed ruling (#604); now
