@@ -7,8 +7,7 @@
 # what the killed run never reached, with no duplicate and no orphan, and
 # replans empty.
 #
-# DRAFT: written and never run (live/smoke/drafts/README.md). Claim 5's
-# Kubernetes cell stays open until both arms have run green. The property is
+# First run 2026-10-04, both arms green on kind (Kubernetes v1.37.0). The property is
 # already measured by the gauntlet's day2_crash stage on the kind lane
 # (live/GAUNTLET.md stage 10); this is the BREAK-controlled smoke form of it.
 #

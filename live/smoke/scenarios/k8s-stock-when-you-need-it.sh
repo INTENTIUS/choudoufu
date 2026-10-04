@@ -1,12 +1,11 @@
 # k8s-stock-when-you-need-it
-# CLAIM 8 (kubernetes) - Stock when you need it. ~3 min.
+# CLAIM 8 (kubernetes) - Stock when you need it. ~1 min.
 #
 # This proof: with no live block, choudoufu plans a state-backed estate on a
 # real cluster with stock OpenTofu's answer and stock OpenTofu's exact
 # request count, measured on the wire, not promised.
 #
-# DRAFT: written and never run (live/smoke/drafts/README.md). Claim 8's
-# Kubernetes cell stays open until both arms have run green.
+# First run 2026-10-04, both arms green on kind (Kubernetes v1.37.0).
 #
 # The AWS proof has a second half: with the live block on, foreign
 # resources in the account do not move what a plan costs. On a cluster that

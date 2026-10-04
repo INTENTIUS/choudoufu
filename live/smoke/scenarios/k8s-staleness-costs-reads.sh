@@ -6,19 +6,18 @@
 # cache gives, byte for byte, on a real cluster; and a fresh cache does not
 # hide a field edited behind the run's back.
 #
-# DRAFT: written and never run (live/smoke/drafts/README.md). Claim 3's
-# Kubernetes cell stays open until both arms have run green.
+# First run 2026-10-04, both arms green on kind (Kubernetes v1.37.0). That run found the
+# kubesweep client printing the API server's deprecation warning for v1
+# Endpoints as a timestamped klog line in every plan, so two identical plans
+# differed by a timestamp; the sweep now drops server warnings.
 #
 # What is not here, and why. The AWS proof's step 4 measures the one path
 # that serves a result from the cache, plan -refresh=false, and counts the
-# reads it saves. On Kubernetes that path serves nothing today: the cache
-# hit needs the estate sweep to have vouched for the instance
-# (projection.cacheHit, Ownership.Verified), and the Kubernetes sweep joins
-# an object declared by its natural key without recording it as verified
-# (internal/live/discovery/kubernetes.go skips declared objects; only
-# address-annotation bindings reach Result.Bindings). That gap is claim 9's,
-# and its cell says so. What this claim promises, that no cache state changes
-# the answer, does not depend on it.
+# reads it saves. On Kubernetes that path is claim 9's proof
+# (k8s-unchanged-is-free), which counts the hits and the requests saved
+# since the sweep began vouching for declared objects (#1860). What this
+# claim promises, that no cache state changes the answer, does not depend
+# on it.
 #
 # The AWS proof's record-store half (a phantom terraform_data in an ancient
 # cache) becomes a phantom ConfigMap here: there is no record-only

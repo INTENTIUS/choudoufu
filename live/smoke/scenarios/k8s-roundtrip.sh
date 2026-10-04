@@ -1,12 +1,15 @@
 # k8s-roundtrip
-# CLAIM 6 (kubernetes) - One command in, one file out. ~3 min.
+# CLAIM 6 (kubernetes) - One command in, one file out. ~2 min.
 #
 # This proof: an estate stock Terraform stood up on a real cluster is adopted
 # with one live-import, runs with its state file deleted, and is handed back
 # as the cache, which stock Terraform plans, converges and destroys.
 #
-# DRAFT: written and never run (live/smoke/drafts/README.md). Claim 6's
-# Kubernetes cell stays open until both arms have run green.
+# First run 2026-10-04, both arms green on kind (Kubernetes v1.37.0). The first
+# normal arm failed on the scenario, not the product: the check that every
+# changed line of stock's exit plan is the label or the annotation read the
+# plan's symbol legend ("~ update in-place") as a changed line. It now reads
+# only the diff, and refuses a diff with no tofu-estate line in it.
 #
 # The oracle here is stock Terraform on PATH, the binary k8s-smoke.yml
 # installs at live/oracle-versions.json's terraform_version, as every other

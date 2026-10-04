@@ -1,5 +1,5 @@
 # k8s-plan-cost-tracks-the-estate
-# CLAIM 14 (kubernetes) - A plan costs its estate. ~4 min.
+# CLAIM 14 (kubernetes) - A plan costs its estate. ~2 min.
 #
 # This proof: on a real cluster, a plan's requests do not move when the
 # cluster around the estate grows by foreign objects, marked for another
@@ -7,8 +7,7 @@
 # estate's label selector, so the server filters, and no kind is listed
 # unfiltered.
 #
-# DRAFT: written and never run (live/smoke/drafts/README.md). Claim 14's
-# Kubernetes cell stays open until both arms have run green.
+# First run 2026-10-04, both arms green on kind (Kubernetes v1.37.0).
 #
 # What it does not claim, stated where the claim lives (#1065): there is no
 # cross-kind label-filtered list on a cluster. The sweep is API discovery
