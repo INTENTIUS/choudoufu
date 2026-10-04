@@ -267,6 +267,12 @@ var estateSpecs = []estateSpec{
 		Note:       `The "kubernetes" lane's two-estate pair (#1883, epic #1885): no external source, a hand-written shape kept in this repository and crossed on a kind cluster. run.sh's write_net() heredoc is network's estate (kubernetes_namespace, kubernetes_network_policy, kubernetes_service, kubernetes_config_map) and its write_app() heredoc is app's (kubernetes_namespace, kubernetes_config_map, kubernetes_service, kubernetes_deployment, kubernetes_horizontal_pod_autoscaler_v2, kubernetes_service_account), with handoff_block()'s kubernetes_manifest in app until day2_crash moves it to network - no module, no AWS provider. crash_pair_tf() adds kubernetes_secret and a second kubernetes_config_map for day2_crash's own duration; live/e2e/lib/gauntlet.sh's day2_replace and crash-rename blocks are kubernetes_config_map too. Nine kubernetes types in all; its strict_block() heredoc (the strict-stage scratch estate) adds random_password, outside them.`,
 	},
 	{
+		Name:       "reference-k8s-shared-objects",
+		ConfigDirs: nil,
+		ScanScript: true,
+		Note:       `The "kubernetes" lane's two-estate estate (#1882, epic #1885): no external source, a hand-written shape kept in this repository and crossed on a kind cluster, as two roots with two live blocks. run.sh's platform_block() heredoc is the estate that owns whole objects - kubernetes_namespace_v1, kubernetes_config_map_v1 (settings and a two-instance count set), kubernetes_secret_v1, kubernetes_service_v1, kubernetes_deployment_v1 - plus one kubernetes_labels on the cluster's default Namespace; app_block() is the estate that owns only fields of those objects and of the node, written under the field manager choudoufu:<estate>: kubernetes_labels, kubernetes_annotations, kubernetes_config_map_v1_data, kubernetes_secret_v1_data, kubernetes_env, kubernetes_node_taint. The plan_approval and day2_crash heredocs add further kubernetes_labels and kubernetes_annotations blocks of app's; strict_block() (the strict-stage scratch estate) adds random_password. No module, no AWS provider.`,
+	},
+	{
 		Name:       "reference-k8s-cert-manager",
 		ConfigDirs: []string{"live/e2e/reference-k8s-cert-manager/root"},
 		ScanScript: true,
