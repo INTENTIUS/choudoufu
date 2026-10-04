@@ -1224,7 +1224,7 @@ grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$C_PLAN" || { printf 
 C_LINE="$(grep -E '^[[:space:]]*# .* will be destroyed' <<< "$C_PLAN" | head -1)"
 C_ADDR="$(sed -E 's/^[[:space:]#]*//; s/ will be destroyed.*$//' <<< "$C_LINE")"
 grep -qE "^kubernetes_config_map(_v1)?\.orphan_${NS}_shard-1$" <<< "$C_ADDR" || { printf '%s\n' "$C_PLAN" | grep -E 'destroyed|^Plan:'; fail "the scale-down destroys ${C_ADDR:-nothing named}, not shard-1 at its orphan address"; }
-( chdf apply -auto-approve -input=false -no-color 2>&1 | grep -qF "0 added, 0 changed, 1 destroyed" ) || fail "the scale-down apply did not destroy exactly one object"
+{ APPLY_OUT="$(chdf apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "0 added, 0 changed, 1 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the scale-down apply did not destroy exactly one object"; }
 if [ "${BREAK_COUNT:-}" = "1" ]; then
   obj_a configmap "$NS" shard-0 || fail "BREAK_COUNT=1: shard-0 was destroyed - the 'wrong instance' assertion would hold, so the check is not load-bearing"
   log "  BREAK_COUNT=1: caught - shard-0 still exists, so asserting it was the one destroyed correctly fails"
@@ -1242,7 +1242,7 @@ else
   U_PLAN="$(chdf plan -input=false -no-color 2>&1)" || { printf '%s\n' "$U_PLAN" | tail -30; fail "the scale-up plan failed"; }
   grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$U_PLAN" || { printf '%s\n' "$U_PLAN" | tail -30; fail "the scale-up plan is not exactly one add"; }
   grep -q 'kubernetes_config_map_v1.shard\[1\]' <<< "$U_PLAN" || fail "the scale-up does not create shard[1]"
-  ( chdf apply -auto-approve -input=false -no-color 2>&1 | grep -qF "1 added, 0 changed, 0 destroyed" ) || fail "the scale-up apply did not create exactly one object"
+  { APPLY_OUT="$(chdf apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "1 added, 0 changed, 0 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the scale-up apply did not create exactly one object"; }
   { obj_a configmap "$NS" shard-0 && obj_a configmap "$NS" shard-1; } || fail "both shards do not exist after the scale-up"
   U_REPLAN="$(chdf plan -input=false -no-color 2>&1)" || fail "the replan after the scale-up failed"
   grep -q "No changes." <<< "$U_REPLAN" || { printf '%s\n' "$U_REPLAN" | tail -30; fail "the replan after the scale-up is not empty"; }
@@ -1289,7 +1289,7 @@ if [ "${BREAK_REPLACE:-}" != "1" ]; then
   grep -q 'succeeded=1 ' <<< "$J_AFTER" || fail "the replacement Job did not complete: $J_AFTER"
   [ "${J_BEFORE%% *}" != "${J_AFTER%% *}" ] || fail "the Job's uid did not change across the replace ($J_BEFORE -> $J_AFTER); nothing was replaced"
   [ "$(kca get jobs -n "$NSB" -o name | wc -l | tr -d ' ')" = "1" ] || fail "more than one Job exists in $NSB after the replace"
-  kca get job migrate -n "$NSB" -o jsonpath='{.metadata.labels.tofu-estate}' | grep -qx "$ESTATE" || fail "the replacement Job does not carry tofu-estate=$ESTATE"
+  { GET_OUT="$(kca get job migrate -n "$NSB" -o jsonpath='{.metadata.labels.tofu-estate}')" && grep -qx "$ESTATE" <<< "$GET_OUT"; } || { printf '%s\n' "$GET_OUT"; fail "the replacement Job does not carry tofu-estate=$ESTATE"; }
   J_REPLAN="$(chdf plan -input=false -no-color 2>&1)" || fail "the replan after the Job replace failed"
   grep -q "No changes." <<< "$J_REPLAN" || { printf '%s\n' "$J_REPLAN" | tail -20; fail "the replan after the Job replace is not empty"; }
   [ "$(pod_count_a)" = "0" ] || fail "a Pod carries tofu-estate=$ESTATE after the Job replace"
@@ -1368,8 +1368,8 @@ log "  interrupted apply exited $X_RC (a genuine crash is not expected to exit 0
 [ "$X_RC" -ne 0 ] || { printf '%s\n' "$X_OUT" | tail -20; fail "the interrupted apply exited 0 - the engine's self-signal never landed, so nothing was interrupted"; }
 obj_a secret "$NS" crash-first || { printf '%s\n' "$X_OUT" | tail -20; fail "crash-first does not exist after the interrupted apply - the kill landed before the create committed"; }
 obj_a configmap "$NS" crash-second && { printf '%s\n' "$X_OUT" | tail -20; fail "crash-second exists after the interrupted apply - the kill landed after both creates"; }
-kca get secret -n "$NS" -l "tofu-estate=$ESTATE" -o name 2>/dev/null | grep -qx "secret/crash-first" \
-  || fail "crash-first was created by the interrupted apply but does not come back under tofu-estate=$ESTATE"
+{ GET_OUT="$(kca get secret -n "$NS" -l "tofu-estate=$ESTATE" -o name 2>/dev/null)" && grep -qx "secret/crash-first" <<< "$GET_OUT"; } \
+  || { printf '%s\n' "$GET_OUT"; fail "crash-first was created by the interrupted apply but does not come back under tofu-estate=$ESTATE"; }
 X_RECORDS_AFTER="$(gauntlet_record_envelope_count "$ADOPTED/.tofu-records")"
 X_REC="$(gauntlet_record_file "$ADOPTED/.tofu-records" "kubernetes_secret_v1.crash_first")"
 [ -n "$X_REC" ] || fail "the interrupted apply created crash-first but wrote no record for kubernetes_secret_v1.crash_first (records $X_RECORDS_BEFORE -> $X_RECORDS_AFTER)"
@@ -1389,7 +1389,9 @@ recovered() {
   [ "$R_RC" -eq 0 ] || return 1
   grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$R_PLAN" || return 1
   grep -qE '^[[:space:]]*# kubernetes_config_map(_v1)?\.crash_second will be created' <<< "$R_PLAN" || return 1
-  grep -E '^[[:space:]]*# .* will be' <<< "$R_PLAN" | grep -q 'crash_first\|crash-first' && return 1
+  local r_proposed
+  r_proposed="$(grep -E '^[[:space:]]*# .* will be' <<< "$R_PLAN")"
+  grep -q 'crash_first\|crash-first' <<< "$r_proposed" && return 1
   return 0
 }
 

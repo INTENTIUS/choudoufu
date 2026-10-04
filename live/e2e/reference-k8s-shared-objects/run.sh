@@ -620,8 +620,8 @@ STOCK_OWNED="$(app_fields_owned "$KCA" "$NODE_A" Terraform)"
 inventory "$KCA" "$NODE_A" > "$WORK/inventory.stock.json" || fail "could not read the cold-deployed inventory on A"
 ( cd "$ORACLE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed in platform's oracle root"
 ( cd "$ORACLE_A" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed in app's oracle root"
-( stock_b apply -auto-approve -input=false -no-color 2>&1 | grep -qF "Apply complete! Resources: 8 added" ) || fail "stock cold deploy of platform failed on B"
-( stock_ab apply -auto-approve -input=false -no-color 2>&1 | grep -qF "Apply complete! Resources: 6 added" ) || fail "stock cold deploy of app failed on B"
+{ APPLY_OUT="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "Apply complete! Resources: 8 added" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "stock cold deploy of platform failed on B"; }
+{ APPLY_OUT="$(stock_ab apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "Apply complete! Resources: 6 added" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "stock cold deploy of app failed on B"; }
 log "  platform (8 instances) then app (6 field-granular instances) from plain terraform on A and on B; zero labels, app's fields owned by Terraform"
 gauntlet_stage cold_deploy pass "two roots from plain terraform against kind $K8S_VERSION: platform's 8 instances (Namespace, 2 ConfigMaps plus a 2-instance count ConfigMap, Secret, Service, Deployment, and a kubernetes_labels on the cluster's default Namespace) and then app's 6 field-granular instances writing into them and into the node (kubernetes_labels, kubernetes_annotations, kubernetes_config_map_v1_data, kubernetes_secret_v1_data, kubernetes_env, kubernetes_node_taint), each root with a real terraform.tfstate; zero tofu-estate labels, and every field app writes owned by stock's default manager Terraform, read from metadata.managedFields with kubectl; the same two roots cold-deployed by stock on a second cluster as every later stage's oracle"
 
@@ -940,7 +940,7 @@ exists_a configmap settings || fail "platform's ConfigMap settings is gone after
 [ -z "$(kca get configmap settings -n "$NS" -o jsonpath='{.data.app_mode}')" ] || fail "app_mode is still in settings after app released it"
 [ "$(kca get configmap settings -n "$NS" -o jsonpath='{.data.region}')" = "eu" ] || fail "platform's region key did not survive app's release"
 [ -z "$(owners_of "$KCA" configmap settings "$NS" f:data f:app_mode)" ] || fail "app_mode's ownership survived the release: $(owners_of "$KCA" configmap settings "$NS" f:data f:app_mode)"
-kca get configmap -n "$NS" -l "tofu-estate=$ESTATE" -o name 2>/dev/null | grep -qx "configmap/settings" || fail "settings no longer carries tofu-estate=$ESTATE after app's release"
+{ GET_OUT="$(kca get configmap -n "$NS" -l "tofu-estate=$ESTATE" -o name 2>/dev/null)" && grep -qx "configmap/settings" <<< "$GET_OUT"; } || { printf '%s\n' "$GET_OUT"; fail "settings no longer carries tofu-estate=$ESTATE after app's release"; }
 DATA_A="$(kca get configmap settings -n "$NS" -o jsonpath='{.data}')"; DATA_B="$(kcb get configmap settings -n "$NS" -o jsonpath='{.data}')"
 [ "$DATA_A" = "$DATA_B" ] || fail "settings' data differs from stock's end state on the oracle cluster: A=$DATA_A B=$DATA_B"
 must_both_be_empty "after the release"
@@ -962,7 +962,7 @@ C_PLAN="$(chdf "$ADOPTED" plan -input=false -no-color 2>&1)" || { printf '%s\n' 
 grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$C_PLAN" || { printf '%s\n' "$C_PLAN" | tail -20; fail "the scale-down plan is not exactly one destroy"; }
 C_ADDR="$(grep -E '^[[:space:]]*# .* will be destroyed' <<< "$C_PLAN" | head -1 | sed -E 's/^[[:space:]#]*//; s/ will be destroyed.*$//')"
 grep -qE "^kubernetes_config_map_v1\.orphan_${NS}_shard-1$" <<< "$C_ADDR" || { printf '%s\n' "$C_PLAN" | grep -E 'destroyed|^Plan:'; fail "the scale-down destroys ${C_ADDR:-nothing named}, not shard-1 at its orphan address"; }
-( chdf "$ADOPTED" apply -auto-approve -input=false -no-color 2>&1 | grep -qF "0 added, 0 changed, 1 destroyed" ) || fail "the scale-down apply did not destroy exactly one object"
+{ APPLY_OUT="$(chdf "$ADOPTED" apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "0 added, 0 changed, 1 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the scale-down apply did not destroy exactly one object"; }
 if [ "${BREAK_COUNT:-}" = "1" ]; then
   exists_a configmap shard-0 || fail "BREAK_COUNT=1: shard-0 was destroyed - the 'wrong instance' assertion would hold, so the check is not load-bearing"
   log "  BREAK_COUNT=1: caught - shard-0 still exists"
@@ -980,7 +980,7 @@ else
   U_PLAN="$(chdf "$ADOPTED" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$U_PLAN" | tail -20; fail "the scale-up plan failed"; }
   grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$U_PLAN" || { printf '%s\n' "$U_PLAN" | tail -20; fail "the scale-up plan is not exactly one add"; }
   grep -q 'kubernetes_config_map_v1.shard\[1\]' <<< "$U_PLAN" || fail "the scale-up does not create shard[1]"
-  ( chdf "$ADOPTED" apply -auto-approve -input=false -no-color 2>&1 | grep -qF "1 added, 0 changed, 0 destroyed" ) || fail "the scale-up apply did not create exactly one object"
+  { APPLY_OUT="$(chdf "$ADOPTED" apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "1 added, 0 changed, 0 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the scale-up apply did not create exactly one object"; }
   exists_a configmap shard-0 && exists_a configmap shard-1 || fail "both shards do not exist after the scale-up"
   must_both_be_empty "after the count cycle"
   [ "$(count_a)" = "7" ] || fail "$(count_a) labelled objects after the count cycle, want 7"
@@ -1075,7 +1075,9 @@ recovered() {
   [ "$R_RC" -eq 0 ] || return 1
   grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$R_PLAN" || return 1
   grep -qE '^[[:space:]]*# kubernetes_labels\.crash_second will be created' <<< "$R_PLAN" || return 1
-  grep -E '^[[:space:]]*# .* will be' <<< "$R_PLAN" | grep -q 'crash_first\|orphan_' && return 1
+  local r_proposed
+  r_proposed="$(grep -E '^[[:space:]]*# .* will be' <<< "$R_PLAN")"
+  grep -q 'crash_first\|orphan_' <<< "$r_proposed" && return 1
   return 0
 }
 if [ "${BREAK_CRASH:-}" = "1" ]; then
