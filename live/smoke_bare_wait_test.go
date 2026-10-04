@@ -21,7 +21,8 @@ import (
 // both died at 600s on claims-smoke run 36339857046, their applies long
 // finished. A scenario waits on the PIDs it started.
 //
-// Proving it red: put a bare `wait` back in either scenario.
+// Proving it red: put a bare `wait` back in either scenario, or in a
+// draft under smoke/drafts/.
 
 // bareWait is `wait` with no operand, in command position, followed only
 // by redirections before the command ends. #1741: the first version wanted
@@ -36,6 +37,14 @@ func TestSmokeScenariosNeverWaitBare(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Drafts run under the same smoke.sh and the same watchdog, and are
+	// promoted by a git mv, so they are held to this before promotion
+	// (#1876).
+	drafts, err := filepath.Glob(filepath.Join("smoke", "drafts", "*.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	files = append(files, drafts...)
 	if len(files) == 0 {
 		t.Fatal("no smoke scenarios found; the guard would pass on nothing")
 	}
