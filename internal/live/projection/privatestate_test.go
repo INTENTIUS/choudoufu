@@ -337,9 +337,17 @@ func TestRecordResidueForInstanceRecordsTheMigratedPrivate(t *testing.T) {
 		t.Errorf("recorded private = %s (found %v, err %v), want %s", got, found, err, applyTimePrivate(priv))
 	}
 
+	// Under refuse the private stays out of the record. Asserted on the
+	// record's own ProviderPrivate member, not on RecordResidueForInstance's
+	// `recorded`: that reports whether ANYTHING was recorded, and this
+	// fixture's read (it echoes its prior) makes `name` classify as an
+	// ordinary residue attribute, which refuse does not withhold.
 	other := mustAddr(t, `stub_ns.held`)
-	if recorded, err := RecordResidueForInstance(ctx, store, other, addrs.AbsProviderConfig{}, schema, applied, strict.Refuse, read, cty.NilVal, nil, priv); err != nil || recorded {
-		t.Errorf("under secrets = refuse a migration recorded the private (recorded %v, err %v)", recorded, err)
+	if _, err := RecordResidueForInstance(ctx, store, other, addrs.AbsProviderConfig{}, schema, applied, strict.Refuse, read, cty.NilVal, nil, priv); err != nil {
+		t.Fatalf("RecordResidueForInstance under refuse: %s", err)
+	}
+	if got, found, err := store.GetProviderPrivate(ctx, other); err != nil || found {
+		t.Errorf("under secrets = refuse a migration recorded the private %s (found %v, err %v)", got, found, err)
 	}
 }
 
@@ -394,7 +402,16 @@ func TestProjectionRestoresTheRecordedPrivate(t *testing.T) {
 		t.Errorf("stub_ns.held has no record and gained a private anyway: %v", held)
 	}
 
-	// The plan carries it to the provider.
+	// The plan carries it to the provider. Core refreshes first, so the
+	// stub's read now does what terraform-plugin-framework's ReadResource
+	// does for a private holding provider keys: hands it back unchanged
+	// (fwserver copies req.Private to resp.Private; only the import marker
+	// is ever dropped, and Data.Bytes returns nil only once nothing is
+	// left). The projection-time read above returned nil because the
+	// private it was handed held nothing but that marker.
+	p.ReadResourceFn = func(r providers.ReadResourceRequest) providers.ReadResourceResponse {
+		return providers.ReadResourceResponse{NewState: r.PriorState, Private: r.Private}
+	}
 	var priorPrivate []byte
 	p.PlanResourceChangeFn = func(r providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse {
 		if !r.PriorState.IsNull() && r.PriorState.GetAttr("name").AsString() == "plain" {
