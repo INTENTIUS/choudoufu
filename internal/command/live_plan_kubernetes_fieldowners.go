@@ -8,7 +8,6 @@ package command
 import (
 	"context"
 	"sort"
-	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -126,27 +125,20 @@ func plannedFieldGranularWrite(rc *plans.ResourceInstanceChangeSrc, schema *prov
 		}
 	}
 
-	for _, m := range []struct {
-		attr string
-		root []string
-	}{
-		{"labels", []string{"f:metadata", "f:labels"}},
-		{"annotations", []string{"f:metadata", "f:annotations"}},
-		{"template_annotations", []string{"f:spec", "f:template", "f:metadata", "f:annotations"}},
-		{"data", []string{"f:data"}},
-	} {
-		attr, has := schema.Block.Attributes[m.attr]
+	for _, name := range kubesweep.FieldGranularMapAttrs {
+		root, _ := kubesweep.FieldGranularMapRoot(name)
+		attr, has := schema.Block.Attributes[name]
 		if !has || attr == nil || !attr.Type.IsMapType() {
 			continue
 		}
-		keys, ok := mapKeys(after, m.attr)
+		keys, ok := mapKeys(after, name)
 		if !ok {
 			return w, false
 		}
 		if len(keys) == 0 {
 			continue
 		}
-		write := kubesweep.FieldWrite{Root: m.root}
+		write := kubesweep.FieldWrite{Root: root}
 		for _, k := range keys {
 			write.Members = append(write.Members, kubesweep.MapMember(k))
 		}
@@ -170,49 +162,26 @@ func plannedFieldGranularWrite(rc *plans.ResourceInstanceChangeSrc, schema *prov
 	return w, true
 }
 
-// fieldGranularFixedKind is the object a field-granular type that names no
-// kind patches. hashicorp/kubernetes hardcodes it per type, and names each
-// such type after the patched kind's own type plus the field it writes:
-// kubernetes_config_map_v1_data patches what kubernetes_config_map_v1
-// manages, kubernetes_node_taint what kubernetes_node would. So the last
-// segment is dropped and the kind is [kubesweep.KindOfType]'s, the same
-// join the sweep makes. Every kind reached this way at 3.2.1 (ConfigMap,
-// Secret, Node) is in the core group, whose API version is "v1".
+// fieldGranularFixedKind is [kubesweep.FieldGranularFixedKind]: the object
+// a field-granular type that names no kind patches.
 func fieldGranularFixedKind(typeName string) (apiVersion, kind string) {
-	i := strings.LastIndex(typeName, "_")
-	if i <= 0 {
-		return "", ""
-	}
-	kind, _, ok := kubesweep.KindOfType(typeName[:i])
-	if !ok {
-		return "", ""
-	}
-	return "v1", kind
+	return kubesweep.FieldGranularFixedKind(typeName)
 }
 
 // envWrite is one container's env: the container named by container (or
 // init_container), keyed in managedFields by name, under the pod spec the
 // kind keeps it in.
 func envWrite(after cty.Value, kind string) (kubesweep.FieldWrite, bool) {
-	list := "f:containers"
+	init := false
 	container := ctyString(after, "container")
 	if container == "" {
-		list = "f:initContainers"
+		init = true
 		container = ctyString(after, "init_container")
 	}
 	if container == "" {
 		return kubesweep.FieldWrite{}, false
 	}
-	var podSpec []string
-	switch kind {
-	case "Pod":
-		podSpec = []string{"f:spec"}
-	case "CronJob":
-		podSpec = []string{"f:spec", "f:jobTemplate", "f:spec", "f:template", "f:spec"}
-	default:
-		podSpec = []string{"f:spec", "f:template", "f:spec"}
-	}
-	root := append(podSpec, list, kubesweep.ListItemMember(map[string]string{"name": container}), "f:env")
+	root := kubesweep.EnvRoot(kind, container, init)
 	write := kubesweep.FieldWrite{Root: root}
 	envs := after.GetAttr("env")
 	if envs.IsNull() || !envs.IsKnown() || !envs.CanIterateElements() {
@@ -233,7 +202,7 @@ func envWrite(after cty.Value, kind string) (kubesweep.FieldWrite, bool) {
 // and effect. A cluster that keeps spec.taints atomic records it as one
 // leaf, which [kubesweep.FieldOwners] reports as owned whole.
 func taintWrite(after cty.Value) (kubesweep.FieldWrite, bool) {
-	write := kubesweep.FieldWrite{Root: []string{"f:spec", "f:taints"}}
+	write := kubesweep.FieldWrite{Root: kubesweep.TaintsRoot}
 	taints := after.GetAttr("taint")
 	if taints.IsNull() || !taints.IsKnown() || !taints.CanIterateElements() {
 		return write, false
