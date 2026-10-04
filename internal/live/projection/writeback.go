@@ -895,7 +895,23 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				// all, and a kubernetes_manifest with no `timeouts` and
 				// no `field_manager` block is exactly that shape.
 				setManifestKeys map[string][]string
+
+				// GitHub issue #1239: the part of this apply's
+				// provider private that no import and read can
+				// rebuild ([applyTimePrivate]), nil when there is
+				// none or when this estate's secrets setting keeps it
+				// out of the record ([recordsProviderPrivate]). Decided
+				// independently of setResidue for setManifestKeys'
+				// reason, and unlike either of those a nil here CLEARS
+				// what is recorded: stock replaces the private on every
+				// apply, so an apply whose private no longer carries
+				// apply-time data must not leave the previous one
+				// standing for the next plan to hand back.
+				setPrivate []byte
 			)
+			if recordsProviderPrivate(secrets) {
+				setPrivate = applyTimePrivate(ri.Current.Private)
+			}
 
 			schemaPtr, _ := req.Schemas.ResourceTypeConfig(res.ProviderConfig.Provider, addrs.ManagedResourceMode, typeName)
 
@@ -1241,6 +1257,22 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 						env.Residue = &residueFields{}
 					}
 					env.Residue.ManifestMetadataKeys = setManifestKeys
+				}
+				// GitHub issue #1239, after the residue switch for the
+				// same reason as the block above.
+				if !clearResidue {
+					switch {
+					case len(setPrivate) > 0:
+						if env.Residue == nil {
+							env.Residue = &residueFields{}
+						}
+						env.Residue.ProviderPrivate = setPrivate
+					case env.Residue != nil && len(env.Residue.ProviderPrivate) > 0:
+						env.Residue.ProviderPrivate = nil
+						if env.Residue.empty() {
+							env.Residue = nil
+						}
+					}
 				}
 				switch {
 				case setProv != nil:

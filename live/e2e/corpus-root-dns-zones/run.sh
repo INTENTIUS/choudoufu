@@ -250,7 +250,7 @@ log "  DELTA 5  var values naming the seeded bucket + stack             (onboard
 # ── 3. stand the estate up ──────────────────────────────────────────────────
 log "=== 3. init and apply: 2 instances ==="
 ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null ) || {
-  ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "init failed"; }
+  ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "init failed"; }
 APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$APPLY_OUT" | grep -E '^Error|^│' | head -30
   fail "the apply failed"

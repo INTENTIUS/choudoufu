@@ -438,7 +438,7 @@ log "=== STAGE 1: cold deploy (plain terraform, unmodified estate) ==="
 provider_patch "$PLAIN"
 version_pin "$PLAIN" ""
 ( cd "$PLAIN/examples/complete" && gauntlet_locked_init terraform init -upgrade -input=false -no-color >/dev/null 2>&1 ) \
-  || { ( cd "$PLAIN/examples/complete" && gauntlet_locked_init terraform init -upgrade -input=false -no-color 2>&1 | tail -30 ); fail "plain gauntlet_locked_init terraform init failed"; }
+  || { ( cd "$PLAIN/examples/complete" && gauntlet_locked_init terraform init -upgrade -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "plain gauntlet_locked_init terraform init failed"; }
 PLAIN_APPLY="$(cd "$PLAIN/examples/complete" && terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$PLAIN_APPLY" | grep -E '^Error' -A5 | head -60
   fail "the cold-deploy apply failed"; }
@@ -604,7 +604,7 @@ GREEN_BUCKETS=(s3-bucket-$PET_G logs-$PET_G cloudfront-logs-$PET_G simple-$PET_G
 
 log "=== GREENFIELD: 1. choudoufu apply from nothing, no migration ==="
 ( cd "$GREEN/examples/complete" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -upgrade -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$GREEN/examples/complete" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -upgrade -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+  ( cd "$GREEN/examples/complete" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -upgrade -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the greenfield init failed"; }
 GREEN_APPLY_OUT="$(cd "$GREEN/examples/complete" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error' -A5 | head -60; fail "the greenfield apply failed"; }
 grep -qE 'Apply complete! Resources: 29 added' <<< "$GREEN_APPLY_OUT" \
@@ -640,7 +640,7 @@ log "  no resource action proposed (outputs quirk aside, see STAGE 3 above)"
 
 log "=== GREENFIELD: 5. stock oracle - the identical reduced estate applied fresh in its own namespace ==="
 ( cd "$ORACLE_DIR/examples/complete" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" gauntlet_locked_init terraform init -upgrade -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ORACLE_DIR/examples/complete" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" gauntlet_locked_init terraform init -upgrade -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+  ( cd "$ORACLE_DIR/examples/complete" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" gauntlet_locked_init terraform init -upgrade -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the greenfield oracle's init failed"; }
 ORACLE_APPLY_OUT="$(cd "$ORACLE_DIR/examples/complete" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$ORACLE_APPLY_OUT" | tail -40; fail "the greenfield oracle apply failed"; }
 grep -qE 'Apply complete! Resources: 29 added' <<< "$ORACLE_APPLY_OUT" \
@@ -769,7 +769,7 @@ ORACLE_COUNT="$WORK/oracle-count"
 mkdir -p "$ORACLE_COUNT"
 { oracle_count_provider; count_test_block 2; } > "$ORACLE_COUNT/main.tf"
 ( cd "$ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's init failed"; }
+  ( cd "$ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_count stock oracle's init failed"; }
 OC_UP_OUT="$(cd "$ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$OC_UP_OUT" | tail -30; fail "the day2_count stock oracle's baseline apply failed"; }
 grep -qE 'Apply complete! Resources: 2 added' <<< "$OC_UP_OUT" \
@@ -852,7 +852,7 @@ open(p, 'w').write(s[:start] + s[end:])
 "
 grep -q 'module "simple_bucket"' "$ORACLE_REMOVE/examples/complete/main.tf" && fail "day2_remove oracle: module.simple_bucket's block is still present"
 ( cd "$ORACLE_REMOVE/examples/complete" && gauntlet_locked_init terraform init -upgrade -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ORACLE_REMOVE/examples/complete" && gauntlet_locked_init terraform init -upgrade -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
+  ( cd "$ORACLE_REMOVE/examples/complete" && gauntlet_locked_init terraform init -upgrade -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_remove stock oracle's reinit failed"; }
 REMOVE_ORACLE_PLAN_OUT="$(cd "$ORACLE_REMOVE/examples/complete" && terraform plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
 [ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
 grep -qE '^  # module\.simple_bucket\.aws_s3_bucket\.this\[0\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
@@ -894,7 +894,7 @@ rm -f "$REPLACE_ORACLE_ROOT/examples/complete/main.tf.bak"
 grep -q 'logs-${random_pet.this.id}-replaced' "$REPLACE_ORACLE_ROOT/examples/complete/main.tf" \
   || fail "changing module.log_bucket's bucket argument in the replace-oracle copy did not match - the corpus pin has moved"
 ( cd "$REPLACE_ORACLE_ROOT/examples/complete" && gauntlet_locked_init terraform init -upgrade -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$REPLACE_ORACLE_ROOT/examples/complete" && gauntlet_locked_init terraform init -upgrade -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+  ( cd "$REPLACE_ORACLE_ROOT/examples/complete" && gauntlet_locked_init terraform init -upgrade -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_replace stock oracle's reinit failed"; }
 REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_ORACLE_ROOT/examples/complete" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
 [ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
 grep -qE '^  # module\.log_bucket\.aws_s3_bucket\.this\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
@@ -997,7 +997,7 @@ log "  DELTA 5    expected_bucket_owner removed from module s3_bucket   (CHOUDOU
 # no delta applied here at all.
 
 ( cd "$ESTATE/examples/complete" && "$TOFU" init -upgrade -input=false -no-color >/dev/null 2>&1 ) \
-  || { ( cd "$ESTATE/examples/complete" && "$TOFU" init -upgrade -input=false -no-color 2>&1 | tail -30 ); fail "estate init failed"; }
+  || { ( cd "$ESTATE/examples/complete" && "$TOFU" init -upgrade -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "estate init failed"; }
 
 log "=== STAGE 2a: live-import, read-only first ==="
 IMPORT_OUT="$(cd "$ESTATE/examples/complete" && "$TOFU" live-import -state="$PLAIN/examples/complete/terraform.tfstate" -estate="$ESTATE_NAME" 2>&1)" || {

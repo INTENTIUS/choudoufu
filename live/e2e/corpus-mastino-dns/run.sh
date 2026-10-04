@@ -627,7 +627,7 @@ log ""
 gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (stock terraform, no choudoufu anywhere) ==="
 ( cd "$PLAIN" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
+  ( cd "$PLAIN" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "stage 1 init failed"; }
 COLD_OUT="$(cd "$PLAIN" && terraform apply -input=false -auto-approve -no-color 2>&1)"; COLD_RC=$?
 [ "$COLD_RC" -eq 0 ] || { printf '%s\n' "$COLD_OUT" | grep -E '^Error|^│' | head -40; fail "stage 1 (cold deploy) failed"; }
 grep -qE "Apply complete! Resources: $INSTANCES added, 0 changed, 0 destroyed" <<< "$COLD_OUT" \
@@ -769,7 +769,7 @@ build_green_copy "$GREEN" "$GREEN_ENDPOINT" '
 
 log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
 ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+  ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the greenfield init failed"; }
 GREEN_APPLY_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error|^│' | head -40; fail "the greenfield apply failed"; }
 grep -qE "Apply complete! Resources: $INSTANCES added, 0 changed, 0 destroyed" <<< "$GREEN_APPLY_OUT" \
@@ -806,7 +806,7 @@ log "=== PART GREENFIELD: 5. stock oracle - the identical config applied fresh i
 ORACLE_GREEN="$WORK/green-oracle"
 build_green_copy "$ORACLE_GREEN" "$ORACLE_ENDPOINT" ""
 ( cd "$ORACLE_GREEN" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ORACLE_GREEN" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+  ( cd "$ORACLE_GREEN" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the greenfield oracle's init failed"; }
 ORACLE_GREEN_APPLY_OUT="$(cd "$ORACLE_GREEN" && terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$ORACLE_GREEN_APPLY_OUT" | grep -E '^Error|^│' | head -40; fail "the greenfield oracle apply failed"; }
 grep -qE "Apply complete! Resources: $INSTANCES added, 0 changed, 0 destroyed" <<< "$ORACLE_GREEN_APPLY_OUT" \
@@ -859,7 +859,7 @@ moved {
 }
 EOF
 ( cd "$PLAIN_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+  ( cd "$PLAIN_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_rename stock oracle's reinit failed"; }
 ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
 grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
@@ -906,7 +906,7 @@ rm -f "$REPLACE_PLAIN_ORACLE/main.tf.bak"
 grep -q 'status2.datacite.org' "$REPLACE_PLAIN_ORACLE/main.tf" \
   || fail "changing aws_route53_record.status's name argument in the replace-oracle copy did not match - the corpus pin has moved"
 ( cd "$REPLACE_PLAIN_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$REPLACE_PLAIN_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's init failed"; }
+  ( cd "$REPLACE_PLAIN_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_replace stock oracle's init failed"; }
 REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_PLAIN_ORACLE" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
 [ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
 grep -qE '^  # aws_route53_record\.status must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
@@ -950,7 +950,7 @@ grep -q 'count           = 9' "$COUNT_PLAIN_ORACLE/main.tf" \
   || fail "the day2_count oracle's count edit did not match - the corpus pin has moved"
 log "=== G-ORACLE. stock: scale wp-prod-staging's count 10 -> 9 -> 10, on cold_deploy's own state (plan-only - see header) ==="
 ( cd "$COUNT_PLAIN_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$COUNT_PLAIN_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's reinit failed"; }
+  ( cd "$COUNT_PLAIN_ORACLE" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_count stock oracle's reinit failed"; }
 ORACLE_COUNT_DOWN_PLAN_OUT="$(cd "$COUNT_PLAIN_ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_COUNT_DOWN_PLAN_RC=$?
 [ "$ORACLE_COUNT_DOWN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_DOWN_PLAN_OUT" | tail -40; fail "the day2_count stock oracle's scale-down plan exited $ORACLE_COUNT_DOWN_PLAN_RC"; }
 grep -qE '^  # aws_route53_record\.wp-prod-staging\[9\] will be destroyed' <<< "$ORACLE_COUNT_DOWN_PLAN_OUT" \
@@ -964,7 +964,7 @@ log "  stock (plan-only): exactly one destroy proposed (wp-prod-staging[9]), eve
 COUNT_PLAIN_ORACLE_UP="$WORK/plain-count-oracle-up"
 cp -r "$PLAIN" "$COUNT_PLAIN_ORACLE_UP"
 ( cd "$COUNT_PLAIN_ORACLE_UP" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$COUNT_PLAIN_ORACLE_UP" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock up-oracle's reinit failed"; }
+  ( cd "$COUNT_PLAIN_ORACLE_UP" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_count stock up-oracle's reinit failed"; }
 STATE_RM_OUT="$(cd "$COUNT_PLAIN_ORACLE_UP" && terraform state rm 'aws_route53_record.wp-prod-staging[9]' 2>&1)"; STATE_RM_RC=$?
 [ "$STATE_RM_RC" -eq 0 ] || { printf '%s\n' "$STATE_RM_OUT" | tail -30; fail "the day2_count stock up-oracle's state rm failed"; }
 ORACLE_COUNT_UP_PLAN_OUT="$(cd "$COUNT_PLAIN_ORACLE_UP" && terraform plan -input=false -no-color 2>&1)"; ORACLE_COUNT_UP_PLAN_RC=$?
@@ -985,7 +985,7 @@ log ""
 gauntlet_begin_stage migrate
 log "=== STAGE 2: choudoufu live-import ==="
 ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the estate copy's init failed"; }
+  ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the estate copy's init failed"; }
 
 log "--- 2a: live-import, read-only first ---"
 IMPORT_OUT="$(cd "$EST" && "$TOFU" live-import -state="$PLAIN/terraform.tfstate" -estate="$ESTATE_NAME" -no-color 2>&1)"; IMPORT_RC=$?
@@ -1581,7 +1581,7 @@ if [ "${BREAK:-}" = "1" ]; then
   sed -i.bak 's/aws_route53_zone\.internal\./aws_route53_zone.internal_renamed./g' "$EST/main.tf"
   rm -f "$EST/main.tf.bak"
   ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the BREAK=1 rename's reinit failed"; }
+    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "the BREAK=1 rename's reinit failed"; }
   BREAK_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
   [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=1 rename-without-moved plan exited $BREAK_PLAN_RC"; }
   grep -qE '^  # aws_route53_zone\.internal will be destroyed' <<< "$BREAK_PLAN_OUT" \
@@ -1602,7 +1602,7 @@ moved {
 }
 EOF
   ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
+    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "the moved-block rename's reinit failed"; }
   MOVED_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; MOVED_PLAN_RC=$?
   [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
   grep -qE '^  # aws_route53_zone\.production_renamed will be updated in-place' <<< "$MOVED_PLAN_OUT" \
@@ -1631,7 +1631,7 @@ EOF
   sed -i.bak 's/aws_route53_zone\.internal\./aws_route53_zone.internal_renamed./g' "$EST/main.tf"
   rm -f "$EST/main.tf.bak"
   ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the live-mv rename's reinit failed"; }
+    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "the live-mv rename's reinit failed"; }
   MV_OUT="$(cd "$EST" && "$TOFU" live-mv -estate="$ESTATE_NAME" aws_route53_zone.internal aws_route53_zone.internal_renamed 2>&1)"; MV_RC=$?
   [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
   grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
@@ -2147,7 +2147,7 @@ PYEOF
     grep -q 'resource "aws_route53_record" "eu-ns"' "$EST/tld.tf" \
       && fail "removing aws_route53_record.eu-ns's block did not match - the config has moved"
     ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-      ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove reinit failed"; }
+      ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "the day2_remove reinit failed"; }
     REMOVE_PLAN_OUT="$(cd "$EST" && TOFU_DISABLE_GUIDED_DISCOVERY=1 "$TOFU" plan -input=false -no-color 2>&1)"; REMOVE_PLAN_RC=$?
     [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
     if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then

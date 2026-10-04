@@ -22,7 +22,6 @@
       "oracle": "This stage is the stock run. Its state file and its cloud are the baseline every later stage is compared to. A failure here is stock failing, not choudoufu, and is recorded as such. A declared pre-apply is performed by the stock oracle too, from the same list - a crossing where one side got a targeted first apply and the other did not would not be comparing like with like.",
       "break": "Not applicable; this stage has nothing of choudoufu's to break.",
       "substrates": {
-        "floci-eks": "Stock applies the unmodified configuration against the emulator, and floci's EKS real mode starts a k3s container for each aws_eks_cluster. The configuration's own provider \"kubernetes\" block reaches that cluster exactly as written, with no delta repointing it, so every later stage measures the block under test. The AWS resources, and the cluster's objects read with kubectl inside the k3s container, are the baseline. k3s stands in for the control plane and nothing behind it: IRSA, EKS Pod Identity, the VPC CNI, EBS CSI volume claims, access-entry authorization and managed add-ons are not emulated, and are measured only by the estate's real-AWS live-cert cycle.",
         "kind": "Stock applies the unmodified configuration against the kind cluster the script created for this run; the cluster's objects, read with kubectl, are the baseline."
       }
     },
@@ -37,7 +36,6 @@
       "oracle": "The stock state file's instance list. Every address in it must be accounted for by name.",
       "break": "Remove one instance from the expected count; the assertion on the summary line must fail.",
       "substrates": {
-        "floci-eks": "One state file covers both legs: an AWS entry is bound as on floci, a Kubernetes entry as on kind, its tofu-estate label read with kubectl inside the k3s container. The provider block reads the cluster's endpoint and credential from the estate's own resources, so this stage also measures the provider-configuration fixpoint (#1113): a cluster leg reported unreachable while the cluster exists is a failure, never a skip.",
         "kind": "The stock state file names each object by namespace and name, and a bound object carries the tofu-estate label the way a bound AWS resource carries its two tags; zero skipped means every entry was stamped or recorded."
       }
     },
@@ -52,7 +50,6 @@
       "oracle": "Stock `plan` on the migrated state is also empty. Identity strings are compared by value against the CLI, which is the same answer stock's state would hold.",
       "break": "Corrupt one expected identity string; stage 3 must fail on that string and nothing else.",
       "substrates": {
-        "floci-eks": "AWS identities compare as on floci, Kubernetes identities as NAMESPACE/NAME against kubectl in the k3s container. The kubernetes provider is configured from the cluster this run reads live, so an empty plan is also evidence that the provider block was answered as written.",
         "kind": "Identities are NAMESPACE/NAME, compared by value with what kubectl reports."
       }
     },
@@ -67,7 +64,6 @@
       "oracle": "Stock `apply` of an empty plan is a no-op by definition; the object count is the comparison.",
       "break": "Expect a different count; the assertion must fail.",
       "substrates": {
-        "floci-eks": "The count sums both legs: the AWS markers as on floci, plus `kubectl get <kind> -A -l tofu-estate=<estate>` inside the k3s container.",
         "kind": "The count is `kubectl get <kind> -A -l tofu-estate=<estate>` summed over the estate's kinds."
       }
     },
@@ -82,7 +78,6 @@
       "oracle": "Stock `plan` after the same mutation, with marker tags normalised out of both plans, proposes the same change.",
       "break": "Mutate a second object as well; the single-object assertion must fail.",
       "substrates": {
-        "floci-eks": "The mutation is made on either leg out of band: through the emulator's API on the AWS side, or as a kubectl label or patch inside the k3s container, never through the tool.",
         "kind": "The mutation is a kubectl label or patch, never through the tool."
       }
     },
@@ -97,7 +92,6 @@
       "oracle": "Stock with the same `moved` block plans zero churn. The two plans, normalised, are identical.",
       "break": "Rename without the `moved` block; the plan must show a destroy and a create.",
       "substrates": {
-        "floci-eks": "Read on the leg the renamed block lives on, as that leg's own substrate reads it.",
         "kind": "The moved-block half only: live-mv also has a Kubernetes leg since #1639, not exercised by this stage. A bare rename without a moved block plans the same one in-place change to the address annotation, since the block name is not part of the object's identity, so the Break control is a rename of the object's own metadata.name instead, which is a genuine identity change and must plan a destroy and a create."
       }
     },
@@ -112,7 +106,6 @@
       "oracle": "Stock with the same block removed plans the same destroys in a working order.",
       "break": "Keep the block; no destroy may be proposed.",
       "substrates": {
-        "floci-eks": "The removed block's object is confirmed gone on its own leg: through the emulator's API for AWS, with kubectl in the k3s container for Kubernetes. Objects EKS itself writes (CoreDNS, kube-proxy, add-on Deployments) carry no tofu-estate label and are never proposed; one the configuration declares, such as aws-auth, is the operator's, as it is in stock.",
         "kind": "kubectl confirms the object is gone. With no address on the object, the sweep plans it at `<type>.orphan_<namespace>_<name>`, under the versioned type once no block declares the kind; a controller's copies, which the sweep excludes, are never proposed."
       }
     },
@@ -127,7 +120,6 @@
       "oracle": "Stock's plan for the same count change, normalised.",
       "break": "Expect a different instance to be destroyed; the assertion must fail.",
       "substrates": {
-        "floci-eks": "Read on the leg the counted block lives on, as that leg's own substrate reads it.",
         "kind": "The instance that leaves the count is found by its label and planned at the sweep's orphan address, since the label carries no index; kubectl confirms it is the same object stock destroys and that the survivor is untouched. The instance that comes back is created at its declared address."
       }
     },
@@ -142,7 +134,6 @@
       "oracle": "Stock's replace of the same resource leaves the same single object.",
       "break": "Skip the destroy half; the next plan must report a collision rather than proposing nothing.",
       "substrates": {
-        "floci-eks": "Read on the leg the replaced block lives on, as that leg's own substrate reads it.",
         "kind": "A Kubernetes name is unique within its namespace, so the replacement create_before_destroy exists for here is a rename: a content-hashed name such as `cfg-${sha}` changes, and the Deployment reading the object rolls onto the new one before the old one goes. The old object carries the block's address annotation, the sweep binds it to the block (#1640), and the plan is the replace stock plans (`must be replaced`, create first). At `-parallelism=1` the apply log shows the new object's create complete before the old object's destroy starts, kubectl confirms only the new object remains, and the next plan is empty. A replacement that keeps its name is destroy-then-create on either tool and is not what this stage measures (#1541). The Break control recreates the old object, carrying the block's annotation, after the apply: the next plan must propose destroying it rather than nothing."
       }
     },
@@ -157,7 +148,6 @@
       "oracle": "Stock records the old object as deposed and destroys it on the next apply; the outcome after one more apply must be the same.",
       "break": "Interrupt and then assert nothing is proposed; the assertion must fail.",
       "substrates": {
-        "floci-eks": "Read on the leg the interrupted object lives on, as that leg's own substrate reads it. An apply spanning both legs is interrupted at whichever create commits first.",
         "kind": "The emulator's window exists here too, and this stage interrupts it (#1768, after #1683). A create_before_destroy rename (day2_replace, #1541) creates the new object, carrying the block's address annotation, before destroying the old one; the engine's own interrupt at -parallelism=1 kills the apply the instant the new object's create commits, leaving both objects annotated with one address and the record holding the old one as the address's deposed object. The oracle is the outcome, not the plan's wording: stock plans a deposed-object destroy, while with the same configuration the rerun here plans the old object's destroy at its orphan address, because the new object is at the declared, listed key. What must agree is the end state after one more apply, the one stock's replace leaves: exactly the new object, the old one gone, the record's deposed entry cleared, and an empty replan. Both paths are run: the same configuration (the orphan destroy), and a name read from another block's attribute (#1539's shape), where only the deposed record settles which claimant is the old object (#1683) and the plan reads stock's deposed-object destroy. Both use kubernetes_config_map, whose record renders an identity; a kubernetes_config_map_v1 record does not, and that shape still ends in the two-claimant collision. The Break line covers both windows. The stage also interrupts an apply that creates several objects: a real SIGTERM lands between one object's create committing and the next object's ever being dispatched, and the next plan must propose exactly the remainder, binding the object already created by its tofu-estate label and its namespace and name rather than creating it a second time or sweeping it as an orphan. The oracle is stock's own plan on the oracle cluster from the same position, reached by applying the first object alone. A cross-estate live-mv has no such window: it makes exactly one governed write, the label patch itself, and re-keys no record (internal/live/mv/mv.go returns before propagateModuleRename for a cross-estate move, because the record it would move lives in the estate being left). A same-estate rename is no longer write-free (#1639): on a metadata-block object it rewrites the address annotation in one provider write, which has no window of its own, but on a kubernetes_manifest object it is two requests, the merge patch and then the ownership hand-off (#1704), and a kill between them is a window this stage does not interrupt either; its rerun does not recover it today (#1764)."
       }
     },
@@ -172,7 +162,6 @@
       "oracle": "Stock `apply -destroy` on the same estate leaves the same empty account.",
       "break": "Leave one resource; the assertion that the estate is empty must fail.",
       "substrates": {
-        "floci-eks": "Both legs end empty: the AWS listing as on floci, and kubectl in the k3s container returning nothing for every kind the estate declared. The cluster leg is destroyed before the cluster it lives on, the order the configuration's own dependency graph gives, so no load balancer or network interface outlives the cluster.",
         "kind": "An empty cluster is `kubectl get <kind> -A -l tofu-estate=<estate>` returning nothing for every kind."
       }
     },
@@ -187,7 +176,6 @@
       "oracle": "Stock's planfile applies in the unchanged case; in the changed case choudoufu is stricter than stock by design, and the refusal is asserted, not compared.",
       "break": "Apply the planfile after a mutation and expect success; the run must refuse.",
       "substrates": {
-        "floci-eks": "As on floci; the saved plan carries both legs, and the apply of it configures the kubernetes provider from the same cluster the plan read.",
         "kind": "The out-of-band move is a kubectl label."
       }
     },
@@ -202,7 +190,6 @@
       "oracle": "The cloud after stock's cold deploy, compared object by object with marker tags normalised out.",
       "break": "Drop one resource from the expected inventory; the comparison must fail.",
       "substrates": {
-        "floci-eks": "Both legs are compared against stock's cold deploy: AWS objects as on floci, cluster objects as on kind. A greenfield plan starts with no cluster, so the kubernetes provider's sweep reads that leg as empty by construction, stock's order, and the apply configures the provider once the cluster exists.",
         "kind": "Compared against the inventory recorded from stock's cold deploy earlier in the same run, object by object, with the label and the server-set fields normalised out; one cluster hosts both, in sequence."
       }
     },
@@ -215,16 +202,24 @@
       "tier1_gated": false,
       "proves": "With every strict toggle on, the estate is refused for exactly the things the toggles name (secrets stored, markers unrepaired, and so on) with the documented message, and for nothing else. Tested and shown per estate; not part of the headline bars.",
       "oracle": "No stock equivalent. The toggle documentation is the oracle, and each toggle's fixture is the comparison.",
-      "break": "Turn a toggle off; its refusal must disappear and no other may appear.",
-      "substrates": {
-        "floci-eks": "As on floci; the toggles apply to both legs alike."
-      }
+      "break": "Turn a toggle off; its refusal must disappear and no other may appear."
+    },
+    {
+      "id": "no_local_state",
+      "order": 15,
+      "title": "Plan with no local state",
+      "status": "active",
+      "headline": false,
+      "tier1_gated": false,
+      "proves": "After the estate is applied and its plan is empty, deleting BOTH the local record store and the state cache - a fresh clone or a new machine, with only the account left - still yields a plan that finds every declared object by its own marker or a stamped parent: nothing created, destroyed or replaced. The verdict line reports that plan's API call count beside the same estate's cache-serving plan, because the ratio between them is the claim. Tested and shown per estate; not part of the headline bars.",
+      "oracle": "Stock has no plan in this position: with its state file gone it needs one import block per object. The oracle is the estate's own cache-serving plan taken just before the deletion, which must be empty, and the declared configuration - every declared address must resolve to the existing object.",
+      "break": "Delete one taggable object's marker before the plan; the object is then not found and the plan proposes creating it, which the stage must fail."
     }
   ],
   "sets": {
     "all": {
       "label": "All estates",
-      "estates": 28,
+      "estates": 27,
       "clear": 27,
       "verified": 27,
       "carried": 0,
@@ -232,72 +227,77 @@
         "cold_deploy": {
           "pass": 27,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_count": {
           "pass": 27,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_crash": {
           "pass": 1,
           "fail": 0,
-          "not_run": 27
+          "not_run": 26
         },
         "day2_remove": {
           "pass": 27,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_rename": {
           "pass": 27,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_replace": {
           "pass": 27,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_teardown": {
           "pass": 0,
           "fail": 0,
-          "not_run": 28
+          "not_run": 27
         },
         "drift_reconverge": {
           "pass": 27,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "greenfield": {
           "pass": 27,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "migrate": {
           "pass": 27,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
+        },
+        "no_local_state": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 27
         },
         "plan_approval": {
           "pass": 27,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "strict": {
           "pass": 1,
           "fail": 0,
-          "not_run": 27
+          "not_run": 26
         },
         "test_apply": {
           "pass": 27,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "test_plan": {
           "pass": 27,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         }
       }
     },
@@ -357,6 +357,11 @@
           "pass": 26,
           "fail": 0,
           "not_run": 0
+        },
+        "no_local_state": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 26
         },
         "plan_approval": {
           "pass": 26,
@@ -439,6 +444,11 @@
           "fail": 0,
           "not_run": 0
         },
+        "no_local_state": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 4
+        },
         "plan_approval": {
           "pass": 4,
           "fail": 0,
@@ -517,6 +527,11 @@
           "pass": 9,
           "fail": 0,
           "not_run": 0
+        },
+        "no_local_state": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 9
         },
         "plan_approval": {
           "pass": 9,
@@ -597,6 +612,11 @@
           "fail": 0,
           "not_run": 0
         },
+        "no_local_state": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
         "plan_approval": {
           "pass": 1,
           "fail": 0,
@@ -621,7 +641,7 @@
     },
     "reference": {
       "label": "reference lane",
-      "estates": 3,
+      "estates": 2,
       "clear": 2,
       "verified": 2,
       "carried": 0,
@@ -629,72 +649,77 @@
         "cold_deploy": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_count": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_crash": {
           "pass": 1,
           "fail": 0,
-          "not_run": 2
+          "not_run": 1
         },
         "day2_remove": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_rename": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_replace": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_teardown": {
           "pass": 0,
           "fail": 0,
-          "not_run": 3
+          "not_run": 2
         },
         "drift_reconverge": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "greenfield": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "migrate": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
+        },
+        "no_local_state": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 2
         },
         "plan_approval": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "strict": {
           "pass": 1,
           "fail": 0,
-          "not_run": 2
+          "not_run": 1
         },
         "test_apply": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "test_plan": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         }
       }
     },
@@ -755,6 +780,11 @@
           "fail": 0,
           "not_run": 0
         },
+        "no_local_state": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 15
+        },
         "plan_approval": {
           "pass": 15,
           "fail": 0,
@@ -799,6 +829,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -913,6 +944,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -1027,6 +1059,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -1141,6 +1174,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -1254,6 +1288,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -1355,7 +1390,6 @@
       "pin": "v9.0.0",
       "lane": "terraform-popular",
       "set": "core",
-      "substrate": "floci-eks",
       "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy",
       "script": "live/e2e/corpus-eks-basic/run.sh",
       "stages": {
@@ -1369,6 +1403,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -1482,6 +1517,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -1596,6 +1632,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -1710,6 +1747,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -1824,6 +1862,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -1938,6 +1977,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -2052,6 +2092,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -2166,6 +2207,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -2280,6 +2322,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -2394,6 +2437,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -2507,6 +2551,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -2621,6 +2666,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -2735,6 +2781,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "pass",
         "test_apply": "pass",
@@ -2866,6 +2913,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -2979,6 +3027,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -3093,6 +3142,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -3207,6 +3257,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -3321,6 +3372,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -3434,6 +3486,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -3548,6 +3601,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -3662,6 +3716,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -3774,6 +3829,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "pass",
         "test_apply": "pass",
@@ -3881,32 +3937,6 @@
       "notes": "Verified end-to-end 2026-08-17/18. Drift-and-reconverge added 2026-08-18: the adopted estate's EC2 instance Name tag is tampered directly via the AWS CLI against the running floci container, choudoufu plan proposes fixing exactly aws_instance.main and nothing else, and apply reconverges it - verified with a real clean run and a real BREAK=1 run (BREAK also tampers a second object's Name tag, and the single-object assertion is confirmed to fail when it does)."
     },
     {
-      "name": "reference-eks",
-      "source": "hand-written reference shape kept in this repository (live/e2e/reference-eks/estate.sh): VPC, EKS cluster, one managed node group, an access entry and a pod identity association, with provider \"kubernetes\" configured from aws_eks_cluster.this and an exec token, and a four-object cluster leg; one estate across AWS and the cluster it creates (#1113), certified on real AWS by live/live-cert/reference-eks.sh",
-      "lane": "reference",
-      "set": "growing",
-      "substrate": "floci-eks",
-      "script": "live/e2e/reference-eks/run.sh",
-      "stages": {
-        "cold_deploy": "not_run",
-        "day2_count": "not_run",
-        "day2_crash": "not_run",
-        "day2_remove": "not_run",
-        "day2_rename": "not_run",
-        "day2_replace": "not_run",
-        "day2_teardown": "not_run",
-        "drift_reconverge": "not_run",
-        "greenfield": "not_run",
-        "migrate": "not_run",
-        "plan_approval": "not_run",
-        "strict": "not_run",
-        "test_apply": "not_run",
-        "test_plan": "not_run"
-      },
-      "clear": false,
-      "protocol": "legacy"
-    },
-    {
       "name": "reference-k8s",
       "source": "hand-written reference shape kept in this repository, built on live/e2e/estate-k8s (namespace, ConfigMap, ServiceAccount, Service) plus a Deployment on the node image's own pause container and a two-instance count ConfigMap; the kubernetes lane's first estate, run against a kind cluster (#1067)",
       "lane": "kubernetes",
@@ -3924,6 +3954,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "pass",
         "test_apply": "pass",
@@ -4053,6 +4084,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "pass",
         "test_apply": "pass",
@@ -4182,6 +4214,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "pass",
         "test_apply": "pass",
@@ -4311,6 +4344,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -4412,7 +4446,7 @@
     }
   ],
   "behaviors_proven": 1,
-  "behaviors_total": 14,
+  "behaviors_total": 15,
   "live_cert": [
     {
       "estate": "reference-ec2-vpc",

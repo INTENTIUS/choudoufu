@@ -535,7 +535,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AW
 gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (plain tofu apply, the real unmodified module) ==="
 ( cd "$PLAIN" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
+  ( cd "$PLAIN" && tofu init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "stage 1 init failed"; }
 gauntlet_report_lock "$PLAIN"  # the versions stage 1 resolved, for the row (#1739)
 # Seed the estate copy's lock file from this init. The shared plugin cache
 # records no checksums, so a directory with no .terraform.lock.hcl re-downloads
@@ -653,7 +653,7 @@ ESTATE_NAME="$_SAVED_ESTATE_NAME"; BUCKET_NAME="$_SAVED_BUCKET_NAME"
 
 log "=== GREENFIELD: 1. choudoufu apply from nothing, no migration ==="
 ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+  ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the greenfield init failed"; }
 GREEN_APPLY_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error' -A5 | head -60; fail "the greenfield apply failed"; }
 grep -qE 'Apply complete! Resources: 26 added' <<< "$GREEN_APPLY_OUT" \
@@ -688,7 +688,7 @@ log "  No changes."
 
 log "=== GREENFIELD: 5. stock oracle - the identical module applied fresh in its own namespace ==="
 ( cd "$ORACLE_G" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ORACLE_G" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+  ( cd "$ORACLE_G" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the greenfield oracle's init failed"; }
 ORACLE_G_APPLY_OUT="$(cd "$ORACLE_G" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$ORACLE_G_APPLY_OUT" | tail -40; fail "the greenfield oracle apply failed"; }
 grep -qE 'Apply complete! Resources: 26 added' <<< "$ORACLE_G_APPLY_OUT" \
@@ -757,7 +757,7 @@ write_root "$ORACLE" "" true
 [ -f "$PLAIN/.terraform.lock.hcl" ] && cp "$PLAIN/.terraform.lock.hcl" "$ORACLE/.terraform.lock.hcl"
 cp "$PLAIN/terraform.tfstate" "$ORACLE/terraform.tfstate"
 ( cd "$ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's init failed"; }
+  ( cd "$ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_rename stock oracle's init failed"; }
 BASELINE_PLAN_OUT="$(cd "$ORACLE" && tofu plan -input=false -no-color 2>&1)"; BASELINE_PLAN_RC=$?
 [ "$BASELINE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BASELINE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle's baseline (no-rename) plan exited $BASELINE_PLAN_RC"; }
 grep -qE '^  # .+ will be' <<< "$BASELINE_PLAN_OUT" \
@@ -774,7 +774,7 @@ moved {
 }
 EOF
 ( cd "$ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+  ( cd "$ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_rename stock oracle's reinit failed"; }
 ORACLE_PLAN_OUT="$(cd "$ORACLE" && tofu plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
 grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
@@ -802,7 +802,7 @@ grep -q 'create_cloudfront_distribution = false' "$REMOVE_ORACLE/main.tf" || fai
 [ -f "$PLAIN/.terraform.lock.hcl" ] && cp "$PLAIN/.terraform.lock.hcl" "$REMOVE_ORACLE/.terraform.lock.hcl"
 cp "$PLAIN/terraform.tfstate" "$REMOVE_ORACLE/terraform.tfstate"
 ( cd "$REMOVE_ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$REMOVE_ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's init failed"; }
+  ( cd "$REMOVE_ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_remove stock oracle's init failed"; }
 REMOVE_ORACLE_PLAN_OUT="$(cd "$REMOVE_ORACLE" && tofu plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
 [ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
 grep -qE '^  # module\.overture_tiles\.aws_cloudfront_distribution\.tiles\[0\] will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
@@ -860,7 +860,7 @@ grep -q 'cloudwatch_log_group   = "/aws/batch/' "$REPLACE_ORACLE/main.tf" \
 [ -f "$PLAIN/.terraform.lock.hcl" ] && cp "$PLAIN/.terraform.lock.hcl" "$REPLACE_ORACLE/.terraform.lock.hcl"
 cp "$PLAIN/terraform.tfstate" "$REPLACE_ORACLE/terraform.tfstate"
 ( cd "$REPLACE_ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$REPLACE_ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's init failed"; }
+  ( cd "$REPLACE_ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_replace stock oracle's init failed"; }
 REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_ORACLE" && tofu plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
 [ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
 grep -qE '^  # module\.overture_tiles\.aws_cloudwatch_log_group\.batch must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
@@ -878,7 +878,7 @@ gauntlet_begin_stage migrate
 # ══════════════════════════════════════════════════════════════════════════
 log "=== STAGE 2: choudoufu live-import ==="
 ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "estate init failed"; }
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "estate init failed"; }
 
 log "--- 2a: live-import, read-only first ---"
 IMPORT_OUT="$(cd "$ESTATE" && "$TOFU" live-import -state="$PLAIN/terraform.tfstate" -estate="$ESTATE_NAME" -no-color 2>&1)"; IMPORT_RC=$?
@@ -1789,7 +1789,7 @@ else
     sed -i.bak 's/module "overture_tiles" {/module "overture_tiles_final" {/' "$ESTATE/main.tf"
     rm -f "$ESTATE/main.tf.bak"
     ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the BREAK=2 rename's reinit failed"; }
+      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "the BREAK=2 rename's reinit failed"; }
     BREAK_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
     [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=2 rename-without-moved plan exited $BREAK_PLAN_RC"; }
     # Verified directly (measured, not guessed - this is NOT the uniform
@@ -1823,7 +1823,7 @@ moved {
 }
 EOF
     ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
+      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "the moved-block rename's reinit failed"; }
     MOVED_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; MOVED_PLAN_RC=$?
     [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
     # FIXED by gauntlet:sweep-moved-alias (internal/live/discovery/
@@ -1949,7 +1949,7 @@ EOF
       done
     } >> "$ESTATE/main.tf"
     ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the live-mv rename's reinit failed"; }
+      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "the live-mv rename's reinit failed"; }
     LIVE_MV_ADDRS=()
     for addr in "${TAGGABLE_ADDRS[@]}"; do
       skip=""
@@ -2429,7 +2429,7 @@ EOF
     write_count_oracle 2
     [ -f "$PLAIN/.terraform.lock.hcl" ] && cp "$PLAIN/.terraform.lock.hcl" "$ORACLE_COUNT_DIR/.terraform.lock.hcl"
     ( cd "$ORACLE_COUNT_DIR" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-      ( cd "$ORACLE_COUNT_DIR" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's init failed"; }
+      ( cd "$ORACLE_COUNT_DIR" && tofu init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_count stock oracle's init failed"; }
     ORACLE_COUNT_APPLY_OUT="$(cd "$ORACLE_COUNT_DIR" && tofu apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_COUNT_APPLY_RC=$?
     [ "$ORACLE_COUNT_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's baseline apply failed"; }
     grep -qE 'Apply complete! Resources: 3 added' <<< "$ORACLE_COUNT_APPLY_OUT" \

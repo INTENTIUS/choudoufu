@@ -818,7 +818,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AW
 gauntlet_begin_stage greenfield
 log "=== A1. init and apply: 5 resources from nothing ==="
 ( cd "$GREEN" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$GREEN" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "greenfield init failed"; }
+  ( cd "$GREEN" && "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "greenfield init failed"; }
 APPLY_OUT="$(cd "$GREEN" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$APPLY_OUT" | grep -E '^Error|^│' | head -30
   fail "the greenfield apply failed"; }
