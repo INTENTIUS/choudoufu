@@ -808,7 +808,7 @@ log "  PVC facts on A after stock's cold deploy:"
 pvc_facts "$KCA" | sed 's/^/    /'
 inventory "$KCA" > "$WORK/inventory.stock.json" || fail "could not read the cold-deployed inventory on A"
 ( stock_b init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on B"
-( stock_b apply -auto-approve -input=false -no-color 2>&1 | grep -qF "Apply complete! Resources: 14 added" ) || fail "stock cold deploy failed on B"
+{ APPLY_OUT="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "Apply complete! Resources: 14 added" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "stock cold deploy failed on B"; }
 gauntlet_stage cold_deploy pass "14 objects over eight kinds (namespace, ServiceAccount, Secret, 4 ConfigMaps, 2 headless Services and a ClusterIP one, 2 StatefulSets, a Deployment, a PodDisruptionBudget) from plain terraform against kind $(kca version 2>/dev/null | gauntlet_k8s_server_version), a real terraform.tfstate with 14 instances, zero tofu-estate labels read back with kubectl. The two volume_claim_templates produced 3 PVCs nobody declared, all Bound on kind's own standard class (rancher.io/local-path, WaitForFirstConsumer, reclaim Delete) with no StorageClass in the root, and stock's state holds none of them; the identical shape cold-deployed by stock on a second cluster as every later stage's oracle"
 
 # ── 2. migrate: choudoufu live-import against stock's state ──────────────
@@ -1015,8 +1015,8 @@ else
     || fail "data-redis-0's app label reads $(kca get pvc data-redis-0 -n "$NS" -o jsonpath='{.metadata.labels.app}'), want redis (the StatefulSet selector's value, merged over the claim template's app=redis-data)"
   [ "$(kca get pvc data-redis-0 -n "$NS" -o jsonpath='{.metadata.labels.role}')" = "cache-volume" ] \
     || fail "data-redis-0 does not carry role=cache-volume, the claim template's own label that the selector does not override"
-  kca get statefulset redis -n "$NS" -o jsonpath='{.spec.volumeClaimTemplates[0].metadata.labels.app}' | grep -qx "redis-data" \
-    || fail "the redis StatefulSet's claim template does not declare app=redis-data; the merge measurement above compares nothing"
+  { GET_OUT="$(kca get statefulset redis -n "$NS" -o jsonpath='{.spec.volumeClaimTemplates[0].metadata.labels.app}')" && grep -qx "redis-data" <<< "$GET_OUT"; } \
+    || { printf '%s\n' "$GET_OUT"; fail "the redis StatefulSet's claim template does not declare app=redis-data; the merge measurement above compares nothing"; }
 
   write_config "$ADOPTED" live team 2 '    reviewed = "yes"' drop_redis_sts
   write_config "$ORACLE" stock team 2 '    reviewed = "yes"' drop_redis_sts
@@ -1172,7 +1172,7 @@ grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$C_PLAN" || { printf 
 C_LINE="$(grep -E '^[[:space:]]*# .* will be destroyed' <<< "$C_PLAN" | head -1)"
 C_ADDR="$(sed -E 's/^[[:space:]#]*//; s/ will be destroyed.*$//' <<< "$C_LINE")"
 grep -qE "^kubernetes_config_map(_v1)?\.orphan_${NS}_shard-1$" <<< "$C_ADDR" || { printf '%s\n' "$C_PLAN" | grep -E 'destroyed|^Plan:'; fail "the scale-down destroys ${C_ADDR:-nothing named}, not shard-1 at its orphan address"; }
-( cd "$ADOPTED" && "$TOFU" apply -auto-approve -input=false -no-color 2>&1 | grep -qF "0 added, 0 changed, 1 destroyed" ) || fail "the scale-down apply did not destroy exactly one object"
+{ APPLY_OUT="$(cd "$ADOPTED" && "$TOFU" apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "0 added, 0 changed, 1 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the scale-down apply did not destroy exactly one object"; }
 if [ "${BREAK_COUNT:-}" = "1" ]; then
   if ! exists_a configmap shard-0; then
     fail "BREAK_COUNT=1: shard-0 was destroyed - the 'wrong instance' assertion would hold, so the check is not load-bearing"
@@ -1189,7 +1189,7 @@ else
   U_PLAN="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$U_PLAN" | tail -30; fail "the scale-up plan failed"; }
   grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$U_PLAN" || { printf '%s\n' "$U_PLAN" | tail -30; fail "the scale-up plan is not exactly one add"; }
   grep -q 'kubernetes_config_map_v1.shard\[1\]' <<< "$U_PLAN" || fail "the scale-up does not create shard[1]"
-  ( cd "$ADOPTED" && "$TOFU" apply -auto-approve -input=false -no-color 2>&1 | grep -qF "1 added, 0 changed, 0 destroyed" ) || fail "the scale-up apply did not create exactly one object"
+  { APPLY_OUT="$(cd "$ADOPTED" && "$TOFU" apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "1 added, 0 changed, 0 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the scale-up apply did not create exactly one object"; }
   exists_a configmap shard-0 && exists_a configmap shard-1 || fail "both shards do not exist after the scale-up"
   U_REPLAN="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)" || fail "the replan after the scale-up failed"
   grep -q "No changes." <<< "$U_REPLAN" || { printf '%s\n' "$U_REPLAN" | tail -30; fail "the replan after the scale-up is not empty"; }
@@ -1314,8 +1314,8 @@ exists_a configmap crash-second && { printf '%s\n' "$X_OUT" | tail -20; fail "cr
 # The selector alone, never a selector next to a resource name: kubectl
 # refuses that combination outright, which would read as an unlabelled
 # object.
-kca get secret -n "$NS" -l "tofu-estate=$ESTATE" -o name 2>/dev/null | grep -qx "secret/crash-first" \
-  || fail "crash-first was created by the interrupted apply but does not come back under tofu-estate=$ESTATE - the marker the rerun is supposed to find is not there"
+{ GET_OUT="$(kca get secret -n "$NS" -l "tofu-estate=$ESTATE" -o name 2>/dev/null)" && grep -qx "secret/crash-first" <<< "$GET_OUT"; } \
+  || { printf '%s\n' "$GET_OUT"; fail "crash-first was created by the interrupted apply but does not come back under tofu-estate=$ESTATE - the marker the rerun is supposed to find is not there"; }
 X_RECORDS_AFTER="$(gauntlet_record_envelope_count "$ADOPTED/.tofu-records")"
 log "  crash-first exists and is labelled; crash-second does not exist; records $X_RECORDS_BEFORE -> $X_RECORDS_AFTER"
 
@@ -1343,7 +1343,9 @@ recovered() {
   [ "$R_RC" -eq 0 ] || return 1
   grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$R_PLAN" || return 1
   grep -qE '^[[:space:]]*# kubernetes_config_map(_v1)?\.crash_second will be created' <<< "$R_PLAN" || return 1
-  grep -E '^[[:space:]]*# .* will be' <<< "$R_PLAN" | grep -q 'crash_first\|crash-first' && return 1
+  local r_proposed
+  r_proposed="$(grep -E '^[[:space:]]*# .* will be' <<< "$R_PLAN")"
+  grep -q 'crash_first\|crash-first' <<< "$r_proposed" && return 1
   return 0
 }
 

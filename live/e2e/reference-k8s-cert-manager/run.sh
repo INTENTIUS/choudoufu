@@ -769,7 +769,7 @@ else
   D_ADDR="$(sed -E 's/^[[:space:]#]*//; s/ will be destroyed.*$//' <<< "$D_LINE")"
   [ "$D_ADDR" = "kubernetes_manifest.orphan_issuer_${NS}_selfsigned" ] || { printf '%s\n' "$D_PLAN" | grep -E 'destroyed|^Plan:'; fail "the one destroy is ${D_ADDR:-unnamed}, not the orphan address kubernetes_manifest.orphan_issuer_${NS}_selfsigned the sweep plans a label-found custom-kind object at"; }
   grep -q "Owned and undeclared: 1 live resource will be destroyed" <<< "$D_PLAN" || fail "the plan does not say the destroy is an owned, undeclared object"
-  ( tofu_a apply -auto-approve -input=false -no-color 2>&1 | grep -qF "0 added, 0 changed, 1 destroyed" ) || fail "the remove apply did not destroy exactly one object"
+  { APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "0 added, 0 changed, 1 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the remove apply did not destroy exactly one object"; }
   exists_a issuer selfsigned && fail "the Issuer still exists after the remove apply"
 
   # The controller-copy half. The Certificate's Secret is created by
@@ -782,7 +782,7 @@ else
   C_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$C_PLAN" | tail -20; fail "the certificate-removal plan failed"; }
   grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$C_PLAN" || { printf '%s\n' "$C_PLAN" | tail -20; fail "removing the Certificate proposes more than one destroy - the controller-created Secret may have been swept in"; }
   grep -q "example-com-tls" <<< "$(grep -E 'will be destroyed' <<< "$C_PLAN")" && fail "the plan proposes destroying the controller-created Secret example-com-tls, which the root never created"
-  ( tofu_a apply -auto-approve -input=false -no-color 2>&1 | grep -qF "0 added, 0 changed, 1 destroyed" ) || fail "the certificate-removal apply did not destroy exactly one object"
+  { APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "0 added, 0 changed, 1 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the certificate-removal apply did not destroy exactly one object"; }
   exists_a certificate example-com && fail "the Certificate still exists after the remove apply"
   SECRET_LABELS="$(kca get secret example-com-tls -n "$NS" -o jsonpath='{.metadata.labels}' 2>/dev/null)"
   [ -n "$SECRET_LABELS" ] || fail "the controller-created Secret example-com-tls is gone after the Certificate was removed; something destroyed an object the root never created"
@@ -829,7 +829,7 @@ A_UP="$(tofu_a plan -input=false -no-color 2>&1)"; A_UP_RC=$?
 if [ "$A_UP_RC" -ne 0 ] || ! grep -qF "Plan: 2 to add, 0 to change, 0 to destroy." <<< "$A_UP"; then
   COUNT_VERDICT="choudoufu could not even plan the counted Issuer's creation: $(grep -E '^Plan:|^Error' <<< "$A_UP" | head -1)"
 else
-  ( tofu_a apply -auto-approve -input=false -no-color 2>&1 | grep -qF "2 added, 0 changed, 0 destroyed" ) || fail "the counted Issuer's creating apply did not add exactly two objects"
+  { APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "2 added, 0 changed, 0 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the counted Issuer's creating apply did not add exactly two objects"; }
   exists_a issuer shard-0 && exists_a issuer shard-1 || fail "both counted Issuers do not exist after choudoufu created them"
   # The measurement. This is choudoufu replanning a root IT JUST APPLIED,
   # with nothing changed - so a create proposed here is not an adoption
@@ -856,7 +856,7 @@ else
   grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$C_PLAN" || { printf '%s\n' "$C_PLAN" | tail -20; fail "the scale-down plan is not exactly one destroy"; }
   C_LINE="$(grep -E '^[[:space:]]*# .* will be destroyed' <<< "$C_PLAN" | head -1)"
   C_ADDR="$(sed -E 's/^[[:space:]#]*//; s/ will be destroyed.*$//' <<< "$C_LINE")"
-  ( tofu_a apply -auto-approve -input=false -no-color 2>&1 | grep -qF "0 added, 0 changed, 1 destroyed" ) || fail "the scale-down apply did not destroy exactly one object"
+  { APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "0 added, 0 changed, 1 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the scale-down apply did not destroy exactly one object"; }
   if [ "${BREAK_COUNT:-}" = "1" ]; then
     exists_a issuer shard-0 || fail "BREAK_COUNT=1: shard-0 was destroyed - the 'wrong instance' assertion would hold, so the check is not load-bearing"
     log "  BREAK_COUNT=1: caught - shard-0 still exists, so asserting it was the one destroyed correctly fails"
@@ -871,7 +871,7 @@ else
     ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's scale-up apply failed on B"
     U_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$U_PLAN" | tail -20; fail "the scale-up plan failed"; }
     grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$U_PLAN" || { printf '%s\n' "$U_PLAN" | tail -20; fail "the scale-up plan is not exactly one add"; }
-    ( tofu_a apply -auto-approve -input=false -no-color 2>&1 | grep -qF "1 added, 0 changed, 0 destroyed" ) || fail "the scale-up apply did not create exactly one object"
+    { APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "1 added, 0 changed, 0 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the scale-up apply did not create exactly one object"; }
     gauntlet_stage day2_count pass "scaling a COUNTED CUSTOM KIND (kubernetes_manifest.issuer_shard, a cert-manager.io/v1 Issuer whose object name is shard-\${count.index} inside the manifest object) from 2 to 1 destroyed exactly shard-1, planned at $C_ADDR (shard-0 untouched, both read with kubectl); back to 2 created exactly one object under the same name; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
     remove_shards "$ADOPTED" && remove_shards "$ORACLE" || fail "could not withdraw the counted Issuer"
     ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not withdraw the counted Issuers from A"
@@ -1002,8 +1002,8 @@ exists_a issuer crash-second && { printf '%s\n' "$X_OUT" | tail -20; fail "crash
 # The selector alone, never a selector next to a resource name: kubectl
 # refuses that combination outright, which would read as an unlabelled
 # object.
-kca get issuer -n "$NS" -l "tofu-estate=$ESTATE" -o name 2>/dev/null | grep -qE '(^|/)crash-first$' \
-  || fail "crash-first was created by the interrupted apply but does not come back under tofu-estate=$ESTATE - the marker the rerun is supposed to find is not there (labels: $(kca get issuer crash-first -n "$NS" --show-labels --no-headers 2>&1 | tr -s ' ' | cut -d' ' -f4))"
+{ GET_OUT="$(kca get issuer -n "$NS" -l "tofu-estate=$ESTATE" -o name 2>/dev/null)" && grep -qE '(^|/)crash-first$' <<< "$GET_OUT"; } \
+  || { printf '%s\n' "$GET_OUT"; fail "crash-first was created by the interrupted apply but does not come back under tofu-estate=$ESTATE - the marker the rerun is supposed to find is not there (labels: $(kca get issuer crash-first -n "$NS" --show-labels --no-headers 2>&1 | tr -s ' ' | cut -d' ' -f4))"; }
 # #1639's node stamp writes the escaped address into a manifest's
 # metadata.annotations the same way it writes tofu-estate into labels, so
 # the object the crash DID create must carry it even though crash-first's
@@ -1045,7 +1045,9 @@ recovered() {
   grep -qE '^[[:space:]]*# kubernetes_manifest\.crash_second will be created' <<< "$R_PLAN" || return 1
   # Nothing may be proposed for the object the crash did create - not a
   # second create, not a sweep of it as an orphan.
-  grep -E '^[[:space:]]*# .* will be' <<< "$R_PLAN" | grep -q 'crash_first\|crash-first' && return 1
+  local r_proposed
+  r_proposed="$(grep -E '^[[:space:]]*# .* will be' <<< "$R_PLAN")"
+  grep -q 'crash_first\|crash-first' <<< "$r_proposed" && return 1
   return 0
 }
 
