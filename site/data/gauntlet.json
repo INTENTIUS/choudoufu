@@ -408,7 +408,7 @@
   "lanes": {
     "kubernetes": {
       "label": "kubernetes lane",
-      "estates": 4,
+      "estates": 5,
       "clear": 4,
       "verified": 4,
       "carried": 0,
@@ -416,77 +416,77 @@
         "cold_deploy": {
           "pass": 4,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_count": {
           "pass": 4,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_crash": {
           "pass": 4,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_remove": {
           "pass": 4,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_rename": {
           "pass": 4,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_replace": {
           "pass": 4,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_teardown": {
           "pass": 4,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "drift_reconverge": {
           "pass": 4,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "greenfield": {
           "pass": 4,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "migrate": {
           "pass": 4,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "no_local_state": {
           "pass": 0,
           "fail": 0,
-          "not_run": 4
+          "not_run": 5
         },
         "plan_approval": {
           "pass": 4,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "strict": {
           "pass": 4,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "test_apply": {
           "pass": 4,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "test_plan": {
           "pass": 4,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         }
       }
     },
@@ -2321,6 +2321,35 @@
         }
       },
       "notes": "Upgraded from a real but pre-#274-pipeline predecessor script (choudoufu apply from a live block present from the start, delete state, replan empty twice) to the current five-stage shape, same upgrade as corpus-iam-policy and following the same corpus-vpc-complete/corpus-lambda-simple structure. Verified for real in a fresh isolated worktree off local main (ff106e63a7), Docker/floci/AWS CLI throughout. All five stages pass cleanly: cold_deploy (plain terraform apply, \"Apply complete! Resources: 1 added\" - only the first of this module's three instantiations contributes a resource, confirmed 0 objects tagged before migration), migrate (live-import dry run verifies \"1 of 1 resource instance(s) are eligible for stamping\", -approve reports \"1 resource(s) newly stamped, 0 already stamped, 0 failed, 0 skipped\", tofu-address=module.read_only_iam_policy.aws_iam_policy.policy:0 read directly through the AWS CLI against the real, server-assigned name IAM minted), test_plan (live-plan genuinely empty, identity re-read unchanged after the state file's only copy was deleted), test_apply (\"0 added, 0 changed, 0 destroyed\", object count unchanged at 1), and drift_reconverge (the one policy's Example tag tampered directly against floci, live-plan proposes fixing exactly that object by address, apply reconverges to \"0 added, 1 changed, 0 destroyed\"). Same tofu-slot finding as corpus-iam-policy (see that entry) applies identically here - the module's aws_iam_policy also declares count = var.create && var.create_policy ? 1 : 0 - and is folded into stage 2 the same way (\"0 added, 1 changed, 0 destroyed\" before stage 3 is attempted). Genuine constraint found here that corpus-iam-policy does not share: this estate creates exactly ONE real object (the other two module calls contribute nothing), so stage 5's BREAK=1 cannot prove non-vacuousness by tampering a second object the way corpus-iam-policy's or corpus-vpc-complete's can - there isn't one. Used the address-corruption technique instead (the same shape and resource type, naming a module that in fact creates nothing) and verified it independently at both sites it appears: run as committed it fails stage 3's identity check; run separately with stage 3's corruption disabled, it correctly fails stage 5's exact-address assertion instead. That second, isolated verification also caught a real bug in this script's first draft: the exact-equality comparison against a live-plan diff header's address (bracket form, \"policy[0]\") was written against the escaped tag-value form (\"policy:0\") and could never have matched even on the correct object - fixed by keeping both address forms as separate variables, and the fix was re-verified with a full clean pass afterward."
+    },
+    {
+      "name": "corpus-k8s-metrics-server",
+      "source": "kubernetes/k8s.io infra/aws/terraform/kops-infra-ci/metrics-server.tf (commit 4046258e7d), the Kubernetes project's own metrics-server installation for its kops CI cluster, cut out of its root: two ClusterRoles, two ClusterRoleBindings, a RoleBinding, a ServiceAccount, a Deployment and a Service in kube-system, and the aggregated APIService v1beta1.metrics.k8s.io, all on the provider's non-_v1 type names (#1880, epic #1885). Measures an aggregated API (kubernetes_api_service) through the sweep and through a rollout that leaves it unavailable, and a teardown that leaves kube-system, a namespace the estate writes into and never declared, as it found it",
+      "url": "https://github.com/kubernetes/k8s.io.git",
+      "pin": "4046258e7d54fdc156e2f39ad8da51b57be88f55",
+      "lane": "kubernetes",
+      "set": "growing",
+      "substrate": "kind",
+      "script": "live/e2e/corpus-k8s-metrics-server/run.sh",
+      "stages": {
+        "cold_deploy": "not_run",
+        "day2_count": "not_run",
+        "day2_crash": "not_run",
+        "day2_remove": "not_run",
+        "day2_rename": "not_run",
+        "day2_replace": "not_run",
+        "day2_teardown": "not_run",
+        "drift_reconverge": "not_run",
+        "greenfield": "not_run",
+        "migrate": "not_run",
+        "no_local_state": "not_run",
+        "plan_approval": "not_run",
+        "strict": "not_run",
+        "test_apply": "not_run",
+        "test_plan": "not_run"
+      },
+      "clear": false,
+      "protocol": "legacy"
     },
     {
       "name": "corpus-lambda-simple",
