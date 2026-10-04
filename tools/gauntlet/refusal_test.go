@@ -159,6 +159,9 @@ func TestPlanLiveCertWritesKeepsARefusalOutOfTheLiveCertRow(t *testing.T) {
 	if w := PlanLiveCertWrites("aws", silent, RunStateFinished); w.LiveCertRow || w.ScaleRecord {
 		t.Errorf("a run that spoke nothing must write nothing (#1100), got %+v", w)
 	}
+	if w := PlanLiveCertWrites("aws", &ProtocolResult{Spoken: true}, RunStateFinished); w.LiveCertRow || w.ScaleRecord {
+		t.Errorf("a run that announced the protocol and spoke no stage must write nothing (#1100), got %+v", w)
+	}
 	if w := PlanLiveCertWrites("floci", spoke, RunStateFinished); w.LiveCertRow || w.ScaleRecord {
 		t.Errorf("a floci proving run must write nothing, got %+v", w)
 	}

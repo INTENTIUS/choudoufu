@@ -71,6 +71,22 @@ const (
 	// spanGovernableGap is the block span of the subsection that names what
 	// the grant cannot reach.
 	spanGovernableGap = "marker-governable-gap"
+
+	// reachMDRel is the governance page a policy author reads for the
+	// bounds of a tag condition. Issue #1088: it said "a minority" of
+	// admitted types take no tags and sent the reader to a 1,200-line repo
+	// file for the number, which is a third of the table and nearly all of
+	// some services. The same split now renders there too.
+	reachMDRel = "site/content/docs/use/governance/reach.md"
+
+	// spanReachUntaggable is reach.md's block span: the untaggable count
+	// and the services with the most untaggable admitted types.
+	spanReachUntaggable = "reach-untaggable"
+
+	// reachTopServices is how many services of the per-service split
+	// reach.md names. MARKERS.md carries the full table; the site page
+	// carries enough to show that the gap is concentrated, not spread thin.
+	reachTopServices = 6
 )
 
 // governanceService is one CloudFormation service's split of the admitted
@@ -267,7 +283,8 @@ func renderGovernableGap(s governanceSplit) string {
 	return b.String()
 }
 
-// renderMarkersMD rewrites live/MARKERS.md's two governance spans.
+// renderMarkersMD rewrites live/MARKERS.md's two governance spans, and the
+// same split's span on the site's governance reach page (issue #1088).
 func renderMarkersMD(root string) error {
 	mdPath := filepath.Join(root, markersMDRel)
 	md, err := os.ReadFile(mdPath) //nolint:gosec // a fixed path in the checkout
@@ -286,13 +303,13 @@ func renderMarkersMD(root string) error {
 	}
 	if out == string(md) {
 		fmt.Fprintf(os.Stderr, "survey-gen: %s's spans are already current\n", markersMDRel)
-		return nil
+	} else {
+		if err := os.WriteFile(mdPath, []byte(out), 0o644); err != nil { //nolint:gosec // a committed doc, not a secret
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "survey-gen: rewrote %s's spans\n", markersMDRel)
 	}
-	if err := os.WriteFile(mdPath, []byte(out), 0o644); err != nil { //nolint:gosec // a committed doc, not a secret
-		return err
-	}
-	fmt.Fprintf(os.Stderr, "survey-gen: rewrote %s's spans\n", markersMDRel)
-	return nil
+	return renderReachMD(root, split)
 }
 
 // renderGovernanceSpans returns live/MARKERS.md with both spans replaced.
@@ -303,4 +320,45 @@ func renderGovernanceSpans(md string, s governanceSplit) (string, error) {
 		return "", err
 	}
 	return replaceSpan(markersMDRel, md, spanGovernableGap, renderGovernableGap(s))
+}
+
+// renderReachUntaggable is reach.md's span: the same split
+// renderGovernableGap states in live/MARKERS.md, cut to the count and the
+// services where it bites hardest, for the page a policy author is on. A
+// sentence rather than a table: site/content has a word budget
+// (live/site_size_test.go) and MARKERS.md carries the full table.
+func renderReachUntaggable(s governanceSplit) string {
+	total := len(s.Untaggable) + len(s.Taggable)
+	n := len(s.Services)
+	if n > reachTopServices {
+		n = reachTopServices
+	}
+	parts := make([]string, 0, n)
+	for _, svc := range s.Services[:n] {
+		parts = append(parts, fmt.Sprintf("%s %d of %d", svc.Service, svc.Untaggable, svc.Admitted))
+	}
+	return fmt.Sprintf("%d of the %d admitted AWS resource types take no `tags` argument at all. "+
+		"Most untaggable, by service: %s.\n", len(s.Untaggable), total, strings.Join(parts, ", "))
+}
+
+// renderReachMD rewrites reach.md's untaggable span.
+func renderReachMD(root string, split governanceSplit) error {
+	mdPath := filepath.Join(root, reachMDRel)
+	md, err := os.ReadFile(mdPath) //nolint:gosec // a fixed path in the checkout
+	if err != nil {
+		return err
+	}
+	out, err := replaceSpan(reachMDRel, string(md), spanReachUntaggable, renderReachUntaggable(split))
+	if err != nil {
+		return err
+	}
+	if out == string(md) {
+		fmt.Fprintf(os.Stderr, "survey-gen: %s's span is already current\n", reachMDRel)
+		return nil
+	}
+	if err := os.WriteFile(mdPath, []byte(out), 0o644); err != nil { //nolint:gosec // a committed doc, not a secret
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "survey-gen: rewrote %s's span\n", reachMDRel)
+	return nil
 }

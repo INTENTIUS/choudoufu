@@ -7,8 +7,10 @@ weight: 6
 
 The promise: for any configuration stock OpenTofu accepts, choudoufu gives an
 equal plan, or a refusal this documentation names in advance. Anything else
-is a defect. [How close AWS is]({{< relref "/docs/progress" >}}) has the
-numbers. This page is the contract they are measured against.
+is a defect. [The claims]({{< relref "/docs/claims" >}}) prove it, and
+[How close AWS is]({{< relref "/docs/progress" >}}) has the breadth numbers
+from real-world configurations. This page is the contract both are measured
+against.
 
 ## What "equal" excludes
 

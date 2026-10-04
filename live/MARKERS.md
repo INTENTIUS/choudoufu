@@ -168,6 +168,20 @@ report prints as the instance's live id. Before this, every
 `kubernetes_manifest` entry ratified UNTAGGABLE: bound, counted as
 migrated, and left outside the boundary with nothing said about it.
 
+`live-mv -from-estate` on a `kubernetes_manifest` object is the same patch
+(#1104), through the same `kubesweep.LabelPatcher`, setting `tofu-estate` to
+the destination estate and the address annotation to the block's address
+in one request, under the run's own credential, so an admission policy such
+as `live/kubernetes/estate-boundary.yaml` judges it exactly as it judges
+`kubectl label`. The object must carry `tofu-estate=<-from-estate>` first,
+in the label surface's words otherwise. The dry run goes out under
+`-dry-run` too, so the server's verdict prints before anything is written,
+and its answer is held to stricter terms than the migration's: every label
+but `tofu-estate` must read back unchanged. Nothing is projected
+afterwards; the destination's next plan seeds the stamped manifest and
+mirrors the live label into the prior, so it replans empty. Before this the
+move was refused by name with the equivalent `kubectl label` command.
+
 A `kubernetes_manifest` block, the shape every custom resource is declared
 through, is identified the same way (#1079's first unit): the natural key
 is four keys inside its `manifest` argument's object constructor, read
@@ -1270,13 +1284,22 @@ costs.
     {
       "Sid": "CreateOnlyIntoThisEstate",
       "Effect": "Allow",
-      "Action": [
-        "ec2:RunInstances",
-        "ec2:CreateTags"
-      ],
+      "Action": ["ec2:RunInstances"],
       "Resource": "*",
       "Condition": {
         "StringEquals": {"aws:RequestTag/tofu-estate": "prod-networking"}
+      }
+    },
+    {
+      "Sid": "TagOnlyAsPartOfThatCreate",
+      "Effect": "Allow",
+      "Action": ["ec2:CreateTags"],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestTag/tofu-estate": "prod-networking",
+          "ec2:CreateAction": "RunInstances"
+        }
       }
     }
   ]
@@ -1290,6 +1313,34 @@ resource yet to carry the tag, and a `RunInstances` under a `ResourceTag`
 condition never matches. What the creating principal supplies is
 `aws:RequestTag`, and conditioning on it is what makes the second statement a
 grant to create *into this estate* rather than a grant to create anything.
+
+**The tag write is fenced in both directions (#1088).** A `CreateTags` grant
+conditioned on `aws:RequestTag/tofu-estate` alone lets the role stamp its
+estate onto any resource in the account, another estate's included: that is
+claiming, not creating. The third statement's `ec2:CreateAction` limits it to
+the tag write that rides a `RunInstances` this role makes. The other
+direction matters wherever a grant allows a tag write on what the estate
+already owns: `aws:ResourceTag` checks only the tag the resource carries now,
+so a `CreateTags` allowed under it alone may set `tofu-estate` to another
+team's estate and hand the resource to that team's configuration. Add
+`"StringEqualsIfExists": {"aws:RequestTag/tofu-estate": "<this estate>"}` to
+any such statement; `IfExists` leaves tag writes that do not touch
+`tofu-estate` alone. A role that carves an estate (`choudoufu live-mv
+-from-estate`) then needs both estate names in that condition, which is the
+point. `DeleteTags` removing `tofu-estate` is not a rewrite but a removal, and
+"Protecting the markers" below is the control for it.
+
+**A type that cannot take tags at creation sits outside the create
+statement.** `live/registry.json` records some taggable types with
+`tagging.tag_on_create: false`, `AWS::Route53::HostedZone` (`aws_route53_zone`)
+among them. For those the create call carries no markers and the live path
+writes them straight afterwards through the Resource Groups Tagging API
+(#1084). An `aws:RequestTag/tofu-estate` condition never matches that create,
+so a Deny on unowned creates refuses it and a create grant conditioned on the
+marker does not cover it; and the follow-up write lands on a resource with no
+`tofu-estate` yet, so an `aws:ResourceTag` grant does not cover that either.
+Such a type needs its create granted without the marker condition, and its
+tag write conditioned on `aws:RequestTag` only.
 
 The actions above are illustrative, not the full scope: a real
 grant names the actions the estate's own types need, which
@@ -1488,6 +1539,17 @@ They span 96 CloudFormation services.
 
 **One further limit, on the within-estate half only.** An escaped `tofu-address` longer than one tag value is split across `tofu-address-2` through `tofu-address-4` (see "`tofu-address` continuation tags"), so `StringEquals` on `aws:ResourceTag/tofu-address` is compared against the first chunk alone. For such an address the condition is a prefix test over a value this grammar says is meaningless on its own, and it should not be written. The across-estate half is unaffected: `tofu-estate`'s own grammar caps it at 128 characters, so it never splits.
 <!-- survey-gen:end marker-governable-gap -->
+
+**Objects declared inside another resource are not in that count either
+(#1088).** An EC2 instance's `root_block_device` and `ebs_block_device` each
+become a real EBS volume with its own ARN, but in the configuration they are
+blocks of `aws_instance`, not resources. The marker writer sets the enclosing
+resource's own `tags` argument and nothing else
+(`internal/live/projection/nodestamp.go`), so the volume carries no marker
+unless the configuration tags it some other way (`volume_tags`, or the
+block's own `tags`), and no condition on either marker key matches it. This
+class is disjoint from the untaggable types above, which are declared
+resources.
 
 **This governs API calls, not tag survival.** A principal that cannot act on
 an estate's resources can still, with tagging permissions elsewhere, remove

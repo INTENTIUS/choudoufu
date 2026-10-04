@@ -9,16 +9,22 @@ bookCollapseSection: true
 Tag-based IAM scoping is a feature AWS already has. What it needs is tags
 that are reliably there, on everything, correct. That is what markers are.
 
-Every resource this fork creates carries `tofu-estate` and
-`tofu-address`, derived from its configuration address and written
-as part of the create call. That is not a convention someone has to remember
-or a `default_tags` block that drifts; a resource cannot be created without
-it.
+Every resource this fork creates whose type takes tags carries `tofu-estate`
+and `tofu-address`, derived from its configuration address. For most types
+the marker rides in the create call; a few cannot take tags at creation and
+are tagged straight afterwards. That is not a convention someone has to
+remember or a `default_tags` block that drifts. Its edges, which a policy
+inherits, are in [Where AWS honours the
+condition]({{< relref "/docs/use/governance/reach" >}}).
 
-So scoping a role is ordinary tag conditions, once the tags underneath them
-are guaranteed rather than hoped for.
+So scoping a role is ordinary tag conditions.
 [How to scope a role to an estate]({{< relref "/docs/use/governance/scope-a-role" >}})
-has the policies themselves.
+has the policies themselves. They are written from AWS's documentation and
+not run by this project, except one shape:
+[claim 13]({{< relref "/docs/claims/the-tag-is-the-boundary" >}}) fences
+`ec2:CreateTags`, `ec2:DeleteTags` and `ec2:TerminateInstances` between two
+roles under emulator IAM enforcement, with a real-account CloudTrail record.
+Test the rest against your own account.
 
 ## Three things a file cannot do
 
@@ -69,7 +75,12 @@ this.
 organization's member accounts and only where the condition key is
 honored. Denying the tag-removal actions for the marker keys, with an exception
 for whichever principal runs choudoufu, is the closest thing to a real
-backstop. MARKERS.md carries the policy.
+backstop.
+[live/MARKERS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md#protecting-the-markers)
+carries the policy. Its key list must include the continuation keys
+`tofu-address-2` to `-4`, since `aws:TagKeys` takes no wildcard. It stops a
+marker being removed, not rewritten; the grant's `aws:RequestTag` condition
+covers that.
 
 Even a correct SCP leaves gaps. The management account, a standalone
 account, a misused exemption, a service whose untag action does not honor

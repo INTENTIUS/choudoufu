@@ -42,7 +42,10 @@ OPERATOR_ARN="$(sed -E 's#^(arn:aws[a-z-]*):sts::([0-9]+):assumed-role/([^/]+)/.
 # nothing at all. errexit and nounset go off first, each step prints its
 # own line naming the resource, and the last step is reached whatever the
 # steps before it did.
-CREATED_KEY=""; ORIGINAL_KEY_POLICY=""; KEY_POLICY_FILE=""; STACK_UP=0
+CREATED_KEY=""; ORIGINAL_KEY_POLICY=""; KEY_POLICY_FILE=""; STACK_UP=0; OTHER_BUCKET=""
+# Step 4c's second account, by named CLI profile. Unset, that step says it
+# measured nothing and the rest of the run is unchanged.
+other_aws() { aws --profile "$SMOKE_OTHER_ACCOUNT_PROFILE" "$@"; }
 secure_teardown() {
   set +e
   set +u
@@ -69,6 +72,22 @@ secure_teardown() {
       echo "  COULD NOT RESTORE the key policy on $KEY_ARN" >&2
       echo "  the original is still on disk. Restore it with:" >&2
       echo "    aws kms put-key-policy --key-id $KEY_ARN --policy-name default --policy file://$KEY_POLICY_FILE" >&2
+    fi
+  fi
+  # Step 4c's bucket, in the OTHER account and under that account's
+  # credentials. Versioned, so every version goes before the bucket does.
+  if [ -n "$OTHER_BUCKET" ]; then
+    if other_aws s3api head-bucket --bucket "$OTHER_BUCKET" >/dev/null 2>&1; then
+      other_aws s3api list-object-versions --bucket "$OTHER_BUCKET" --output json 2>/dev/null \
+        | jq -c '[(.Versions // [])[], (.DeleteMarkers // [])[] | {Key, VersionId}]' 2>/dev/null \
+        | jq -c '.[]' 2>/dev/null | while read -r v; do
+            other_aws s3api delete-object --bucket "$OTHER_BUCKET" --key "$(jq -r .Key <<< "$v")" --version-id "$(jq -r .VersionId <<< "$v")" >/dev/null 2>&1
+          done
+      other_aws s3api delete-bucket --bucket "$OTHER_BUCKET" >/dev/null 2>&1 \
+        && echo "  removed the other account's bucket $OTHER_BUCKET" \
+        || echo "  COULD NOT REMOVE $OTHER_BUCKET in the other account (profile $SMOKE_OTHER_ACCOUNT_PROFILE) - remove it by hand" >&2
+    else
+      echo "  no bucket $OTHER_BUCKET in the other account to remove"
     fi
   fi
   if [ -n "$CREATED_KEY" ]; then
@@ -157,6 +176,39 @@ grep -E ' OK | ok$|ok \(|: correct' <<< "$V_OUT" | evidence
 grep -q "bucket $BUCKET: correct" <<< "$V_OUT" || fail "secureconfig" "verify did not report the bucket correct: $V_OUT"
 proof "stood up and verified with the shipped project. Nothing about this bucket was written by hand."
 
+step "2b. the same up again, with the key forgotten"
+explain \
+  "Running up a second time is the ordinary thing to do, and the ordinary" \
+  "way to get it wrong is to forget RECORD_KMS_KEY_ARN. Before #1405 that" \
+  "rebuilt the bucket with S3-managed encryption and dropped both KMS Deny" \
+  "statements, and the only sign was a changeset diff. up now reads the" \
+  "live bucket's key first and refuses, naming the key S3 reports. That" \
+  "refusal had only ever run against stub binaries (#1421): the first real" \
+  "run died in _livekey on the real get-bucket-encryption document (#1525)" \
+  "and never reached the guard. This is the guard, on the real answer."
+# What S3 itself reports, read independently of the recipe's own jq: the
+# refusal has to name THIS string, character for character.
+S3_KEY="$(aws s3api get-bucket-encryption --bucket "$BUCKET" --output json \
+  | jq -r '.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.KMSMasterKeyID // empty')" \
+  || fail "secureconfig" "could not read $BUCKET's default encryption back from S3"
+[ -n "$S3_KEY" ] || fail "secureconfig" "S3 reports no KMS key on $BUCKET after step 2 deployed it with one, so there is nothing for up to protect and this step would prove nothing"
+cmd "just up $BUCKET   # RECORD_KMS_KEY_ARN unset this time"
+D_OUT="$(cd "$PROJECT" && env -u RECORD_KMS_KEY_ARN RECORD_NONCURRENT_DAYS=7 just up "$BUCKET" 2>&1)" \
+  && fail "secureconfig" "just up SUCCEEDED with RECORD_KMS_KEY_ARN unset over a bucket encrypted under a customer managed key, so it may have downgraded the bucket: $D_OUT"
+grep -q "REFUSING to update $BUCKET" <<< "$D_OUT" \
+  || fail "secureconfig" "just up failed, but not on the encryption guard, so the guard is still unmeasured: $D_OUT"
+grep -qF "  $S3_KEY" <<< "$D_OUT" \
+  || fail "secureconfig" "the refusal does not name the key S3 reports ($(mask <<< "$S3_KEY")) character for character: $D_OUT"
+grep -q "RECORD_KMS_KEY_ARN is unset" <<< "$D_OUT" \
+  || fail "secureconfig" "the refusal does not say the key was unset, which is what the operator got wrong: $D_OUT"
+AFTER_KEY="$(aws s3api get-bucket-encryption --bucket "$BUCKET" --output json \
+  | jq -r '.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.KMSMasterKeyID // empty')"
+[ "$AFTER_KEY" = "$S3_KEY" ] \
+  || fail "secureconfig" "the bucket's key moved from $(mask <<< "$S3_KEY") to '$(mask <<< "$AFTER_KEY")' across a refused up"
+grep -m1 "REFUSING" <<< "$D_OUT" | evidence
+echo "named key: $(mask <<< "$S3_KEY"), unchanged afterwards" | evidence
+proof "a second up with the key forgotten is refused before anything is deployed, and the refusal names the key exactly as get-bucket-encryption reports it."
+
 step "3. the estate's role, from the published policy"
 cmd "render-policy.sh smoke-secure $BUCKET --kms <key> --account <this account>"
 # Every flag the recommended configuration has (#1381): the key, and the
@@ -232,16 +284,21 @@ fi
 # bucket_owner puts ExpectedBucketOwner on every request the run makes.
 # BUCKET_OWNER is this account unless a step says otherwise.
 BUCKET_OWNER="$ACCOUNT"
+# ESTATE_BUCKET is $BUCKET unless step 4c points the estate at another
+# account's bucket of its own; an empty BUCKET_OWNER leaves the pin out.
+ESTATE_BUCKET="$BUCKET"
 write_estate() { # instances-literal input
+  local owner_line=""
+  [ -z "$BUCKET_OWNER" ] || owner_line="bucket_owner = \"$BUCKET_OWNER\""
   cat > "$SMOKE_WORK/est/main.tf" <<TFEOF
 terraform {
   live {
     estate = "smoke-secure"
 
     record_store "s3" {
-      bucket       = "$BUCKET"
-      region       = "$AWS_REGION"
-      bucket_owner = "$BUCKET_OWNER"
+      bucket = "$ESTATE_BUCKET"
+      region = "$AWS_REGION"
+      $owner_line
     }
   }
 }
@@ -320,6 +377,97 @@ rm -f "$SMOKE_WORK/est/.terraform/choudoufu-cache.tfstate"
 P2_OUT="$(as_estate rightowner plan -input=false -no-color 2>&1)" || fail "secureconfig" "the plan with the right owner back failed: $P2_OUT"
 grep -q "No changes." <<< "$P2_OUT" || fail "secureconfig" "the plan with the right owner back was not empty: $P2_OUT"
 proof "one digit off and the run stops on its first request, naming the bucket and the account it expected. With the right owner back the same plan is empty."
+
+step "4c. the same bucket name, really in another account"
+explain \
+  "4b moved the pin and left the bucket where it was. The case the pin" \
+  "exists for is the other way round: a bucket of the configured name that" \
+  "really is in someone else's account, and whose policy lets this account" \
+  "in, which is exactly what a squatter would write. S3 answers both with" \
+  "the same 403, so the code path is the same, but only a second account" \
+  "can stage this one (#1408, #1421). The control runs first: with no pin," \
+  "as the operator, whose credentials carry no aws:ResourceAccount" \
+  "condition, the squatted bucket is usable. Then the pin is put back and" \
+  "the same run must stop on its first request."
+if [ -z "${SMOKE_OTHER_ACCOUNT_PROFILE:-}" ]; then
+  echo "NOT MEASURED: set SMOKE_OTHER_ACCOUNT_PROFILE to a CLI profile for a second account to run this step" | evidence
+else
+  OTHER_ACCOUNT="$(other_aws sts get-caller-identity --query Account --output text)" \
+    || fail "secureconfig" "SMOKE_OTHER_ACCOUNT_PROFILE=$SMOKE_OTHER_ACCOUNT_PROFILE has no usable credentials"
+  [ "$OTHER_ACCOUNT" != "$ACCOUNT" ] \
+    || fail "secureconfig" "SMOKE_OTHER_ACCOUNT_PROFILE=$SMOKE_OTHER_ACCOUNT_PROFILE is the same account as the run's own ($(mask <<< "$ACCOUNT")), so nothing here would be in another account"
+  # Registered before it exists, for the reason STACK_UP is (#1378).
+  OTHER_BUCKET="chdf-smoke-squat-$SUFFIX"
+  cmd "aws --profile <other> s3api create-bucket --bucket $OTHER_BUCKET   # the squatter's account"
+  if [ "$AWS_REGION" = "us-east-1" ]; then
+    other_aws s3api create-bucket --bucket "$OTHER_BUCKET" --region "$AWS_REGION" >/dev/null
+  else
+    other_aws s3api create-bucket --bucket "$OTHER_BUCKET" --region "$AWS_REGION" \
+      --create-bucket-configuration "LocationConstraint=$AWS_REGION" >/dev/null
+  fi || fail "secureconfig" "could not create $OTHER_BUCKET in the other account"
+  # The three settings the store asserts, so that without the pin nothing
+  # else about this bucket would stop the run - the owner is the only
+  # difference between it and the real one.
+  other_aws s3api put-bucket-versioning --bucket "$OTHER_BUCKET" --versioning-configuration Status=Enabled \
+    || fail "secureconfig" "could not enable versioning on $OTHER_BUCKET"
+  other_aws s3api put-bucket-lifecycle-configuration --bucket "$OTHER_BUCKET" --lifecycle-configuration \
+    '{"Rules":[{"ID":"expire-noncurrent","Status":"Enabled","Filter":{"Prefix":""},"NoncurrentVersionExpiration":{"NoncurrentDays":7}}]}' >/dev/null \
+    || fail "secureconfig" "could not set the lifecycle rule on $OTHER_BUCKET"
+  other_aws s3api put-public-access-block --bucket "$OTHER_BUCKET" --public-access-block-configuration \
+    BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true \
+    || fail "secureconfig" "could not set the public-access block on $OTHER_BUCKET"
+  # A squatter's bucket policy: this whole account may use it. A
+  # cross-account grant to a named account is not public, so the block above
+  # does not refuse it.
+  SQUAT_POLICY="$(jq -n --arg b "$OTHER_BUCKET" --arg a "arn:aws:iam::$ACCOUNT:root" '{
+    Version: "2012-10-17",
+    Statement: [{ Sid: "LetTheVictimIn", Effect: "Allow", Principal: { AWS: $a }, Action: "s3:*",
+                  Resource: ["arn:aws:s3:::\($b)", "arn:aws:s3:::\($b)/*"] }]}')"
+  other_aws s3api put-bucket-policy --bucket "$OTHER_BUCKET" --policy "$SQUAT_POLICY" \
+    || fail "secureconfig" "could not put the squatter's bucket policy on $OTHER_BUCKET"
+
+  as_operator() { ( cd "$SMOKE_WORK/est" && env TF_LOG=debug TF_LOG_PATH="$SMOKE_WORKROOT/logs/secure-$1.log" "$TOFU" "${@:2}" ); }
+
+  # The control. A bucket policy reaches S3 within seconds but not at once,
+  # so the unpinned read is retried briefly before it is believed.
+  ESTATE_BUCKET="$OTHER_BUCKET"; BUCKET_OWNER=""; write_estate '["keep", "precious"]' v2
+  rm -f "$SMOKE_WORK/est/.terraform/choudoufu-cache.tfstate"
+  cmd "choudoufu plan   # as the operator, no bucket_owner, the other account's bucket"
+  C_OK=0
+  for i in $(seq 1 10); do
+    C_OUT="$(as_operator squat-unpinned plan -input=false -no-color 2>&1)" && { C_OK=1; break; }
+    sleep 3
+  done
+  [ "$C_OK" = "1" ] \
+    || fail "secureconfig" "the control failed: with no pin, as the operator, the other account's bucket could not be used, so nothing below shows the pin is what stops the run: $C_OUT"
+  grep -qE 'Plan: 2 to add' <<< "$C_OUT" \
+    || fail "secureconfig" "the control planned something other than two creates against the other account's empty bucket: $C_OUT"
+  echo "no pin: the plan read the other account's bucket and proposed 2 creates" | evidence
+
+  # Counted here rather than assumed zero: whatever the unpinned control
+  # left is the baseline, and the pinned run must add nothing to it.
+  N_BEFORE="$(other_aws s3api list-object-versions --bucket "$OTHER_BUCKET" --query 'length(Versions || `[]`)' --output json)" \
+    || fail "secureconfig" "could not count the object versions in $OTHER_BUCKET"
+  BUCKET_OWNER="$ACCOUNT"; write_estate '["keep", "precious"]' v2
+  rm -f "$SMOKE_WORK/est/.terraform/choudoufu-cache.tfstate"
+  cmd "choudoufu plan   # the same, with bucket_owner = this account"
+  X_OUT="$(as_operator squat-pinned plan -input=false -no-color 2>&1)" \
+    && fail "secureconfig" "the plan SUCCEEDED against a bucket in account $(mask <<< "$OTHER_ACCOUNT") with bucket_owner pinned to $(mask <<< "$ACCOUNT"): $X_OUT"
+  X_FLAT="$(flat <<< "$X_OUT")"
+  grep -qE 'Plan: [0-9]+ to add' <<< "$X_FLAT" \
+    && fail "secureconfig" "the run rendered a plan against a bucket in another account: $X_OUT"
+  grep -q "may be owned by an account other than $ACCOUNT" <<< "$X_FLAT" \
+    || fail "secureconfig" "the run failed, but it does not say the bucket may belong to an account other than the one pinned: $X_OUT"
+  N_OBJ="$(other_aws s3api list-object-versions --bucket "$OTHER_BUCKET" --query 'length(Versions || `[]`)' --output json)" \
+    || fail "secureconfig" "could not count the object versions in $OTHER_BUCKET after the pinned run"
+  [ "$N_OBJ" = "$N_BEFORE" ] || fail "secureconfig" "the other account's bucket went from $N_BEFORE to $N_OBJ object version(s) across the pinned run; something was written to it"
+  grep -oE "S3 refused this request[^.]*\." <<< "$X_FLAT" | head -1 | mask | evidence
+  echo "the other account's bucket holds $N_OBJ object version(s) after the pinned run, as before it" | evidence
+
+  ESTATE_BUCKET="$BUCKET"; BUCKET_OWNER="$ACCOUNT"; write_estate '["keep", "precious"]' v2
+  rm -f "$SMOKE_WORK/est/.terraform/choudoufu-cache.tfstate"
+  proof "a bucket of the configured name in another account, whose policy lets this account in, is usable with no pin and refused with one, on the first request, naming the account it expected."
+fi
 
 step "5. a record destroyed by mistake, and brought back"
 explain \

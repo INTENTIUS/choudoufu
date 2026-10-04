@@ -172,9 +172,11 @@ func providerDataImportProvider(c *importCloud) *providerDataImportCloud {
 // TestLiveImportProviderDataGateIsOfflineAndExact pins the one thing that
 // makes GitHub issue #1543's phase free for every estate that migrated
 // before it existed: [liveImportProviderDataReads] returns on
-// [dataread.Analysis.Empty] before it reads a schema, starts a plugin or
-// resolves anything, and Empty answers "do this configuration's provider
-// blocks reach a declared data source" and nothing else.
+// [dataread.Analysis.Demands] before it reads a schema, starts a plugin or
+// resolves anything, and Demands answers "do this configuration's provider
+// blocks reach a declared data source, or a managed value they cannot read
+// from their own configuration" (the second half is GitHub issue #1113's)
+// and nothing else.
 //
 // Asserted against both fixtures at once, because a gate that answered
 // "empty" for both would also make this file's other test pass for the
@@ -197,9 +199,9 @@ func TestLiveImportProviderDataGateIsOfflineAndExact(t *testing.T) {
 			cfg := statelessTestLoadConfig(t, testFixturePath(tc.fixture))
 			// No schemas, no providers, no scope - the same bare options
 			// liveImportProviderDataReads passes.
-			got := dataread.AnalyzeProviderConfigs(t.Context(), cfg, dataread.Options{}).Empty()
+			got := !dataread.AnalyzeProviderConfigs(t.Context(), cfg, dataread.Options{}).Demands()
 			if got != tc.empty {
-				t.Errorf("AnalyzeProviderConfigs(...).Empty() = %v, want %v", got, tc.empty)
+				t.Errorf("!AnalyzeProviderConfigs(...).Demands() = %v, want %v", got, tc.empty)
 			}
 		})
 	}

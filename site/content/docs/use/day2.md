@@ -18,8 +18,10 @@ recording effects the cloud cannot report, and working with other people.
 
 ## Sharing values between estates
 
-There is no remote state to read. `live/OUTPUTS.md` covers the cross-estate
-pattern, and `data "terraform_remote_state"` is refused.
+`data "terraform_remote_state"` is admitted, but a live root writes no state
+file, so it goes stale once the producer adopts markers. [Reading a value from
+another estate]({{< relref "/docs/use/cross-estate" >}}) has the pattern that
+stays current.
 
 ## Plan, review, apply
 
