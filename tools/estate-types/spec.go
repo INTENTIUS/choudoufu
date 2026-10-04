@@ -267,6 +267,12 @@ var estateSpecs = []estateSpec{
 		Note:       `The "kubernetes" lane's stateful estate (#1175, surface 2 of #1107): no external source, a hand-written shape kept in this repository and crossed on a kind cluster, on the _v1 type names throughout. run.sh's resource_block() heredoc carries the whole estate: kubernetes_namespace_v1, kubernetes_service_account_v1, kubernetes_secret_v1, kubernetes_config_map_v1 (postgres-init, api-config and a two-instance count set), kubernetes_service_v1 (two headless, one ClusterIP), kubernetes_stateful_set_v1 (postgres and redis, each with a volume_claim_template), kubernetes_deployment_v1, kubernetes_pod_disruption_budget_v1 - no module, no AWS provider, and deliberately no kubernetes_storage_class, since kind's own default class is what the claim templates bind against. Its strict_block() heredoc (the strict-stage scratch estate) adds random_password, outside the eight above. The PersistentVolumeClaims the claim templates produce are the estate's subject and are declared by nothing, so no kubernetes_persistent_volume_claim type appears here.`,
 	},
 	{
+		Name:       "reference-k8s-platform-app",
+		ConfigDirs: nil,
+		ScanScript: true,
+		Note:       `The "kubernetes" lane's two-estate pair (#1883, epic #1885): no external source, a hand-written shape kept in this repository and crossed on a kind cluster. run.sh's write_net() heredoc is network's estate (kubernetes_namespace, kubernetes_network_policy, kubernetes_service, kubernetes_config_map) and its write_app() heredoc is app's (kubernetes_namespace, kubernetes_config_map, kubernetes_service, kubernetes_deployment, kubernetes_horizontal_pod_autoscaler_v2, kubernetes_service_account), with handoff_block()'s kubernetes_manifest in app until day2_crash moves it to network - no module, no AWS provider. crash_pair_tf() adds kubernetes_secret and a second kubernetes_config_map for day2_crash's own duration; live/e2e/lib/gauntlet.sh's day2_replace and crash-rename blocks are kubernetes_config_map too. Nine kubernetes types in all; its strict_block() heredoc (the strict-stage scratch estate) adds random_password, outside them.`,
+	},
+	{
 		Name:       "reference-k8s-shared-objects",
 		ConfigDirs: nil,
 		ScanScript: true,
