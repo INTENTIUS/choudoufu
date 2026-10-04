@@ -176,11 +176,14 @@ func TestLiveMvUnrecordedEstateOutputRefusesByName(t *testing.T) {
 }
 
 // newLiveLsCommandForEstateOutputs is a bare live-ls command whose holder is
-// the one liveLsOpenEstateOutputs fills.
+// the one liveLsOpenEstateOutputs fills. Its working directory is ".", as the
+// CLI's is: loadConfig rewrites DIR relative to WorkingDir and then reads it
+// relative to the process's working directory, so any other WorkingDir sends
+// the load to a directory that does not exist.
 func newLiveLsCommandForEstateOutputs(t *testing.T) *LiveLsCommand {
 	t.Helper()
 	view, _ := testView(t)
-	return &LiveLsCommand{Meta: Meta{WorkingDir: workdir.NewDir(t.TempDir()), View: view}}
+	return &LiveLsCommand{Meta: Meta{WorkingDir: workdir.NewDir("."), View: view}}
 }
 
 // TestLiveLsOpensEstateOutputsFromDIRsRecordStore: the declared-instance
