@@ -127,15 +127,22 @@ KINDS=(namespaces customresourcedefinitions storageclasses priorityclasses clust
 PRE_N=5     # two CRDs and three namespaces, the declared pre-apply
 MAIN_N=14   # 3 StorageClasses, 3 PriorityClasses, 2 ClusterRoleBindings, a ServiceAccount, 5 VPAs
 TOTAL_N=$((PRE_N + MAIN_N))
-# manager-vpas.tf's for_each keys, "<namespace>/<kind>/<name>", in the order
-# the root's own map lists them.
-VPA_KEYS=(
-  "ingress-controllers/Deployment/nginx-ingress-default-controller"
-  "concourse/Deployment/concourse-web"
-  "concourse/StatefulSet/concourse-worker"
-  "concourse/StatefulSet/concourse-postgresql"
-  "monitoring/Deployment/thanos-compactor"
-)
+# manager-vpas.tf's for_each keys, "<namespace>/<kind>/<name>". Never
+# written here: vpa_keys evaluates the root's own for_each expression with
+# `terraform console` once the stock root is written (delta 3 applied), so a
+# pin that moves the map moves these with it, and a pin that changes their
+# number fails against VPA_N. At 6e1eca7be0 they are, in console's order:
+#   concourse/Deployment/concourse-web
+#   concourse/StatefulSet/concourse-postgresql
+#   concourse/StatefulSet/concourse-worker
+#   ingress-controllers/Deployment/nginx-ingress-default-controller
+#   monitoring/Deployment/thanos-compactor
+VPA_N=5
+VPA_KEYS=()
+# The VPA drift_reconverge deletes, and the second one BREAK=1 deletes; both
+# are asserted to be among the derived keys.
+DRIFT_KEY="monitoring/Deployment/thanos-compactor"
+BREAK_KEY="concourse/Deployment/concourse-web"
 # The namespace the shared day2_replace and day2_crash blocks are written
 # into: one of the three this estate creates.
 NS="concourse"
@@ -335,6 +342,29 @@ vpa_served() {
 # vpa_addr <key>: the plan and report spelling of one for_each instance.
 vpa_addr() { printf 'kubernetes_manifest.vpa["%s"]' "$1"; }
 
+# vpa_keys <root dir>: the keys of kubernetes_manifest.vpa's for_each, one
+# per line, evaluated by `terraform console` from the root's own locals and
+# its own for_each expression. Both are lifted verbatim from manager-vpas.tf
+# as written in <root dir>, delta 3 included, into a scratch dir with no
+# provider, so neither init nor a cluster is involved.
+vpa_keys() {
+  local scratch out
+  scratch="$(mktemp -d "$WORK/vpa-keys.XXXXXX")" || return 1
+  python3 - "$1/manager-vpas.tf" "$scratch" <<'PY' || return 1
+import re, sys
+s = open(sys.argv[1]).read()
+i = s.find("\nlocals {")
+j = s.find('\nresource "kubernetes_manifest" "vpa" {')
+assert 0 <= i < j, "manager-vpas.tf has no locals block before kubernetes_manifest.vpa - the corpus pin has moved"
+m = re.search(r'^  for_each = (.+)$', s[j:], re.M)
+assert m, "kubernetes_manifest.vpa has no one-line for_each - the corpus pin has moved"
+open(sys.argv[2] + "/locals.tf", "w").write(s[i:j] + "\n")
+open(sys.argv[2] + "/vpa-keys.expr", "w").write("jsonencode(keys(%s))\n" % m.group(1))
+PY
+  out="$(cd "$scratch" && terraform console -no-color < vpa-keys.expr 2>&1)" || { printf '%s\n' "$out" >&2; return 1; }
+  python3 -c 'import json, sys; [print(k) for k in json.loads(json.loads(sys.stdin.read()))]' <<< "$out"
+}
+
 # inventory <kubeconfig> [kind/name to drop]: the estate's objects on one
 # cluster, normalised to what the configuration declares - never labels,
 # annotations other than the default-class one the root sets, or anything
@@ -387,13 +417,20 @@ PY
 # ── 1. cold_deploy: the control, the declared pre-apply, then the rest ───
 gauntlet_begin_stage cold_deploy
 log "=== 1. cold_deploy: two kind clusters; the un-targeted plan must fail, then the declared pre-apply on both sides ==="
+write_root "$STOCK" stock  || fail "could not write the stock root on A"
+write_root "$ORACLE" stock || fail "could not write the oracle root on B"
+KEYS_OUT="$(vpa_keys "$STOCK")" || fail "could not evaluate kubernetes_manifest.vpa's for_each keys from $STOCK/manager-vpas.tf with terraform console"
+while IFS= read -r k; do [ -n "$k" ] && VPA_KEYS+=("$k"); done <<< "$KEYS_OUT"
+[ "${#VPA_KEYS[@]}" = "$VPA_N" ] || { printf '%s\n' "$KEYS_OUT"; fail "manager-vpas.tf's for_each evaluates to ${#VPA_KEYS[@]} key(s), want $VPA_N - the corpus pin or delta 3 has moved, and MAIN_N with it"; }
+for want in "$DRIFT_KEY" "$BREAK_KEY"; do
+  grep -qxF "$want" <<< "$KEYS_OUT" || { printf '%s\n' "$KEYS_OUT"; fail "$want is not one of manager-vpas.tf's for_each keys - the corpus pin has moved"; }
+done
+log "  kubernetes_manifest.vpa's for_each keys, from terraform console: ${VPA_KEYS[*]}"
 gauntlet_kind_up "$CLUSTER_A" "$KCA" || fail "kind cluster A ($CLUSTER_A) did not come up"
 gauntlet_kind_up "$CLUSTER_B" "$KCB" || fail "kind cluster B ($CLUSTER_B) did not come up"
 export KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA"
 K8S_VER="$(kca version 2>/dev/null | gauntlet_k8s_server_version)"
 log "  cluster A: $CLUSTER_A (kubernetes $K8S_VER); cluster B: $CLUSTER_B"
-write_root "$STOCK" stock  || fail "could not write the stock root on A"
-write_root "$ORACLE" stock || fail "could not write the oracle root on B"
 ( cd "$STOCK" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on A"
 ( cd "$ORACLE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on B"
 
@@ -411,24 +448,29 @@ grep -qF "CRD may not be installed" <<< "$CTRL" || { printf '%s\n' "$CTRL" | tai
 CTRL_LINE="$(gauntlet_first_error_line <<< "$CTRL")"
 log "  control: the one-pass plan fails as documented - $CTRL_LINE"
 
-pre_apply_estate() { stock_a apply -auto-approve -input=false -no-color "$@" >/dev/null; }
-pre_apply_oracle() { stock_b apply -auto-approve -input=false -no-color "$@" >/dev/null; }
+pre_apply_estate() { stock_a apply -auto-approve -input=false -no-color "$@" > "$WORK/pre-apply.a.log" 2>&1; }
+pre_apply_oracle() { stock_b apply -auto-approve -input=false -no-color "$@" > "$WORK/pre-apply.b.log" 2>&1; }
 gauntlet_pre_apply "$ESTATE" estate:pre_apply_estate oracle:pre_apply_oracle \
-  || fail "the declared pre-apply failed"
+  || { tail -20 "$WORK/pre-apply.a.log" "$WORK/pre-apply.b.log" 2>/dev/null; fail "the declared pre-apply failed"; }
 PRE_NOTE="$(gauntlet_pre_apply_note)" || fail "the pre-apply ran but produced no note to put in the verdict"
-[ "$(stock_a state list | wc -l | tr -d ' ')" = "$PRE_N" ] || fail "the pre-apply on A left $(stock_a state list | wc -l | tr -d ' ') instances in state, want $PRE_N"
+# state list is captured, then read: piped straight into an early-exiting
+# grep -q under pipefail it dies of SIGPIPE whenever grep matches before
+# terraform has written its last line, which a loaded host makes likely.
+PRE_STATE="$(stock_a state list 2>"$WORK/state-list.err")" || { cat "$WORK/state-list.err"; fail "stock state list failed on A after the pre-apply"; }
+[ "$(grep -c . <<< "$PRE_STATE")" = "$PRE_N" ] || { printf '%s\n' "$PRE_STATE"; fail "the pre-apply on A left $(grep -c . <<< "$PRE_STATE") instances in state, want $PRE_N"; }
 gauntlet_wait_until 120 "cluster A to serve verticalpodautoscalers at autoscaling.k8s.io/v1" -- vpa_served "$KCA" || fail "cluster A never served the VPA kind after the pre-apply"
 gauntlet_wait_until 120 "cluster B to serve verticalpodautoscalers at autoscaling.k8s.io/v1" -- vpa_served "$KCB" || fail "cluster B never served the VPA kind after the pre-apply"
 
 COLD_OUT="$(stock_a apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$COLD_OUT" | tail -20; fail "stock's main apply failed on A"; }
 grep -qF "Apply complete! Resources: $MAIN_N added, 0 changed, 0 destroyed" <<< "$COLD_OUT" || { printf '%s\n' "$COLD_OUT" | tail -5; fail "stock's main apply on A did not add exactly $MAIN_N objects"; }
 O_COLD="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$O_COLD" | tail -20; fail "stock's main apply failed on B"; }
-grep -qF "Apply complete! Resources: $MAIN_N added" <<< "$O_COLD" || fail "stock's main apply on B did not add exactly $MAIN_N objects"
+grep -qF "Apply complete! Resources: $MAIN_N added, 0 changed, 0 destroyed" <<< "$O_COLD" || { printf '%s\n' "$O_COLD" | tail -5; fail "stock's main apply on B did not add exactly $MAIN_N objects"; }
 [ -f "$STOCK/terraform.tfstate" ] || fail "stock left no terraform.tfstate on A"
-STOCK_N="$(stock_a state list | wc -l | tr -d ' ')"
-[ "$STOCK_N" = "$TOTAL_N" ] || fail "stock's state holds $STOCK_N instances, want $TOTAL_N"
+STOCK_STATE="$(stock_a state list 2>"$WORK/state-list.err")" || { cat "$WORK/state-list.err"; fail "stock state list failed on A after the main apply"; }
+STOCK_N="$(grep -c . <<< "$STOCK_STATE")"
+[ "$STOCK_N" = "$TOTAL_N" ] || { printf '%s\n' "$STOCK_STATE"; fail "stock's state holds $STOCK_N instances, want $TOTAL_N"; }
 for key in "${VPA_KEYS[@]}"; do
-  stock_a state list | grep -qxF "$(vpa_addr "$key")" || fail "stock's state has no $(vpa_addr "$key")"
+  grep -qxF "$(vpa_addr "$key")" <<< "$STOCK_STATE" || { printf '%s\n' "$STOCK_STATE"; fail "stock's state has no $(vpa_addr "$key")"; }
 done
 UNMARKED="$(count_a)"
 [ "$UNMARKED" = "0" ] || fail "$UNMARKED object(s) already carry tofu-estate=$ESTATE after a plain stock apply"
@@ -440,7 +482,7 @@ write_stock_side "$SIDE_B" "$KCB" || fail "could not write the stock-side root f
 for side in "$SIDE_A" "$SIDE_B"; do
   ( cd "$side" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init of the stock-side root $side failed"
   SIDE_OUT="$(cd "$side" && terraform apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$SIDE_OUT" | tail -20; fail "stock's apply of the gp2 flip failed ($side)"; }
-  grep -qF "Apply complete! Resources: 1 added, 0 changed, 0 destroyed" <<< "$SIDE_OUT" || fail "stock's apply of the gp2 flip did not add exactly one object ($side)"
+  grep -qF "Apply complete! Resources: 1 added, 0 changed, 0 destroyed" <<< "$SIDE_OUT" || { printf '%s\n' "$SIDE_OUT" | tail -5; fail "stock's apply of the gp2 flip did not add exactly one object ($side)"; }
 done
 GP2_DEFAULT="$(kca get storageclass gp2 -o jsonpath='{.metadata.annotations.storageclass\.kubernetes\.io/is-default-class}' 2>/dev/null)"
 [ "$GP2_DEFAULT" = "false" ] || fail "the stock-side gp2 StorageClass reads is-default-class=${GP2_DEFAULT:-nothing} on A, want false"
@@ -454,7 +496,7 @@ log "=== 2. migrate: what choudoufu says about the unpruned storage.tf, then liv
 # root with storage.tf intact - the kubectl_manifest block and its provider
 # kept - is refused, once, at that block.
 write_root "$REFUSAL" refusal || fail "could not write the unpruned root for the refusal measurement"
-( cd "$REFUSAL" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || fail "choudoufu init of the unpruned root failed"
+R_INIT="$(cd "$REFUSAL" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" "$TOFU" init -input=false -no-color 2>&1)" || { printf '%s\n' "$R_INIT" | tail -20; fail "choudoufu init of the unpruned root failed"; }
 R_OUT="$(cd "$REFUSAL" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" "$TOFU" plan -input=false -no-color 2>&1)"; R_RC=$?
 R_ERRORS="$(grep -cE '^[[:space:]]*(│[[:space:]]*)?Error: ' <<< "$R_OUT" || true)"
 R_FIRST="$(gauntlet_first_error_line <<< "$R_OUT")"
@@ -466,7 +508,7 @@ fi
 log "  unpruned storage.tf: exit $R_RC, one refusal - $R_FIRST, at storage.tf line 56"
 
 write_root "$ADOPTED" live || fail "could not write the adopted root"
-( tofu_a init -input=false -no-color >/dev/null 2>&1 ) || fail "adopted init failed"
+A_INIT="$(tofu_a init -input=false -no-color 2>&1)" || { printf '%s\n' "$A_INIT" | tail -20; fail "adopted init failed"; }
 IMPORT_OUT="$(tofu_a live-import -state="$STOCK/terraform.tfstate" -estate="$ESTATE" -no-color 2>&1)" || { printf '%s\n' "$IMPORT_OUT" | tail -20; fail "live-import (dry run) failed"; }
 ELIGIBLE_LINE="$(grep -E 'resource instance\(s\) are eligible for stamping' <<< "$IMPORT_OUT" | head -1)"
 log "  dry run: ${ELIGIBLE_LINE:-no eligibility line}"
@@ -480,13 +522,16 @@ done
 if grep -qF "$TOTAL_N resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 0 skipped." <<< "$APPROVE_OUT"; then
   LABELLED="$(count_a)"
   if [ "$LABELLED" != "$TOTAL_N" ]; then
+    printf '%s\n' "$APPROVE_OUT" | tail -40
     gauntlet_stage migrate fail "live-import reported $TOTAL_N stamped but $LABELLED object(s) carry tofu-estate=$ESTATE on the cluster"
   elif [ -n "$MISSING_KEYS" ]; then
+    printf '%s\n' "$APPROVE_OUT" | tail -40
     gauntlet_stage migrate fail "live-import stamped $TOTAL_N, but the report does not name every for_each instance of kubernetes_manifest.vpa by its key; missing:$MISSING_KEYS"
   else
     gauntlet_stage migrate pass "$TOTAL_N of $TOTAL_N stamped, 0 skipped, from the stock state file; every object carries tofu-estate=$ESTATE, counted back with kubectl across the estate's seven kinds; the five for_each instances of kubernetes_manifest.vpa are each named in the stamped report by their static-map key (\"<namespace>/<kind>/<name>\"). Measured first, on the same cluster: the root with storage.tf unpruned plans to exactly one refusal, \"$R_FIRST\" at storage.tf line 56 (the kubectl_manifest gp2 flip), which is why delta 4 moves that one block to the stock side. The eligibility line was: ${ELIGIBLE_LINE:-none}"
   fi
 else
+  printf '%s\n' "$APPROVE_OUT" | tail -40
   gauntlet_stage migrate fail "live-import -approve did not stamp all $TOTAL_N cleanly: ${SUMMARY_LINE:-no summary line}"
 fi
 
@@ -544,17 +589,18 @@ log "=== 5. drift_reconverge: one for_each VPA deleted out of band on A and B; s
 # kubectl a field manager and the reconverging apply fails with a
 # field-manager conflict on BOTH sides, which measures SSA ownership rather
 # than drift. A delete involves no field manager.
-DRIFT_KEY="monitoring/Deployment/thanos-compactor"
 DRIFT_ADDR="$(vpa_addr "$DRIFT_KEY")"
-kca delete verticalpodautoscaler thanos-compactor -n monitoring >/dev/null || fail "could not delete the thanos-compactor VPA on A"
-kcb delete verticalpodautoscaler thanos-compactor -n monitoring >/dev/null || fail "could not delete the thanos-compactor VPA on B"
+IFS=/ read -r DRIFT_NS _ DRIFT_NAME <<< "$DRIFT_KEY"
+IFS=/ read -r BREAK_NS _ BREAK_NAME <<< "$BREAK_KEY"
+kca delete verticalpodautoscaler "$DRIFT_NAME" -n "$DRIFT_NS" >/dev/null || fail "could not delete the $DRIFT_NAME VPA on A"
+kcb delete verticalpodautoscaler "$DRIFT_NAME" -n "$DRIFT_NS" >/dev/null || fail "could not delete the $DRIFT_NAME VPA on B"
 if [ "${BREAK:-}" = "1" ]; then
-  kca delete verticalpodautoscaler concourse-web -n concourse >/dev/null || fail "BREAK: could not delete a second VPA on A"
+  kca delete verticalpodautoscaler "$BREAK_NAME" -n "$BREAK_NS" >/dev/null || fail "BREAK: could not delete a second VPA ($BREAK_KEY) on A"
 fi
 ORACLE_PLAN="$(stock_b plan -detailed-exitcode -input=false -no-color 2>&1)"; ORACLE_RC=$?
 [ "$ORACLE_RC" -eq 2 ] || { printf '%s\n' "$ORACLE_PLAN" | tail -10; fail "stock's plan on B after the delete exited $ORACLE_RC, want 2"; }
 grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$ORACLE_PLAN" || { printf '%s\n' "$ORACLE_PLAN" | tail -10; fail "stock's plan on B does not propose exactly one create"; }
-grep -qF "$DRIFT_ADDR" <<< "$ORACLE_PLAN" || fail "stock's plan on B does not name $DRIFT_ADDR"
+grep -qF "$DRIFT_ADDR" <<< "$ORACLE_PLAN" || { printf '%s\n' "$ORACLE_PLAN" | tail -20; fail "stock's plan on B does not name $DRIFT_ADDR"; }
 ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock could not reconverge B"
 DRIFT_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$DRIFT_PLAN" | tail -20; fail "the plan after the delete failed"; }
 if [ "${BREAK:-}" = "1" ]; then
@@ -567,9 +613,9 @@ else
   grep -qF "# $DRIFT_ADDR will be created" <<< "$DRIFT_PLAN" || { printf '%s\n' "$DRIFT_PLAN" | grep -E ' will be '; fail "the one create is not $DRIFT_ADDR"; }
   RECONV="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$RECONV" | tail -20; fail "the reconverging apply failed"; }
   grep -qF "Apply complete! Resources: 1 added, 0 changed, 0 destroyed" <<< "$RECONV" || fail "the reconverging apply did not create exactly one object"
-  [ "$(kca get verticalpodautoscaler thanos-compactor -n monitoring -o jsonpath='{.spec.targetRef.name}' 2>/dev/null)" = "thanos-compactor" ] || fail "the thanos-compactor VPA is not back with its targetRef after reconverging"
+  [ "$(kca get verticalpodautoscaler "$DRIFT_NAME" -n "$DRIFT_NS" -o jsonpath='{.spec.targetRef.name}' 2>/dev/null)" = "$DRIFT_NAME" ] || fail "the $DRIFT_NAME VPA is not back with its targetRef after reconverging"
   [ "$(count_a)" = "$TOTAL_N" ] || fail "$(count_a) labelled objects after reconverging, want $TOTAL_N - the recreated VPA did not get its marker"
-  gauntlet_stage drift_reconverge pass "one for_each instance deleted out of band with kubectl (the thanos-compactor VPA in monitoring); choudoufu proposed putting back exactly $DRIFT_ADDR (1 add, 0 change, 0 destroy) - the instance found missing by its static-map key, its four siblings untouched - matching stock's own plan on the oracle cluster for the same delete; apply created 1, the targetRef reads back as configured, and the recreated object carries the estate label again ($TOTAL_N labelled). A delete rather than a patch because kubernetes_manifest applies server-side and a kubectl patch would measure field-manager ownership, not drift. BREAK=1 deletes a second VPA and the single-object assertion correctly fails"
+  gauntlet_stage drift_reconverge pass "one for_each instance deleted out of band with kubectl (the $DRIFT_NAME VPA in $DRIFT_NS); choudoufu proposed putting back exactly $DRIFT_ADDR (1 add, 0 change, 0 destroy) - the instance found missing by its static-map key, its four siblings untouched - matching stock's own plan on the oracle cluster for the same delete; apply created 1, the targetRef reads back as configured, and the recreated object carries the estate label again ($TOTAL_N labelled). A delete rather than a patch because kubernetes_manifest applies server-side and a kubectl patch would measure field-manager ownership, not drift. BREAK=1 deletes a second VPA and the single-object assertion correctly fails"
 fi
 
 # ── 6. plan_approval ──────────────────────────────────────────────────────
@@ -745,8 +791,10 @@ EOF
 }
 vpa_exists() { kca get verticalpodautoscaler "$1" -n monitoring >/dev/null 2>&1; }
 write_vpa_shards "$ADOPTED" 2; write_vpa_shards "$ORACLE" 2
-( stock_b apply -auto-approve -input=false -no-color 2>&1 | grep -qF "2 added, 0 changed, 0 destroyed" ) || fail "stock could not add the two VPA shards on B"
-( tofu_a apply -auto-approve -input=false -no-color 2>&1 | grep -qF "2 added, 0 changed, 0 destroyed" ) || fail "choudoufu could not add the two VPA shards on A"
+APPLY_OUT="$(stock_b apply -auto-approve -input=false -no-color 2>&1)"
+grep -qF "2 added, 0 changed, 0 destroyed" <<< "$APPLY_OUT" || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "stock could not add the two VPA shards on B"; }
+APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)"
+grep -qF "2 added, 0 changed, 0 destroyed" <<< "$APPLY_OUT" || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "choudoufu could not add the two VPA shards on A"; }
 C_RE="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$C_RE" | tail -20; fail "the replan after adding the shards failed"; }
 grep -q "No changes." <<< "$C_RE" || { printf '%s\n' "$C_RE" | grep -E '^Plan:| will be '; fail "replanning the two counted VPAs choudoufu had just applied is not empty: $(plan_line "$C_RE")"; }
 write_vpa_shards "$ADOPTED" 1; write_vpa_shards "$ORACLE" 1
@@ -759,7 +807,8 @@ grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$C_PLAN" || { printf 
 C_LINE="$(grep -E '^[[:space:]]*# .* will be destroyed' <<< "$C_PLAN" | head -1)"
 C_ADDR="$(sed -E 's/^[[:space:]#]*//; s/ will be destroyed.*$//' <<< "$C_LINE")"
 grep -qE '^kubernetes_manifest\.orphan_[a-z]+_monitoring_vpa-shard-1$' <<< "$C_ADDR" || { printf '%s\n' "$C_PLAN" | grep -E 'destroyed|^Plan:'; fail "the scale-down destroys ${C_ADDR:-nothing named}, not vpa-shard-1 at its orphan address"; }
-( tofu_a apply -auto-approve -input=false -no-color 2>&1 | grep -qF "0 added, 0 changed, 1 destroyed" ) || fail "the scale-down apply did not destroy exactly one object"
+APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)"
+grep -qF "0 added, 0 changed, 1 destroyed" <<< "$APPLY_OUT" || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the scale-down apply did not destroy exactly one object"; }
 if [ "${BREAK_COUNT:-}" = "1" ]; then
   vpa_exists vpa-shard-0 || fail "BREAK_COUNT=1: vpa-shard-0 was destroyed - the 'wrong instance' assertion would hold"
   log "  BREAK_COUNT=1: caught - vpa-shard-0 still exists, so asserting it was the one destroyed correctly fails"
@@ -774,7 +823,8 @@ else
   U_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$U_PLAN" | tail -20; fail "the scale-up plan failed"; }
   grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$U_PLAN" || { printf '%s\n' "$U_PLAN" | tail -20; fail "the scale-up plan is not exactly one add"; }
   grep -qF '# kubernetes_manifest.vpa_shard[1] will be created' <<< "$U_PLAN" || fail "the scale-up does not create vpa_shard[1]"
-  ( tofu_a apply -auto-approve -input=false -no-color 2>&1 | grep -qF "1 added, 0 changed, 0 destroyed" ) || fail "the scale-up apply did not create exactly one object"
+  APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)"
+  grep -qF "1 added, 0 changed, 0 destroyed" <<< "$APPLY_OUT" || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the scale-up apply did not create exactly one object"; }
   { vpa_exists vpa-shard-0 && vpa_exists vpa-shard-1; } || fail "both VPA shards do not exist after the scale-up"
   grep -q "No changes." <<< "$(tofu_a plan -input=false -no-color 2>&1)" || fail "the replan after the scale-up is not empty"
   gauntlet_stage day2_count pass "a two-instance counted VerticalPodAutoscaler (kubernetes_manifest.vpa_shard, name vpa-shard-\${count.index} inside the manifest object) added beside the published root, whose own for_each is a static map: the replan right after creating both is empty, scaling 2 to 1 destroyed exactly vpa-shard-1, planned at the sweep's orphan address $C_ADDR since the label carries no index (vpa-shard-0 untouched, both read with kubectl); back to 2 created exactly kubernetes_manifest.vpa_shard[1] under the same name; the next plan is empty; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
@@ -827,15 +877,18 @@ replace_immutables "$ADOPTED" || fail "could not make the immutable-field edits 
 replace_immutables "$ORACLE"  || fail "could not make the immutable-field edits in the oracle root"
 I_ORACLE="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$I_ORACLE" | tail -10; fail "stock's immutable-field plan failed on B"; }
 is_immutable_replace "$I_ORACLE" "stock on B (the oracle)"
-( stock_b apply -auto-approve -input=false -no-color 2>&1 | grep -qF "2 added, 0 changed, 2 destroyed" ) || fail "stock's immutable-field replace did not apply as two adds and two destroys on B"
+APPLY_OUT="$(stock_b apply -auto-approve -input=false -no-color 2>&1)"
+grep -qF "2 added, 0 changed, 2 destroyed" <<< "$APPLY_OUT" || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "stock's immutable-field replace did not apply as two adds and two destroys on B"; }
 I_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$I_PLAN" | tail -20; fail "the immutable-field plan failed"; }
 is_immutable_replace "$I_PLAN" "choudoufu"
 I_APPLY="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$I_APPLY" | tail -20; fail "the immutable-field replace apply failed"; }
 grep -qF "Apply complete! Resources: 2 added, 0 changed, 2 destroyed" <<< "$I_APPLY" || { printf '%s\n' "$I_APPLY" | tail -10; fail "the immutable-field replace did not apply as two adds and two destroys"; }
 [ "$(kca get storageclass io1-expand -o jsonpath='{.parameters.iopsPerGB}')" = "50" ] || fail "io1-expand does not read iopsPerGB=50 after the replace"
 [ "$(kca get priorityclass cluster-critical -o jsonpath='{.value}')" = "999998000" ] || fail "cluster-critical does not read value=999998000 after the replace"
-kca get storageclass -l "tofu-estate=$ESTATE" -o name 2>/dev/null | grep -qx "storageclass.storage.k8s.io/io1-expand" || fail "the replaced io1-expand does not carry tofu-estate=$ESTATE"
-kca get priorityclass -l "tofu-estate=$ESTATE" -o name 2>/dev/null | grep -qx "priorityclass.scheduling.k8s.io/cluster-critical" || fail "the replaced cluster-critical does not carry tofu-estate=$ESTATE"
+NAMES="$(kca get storageclass -l "tofu-estate=$ESTATE" -o name 2>/dev/null)"
+grep -qx "storageclass.storage.k8s.io/io1-expand" <<< "$NAMES" || { printf '%s\n' "$NAMES"; fail "the replaced io1-expand does not carry tofu-estate=$ESTATE"; }
+NAMES="$(kca get priorityclass -l "tofu-estate=$ESTATE" -o name 2>/dev/null)"
+grep -qx "priorityclass.scheduling.k8s.io/cluster-critical" <<< "$NAMES" || { printf '%s\n' "$NAMES"; fail "the replaced cluster-critical does not carry tofu-estate=$ESTATE"; }
 I_REPLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$I_REPLAN" | tail -20; fail "the replan after the immutable-field replace failed"; }
 grep -q "No changes." <<< "$I_REPLAN" || { printf '%s\n' "$I_REPLAN" | grep -E '^Plan:| will be | must be '; fail "the replan after the immutable-field replace is not empty: $(plan_line "$I_REPLAN")"; }
 [ "$(count_a)" = "$REMAIN_N" ] || fail "$(count_a) labelled objects after the immutable-field replace, want $REMAIN_N"
@@ -909,8 +962,8 @@ log "  interrupted apply exited $X_RC (a genuine crash is not expected to exit 0
 [ "$X_RC" -ne 0 ] || { printf '%s\n' "$X_OUT" | tail -20; fail "the interrupted apply exited 0 - the engine's self-signal never landed"; }
 exists_a secret crash-first || { printf '%s\n' "$X_OUT" | tail -20; fail "crash-first does not exist after the interrupted apply - the kill landed before the create committed"; }
 exists_a configmap crash-second && { printf '%s\n' "$X_OUT" | tail -20; fail "crash-second exists after the interrupted apply - the kill landed after both creates"; }
-kca get secret -n "$NS" -l "tofu-estate=$ESTATE" -o name 2>/dev/null | grep -qx "secret/crash-first" \
-  || fail "crash-first was created by the interrupted apply but does not come back under tofu-estate=$ESTATE"
+NAMES="$(kca get secret -n "$NS" -l "tofu-estate=$ESTATE" -o name 2>/dev/null)"
+grep -qx "secret/crash-first" <<< "$NAMES" || { printf '%s\n' "$NAMES"; fail "crash-first was created by the interrupted apply but does not come back under tofu-estate=$ESTATE"; }
 X_RECORDS_AFTER="$(gauntlet_record_envelope_count "$ADOPTED/.tofu-records")"
 X_REC="$(gauntlet_record_file "$ADOPTED/.tofu-records" "kubernetes_secret_v1.crash_first")"
 [ -n "$X_REC" ] || fail "the interrupted apply created crash-first but wrote no record for kubernetes_secret_v1.crash_first (records $X_RECORDS_BEFORE -> $X_RECORDS_AFTER)"
@@ -929,7 +982,9 @@ recovered() {
   [ "$R_RC" -eq 0 ] || return 1
   grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$R_PLAN" || return 1
   grep -qE '^[[:space:]]*# kubernetes_config_map(_v1)?\.crash_second will be created' <<< "$R_PLAN" || return 1
-  grep -E '^[[:space:]]*# .* will be' <<< "$R_PLAN" | grep -q 'crash_first\|crash-first' && return 1
+  local will
+  will="$(grep -E '^[[:space:]]*# .* will be' <<< "$R_PLAN")"
+  grep -q 'crash_first\|crash-first' <<< "$will" && return 1
   return 0
 }
 
