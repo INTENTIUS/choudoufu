@@ -213,6 +213,27 @@ sed_i() { local f="$1"; shift; local t; t="$(mktemp)"; sed "$@" "$f" > "$t" && m
 # its first run against a plan that was, in fact, exactly the zero churn the
 # oracle exists to establish - a stale assertion, not a defect (HANDOFF's
 # "when an assertion breaks right after a fix lands").
+# nls_api_call_total <debug log> - the number of provider-mediated AWS
+# API requests in one TF_LOG=DEBUG capture, by the same rule
+# live/live-cert/terralith-scale.sh's analyze_api_calls uses and every call
+# count in live/costs/what-you-pay.md was taken with: one per hclog entry
+# carrying "HTTP Request Sent". An entry can span lines, so lines are folded
+# into the entry their timestamp opened before matching. Prints 0 for a log
+# with none, and nothing (returning 1) when the file is missing, so a caller
+# can tell "measured zero" from "not measured" (#1098). Kept in this script
+# rather than live/e2e/lib: one estate uses it, and a lib change marks every
+# row on the board as measured against an older library (#1292).
+nls_api_call_total() {
+  local f="$1"
+  [ -f "$f" ] || return 1
+  awk '
+    function flush() { if (entry ~ /HTTP Request Sent/) total++; entry = "" }
+    /^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T/ { flush(); entry = $0; next }
+    { entry = entry " " $0 }
+    END { flush(); printf "%d\n", total + 0 }
+  ' "$f"
+}
+
 plan_is_noop() {
   grep -qF 'No changes. Your infrastructure matches the configuration.' <<< "$1" && return 0
   grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$1" && return 0
@@ -1011,7 +1032,7 @@ case "${TF_DATA_DIR:-}" in /*) NLS_CACHE="$TF_DATA_DIR/choudoufu-cache.tfstate" 
 NLS_CACHE_BEFORE=no; [ -s "$NLS_CACHE" ] && NLS_CACHE_BEFORE=yes
 NLS_BASE_LOG="$WORK/no_local_state.base.debug.log"
 NLS_BASE_PLAN="$(cd "$GREENDIR" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" TF_LOG=DEBUG TF_LOG_PATH="$NLS_BASE_LOG" "$TOFU" plan -refresh=false -input=false -no-color 2>&1)"; NLS_BASE_RC=$?
-NLS_BASE_CALLS="$(gauntlet_api_call_total "$NLS_BASE_LOG" || true)"
+NLS_BASE_CALLS="$(nls_api_call_total "$NLS_BASE_LOG" || true)"
 NLS_BASE_EMPTY=no; [ "$NLS_BASE_RC" -eq 0 ] && plan_is_noop "$NLS_BASE_PLAN" && NLS_BASE_EMPTY=yes
 log "  cache-serving plan: exit $NLS_BASE_RC, empty=$NLS_BASE_EMPTY, ${NLS_BASE_CALLS:-?} API call(s); state cache present beforehand: $NLS_CACHE_BEFORE ($NLS_CACHE)"
 
@@ -1107,7 +1128,7 @@ if [ "${BREAK_NO_LOCAL_STATE:-}" = "1" ]; then
 fi
 NLS_LOG="$WORK/no_local_state.debug.log"
 NLS_PLAN="$(cd "$GREENDIR" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" TF_LOG=DEBUG TF_LOG_PATH="$NLS_LOG" "$TOFU" plan -refresh=false -input=false -no-color 2>&1)"; NLS_RC=$?
-NLS_CALLS="$(gauntlet_api_call_total "$NLS_LOG" || true)"
+NLS_CALLS="$(nls_api_call_total "$NLS_LOG" || true)"
 # nls_violation names the first thing that makes this NOT a plan that found
 # everything, or prints nothing. The BREAK leg needs the answer without
 # failing on it, so it is a function rather than a chain of fail calls.
