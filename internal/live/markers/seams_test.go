@@ -130,7 +130,6 @@ var surfaceSeamExemptions = map[string]surfaceSeamExemption{
 	"tools/survey-gen/classify.go":                                      {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
 	"tools/survey-gen/governance_render.go":                             {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
 	"tools/survey-gen/parent_render.go":                                 {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
-	"tools/survey-gen/render.go":                                        {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
 	"tools/survey-gen/untaggable_render.go":                             {Handles: []Surface{SurfaceTags}, Why: "a generator over the AWS provider's survey; it never reads a live marker"},
 }
 

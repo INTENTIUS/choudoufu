@@ -62,7 +62,7 @@ rule above.
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 3 | 3 |
 | **Total** | 1119 | 492 | 4 | 19 | 62 | 3 | 1699 |
 
-`live/readiness.json` last committed at commit `00e9af8029` on 2026-10-03T16:26:26-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.
+`live/readiness.json` last committed at commit `c3f1ee1756` on 2026-10-03T19:41:48-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.
 <!-- readiness-gen:end readiness-tiers -->
 
 ## The admitted set
