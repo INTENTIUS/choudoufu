@@ -71,7 +71,8 @@
       "pin": "v9.0.0",
       "lane": "terraform-popular",
       "set": "core",
-      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
+      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy",
+      "substrate": "floci-eks"
     },
     {
       "name": "corpus-evoteum-modules",

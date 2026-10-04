@@ -47,10 +47,37 @@ const LaneKubernetes = "kubernetes"
 // stage may read differently on a substrate, or not apply there at all:
 // Stage.Substrates (stages.go) says which, per stage, so a stage whose
 // oracle is AWS-shaped is marked rather than skipped silently.
+//
+// SubstrateFlociEKS (#1113) is an AWS-lane estate whose configuration also
+// manages the Kubernetes cluster its own aws_eks_cluster creates: floci's
+// EKS real mode starts a k3s container per cluster, and the estate's own
+// provider "kubernetes" block reaches it exactly as written, with no delta
+// repointing it. The AWS leg reads as on SubstrateFloci and the cluster leg
+// as on SubstrateKind; Stage.Substrates carries how each stage reads with
+// both, and what k3s cannot stand in for. It is never inferred from a lane:
+// an estate declares it in the manifest (Estate.SubstrateOverride).
 const (
-	SubstrateFloci = "floci"
-	SubstrateKind  = "kind"
+	SubstrateFloci    = "floci"
+	SubstrateKind     = "kind"
+	SubstrateFlociEKS = "floci-eks"
 )
+
+// RunsOnFloci reports whether an estate on substrate launches the floci
+// emulator, so its row is stamped with and judged against the floci pin and
+// the hashicorp/aws provider version, and counts toward the AWS bars.
+// SubstrateFlociEKS does: its cluster leg is a container floci itself
+// starts. Only SubstrateKind does not.
+func RunsOnFloci(substrate string) bool {
+	return substrate != SubstrateKind
+}
+
+// UsesKubernetesProvider reports whether an estate on substrate configures
+// hashicorp/kubernetes, so its row records and is judged against that
+// provider's version: the kind lane, and a SubstrateFlociEKS estate's
+// cluster leg. A SubstrateFlociEKS row is judged against BOTH provider pins.
+func UsesKubernetesProvider(substrate string) bool {
+	return substrate == SubstrateKind || substrate == SubstrateFlociEKS
+}
 
 // CoreLanes are the lanes a core estate may come from. The selection rule
 // (live/GAUNTLET.md, "The core set") is: the most-downloaded
@@ -125,6 +152,15 @@ type Estate struct {
 	// the second is a bug that must fail the run (#1231). A declaration by
 	// the estate answers it without guessing either way.
 	ScaleLadder bool `json:"scale_ladder,omitempty"`
+	// SubstrateOverride declares a substrate the lane rule would not give
+	// this estate. The one value it may hold is SubstrateFlociEKS (#1113):
+	// an AWS-lane estate whose own configuration also manages the cluster
+	// its aws_eks_cluster creates. Empty for every other estate, which then
+	// runs on its lane's substrate exactly as before this field existed.
+	// Declared rather than inferred from the configuration for the reason
+	// PreApply is: the artifact records which substrate a row ran on, and
+	// that must be a fact the estate states, not a guess the runner makes.
+	SubstrateOverride string `json:"substrate,omitempty"`
 }
 
 // EstateHasScaleLadder reports whether estate's records belong on the scale
@@ -148,9 +184,14 @@ func EstateHasScaleLadder(m *Manifest, estate string) (bool, error) {
 	return e.ScaleLadder, nil
 }
 
-// Substrate is the platform this estate's script runs against: SubstrateKind
-// for the kubernetes lane, SubstrateFloci for every other.
+// Substrate is the platform this estate's script runs against: the
+// estate's own declaration when it makes one (SubstrateFlociEKS, #1113),
+// otherwise SubstrateKind for the kubernetes lane and SubstrateFloci for
+// every other.
 func (e Estate) Substrate() string {
+	if e.SubstrateOverride != "" {
+		return e.SubstrateOverride
+	}
 	if e.Lane == LaneKubernetes {
 		return SubstrateKind
 	}
@@ -252,8 +293,30 @@ func (m *Manifest) Validate() error {
 		if err := validatePreApply(e); err != nil {
 			return err
 		}
+		if err := validateSubstrateOverride(e); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+// validateSubstrateOverride checks the substrate declaration (#1113). The
+// only value an estate may declare is SubstrateFlociEKS, and only from an
+// AWS lane: a kubernetes-lane estate has no aws_eks_cluster to start a k3s
+// container for, and declaring the lane's own substrate would be a second
+// way of saying nothing.
+func validateSubstrateOverride(e Estate) error {
+	switch e.SubstrateOverride {
+	case "":
+		return nil
+	case SubstrateFlociEKS:
+		if e.Lane == LaneKubernetes {
+			return fmt.Errorf("%s: estate %q: substrate %q is for an AWS-lane estate whose configuration manages the cluster its own aws_eks_cluster creates; a %s-lane estate runs on %q", ManifestPath, e.Name, SubstrateFlociEKS, LaneKubernetes, SubstrateKind)
+		}
+		return nil
+	default:
+		return fmt.Errorf("%s: estate %q: substrate %q is not one an estate may declare; the only one is %q (the lane decides %q and %q)", ManifestPath, e.Name, e.SubstrateOverride, SubstrateFlociEKS, SubstrateFloci, SubstrateKind)
+	}
 }
 
 // validatePreApply checks the cold-deploy pre-apply declaration (#1173).

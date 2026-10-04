@@ -98,7 +98,7 @@ func Stages() []Stage { return stagesSource() }
 var stagesSource = registeredStages
 
 func registeredStages() []Stage {
-	return []Stage{
+	stages := []Stage{
 		{
 			ID: "cold_deploy", Order: 1, Title: "Cold deploy", Status: StatusActive, Headline: true,
 			Proves:     "The estate is real and buildable: the stock binary applies the unmodified configuration against the emulator, with no live block and no choudoufu involved. This is also the source of genuinely unmarked infrastructure for the next stage. A configuration that stock itself cannot plan in one pass may declare a pre-apply (`pre_apply` in the manifest, #1173): the named addresses are applied with `-target` first, identically on every side, and the verdict line says how many and where they are declared while the run reports the list itself for the runner to check address by address.",
@@ -209,6 +209,43 @@ func registeredStages() []Stage {
 			Break:  "Delete one taggable object's marker before the plan; the object is then not found and the plan proposes creating it, which the stage must fail.",
 		},
 	}
+	for i := range stages {
+		note, ok := flociEKSNotes[stages[i].ID]
+		if !ok {
+			continue
+		}
+		if stages[i].Substrates == nil {
+			stages[i].Substrates = map[string]string{}
+		}
+		stages[i].Substrates[SubstrateFlociEKS] = note
+	}
+	return stages
+}
+
+// flociEKSNotes is how each stage reads on SubstrateFlociEKS (#1113): an
+// AWS-lane estate whose configuration also manages the cluster its own
+// aws_eks_cluster creates, run against floci's EKS real mode. Kept beside
+// the registry rather than inside each literal so the fourteen notes read as
+// one account of one substrate; TestEveryStageHasAFlociEKSNote holds that no
+// stage is left without one. What k3s cannot stand in for is said once, on
+// cold_deploy, and is the reason the estate's real-AWS live-cert cycle
+// exists.
+var flociEKSNotes = map[string]string{
+	"cold_deploy":      "Stock applies the unmodified configuration against the emulator, and floci's EKS real mode starts a k3s container for each aws_eks_cluster. The configuration's own provider \"kubernetes\" block reaches that cluster exactly as written, with no delta repointing it, so every later stage measures the block under test. The AWS resources, and the cluster's objects read with kubectl inside the k3s container, are the baseline. k3s stands in for the control plane and nothing behind it: IRSA, EKS Pod Identity, the VPC CNI, EBS CSI volume claims, access-entry authorization and managed add-ons are not emulated, and are measured only by the estate's real-AWS live-cert cycle.",
+	"migrate":          "One state file covers both legs: an AWS entry is bound as on floci, a Kubernetes entry as on kind, its tofu-estate label read with kubectl inside the k3s container. The provider block reads the cluster's endpoint and credential from the estate's own resources, so this stage also measures the provider-configuration fixpoint (#1113): a cluster leg reported unreachable while the cluster exists is a failure, never a skip.",
+	"test_plan":        "AWS identities compare as on floci, Kubernetes identities as NAMESPACE/NAME against kubectl in the k3s container. The kubernetes provider is configured from the cluster this run reads live, so an empty plan is also evidence that the provider block was answered as written.",
+	"test_apply":       "The count sums both legs: the AWS markers as on floci, plus `kubectl get <kind> -A -l tofu-estate=<estate>` inside the k3s container.",
+	"drift_reconverge": "The mutation is made on either leg out of band: through the emulator's API on the AWS side, or as a kubectl label or patch inside the k3s container, never through the tool.",
+	"day2_rename":      "Read on the leg the renamed block lives on, as that leg's own substrate reads it.",
+	"day2_remove":      "The removed block's object is confirmed gone on its own leg: through the emulator's API for AWS, with kubectl in the k3s container for Kubernetes. Objects EKS itself writes (CoreDNS, kube-proxy, add-on Deployments) carry no tofu-estate label and are never proposed; one the configuration declares, such as aws-auth, is the operator's, as it is in stock.",
+	"day2_count":       "Read on the leg the counted block lives on, as that leg's own substrate reads it.",
+	"day2_replace":     "Read on the leg the replaced block lives on, as that leg's own substrate reads it.",
+	"day2_crash":       "Read on the leg the interrupted object lives on, as that leg's own substrate reads it. An apply spanning both legs is interrupted at whichever create commits first.",
+	"day2_teardown":    "Both legs end empty: the AWS listing as on floci, and kubectl in the k3s container returning nothing for every kind the estate declared. The cluster leg is destroyed before the cluster it lives on, the order the configuration's own dependency graph gives, so no load balancer or network interface outlives the cluster.",
+	"plan_approval":    "As on floci; the saved plan carries both legs, and the apply of it configures the kubernetes provider from the same cluster the plan read.",
+	"greenfield":       "Both legs are compared against stock's cold deploy: AWS objects as on floci, cluster objects as on kind. A greenfield plan starts with no cluster, so the kubernetes provider's sweep reads that leg as empty by construction, stock's order, and the apply configures the provider once the cluster exists.",
+	"strict":           "As on floci; the toggles apply to both legs alike.",
+	"no_local_state":   "Both legs lose their local record store and state cache together. The AWS leg's objects are found by their markers as on floci; the cluster leg's by their tofu-estate label, through a kubernetes provider configured from the cluster this plan reads live, so the plan also shows the provider block needs nothing local.",
 }
 
 // ActiveStages is every stage whose Status is "active" - headline or not.
