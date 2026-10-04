@@ -383,6 +383,9 @@ type LivePolicyWithheld struct {
 	Marker      string
 	Verb        string
 	Withheld    string
+	// Quadrant is the policy attribute Verb came from. Empty reads as
+	// undeclared_tagged, the only quadrant this list held before #1885.
+	Quadrant string
 }
 
 // LiveUntagged is one resource instance a declared_tagged = "untag"
@@ -1638,8 +1641,12 @@ func (v *LivePlanHuman) Policy(rep LivePolicyReport) {
 		wrapped(livePolicyWithheldIntro, 0)
 		out("\n")
 		for _, w := range rep.Withheld {
-			colored("  [bold]%s %s[reset]%s [undeclared_tagged=%s]\n",
-				w.TypeName, liveIDOrNone(w.LiveID), displaySuffix(w.DisplayName, w.LiveID), w.Verb)
+			quadrant := w.Quadrant
+			if quadrant == "" {
+				quadrant = "undeclared_tagged"
+			}
+			colored("  [bold]%s %s[reset]%s [%s=%s]\n",
+				w.TypeName, liveIDOrNone(w.LiveID), displaySuffix(w.DisplayName, w.LiveID), quadrant, w.Verb)
 			if w.Withheld != "" {
 				wrapped(w.Withheld, 6)
 			}

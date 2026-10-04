@@ -22,7 +22,7 @@ import (
 
 // The arguments a field-granular read takes from its prior and nowhere else
 // (#1885: reference-k8s-shared-objects' and corpus-govuk-cluster-services'
-// test_plan, a stateless plan after a migration off stock state files).
+// test_plan, a plan with no state file after a migration off stock state files).
 //
 // hashicorp/kubernetes 3.2.1's reads of kubernetes_labels,
 // kubernetes_annotations, kubernetes_config_map_v1_data,
@@ -47,7 +47,7 @@ import (
 //     prior names, because 3.2.1's getManagedEnvs returns nil on the first
 //     managedFields entry it matches and so never reports a var as managed.
 //     [configuredEnvNamesSeed] seeds the configured names. Without it every
-//     stateless read of kubernetes_env came back empty and planned a create.
+//     read of kubernetes_env with no state file came back empty and planned a create.
 //     This reads back the configured vars whoever owns them - stock's read
 //     with a state file in hand does the same, and the plan-time boundary
 //     (discovery.CheckKubernetesFieldOwners) is what names another owner.

@@ -491,6 +491,9 @@ func (leg KubernetesSweep) sweepFieldGranular(ctx context.Context, req Request, 
 			DisplayName:    fmt.Sprintf("fields of %s %s owned by %s", o.Kind, kubesweep.NaturalKey(o.Namespace, o.Name), manager),
 			Resource:       cty.NilVal,
 			Swept:          true,
+			// #1885: the marker is the field manager, not a tag; see
+			// applyOrphanPolicy.
+			FieldManagerMarked: true,
 		})
 	}
 	return diags

@@ -451,6 +451,10 @@ EOF
     grep -qF "+/- create replacement and then destroy" <<< "$1" || fail "$2: the replace is not create-first"
     if grep -q "orphan_" <<< "$1"; then
       printf '%s\n' "$1" | grep -E '# ' | head -5
+      # Every line naming an orphan address, wherever in the plan it is -
+      # a planned change, a warning or a policy section - so the failure
+      # says which (#1885).
+      printf '%s\n' "$1" | grep -n "orphan_" | head -20
       fail "$2: the old object is planned as an orphan beside a create (#1541) rather than as the replace's deposed half"
     fi
   }
