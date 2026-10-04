@@ -373,7 +373,7 @@ type surveyFullArtifact struct {
 // loadSurveySignals reads live/survey-full.json's taggable and importable
 // signals for every surveyed type - the same artifact tools/survey-gen -all
 // writes, over the provider's entire resource-type roster rather than
-// live/SURVEY.md's curated set.
+// the curated set live/survey.json covers.
 func loadSurveySignals(path string) (taggable, importable map[string]bool, err error) {
 	data, err := os.ReadFile(path) //nolint:gosec // a fixed path inside the checkout
 	if err != nil {

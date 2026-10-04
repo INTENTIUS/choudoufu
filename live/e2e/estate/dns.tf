@@ -21,7 +21,7 @@ resource "aws_route53_zone" "main" {
 # Coverage: composite through a marker-discovered parent
 # (aws_route53_record — the import ID is ZONEID_NAME_TYPE; name and type are
 # client-named but the Z-ID is the zone's server-assigned identity, flag F5
-# in live/SURVEY.md, resolved by wiring the zone above). No tags
+# in the since-retired live/SURVEY.md, resolved by wiring the zone above). No tags
 # argument on this resource type — untaggable by type. No set_identifier:
 # the identity table's components deliberately build only the plain-record
 # grammar. #19's second slice.

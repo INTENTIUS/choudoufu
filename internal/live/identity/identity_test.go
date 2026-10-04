@@ -147,7 +147,7 @@ func TestResolveEstate(t *testing.T) {
 		// joins the three with commas.
 		`aws_lb_target_group_attachment.app`: `PARENT_DERIVED ${aws_lb_target_group.app.arn},10.42.1.55,80`,
 
-		// Account-derived (SURVEY.md flag F2): the name is right there in
+		// Account-derived (the retired live/SURVEY.md's flag F2): the name is right there in
 		// configuration, and the import identity wraps it in an account and a
 		// region this run was not given. Resolve passes no CloudContext, so
 		// it defers to marker discovery rather than erroring -

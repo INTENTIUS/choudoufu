@@ -1,4 +1,5 @@
-# Coverage: the account-derived identity path (live/SURVEY.md flag F2).
+# Coverage: the account-derived identity path (flag F2 in the since-retired
+# live/SURVEY.md).
 # The block names its topic the way a bucket or a log group does, and that
 # name is not what the provider imports by: an SNS topic is imported by its
 # ARN, which is the name wrapped in the account and region of the cloud the

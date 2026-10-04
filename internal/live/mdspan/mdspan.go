@@ -7,7 +7,8 @@
 // place.
 //
 // The convention it implements predates it: tools/survey-gen has been
-// rendering live/SURVEY.md, live/LIMITATIONS.md and live/COVERAGE.md from
+// rendering live/LIMITATIONS.md and live/COVERAGE.md (and live/SURVEY.md,
+// until #696 retired it) from
 // committed artifacts since issue #49, marking each generated region with a
 // pair of HTML comments and passing the rest of the file through
 // byte-for-byte. Generated and hand-written prose live in one document, and

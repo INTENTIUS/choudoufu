@@ -343,8 +343,8 @@ var EmulatorBlocked = []EmulatorBlockedType{
 	// which is admitted but still carries one.
 	// aws_db_instance moved to Admitted: true in the fourth registry-ratified
 	// batch (#40, #44, issue #65's ratification campaign): its identity
-	// (client-named by the "identifier" argument, live/SURVEY.md's own
-	// recorded wrinkle) is sound independent of any one emulator's
+	// (client-named by the "identifier" argument, the retired
+	// live/SURVEY.md's recorded wrinkle) is sound independent of any one emulator's
 	// completeness, the same stance aws_sqs_queue's admission took in the
 	// messaging batch. It stays in this roster rather than leaving it,
 	// because the emulator gap itself has not closed: confirmed by
@@ -365,14 +365,14 @@ var EmulatorBlocked = []EmulatorBlockedType{
 	// lifecycle fix landed in the image this checkout pins, confirmed live
 	// against live/e2e/estates/route53-cloudfront — the pinned floci image
 	// now creates and reads a distribution back cleanly, so the earlier
-	// blocked-emulator gap no longer holds. See live/SURVEY.md's own row
-	// for it. It is admitted (marker, server-assigned distribution ID)
+	// blocked-emulator gap no longer holds. The retired
+	// live/SURVEY.md's row for it said the same. It is admitted (marker, server-assigned distribution ID)
 	// with no standing residue, so it no longer belongs in this roster at
 	// all, the same departure aws_ecr_repository and aws_iam_user made
 	// above.
 	//
 	// aws_ssm_document takes over this roster's sole "kept out of a wiring
-	// slice entirely" example: it is surveyed (live/SURVEY.md) but not yet
+	// slice entirely" example: it is surveyed (live/survey.json) but not yet
 	// reached by any ratification batch, and unlike aws_lambda_permission
 	// or aws_eks_node_group's own blocked-emulator notes (both need a live
 	// parent resource floci cannot create), its own gap is total and

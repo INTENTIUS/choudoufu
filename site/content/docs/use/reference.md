@@ -21,7 +21,7 @@ These files in the repository are the authority, and this page summarises them.
 | [`live/LIMITATIONS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md) | Every refusal, with its lint rule and fixture |
 | [`live/RECEIPTS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/RECEIPTS.md) | Receipts, and the guards on them |
 | [`live/OUTPUTS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/OUTPUTS.md) | Sharing values between estates |
-| [`live/COVERAGE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/COVERAGE.md), [`live/SURVEY.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/SURVEY.md) | Which AWS types are covered, and how admission is decided |
+| [`live/COVERAGE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/COVERAGE.md), [`live/readiness.json`](https://github.com/INTENTIUS/choudoufu/blob/main/live/readiness.json) | Which AWS types are covered, and which readiness tier each is in |
 | [`live/FLOCI.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/FLOCI.md) | What the pinned emulator can and cannot show |
 | [`live/e2e/README.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/e2e/README.md) | The end-to-end harness: `bash live/e2e/run.sh --expect 5` |
 

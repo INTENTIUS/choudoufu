@@ -828,10 +828,12 @@ maintainer withdrew the exclusion: the ownership marker goes into a tag,
 never into the secret, so the credential rationale never applied to it. It
 is ordinary admission debt now, refused like every other untaggable type
 whose identity carries a server-minted component (#233).
-`live/SURVEY.md`, "The one the rule excludes", has the full account.
+The full account was in `live/SURVEY.md`'s "The one the rule excludes",
+retired under #696 (git history keeps it).
 
-**Forwarding address.** For types not yet covered: the provider survey
-(`live/SURVEY.md`) and the generated admission table, which grows as
+**Forwarding address.** For types not yet covered: the readiness tiers
+(`live/readiness.json`, which says per type what recovers its identity and
+what stands between it and admission) and the generated admission table, which grows as
 ratified identity rows are added. Note that provider resource identity
 schemas are already plumbed and load-bearing (issue #22): `admitted()`
 consults the provider's own schema, and the configuration's naming signal,
@@ -843,8 +845,8 @@ schema fallback runs only when the caller supplied provider schemas
 admission when every block of the type sets its identity argument
 explicitly. A `*_prefix` argument used in place of the name itself is the
 usual reason a type lands here. For the one
-type the rule excludes: the lifecycle layer, per its entry in
-`live/SURVEY.md`.
+type the rule excludes: the lifecycle layer, tier D in
+`live/readiness.json`.
 
 **Enforcement.** `RuleUnadmittedType`, `internal/live/lint/lint.go`
 (`checkManagedResources`). Fixture at `live/e2e/limits/unadmitted-type/`.
@@ -894,9 +896,9 @@ type in that shape.
 **Forwarding address.** None for the type as written. Where the same cloud
 object can be expressed by a taggable parent resource - a policy or
 attachment folded into the thing it attaches to - that parent is admitted
-in the ordinary way and carries the marker for both. `live/SURVEY.md`'s
-untaggable sections are where to check whether a given type has such a
-parent.
+in the ordinary way and carries the marker for both. The untaggable
+parent-read roster later in this document (the `untaggable-parent-read`
+span) is where to check whether a given type has such a parent.
 
 **Enforcement.** `RuleMarkerlessType`, `internal/live/lint/lint.go`
 (`checkManagedResources`), consulted ahead of `RuleUnadmittedType` and
