@@ -93,6 +93,9 @@ func (c *LiveMvCommand) Execute(args *arguments.LiveMv) int {
 		return 1
 	}
 	c.Meta.input = false
+	if c.SystemCfg.E2ETestingFeaturesEnabled {
+		installLiveMvInterrupt()
+	}
 
 	diags = diags.Append(c.providerDevOverrideRuntimeWarnings())
 	diags = diags.Append(c.checkAWSProviderVersionSkew())
