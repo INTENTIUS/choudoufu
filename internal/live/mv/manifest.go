@@ -51,6 +51,14 @@ import (
 // "Terraform" for a block that names its own field_manager, the annotation
 // went to the wrong Apply entry and that next apply conflicted (#1720).
 //
+// A run killed between those two requests leaves the markers written and
+// their ownership with the manager's Update entry. Its rerun finishes the
+// hand-off rather than reporting the write done: a rename's when the
+// annotation already names the new address (GitHub issue #1764), a move's
+// when the object already carries the destination estate and the new
+// address ([mover.unfinishedMove], #1858). Either is sent again through
+// the same dry run as a first write.
+//
 // Nothing is projected after a move: the next plan in the destination
 // configuration seeds the stamped manifest and mirrors the live label into
 // the prior, so its replan is empty.
@@ -139,17 +147,23 @@ func (m *mover) rewriteManifest(ctx context.Context) tfdiags.Diagnostics {
 		))
 	}
 
+	fieldManager, err := identity.ManifestFieldManager(ctx, m.req.Config, m.res.Anchor)
+
 	// The estate cases are the metadata block's, word for word
 	// ([mover.estateRefusal]): on a move the object must carry
 	// tofu-estate = -from-estate exactly, since an object in any other
-	// estate is not this caller's to relabel.
+	// estate is not this caller's to relabel. The one exception is a move
+	// an earlier live-mv started and did not finish ([mover.unfinishedMove]):
+	// it is sent again, through the same dry run, to complete the hand-off.
 	if d := m.estateRefusal(live.GetLabels()[markers.TagEstate]); d.HasErrors() {
-		return diags.Append(d)
+		if err != nil || !m.unfinishedMove(live, fieldManager) {
+			return diags.Append(d)
+		}
+		log.Printf("[TRACE] live/mv: %s already carries %s = %q and %s = %q but field manager %q's Update entry still holds a marker; re-sending the move", ref, markers.TagEstate, m.req.Estate, markers.AddressAnnotation, m.res.NewMarker, fieldManager)
 	}
 	if d := m.checkAddressAnnotation(live.GetAnnotations()[markers.AddressAnnotation]); d.HasErrors() {
 		return diags.Append(d)
 	}
-	fieldManager, err := identity.ManifestFieldManager(ctx, m.req.Config, m.res.Anchor)
 	if m.res.AlreadyMarked {
 		// A rename only ([mover.checkAddressAnnotation] never sets this on
 		// a move). The object carries the new address already. That is the
@@ -277,4 +291,28 @@ func manifestPatchExtra(live, dry *unstructured.Unstructured, labels map[string]
 		extra = append(extra, "metadata.labels")
 	}
 	return extra
+}
+
+// unfinishedMove reports whether live is what a cross-estate move killed
+// between [kubesweep.Client.PatchMarkers]' two requests leaves behind
+// (GitHub issue #1858, the move's half of #1764): the merge patch landed,
+// so the object already carries tofu-estate = the destination and the
+// address annotation = the new address, but the hand-off to the block's
+// field manager's Apply entry did not, so that manager's Update entry
+// still holds one of the markers. [mover.estateRefusal] would answer
+// "already in this estate", and the provider's next apply that changes
+// the label would then conflict with that Update entry. A move that
+// finished, or an object that reached the destination any other way,
+// holds neither marker in an Update entry of that manager and is refused
+// as before. A managedFields entry that cannot be decoded is refused as
+// before too, rather than read as unfinished.
+func (m *mover) unfinishedMove(live *unstructured.Unstructured, fieldManager string) bool {
+	if m.req.FromEstate == "" || live.GetLabels()[markers.TagEstate] != m.req.Estate {
+		return false
+	}
+	if live.GetAnnotations()[markers.AddressAnnotation] != m.res.NewMarker {
+		return false
+	}
+	held, err := kubesweep.MarkersHeldByUpdate(live, fieldManager, []string{markers.TagEstate}, []string{markers.AddressAnnotation})
+	return err == nil && held
 }
