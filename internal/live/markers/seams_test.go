@@ -82,6 +82,10 @@ type surfaceSeamExemption struct {
 // seam this guard measures.
 const discoveryAWSLeg = "an AWS discovery leg (tagging index, list, Cloud Control, direct read), run as discovery.TaggingIndexSweep. The Kubernetes leg is discovery.KubernetesSweep in kubernetes.go; internal/command picks a pass's discovery.Sweeper legs by the provider family's substrate.Sweep property (sweepLegBuilders in internal/command/live_plan.go), not by surface, so the choice is not a seam this guard measures"
 
+// synthConfigLabelArm is why the synthetic-configuration builders handle
+// the label surface alone.
+const synthConfigLabelArm = "the synthetic configurations a provider-planned marker write offers (epic #1885): markers.AssertMetadataMaps keeps a label-surface object's metadata labels and annotations claimed under either claim, and answers cfg unchanged for any other shape. A tag-surface write asserts its tags argument through configValue's assertedTagAttr without a markers member, and the manifest shape never plans through the provider"
+
 // surfaceSeamExemptions is keyed by a file, relative to the module root,
 // which excuses every seam in that file with the same Handles, or by
 // "<file>:<Func>" / "<file>:<Recv>.<Func>" for one seam. The unit is the
@@ -111,6 +115,10 @@ var surfaceSeamExemptions = map[string]surfaceSeamExemption{
 	"internal/live/mv/rewrite.go:mover.rewrite":                         {Handles: []Surface{SurfaceLabels, SurfaceTags}, Why: "mv.go's Move sends SurfaceManifest to mv/manifest.go's rewriteManifest, the API merge patch (#1104), before rewrite runs"},
 	"internal/live/mv/mv.go:mover.locateByIdentity":                     {Handles: []Surface{SurfaceLabels, SurfaceTags}, Why: "the manifest shape goes to mv/manifest.go's rewriteManifest from Move in this same file before a locate runs, and reads its markers off the cluster's own object (#1104)"},
 	"internal/live/mv/rewrite.go:tagsFromObject":                        {Handles: []Surface{SurfaceTags}, Why: "the tag path's reader, reached only on SurfaceTags"},
+	"internal/live/liveimport/tags.go:syntheticConfigs":                 {Handles: []Surface{SurfaceLabels}, Why: synthConfigLabelArm},
+	"internal/live/mv/rewrite.go:syntheticConfigs":                      {Handles: []Surface{SurfaceLabels}, Why: synthConfigLabelArm},
+	"internal/live/mv/rewrite.go:mover.planAndApply":                    {Handles: []Surface{SurfaceLabels}, Why: synthConfigLabelArm},
+	"internal/live/untag/tags.go:syntheticConfigs":                      {Handles: []Surface{SurfaceLabels}, Why: synthConfigLabelArm},
 	"internal/live/projection/manifestkeys.go":                          {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's declared-key lookup (#1079)"},
 	"internal/live/projection/manifestpartialseed.go":                   {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's partial seed"},
 	"internal/live/projection/nodestamp_manifest.go":                    {Handles: []Surface{SurfaceManifest}, Why: "the manifest shape's computed-fields mirror"},

@@ -220,10 +220,19 @@ func approveLabel(ctx context.Context, estate string, addr addrs.AbsResourceInst
 	if carriesAnnotations {
 		out.Detail = fmt.Sprintf("Wrote the tofu-estate label and the %s annotation.", markers.AddressAnnotation)
 	}
+	// The Kubernetes provider reads the object back after every write, so
+	// the object it returns is the cluster's answer, not a guess, and a
+	// marker missing from it is a write that did not land. That is a
+	// failure: a STAMPED line for an unlabelled object is what let
+	// reference-k8s-workloads' Job reach test_plan as an unlabelled live
+	// object holding its declared name (epic #1885). The tag path keeps its
+	// warning because some AWS reads do not serve tags back.
 	if got, readOK := labelsFromObject(e.schema, newState); !readOK || got[markers.TagEstate] != estate {
-		out.Detail = "The write reported no error, but the object read back afterwards does not carry the tofu-estate label. Verify with kubectl before relying on this."
+		out.Outcome = OutcomeFailed
+		out.Detail = fmt.Sprintf("The write reported no error, but the object the provider read back afterwards carries tofu-estate = %q, not %q: the label did not land. Read the object's labels with kubectl, then rerun live-import -approve.", got[markers.TagEstate], estate)
 	} else if ann, _ := markers.AnnotationsOf(newState); carriesAnnotations && ann[markers.AddressAnnotation] != wantAddress {
-		out.Detail = fmt.Sprintf("The write reported no error, but the object read back afterwards does not carry the %s annotation. Verify with kubectl before relying on this.", markers.AddressAnnotation)
+		out.Outcome = OutcomeFailed
+		out.Detail = fmt.Sprintf("The write reported no error, but the object the provider read back afterwards carries %s = %q, not %q: the annotation did not land. Read the object's annotations with kubectl, then rerun live-import -approve.", markers.AddressAnnotation, ann[markers.AddressAnnotation], wantAddress)
 	}
 	return out
 }

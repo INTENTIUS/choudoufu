@@ -185,8 +185,11 @@ const (
 // before. When the two agree, which is every type with no optional+computed
 // attribute at all, there is one.
 func syntheticConfigs(block *configschema.Block, val cty.Value) []cty.Value {
-	least := configValue(block, val, claimTagsOnly)
-	most := configValue(block, val, claimEverythingSettable)
+	// The label surface's metadata maps are what the write changes, so
+	// they are claimed under either claim; see [markers.AssertMetadataMaps]
+	// for the Job whose Optional+Computed labels a nulled config dropped.
+	least := markers.AssertMetadataMaps(block, configValue(block, val, claimTagsOnly), val)
+	most := markers.AssertMetadataMaps(block, configValue(block, val, claimEverythingSettable), val)
 	if least.RawEquals(most) {
 		return []cty.Value{least}
 	}

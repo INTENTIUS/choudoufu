@@ -290,9 +290,13 @@ func approveManifest(ctx context.Context, estate string, addr addrs.AbsResourceI
 	}
 	switch {
 	case written == nil || written.GetLabels()[markers.TagEstate] != estate:
-		out.Detail = "The write reported no error, but the object read back afterwards does not carry the tofu-estate label. Verify with kubectl before relying on this."
+		// The patch response is the stored object, so a marker missing
+		// from it did not land; see approveLabel's read-back.
+		out.Outcome = OutcomeFailed
+		out.Detail = "The write reported no error, but the object the API server returned does not carry the tofu-estate label: the label did not land. Read the object's labels with kubectl, then rerun live-import -approve."
 	case written.GetAnnotations()[markers.AddressAnnotation] != wantAddress:
-		out.Detail = fmt.Sprintf("The write reported no error, but the object read back afterwards does not carry the %s annotation. Verify with kubectl before relying on this.", markers.AddressAnnotation)
+		out.Outcome = OutcomeFailed
+		out.Detail = fmt.Sprintf("The write reported no error, but the object the API server returned does not carry the %s annotation: the annotation did not land. Read the object's annotations with kubectl, then rerun live-import -approve.", markers.AddressAnnotation)
 	}
 	return out
 }

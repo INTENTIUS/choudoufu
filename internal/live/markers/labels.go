@@ -321,6 +321,73 @@ func WithMetadataMaps(block *configschema.Block, obj cty.Value, labels, annotati
 	return cty.ObjectVal(vals), nil
 }
 
+// AssertMetadataMaps returns cfg, a synthetic configuration for a
+// label-surface object, with metadata[0].labels and (where the schema has
+// it) metadata[0].annotations carried over verbatim from desired, the
+// object the write wants to produce. Anything else in cfg is left exactly
+// as it is.
+//
+// A synthetic configuration that claims least nulls every computed
+// attribute, and hashicorp/kubernetes declares kubernetes_job_v1's (and
+// kubernetes_job's) metadata.labels Optional+Computed, because the API
+// server copies a Job's pod-template labels onto the Job. A null config
+// for such an attribute makes objchange.ProposedNew answer the prior
+// value, so the plan carried the object's old labels, was accepted as a
+// clean labels-only change because nothing changed at all, and the apply
+// wrote nothing while the stamp reported success (GitHub issue #1885's
+// reference-k8s-workloads, first run). The maps a marker write exists to
+// change are always claimed as set, whatever the claim on the rest.
+//
+// cfg is returned unchanged when either object is not the one-element
+// metadata shape [LabelSurface] admits.
+//
+//markers:surface labels
+func AssertMetadataMaps(block *configschema.Block, cfg, desired cty.Value) cty.Value {
+	if _, ok := LabelSurface(block); !ok {
+		return cfg
+	}
+	nested := block.BlockTypes[LabelSurfaceBlock]
+	sole := func(obj cty.Value) (cty.Value, bool) {
+		if obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() || obj.IsMarked() || !obj.Type().IsObjectType() || !obj.Type().HasAttribute(LabelSurfaceBlock) {
+			return cty.NilVal, false
+		}
+		meta := obj.GetAttr(LabelSurfaceBlock)
+		if meta.IsNull() || !meta.IsKnown() || meta.IsMarked() || !meta.Type().IsListType() || meta.LengthInt() != 1 {
+			return cty.NilVal, false
+		}
+		elem := meta.Index(cty.NumberIntVal(0))
+		if elem.IsNull() || !elem.IsKnown() || elem.IsMarked() || !elem.Type().IsObjectType() {
+			return cty.NilVal, false
+		}
+		return elem, true
+	}
+	from, ok := sole(desired)
+	if !ok {
+		return cfg
+	}
+	to, ok := sole(cfg)
+	if !ok {
+		return cfg
+	}
+	// sole already refused marked values; these are the guards
+	// internal/live/marksafe can see in this function's own body.
+	if to.IsMarked() {
+		return cfg
+	}
+	elemAttrs := to.AsValueMap()
+	for _, name := range []string{LabelSurfaceAttr, AnnotationSurfaceAttr} {
+		if _, has := nested.Block.Attributes[name]; has && from.Type().HasAttribute(name) && to.Type().HasAttribute(name) {
+			elemAttrs[name] = from.GetAttr(name)
+		}
+	}
+	if cfg.IsMarked() {
+		return cfg
+	}
+	vals := cfg.AsValueMap()
+	vals[LabelSurfaceBlock] = cty.ListVal([]cty.Value{cty.ObjectVal(elemAttrs)})
+	return cty.ObjectVal(vals)
+}
+
 // stringMapAs builds m as a cty map of strings converted to want, the
 // schema's own type for the attribute being written.
 func stringMapAs(m map[string]string, want cty.Type) (cty.Value, error) {
