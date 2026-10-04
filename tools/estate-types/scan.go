@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/check"
@@ -118,6 +119,22 @@ func scanEstate(ctx context.Context, root string, spec estateSpec) (estateTypes,
 		sources = append(sources, "config")
 	}
 
+	var notApplied []string
+	for _, prov := range spec.NotAppliedProviders {
+		matched := false
+		for t := range types {
+			if p, _, ok := strings.Cut(t, "_"); ok && p == prov {
+				delete(types, t)
+				notApplied = append(notApplied, t)
+				matched = true
+			}
+		}
+		if !matched {
+			loadErrs = append(loadErrs, fmt.Sprintf("NotAppliedProviders names %s, whose types no ConfigDirs directory declares - the spec is stale", prov))
+		}
+	}
+	sort.Strings(notApplied)
+
 	if spec.ScanScript {
 		scriptPath := filepath.Join(root, "live", "e2e", spec.Name, "run.sh")
 		text, err := os.ReadFile(scriptPath) //nolint:gosec // fixed repo-relative path built from the spec table
@@ -157,6 +174,7 @@ func scanEstate(ctx context.Context, root string, spec estateSpec) (estateTypes,
 		Count:             len(out),
 		Sources:           sources,
 		ConfigDirs:        configDirsUsed,
+		NotApplied:        notApplied,
 		UnresolvedModules: unresolved,
 		Notes:             loadErrs,
 	}, nil

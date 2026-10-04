@@ -408,7 +408,7 @@
   "lanes": {
     "kubernetes": {
       "label": "kubernetes lane",
-      "estates": 9,
+      "estates": 10,
       "clear": 4,
       "verified": 4,
       "carried": 0,
@@ -416,77 +416,77 @@
         "cold_deploy": {
           "pass": 4,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "day2_count": {
           "pass": 4,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "day2_crash": {
           "pass": 4,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "day2_remove": {
           "pass": 4,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "day2_rename": {
           "pass": 4,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "day2_replace": {
           "pass": 4,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "day2_teardown": {
           "pass": 4,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "drift_reconverge": {
           "pass": 4,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "greenfield": {
           "pass": 4,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "migrate": {
           "pass": 4,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "no_local_state": {
           "pass": 0,
           "fail": 0,
-          "not_run": 9
+          "not_run": 10
         },
         "plan_approval": {
           "pass": 4,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "strict": {
           "pass": 4,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "test_apply": {
           "pass": 4,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "test_plan": {
           "pass": 4,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         }
       }
     },
@@ -1756,6 +1756,35 @@
       "set": "growing",
       "substrate": "kind",
       "script": "live/e2e/corpus-govuk-cluster-access/run.sh",
+      "stages": {
+        "cold_deploy": "not_run",
+        "day2_count": "not_run",
+        "day2_crash": "not_run",
+        "day2_remove": "not_run",
+        "day2_rename": "not_run",
+        "day2_replace": "not_run",
+        "day2_teardown": "not_run",
+        "drift_reconverge": "not_run",
+        "greenfield": "not_run",
+        "migrate": "not_run",
+        "no_local_state": "not_run",
+        "plan_approval": "not_run",
+        "strict": "not_run",
+        "test_apply": "not_run",
+        "test_plan": "not_run"
+      },
+      "clear": false,
+      "protocol": "legacy"
+    },
+    {
+      "name": "corpus-govuk-cluster-services",
+      "source": "alphagov/govuk-infrastructure terraform/deployments/cluster-services (commit c02504fa4abb439234669e9ea9b662bdb35209e9), GOV.UK's own in-cluster platform services root for its EKS clusters, split into a live slice (namespaces, dex client Secrets, kubernetes_labels and kubernetes_annotations with force) and a recorded stock half of Helm, kubectl and AWS blocks; the first published root driving the field-granular types",
+      "url": "https://github.com/alphagov/govuk-infrastructure.git",
+      "pin": "c02504fa4abb439234669e9ea9b662bdb35209e9",
+      "lane": "kubernetes",
+      "set": "growing",
+      "substrate": "kind",
+      "script": "live/e2e/corpus-govuk-cluster-services/run.sh",
       "stages": {
         "cold_deploy": "not_run",
         "day2_count": "not_run",
