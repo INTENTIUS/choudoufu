@@ -10,3 +10,10 @@ data "terraform_estate_outputs" "network" {
 resource "aws_cloudwatch_log_group" "per_network" {
   name = "/networks/${data.terraform_estate_outputs.network.values.vpc_id}"
 }
+
+# The root-output class must NOT read this source before the plan: the
+# output's prior value is this estate's own recorded output, not the other
+# estate's current record. See Source.boundaryExempt.
+output "vpc_id" {
+  value = data.terraform_estate_outputs.network.values.vpc_id
+}

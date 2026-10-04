@@ -215,6 +215,29 @@ func (s *Source) crossStack() bool {
 	return s != nil && (s.TfeOutputs || s.RemoteState || s.EstateOutputs)
 }
 
+// boundaryExempt reports whether the provider boundary exempts this source
+// for a demand class: scoped selects the scoped classes (root outputs,
+// provider configuration), false the identity class.
+//
+// tfe_outputs and terraform_remote_state are exempt in every class.
+// terraform_estate_outputs is exempt for identity only, which is all GitHub
+// issue #1575 asked for. A scoped read would put a value in front of the
+// plan that the plan already has a better answer for: a root output's prior
+// value is this estate's OWN recorded output
+// (internal/live/projection's ReadRootOutputValues), and re-deriving it from
+// another estate's current record would show "no changes" for an output this
+// estate has never applied - the prior must be what this estate recorded,
+// not what the other estate holds now.
+func (s *Source) boundaryExempt(scoped bool) bool {
+	if s == nil {
+		return false
+	}
+	if s.EstateOutputs && scoped {
+		return false
+	}
+	return s.crossStack()
+}
+
 // EstateOutputsTypeName is the builtin terraform provider's cross-estate
 // output reader, internal/builtin/providers/tf's EstateOutputsTypeName. It is
 // repeated rather than imported because that package pulls in every state

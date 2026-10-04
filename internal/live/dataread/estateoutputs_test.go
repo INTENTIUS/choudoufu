@@ -191,3 +191,29 @@ func TestEstateOutputsTypeNameMatchesTheProvider(t *testing.T) {
 		t.Fatalf("dataread reads %q as the estate-outputs data source; the provider names it %q", EstateOutputsTypeName, tf.EstateOutputsTypeName)
 	}
 }
+
+// TestEstateOutputsStayConfinedForRootOutputs pins the other side of the
+// exemption: the root-output class does not read terraform_estate_outputs
+// before the plan. A root output's prior value is this estate's own recorded
+// output; reading the other estate's current record instead made a plan for
+// an estate that had never applied show "No changes" for the output
+// (internal/command's TestEstateOutputsReadCrossesEstates).
+func TestEstateOutputsStayConfinedForRootOutputs(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "estate-outputs-read"), nil)
+	declared := estateOutputsDeclared()
+	analysis := AnalyzeRootOutputs(context.Background(), cfg, Options{ProviderManagedTypes: declared})
+
+	src, ok := analysis.SourceFor(addrs.RootModule, dataAddr(EstateOutputsTypeName, "network"))
+	if !ok {
+		t.Fatalf("the root output did not demand the source, so this proves nothing; demanded: %v", demandedKeys(analysis))
+	}
+	if src.Eligible {
+		t.Fatalf("the root-output class classified a terraform_estate_outputs source readable before the plan")
+	}
+	if src.ReasonSummary != SummaryProviderNotLive {
+		t.Errorf("refused under %q, want %q", src.ReasonSummary, SummaryProviderNotLive)
+	}
+	if ReadableProviders(cfg, analysis, declared)[addrs.NewBuiltInProvider("terraform")] {
+		t.Errorf("the provider seam would configure the builtin terraform provider for the root-output class")
+	}
+}

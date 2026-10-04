@@ -284,7 +284,7 @@ func ReadableProviders(cfg *configs.Config, analysis *Analysis, declared map[add
 			continue
 		}
 		provider := node.Module.ProviderForLocalConfig(src.Config.ProviderConfigAddr())
-		if b.Allows(provider, src.crossStack()) {
+		if b.Allows(provider, src.boundaryExempt(b.scoped)) {
 			allowed[provider] = true
 		}
 	}
@@ -382,7 +382,7 @@ func (an *analyzer) confineToBoundary(cfg *configs.Config, opts Options) {
 			continue
 		}
 		provider := node.Module.ProviderForLocalConfig(src.Config.ProviderConfigAddr())
-		if b.Allows(provider, src.crossStack()) {
+		if b.Allows(provider, src.boundaryExempt(b.scoped)) {
 			continue
 		}
 		src.Eligible = false
