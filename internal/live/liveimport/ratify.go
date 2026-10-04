@@ -220,8 +220,22 @@ type eligible struct {
 	manifestKey markers.ManifestKey
 
 	// fieldManager is the field manager the migrated block declared, or ""
-	// for the provider's own default. Set only when manifested.
+	// for the provider's own default. Set when manifested or
+	// fieldGranular.
 	fieldManager string
+
+	// fieldGranular says the instance is one of the field-granular
+	// Kubernetes types, whose marker is the field manager its writes are
+	// made under (GitHub issue #1191), so Approve hands the fields the
+	// state records from fieldManager to the estate's manager through
+	// [approveFieldGranular] rather than writing a label (#1863).
+	// fieldWrite is what the state records the instance writing, and
+	// fieldWriteOK whether it could be read; transferer is the cluster
+	// client the hand-over goes through, nil with patcherErr saying why.
+	fieldGranular bool
+	fieldWrite    discovery.FieldGranularWrite
+	fieldWriteOK  bool
+	transferer    kubesweep.FieldTransferer
 
 	// patcher is the cluster client Approve makes the label write through,
 	// built at ratification so that Approve opens no new connection - the
@@ -748,12 +762,23 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	// is one the completeness guard (internal/live/markers/seams_test.go)
 	// reports rather than one a migration silently leaves unmarked.
 	var labelled, manifested bool
+	// GitHub issue #1863: a field-granular Kubernetes type carries no
+	// surface - its marker is the field manager its writes are made under
+	// (#1191) - and is not untaggable for that: what a migration owes it is
+	// the hand-over of its fields to the estate's manager. See
+	// fieldgranular.go. A markers = record selection does not change
+	// that; the fields are still written under a manager.
+	fieldGranular := fieldGranularType(providerAddr, schema)
+	if fieldGranular {
+		selected = false
+	}
 	surface, _ := substrate.SurfaceOf(providerAddr.Provider.Type, schema.Block)
-	switch surface {
-	case markers.SurfaceTags:
-	case markers.SurfaceLabels:
+	switch {
+	case fieldGranular:
+	case surface == markers.SurfaceTags:
+	case surface == markers.SurfaceLabels:
 		labelled = !selected
-	case markers.SurfaceManifest:
+	case surface == markers.SurfaceManifest:
 		manifested = !selected
 	default:
 		if !selected {
@@ -832,6 +857,13 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		return entry, carriers{located: &located{sub}}
 	}
 	elig := &eligible{residuable: sub, labelled: labelled, manifested: manifested}
+	if fieldGranular {
+		// GitHub issue #1863: the write the state records and the manager
+		// it was made under, read from the state's own object, never from
+		// a re-read under another manager. See fieldgranular.go.
+		ratifyFieldGranular(ctx, req, &entry, elig, providerAddr, schema, typeName, priorVal)
+		return entry, carriers{eligible: elig}
+	}
 	if manifested {
 		elig.manifestKey = manifestKey
 		elig.fieldManager = manifestFieldManager(priorVal)

@@ -657,6 +657,11 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 		// GitHub issue #1073: one label, no address, no slot - labels.go.
 		return approveLabel(ctx, estate, addr, e)
 	}
+	if e.fieldGranular {
+		// GitHub issue #1863: the marker is the field manager, so the
+		// write is a hand-over of ownership - fieldgranular.go.
+		return approveFieldGranular(ctx, estate, addr, e)
+	}
 	if e.manifested {
 		// GitHub issue #1109: the same one label, on an object with no
 		// typed metadata block to write it into, so it goes as an API
