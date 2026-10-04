@@ -51,7 +51,10 @@ different questions with different answers.
 
 Of the 1,699 provider types, 852 are untaggable. The survey path - the answer
 to "how would a run find this object again" - is one of six, and not one of
-them is "read it out of a record". At commit `0182aea761`:
+them is "read it out of a record". At commit `0182aea761` (survey-gen's path
+column has since been retired, #696; the live vocabulary for this axis is
+the readiness tiers in `live/readiness.json`, where the bottom four rows
+below are tier B, declaration-carried):
 
 | Survey path | Types | What it means |
 |---|---|---|
