@@ -327,8 +327,11 @@ func statelessBegin(
 // path, and the refusal registry smaller by the retired stage, none of
 // which has happened. This flip only changes which path an operator gets
 // with nothing set in the environment; CHOUDOUFU_NODE_RESOLVE=0 is the
-// opt-out, and it still selects the static evaluator and the HCL-rewriting
-// stamp exactly as before. Any other value, including "1" (the flag's old
+// opt-out, and it selects the static identity evaluator. Since GitHub
+// issue #644 it selects nothing else: the HCL-rewriting stamp it once also
+// chose is deleted, and the node-path marker writer (the run's
+// ConfigValueAdjuster, installed unconditionally above) runs either way.
+// Any other value, including "1" (the flag's old
 // spelling from when it defaulted off, kept working so nobody's existing
 // override silently changes meaning) and unset, resolves to the node path.
 // Read once per statelessBegin so a single CLI invocation cannot see the
@@ -1223,7 +1226,16 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// same reason live-plan's own equivalent construction is not: reading a
 	// GitHub issue #364 record-backed value that a PARENT_DERIVED formula
 	// already names as a parent is not the #388 migration's concern.
-	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, r.recordStore, readPar, scope, nil)
+	// GitHub issue #1113: a failed read of a cluster a provider block reads
+	// directly is an error, by the maintainer's ruling - see
+	// [statelessProviderDataReads].
+	var pdDiags tfdiags.Diagnostics
+	provs.providerDataResults, provs.providerManagedResults, pdDiags = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, r.recordStore, readPar, scope, nil)
+	diags = diags.Append(pdDiags)
+	if pdDiags.HasErrors() {
+		diags = diags.Append(provs.close(ctx))
+		return nil, diags
+	}
 
 	merged := resolutions.All()
 	// GitHub issue #388's plan-node seam, edge 3: r.recordStore is opened

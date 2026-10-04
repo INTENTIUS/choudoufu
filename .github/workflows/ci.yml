@@ -4,6 +4,15 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Issue #948: a verdicts PR the Gauntlet workflow opens with GITHUB_TOKEN
+  # gets a pull_request run that stalls at action_required, so its checks
+  # never report. gauntlet.yml dispatches this workflow on gauntlet/nightly
+  # instead: workflow_dispatch is the one event GITHUB_TOKEN may still
+  # start, and the run's checks attach to the branch head, which is the
+  # PR's head, so the required `fast` check reports on the PR. Nothing else
+  # should need it; every ordinary change still runs on push and
+  # pull_request (TestCIValidationRunsOnOrdinaryEvents).
+  workflow_dispatch:
 
 permissions:
   contents: read

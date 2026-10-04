@@ -17,11 +17,15 @@ Those change by running their generator. A ruling written into one survives
 until the next run and no longer, which is worse than not recording it: the
 loss is silent and the file still looks authoritative.
 
-## The two generated tables have no fragments at all
+## The generated table has no fragments at all
 
-`internal/live/identity/table_generated.go` (`DefaultTable`) and
-`internal/live/lint/admission_generated.go` (`admittedTypesV0`) are written
-in full by `go run ./tools/row-gen -emit`.
+`internal/live/identity/table_generated.go` (`DefaultTable`) is written in
+full by `go run ./tools/row-gen -emit`. It is the one admission artifact:
+`internal/live/lint`'s `admittedTypesV0` is derived from it when the package
+loads (its keys minus the record-backed rows), and `tools/estate-gen` reads
+it through `identity.AdmittedTypes` (#809). There used to be a second
+generated file, `internal/live/lint/admission_generated.go`, holding the
+same key set.
 
 They used to be assembled from per-cohort fragments — `table_cohort_data.go`,
 `admission_cohort_iam_ecr.go` and about fifty others — each registered by an
@@ -77,7 +81,7 @@ So, today:
   claim than "this is the artifact the inputs imply". The test above is the
   stronger claim, and it is the one to cite.
 
-`admission_generated.go` and `markerless_generated.go` are both derived from
+`admittedTypesV0` and `markerless_generated.go` are both derived from
 the emitted table's own key set, so admitting a type is exactly the act of
 giving it a row in `ratified.json` — there is no second file to paste into.
 `logical_type_generated.go` is derived from `live/logical-schemas.json`

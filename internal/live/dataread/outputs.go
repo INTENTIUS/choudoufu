@@ -502,6 +502,19 @@ type demandWalk struct {
 	cfg   *configs.Config
 	seen  map[string]bool
 	found []outputDemand
+
+	// reachesManaged records that the walk met a managed-resource
+	// reference, directly or through a local, a module output or a
+	// module-call argument. It changes nothing about found; GitHub issue
+	// #1113's provider-block caller ([ProviderConfigEvaluator]) reads it to
+	// decide whether a block needs the live evaluator at all, so a block
+	// that reaches none keeps the bare evaluator it has always had.
+	reachesManaged bool
+
+	// reachesModuleOutput is reachesManaged's counterpart for a module
+	// output, which the bare evaluator refuses as unsupported in a static
+	// context whatever the output's own expression is.
+	reachesModuleOutput bool
 }
 
 func (w *demandWalk) expr(node *configs.Config, expr hcl.Expression, depth int) {
@@ -527,6 +540,14 @@ func (w *demandWalk) subject(node *configs.Config, subject addrs.Referenceable, 
 		return
 	}
 	switch s := subject.(type) {
+	case addrs.Resource:
+		if s.Mode == addrs.ManagedResourceMode {
+			w.reachesManaged = true
+		}
+	case addrs.ResourceInstance:
+		if s.Resource.Mode == addrs.ManagedResourceMode {
+			w.reachesManaged = true
+		}
 	case addrs.LocalValue:
 		local := node.Module.Locals[s.Name]
 		if local == nil {
@@ -571,6 +592,7 @@ func (w *demandWalk) subject(node *configs.Config, subject addrs.Referenceable, 
 }
 
 func (w *demandWalk) moduleOutput(node *configs.Config, callName, outputName string, depth int) {
+	w.reachesModuleOutput = true
 	child := node.Children[callName]
 	if child == nil || child.Module == nil {
 		return

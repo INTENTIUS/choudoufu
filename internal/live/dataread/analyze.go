@@ -266,6 +266,11 @@ type Analysis struct {
 	// same [configs.RefusedReference]-carrying shape identity's own
 	// resolution raises one in. See [Analysis.ManagedRefusals].
 	managedRefusals tfdiags.Diagnostics
+
+	// providerManagedRefusals is the subset of managedRefusals raised by a
+	// PROVIDER BLOCK's own argument rather than by a data source's (GitHub
+	// issue #1113). See [Analysis.ProviderManagedRefusals].
+	providerManagedRefusals tfdiags.Diagnostics
 }
 
 // ManagedRefusals returns every diagnostic this analysis raised over a
@@ -287,6 +292,35 @@ func (a *Analysis) ManagedRefusals() tfdiags.Diagnostics {
 		return nil
 	}
 	return a.managedRefusals
+}
+
+// ProviderManagedRefusals returns the managed-resource refusals a provider
+// block's own arguments raised, directly (`host =
+// aws_eks_cluster.this.endpoint`) or through a module output (`host =
+// module.eks.cluster_endpoint`). Every one is also in
+// [Analysis.ManagedRefusals], so a caller reading only that list reads
+// these instances too; this one exists because the maintainer's ruling on
+// GitHub issue #1113 gives a failed read of one of THESE instances a
+// different cost. A cluster the provider block reads that does not exist
+// yet configures nothing, which is stock's order; a cluster that exists and
+// could not be read is an error, because unreachable must never be
+// reported as empty. Only [AnalyzeProviderConfigs] records any.
+func (a *Analysis) ProviderManagedRefusals() tfdiags.Diagnostics {
+	if a == nil {
+		return nil
+	}
+	return a.providerManagedRefusals
+}
+
+// Demands reports that this analysis asks for any read at all: a data
+// source ([Analysis.Empty] is false) or a managed instance
+// ([Analysis.ManagedRefusals] is not empty). It is the gate a caller uses
+// to decide whether the phase costs anything, where Empty answers only for
+// data sources - and a provider block that reads a managed value with no
+// data source between them (GitHub issue #1113) demands a read Empty
+// cannot see.
+func (a *Analysis) Demands() bool {
+	return !a.Empty() || len(a.ManagedRefusals()) > 0
 }
 
 // Scoped reports that this analysis's demand is scoped rather than fatal -
