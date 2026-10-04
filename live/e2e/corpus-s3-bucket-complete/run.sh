@@ -67,7 +67,7 @@ set -uo pipefail
 # is fixed for the record-store half (random_pet's value now migrates
 # generically) but DELTA 3 stays, pending the separate, unverified
 # question of whether the config can read that value back for an
-# identity-bearing argument on a stateless replan without it - see below.
+# identity-bearing argument on a live replan without it - see below.
 # The sixth -
 # the acl/website_configuration gap, which the original investigation
 # attributed to #306 too but is actually a separate mechanism (see below) -
@@ -119,7 +119,7 @@ set -uo pipefail
 #     DELTA 3 is still kept, not because that half is unfixed, but because
 #     the OTHER half - whether the estate's own config can then read that
 #     recorded value back to compute module.s3_bucket's bucket-name
-#     argument (`"s3-bucket-${random_pet.this.id}"`) on a stateless replan,
+#     argument (`"s3-bucket-${random_pet.this.id}"`) on a live replan,
 #     with no DELTA-3 literal standing in for it - was tried in this pass
 #     and hit a distinct failure at the stage 2c residue-classification
 #     plan ("no plan summary line") not root-caused here; see issue #336
@@ -159,7 +159,7 @@ set -uo pipefail
 #
 #   CHOUDOUFU GAP (not fixed - genuinely structural, scoped out below
 #   rather than worked around). Two arguments on module.s3_bucket - the
-#   canned `acl` and `website.routing_rule` - never converge under stateless
+#   canned `acl` and `website.routing_rule` - never converge under live-mode
 #   discovery even after #306's fix and even after the stage 2c residue-
 #   classification apply that DOES settle force_destroy, deletion_window_
 #   in_days and five others on this same estate. Traced past the point the
@@ -1639,7 +1639,7 @@ gauntlet_end_stage
 # module.simple_bucket with NEITHER a moved block NOR live-mv. Unlike
 # live/e2e/corpus-eks-basic/run.sh's day2_rename BREAK=1 leg (a destroy AND
 # a create - that estate's marker sweep finds the vacated security-group
-# marker and proposes destroying it), this estate's stateless replan
+# marker and proposes destroying it), this estate's live replan
 # proposes a CREATE ONLY for the new address: nothing here still declares
 # module.simple_bucket, so there is no config-driven candidate left to sweep
 # a leftover marker against, and the old bucket - never itself destroyed -

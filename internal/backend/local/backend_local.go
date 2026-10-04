@@ -237,7 +237,7 @@ func (b *Local) localRunDirect(ctx context.Context, stopCtx context.Context, op 
 	run.Core = tfCtx
 
 	if b.LiveRun != nil {
-		// A stateless run has no stored snapshot to start from. The prior
+		// A live run has no stored snapshot to start from. The prior
 		// state is built here, by reading the live system, and written into
 		// the (non-persisting) state manager so that everything downstream
 		// reads it the ordinary way.
@@ -251,7 +251,7 @@ func (b *Local) localRunDirect(ctx context.Context, stopCtx context.Context, op 
 		// way a real refresh recomputes them before a plan diffs "prior"
 		// output values against "planned" ones. Without this, projected
 		// carries no output values at all, and every declared output shows
-		// as newly created on every stateless plan or apply regardless of
+		// as newly created on every live plan or apply regardless of
 		// whether the underlying resources changed. See
 		// [projection.ApplyRootOutputValues].
 		// GitHub issue #349's remaining half rides in the last argument: what
@@ -271,7 +271,7 @@ func (b *Local) localRunDirect(ctx context.Context, stopCtx context.Context, op 
 		planOpts.SkipRefresh = true
 
 		// Nothing is rescued to disk when the graph panics, because there is
-		// nowhere for a stateless run to rescue it to and nothing that would
+		// nowhere for a live run to rescue it to and nothing that would
 		// read it back. What replaces the rescue file is the ownership
 		// markers: whatever was created before the panic carries them, so the
 		// next plan finds it instead of proposing to create it again.

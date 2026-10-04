@@ -75,7 +75,7 @@ import (
 //  2. The providers the configuration names are launched from the ordinary
 //     plugin library (the providercache that "choudoufu init" populated),
 //     unconfigured, far enough to read their resource identity schemas.
-//  3. [lint.CheckWith] decides whether the configuration is in the stateless
+//  3. [lint.CheckWith] decides whether the configuration is in the live-mode
 //     subset at all, with those schemas in hand: a type absent from the v0
 //     admission table still passes when the schemas describe it completely
 //     enough (see [identity.SynthesizeTypeIdentity]), and a refused type is
@@ -565,7 +565,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// same provider processes, a different shape - so the two never collide.
 	resourceSchemas := provs.resourceSchemas(ctx)
 
-	// Subset check first: a configuration outside the stateless subset has
+	// Subset check first: a configuration outside the live-mode subset has
 	// to fail with an explanation rather than as a confusing plan. It runs
 	// after the providers are launched now, schemas in hand, so a type with
 	// no admission-table row can still pass when the provider's own identity
@@ -1339,7 +1339,7 @@ func deposedSweptByLabel(config *configs.Config, addr addrs.AbsResourceInstance)
 // [discovery.Request.CollectUnclaimed] is always set here. It trades the
 // server-side estate filter for a wider list, which is the price of being
 // able to say anything at all about resources that carry no marker, and
-// stateless mode's central safety claim is a claim about exactly those.
+// live mode's central safety claim is a claim about exactly those.
 // The pass also sweeps: every admitted resource type the configuration does
 // not declare is listed for this estate's markers, which is the only way a
 // resource whose block was deleted can be seen at all. That is why discovery
@@ -1625,7 +1625,7 @@ const summaryProviderConfigNotEvaluableForSweep = "Provider configuration not ev
 // none - the first-ever create, corpus-eks-basic's own greenfield stage -
 // the real resource graph still configures the provider for real once its
 // dependency is known, the same deferred order stock's own graph gives it,
-// and this function is what keeps the stateless PRE-pass from refusing a
+// and this function is what keeps the live PRE-pass from refusing a
 // question stock never has to answer either.
 //
 // ok is false whenever discoDiags carries no error, or carries an error
@@ -3091,7 +3091,7 @@ func livePlanDiagnostics(diags tfdiags.Diagnostics) []views.LivePlanDiagnostic {
 }
 
 // liveStateFileNote reports a state file sitting in the working
-// directory. Stateless mode does not read it, does not write it, and does not
+// directory. Live mode does not read it, does not write it, and does not
 // care what it says, but silently ignoring a file that every other OpenTofu
 // command treats as authoritative would be a nasty surprise.
 func (c *LivePlanCommand) liveStateFileNote() tfdiags.Diagnostics {
@@ -3329,7 +3329,7 @@ func liveTargetScope(ctx context.Context, tfCtx *tofu.Context, config *configs.C
 	}, diags
 }
 
-// liveResolve is the identity resolution every stateless command runs -
+// liveResolve is the identity resolution every live-mode command runs -
 // live-plan, plain plan/apply under a live block, and live-mv - with GitHub
 // issue #284's second pass folded in. All three call it rather than resolving
 // for themselves, because a rename computed over a different identity map

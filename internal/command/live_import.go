@@ -168,7 +168,7 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 	provs := newProjectionProviders(config, coreOpts.Plugins)
 	closer := func() tfdiags.Diagnostics { return provs.close(ctx) }
 
-	// GitHub issue #327: the same record_store a stateless plan or apply
+	// GitHub issue #327: the same record_store a live plan or apply
 	// would open, opened here too, so Approve can classify and record
 	// residue (issue #275) from the real object this run reads - see
 	// [projection.RecordResidueForInstance]'s doc comment for why a migrate

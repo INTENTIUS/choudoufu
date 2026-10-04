@@ -28,7 +28,7 @@ import (
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
-// LiveMvCommand renames a resource in a stateless estate: it rewrites the
+// LiveMvCommand renames a resource in a live-mode estate: it rewrites the
 // tofu-address ownership marker on the live resource that carries the old
 // address.
 //
@@ -272,7 +272,7 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	// internal/command/live_plan.go, which does the same.
 	resourceSchemas := provs.resourceSchemas(ctx)
 
-	// Subset check first: a configuration outside the stateless subset has to
+	// Subset check first: a configuration outside the live-mode subset has to
 	// fail with an explanation, and it has to fail before anything else is
 	// read from or written to the cloud. See [lint.CheckWith].
 	if issues := lint.CheckWith(ctx, config, lint.Context{Schemas: resourceSchemas}); len(issues) > 0 {

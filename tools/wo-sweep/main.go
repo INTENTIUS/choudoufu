@@ -11,7 +11,7 @@
 // attribute path (top-level, nested blocks, and object-typed attributes):
 //
 //   - hard core: WriteOnly attributes. The provider marks these precisely
-//     because it never returns their values, so a stateless replan can
+//     because it never returns their values, so a live replan can
 //     never see them echoed back. Schema-visible by construction.
 //   - soft bucket: Sensitive AND settable (Optional or Required) and not
 //     WriteOnly. These may or may not read back; the schema alone cannot

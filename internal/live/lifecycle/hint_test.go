@@ -42,7 +42,7 @@ import (
 // of P4.1's lifecycle test, so the two can run concurrently without
 // colliding.
 func TestLiveHintAgainstFloci(t *testing.T) {
-	flocitest.Gate(t, "stateless hint")
+	flocitest.Gate(t, "live hint")
 	flocitest.RequireBinary(t, "docker")
 	flocitest.RequireBinary(t, "aws")
 	flocitest.RequireBinary(t, "go")

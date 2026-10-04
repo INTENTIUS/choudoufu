@@ -308,7 +308,7 @@ type Request struct {
 	// CLIENT-NAMED instance needs one at all is a question about its own
 	// declaration, and a migration reading a state file has none. With
 	// Config in hand, [identity.ResolveWith] - the exact function a
-	// stateless replan's own [identity.Result] comes from - can be asked
+	// live replan's own [identity.Result] comes from - can be asked
 	// the identical question here, and its answer is consulted rather than
 	// guessed at.
 	//
@@ -397,7 +397,7 @@ type Request struct {
 	// pointed at holds them, and nothing else on this side does. Nil - no
 	// live block, or a live block with no record_store - leaves every root
 	// output with no prior value, exactly as before, which renders as
-	// "+ name = ..." on the next stateless plan.
+	// "+ name = ..." on the next live plan.
 	//
 	// Like the record store it is used by Approve and not by Ratify:
 	// writing is what Approve is for.
@@ -451,7 +451,7 @@ type Ratification struct {
 	// block settled on at the last apply, and until this existed a migration
 	// dropped every one of them: HANDOFF.md's "migration from a stock state
 	// file is lossless" had a hole in it exactly the size of the estate's
-	// outputs, and the next stateless plan rendered all of them as newly
+	// outputs, and the next live plan rendered all of them as newly
 	// created.
 	//
 	// rootOutputs is the whole state rather than the values, because

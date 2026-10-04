@@ -44,7 +44,7 @@
 # Unlike every other fixture in this wing, this one needs "choudoufu get"
 # before lint can be reached at all: a module block is refused with "Module
 # not installed" while the configuration is still being loaded, which is
-# earlier than any stateless code runs. The harness does that one step for
+# earlier than any live code runs. The harness does that one step for
 # this directory; nothing else about it is special.
 
 variable "suffixes" {

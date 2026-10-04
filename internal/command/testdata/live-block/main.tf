@@ -1,5 +1,5 @@
 # The same estate as testdata/live-plan, with the live block that
-# makes plain "tofu plan" and "tofu apply" run the stateless pipeline. The
+# makes plain "tofu plan" and "tofu apply" run the live pipeline. The
 # two fixtures are otherwise identical on purpose: the parity test plans both
 # and compares.
 terraform {

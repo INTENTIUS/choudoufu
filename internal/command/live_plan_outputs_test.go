@@ -20,7 +20,7 @@ import (
 // changing zero resources. See internal/live/projection/outputs.go's
 // ApplyRootOutputValues, which evaluates the root module's output
 // expressions against the projected prior state before the plan runs - the
-// stateless equivalent of what a normal refresh does before diffing "prior"
+// live-mode equivalent of what a normal refresh does before diffing "prior"
 // output values against "planned" ones.
 func TestLivePlan_rootOutputsNoOpWhenUnchanged(t *testing.T) {
 	td := t.TempDir()

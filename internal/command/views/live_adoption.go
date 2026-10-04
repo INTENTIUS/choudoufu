@@ -155,7 +155,7 @@ type LiveAdoption struct {
 func (a LiveAdoption) Empty() bool { return len(a.Rows) == 0 }
 
 // Adoption renders the adoption ledger. It is a no-op on the ordinary
-// stateless plan view, which renders its sections as they arrive; this
+// live plan view, which renders its sections as they arrive; this
 // implementation renders this section and nothing else, which is what
 // "-adoption-only" means.
 func (v *LiveAdoptionHuman) Adoption(rep LiveAdoption) {

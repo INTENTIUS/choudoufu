@@ -481,7 +481,7 @@ func TestMarkerJoinKeysCoverBothSpellings(t *testing.T) {
 // aws_iam_instance_profile, both name_prefix'd under "/ec2/") imports by
 // its bare NAME, never by "PATH/NAME" - but that is exactly the string
 // [cloudcontrol.ParseARN] puts in ResourceID for a "type/PATH/NAME" ARN.
-// Without a third key keyed on the trailing segment, a stateless replan's
+// Without a third key keyed on the trailing segment, a live replan's
 // tag-index join for such an object always misses (joinNone, no log line,
 // no diagnostic) and the plan proposes creating an object that already
 // exists.

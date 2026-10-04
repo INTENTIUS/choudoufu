@@ -4964,7 +4964,7 @@ Multi-configuration behavior is pinned by `internal/live/discovery`'s
 **An out-of-band change to a `kubernetes_manifest` label or annotation the
 configuration declares churns the plan, where stock swallows it; one the
 configuration has stopped declaring is never removed.** Both follow from the
-same fact, and both are what a stateless run costs on this one type. The
+same fact, and both are what a live run costs on this one type. The
 provider's `computed_fields` argument (default `metadata.annotations` and
 `metadata.labels`) tells it to take the LIVE object's value at those paths
 unless the configuration differs from the PRIOR MANIFEST, which in a

@@ -15,7 +15,7 @@ import (
 // time only, so "choudoufu workspace new staging" succeeded, selected the new
 // workspace on the way out, and left a directory where nothing could run.
 //
-// Each row asserts the same three things the other stateless guards assert:
+// Each row asserts the same three things the other live-mode guards assert:
 // exit 1, the command's own named refusal, and no state artifact anywhere
 // under the working directory - including the terraform.tfstate.d workspace
 // directory, which is what "workspace new" creates and what assertNoStateArtifacts
@@ -82,7 +82,7 @@ func TestLiveWorkspaceGuard_workspaceCommandsRefused(t *testing.T) {
 // and the reason it is not symmetric: selecting the default workspace is the
 // way out of a directory that is already stranded in another one, so it must
 // never be the thing that is refused. The command is allowed to fail for its
-// own ordinary reasons here; what it must not do is refuse on stateless
+// own ordinary reasons here; what it must not do is refuse on live-mode
 // grounds.
 func TestLiveWorkspaceGuard_workspaceSelectDefaultAllowed(t *testing.T) {
 	td := t.TempDir()
@@ -100,7 +100,7 @@ func TestLiveWorkspaceGuard_workspaceSelectDefaultAllowed(t *testing.T) {
 }
 
 // TestLiveWorkspaceGuard_workspaceCommandsUnguarded checks the guard says nothing in a
-// configuration with no live block: a stateless refusal appearing in an
+// configuration with no live block: a live-mode refusal appearing in an
 // ordinary working directory would be a worse bug than the one being fixed.
 func TestLiveWorkspaceGuard_workspaceCommandsUnguarded(t *testing.T) {
 	for _, tc := range []struct {

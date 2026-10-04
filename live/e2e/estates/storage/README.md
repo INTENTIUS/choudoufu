@@ -148,7 +148,7 @@ recovers the type.
   aws_efs_mount_target.alpha fsmt-52a643fb`) confirms a server-assigned
   `MountTargetId` with nothing in configuration (`ip_address`,
   `subnet_id`, `file_system_id`) that reconstructs it. What sinks it is
-  that no admission path recovers that id from a stateless run: the type
+  that no admission path recovers that id from a live run: the type
   carries no `tags` argument at all (`live/registry.json`'s
   `AWS::EFS::MountTarget` records `tagging.taggable: false`, and the
   provider's own docs list no tags block), so the marker path has nothing

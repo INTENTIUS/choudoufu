@@ -77,6 +77,11 @@ var otherAllowlist = []otherAllowEntry{
 
 	{"internal/command/", "the fork's command surface: live_* files (live_plan, live_import, live_mv, live_check, discovery/lint guards, their views) plus wiring edits to stock commands (init, apply, plan, state*, meta_backend, workspace*, providers*) that call into it; mirrors ci_coverage_test.go's forkOwnedMixedRoots entry for this package"},
 	{"internal/configs/", "the live block, record_store and strict{} config schema and HCL parsing (live.go, parser_live_sidecar.go), plus the static evaluator and static scope (the foundation-order ruling (#388) item 3) that live-import, live-mv, live-check and discovery consume"},
+	// #1374: the fork's retired name for live mode also appeared, in its
+	// generic sense, in two upstream lines. Removing it from the tree
+	// diverges these two files from upstream by one line each.
+	{"internal/repl/session_test.go", "#1374: upstream's TestSession_ test for a session holding no state renamed TestSession_withoutState, the test body unchanged"},
+	{"internal/legacy/helper/schema/resource.go", "#1374: one upstream comment from 2014 reworded to drop the retired word; comment only"},
 	{"internal/tofu/", "the plan-node seam: identity resolution and marker stamping hooked into node_resource_plan_instance.go and resource_identity.go, plus the graph-walk and evaluation plumbing they need; mirrors forkOwnedMixedRoots"},
 	{"internal/engine/", "internal/engine/applying/operations_resource_managed.go keeps the create-time provisioner's `self` value's sensitivity marks (forkOwnedMixedRoots, issue #353's follow-up audit)"},
 	{"internal/backend/", "the local backend (and its s3 backend test fixtures) wires the live record store into init/plan/apply, and renames the `tofu init` suggestion text to `choudoufu init`"},

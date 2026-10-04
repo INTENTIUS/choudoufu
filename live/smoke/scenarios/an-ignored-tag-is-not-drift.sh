@@ -25,7 +25,7 @@
 # nearly every taggable type, so Terraform's own core plan mechanics -
 # common to every provider, not an AWS or a choudoufu choice - propose the
 # CONFIGURED value verbatim as the new state on every single plan. A
-# stateless run's rebuilt prior (importAndRead) carries the live object's
+# live run's rebuilt prior (importAndRead) carries the live object's
 # real tags, because there is no state file to prefer instead, so a tag
 # present live and absent from configuration reads as a difference and
 # plans an update removing it - the exact answer a stock, state-backed run

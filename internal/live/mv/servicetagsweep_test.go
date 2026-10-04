@@ -145,7 +145,7 @@ func iamSweepObject(o iamSweepListed) cty.Value {
 }
 
 // iamSweepProvider adds the list protocol, which providers.Interface does
-// not declare - the stateless list client asks for it by type assertion.
+// not declare - the live-mode list client asks for it by type assertion.
 type iamSweepProvider struct {
 	*tofu.MockProvider
 	objects []iamSweepListed

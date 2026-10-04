@@ -53,7 +53,7 @@ TIPS: dict[str, dict[str, str]] = {
         "expert": "With no state file, a plan first discovers its estate: one listing per resource type (the tagging "
                   "API where the type is taggable, the service's own list call where it is not), then a read per "
                   "resource. Stock's refresh would be about one read per resource; the listing is the price of "
-                  "statelessness, and the comparison the workbench draws is monolith against estate under the same "
+                  "reading the estate from the cloud, and the comparison the workbench draws is monolith against estate under the same "
                   "tool, not choudoufu against stock.",
     },
     "decompose": {

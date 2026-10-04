@@ -1,4 +1,4 @@
-# A configuration that asks for both stateless mode and a state backend. The
+# A configuration that asks for both live mode and a state backend. The
 # decoder refuses it: the two disagree about where the truth lives.
 terraform {
   live {

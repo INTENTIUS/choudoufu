@@ -103,13 +103,13 @@ func (c ApplyCommand) Execute(args *arguments.Apply, view views.Apply) int {
 		return 1
 	}
 
-	// Stateless mode is switched on by a "live" block in the
+	// Live mode is switched on by a "live" block in the
 	// configuration, never by a flag, so that a run cannot fall back to
 	// writing a state file by forgetting one. Without the block this is nil
 	// and nothing below changes.
 	//
 	// It is read before the plan file is loaded because the two are
-	// incompatible whatever the file turns out to contain, and a stateless
+	// incompatible whatever the file turns out to contain, and a live-mode
 	// configuration should hear why rather than hear that its plan file will
 	// not parse. For the same reason a working directory that will not load
 	// is tolerated when a plan file was named: the file carries its own

@@ -14,7 +14,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/format"
 )
 
-// LiveOmission is one resource instance that the stateless projection
+// LiveOmission is one resource instance that the live projection
 // could not read from the live system, in a form this package can render
 // without importing the projection builder.
 //
@@ -189,7 +189,7 @@ type LiveBindCandidate struct {
 	MarkerAddress string
 
 	// Hint is a one-line command that writes those two tags, empty for a
-	// type stateless mode has no command for.
+	// type live mode has no command for.
 	Hint string
 }
 
@@ -478,7 +478,7 @@ func (r LivePolicyReport) Empty() bool {
 // mirrors [discovery.ProgressEvent] rather than importing that package,
 // the same way every other type in this file carries the projection and
 // foreign packages' data across without importing them - see this file's
-// other Stateless* types.
+// other Live* types.
 type LiveProgress struct {
 	TypeName       string
 	TypesScanned   int
@@ -819,7 +819,7 @@ type LivePlanAdoptable struct {
 
 	// AdoptCommand is the one-line AWS CLI command that writes those two
 	// tags, exactly as the human render prints it after "adopt with:",
-	// empty for a type stateless mode has no command for. Informational: a
+	// empty for a type live mode has no command for. Informational: a
 	// consumer that writes markers itself uses the two fields above.
 	AdoptCommand string `json:"adopt_command,omitempty"`
 }
@@ -912,7 +912,7 @@ type LivePlan interface {
 
 	// Adoption reports the whole adoption question - what can be adopted,
 	// what cannot, and why - for GitHub issue #587's "-adoption-only" mode.
-	// The pipeline calls it on every stateless run; only
+	// The pipeline calls it on every live run; only
 	// [LiveAdoptionHuman] renders it, and that view renders nothing
 	// else. See live_adoption.go.
 	Adoption(rep LiveAdoption)

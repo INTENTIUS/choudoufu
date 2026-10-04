@@ -50,7 +50,7 @@ const (
 	// tier-1 matrix.
 	CategoryAdoption = "adoption"
 	// CategoryLegacyDemo: live/e2e/run.sh, the original pre-protocol,
-	// pre-board "stateless mode" demo. It predates both the stage protocol
+	// pre-board "live mode" demo. It predates both the stage protocol
 	// and the estate board, and its own steps (standup, adopt, drift,
 	// rename, count scale-down, block removal via the estate-block fixture,
 	// receipts, teardown) overlap almost every shape fixture and

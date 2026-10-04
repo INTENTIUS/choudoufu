@@ -43,7 +43,7 @@ const (
 	awsRegion = "us-east-1"
 
 	// terraformBin stands the estate up. Stock terraform on purpose: the
-	// estate this classification runs over must be one stateless mode did
+	// estate this classification runs over must be one live mode did
 	// not create.
 	terraformBin = "terraform"
 

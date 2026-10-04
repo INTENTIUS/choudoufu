@@ -16,7 +16,7 @@ import (
 // the working directory has a live block, and is a no-op for every other
 // configuration.
 //
-// This is the third of the three stateless refusals, beside
+// This is the third of the three live-mode refusals, beside
 // [Meta.liveStateGuard] for the "choudoufu state" family and
 // [Meta.liveWorkspaceGuard] for the two workspace commands that change
 // which workspace is selected. It serves the commands whose whole product is

@@ -46,7 +46,7 @@ func newStaticScope(eval *StaticEvaluator, stack0 StaticIdentifier, stack ...Sta
 //
 // A caller that is deriving a stable identity from configuration wants the
 // opposite. An impure function evaluated here produces a value that is real,
-// known, and different on the next run: for stateless mode's identity
+// known, and different on the next run: for live mode's identity
 // resolution that means a fabricated import ID, a plan that proposes to
 // create something that already exists, and a leaked resource per run, with
 // no diagnostic anywhere because nothing about the value looks wrong. Such a

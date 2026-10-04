@@ -8,7 +8,7 @@
 # none of which can carry a tag at all. So 4 markers carry the identity of
 # 63 instances - 59 of 63, or 94% derived-from-tagged, against
 # corpus-simpleinfra-dns's 28 of 35 - and the two same-named zones make the
-# marker the only thing that can tell a stateless replan which zone a block
+# marker the only thing that can tell a live replan which zone a block
 # owns. It is also the first crossing
 # with count.index arithmetic in an identity-bearing argument
 # (name = "staging${count.index + 3}.datacite.org", count = 10, all ten
@@ -40,7 +40,7 @@ set -uo pipefail
 #   1. TWO LIVE ZONES WITH THE SAME NAME. `production` and `internal` are
 #      both called datacite.org - one public, one private and associated
 #      with a VPC. aws_route53_zone is ServerAssigned, so the only thing
-#      that can tell a stateless replan which of the two a block owns is
+#      that can tell a live replan which of the two a block owns is
 #      the tofu-address marker on the zone itself. corpus-root-dns-zones
 #      crossed two zones of this type but with DIFFERENT names, where a
 #      name-based guess would also have worked; here it cannot.

@@ -3322,7 +3322,7 @@ func expectedPackageInstallPath(name, version string) string {
 // ---------------------------------------------------------------------------
 
 // liveStateFixture is a v4 state file with one resource in it, standing in
-// for the state a project had before it converted to stateless mode. Its
+// for the state a project had before it converted to live mode. Its
 // content is what a backend migration would copy into the working directory.
 const liveStateFixture = `{
   "version": 4,

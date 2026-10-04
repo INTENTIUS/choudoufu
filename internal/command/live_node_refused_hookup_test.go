@@ -102,7 +102,7 @@ func refusedHookupStubLeg(t *testing.T, cluster kubesweep.Sweeper) {
 }
 
 // refusedHookupK8s is a kubernetes provider that speaks the list protocol
-// the stateless list client asks for by assertion, serving no list schema,
+// the live-mode list client asks for by assertion, serving no list schema,
 // as newK8sCluster's does.
 type refusedHookupK8s struct{ *tofu.MockProvider }
 
@@ -202,7 +202,7 @@ func TestNodeRefusedHookup_plainPlan(t *testing.T) {
 	code := c.Run([]string{"-no-color"})
 	out := done(t)
 	if captured == nil {
-		t.Fatal("no stateless runner was installed, so this plan did not take the live-block path")
+		t.Fatal("no live runner was installed, so this plan did not take the live-block path")
 	}
 	// The premise: the static evaluator refused the reader, so it reached
 	// the node rather than the resolutions. Without this the test would

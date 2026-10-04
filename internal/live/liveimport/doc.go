@@ -14,7 +14,7 @@
 // [github.com/intentius/choudoufu/internal/live/stamp] writes markers by
 // rewriting HCL configuration bodies so that an ordinary plan and apply carry
 // them to the cloud. That seam needs a resource block whose identity the
-// stamping pass can read from configuration - it is how a stateless run
+// stamping pass can read from configuration - it is how a live run
 // marks resources it is about to plan.
 //
 // A migration has no such moment. The whole point is that the estate already

@@ -3,7 +3,7 @@
 // Copyright (c) 2023 HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-// Package stateless implements OpenTofu's stateless mode: a run mode with
+// Package live implements OpenTofu's live mode: a run mode with
 // no authoritative state file, no backend, and no lock. Identity is
 // recovered from the live system on every operation instead of being read
 // from a stored record.
@@ -24,7 +24,7 @@
 //
 // # Admission
 //
-// A resource type participates in stateless mode only if its identity is
+// A resource type participates in live mode only if its identity is
 // recoverable with no memory. Four paths admit a resource, strongest first:
 //
 //  1. Client-assigned identity: the name is already in the configuration
@@ -35,7 +35,7 @@
 //     parents, such as a route keyed by route table and destination, or an
 //     association keyed by subnet and route table.
 //
-// A resource type with none of these three paths is out of the stateless
+// A resource type with none of these three paths is out of the live-mode
 // subset and is rejected by lint before a projection is ever built.
 //
 // A fourth exists, narrowly: "list and content match" (issue #272,
@@ -63,14 +63,14 @@
 //
 // A live resource of an in-scope type with no admission path binding it to
 // configuration is foreign: unrecognized, unmanaged, and never
-// auto-deleted. Stateless mode reports it for review rather than guessing
+// auto-deleted. Live mode reports it for review rather than guessing
 // whether it should be adopted or destroyed. A foreign resource that
 // happens to match a declared-but-unbound resource is a bind candidate,
 // surfaced for explicit adoption and never bound automatically.
 //
 // # Count
 //
-// count survives stateless mode as cardinality over a fungible set rather
+// count survives live mode as cardinality over a fungible set rather
 // than as a positional index. Each instance of such a set carries a
 // tofu-slot marker: a stable, opaque identifier assigned once at creation
 // and never reused. Binding N declared instances against M live, owned

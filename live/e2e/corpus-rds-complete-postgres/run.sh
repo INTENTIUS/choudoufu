@@ -257,7 +257,7 @@ set -uo pipefail
 # THE ONE THING IN THAT RESIDUE THAT WAS CHOUDOUFU'S, found by this crossing
 # and FIXED in the same pass (HANDOFF's second row - the plans differ):
 # a config-only NESTED BLOCK the provider never reads back was never carried
-# in the record, so every stateless replan proposed adding it, forever.
+# in the record, so every live replan proposed adding it, forever.
 # terraform-aws-modules writes `timeouts { create = "10m" delete = "15m" }`
 # on its security group and `timeouts { create = "5m" update = "5m" }` on
 # the VPC's default route table; the state file holds them and stock's plan
@@ -1164,7 +1164,7 @@ WANT_UPDATE_N=0
 # thing that ever held it. internal/live/projection's residue store is what
 # holds such a value here, and it walked schema.Block.Attributes ONLY, with
 # a doc comment stating nested blocks as a deliberate bound. So the block was
-# never a candidate, never recorded, and every stateless replan proposed
+# never a candidate, never recorded, and every live replan proposed
 # `+ timeouts {...}` on those two instances forever, while stock's plan on
 # its own state renders the identical block "(1 unchanged block hidden)".
 # HANDOFF's second row: the plans differ, so it is a defect.

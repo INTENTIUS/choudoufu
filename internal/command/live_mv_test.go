@@ -344,7 +344,7 @@ func TestLiveMv_missingConfigOverride(t *testing.T) {
 }
 
 // TestLiveMv_lintFatal mirrors TestLivePlan_lintFatal: a configuration
-// outside the stateless subset is refused before the provider is started or
+// outside the live-mode subset is refused before the provider is started or
 // anything is read from the live system, which is the property this issue
 // (#50) threads schemas into lint to preserve.
 func TestLiveMv_lintFatal(t *testing.T) {
@@ -998,7 +998,7 @@ func mvListSchemas(types map[string]bool) map[string]providers.Schema {
 }
 
 // mvProvider adds the list protocol, which is not part of providers.Interface
-// - the stateless list client asks for it by assertion.
+// - the live-mode list client asks for it by assertion.
 type mvProvider struct {
 	*tofu.MockProvider
 	cloud *mvCloud

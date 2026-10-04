@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Stateless mode E2E harness.
+# Live mode E2E harness.
 #
 # This is the feature's demo as much as its test — run it and watch: a real
 # estate stands up against a local AWS emulator with plain local state, the
 # state file is deleted in front of you (`adopt`, nothing else happens), and
-# then the claims stateless mode makes about that same live estate get proven
+# then the claims live mode makes about that same live estate get proven
 # live, one by one — empty plans against markers alone, exact drift (one
 # mutation per estate type), foreign-resource protection, exact removal
 # (delete a whole block, exactly its live resource goes), count scale-down
@@ -220,7 +220,7 @@ evaluate_expect() {
 
 # skip is for missing tooling, never for a claim that failed. Without
 # --expect it is a clean exit: the harness is a progress bar, and no Docker
-# on the box is not a false claim about stateless mode. With --expect the
+# on the box is not a false claim about live mode. With --expect the
 # caller asked for a verdict on a phase and did not get one, so the exit code
 # must not say the expectation was met - it exits 2 instead, distinct from
 # both 0 (met) and 1 (checked and false). Before this, `--expect 5` on a box
@@ -680,7 +680,7 @@ grep -q -- '-estate' <<< "$LIVE_PLAN_HELP" && HAVE_LIVE_ESTATE=1
 LIVE_E2E_EXACTNESS="${LIVE_E2E_EXACTNESS:-1}"
 
 # P4.3's probe: the "live" block that puts plain plan/apply into
-# stateless mode (P4.1) is a config-decoder feature, not a subcommand, so
+# live mode (P4.1) is a config-decoder feature, not a subcommand, so
 # none of the probes above tell us whether this build supports it. The
 # clean, cheap check: decode a minimal config carrying nothing but the block
 # (no provider, no resources -- there is nothing here for `choudoufu validate` to
@@ -1648,7 +1648,7 @@ fi
 # fixture (live/e2e/estate-block/, its own README explains why it is a
 # separate directory from $ESTATE_SRC) is used instead of $MAIN because
 # adding the block to the main estate would make its own standup (step 2)
-# stateless and stop it from producing the terraform.tfstate that step 2/3
+# run in live mode and stop it from producing the terraform.tfstate that step 2/3
 # demonstrate adopting.
 echo "=== 11. plain-plan-works — plain choudoufu plan/apply against a live-block estate ==="
 if [ "$HAVE_LIVE_BLOCK" -eq 0 ]; then
@@ -2077,7 +2077,7 @@ fi
 #
 # Plain plan/apply need a "live" block, and $MAIN must stay free of one:
 # adding it to live/e2e/estate/ would make standup's own apply (step 2)
-# stateless and stop it from producing the terraform.tfstate adopt (step 3)
+# run in live mode and stop it from producing the terraform.tfstate adopt (step 3)
 # exists to delete. So this step works against $DO_DIR, a mktemp copy of
 # $MAIN's current on-disk config plus one additional file adding the live
 # block — a phase-local estate copy, never a second standup: $DO_DIR names
@@ -2098,7 +2098,7 @@ else
   cp -R "$MAIN/." "$DO_DIR/"
 
   # The one addition that turns $DO_DIR's plain "choudoufu plan"/"apply"
-  # stateless: a second terraform{} block — merges fine alongside the
+  # run in live mode: a second terraform{} block — merges fine alongside the
   # copied versions.tf's own terraform{} block, the same way a real module
   # splitting required_providers from a live block across files would —
   # naming the SAME estate $MAIN already owns.

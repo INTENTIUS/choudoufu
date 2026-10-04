@@ -8,7 +8,7 @@
 package identity
 
 // DefaultTable is the v0 identity table: every AWS resource type the
-// stateless subset admits, keyed by provider-local type name. A type absent
+// live-mode subset admits, keyed by provider-local type name. A type absent
 // from this table is outside the subset and resolving it is an error.
 //
 // Every row is derived by tools/row-gen from the provider's own schema, the

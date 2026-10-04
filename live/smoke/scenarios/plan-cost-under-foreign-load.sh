@@ -126,7 +126,7 @@ planned_nothing() { grep -q "No changes." "$LOGS/$1.out" 2>/dev/null; }
 # count does not.
 unfiltered_types() {
   grep -oE "live/discovery: listing [a-z0-9_]+ (unfiltered \\(|via Cloud Control \\()[^)]*\\)(, [0-9]+ resources)?" "$LOGS/$1.log" 2>/dev/null \
-    | sed "s/stateless.discovery: listing //" | sort | uniq -c | sed "s/^ *//" || true
+    | sed "s/live.discovery: listing //" | sort | uniq -c | sed "s/^ *//" || true
 }
 
 step "the claim"

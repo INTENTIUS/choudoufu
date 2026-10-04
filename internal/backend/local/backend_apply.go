@@ -482,7 +482,7 @@ func (b *Local) opApply(
 	// GitHub issue #73's write-back: record-backed resource instances have
 	// no cloud object of their own, so their apply-time result has to be
 	// persisted here explicitly rather than through the ordinary provider
-	// lifecycle. Run unconditionally on b.Stateless (never for an ordinary,
+	// lifecycle. Run unconditionally on b.LiveRun (never for an ordinary,
 	// non-live-block run, where it is nil) and after the state write above
 	// has already succeeded, whether or not the apply itself finished
 	// clean: a resource that did apply successfully before some later
@@ -521,7 +521,7 @@ func (b *Local) opApply(
 	// If we've accumulated any warnings along the way then we'll show them
 	// here just before we show the summary and next steps. If we encountered
 	// errors then we would've returned early at some other point above,
-	// except for a stateless run's AfterApply, whose own failure is reported
+	// except for a live run's AfterApply, whose own failure is reported
 	// through the result here rather than by an early return - see above.
 	op.ReportResult(runningOp, diags)
 }

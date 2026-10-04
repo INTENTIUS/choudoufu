@@ -14,7 +14,7 @@ import (
 	"testing"
 )
 
-// The stateless mode's only integration surface is the marker specification
+// Live mode's only integration surface is the marker specification
 // in live/MARKERS.md: anything that reads the markers this mode writes
 // does so from that document, and nothing in this tree may depend on such a
 // reader. Naming one in a comment is a citation and is fine; importing one is

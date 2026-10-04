@@ -428,14 +428,14 @@ func TestLivePlan_ignoresStateFile(t *testing.T) {
 
 	got, err := os.ReadFile(statePath)
 	if err != nil {
-		t.Fatalf("the state file is gone after a stateless plan: %s", err)
+		t.Fatalf("the state file is gone after a live plan: %s", err)
 	}
 	if string(got) != "this is not a state file\n" {
-		t.Errorf("the state file was rewritten by a stateless plan:\n%s", got)
+		t.Errorf("the state file was rewritten by a live plan:\n%s", got)
 	}
 }
 
-// TestLivePlan_rejectsStateOptions checks that the options stateless
+// TestLivePlan_rejectsStateOptions checks that the options live
 // mode cannot honor fail loudly instead of being ignored.
 func TestLivePlan_rejectsStateOptions(t *testing.T) {
 	td := t.TempDir()
@@ -2503,7 +2503,7 @@ func liveTestIdentitySchemasFrom(base map[string]providers.Schema) map[string]pr
 }
 
 // liveTestProvider is the mock plus the list protocol. Listing is not
-// part of providers.Interface - the stateless list client asks for it by
+// part of providers.Interface - the live-mode list client asks for it by
 // assertion - so it is added here rather than on the mock itself.
 type liveTestProvider struct {
 	*tofu.MockProvider

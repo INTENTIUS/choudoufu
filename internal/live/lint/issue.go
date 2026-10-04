@@ -480,7 +480,7 @@ func (r Rule) Severity() Severity {
 }
 
 // Issue is a single rejection: one construct in one configuration that puts
-// the configuration outside the stateless subset.
+// the configuration outside the live-mode subset.
 type Issue struct {
 	// Rule is which rule fired.
 	Rule Rule

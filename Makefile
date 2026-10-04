@@ -245,7 +245,7 @@ test-kubernetes-clean: ## Cleans environment after `test-kubernetes`.
 	@ test -s /tmp/tofu-k8s-config && rm /tmp/tofu-k8s-config || echo "" > /dev/null
 	@ test -s /tmp/tofuk8s && (/tmp/tofuk8s -q delete cluster --name tofu-kubernetes && rm /tmp/tofuk8s) || echo "" > /dev/null
 
-# integration test for the stateless mode, against the floci AWS emulator
+# integration test for live mode, against the floci AWS emulator
 .PHONY: test-floci test-floci-clean
 
 # The pinned emulator image; live/floci-image is the single source (#98).

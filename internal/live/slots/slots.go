@@ -177,12 +177,12 @@ type Result struct {
 // resource. Use [Classify] first to tell a set that has no slots at all -
 // a legitimate pre-slot estate - from one that disagrees with itself.
 //
-// The never-reuse guarantee this implements is bounded by what a stateless
+// The never-reuse guarantee this implements is bounded by what a live
 // run can see. The high-water mark is computed from the live set, so a slot
 // whose resource has been deleted is not remembered: shrink a count and grow
 // it again and the retired slot comes back around. What that costs is an
 // external tool that cached "slot 2 is eipalloc-abc" reading the cache as
-// still true; what it does not cost is any decision stateless mode makes, because
+// still true; what it does not cost is any decision live mode makes, because
 // nothing here ever reads a slot from anywhere but a live tag in the run that
 // is using it.
 func Match(declared int, live []Live) (*Result, error) {

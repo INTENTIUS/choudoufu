@@ -12,7 +12,7 @@ import (
 
 // TestLiveGuards_escapeHatchesRefused covers the commands that reach a
 // state manager without going through plan or apply. Each of them would
-// otherwise open a Filesystem state manager in a stateless working directory
+// otherwise open a Filesystem state manager in a live-mode working directory
 // and write the state file the live block says does not exist, so each
 // is refused before a backend is prepared.
 //
@@ -168,7 +168,7 @@ func TestLiveGuards_escapeHatchesRefused(t *testing.T) {
 }
 
 // TestLiveGuards_escapeHatchesUnguarded is the other half: without a
-// live block, none of the guarded commands say anything about stateless
+// live block, none of the guarded commands say anything about live
 // mode. The fixture has no state file, so each command fails or reports
 // nothing for its own ordinary reasons; what matters is which reason.
 func TestLiveGuards_escapeHatchesUnguarded(t *testing.T) {

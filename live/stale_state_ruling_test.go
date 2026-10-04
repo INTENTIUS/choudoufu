@@ -22,8 +22,8 @@ import (
 //	losing the cache costs a slower run and nothing else
 //
 // This guard pins those lines into HANDOFF.md's foundation section, so the
-// playbook cannot drift away from the ruling the way the "stateless"
-// framing drifted from "allowed to be stale" (#604, #685). The ruling's
+// playbook cannot drift away from the ruling the way the fork's original
+// name for live mode drifted from "allowed to be stale" (#604, #685). The ruling's
 // authority is this test plus the issue record, deliberately not a prose
 // document: a decision that lives in a document gets renamed, re-homed and
 // re-grown (rfc/ became rulings/ and doubled inside two days); a decision

@@ -8,7 +8,7 @@
 //
 // Under stock OpenTofu a `moved` block relocates a state entry before the
 // plan runs, so that the object recorded at the old address is planned as the
-// resource declared at the new one. Stateless mode keeps that record on the
+// resource declared at the new one. Live mode keeps that record on the
 // object itself, in its tofu-address tag, so the same statement means
 // something slightly different and considerably simpler: *a live resource
 // carrying the old address is the object the new address names*. This package

@@ -52,7 +52,7 @@ type Providers interface {
 // marker and no state anywhere yet. Stock terraform never asks this
 // question in one shot either; its graph defers configuring
 // provider.kubernetes until aws_eks_cluster.this[0] is actually applied,
-// mid-run. The stateless pre-pass this package and internal/command's
+// mid-run. The live pre-pass this package and internal/command's
 // liveDiscover build has no such graph to defer through, so the
 // generic, safe answer here is the same one [Build]'s omitFailed already
 // gives every other unreadable instance: proceed as if nothing was found,

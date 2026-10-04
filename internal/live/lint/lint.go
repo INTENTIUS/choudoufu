@@ -23,11 +23,11 @@ import (
 	residue "github.com/intentius/choudoufu/live"
 )
 
-// Check runs the stateless subset rules over a loaded configuration and
+// Check runs the live-mode subset rules over a loaded configuration and
 // returns every construct that puts it outside the subset.
 //
 // An empty result means the configuration can be planned with no authoritative
-// state, as far as v0 can tell. A non-empty result is fatal to a stateless
+// state, as far as v0 can tell. A non-empty result is fatal to a live
 // operation: the caller should render it (see [Diagnostics]) and stop, before
 // identity resolution or projection building begins.
 //
@@ -451,7 +451,7 @@ func checkStateBackends(mod *configs.Module, path addrs.Module, issues *[]Issue)
 // stays silent about the ones it can (GitHub issue #198).
 //
 // A moved block edits a stored record of which address owns which object.
-// Stateless mode keeps that record on the object itself, as a tag, so the
+// Live mode keeps that record on the object itself, as a tag, so the
 // same statement reads as "a live resource carrying the old address is the
 // object the new address names" - and internal/live/discovery indexes the
 // marker under both addresses, after which the ordinary tags diff rewrites

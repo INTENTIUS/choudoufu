@@ -277,7 +277,7 @@ phase-1 string, and step 4 fails on exactly that.
 
 | Step | Proves |
 |---|---|
-| phase 1 | A stateless `apply` under a `live` block creates the seed parameter. Floci drops an SSM parameter's tag set (floci-gaps #10), so the ownership markers go on by hand with `aws ssm add-tags-to-resource` — adoption exactly as the docs describe it — *after* the out-of-band overwrite, which drops them again. |
+| phase 1 | An `apply` under a `live` block creates the seed parameter. Floci drops an SSM parameter's tag set (floci-gaps #10), so the ownership markers go on by hand with `aws ssm add-tags-to-resource` — adoption exactly as the docs describe it — *after* the out-of-band overwrite, which drops them again. |
 | overwrite | The parameter reads back as the live value through the AWS CLI, not through `choudoufu`. This is the setup that gives the next step its teeth. |
 | phase 2 plan | The plan resolves `aws_ssm_parameter.seed.name` from the block that sets it, reads the data source with it, and names the log group after the value the cloud returned. Both directions are asserted: the live name must be present and the configured name must be absent. |
 | apply + read back | The log group exists on the emulator under the live-derived name, read with the AWS CLI rather than from `choudoufu`'s own output. |

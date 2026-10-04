@@ -90,7 +90,7 @@ import (
 )
 
 // Path literals and pins, centralized on purpose: the rename phase that
-// moved stateless/ to live/ and the module path to
+// moved the fork's top-level tree to live/ and the module path to
 // github.com/intentius/choudoufu had this block as its one stop in this
 // tool, and a later path move should stay just as cheap.
 const (

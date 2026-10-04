@@ -102,7 +102,7 @@ set -uo pipefail
 # the remote), not from that schema-shape filter. Re-crossed for real: the
 # NAT gateway residue (regional_nat_gateway_address = an empty set, the
 # genuine live value) is now recorded during migrate's live-import
-# -approve, filled back into the stateless prior on the first live-plan,
+# -approve, filled back into the projected prior on the first live-plan,
 # and stage 3's plan is empty. Every `aws_*` type whose schema carries a
 # purely Computed, non-identity, non-sensitive, non-write-only, non-nested
 # attribute the provider's Read does not re-derive from a bare prior is
@@ -126,12 +126,12 @@ set -uo pipefail
 # type from its own schema, reaches aws_flow_log exactly as it reaches every
 # other type and correctly DECLINED to record iam_role_arn as residue,
 # because the second of its two classification reads did not reproduce the
-# applied value either - the provider was not preserving a stateless prior,
+# applied value either - the provider was not preserving a projected prior,
 # it was genuinely never being told the value by floci) but a floci gap that
 # also corrupted a real, stateful stock `tofu apply`'s own terraform.tfstate:
 # stage 1's plain cold-deploy state used to already carry iam_role_arn=""
 # immediately after a real, non-choudoufu apply, which is what proved this
-# was not specific to choudoufu's stateless replan design. RESOLVED as
+# was not specific to choudoufu's live replan design. RESOLVED as
 # lex00/floci#96 above - re-crossed for real against the fixed image
 # 2026-08-21: stage 1's cold-deploy state now carries the real IAM role ARN,
 # and stage 3 no longer proposes any change to aws_flow_log at all.
@@ -441,7 +441,7 @@ PYEOF
 # be deleted" is the same wrong-marker-shaped risk HANDOFF.md's safety rule
 # forbids for a marker, just for a record instead. Migrate DOES seed a
 # located identity record for it (issue #364 unit A2, stamp.go's
-# OutcomeSkipped branch), but a stateless live-plan correctly does not
+# OutcomeSkipped branch), but a live-plan correctly does not
 # destroy a record-located instance on config removal alone - this is
 # design, not a defect, and this estate's day2_remove does not need to be
 # the one that exercises that particular corner of the stage's Proves text.

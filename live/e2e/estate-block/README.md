@@ -7,14 +7,14 @@ and the main estate must not.
 ## Why this is a separate directory, not a flag on the main estate
 
 The contract is that plain `choudoufu plan`/`choudoufu apply` go
-stateless only when a configuration's `terraform` block contains a
+into live mode only when a configuration's `terraform` block contains a
 `live` block — never behind a CLI flag, so a team cannot fall back to a
 state file by forgetting one. The main estate's `standup` step
 (`live/e2e/run.sh`, step 2) needs the opposite: a stock `choudoufu apply`
 that writes a plain `terraform.tfstate`, which is what `adopt` (step 3) then
 deletes to demonstrate the "nothing but a marker sweep gets you back" claim.
 Adding a `live` block to `live/e2e/estate/` would turn `standup`'s
-own apply stateless and it would stop producing a state file, breaking the
+own apply into live mode and it would stop producing a state file, breaking the
 demo that step exists for. So the two fixtures live apart: `estate/` proves
 adoption from a stock state file, `estate-block/` proves the config-block
 path plain plan/apply take once there is no state file to begin with.

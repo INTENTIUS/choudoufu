@@ -95,7 +95,7 @@ type Options struct {
 	// reading it through any other configuration would be reading somewhere
 	// else. The zero value falls back to the provider the resource type
 	// implies in the root module, which is right whenever the configuration
-	// has one unaliased provider - the shape stateless mode v0 discovers
+	// has one unaliased provider - the shape live mode v0 discovers
 	// through anyway.
 	//
 	// [Options.UndeclaredProviders] takes precedence over this field per
@@ -3201,7 +3201,7 @@ func notFoundDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
 // build_seed_test.go): floci's DescribeServices always returns the full
 // ARN on the wire, but choudoufu's import stub leaves task_definition
 // null (ImportResourceState has no configuration to draw it from), so
-// every stateless replan re-triggers the short-form fallback forever.
+// every live replan re-triggers the short-form fallback forever.
 // #376: hashicorp/aws's aws_ecs_task_definition Read never sources
 // track_latest or skip_destroy from the API at all - both are
 // client-side-only arguments, confirmed by the issue - so a null

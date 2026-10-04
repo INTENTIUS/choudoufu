@@ -273,7 +273,7 @@ func initCommands(meta command.Meta) {
 			}, nil
 		},
 
-		// Stateless mode's plan path. Public since 2026-08-18 (commit
+		// Live mode's plan path. Public since 2026-08-18 (commit
 		// fd85ceca07): real, tested end to end, and self-labeled
 		// "(experimental)" in its own synopsis - hiding it while live-check
 		// stood in the top-level help was a discoverability bug, not a
@@ -285,7 +285,7 @@ func initCommands(meta command.Meta) {
 		},
 
 		// The rename half of the same experiment: rewriting a live
-		// resource's ownership marker is what stateless mode has instead of
+		// resource's ownership marker is what live mode has instead of
 		// "moved" blocks and state surgery. Public as of the
 		// [gauntlet:readme-and-unhide] maintainer ruling (2026-08-25): the
 		// day2_rename stage is active and clear fleet-wide, and the

@@ -483,7 +483,7 @@ func unreadableMarkerProblem(req Request, decl *declared, typeName, escaped stri
 // never part of the identifier. corpus-autoscaling-complete's own
 // module.complete built an aws_iam_role and an aws_iam_instance_profile
 // under path "/ec2/" through name_prefix - live-import stamped both, but a
-// stateless replan's discovery re-listed each with no tags (iam:ListRoles
+// live replan's discovery re-listed each with no tags (iam:ListRoles
 // and iam:ListInstanceProfiles return none), and the ResourceID join key
 // above ("ec2/complete-...") never matched either object's own bare-name
 // import ID ("complete-..."), so the join silently found nothing
