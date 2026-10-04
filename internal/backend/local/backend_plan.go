@@ -132,7 +132,12 @@ func (b *Local) opPlan(
 	// NOTE: We intentionally don't stop here on errors because we always want
 	// to try to present a partial plan report and, if the user chose to,
 	// generate a partial saved plan file for external analysis.
-	diags = diags.Append(planDiags)
+	// Plan() re-validates every resource's final config, so a provider's
+	// validation warning (the kubernetes provider's "Deprecated Resource"
+	// is the measured case, epic #1885) comes back here a second time after
+	// localRun's validate walk already reported it. Stock terraform merges
+	// with the same deduplication.
+	diags = diags.AppendWithoutDuplicates(planDiags...)
 
 	// Even if there are errors we need to handle anything that may be
 	// contained within the plan, so only exit if there is no data at all.

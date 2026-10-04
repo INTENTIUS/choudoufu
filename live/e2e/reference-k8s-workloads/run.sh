@@ -835,6 +835,31 @@ for o in sorted(out):
 '
 }
 
+# deprecation_warnings_json reads a stock `terraform plan -json` stream on
+# stdin and prints the same normalised "Warning: SUMMARY @ ADDRESS" lines as
+# deprecation_warnings, one per diagnostic and never folded: the JSON stream
+# carries every warning with its address, which the human rendering folds
+# into "(and N more similar warnings elsewhere)" after the first.
+deprecation_warnings_json() {
+  python3 -c '
+import json, re, sys
+out = []
+for ln in sys.stdin.read().splitlines():
+    try:
+        m = json.loads(ln)
+    except ValueError:
+        continue
+    d = m.get("diagnostic") if isinstance(m, dict) else None
+    if not d or d.get("severity") != "warning":
+        continue
+    o = "Warning: %s @ %s" % (d.get("summary", "").strip(), d.get("address") or "-")
+    if re.search(r"deprecat", o, re.I):
+        out.append(o)
+for o in sorted(out):
+    print(o)
+'
+}
+
 # inventory prints the estate's objects on the cluster $1 names, normalised:
 # each object's body without metadata and status (labels and annotations are
 # where the two tools legitimately differ), and with the fields the server
@@ -953,14 +978,29 @@ done <<< "$OBJECTS"
 # deprecation warnings choudoufu prints for this configuration are stock's,
 # warning by warning and address by address, read off stock's own plan of
 # the identical configuration on the oracle cluster.
-O_PLAN_DEP="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN_DEP" | tail -10; fail "stock's plan on B for the deprecation comparison failed"; }
-O_DEP="$(deprecation_warnings <<< "$O_PLAN_DEP")"
-A_DEP="$(deprecation_warnings <<< "$PLAN_OUT")"
+#
+# Compared unfolded, as a sorted list that keeps repeats: stock's from its
+# -json stream (every warning, with its address), choudoufu's from a plan
+# rendered with -consolidate-warnings=false. The folded human rendering
+# names only the first address and a count, so it hid WHICH warnings
+# differed; a set would hide the case that first failed here (#1885),
+# a warning printed twice for one block, which a user reads too.
+O_PLAN_DEP="$(stock_b plan -json -input=false 2>&1)" || { printf '%s\n' "$O_PLAN_DEP" | tail -10; fail "stock's plan on B for the deprecation comparison failed"; }
+A_PLAN_DEP="$(chdf plan -consolidate-warnings=false -input=false -no-color 2>&1)" || { printf '%s\n' "$A_PLAN_DEP" | tail -10; fail "choudoufu's unfolded plan for the deprecation comparison failed"; }
+O_DEP="$(deprecation_warnings_json <<< "$O_PLAN_DEP")"
+A_DEP="$(deprecation_warnings <<< "$A_PLAN_DEP")"
 DEP_SAME=1; [ "$O_DEP" = "$A_DEP" ] || DEP_SAME=0
 if grep -q "No changes." <<< "$PLAN_OUT" && [ "$IDS_OK" = "1" ] && [ "$DEP_SAME" = "1" ] && ! grep -q '^Error:' <<< "$PLAN_OUT"; then
   gauntlet_stage test_plan pass "the plan with no state file is empty; all $N_OBJECTS identities (KIND NAMESPACE/NAME) confirmed present with kubectl across $N_KINDS kinds and two namespaces, the deprecated-alias objects bound by the same label-and-name join as their _v1 kinds (kubernetes_daemonset's included, which joined to a kind the server does not list until #1884). The deprecation warnings choudoufu printed are exactly stock's for the same configuration on the oracle cluster, by warning and by address: $(printf '%s' "${A_DEP:-none on either side}" | tr '\n' ';'), and no error"
 else
-  [ "$DEP_SAME" = "1" ] || { log "  deprecation warnings, stock on B vs choudoufu on A:"; diff <(printf '%s\n' "$O_DEP") <(printf '%s\n' "$A_DEP") | sed 's/^/    /'; }
+  # Everything a reader needs to say which object changes and which warning
+  # differs, without rerunning: the plan's own resource diff, and both
+  # warning lists in full (one line per warning and address) beside their
+  # diff.
+  grep -q "No changes." <<< "$PLAN_OUT" || { log "  the plan with no state file, every proposed change:"; printf '%s\n' "$PLAN_OUT" | sed -n '/will perform the following actions/,/^Plan:/p' | sed 's/^/    /'; }
+  log "  deprecation warnings, stock on B (terraform plan -json), $(printf '%s' "$O_DEP" | grep -c . || true) line(s):"; printf '%s\n' "${O_DEP:-(none)}" | sed 's/^/    /'
+  log "  deprecation warnings, choudoufu on A (-consolidate-warnings=false), $(printf '%s' "$A_DEP" | grep -c . || true) line(s):"; printf '%s\n' "${A_DEP:-(none)}" | sed 's/^/    /'
+  [ "$DEP_SAME" = "1" ] || { log "  diff, stock (<) vs choudoufu (>):"; diff <(printf '%s\n' "$O_DEP") <(printf '%s\n' "$A_DEP") | sed 's/^/    /'; }
   gauntlet_stage test_plan fail "the plan with no state file: $(plan_line "$PLAN_OUT"); identities confirmed with kubectl: $IDS_OK (missing:${MISSING:- none}); deprecation warnings match stock's: $DEP_SAME (stock: $(printf '%s' "${O_DEP:-none}" | tr '\n' ';') choudoufu: $(printf '%s' "${A_DEP:-none}" | tr '\n' ';')); first error: $(grep -m1 '^Error:' <<< "$PLAN_OUT" || echo none)"
   log "  adopting through choudoufu's own apply so the day-2 stages below run on a labelled estate"
   ADOPT_OUT="$(chdf apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$ADOPT_OUT" | tail -30; fail "the adopting apply failed"; }
