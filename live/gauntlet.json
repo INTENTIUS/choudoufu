@@ -408,7 +408,7 @@
   "lanes": {
     "kubernetes": {
       "label": "kubernetes lane",
-      "estates": 6,
+      "estates": 7,
       "clear": 4,
       "verified": 4,
       "carried": 0,
@@ -416,77 +416,77 @@
         "cold_deploy": {
           "pass": 4,
           "fail": 0,
-          "not_run": 2
+          "not_run": 3
         },
         "day2_count": {
           "pass": 4,
           "fail": 0,
-          "not_run": 2
+          "not_run": 3
         },
         "day2_crash": {
           "pass": 4,
           "fail": 0,
-          "not_run": 2
+          "not_run": 3
         },
         "day2_remove": {
           "pass": 4,
           "fail": 0,
-          "not_run": 2
+          "not_run": 3
         },
         "day2_rename": {
           "pass": 4,
           "fail": 0,
-          "not_run": 2
+          "not_run": 3
         },
         "day2_replace": {
           "pass": 4,
           "fail": 0,
-          "not_run": 2
+          "not_run": 3
         },
         "day2_teardown": {
           "pass": 4,
           "fail": 0,
-          "not_run": 2
+          "not_run": 3
         },
         "drift_reconverge": {
           "pass": 4,
           "fail": 0,
-          "not_run": 2
+          "not_run": 3
         },
         "greenfield": {
           "pass": 4,
           "fail": 0,
-          "not_run": 2
+          "not_run": 3
         },
         "migrate": {
           "pass": 4,
           "fail": 0,
-          "not_run": 2
+          "not_run": 3
         },
         "no_local_state": {
           "pass": 0,
           "fail": 0,
-          "not_run": 6
+          "not_run": 7
         },
         "plan_approval": {
           "pass": 4,
           "fail": 0,
-          "not_run": 2
+          "not_run": 3
         },
         "strict": {
           "pass": 4,
           "fail": 0,
-          "not_run": 2
+          "not_run": 3
         },
         "test_apply": {
           "pass": 4,
           "fail": 0,
-          "not_run": 2
+          "not_run": 3
         },
         "test_plan": {
           "pass": 4,
           "fail": 0,
-          "not_run": 2
+          "not_run": 3
         }
       }
     },
