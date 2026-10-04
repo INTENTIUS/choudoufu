@@ -281,7 +281,10 @@ func matchFieldGranular(types []FieldGranularType, apiVersion, kind string, fiel
 		owns := false
 		for _, attr := range t.Maps {
 			root, _ := kubesweep.FieldGranularMapRoot(attr)
-			if members, atomic, found := kubesweep.OwnedAt(fields, root); found && (len(members) > 0 || atomic) {
+			// Granular maps: a key is the field. Owning the map with no key
+			// is what a release (an apply of the empty map) leaves behind
+			// (#1885), and owns nothing this type writes.
+			if members, _, found := kubesweep.OwnedAt(fields, root); found && len(members) > 0 {
 				owns = true
 			}
 		}
