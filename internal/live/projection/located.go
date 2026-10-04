@@ -398,11 +398,87 @@ func schemaFallbackComponentsRecord(resourceType string, schema providers.Schema
 	if identity.SensitiveComponentsAttr(ti, schema) != "" {
 		return nil, false
 	}
-	_, values, ok := identity.ComponentsFromValue(ti, obj)
+	_, values, ok := identity.ComponentsFromValue(ti, nullEmptyOmittable(ti, obj))
 	if !ok || len(values) == 0 {
 		return nil, false
 	}
+	// [RecordStore.GetIdentity] refuses a record with an empty component,
+	// so writing one leaves an address no later run can read. An empty
+	// value left after the normalization above is a component that is not
+	// OmitIfAbsent: there is no identity to record from it.
+	for _, v := range values {
+		if v == "" {
+			return nil, false
+		}
+	}
 	return values, true
+}
+
+// nullEmptyOmittable reads an empty string under an
+// [identity.Component.OmitIfAbsent] component's argument as the null it
+// stands for. obj is a provider's read, not a statically evaluated
+// configuration, and an SDKv2 provider answers an unset optional string
+// with "" rather than null. A cluster-scoped object's field-granular block
+// (kubernetes_labels on the "default" Namespace, kubernetes_annotations on
+// a StorageClass) is the measured case (epic #1885): its state carries
+// metadata.namespace = "", ComponentsFromValue counted that as present,
+// and the record live-import wrote held an empty "namespace" component
+// that every later read refused. Only the arguments an OmitIfAbsent
+// component reads are touched, at the top level or in the first element
+// of the nested block it names, and only an empty string is changed.
+func nullEmptyOmittable(ti identity.TypeIdentity, obj cty.Value) cty.Value {
+	for _, c := range ti.Components {
+		if !c.OmitIfAbsent || len(c.Attrs) == 0 {
+			continue
+		}
+		if c.Block == "" {
+			obj = nullEmptyStrings(obj, c.Attrs)
+			continue
+		}
+		if obj.IsMarked() || !obj.Type().IsObjectType() || !obj.Type().HasAttribute(c.Block) {
+			continue
+		}
+		block := obj.GetAttr(c.Block)
+		if block.IsMarked() || block.IsNull() || !block.IsWhollyKnown() || !block.Type().IsListType() || block.LengthInt() == 0 {
+			continue
+		}
+		elems := block.AsValueSlice()
+		first := nullEmptyStrings(elems[0], c.Attrs)
+		if first.RawEquals(elems[0]) {
+			continue
+		}
+		elems[0] = first
+		vals := obj.AsValueMap()
+		vals[c.Block] = cty.ListVal(elems)
+		obj = cty.ObjectVal(vals)
+	}
+	return obj
+}
+
+// nullEmptyStrings is obj with each of names that holds "" set to a null
+// string; obj itself when none does.
+func nullEmptyStrings(obj cty.Value, names []string) cty.Value {
+	if obj.IsMarked() || obj.IsNull() || !obj.Type().IsObjectType() {
+		return obj
+	}
+	var vals map[string]cty.Value
+	for _, name := range names {
+		if !obj.Type().HasAttribute(name) {
+			continue
+		}
+		v := obj.GetAttr(name)
+		if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String || v.AsString() != "" {
+			continue
+		}
+		if vals == nil {
+			vals = obj.AsValueMap()
+		}
+		vals[name] = cty.NullVal(cty.String)
+	}
+	if vals == nil {
+		return obj
+	}
+	return cty.ObjectVal(vals)
 }
 
 // ApplyRecordsIdentity reports whether an apply's record write-back
