@@ -6,6 +6,7 @@
 package kubesweep
 
 import (
+	"strings"
 	"sync"
 
 	"k8s.io/client-go/kubernetes/scheme"
@@ -94,6 +95,55 @@ func builtinKindGroups() map[string]map[string]bool {
 		builtinKindGroupsVal = out
 	})
 	return builtinKindGroupsVal
+}
+
+var (
+	builtinKindSpellingsOnce sync.Once
+	builtinKindSpellingsVal  map[string]string
+)
+
+// builtinKindSpelling returns the registry's own spelling of joined, a kind
+// [KindOfType] built by capitalising each segment of a type name, when the
+// two differ only in case; otherwise joined unchanged (GitHub issue #1884).
+//
+// The snake-case join cannot recover a word boundary the type name does not
+// have. hashicorp/kubernetes 3.2.1 names three types that way: the
+// deprecated kubernetes_daemonset joins to "Daemonset" and
+// kubernetes_csi_driver(_v1) to "CsiDriver", where the API server says
+// DaemonSet and CSIDriver. A served resource is matched to its types by
+// r.Kind, the server's spelling, so before this the deprecated alias's
+// objects were never listed under it and a declared one could not meet its
+// listed self: the sweep filed it under kubernetes_daemon_set_v1 as an
+// undeclared object. The same k8s.io/client-go registry
+// [builtinKindGroups] reads is the authority here, with no type named; a
+// fold that would match two registered spellings changes nothing, and a
+// kind the registry does not carry (APIService, which lives in
+// kube-aggregator's) keeps the join.
+func builtinKindSpelling(joined string) string {
+	builtinKindSpellingsOnce.Do(func() {
+		seen := map[string]map[string]bool{}
+		for gvk := range scheme.Scheme.AllKnownTypes() {
+			folded := strings.ToLower(gvk.Kind)
+			if seen[folded] == nil {
+				seen[folded] = map[string]bool{}
+			}
+			seen[folded][gvk.Kind] = true
+		}
+		out := map[string]string{}
+		for folded, spellings := range seen {
+			if len(spellings) != 1 {
+				continue
+			}
+			for s := range spellings {
+				out[folded] = s
+			}
+		}
+		builtinKindSpellingsVal = out
+	})
+	if s, ok := builtinKindSpellingsVal[strings.ToLower(joined)]; ok {
+		return s
+	}
+	return joined
 }
 
 // servesBuiltinKind reports whether the Kubernetes API itself registers

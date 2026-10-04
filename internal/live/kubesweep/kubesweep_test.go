@@ -31,9 +31,16 @@ func TestKindOfType(t *testing.T) {
 		"kubernetes_horizontal_pod_autoscaler_v2":      {"HorizontalPodAutoscaler", true, true},
 		"kubernetes_horizontal_pod_autoscaler_v2beta2": {"HorizontalPodAutoscaler", true, true},
 		"kubernetes_cluster_role_binding":              {"ClusterRoleBinding", false, true},
-		"kubernetes_namespace":                         {"Namespace", false, true},
-		"kubernetes_manifest":                          {"Manifest", false, true},
-		"aws_s3_bucket":                                {"", false, false},
+		// #1884: the snake join reads "Daemonset" and "CsiDriver"; the
+		// registry's spelling is what the server lists them under.
+		"kubernetes_daemonset":     {"DaemonSet", false, true},
+		"kubernetes_daemon_set_v1": {"DaemonSet", true, true},
+		"kubernetes_csi_driver_v1": {"CSIDriver", true, true},
+		// Not in client-go's registry (kube-aggregator's): the join stands.
+		"kubernetes_api_service_v1": {"ApiService", true, true},
+		"kubernetes_namespace":      {"Namespace", false, true},
+		"kubernetes_manifest":       {"Manifest", false, true},
+		"aws_s3_bucket":             {"", false, false},
 	} {
 		kind, versioned, ok := KindOfType(typeName)
 		if kind != want.kind || versioned != want.versioned || ok != want.ok {
