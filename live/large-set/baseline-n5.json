@@ -10,9 +10,9 @@
   },
   "condition": "choudoufu-live-plan-default-after-own-apply",
   "substrate": "floci",
-  "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
-  "commit": "316b310d9ad5243eee709d60e076b4c3f60e19a5",
-  "date": "2026-10-03T02:04:49Z",
+  "emulator": "ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144",
+  "commit": "afa7cc4d72cb63d46906a4cd9c66db1d2aee3de5",
+  "date": "2026-10-04T03:17:00Z",
   "repeats": 3,
   "estates": [
     {
@@ -25,9 +25,9 @@
           82
         ],
         "seconds": [
-          3.48,
-          3.14,
-          3.06
+          1.85,
+          1.83,
+          1.85
         ],
         "summaries": [
           "No changes.",
@@ -46,9 +46,9 @@
           82
         ],
         "seconds": [
-          3.17,
-          3.65,
-          3.06
+          1.84,
+          1.97,
+          1.89
         ],
         "summaries": [
           "Plan: 1 to add, 3 to change, 0 to destroy.",
@@ -77,9 +77,9 @@
           81
         ],
         "seconds": [
-          3.66,
-          3.5,
-          3.55
+          1.85,
+          1.86,
+          1.81
         ],
         "summaries": [
           "No changes.",
@@ -98,9 +98,9 @@
           81
         ],
         "seconds": [
-          3.58,
-          3.52,
-          3.13
+          1.77,
+          1.66,
+          2.27
         ],
         "summaries": [
           "Plan: 1 to add, 3 to change, 0 to destroy.",
@@ -129,9 +129,9 @@
           78
         ],
         "seconds": [
-          3.7,
-          2.96,
-          4.13
+          1.73,
+          1.73,
+          1.83
         ],
         "summaries": [
           "No changes.",
@@ -150,9 +150,9 @@
           78
         ],
         "seconds": [
-          3.38,
-          3.61,
-          3.76
+          1.8,
+          1.79,
+          2.04
         ],
         "summaries": [
           "Plan: 1 to add, 3 to change, 0 to destroy.",
@@ -181,9 +181,9 @@
           77
         ],
         "seconds": [
-          3.72,
-          3.64,
-          3.57
+          1.87,
+          1.8,
+          1.81
         ],
         "summaries": [
           "No changes.",
@@ -202,9 +202,9 @@
           77
         ],
         "seconds": [
-          2.87,
-          4.08,
-          3.64
+          2.17,
+          2.09,
+          2.12
         ],
         "summaries": [
           "Plan: 1 to add, 4 to change, 0 to destroy.",
@@ -234,9 +234,9 @@
           75
         ],
         "seconds": [
-          3.62,
-          3.81,
-          3.15
+          1.83,
+          1.91,
+          1.83
         ],
         "summaries": [
           "No changes.",
@@ -255,9 +255,9 @@
           75
         ],
         "seconds": [
-          3.78,
-          3.87,
-          3.62
+          2.14,
+          2.25,
+          2.09
         ],
         "summaries": [
           "Plan: 1 to add, 3 to change, 0 to destroy.",
