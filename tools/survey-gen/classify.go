@@ -16,6 +16,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/servicetags"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -242,6 +243,14 @@ type Signals struct {
 	// and both have no Importer. This is the one signal that answers the
 	// question directly instead of inferring it from something else.
 	Importable bool `json:"importable"`
+
+	// ServiceList: the service's own list API enumerates the type and the
+	// service's own tag API reads its marker - internal/live/servicetags'
+	// route tables, which internal/live/discovery's service-list leg drives
+	// for a type with no native list resource and no input-free Cloud
+	// Control list handler (GitHub issues #1477 and #1496). Omitted when
+	// false, so a row the leg does not reach reads exactly as before.
+	ServiceList bool `json:"service_list,omitempty"`
 }
 
 // IdentityAttrs is the identity schema's attribute composition.
@@ -553,6 +562,19 @@ func classify(typeName string, schema providers.GetProviderSchemaResponse, deriv
 		case listable && len(scoping) == 0:
 			row.Path = pathEnumerableUnbindable
 			row.Evidence = identityNote + "; " + unservedNote + "Cloud Control listing " + cfnType + " with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+		case serviceListed(typeName) != "":
+			// GitHub issue #1496: the third enumeration signal, after the
+			// native list resource and the input-free Cloud Control list
+			// handler, in the order internal/live/discovery's scanType tries
+			// them. The service's own listing reaches the object and the
+			// service's own tag API reads the marker off it
+			// (internal/live/discovery/servicelist.go, #1477 and #1131), so
+			// discovery binds it by the marker exactly as it binds any other
+			// marker-path type - only the call that fetches the tags differs.
+			row.Path = pathMarker
+			row.Signals.ServiceList = true
+			row.Evidence = identityNote + "; " + unservedNote + serviceListed(typeName)
+
 		case listable:
 			row.Path = pathOps
 			row.Evidence = identityNote + "; " + unservedNote + "no native list resource, and Cloud Control's list handler for " + cfnType +
@@ -858,4 +880,25 @@ func taggingAPIUnservedNote(typeName string) string {
 		// would be the worse failure.
 		return "taggable, but the tag-filtered list route is not one the sweep takes for it (issues #1133, #1144), so "
 	}
+}
+
+// serviceListed returns the evidence clause for a type
+// internal/live/discovery's service-list leg recovers, or "" when it does
+// not. Both halves are required: the listing reaches the object, and the
+// tag read is what binds it, because IAM's list operations drop tags by
+// design (internal/live/servicetags' doc comment). A list route with no
+// read route would be an enumeration that binds nothing, which is the
+// enumerable-unbindable shape, not the marker path.
+//
+// It reads servicetags' route tables through the same accessors discovery's
+// leg reads them through, so the survey and the run cannot disagree about
+// which types the leg covers. The IAM client is never called: ListRoute,
+// ListAction, Route and Action consult only the tables.
+func serviceListed(typeName string) string {
+	r := servicetags.NewIAM(nil)
+	if !r.ListRoute(typeName) || !r.Route(typeName) {
+		return ""
+	}
+	return "no native list resource and no input-free Cloud Control list handler, but the service's own listing (" + r.ListAction(typeName) +
+		") enumerates it and the service's own tag API (" + r.Action(typeName) + ") reads the marker, so discovery binds it by marker"
 }
