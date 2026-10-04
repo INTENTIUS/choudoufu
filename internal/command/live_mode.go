@@ -1223,7 +1223,16 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// same reason live-plan's own equivalent construction is not: reading a
 	// GitHub issue #364 record-backed value that a PARENT_DERIVED formula
 	// already names as a parent is not the #388 migration's concern.
-	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, r.recordStore, readPar, scope, nil)
+	// GitHub issue #1113: a failed read of a cluster a provider block reads
+	// directly is an error, by the maintainer's ruling - see
+	// [statelessProviderDataReads].
+	var pdDiags tfdiags.Diagnostics
+	provs.providerDataResults, provs.providerManagedResults, pdDiags = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, r.recordStore, readPar, scope, nil)
+	diags = diags.Append(pdDiags)
+	if pdDiags.HasErrors() {
+		diags = diags.Append(provs.close(ctx))
+		return nil, diags
+	}
 
 	merged := resolutions.All()
 	// GitHub issue #388's plan-node seam, edge 3: r.recordStore is opened

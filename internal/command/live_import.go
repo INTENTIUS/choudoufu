@@ -281,10 +281,11 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 // The gate is offline and exact: [dataread.AnalyzeProviderConfigs] over the
 // bare options walks the provider blocks' own argument expressions and
 // records every declared data resource they reach, before any eligibility
-// rule that would want a schema (see [dataread.Analysis.Empty] and
+// rule that would want a schema (see [dataread.Analysis.Demands] and
 // analyzer.classify, which stores its record on every path that gets past
-// "no such data resource"). A configuration whose provider blocks name no
-// data source - every estate that migrated before this existed - returns
+// "no such data resource"), and since GitHub issue #1113 every managed value
+// they read that their own configuration cannot answer. A configuration whose
+// provider blocks name neither - every estate that migrated before this existed - returns
 // here having started no plugin, read nothing, and resolved nothing, so its
 // report is unchanged by construction rather than by measurement.
 //
@@ -305,7 +306,7 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 // to honour, and nil means every block is in scope - the same value
 // live-mv and live-ls pass for the same reason.
 func liveImportProviderDataReads(ctx context.Context, config *configs.Config, provs *statelessProviders, recordStore *projection.RecordStore, state *states.State) {
-	if dataread.AnalyzeProviderConfigs(ctx, config, dataread.Options{}).Empty() {
+	if !dataread.AnalyzeProviderConfigs(ctx, config, dataread.Options{}).Demands() {
 		return
 	}
 
@@ -332,7 +333,18 @@ func liveImportProviderDataReads(ctx context.Context, config *configs.Config, pr
 		log.Printf("[TRACE] live-import: %s", d.Description().Summary)
 	}
 
-	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, recordStore, readPar, nil, liveImportPriorManagedValues(state, resourceSchemas))
+	// GitHub issue #1113's managed half rides along: a provider block that
+	// reads a managed value itself is answered from the same prior state,
+	// so the cluster a migration's kubernetes provider reads is the one the
+	// state file names, read from nothing. The failures that are fatal on
+	// the plan paths are traced here with everything else, for the reason
+	// this function's doc comment gives; a state-held instance is seeded,
+	// never read, so it cannot produce one.
+	var pdDiags tfdiags.Diagnostics
+	provs.providerDataResults, provs.providerManagedResults, pdDiags = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, recordStore, readPar, nil, liveImportPriorManagedValues(state, resourceSchemas))
+	for _, d := range pdDiags {
+		log.Printf("[TRACE] live-import: provider-configuration reads: %s", d.Description().Summary)
+	}
 }
 
 // liveImportPriorManagedValues is the state file being migrated, decoded into
