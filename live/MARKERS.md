@@ -177,7 +177,12 @@ as `live/kubernetes/estate-boundary.yaml` judges it exactly as it judges
 in the label surface's words otherwise. The dry run goes out under
 `-dry-run` too, so the server's verdict prints before anything is written,
 and its answer is held to stricter terms than the migration's: every label
-but `tofu-estate` must read back unchanged. Nothing is projected
+but `tofu-estate` must read back unchanged. A move killed between the
+label patch and the hand-off of the label's field ownership (#1704) is
+finished by its rerun (#1858): an object already carrying the destination
+estate and the new address, whose manager's Update entry still holds a
+marker, is sent the same dry-run-checked patch again instead of being
+answered "already in this estate". Nothing is projected
 afterwards; the destination's next plan seeds the stamped manifest and
 mirrors the live label into the prior, so it replans empty. Before this the
 move was refused by name with the equivalent `kubectl label` command.
