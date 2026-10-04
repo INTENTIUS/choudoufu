@@ -128,6 +128,16 @@ func scanEstate(ctx context.Context, root string, spec estateSpec) (estateTypes,
 			for _, m := range resourceBlockRe.FindAllStringSubmatch(string(text), -1) {
 				types[m[1]] = true
 			}
+			for _, rel := range spec.ScanFiles {
+				extra, err := os.ReadFile(filepath.Join(root, rel)) //nolint:gosec // repo-relative path from the spec table
+				if err != nil {
+					loadErrs = append(loadErrs, fmt.Sprintf("%s: %v", rel, err))
+					continue
+				}
+				for _, m := range resourceBlockRe.FindAllStringSubmatch(string(extra), -1) {
+					types[m[1]] = true
+				}
+			}
 			if len(types) != before || len(configDirsUsed) == 0 {
 				sources = append(sources, "script")
 			}

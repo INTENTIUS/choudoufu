@@ -54,6 +54,14 @@ type estateSpec struct {
 	// apply".
 	ScanScript bool
 
+	// ScanFiles are further repository-root-relative files given the same
+	// literal-resource-block scan as ScanScript, for an estate whose crossing
+	// script sources its configuration from a file beside it rather than
+	// carrying the heredocs itself - reference-eks (#1113) keeps its root in
+	// live/e2e/reference-eks/estate.sh so the emulator crossing and the
+	// live-cert script declare the same text. Empty for every other estate.
+	ScanFiles []string
+
 	// Note records why ConfigDirs is what it is, for the next person to
 	// re-derive it rather than trust it - traced against the exact run.sh
 	// lines cited.
@@ -232,6 +240,13 @@ var estateSpecs = []estateSpec{
 		ConfigDirs: []string{".corpus/quickpizza/deployments/terraform"},
 		ScanScript: true,
 		Note:       `The kubernetes lane's first published estate (#1067): grafana/quickpizza's own deployments/terraform root at v0.15.28, copied out of .corpus verbatim by live/e2e/corpus-quickpizza/run.sh with three deltas (the provider block's minikube kubeconfig lines dropped; placeholder values for the two Grafana Cloud secrets; wait_for_rollout = false on Alloy's Deployment, whose pod cannot become ready without a real token). 27 hashicorp/kubernetes resources over eight kinds plus a helm_release behind count = 0. ScanScript adds the two-instance count ConfigMap the script itself declares for day2_count, and its strict_block() heredoc's random_password.`,
+	},
+	{
+		Name:       "reference-eks",
+		ConfigDirs: nil,
+		ScanScript: true,
+		ScanFiles:  []string{"live/e2e/reference-eks/estate.sh"},
+		Note:       `The "reference" lane's EKS estate (#1113), on the floci-eks substrate: no external source, a hand-written shape kept in this repository. run.sh declares no resource itself; it sources live/e2e/reference-eks/estate.sh, whose reference_eks_aws_resources() and reference_eks_cluster_resources() heredocs carry the whole estate, shared with live/live-cert/reference-eks.sh: the VPC, two subnets, internet gateway, route table and its two associations, four IAM roles and four policy attachments, the cluster, a managed node group, an access entry with a policy association and a pod identity association (the last three behind eks_access_api), and a kubernetes_namespace_v1, kubernetes_service_account_v1, kubernetes_config_map_v1 and kubernetes_deployment_v1 on the cluster it creates.`,
 	},
 	{
 		Name:       "reference-k8s",

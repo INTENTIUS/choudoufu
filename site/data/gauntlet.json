@@ -238,7 +238,7 @@
   "sets": {
     "all": {
       "label": "All estates",
-      "estates": 27,
+      "estates": 28,
       "clear": 27,
       "verified": 27,
       "carried": 0,
@@ -246,77 +246,77 @@
         "cold_deploy": {
           "pass": 27,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_count": {
           "pass": 27,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_crash": {
           "pass": 1,
           "fail": 0,
-          "not_run": 26
+          "not_run": 27
         },
         "day2_remove": {
           "pass": 27,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_rename": {
           "pass": 27,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_replace": {
           "pass": 27,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_teardown": {
           "pass": 0,
           "fail": 0,
-          "not_run": 27
+          "not_run": 28
         },
         "drift_reconverge": {
           "pass": 27,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "greenfield": {
           "pass": 27,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "migrate": {
           "pass": 27,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "no_local_state": {
           "pass": 0,
           "fail": 0,
-          "not_run": 27
+          "not_run": 28
         },
         "plan_approval": {
           "pass": 27,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "strict": {
           "pass": 1,
           "fail": 0,
-          "not_run": 26
+          "not_run": 27
         },
         "test_apply": {
           "pass": 27,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "test_plan": {
           "pass": 27,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         }
       }
     },
@@ -660,7 +660,7 @@
     },
     "reference": {
       "label": "reference lane",
-      "estates": 2,
+      "estates": 3,
       "clear": 2,
       "verified": 2,
       "carried": 0,
@@ -668,77 +668,77 @@
         "cold_deploy": {
           "pass": 2,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_count": {
           "pass": 2,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_crash": {
           "pass": 1,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "day2_remove": {
           "pass": 2,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_rename": {
           "pass": 2,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_replace": {
           "pass": 2,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_teardown": {
           "pass": 0,
           "fail": 0,
-          "not_run": 2
+          "not_run": 3
         },
         "drift_reconverge": {
           "pass": 2,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "greenfield": {
           "pass": 2,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "migrate": {
           "pass": 2,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "no_local_state": {
           "pass": 0,
           "fail": 0,
-          "not_run": 2
+          "not_run": 3
         },
         "plan_approval": {
           "pass": 2,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "strict": {
           "pass": 1,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "test_apply": {
           "pass": 2,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "test_plan": {
           "pass": 2,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         }
       }
     },
@@ -3955,6 +3955,33 @@
         }
       },
       "notes": "Verified end-to-end 2026-08-17/18. Drift-and-reconverge added 2026-08-18: the adopted estate's EC2 instance Name tag is tampered directly via the AWS CLI against the running floci container, choudoufu plan proposes fixing exactly aws_instance.main and nothing else, and apply reconverges it - verified with a real clean run and a real BREAK=1 run (BREAK also tampers a second object's Name tag, and the single-object assertion is confirmed to fail when it does)."
+    },
+    {
+      "name": "reference-eks",
+      "source": "hand-written reference shape kept in this repository (live/e2e/reference-eks/estate.sh): VPC, EKS cluster, one managed node group, an access entry and a pod identity association, with provider \"kubernetes\" configured from aws_eks_cluster.this and an exec token, and a four-object cluster leg; one estate across AWS and the cluster it creates (#1113), certified on real AWS by live/live-cert/reference-eks.sh",
+      "lane": "reference",
+      "set": "growing",
+      "substrate": "floci-eks",
+      "script": "live/e2e/reference-eks/run.sh",
+      "stages": {
+        "cold_deploy": "not_run",
+        "day2_count": "not_run",
+        "day2_crash": "not_run",
+        "day2_remove": "not_run",
+        "day2_rename": "not_run",
+        "day2_replace": "not_run",
+        "day2_teardown": "not_run",
+        "drift_reconverge": "not_run",
+        "greenfield": "not_run",
+        "migrate": "not_run",
+        "no_local_state": "not_run",
+        "plan_approval": "not_run",
+        "strict": "not_run",
+        "test_apply": "not_run",
+        "test_plan": "not_run"
+      },
+      "clear": false,
+      "protocol": "legacy"
     },
     {
       "name": "reference-k8s",
