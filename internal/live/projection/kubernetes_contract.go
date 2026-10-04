@@ -94,6 +94,10 @@ func VerifyCluster(ctx context.Context, rs *configs.LiveRecordStore, estate, nam
 		// finding a run would refuse on (#1448). With no block there is no
 		// argument to report.
 		InsecureTLS: rs.Kubernetes.Insecure,
+		// #1524: the same managed control plane a run's first contact asks.
+		ControlPlane:       kubernetesControlPlane(rs, cfg),
+		ControlPlaneReader: controlPlaneReader,
+		APIServerHost:      cfg.Host,
 	})
 	return findings, target, err
 }

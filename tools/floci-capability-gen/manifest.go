@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 )
 
 // generatedByLine is written to every regenerated manifest's own
@@ -50,8 +51,14 @@ type imageArtifact struct {
 }
 
 type manifestArtifact struct {
-	GeneratedBy string          `json:"generated_by"`
-	Images      []imageArtifact `json:"images"`
+	GeneratedBy string `json:"generated_by"`
+	// Image is the floci ref the manifest describes: live/floci-image's
+	// content at the last -mode=prune. live/flociimage_test.go's
+	// flociImageFields registers it, so a manifest that has not caught up
+	// with a moved pin fails the same guard every other measured artifact
+	// under live/ answers to (#697).
+	Image  string          `json:"image,omitempty"`
+	Images []imageArtifact `json:"images"`
 }
 
 // loadManifest reads the existing artifact at path, or returns an empty one
@@ -147,5 +154,39 @@ func writeManifest(path string, art *manifestArtifact) error {
 	if err := os.WriteFile(path, data, 0o644); err != nil { //nolint:gosec // a committed artifact, not a secret
 		return fmt.Errorf("writing %s: %w", path, err)
 	}
+	return nil
+}
+
+// pruneToPin drops every image entry except the one for pinRef's digest and
+// records pinRef as the manifest's Image (#697).
+//
+// The manifest used to keep every digest ever probed - 58 of them, 23MB,
+// embedded into package residue - while every reader in the tree looks up
+// exactly one: the digest live/floci-image pins (FLOCI_IMAGE can name
+// another, and an absent digest already reads as "not yet investigated").
+// The history is emulator description, which is lex00/floci's to keep; the
+// committed manifest is the pinned image's entry and nothing else.
+//
+// It refuses rather than writes when the pinned digest has no entry: an
+// empty manifest would turn every capability gate into "not yet
+// investigated" without anything saying so. Probe the new digest first,
+// then prune.
+func (a *manifestArtifact) pruneToPin(pinRef string) error {
+	_, digest, ok := strings.Cut(pinRef, "@")
+	if !ok || !strings.HasPrefix(digest, "sha256:") {
+		return fmt.Errorf("live/floci-image is %q, which pins no @sha256 digest; the manifest is keyed by digest", pinRef)
+	}
+	var kept []imageArtifact
+	for _, img := range a.Images {
+		if img.Digest == digest {
+			kept = append(kept, img)
+		}
+	}
+	if len(kept) == 0 {
+		return fmt.Errorf("the manifest has no entry for the pinned digest %s; probe it first "+
+			"(go run ./tools/floci-capability-gen -endpoint ... -image %s), then prune", digest, pinRef)
+	}
+	a.Images = kept
+	a.Image = pinRef
 	return nil
 }

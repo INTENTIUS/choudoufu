@@ -230,7 +230,7 @@ cluster's version of the bucket's three settings.
 | --- | --- | --- |
 | `namespace_access` | the records namespace is there, and this identity may do to Secrets in it what this run will ask | one `SelfSubjectAccessReview` per verb, never an attempted write |
 | `read_isolation` | no other estate's records are readable, in another namespace or in this one | a cluster-wide review, then one per other namespace it can see, and a list of this namespace's records by their `managed-by` label |
-| `encryption_at_rest` | the API server runs with `--encryption-provider-config` | the API server's own static Pod, where that Pod is visible |
+| `encryption_at_rest` | the API server runs with `--encryption-provider-config` | the API server's own static Pod, where that Pod is visible; on EKS, GKE and AKS the provider's API, through a `control_plane` block (#1524) |
 | `estate_boundary` | `estate-boundary.yaml`'s policy and its binding are installed, observed, denying and in force over the record Secrets, and this identity is granted its estate | a get on each, compared against the shipped file, and one review of `use` on `estates.choudoufu.intentius.io/<estate>` |
 
 A fifth finding comes from the block itself. `insecure = true` turns off
@@ -265,6 +265,17 @@ names is a file on the control plane: a configuration whose first provider for
 secrets is `identity` sets the flag and encrypts nothing. So a missing flag
 refuses, a present one is NOT CHECKED, and the finding carries the `cat` line
 an operator runs on the node to finish it.
+
+On a managed control plane there is no such Pod, and the setting is the
+provider's: EKS's `encryptionConfig` (and its envelope-encryption default from
+Kubernetes 1.28), GKE's `databaseEncryption`, AKS's
+`securityProfile.azureKeyVaultKms`. A `control_plane "eks" | "gke" | "aks"`
+block in the record_store block names the cluster, and the check reads that
+one setting from the provider's API, believing the answer only for the
+cluster whose endpoint is the host the store reaches (#1524). An EKS
+connection through `aws eks get-token --cluster-name` is recognised without
+the block. `examples/record-store-cluster/CONTRACT.md` has the table, and
+`live/managed-k8s/harness.sh` is the run against a real managed cluster.
 
 `allow_insecure` takes these four names and `tls_verification` the way it
 takes the bucket's three.

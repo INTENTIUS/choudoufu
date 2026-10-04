@@ -26,7 +26,10 @@ a run does take it.
 > that has its own evidence to narrow by (types declared in configuration, or
 > a key held in the record store) no longer enumerates the whole admission
 > table. The 79-instance fixture measured throughout this page went from
-> **710 API calls to 157**, against stock's 150. Every full-sweep figure below
+> **710 API calls to 157**, against stock's 150, at `5ff7f43f5b`. Two
+> per-instance legs added under #692 have since taken that plan to 186
+> ([#1082](https://github.com/INTENTIUS/choudoufu/issues/1082); the
+> breakdown is in [what you pay](what-you-pay.md#planning-an-estate-straight-after-adoption)). Every full-sweep figure below
 > describes a run where the narrowing has nothing to narrow by: an adoption,
 > an audit, or a rebuild from markers. The exact gates are
 > [below](#when-the-native-leg-is-narrowed-and-when-it-is-not). The scales
@@ -813,8 +816,8 @@ exists beside the flag rather than instead of it because `live-plan`'s own
 `-estate` form and plain `apply` have no `-adoption-only` to reach for.
 
 Turning it on is the expensive direction and it is the one to reach for
-deliberately: on the 79-instance fixture it is the difference between 157 and
-710 API calls.
+deliberately: on the 79-instance fixture it was the difference between 157 and
+710 API calls at `5ff7f43f5b` (the narrowed plan reads 186 since #692, #1082).
 
 ## The unmigrated estate, for contrast
 
@@ -864,7 +867,7 @@ passes through once.
 - **AWS only.** Nothing here says anything about another provider.
 - **Every call-count table on this page measures a full-sweep run.** None of
   those tables has been re-measured under the narrowing; what has is the
-  79-instance fixture's headline, 157 against 710, and [the real-AWS pair
+  79-instance fixture's headline, 157 against 710 (186 since #692, #1082), and [the real-AWS pair
   at 745 resources](what-you-pay.md#the-same-comparison-on-real-aws-at-79-and-745-resources).
   Where a figure here disagrees with a plan you actually ran, the narrowing
   is the first thing to suspect.

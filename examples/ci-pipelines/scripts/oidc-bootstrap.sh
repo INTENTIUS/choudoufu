@@ -301,9 +301,8 @@ echo
 # --account is the policy half of #1381: every Allow the renderer emits also
 # requires aws:ResourceAccount = $ACCOUNT_ID, so none of these statements
 # reaches a bucket of this name anywhere else. The store half is the estate
-# sidecar's bucket_owner, which is NOT set yet: the generated workflows pin a
-# released binary that does not know the argument and would refuse the whole
-# configuration. It goes in with the pin bump after the next release.
+# sidecar's bucket_owner, which puts ExpectedBucketOwner on every request the
+# run makes (set since the pin reached a release that knows it, #1421).
 # render_record_store_statements <out-file> <role-words> [extra renderer flags...]
 # prints the rendered policy's statements, comma-joined for the heredoc lists
 # below, and stops the whole bootstrap if the renderer said anything but a

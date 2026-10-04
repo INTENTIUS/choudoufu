@@ -12,7 +12,7 @@ this page says what they mean for the two identities `just up` creates.
 |---|---|---|
 | `namespace_access` | The records namespace exists, and this identity may do to Secrets in it what the store will ask | One `SelfSubjectAccessReview` per verb, never an attempted write |
 | `read_isolation` | This identity may not read Secrets outside the records namespace, and no other estate keeps records in it | `SelfSubjectAccessReview` for `get` and `list` on Secrets in every other namespace it can see |
-| `encryption_at_rest` | The API server was started with an `EncryptionConfiguration` | The `kube-apiserver` Pod's flags in `kube-system`, where that Pod is visible |
+| `encryption_at_rest` | The API server was started with an `EncryptionConfiguration` | The `kube-apiserver` Pod's flags in `kube-system`, where that Pod is visible; on EKS, GKE and AKS the provider's own setting, through a `control_plane` block |
 | `estate_boundary` | `live/kubernetes/estate-boundary.yaml`'s policy and binding are installed and in force, and this identity holds `use` on its estate | The `ValidatingAdmissionPolicy` and its binding, compared with the shipped file, plus one review of the `use` verb |
 
 A fifth line, `tls_verification`, appears only when the block sets
@@ -67,7 +67,26 @@ object, and a configuration whose first provider for secrets is `identity`
 sets the flag and encrypts nothing, so a cluster with the flag reports
 `NOT CHECKED` and names the file to read on the control-plane node. On a
 managed control plane (EKS, GKE, AKS) there is no API server Pod to see at
-any permission level, and the answer is `NOT CHECKED` there too. Neither
+any permission level, so the setting is read from the provider instead
+(GitHub issue #1524): name the cluster with a `control_plane` block in the
+`record_store "kubernetes"` block and the check asks that provider's API,
+with the ambient cloud credentials, for the one setting that is this one:
+
+| Provider | Block | Read from | Permission |
+| --- | --- | --- | --- |
+| EKS | `control_plane "eks" { name = "prod" }` (`region` optional) | `DescribeCluster`'s `encryptionConfig`; with no customer key, Kubernetes 1.28 and later are envelope-encrypted with an AWS owned key by EKS's default | `eks:DescribeCluster` |
+| GKE | `control_plane "gke" { name, project, location }` | the cluster's `databaseEncryption.currentState` (application-layer secrets encryption) | `container.clusters.get` |
+| AKS | `control_plane "aks" { name, resource_group, subscription_id }` | `securityProfile.azureKeyVaultKms.enabled` (KMS etcd encryption) | `Microsoft.ContainerService/managedClusters/read` |
+
+An EKS cluster needs no block when its connection already names it: an
+`aws eks get-token --cluster-name <name>` or `aws-iam-authenticator` exec
+plugin against an `*.eks.amazonaws.com` API server is recognised. The
+provider's answer is believed only when one of the endpoints it reports for
+the cluster is the host this store's connection reaches; otherwise, and when
+the identity may not make the call, the finding is `NOT CHECKED` and says
+which. The disks under etcd are encrypted by every one of these providers,
+and that is not what is asserted: a reader of etcd itself reads a Secret
+stored under disk encryption in the clear. Neither
 `just up` nor the two Roles can change any of this; it is the cluster's,
 and the apply and plan identities do not need to list Pods in `kube-system`
 for the store to work. A `NOT CHECKED` finding warns on every run that

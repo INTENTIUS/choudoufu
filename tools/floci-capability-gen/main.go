@@ -205,6 +205,24 @@
 // reach - an honest "could not check" stays absent from the manifest, which
 // [FlociServiceCapability]/[FlociTypeCapability] already read as "not yet
 // investigated", never as a fabricated "implemented".
+//
+// -mode=prune is the one mode that probes nothing and needs no -endpoint or
+// -image (#697). It reads live/floci-image and drops every digest's entry
+// but the pinned one, then records the pin as the manifest's top-level
+// "image" field. The committed manifest describes the pinned emulator only:
+// every reader looks up that one digest, and the 57 historical entries it
+// used to carry (23MB, embedded into package residue) described images
+// nobody runs any more. A repin is therefore:
+//
+//  1. probe the new image while live/floci-image still pins the old one -
+//     the probe modes merge, so the old pin's three hand rows
+//     (mechanism="") are still in the file to re-verify and carry across;
+//  2. move live/floci-image;
+//  3. go run ./tools/floci-capability-gen -mode=prune
+//
+// Between 2 and 3, live/flociimage_test.go's flociImageFields guard and
+// live/flocicap_test.go's TestFlociManifestDescribesOnlyThePin fail and
+// name step 3.
 package main
 
 import (
@@ -235,7 +253,7 @@ func main() {
 	endpoint := flag.String("endpoint", "", "the running floci instance to probe, e.g. http://localhost:4566 (required)")
 	image := flag.String("image", "", "the floci image ref this endpoint is running: repo@sha256:... directly, or a mutable tag/name to resolve via `docker inspect` (required)")
 	region := flag.String("region", "us-east-1", "region for the Cloud Control sweep's SigV4 credential scope; floci does not verify signatures, so this rarely matters")
-	mode := flag.String("mode", "all", `which probe(s) to run: "services", "cloudcontrol", "cloudcontrol-scoped", "tagging", or "all"`)
+	mode := flag.String("mode", "all", `which probe(s) to run: "services", "cloudcontrol", "cloudcontrol-scoped", "tagging", or "all"; or "prune", which probes nothing and keeps only live/floci-image's digest (#697)`)
 	watch := flag.String("watch", "", "comma-separated extra service ids to check for in -mode=services, for a service the live health response does not name at all (the response's own service ids are always checked - issue #276)")
 	out := flag.String("out", "", "manifest path; empty defaults to live/floci-capabilities.json")
 	timeout := flag.Duration("timeout", 30*time.Minute, "overall timeout for the probe(s); the cloudcontrol round trip measured 12s over 610 types against a warm local container, so this is headroom for a cold one, not an estimate of the cost")
@@ -248,6 +266,9 @@ func main() {
 }
 
 func run(endpoint, image, region, mode, watch, out string, timeout time.Duration) error {
+	if mode == "prune" {
+		return runPrune(out)
+	}
 	if endpoint == "" {
 		return fmt.Errorf("-endpoint is required (a running floci instance; this tool starts none itself)")
 	}
@@ -257,7 +278,7 @@ func run(endpoint, image, region, mode, watch, out string, timeout time.Duration
 	switch mode {
 	case "services", "cloudcontrol", "cloudcontrol-scoped", "tagging", "all":
 	default:
-		return fmt.Errorf("-mode must be \"services\", \"cloudcontrol\", \"cloudcontrol-scoped\", \"tagging\" or \"all\", got %q", mode)
+		return fmt.Errorf("-mode must be \"services\", \"cloudcontrol\", \"cloudcontrol-scoped\", \"tagging\", \"all\" or \"prune\", got %q", mode)
 	}
 
 	root, err := repoRoot()
@@ -328,5 +349,30 @@ func run(endpoint, image, region, mode, watch, out string, timeout time.Duration
 	}
 
 	art.setImageEntry(digest, img)
+	return writeManifest(out, art)
+}
+
+// runPrune is -mode=prune: keep only live/floci-image's digest (#697).
+func runPrune(out string) error {
+	root, err := repoRoot()
+	if err != nil {
+		return err
+	}
+	if out == "" {
+		out = filepath.Join(root, manifestRel)
+	}
+	raw, err := os.ReadFile(filepath.Join(root, "live", "floci-image")) //nolint:gosec // fixed path inside the checkout
+	if err != nil {
+		return fmt.Errorf("reading live/floci-image: %w", err)
+	}
+	art, err := loadManifest(out)
+	if err != nil {
+		return fmt.Errorf("loading the existing manifest at %s: %w", out, err)
+	}
+	before := len(art.Images)
+	if err := art.pruneToPin(strings.TrimSpace(string(raw))); err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "floci-capability-gen: prune: kept 1 of %d image entries (%s)\n", before, art.Image)
 	return writeManifest(out, art)
 }

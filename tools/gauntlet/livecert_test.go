@@ -328,6 +328,17 @@ func TestLiveCertRefusalDoesNotDisplaceARealRun(t *testing.T) {
 		},
 		res: &ProtocolResult{Spoken: false},
 	}, {
+		// #1100, one line later: gauntlet_begin printed `GAUNTLET
+		// protocol=1`, so Spoken is true, and the script then stopped at
+		// its first gate without a single stage line. Spoken alone would
+		// have recorded this bare exit-2 row over the certification.
+		name: "a run that announced the protocol and then spoke no stage",
+		row: LiveCertResult{
+			Estate: "terralith-scale", Target: "aws", Region: "us-east-2",
+			Date: "2026-09-13T05:48:11Z", ExitCode: 2,
+		},
+		res: &ProtocolResult{Spoken: true, Stages: map[string]string{}},
+	}, {
 		// #1151/#1231: the run declined the rung and said so. It may have
 		// spoken a stage or two first, which is exactly why Spoken alone
 		// stopped being enough - Refusal != nil is the second clause of
@@ -410,7 +421,10 @@ func TestLiveCertRefusalDoesNotDisplaceARealRun(t *testing.T) {
 	if RecordsLiveCert(&ProtocolResult{Spoken: true, Refusal: &ProtocolRefusal{Reason: "the cap", Scale: 136}}) {
 		t.Error("a run that declined the rung must not be recorded (#1151/#1231), however many stages it spoke first")
 	}
-	if !RecordsLiveCert(&ProtocolResult{Spoken: true}) {
+	if !RecordsLiveCert(&ProtocolResult{Spoken: true, Stages: map[string]string{"cold_deploy": VerdictFail}}) {
 		t.Error("a run that spoke at least one stage must still be recorded - this guard must not turn into a refusal to record failures, which are evidence")
+	}
+	if RecordsLiveCert(&ProtocolResult{Spoken: true}) {
+		t.Error("a run that announced the protocol and spoke no stage measured nothing and must not be recorded (#1100)")
 	}
 }

@@ -60,6 +60,9 @@ var flociImageFields = map[string]string{
 	"gauntlet-scale.json":    "emulator",
 	"cohort-triage.json":     "image",
 	"substrates.json":        "floci_pin",
+	// #697: the capability manifest describes the pinned image only, and
+	// -mode=prune writes the pin it was carved to into this field.
+	"floci-capabilities.json": "image",
 }
 
 // staleFlociMeasurements are artifacts knowingly measured against an older
@@ -259,7 +262,6 @@ var flociRef = regexp.MustCompile(`floci@sha256:[0-9a-f]{8,}`)
 // be skipped here, so the floor at the end of the scan would not see it
 // matched, and that fires.
 var multiRefArtifacts = map[string]string{
-	"floci-capabilities.json": "a per-image capability manifest keyed BY digest; one ref per entry is what it is",
 	"corpus-crossing-manifest.json": "per-estate historical narrative rather than a `measured against` declaration: " +
 		"each estate's notes field is orchestrator-written prose accumulated over many crossings, and " +
 		"legitimately quotes whatever digest was pinned the day that note was written",

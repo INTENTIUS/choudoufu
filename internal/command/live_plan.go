@@ -703,7 +703,18 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// unavailable" diagnostic providerConfigValue has always raised for
 	// what this cannot resolve fires unchanged, later, when something
 	// actually tries to configure that provider.
-	provs.providerDataResults = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, recordStoreForReads, readPar, scope, nil)
+	//
+	// GitHub issue #1113: one exception to "never fatal", by the
+	// maintainer's ruling. A cluster a provider block reads directly that
+	// exists and could not be read is an error here, rather than a
+	// provider quietly left unconfigured and a cluster leg swept as empty.
+	var pdDiags tfdiags.Diagnostics
+	provs.providerDataResults, provs.providerManagedResults, pdDiags = statelessProviderDataReads(ctx, config, provs, resourceSchemas, resolutions, recordStoreForReads, readPar, scope, nil)
+	diags = diags.Append(pdDiags)
+	if pdDiags.HasErrors() {
+		diags = diags.Append(provs.close(ctx))
+		return 1, false, diags
+	}
 
 	// Resolved now that lint has passed and the estate name is settled, so
 	// that any verb here is already known valid for its quadrant (see
@@ -3580,7 +3591,25 @@ func downgradedToDiscovery(first, second *identity.Result) string {
 // read returns nothing and the chain stops one hop short. Measured: the plan
 // path reads both instances and the migrate path read neither, from the same
 // demand list of the same two addresses.
-func statelessProviderDataReads(ctx context.Context, config *configs.Config, provs livePlanProviders, resourceSchemas map[string]providers.Schema, resolutions *identity.Result, recordStore *projection.RecordStore, readPar int, scope identity.Scope, priorManaged map[string]cty.Value) map[string]cty.Value {
+//
+// GitHub issue #1113 widened what the loop reads and what it returns. A
+// provider block that reads a managed value itself - `host =
+// aws_eks_cluster.this.endpoint`, or `host = module.eks.cluster_endpoint`,
+// the terraform-aws-modules/eks v19+ shape - demands that instance exactly
+// as a data source's argument does ([dataread.Analysis.ProviderManagedRefusals]),
+// and the second return value is every managed value the loop holds, for
+// [statelessProviders.providerConfigValue] to answer that reference from
+// through [dataread.ProviderConfigEvaluator]. The maintainer's ruling on
+// that issue fixes the cost of each outcome, and the diagnostics returned
+// carry it: an instance a provider block demands that the provider reports
+// ABSENT is a cluster not created yet, and configures nothing, as stock's
+// graph would not either; one whose read FAILED is an error, because a
+// cluster that exists and could not be read must not be reported as one
+// that is not there. A failed read of an instance only a data source
+// demands is unchanged - traced, not raised - since that is the path every
+// estate before this issue ran on.
+func statelessProviderDataReads(ctx context.Context, config *configs.Config, provs livePlanProviders, resourceSchemas map[string]providers.Schema, resolutions *identity.Result, recordStore *projection.RecordStore, readPar int, scope identity.Scope, priorManaged map[string]cty.Value) (map[string]cty.Value, map[string]cty.Value, tfdiags.Diagnostics) {
+	var fatal tfdiags.Diagnostics
 	managedTypes := provs.managedTypesByProvider(ctx)
 	opts := dataread.Options{Schemas: resourceSchemas, ProviderManagedTypes: managedTypes, Scope: scope, LiveManagedResults: priorManaged}
 	confined := func(a *dataread.Analysis) dataread.Providers {
@@ -3601,6 +3630,12 @@ func statelessProviderDataReads(ctx context.Context, config *configs.Config, pro
 	const maxProviderDataReadPasses = 5
 	for pass := 1; pass < maxProviderDataReadPasses; pass++ {
 		demand := identity.DemandedManagedReads(resolutions, analysis.ManagedRefusals())
+		providerDemanded := make(map[string]bool)
+		for _, d := range identity.DemandedManagedReads(resolutions, analysis.ProviderManagedRefusals()) {
+			for _, inst := range d.Instances {
+				providerDemanded[inst.Addr.String()] = true
+			}
+		}
 		var instances []identity.Resolution
 		for _, d := range demand {
 			if !d.Complete {
@@ -3639,6 +3674,9 @@ func statelessProviderDataReads(ctx context.Context, config *configs.Config, pro
 		for _, d := range readDiags {
 			log.Printf("[TRACE] live: reading managed values for provider-configuration data reads (pass %d): %s", pass, d.Description().Summary)
 		}
+		if read != nil {
+			fatal = fatal.Append(providerManagedReadFailures(read.Unread, providerDemanded))
+		}
 		if read == nil || len(read.Values) == 0 {
 			break
 		}
@@ -3671,8 +3709,40 @@ func statelessProviderDataReads(ctx context.Context, config *configs.Config, pro
 		}
 		analysis, results = nextAnalysis, nextResults
 	}
-	return results
+	return results, live, fatal
 }
+
+// providerManagedReadFailures turns every FAILED omission among the
+// instances a provider block's own arguments demanded into an error - GitHub
+// issue #1113's ruling that a read failure against a cluster that exists
+// stays an error. ABSENT (the provider answered that no such object exists:
+// a greenfield cluster) and every other reason are not failures here: they
+// leave the reference unanswered and the provider unconfigured, which the
+// caller already handles as "provider configuration not evaluable", the
+// same order stock's graph configures that provider in.
+func providerManagedReadFailures(unread []projection.Omission, providerDemanded map[string]bool) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	for _, o := range unread {
+		if o.Reason != projection.ReasonFailed || !providerDemanded[o.Addr.String()] {
+			continue
+		}
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			summaryProviderConfigManagedReadFailed,
+			fmt.Sprintf(
+				"A provider block in this configuration reads %s, which could not be read: %s "+
+					"The provider that block configures is not configured from a guess, and this run does not "+
+					"treat an object it could not reach as one that does not exist. Fix the read and run again.",
+				o.Addr, o.Detail,
+			),
+		))
+	}
+	return diags
+}
+
+// summaryProviderConfigManagedReadFailed is [providerManagedReadFailures]'
+// summary, named so a test can find it without matching prose.
+const summaryProviderConfigManagedReadFailed = "Cannot read a value a provider configuration needs"
 
 // expandFormulaParents adds every [identity.ClassParentDerived] instance's
 // formula parents, transitively, to instances - the closure
@@ -3775,6 +3845,13 @@ type statelessProviders struct {
 	// entry here to consult, so this field costs nothing when it is not
 	// needed.
 	providerDataResults map[string]cty.Value
+
+	// providerManagedResults is GitHub issue #1113's half of the same
+	// fixpoint: the managed instances [statelessProviderDataReads] read, in
+	// [projection.ReadValues]' shape, for a provider block that reads a
+	// managed value itself rather than through a data source. Nil leaves
+	// providerConfigValue exactly as it was.
+	providerManagedResults map[string]cty.Value
 
 	// labelListSweepers is the label-list sweep's client
 	// ([substrate.SweepLabelList], the Kubernetes cluster client) per provider
@@ -4208,6 +4285,21 @@ func (p *statelessProviders) providerConfigValue(ctx context.Context, addr addrs
 	eval := mod.StaticEvaluator
 	if lookup, _ := identity.DataLookupFor(p.providerDataResults, addr.Module); lookup != nil {
 		eval = eval.WithDataResults(lookup)
+	}
+	// GitHub issue #1113: a block that reads a managed value - `host =
+	// aws_eks_cluster.this.endpoint`, `host = module.eks.cluster_endpoint` -
+	// is decoded through the live evaluator instead, which answers the
+	// managed reference from the instance the fixpoint read and the module
+	// output from the child module's own expression. A block that reaches
+	// neither gets nil here and keeps the evaluator above. A cluster that
+	// does not exist yet was not read, so the reference still refuses and
+	// the provider is "not evaluable" exactly as before: stock's graph
+	// configures that provider only after the cluster is created, and so
+	// does this one's.
+	if found != nil {
+		if live := dataread.ProviderConfigEvaluator(ctx, p.config, addr.Module, found, p.providerDataResults, p.providerManagedResults); live != nil {
+			eval = live
+		}
 	}
 
 	val, hclDiags := eval.DecodeBlock(ctx, body, spec, ident)

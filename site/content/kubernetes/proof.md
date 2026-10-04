@@ -9,14 +9,6 @@ deeper:
 
 # Proof
 
-## Real estates through fixed stages
-
-Real Kubernetes configurations, pinned by commit, run through the same stages
-as the AWS estates: deploy, migrate from a stock state, plan empty, day-two
-changes, destroy.
-
-{{< gauntlet-bars lane="kubernetes" >}}
-
 ## Claims you can run
 
 Eight scenarios run on a real API server, a kind cluster in Docker, each with
@@ -25,6 +17,14 @@ the Kubernetes proofs of claims 1, 7 and 13. They run in CI on every pull
 request that touches the Kubernetes code. An open cell is a missing proof.
 
 {{< claims-table provider="kubernetes" >}}
+
+## Real estates through fixed stages
+
+Real Kubernetes configurations, pinned by commit, run through the same stages
+as the AWS estates: deploy, migrate from a stock state, plan empty, day-two
+changes, destroy.
+
+{{< gauntlet-bars lane="kubernetes" >}}
 
 ## Run one now
 

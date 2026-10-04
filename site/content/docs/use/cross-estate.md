@@ -36,8 +36,9 @@ runs it with two estates and an ordered pipeline.
 ## Why not an output
 
 Stock passes values with `terraform_remote_state`, which reads the
-producer's state file. A live root has no state file of record, and one left
-from before a migration returns a snapshot frozen on that day.
+producer's state file. It is admitted here and reads whatever its backend
+holds, but a live root has no state file of record, and one left from before
+a migration returns a snapshot frozen on that day.
 
 ## What it needs
 

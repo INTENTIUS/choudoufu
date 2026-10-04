@@ -20,8 +20,8 @@ import (
 // schema say the same thing the row does?
 //
 // It used to also decide which rows to DROP from the emitted table
-// (internal/live/identity/table_generated.go,
-// internal/live/lint/admission_generated.go), narrowed by two safety nets
+// (internal/live/identity/table_generated.go, and the lint copy
+// admission_generated.go that #809 retired), narrowed by two safety nets
 // against internal/live/check's identity golden and a hand ledger of
 // refusal-probe corpus evidence. That was the wrong shape: a ratchet held
 // by whether a gitignored, network-fetched corpus happens to declare a type

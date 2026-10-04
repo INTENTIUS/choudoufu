@@ -723,7 +723,6 @@ var generatedTypeLiteralFiles = []string{
 	"internal/live/identity/markerless_generated.go",
 	"internal/live/identity/notimportable_generated.go",
 	"internal/live/identity/table_generated.go",
-	"internal/live/lint/admission_generated.go",
 }
 
 // providerTypeLiteral matches a string literal that is exactly a provider
