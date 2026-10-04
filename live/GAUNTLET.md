@@ -191,6 +191,14 @@ Oracle: No stock equivalent. The toggle documentation is the oracle, and each to
 
 Break: Turn a toggle off; its refusal must disappear and no other may appear.
 
+### 15. Plan with no local state (`no_local_state`, active, not part of the headline bars)
+
+Proves: After the estate is applied and its plan is empty, deleting BOTH the local record store and the state cache - a fresh clone or a new machine, with only the account left - still yields a plan that finds every declared object by its own marker or a stamped parent: nothing created, destroyed or replaced. The verdict line reports that plan's API call count beside the same estate's cache-serving plan, because the ratio between them is the claim. Tested and shown per estate; not part of the headline bars.
+
+Oracle: Stock has no plan in this position: with its state file gone it needs one import block per object. The oracle is the estate's own cache-serving plan taken just before the deletion, which must be empty, and the declared configuration - every declared address must resolve to the existing object.
+
+Break: Delete one taggable object's marker before the plan; the object is then not found and the plan proposes creating it, which the stage must fail.
+
 ## The plan-fidelity contract
 
 What every stage above adds up to, stated as one promise: an equal plan, or
@@ -392,7 +400,7 @@ minimal fixture straight off the admission table, one resource block per
 type, required arguments only, and `live/cohort-acceptance.json` measures
 its round-trip identity against the emulator - the whole product claim for
 that type, at the cost of an apply and a replan rather than a full estate's
-14 stages on every future run. A type already in
+15 stages on every future run. A type already in
 `types_in_no_cohort` is still a cohort's job to pick up, seeding or
 extending one with `-types`, not an estate's.
 
