@@ -18,9 +18,13 @@ name: Live cert
 # exact one-time `gh api`/`gh variable set` calls, also echoed by
 # `just heavy-runs-setup`.
 #
-# Only reference-ec2-vpc and terralith-scale have a live/live-cert/<estate>.sh
-# script today (LiveCertScript, tools/gauntlet/livecert.go); the `estate`
-# choice below is exactly that list. -ceiling-usd is informational to the
+# reference-ec2-vpc, terralith-scale and reference-eks have a
+# live/live-cert/<estate>.sh script today (LiveCertScript,
+# tools/gauntlet/livecert.go); the `estate` choice below is exactly that
+# list. reference-eks (#1113, ruled 2026-10-03 with a $5/run ceiling) also
+# needs the live-cert role to hold EKS, IAM-role and EC2 networking rights,
+# and kubectl and the AWS CLI on the runner, both preinstalled on
+# ubuntu-latest. -ceiling-usd is informational to the
 # tool itself (RunLiveCert's own doc comment) - the account's AWS Budgets
 # alarm and this job's timeout-minutes are the real backstops.
 #
@@ -50,9 +54,10 @@ on:
         options:
           - terralith-scale
           - reference-ec2-vpc
+          - reference-eks
         default: reference-ec2-vpc
       scale:
-        description: "terralith-gen's -scale (terralith-scale only; SCALE env var, ignored by reference-ec2-vpc)"
+        description: "terralith-gen's -scale (terralith-scale only; SCALE env var, ignored by reference-ec2-vpc and reference-eks)"
         default: "1"
       ceiling_usd:
         description: "cost ceiling this run is certifying under (informational here; enforced by the account's own AWS Budgets alarm)"
