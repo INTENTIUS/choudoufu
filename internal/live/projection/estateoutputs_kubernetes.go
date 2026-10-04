@@ -59,7 +59,9 @@ func NewEstateOutputsSource(store staterecord.Store, rs *configs.LiveRecordStore
 	}
 	src.StoreType = rs.Type
 	src.Bucket = rs.Bucket
-	if rs.Type == "kubernetes" {
+	// Decided where the record_store kind is decoded
+	// (configs.decodeRecordStoreKubernetes), not by naming a backend here.
+	if rs.OutputReadsDeclared {
 		src.Declared = declaredOutputReads(rs)
 		src.OpenDeclared = (&declaredKubernetesReads{rs: rs}).open
 	}

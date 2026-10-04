@@ -635,6 +635,9 @@ func TestModule_liveRecordStore(t *testing.T) {
 		if rs.NamespaceSet {
 			t.Error("a reads_outputs_of namespace leaked into the store's own namespace")
 		}
+		if !rs.OutputReadsDeclared {
+			t.Error("a kubernetes store does not say its cross-estate reads must be declared")
+		}
 	})
 
 	// GitHub issue #1448, section C. `insecure = true` is a contract finding

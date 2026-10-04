@@ -78,7 +78,7 @@ func producerApplies(t *testing.T, cs *fake.Clientset, namespace string) {
 // declarations as decoded config would carry them.
 func k8sSource(t *testing.T, cs *fake.Clientset, ownNamespace string, reads ...configs.LiveRecordStoreOutputRead) EstateOutputsSource {
 	t.Helper()
-	rs := &configs.LiveRecordStore{Type: "kubernetes", Namespace: ownNamespace, NamespaceSet: true, ReadsOutputsOf: reads}
+	rs := &configs.LiveRecordStore{Type: "kubernetes", OutputReadsDeclared: true, Namespace: ownNamespace, NamespaceSet: true, ReadsOutputsOf: reads}
 	src := NewEstateOutputsSource(k8sEstateStore(t, cs, ownNamespace, "app"), rs, "app", "")
 	// The production opener builds a client from the block's connection
 	// arguments; this one hands the same fake cluster to the same store.
@@ -312,7 +312,7 @@ func TestDeclaredReadStoreOnlyReads(t *testing.T) {
 // other estate's own default, an explicit one wins, and only a kubernetes
 // store carries declarations at all.
 func TestNewEstateOutputsSourceDeclarations(t *testing.T) {
-	rs := &configs.LiveRecordStore{Type: "kubernetes", ReadsOutputsOf: []configs.LiveRecordStoreOutputRead{
+	rs := &configs.LiveRecordStore{Type: "kubernetes", OutputReadsDeclared: true, ReadsOutputsOf: []configs.LiveRecordStoreOutputRead{
 		{Estate: "network"},
 		{Estate: "dns", Namespace: "platform-records", NamespaceSet: true},
 	}}

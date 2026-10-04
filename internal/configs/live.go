@@ -533,6 +533,14 @@ type LiveRecordStore struct {
 	// (render-policy.sh --reads-outputs-of), and the block is refused there.
 	ReadsOutputsOf []LiveRecordStoreOutputRead
 
+	// OutputReadsDeclared is true for a store kind that keeps each estate's
+	// records apart, so that another estate's outputs are read only where a
+	// ReadsOutputsOf block declares them, and an undeclared read is refused.
+	// Set by decodeRecordStoreKubernetes, the one place the kind's own
+	// properties are decoded, so a reader asks this rather than naming a
+	// backend.
+	OutputReadsDeclared bool
+
 	// DeclRange is the "record_store" block's own header, or - for the
 	// implied store - the live block's own header, since that is the
 	// nearest thing the author wrote.
@@ -1745,6 +1753,10 @@ func decodeRecordStoreKubernetes(rs *LiveRecordStore, content *hcl.BodyContent) 
 		}
 		return diags
 	}
+
+	// Each estate's records are in a namespace of their own, so another
+	// estate's outputs are read only where reads_outputs_of declares them.
+	rs.OutputReadsDeclared = true
 
 	if attr, exists := content.Attributes["path"]; exists {
 		diags = append(diags, &hcl.Diagnostic{

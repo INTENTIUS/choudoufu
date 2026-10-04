@@ -108,9 +108,11 @@ type EstateOutputsSource struct {
 	Declared map[string]string
 
 	// OpenDeclared opens a read-only store on estate other's records in
-	// namespace, for a declared read through a "kubernetes" store.
-	// [NewEstateOutputsSource] sets it to open one over this store's own
-	// cluster connection; a test sets it to a fake cluster.
+	// namespace, for a declared read. Non-nil is also what says this store
+	// keeps each estate's records apart, so a read goes only to an estate in
+	// Declared: [NewEstateOutputsSource] sets it from the record_store
+	// block's own decoded property (configs.LiveRecordStore.OutputReadsDeclared)
+	// rather than from a backend name, and a test sets it to a fake cluster.
 	OpenDeclared func(ctx context.Context, other, namespace string) (staterecord.Store, error)
 }
 
@@ -136,7 +138,7 @@ func ReadEstateOutputs(ctx context.Context, src EstateOutputsSource, other strin
 	// whether the cluster is reachable, and an undeclared read is the one
 	// that must never fall through to this estate's own namespace.
 	var namespace string
-	if src.StoreType == "kubernetes" {
+	if src.OpenDeclared != nil {
 		ns, declared := src.Declared[other]
 		if !declared {
 			return nil, diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryEstateOutputsUndeclared, fmt.Sprintf(
@@ -160,12 +162,7 @@ func ReadEstateOutputs(ctx context.Context, src EstateOutputsSource, other strin
 	sort.Strings(sorted)
 
 	readFrom := src.Store
-	if src.StoreType == "kubernetes" {
-		if src.OpenDeclared == nil {
-			return nil, diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryEstateOutputsUnreadable, fmt.Sprintf(
-				"Estate %q's outputs are declared as read from namespace %q, and this run has no way to open a store there.",
-				other, namespace)))
-		}
+	if src.OpenDeclared != nil {
 		opened, err := src.OpenDeclared(ctx, other, namespace)
 		if err != nil {
 			return nil, diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryEstateOutputsUnreadable, fmt.Sprintf(
@@ -273,9 +270,12 @@ func estateOutputsReadDiag(src EstateOutputsSource, namespace, other, name strin
 
 // estateOutputsGrantRemedy says how to add the missing grant, per backend.
 func estateOutputsGrantRemedy(src EstateOutputsSource, namespace, other, name string) string {
-	switch src.StoreType {
-	case "kubernetes":
+	// A store that reads other estates only where declared is the cluster
+	// one: its grant is a Role in the other estate's namespace.
+	if src.OpenDeclared != nil {
 		return kubernetesOutputsGrantRemedy(src.Estate, namespace, other, name)
+	}
+	switch src.StoreType {
 	case "s3":
 		bucket := src.Bucket
 		if bucket == "" {
