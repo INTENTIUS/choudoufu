@@ -260,6 +260,13 @@
       "reason": "the plainest hand-written reference shape, kept in this repository"
     },
     {
+      "name": "reference-eks",
+      "source": "hand-written reference shape kept in this repository (live/e2e/reference-eks/estate.sh): VPC, EKS cluster, one managed node group, an access entry and a pod identity association, with provider \"kubernetes\" configured from aws_eks_cluster.this and an exec token, and a four-object cluster leg; one estate across AWS and the cluster it creates (#1113), certified on real AWS by live/live-cert/reference-eks.sh",
+      "lane": "reference",
+      "set": "growing",
+      "substrate": "floci-eks"
+    },
+    {
       "name": "reference-k8s",
       "source": "hand-written reference shape kept in this repository, built on live/e2e/estate-k8s (namespace, ConfigMap, ServiceAccount, Service) plus a Deployment on the node image's own pause container and a two-instance count ConfigMap; the kubernetes lane's first estate, run against a kind cluster (#1067)",
       "lane": "kubernetes",
