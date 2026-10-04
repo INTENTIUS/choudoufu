@@ -71,9 +71,8 @@ type Survey struct {
 	// instead of carrying it forward unreviewed.
 	Accepted string `json:"accepted,omitempty"`
 
-	// Counts are the roster-wide raw-signal totals, the figures SURVEY.md's
-	// "Raw signals" section records by hand - and, when Accepted is set,
-	// the reviewed counts a human ratified alongside it.
+	// Counts are the roster-wide raw-signal totals - and, when Accepted is
+	// set, the reviewed counts a human ratified alongside it.
 	Counts Counts `json:"counts"`
 
 	// Types has one row per surveyed type, sorted by type name.
@@ -233,8 +232,8 @@ func buildSurvey(schema providers.GetProviderSchemaResponse, roster []string, im
 // allResourceTypeNames is every resource type the provider's schemas carry,
 // unsorted (buildSurvey sorts its roster argument itself). This is the -all
 // flag's roster: issue #41's whole point is that buildSurvey already
-// classifies provider-wide once given every type name instead of
-// SURVEY.md's curated set, so this is the only new roster the -all mode
+// surveys provider-wide once given every type name instead of the curated
+// roster, so this is the only new roster the -all mode
 // needs.
 func allResourceTypeNames(schema providers.GetProviderSchemaResponse) []string {
 	out := make([]string, 0, len(schema.ResourceTypes))

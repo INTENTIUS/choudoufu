@@ -19,8 +19,7 @@ import (
 // byte-for-byte to what live/residue.go's accessors and
 // untaggable_render.go's derivation produce from the committed
 // live/mapping.json, live/registry.json and live/survey-full.json — the
-// same drift pattern TestSurveyMDRenderedSpans applies to SURVEY.md,
-// applied here to the residue roster (issue #49) and the untaggable entry
+// same drift pattern every survey-gen span is held to, applied here to the residue roster (issue #49) and the untaggable entry
 // (issue #54). Committed artifacts and one doc, no provider, so it is not
 // gated; drift fails here with the command that fixes it.
 func TestLimitationsMDResidueRosterSpans(t *testing.T) {

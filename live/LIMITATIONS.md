@@ -776,8 +776,8 @@ v0 admission table.
 
 **Why bounded.** "The admission rule". A type participates only if its
 identity is recoverable from the live system with no memory, by one of the
-four admission paths (`live/SURVEY.md`, 67 of 68 top types admitted; the
-one out is the excluded-by-rule set below), and the tables that record
+routes the readiness tiers name (`live/readiness.json`, tiers A to C; tier
+D is the excluded-by-design set), and the tables that record
 admission
 (`internal/live/identity`'s `table_generated.go`, which lint, the sweep
 and identity resolution all read; lint derives its list from it at load
@@ -796,9 +796,10 @@ ruling, so no ratification batch would ever retire it. The maintainer
 withdrew that ruling: the resource gates whether the certificate is usable,
 so an estate does care about it, and "waiter" was a statement about what
 the resource means rather than about what can name it. Classified from its
-own schema it is parent-derived (`live/survey.json`), because the
-provider's identity schema for it requires exactly `certificate_arn`, a
-required argument pointing at the taggable, admitted `aws_acm_certificate`.
+own schema its identity is supplied by its declaration (`admission:
+"schema"` in `live/survey.json`), because the provider's identity schema
+for it requires exactly `certificate_arn`, a required argument pointing at
+the taggable, admitted `aws_acm_certificate`.
 So this example is admission debt like the rest of the entry, and a future
 ratification batch is expected to retire it.
 
@@ -814,7 +815,8 @@ now has a refusal of its own wherever the reason is derivable: see
 vetoes, `aws_iam_access_key` among them. What is left under this heading is
 one surveyed top type nobody has ratified a row for yet -
 `aws_acm_certificate_validation`, whose hand exclusion was withdrawn on
-2026-08-17 and which the survey now classes parent-derived.
+2026-08-17 and whose identity the provider's schemas show its own
+declaration supplies.
 `aws_iam_access_key`'s own forwarding is unchanged
 by the move: it becomes a lifecycle-layer Op writing to the secret store,
 referenced by ARN or pointer, never by value, the same forwarding

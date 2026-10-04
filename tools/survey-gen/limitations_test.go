@@ -7,7 +7,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -25,11 +24,12 @@ import (
 // rendered span (issue #54, untaggable_render.go); TestLimitationsMDResidueRosterSpans
 // in residue_test.go holds it, not this file.
 
-// TestLimitationsDocAgainstSurvey is the LIMITATIONS.md sibling of
-// TestSurveyJSONAgainstHandTable: ungated, no provider, two committed files
-// and the admission table. It pins the doc's unadmitted-type entry — the
-// "N of M top types admitted" headline, the excluded-by-rule roster, and
-// the example type's continued unadmittedness.
+// TestLimitationsDocAgainstSurvey is ungated, no provider, two committed
+// files and the admission table. It pins the doc's unadmitted-type entry:
+// the example type's continued unadmittedness. (It also pinned an "N of M
+// top types admitted" headline derived from survey-gen's hand Ops
+// exclusion; that headline was a count of the path taxonomy #696 retired,
+// and went with it.)
 func TestLimitationsDocAgainstSurvey(t *testing.T) {
 	root, err := repoRoot()
 	if err != nil {
@@ -60,13 +60,6 @@ func TestLimitationsDocAgainstSurvey(t *testing.T) {
 		surveyed[row.Type] = true
 	}
 
-	// The headline: "65 of 68 top types admitted" is the roster minus the
-	// excluded-by-rule set, both of which the generator owns.
-	headline := fmt.Sprintf("%d of %d top types admitted", survey.Counts.Types-len(opsExcluded), survey.Counts.Types)
-	if !strings.Contains(doc, headline) {
-		t.Errorf("%s does not contain the headline %q derived from %s and opsExcluded", limitationsMDRel, headline, surveyJSONRel)
-	}
-
 	// The unadmitted-type entry.
 	_, entry, found := strings.Cut(doc, "### unadmitted-type")
 	if !found {
@@ -74,13 +67,6 @@ func TestLimitationsDocAgainstSurvey(t *testing.T) {
 	}
 	if end := strings.Index(entry, "\n### "); end >= 0 {
 		entry = entry[:end]
-	}
-
-	// Every excluded-by-rule type is named in the entry.
-	for typeName := range opsExcluded {
-		if !strings.Contains(entry, "`"+typeName+"`") {
-			t.Errorf("%s's unadmitted-type entry does not name excluded-by-rule type %s", limitationsMDRel, typeName)
-		}
 	}
 
 	// The entry's example construct must stay surveyed-but-unadmitted.

@@ -19,8 +19,6 @@ package main
 import (
 	"fmt"
 	"strings"
-
-	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
 // runRender is the -render entry point: read the committed artifacts and
@@ -44,13 +42,6 @@ func runRender() error {
 		return err
 	}
 	return renderContractMDX(root)
-}
-
-// renderWiredCount is the admission table's global size, straight off
-// identity.AdmittedTypes - the same set internal/live/lint/admission.go
-// admits.
-func renderWiredCount() string {
-	return fmt.Sprintf("%d", len(identity.AdmittedTypes()))
 }
 
 // spanMarkers returns the begin and end marker lines for a named span. The
