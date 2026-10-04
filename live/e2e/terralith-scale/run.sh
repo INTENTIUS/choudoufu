@@ -202,6 +202,37 @@ x() { local ep="$1"; shift; aws --endpoint-url "$ep" --region "$REGION" "$@"; }
 awsl() { x "$ENDPOINT" "$@"; }
 awsg() { x "$GREEN_ENDPOINT" "$@"; }
 
+# role_gone answers the question a scale-down oracle means - does a role of
+# exactly this name still exist - by reading that one name, never by
+# filtering a listing (#1077). At 9,477 resources stock's day2_count oracle
+# applied six destroys and then failed on a list-roles filter that still
+# counted one of them, while get-role on its sibling was correct; a listing
+# is a different code path from a read, and with `--output text` the CLI
+# applies --query to each page separately, so a paged listing can print one
+# count per page. get-role's NoSuchEntity is the authoritative "gone".
+#
+# The listing is still consulted, as json (which aggregates every page
+# before the query runs), and a disagreement between the two is logged
+# rather than swallowed: that line is the evidence #1077 needs to decide
+# whether the emulator's listing is wrong. Returns 0 gone, 1 still present,
+# 2 the read failed for some other reason (which is not proof of absence).
+role_gone() {
+  local cli="$1" name="$2" out rc listed
+  out="$("$cli" iam get-role --role-name "$name" --query 'Role.RoleId' --output text 2>&1)"; rc=$?
+  listed="$("$cli" iam list-roles --output json --query "length(Roles[?RoleName=='$name'])" 2>/dev/null)" || listed="?"
+  if [ "$rc" -ne 0 ]; then
+    if grep -q 'NoSuchEntity' <<< "$out"; then
+      [ "$listed" = "0" ] \
+        || log "  NOTE (#1077): get-role answers NoSuchEntity for $name but list-roles still counts ${listed} - the listing disagrees with the read"
+      return 0
+    fi
+    log "  get-role for $name failed with something other than NoSuchEntity: $(printf '%s' "$out" | tail -3)"
+    return 2
+  fi
+  log "  $name still answers get-role (RoleId $out); list-roles counts ${listed}"
+  return 1
+}
+
 sed_i() { local f="$1"; shift; local t; t="$(mktemp)"; sed "$@" "$f" > "$t" && mv "$t" "$f"; }
 
 # plan_is_noop is true when a plan output proposes no resource action at
@@ -627,7 +658,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 log "=== A1. cold_deploy: stock terraform applies the unmodified estate into COLD ==="
 render_config "$COLD"
 ( cd "$COLD" && AWS_ENDPOINT_URL="$ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) \
-  || { ( cd "$COLD" && AWS_ENDPOINT_URL="$ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -20 ); fail "stock gauntlet_locked_init terraform init failed in COLD"; }
+  || { ( cd "$COLD" && AWS_ENDPOINT_URL="$ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "stock gauntlet_locked_init terraform init failed in COLD"; }
 COLD_APPLY="$(cd "$COLD" && AWS_ENDPOINT_URL="$ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$COLD_APPLY" | grep -E '^Error|^│' | head -30
   fail "stock terraform apply failed in COLD"; }
@@ -790,7 +821,7 @@ gauntlet_begin_stage migrate
 log "=== C1. migrate: the SAME estate with a live block, adopting cold_deploy's state file ==="
 render_config "$ADOPTED" live
 ( cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) \
-  || { ( cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "choudoufu init failed in the adopted directory"; }
+  || { ( cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "choudoufu init failed in the adopted directory"; }
 
 # The oracle live/GAUNTLET.md names for this stage is "the stock state
 # file's instance list; every address in it must be accounted for by name".
@@ -954,7 +985,7 @@ gauntlet_begin_stage greenfield
 log "=== F1. greenfield: choudoufu applies the same configuration into the empty GREEN account ==="
 render_config "$GREENDIR" live
 ( cd "$GREENDIR" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) \
-  || { ( cd "$GREENDIR" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "choudoufu init failed in the greenfield directory"; }
+  || { ( cd "$GREENDIR" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "choudoufu init failed in the greenfield directory"; }
 GF_APPLY="$(cd "$GREENDIR" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$GF_APPLY" | grep -E '^Error|^│' | head -30
   fail "the greenfield apply failed"; }
@@ -1273,8 +1304,7 @@ grep -qE 'Resources: 0 added, 0 changed, 6 destroyed' <<< "$OC_DOWN_APPLY" \
   || { grep -E 'Apply complete' <<< "$OC_DOWN_APPLY"; fail "the day2_count oracle's scale-down apply was not exactly six destroys"; }
 OC_ROLE0_AFTER="$(awsg iam get-role --role-name "${PREFIX}o-count-team-0000-role" --query 'Role.RoleId' --output text)"
 [ "$OC_ROLE0_AFTER" = "$OC_ROLE0" ] || fail "stock's surviving count_team[0] role changed identity across the scale-down"
-OC_ROLE1_N="$(awsg iam list-roles --query "length(Roles[?RoleName=='${PREFIX}o-count-team-0001-role'])" --output text)"
-[ "$OC_ROLE1_N" = "0" ] || fail "stock's count_team[1] role still exists after the scale-down destroy"
+role_gone awsg "${PREFIX}o-count-team-0001-role" || fail "stock's count_team[1] role still exists after the scale-down destroy (or could not be read)"
 log "  stock: exactly six destroys, all index [1]; index [0] identity unchanged, index [1] genuinely gone"
 
 write_count_oracle "$OCOUNT" 2
@@ -1676,8 +1706,8 @@ R2_PROFILE_AFTER="$(awsl iam list-instance-profiles --query "length(InstanceProf
 R2_INLINE_AFTER="$(awsl iam list-role-policies --role-name "${PREFIX}-team-0002-role" --query 'PolicyNames' --output text)"
 grep -qF "${PREFIX}-team-0002-inline" <<< "$R2_INLINE_AFTER" \
   && fail "${PREFIX}-team-0002-inline is still an inline policy on ${PREFIX}-team-0002-role after the destroy"
-R2_ROLE_N="$(awsl iam list-roles --query "length(Roles[?RoleName=='${PREFIX}-team-0002-role'])" --output text)"
-[ "$R2_ROLE_N" = "1" ] || fail "the parent role ${PREFIX}-team-0002-role was destroyed too - only the child's block was removed"
+role_gone awsl "${PREFIX}-team-0002-role"; R2_ROLE_RC=$?
+[ "$R2_ROLE_RC" = "1" ] || fail "the parent role ${PREFIX}-team-0002-role was destroyed too - only the child's block was removed"
 log "  both objects genuinely gone and the parent role still live - all three facts read via the AWS CLI, not through choudoufu's own report"
 
 REMOVE_FINAL="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; RM_RC=$?
@@ -1747,8 +1777,7 @@ DOWN_APPLY="$(cd "$ADOPTED" && AWS_ENDPOINT_URL="$ENDPOINT" "$TOFU" apply -input
 [ "$CT_RC" -eq 0 ] || { printf '%s\n' "$DOWN_APPLY" | tail -30; fail "the day2_count scale-down apply exited $CT_RC"; }
 grep -qE 'Resources: 0 added, 0 changed, 6 destroyed' <<< "$DOWN_APPLY" \
   || { grep -E 'Apply complete' <<< "$DOWN_APPLY"; fail "the scale-down apply was not exactly six destroys"; }
-C1_ROLE_N="$(awsl iam list-roles --query "length(Roles[?RoleName=='${PREFIX}-count-team-${COUNT_TOP_FMT}-role'])" --output text)"
-[ "$C1_ROLE_N" = "0" ] || fail "count_team[${COUNT_TOP}]'s role still exists after the scale-down destroy"
+role_gone awsl "${PREFIX}-count-team-${COUNT_TOP_FMT}-role" || fail "count_team[${COUNT_TOP}]'s role still exists after the scale-down destroy (or could not be read)"
 C0_ROLE_AFTER="$(awsl iam get-role --role-name "${PREFIX}-count-team-0000-role" --query 'Role.RoleId' --output text)"
 [ "$C0_ROLE_AFTER" = "$C0_ROLE_ID" ] || fail "count_team[0]'s role id changed across the scale-down ($C0_ROLE_ID -> $C0_ROLE_AFTER)"
 [ "$(marker_of_role "$ENDPOINT" "${PREFIX}-count-team-0000-role")" = "$(escape_address 'aws_iam_role.count_team[0]')" ] \
