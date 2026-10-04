@@ -49,20 +49,14 @@ both.
 }
 ```
 
-`aws:ResourceTag` reads a tag off a resource that already exists,
-so it governs everything the estate acts on. It cannot govern a create, because
-no resource exists yet to carry the tag. What the creating principal supplies is
-`aws:RequestTag`, and conditioning on that is what makes the second
-statement a grant to create into this estate rather than a grant to create
-anything.
-
-The first statement's `aws:RequestTag` line stops the role retagging its own
-resource into another team's estate, which `aws:ResourceTag` alone allows.
-The third's `ec2:CreateAction` stops it stamping its estate onto resources it
-did not create. A type tagged after its create, and a marker removed by
-`DeleteTags`, both fall outside these statements:
+`aws:ResourceTag` governs what the estate already owns; a create has no
+resource yet, so the second statement conditions on `aws:RequestTag`. The
+first statement's `aws:RequestTag` line stops a retag into another estate,
+and the third's `ec2:CreateAction` stops the role stamping its estate onto
+resources it did not create.
 [live/MARKERS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md#granting-an-estate)
-has why and what to grant instead.
+has the reasoning, and the grant for a type tagged after its create and for
+a marker removed by `DeleteTags`.
 
 The actions are illustrative and all EC2. The tagging action differs by
 service; [Marker stamping]({{< relref "/docs/use/reference#marker-stamping" >}})
@@ -114,24 +108,15 @@ aws resourcegroupstaggingapi get-resources \
 Grant `tag:GetResources` plus the read actions for the services
 involved. The estate is legible to them and unchangeable by them.
 
-## Handover
+## Handover and splitting
 
-Attach the policy to the receiving role and detach it from the sending one.
-Two IAM changes and no tag writes. Nothing about the resources changes, no
-state is exported, and the two roles never both hold it unless you want an
-overlap.
-
-The receiving team can list what it inherited before running anything.
-
-## Splitting an estate
-
-Rewrite `tofu-estate` on the resources that are leaving, then copy
-the policy with the new estate name. The split is a tag write and a policy
-copy. Neither half moves.
-
-`choudoufu live-mv -from-estate=<old> <address> <address>`, run in the new
-estate's configuration after the block moves there, makes that tag write
-one resource at a time; the policy copy is yours. The role that runs it
-needs both estate names in its `aws:RequestTag` condition.
-[How to rename a resource]({{< relref "/docs/use/rename-a-resource#moving-a-resource-to-another-estate" >}})
-has the command's refusals.
+Handover is attaching the policy to the receiving role and detaching it from
+the sending one: two IAM changes, no tag writes. Splitting is a rewrite of
+`tofu-estate` on the resources leaving, plus a copy of the policy under the
+new name. `choudoufu live-mv -from-estate=<old> <address> <address>`, run in
+the new estate's configuration after the block moves there, makes that tag
+write, with its refusals in
+[How to rename a resource]({{< relref "/docs/use/rename-a-resource#moving-a-resource-to-another-estate" >}});
+its role needs both estate names in its `aws:RequestTag` condition.
+[live/MARKERS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md#granting-an-estate)
+has both in full.

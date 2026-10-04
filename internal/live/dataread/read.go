@@ -67,7 +67,7 @@ type Providers interface {
 // Values are never cached: a stale hint elsewhere costs a re-read, but a
 // stale value here becomes a wrong marker. Every run reads live.
 func Read(ctx context.Context, cfg *configs.Config, analysis *Analysis, provs Providers) (map[string]cty.Value, tfdiags.Diagnostics) {
-	return read(ctx, cfg, analysis, provs)
+	return read(ctx, cfg, analysis, provs, nil)
 }
 
 // ReadForOutputs performs the reads of a SCOPED analysis - one built by
@@ -95,10 +95,10 @@ func Read(ctx context.Context, cfg *configs.Config, analysis *Analysis, provs Pr
 // was classified under, whichever entry point a caller reaches for. The two
 // names exist so a call site says which class it is in.
 func ReadForOutputs(ctx context.Context, cfg *configs.Config, analysis *Analysis, provs Providers) (map[string]cty.Value, tfdiags.Diagnostics) {
-	return read(ctx, cfg, analysis, provs)
+	return read(ctx, cfg, analysis, provs, nil)
 }
 
-func read(ctx context.Context, cfg *configs.Config, analysis *Analysis, provs Providers) (map[string]cty.Value, tfdiags.Diagnostics) {
+func read(ctx context.Context, cfg *configs.Config, analysis *Analysis, provs Providers, memo *ReadMemo) (map[string]cty.Value, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	if analysis.Empty() {
 		return nil, nil
@@ -132,6 +132,7 @@ func read(ctx context.Context, cfg *configs.Config, analysis *Analysis, provs Pr
 		agg:      make(map[string]cty.Value),
 		results:  make(map[string]cty.Value),
 		insts:    &analyzer{ctx: ctx, cfg: cfg},
+		memo:     memo,
 	}
 	if analysis.projectManaged {
 		// #193's read side: the same projector [Analyze] classified with,
@@ -197,6 +198,10 @@ type reader struct {
 	// proj is #193's managed-argument projector in its value-returning
 	// mode, or nil when the analysis did not project. See managedproj.go.
 	proj *managedProjector
+
+	// memo is GitHub issue #1537's cross-pass answer cache, or nil for
+	// every caller that reads once. See [ReadMemo].
+	memo *ReadMemo
 
 	// encBuilt, enc and encDiags cache the configuration's own encryption
 	// setup (its "terraform { encryption { ... } }" block, or none), built
@@ -338,7 +343,7 @@ func (r *reader) readSource(src *Source) bool {
 		if !ok {
 			return false
 		}
-		state, ok := r.callRead(src, provider, dsSchema, configVal, keys)
+		state, ok := r.callRead(src, provider, dsSchema, configVal, keys, memoKey(absAddr, src, keys))
 		if !ok {
 			return false
 		}
@@ -361,7 +366,7 @@ func (r *reader) readSource(src *Source) bool {
 		if !ok {
 			return false
 		}
-		state, ok := r.callRead(src, provider, dsSchema, configVal, []addrs.InstanceKey{key})
+		state, ok := r.callRead(src, provider, dsSchema, configVal, []addrs.InstanceKey{key}, memoKey(absAddr, src, []addrs.InstanceKey{key}))
 		if !ok {
 			return false
 		}
@@ -377,8 +382,11 @@ func (r *reader) readSource(src *Source) bool {
 // this phase's pre-resolution read do identically, whether the config value
 // came from the block's one shared answer or from one instance's own
 // binding.
-func (r *reader) callRead(src *Source, provider providers.Interface, dsSchema providers.Schema, configVal cty.Value, keys []addrs.InstanceKey) (cty.Value, bool) {
+func (r *reader) callRead(src *Source, provider providers.Interface, dsSchema providers.Schema, configVal cty.Value, keys []addrs.InstanceKey, memoKey string) (cty.Value, bool) {
 	unmarked, _ := configVal.UnmarkDeep()
+	if state, ok := r.memo.lookup(memoKey, unmarked); ok {
+		return state, true
+	}
 	req := providers.ReadDataSourceRequest{
 		TypeName: src.Resource.Type,
 		Config:   unmarked,
@@ -490,6 +498,7 @@ func (r *reader) callRead(src *Source, provider providers.Interface, dsSchema pr
 	if marks := dsSchema.Block.ValueMarks(state, nil, nil); len(marks) > 0 {
 		state = state.MarkWithPaths(marks)
 	}
+	r.memo.remember(memoKey, unmarked, state)
 	return state, true
 }
 

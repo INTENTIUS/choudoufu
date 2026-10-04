@@ -783,7 +783,7 @@ log "  DELTA 3  Lambda deployment zip prefetched to $PKG_FILE       (module-exam
 
 log "=== 1c. gauntlet_locked_init terraform init + apply ==="
 ( cd "$PLAIN_EST" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "plain gauntlet_locked_init terraform init failed"; }
+  ( cd "$PLAIN_EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "plain gauntlet_locked_init terraform init failed"; }
 PLAIN_APPLY_OUT="$(cd "$PLAIN_EST" && terraform apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$PLAIN_APPLY_OUT" | tail -60
   fail "the plain terraform apply failed"; }
@@ -878,7 +878,7 @@ log "  DELTA  live block (record_store, evidence for #364 A2; strict.no_source_c
 
 log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
 ( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+  ( cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the greenfield init failed"; }
 GREEN_APPLY_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"
 if [ $? -ne 0 ]; then
   printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error' -A 6 | head -200
@@ -985,7 +985,7 @@ moved {
 }
 EOF
 ( cd "$ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+  ( cd "$ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_rename stock oracle's reinit failed"; }
 ORACLE_PLAN_OUT="$(cd "$ORACLE_EST" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
 if grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT"; then
@@ -1042,7 +1042,7 @@ grep -q 'resource "aws_instance" "other" {' "$REMOVE_ORACLE_EST/main.tf" && fail
 perl -0777 -pi -e 's/additional_target_group_attachments = \{\n    ex-instance-other = \{\n.*?\n    \}\n  \}/additional_target_group_attachments = {}/s' "$REMOVE_ORACLE_EST/main.tf"
 grep -q 'ex-instance-other' "$REMOVE_ORACLE_EST/main.tf" && fail "removing the ex-instance-other target-group-attachment entry from the oracle copy did not match - the corpus example has moved"
 ( cd "$REMOVE_ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$REMOVE_ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
+  ( cd "$REMOVE_ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_remove stock oracle's reinit failed"; }
 REMOVE_ORACLE_PLAN_OUT="$(cd "$REMOVE_ORACLE_EST" && terraform plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
 [ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
 grep -qE '^  # aws_instance\.other will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" \
@@ -1081,7 +1081,7 @@ perl -0pi -e 's/resource "aws_instance" "this" \{\n  ami           = data\.aws_s
 [ "$(grep -c 'ami-0abcdef1234567891' "$REPLACE_ORACLE_EST/main.tf")" = "1" ] \
   || fail "changing aws_instance.this's ami argument in the replace-oracle copy did not match exactly once - the corpus pin has moved"
 ( cd "$REPLACE_ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$REPLACE_ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+  ( cd "$REPLACE_ORACLE_EST" && gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_replace stock oracle's reinit failed"; }
 REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_ORACLE_EST" && terraform plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
 [ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
 grep -qE '^  # aws_instance\.this must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
@@ -1110,7 +1110,7 @@ grep -q "estate = \"$ESTATE\"" "$ADOPTED_EST/versions.tf" || fail "DELTA 4 did n
 log "  DELTA 4  live block + local record_store added             (onboarding)"
 
 ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "adopted init failed"; }
+  ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "adopted init failed"; }
 
 log "=== 2a. live-import dry run: verify against the live system, write nothing ==="
 IMPORT_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-import -state="$PLAIN_EST/terraform.tfstate" -estate="$ESTATE" 2>&1)"
@@ -1993,7 +1993,7 @@ moved {
 }
 EOF
     ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-      ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the moved-block rename's reinit failed"; }
+      ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the moved-block rename's reinit failed"; }
     MOVED_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; MOVED_PLAN_RC=$?
     [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
     grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
@@ -2023,7 +2023,7 @@ EOF
     sed -i.bak 's/aws_instance\.other\.id/aws_instance.other_renamed.id/' "$ADOPTED_EST/main.tf"
     rm -f "$ADOPTED_EST/main.tf.bak"
     ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-      ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the live-mv rename's reinit failed"; }
+      ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the live-mv rename's reinit failed"; }
     MV_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-mv -estate="$ESTATE" aws_instance.other aws_instance.other_renamed 2>&1)"; MV_RC=$?
     [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
     grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
@@ -2210,7 +2210,7 @@ EOF
     perl -0777 -pi -e 's/additional_target_group_attachments = \{\n    ex-instance-other = \{\n.*?\n    \}\n  \}/additional_target_group_attachments = {}/s' "$ADOPTED_EST/main.tf"
     grep -q 'ex-instance-other' "$ADOPTED_EST/main.tf" && fail "removing the ex-instance-other target-group-attachment entry did not match - the config has moved"
     ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-      ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove reinit failed"; }
+      ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "the day2_remove reinit failed"; }
     REMOVE_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" plan -input=false -no-color 2>&1)"; REMOVE_PLAN_RC=$?
     [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
     if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
@@ -2356,7 +2356,7 @@ EOF
     log "=== G-ORACLE 1. stock: stand the same 2-instance count block up for real ==="
     count_oracle_config 2 > "$COUNT_ORACLE_DIR/main.tf"
     ( cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || {
-      ( cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_count stock oracle's gauntlet_locked_init terraform init failed"; }
+      ( cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" gauntlet_locked_init terraform init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "the day2_count stock oracle's gauntlet_locked_init terraform init failed"; }
     CO_UP_APPLY="$(cd "$COUNT_ORACLE_DIR" && AWS_ENDPOINT_URL="$COUNT_ORACLE_ENDPOINT" terraform apply -input=false -auto-approve -no-color 2>&1)"; CO_UP_RC=$?
     [ "$CO_UP_RC" -eq 0 ] || { printf '%s\n' "$CO_UP_APPLY" | tail -30; fail "the day2_count stock oracle's baseline apply exited $CO_UP_RC"; }
     grep -qE 'Resources: 3 added, 0 changed, 0 destroyed' <<< "$CO_UP_APPLY" \

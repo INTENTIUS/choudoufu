@@ -234,7 +234,7 @@ log "  DELTA 4  var values for the seeded objects + var.token       (onboarding)
 # ── 3. the apply: blocked by floci, not by choudoufu ────────────────────────
 log "=== 3. init and apply: pinned to floci's handler-file check ==="
 ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null ) || {
-  ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "init failed"; }
+  ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "init failed"; }
 APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"
 RC=$?
 

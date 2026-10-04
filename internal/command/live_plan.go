@@ -3503,6 +3503,15 @@ func downgradedToDiscovery(first, second *identity.Result) string {
 // provider-config data source at all), and the cap is a backstop for a
 // demand chain deeper than anything measured yet.
 //
+// A later pass does not re-read what an earlier one answered (GitHub issue
+// #1537): every pass shares one [dataread.ReadMemo], which hands back an
+// earlier pass's answer for a source instance whose decoded request is
+// unchanged and reads only the rest - sources newly readable on this pass,
+// and sources whose arguments the managed values just read have changed.
+// Before it, data.aws_region.current on the live-target-provider-work
+// fixture was read once per pass; see
+// TestProviderConfigFixpointReadsEachSourceOncePerRequest.
+//
 // A pass beyond the first closes a read-side chain more than one hop deep:
 // corpus-eks-basic's own provider "kubernetes" block reads
 // data.aws_eks_cluster.cluster, which reads module.eks.cluster_id (a module
@@ -3610,8 +3619,13 @@ func statelessProviderDataReads(ctx context.Context, config *configs.Config, pro
 		return liveProviderReads{inner: provs, live: dataread.ReadableProviders(config, a, managedTypes)}
 	}
 
+	// GitHub issue #1537: one memo for every pass of this run, so a pass
+	// reads only the sources an earlier pass has not already answered with
+	// the same request. A source whose arguments the newly read managed
+	// values change is read again; see [dataread.ReadMemo] for the rule.
+	memo := dataread.NewReadMemo()
 	analysis := dataread.AnalyzeProviderConfigs(ctx, config, opts)
-	results, diags := dataread.ReadProviderConfigs(ctx, config, analysis, confined(analysis))
+	results, diags := dataread.ReadProviderConfigsMemo(ctx, config, analysis, confined(analysis), memo)
 	for _, d := range diags {
 		log.Printf("[TRACE] live: provider-configuration data reads: %s", d.Description().Summary)
 	}
@@ -3690,7 +3704,7 @@ func statelessProviderDataReads(ctx context.Context, config *configs.Config, pro
 
 		opts.LiveManagedResults = live
 		nextAnalysis := dataread.AnalyzeProviderConfigs(ctx, config, opts)
-		nextResults, nextDiags := dataread.ReadProviderConfigs(ctx, config, nextAnalysis, confined(nextAnalysis))
+		nextResults, nextDiags := dataread.ReadProviderConfigsMemo(ctx, config, nextAnalysis, confined(nextAnalysis), memo)
 		for _, d := range nextDiags {
 			log.Printf("[TRACE] live: provider-configuration data reads, pass %d: %s", pass+1, d.Description().Summary)
 		}
