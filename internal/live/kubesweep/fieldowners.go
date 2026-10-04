@@ -38,9 +38,16 @@ import (
 // ["f:spec", "f:template", "f:spec", "f:containers", `k:{"name":"app"}`,
 // "f:env"]. Members are the FieldsV1 spellings of the members it sets under
 // Root: "f:<key>" for a map key, `k:{...}` for an associative-list item.
+//
+// Atomic is true when Root may be an atomic list - a Node's spec.taints -
+// which managedFields records as one leaf with no members, so a manager
+// holding that leaf owns the write whole. Every other root is granular: a
+// leaf with no members there is what a release leaves behind (an apply of
+// the empty map or env list, #1885) and owns nothing.
 type FieldWrite struct {
 	Root    []string
 	Members []string
+	Atomic  bool
 }
 
 // FieldOwner is one manager's claim on a planned write.
@@ -71,7 +78,7 @@ func FieldOwners(obj *unstructured.Unstructured, write FieldWrite, exclude strin
 			continue
 		}
 		members, atomic, found := fieldsAt(entry.FieldsV1.Raw, write.Root)
-		if !found {
+		if !found || (atomic && !write.Atomic) {
 			continue
 		}
 		var owned []string

@@ -127,7 +127,7 @@ func FieldGranularEnvWrite(after cty.Value, kind string) (kubesweep.FieldWrite, 
 // and effect. A cluster that keeps spec.taints atomic records it as one
 // leaf, which [kubesweep.FieldOwners] reports as owned whole.
 func FieldGranularTaintWrite(after cty.Value) (kubesweep.FieldWrite, bool) {
-	write := kubesweep.FieldWrite{Root: kubesweep.TaintsRoot}
+	write := kubesweep.FieldWrite{Root: kubesweep.TaintsRoot, Atomic: true}
 	taints := after.GetAttr("taint")
 	if taints.IsMarked() || taints.IsNull() || !taints.IsKnown() || !taints.CanIterateElements() {
 		return write, false
