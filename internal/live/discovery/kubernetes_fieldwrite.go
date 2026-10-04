@@ -51,7 +51,7 @@ func FieldGranularWriteOf(typeName string, block *configschema.Block, after cty.
 		return w, false
 	}
 	if after.Type().HasAttribute(substrate.FieldForceAttr) {
-		if f := after.GetAttr(substrate.FieldForceAttr); f.IsKnown() && !f.IsNull() && f.Type() == cty.Bool {
+		if f, _ := after.GetAttr(substrate.FieldForceAttr).Unmark(); f.IsKnown() && !f.IsNull() && f.Type() == cty.Bool {
 			w.Force = f.True()
 		}
 	}

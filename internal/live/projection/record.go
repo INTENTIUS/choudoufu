@@ -694,7 +694,7 @@ func decodeEnvelope(raw []byte) (recordEnvelope, error) {
 		env.Tombstone = nil
 	}
 
-	if env.Kind == "" && env.Object == nil && env.Identity == nil && env.Residue == nil && env.Provisioned == nil && env.Deposed == nil && env.Tombstone == nil {
+	if env.Kind == "" && env.Object == nil && env.Identity == nil && env.Residue == nil && env.Provisioned == nil && env.Deposed == nil && env.Tombstone == nil && env.FieldGranular == nil {
 		if len(env.LegacyValueType) == 0 {
 			// Neither v1-shaped (no legacy value_type) nor v2-shaped (no
 			// kind, no member at all) - a payload this package cannot
@@ -749,7 +749,11 @@ func decodeEnvelope(raw []byte) (recordEnvelope, error) {
 		if env.Object != nil {
 			return recordEnvelope{}, fmt.Errorf("the stored record's kind is %q but it also carries an object, which only %q ever carries", recordKindIdentity, recordKindObject)
 		}
-		if env.Identity == nil && env.Residue == nil && env.Provisioned == nil && len(env.Deposed) == 0 && len(env.Tombstone) == 0 {
+		if env.Identity == nil && env.Residue == nil && env.Provisioned == nil && len(env.Deposed) == 0 && len(env.Tombstone) == 0 && env.FieldGranular == nil {
+			// GitHub issue #1863: a field-granular-only envelope (an
+			// apply's record of the kind an instance patches, or
+			// live-import's migration evidence) is legitimate too.
+			//
 			// A GitHub issue #361-only envelope - an ordinary taggable
 			// instance whose only recorded fact this pass is a deposed
 			// object from an interrupted create-before-destroy - is a
@@ -758,7 +762,7 @@ func decodeEnvelope(raw []byte) (recordEnvelope, error) {
 			// reason [RecordStore.mergeEnvelope] wrote this key at all. A
 			// tombstone-only envelope ([RecordStore.tombstone]) is the
 			// same shape for the same reason.
-			return recordEnvelope{}, fmt.Errorf("the stored record's kind is %q but it carries none of an identity, a residue classification, a provisioner taint, a deposed object or a tombstone - not a payload this package ever wrote", recordKindIdentity)
+			return recordEnvelope{}, fmt.Errorf("the stored record's kind is %q but it carries none of an identity, a residue classification, a provisioner taint, a deposed object, a tombstone or a field-granular record - not a payload this package ever wrote", recordKindIdentity)
 		}
 	default:
 		return recordEnvelope{}, fmt.Errorf("the stored record names kind %q, which this version of choudoufu does not understand", env.Kind)
