@@ -1028,14 +1028,27 @@ fi
 # ConfigMap in network's namespace; the move makes network its owner.
 #
 # The oracle is stock's own move on cluster B: `terraform state rm` in
-# app's root and `terraform import` in network's, after which both stock
-# plans are empty. choudoufu's answer has to end in the same place: the
-# object network's, network's plan and app's plan both empty.
+# app's root and `terraform import` in network's. Stock's import of a
+# kubernetes_manifest leaves `manifest` unset in state (it warns "Apply
+# needed after 'import'"), so its next plan is one in-place change that only
+# fills state in. Stock therefore needs one apply after the import: it must
+# change exactly that one resource and leave the live ConfigMap's data,
+# labels and annotations as they were. resourceVersion is not compared,
+# because the apply is a server-side apply that records Terraform's field
+# manager on the object. After that apply both stock plans are empty.
+# choudoufu's answer has to end in the same place: the object network's,
+# network's plan and app's plan both empty, with no apply after the move.
 write_net "$ORACLE_NET" 1
 write_app "$ORACLE_APP" stock reviewed=1 sa=none handoff=0
 ran stock_b state rm kubernetes_manifest.handoff || { shown; fail "stock's state rm of the handoff manifest failed on B"; }
 ran stock_bn import -input=false -no-color kubernetes_manifest.handoff "apiVersion=v1,kind=ConfigMap,namespace=$NS_NET,name=handoff" || { shown; fail "stock's import of the handoff manifest into network failed on B"; }
-ran_has "No changes." stock_bn plan -input=false -no-color || { shown; fail "stock's network plan on B after the move is not empty"; }
+handoff_b() { kcb get configmap handoff -n "$NS_NET" -o jsonpath='{.data}{"\n"}{.metadata.labels}{"\n"}{.metadata.annotations}' 2>&1; }
+O_HANDOFF_BEFORE="$(handoff_b)" || { printf '%s\n' "$O_HANDOFF_BEFORE"; fail "could not read the handoff ConfigMap on B before stock's post-import apply"; }
+ran_has "Plan: 0 to add, 1 to change, 0 to destroy." stock_bn plan -input=false -no-color || { shown; fail "stock's network plan on B straight after the import is not the one in-place change that fills in the imported manifest"; }
+ran_has "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" stock_bn apply -auto-approve -input=false -no-color || { shown; fail "stock's post-import apply of network on B did not change exactly the one imported manifest"; }
+O_HANDOFF_AFTER="$(handoff_b)" || { printf '%s\n' "$O_HANDOFF_AFTER"; fail "could not read the handoff ConfigMap on B after stock's post-import apply"; }
+[ "$O_HANDOFF_BEFORE" = "$O_HANDOFF_AFTER" ] || fail "stock's post-import apply changed the live handoff ConfigMap on B: before [$O_HANDOFF_BEFORE] after [$O_HANDOFF_AFTER]"
+ran_has "No changes." stock_bn plan -input=false -no-color || { shown; fail "stock's network plan on B after the move and its post-import apply is not empty"; }
 ran_has "No changes." stock_b plan -input=false -no-color || { shown; fail "stock's app plan on B after the move is not empty"; }
 
 write_net "$NET_LIVE" 1
@@ -1066,7 +1079,7 @@ grep -q "No changes." <<< "$MV_APP_PLAN" || { printf '%s\n' "$MV_APP_PLAN" | tai
 # no-op apply reasserts them under its Apply entry with nothing to conflict.
 MV_NET_APPLY="$(chdf "$NET_LIVE" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$MV_NET_APPLY" | tail -20; fail "network's apply after the move failed (a field manager conflict here is #1858's symptom)"; }
 [ "$(count_net)" = "6" ] && [ "$(count_app)" = "9" ] || fail "after the move network carries $(count_net) labels (want 6) and app $(count_app) (want 9)"
-MV_DETAIL="${MV_DETAIL:-} live-mv -from-estate=$APP of kubernetes_manifest.handoff (a ConfigMap in $NS_NET) into network was killed by SIGKILL between its two requests (TOFU_E2E_LIVE_MV_INTERRUPT on the e2e build, exit $MV_KILL_RC): kubectl read tofu-estate=$NET and the new address on the object with the markers still held by an Update entry; the plain rerun finished the hand-off (no Update entry holds a marker), network's and app's plans are empty and network's apply goes through, the same end state as stock's state rm and import on the oracle cluster."
+MV_DETAIL="${MV_DETAIL:-} Oracle on B: terraform state rm in app and terraform import into network; stock's import of a kubernetes_manifest leaves manifest unset in state, so stock needed an apply after the import (0 added, 1 changed, 0 destroyed, the live ConfigMap's data, labels and annotations unchanged) before both its plans were empty. live-mv -from-estate=$APP of kubernetes_manifest.handoff (a ConfigMap in $NS_NET) into network was killed by SIGKILL between its two requests (TOFU_E2E_LIVE_MV_INTERRUPT on the e2e build, exit $MV_KILL_RC): kubectl read tofu-estate=$NET and the new address on the object with the markers still held by an Update entry; the plain rerun finished the hand-off (no Update entry holds a marker), network's and app's plans are empty and network's apply goes through, the same end state as stock's state rm and import on the oracle cluster."
 
 if [ "${BREAK_CRASH:-}" = "1" ] || [ "${BREAK_MV:-}" = "1" ]; then
   gauntlet_stage day2_crash pass "Break controls: $CRASH_RENAME_DETAIL $CRASH_APPLY_DETAIL $MV_DETAIL"
