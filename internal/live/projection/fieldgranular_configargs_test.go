@@ -152,7 +152,7 @@ func configArgsProvider(t *testing.T, labelOwner string) (*tofu.MockProvider, *[
 
 // TestFieldGranularReadsCarryTheConfigOnlyArguments is reference-k8s-
 // shared-objects' test_plan failure (#1885): after a migration off stock
-// state files, app's stateless plan proposed field_manager "Terraform" ->
+// state files, app's plan with no state file proposed field_manager "Terraform" ->
 // "choudoufu:shared-app" on every field-granular block, and kubernetes_env
 // failed its read with `could not find container with name ""`.
 //
