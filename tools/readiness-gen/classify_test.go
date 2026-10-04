@@ -9,25 +9,22 @@ import "testing"
 
 func TestDestinedTier(t *testing.T) {
 	cases := []struct {
-		name     string
-		taggable bool
-		path     string
-		want     string
+		name      string
+		taggable  bool
+		admission string
+		want      string
 	}{
-		{"taggable wins over a client-named path", true, surveyPathClientNamed, TierMarkerCarried},
-		{"taggable, marker path", true, surveyPathMarker, TierMarkerCarried},
-		{"untaggable, client-named", false, surveyPathClientNamed, TierDeclarationCarried},
-		{"untaggable, parent-derived", false, surveyPathParentDerived, TierDeclarationCarried},
-		{"untaggable, account-derived", false, surveyPathAccountDerived, TierDeclarationCarried},
-		{"untaggable, unique-name", false, surveyPathUniqueName, TierDeclarationCarried},
-		{"untaggable, enumerable unbindable", false, surveyPathEnumerableUnbindable, TierRecordCarried},
-		{"untaggable, moves to Ops", false, surveyPathOps, TierRecordCarried},
-		{"untaggable, unrecognized path fails safe", false, "some future token", TierRecordCarried},
+		{"taggable wins over a schema-proven declaration", true, admissionSchema, TierMarkerCarried},
+		{"taggable, no schema admission", true, "", TierMarkerCarried},
+		{"untaggable, schema-proven declaration", false, admissionSchema, TierDeclarationCarried},
+		{"untaggable, needs a configuration signal", false, "needs-config-signal", TierRecordCarried},
+		{"untaggable, no schema admission", false, "", TierRecordCarried},
+		{"untaggable, unrecognized admission value fails safe", false, "some future value", TierRecordCarried},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := destinedTier(c.taggable, c.path); got != c.want {
-				t.Errorf("destinedTier(%v, %q) = %q, want %q", c.taggable, c.path, got, c.want)
+			if got := destinedTier(c.taggable, c.admission); got != c.want {
+				t.Errorf("destinedTier(%v, %q) = %q, want %q", c.taggable, c.admission, got, c.want)
 			}
 		})
 	}
@@ -63,7 +60,7 @@ func TestClassifyPrecedence(t *testing.T) {
 		// A tier-D type is never actually in identity.DefaultTable (the
 		// harness ratchet enforces that), but this proves the precedence
 		// holds even if it were, since Tier D is checked first.
-		st := surveyType{Type: "aws_tier_d_example", Path: surveyPathMarker}
+		st := surveyType{Type: "aws_tier_d_example"}
 		st.Signals.Taggable = true
 		row := classify(st, mappingRow{}, false, rejectedEntry{}, tierD)
 		if row.Tier != TierExcludedByDesign || row.Status != StatusExcluded {
@@ -72,7 +69,7 @@ func TestClassifyPrecedence(t *testing.T) {
 	})
 
 	t.Run("unrecognized untaggable type falls to pending-ratification by default", func(t *testing.T) {
-		st := surveyType{Type: "aws_example_ops", Path: surveyPathOps}
+		st := surveyType{Type: "aws_example_ops"}
 		row := classify(st, mappingRow{}, false, rejectedEntry{}, tierD)
 		if row.Tier != TierRecordCarried {
 			t.Errorf("tier = %s, want %s", row.Tier, TierRecordCarried)
@@ -86,7 +83,7 @@ func TestClassifyPrecedence(t *testing.T) {
 	})
 
 	t.Run("rejected type surfaces its reason and needs-separator status", func(t *testing.T) {
-		st := surveyType{Type: "aws_example_needs_sep", Path: surveyPathOps}
+		st := surveyType{Type: "aws_example_needs_sep"}
 		re := rejectedEntry{Reason: "issue #245's 'needs hand separator' slice"}
 		row := classify(st, mappingRow{}, true, re, tierD)
 		if row.Status != StatusNeedsSeparator {
@@ -98,7 +95,7 @@ func TestClassifyPrecedence(t *testing.T) {
 	})
 
 	t.Run("mapping facts are surfaced without changing tier or status", func(t *testing.T) {
-		st := surveyType{Type: "aws_example_mapped", Path: surveyPathClientNamed}
+		st := surveyType{Type: "aws_example_mapped", Admission: admissionSchema}
 		m := mappingRow{Via: "fold", FoldParent: "AWS::Example::Parent"}
 		row := classify(st, m, false, rejectedEntry{}, tierD)
 		if row.Facts.MappingVia != "fold" || row.Facts.MappingFoldParent != "AWS::Example::Parent" {
