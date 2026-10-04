@@ -1,16 +1,17 @@
 # ci-pipelines
 
 The CI a choudoufu estate needs, as one chant project rather than one hand-written
-YAML file per forge. Five Ops over one live root; the GitHub, Forgejo and GitLab
+YAML file per forge. Six Ops over one live root; the GitHub, Forgejo and GitLab
 pipelines are all generated from them and checked in beside them, under a guard
 that regenerating leaves the tree clean. GitLab's generator was cron-only through
 chant 0.59.0 and got the other four Ops's triggers in chant #2268 (0.60.0).
 This project now pins chant 0.63.0 (`package.json`), and all three forges are
 generated the same way - see below.
 
-Nothing here is a template you fill in. It is a project that builds, whose five Op
-names are also the five job names a branch-protection rule or a warden policy can
-require: `live-check`, `live-plan`, `live-apply`, `live-adopt`, `live-discover`.
+Nothing here is a template you fill in. It is a project that builds, whose six Op
+names are also the six job names a branch-protection rule or a warden policy can
+require: `live-check`, `live-plan`, `live-apply`, `live-adopt`, `live-discover`,
+`backend-prepare`.
 
 ## Substrate
 
@@ -28,7 +29,7 @@ its own generator output, its own credential shape (a kubeconfig or an
 OIDC-issued token, not an IAM role ARN) and its own tests across all three,
 which is not small.
 
-## The five Ops
+## The six Ops
 
 | Op / job | Trigger | What it runs | What it may do |
 |---|---|---|---|
@@ -37,9 +38,10 @@ which is not small.
 | `live-adopt` | push to `staging` | check, adoption ledger, gate, then the marker writes | write two tags per adoptable resource, after an approval |
 | `live-apply` | push to `main` | `init`, `plan -out`, gate on `show`, `apply <planfile>` | change the estate, after an approval |
 | `live-discover` | cron `0 6 * * *` | `live-ls -consistent`, then the adoption ledger, then a report | read the account, and open an issue |
+| `backend-prepare` | push to `bootstrap` | `just plan` in `examples/record-store-bucket`, gate on that template, `just up`, then `choudoufu live-bucket` | create or update the record store bucket and its policy, after an approval |
 
-Three of them are read-only. The two that write are the two on a push trigger, and
-both stop at a gate first.
+Three of them are read-only. The three that write are the three on a push trigger,
+and all three stop at a gate first.
 
 ### live-check
 
@@ -148,6 +150,79 @@ request and so only ever sees an estate somebody is already editing.
 Its cron lives on the Op itself, not in `generate.ts`: `generateOpsPipeline` copies a
 discovered Op's own cadence onto its spec, so there is one place to change it.
 
+### backend-prepare
+
+The Op the other five stand on. `live-plan` reads the record store, `live-apply`
+writes it, `live-discover` narrows its sweep by it, and until this Op (#1832, #1244's
+ruling 3) nothing in the pipeline created it: a fresh environment needed somebody to
+run `just up` on a laptop first. Now a push to `bootstrap` stands the bucket up through
+the same gated path as everything else.
+
+It runs `examples/record-store-bucket`'s own recipes rather than a copy of them, through
+`scripts/backend-prepare.sh`, one call per phase:
+
+| Phase | What it runs | Writes? |
+|---|---|---|
+| Plan | checks the caller's account is the sidecar's `bucket_owner`, `npm ci` in the bucket project, `just plan <bucket>`; prints the template to the log and its SHA256 as the step's result | no |
+| Approve | `gate("prepare")`, bound to that SHA256 | the pending fact, on `chant/lifecycle` |
+| Apply | the account check again, then `just up <bucket>` | the bucket stack |
+| Verify | `choudoufu live-bucket` in `terraform/` | no |
+
+Why `just up` rather than handing the built template to CloudFormation: `just up`
+reads the live bucket first. It keeps the noncurrent-version window it finds there, so
+a re-run never resets a recovery window somebody chose, and it refuses a run that would
+drop the bucket's KMS key and the two Deny statements that go with it (#1421). An Op
+that applied the template directly would skip both. That is why #1244's first draft of
+this Op was rewritten rather than revived.
+
+The bucket's name is read out of `terraform/estate.chdf.hcl`, the line the estate's own
+runs read, the same way `scripts/oidc-bootstrap.sh` reads it. There is no
+`RECORD_BUCKET` pipeline variable: a second spelling of that line is how the two
+would drift. The sidecar's `bucket_owner` is checked against the caller's account
+before anything is read or written, because CloudFormation creates a bucket in whatever
+account the credentials belong to, and the estate would then refuse it on every run
+(each of its requests carries `ExpectedBucketOwner`).
+
+**The trigger is a push to `bootstrap`, not to `main`.** Preparing the backend is rare
+and deliberate, and a gate on every merge is a gate people learn to click through.
+
+**The gate is unconditional.** The usual rule, gate only what destroys, is wrong here
+in both directions: a bucket-policy change destroys nothing and can still lock every
+run out of its own records, and a shorter lifecycle window destroys nothing today and
+shortens how long a record deleted by mistake stays recoverable. A run with nothing to
+change still stops, because "nothing to change" is not a claim this Op should make on
+its own. The approval is bound to the template's digest (chant #2300), so a run whose
+template moved after the approval is refused by name.
+
+**The last step is choudoufu's own contract check**, asked from the estate's root
+rather than with `-bucket`, so the answer is the one every run of the estate gets
+before its first write: versioning, a lifecycle that expires noncurrent versions, and a
+full public-access block, checked against this estate's key prefixes under the
+sidecar's `bucket_owner`. A bucket this Op stood up that the estate would refuse fails
+here, not on the next `live-apply`.
+
+Every phase is a single attempt (chant's `policyCheck` profile, used for that property
+and not its name): a refusal is the same answer on every retry, and retrying `just up`
+behind a CloudFormation update still in progress turns one clear failure into a
+confusing second one.
+
+The job needs three tools no other job does: the AWS CLI and `jq`, which `just up`
+reads the live bucket with, and `just`. Its setup step installs `awscli` and `jq` from
+the image's Debian archive (apt verifies them against the archive's signing key; AWS
+publishes no checksum for its CLI bundle) and `just` from its GitHub release, pinned by
+version and by the SHA256 its `SHA256SUMS` names.
+
+The bucket project is found at `../record-store-bucket`, which is where it sits in this
+repository. A consuming repository that lays the two projects out differently sets
+`RECORD_BUCKET_PROJECT` on the job.
+
+Two things it does not do. It does not run `just verify`'s KMS probes, which put
+objects into the bucket and are a check on the key policy rather than on the bucket
+contract; run them by hand once after a customer managed key is first set. And it
+passes no `RECORD_KMS_KEY_ARN`: on a bucket stood up under a customer managed key,
+`just up` refuses in the pipeline until the job is given that variable, which is the
+refusal working (an unset key would rebuild the bucket under S3-managed encryption).
+
 ## The per-environment dial
 
 chant's lifecycle dial is observe, reconcile, authoritative, chosen per environment.
@@ -159,8 +234,11 @@ Here it is which Op an environment runs, not three copies of the root:
   which writes ownership markers and nothing else, after an approval.
 - **production applies, behind its gate.** A push to `main` runs `live-apply`.
 - **the account is swept regardless.** `live-discover` runs on its cron.
+- **the backend is prepared behind its own gate.** A push to `bootstrap` runs
+  `backend-prepare`, once per environment and again whenever the bucket's declaration
+  changes.
 
-One root, one estate, five Ops. Splitting into per-environment roots is a change to
+One root, one estate, six Ops. Splitting into per-environment roots is a change to
 `chant.config.ts`'s `roots` and to the `root` each Op names, not a change to this
 shape.
 
@@ -191,7 +269,7 @@ gitlab/ops.gitlab-ci.yml
 
 plus `generated-from.json`, the record of which input state they were generated from
 (see the currency guard below). GitHub and Forgejo get one file per Op, because their
-trigger is workflow-scoped; GitLab gets one combined file with all five jobs in it,
+trigger is workflow-scoped; GitLab gets one combined file with all six jobs in it,
 because its trigger is job-scoped (`rules:` on the job, not `on:` on the file), so
 there is nothing to split into separate files the way the other two are split.
 
@@ -210,13 +288,13 @@ or rename the file to `.gitlab-ci.yml` if the project has none of its own yet.
 
 ## What each forge gets, and what it refuses
 
-**GitHub** gets all five jobs with everything on: the `pull_request` and `push`
+**GitHub** gets all six jobs with everything on: the `pull_request` and `push`
 triggers, least-privilege `permissions:` computed per finding mode, `id-token: write`
 added on top for OIDC, the plan posted as one pull-request comment that the next push
 edits in place, the gated-apply notice job, the scheduled sweep opening an issue, and
 `live-apply` deploying to the `production` environment.
 
-**Forgejo** gets all five jobs too, because its Op generator reuses GitHub's builder,
+**Forgejo** gets all six jobs too, because its Op generator reuses GitHub's builder,
 so the triggers and the `--gated-exit 0` mapping cross over unchanged. `live-plan`
 posts a pull-request comment the same way GitHub's does - chant #2291 built
 `reconcilePr`'s `comment` mode from `GITHUB_API_URL`, which a Forgejo Actions job
@@ -238,7 +316,7 @@ refused there by name, but only `comment`'s endpoints were verified against a re
 instance (#1027), so `issue` remains un-refused-but-unverified and this project does
 not turn it on.
 
-**GitLab** gets all five jobs now too (chant #2268), in the one file the next section
+**GitLab** gets all six jobs now too (chant #2268), in the one file the next section
 describes. `live-plan` posts a merge-request note the way GitHub's posts a
 pull-request comment - `comment` mode reaches GitLab's own REST API directly rather
 than shelling to `gh` - `live-discover` opens and edits an issue the same way GitHub's
@@ -247,9 +325,9 @@ does (chant #2292 gave `reconcilePr`'s `issue` mode its own GitLab REST path), a
 Three things differ from GitHub, all consequences of GitLab CI's own shape rather
 than of a chant refusal:
 
-- **One file, not five.** A GitLab trigger is job-scoped: every job's own `rules:`
-  decides whether it runs, so there is one document with five jobs in it rather than
-  five separate workflow files.
+- **One file, not six.** A GitLab trigger is job-scoped: every job's own `rules:`
+  decides whether it runs, so there is one document with six jobs in it rather than
+  six separate workflow files.
 - **No `uses:` step.** GitLab CI runs `script:` lines only, so a role assumption is a
   shell script the job runs (see "AWS credentials" below) rather than a marketplace
   action, and there is no gated-apply notice job - it would need a `uses:`-shaped
@@ -322,8 +400,8 @@ file into a project and drives all four of its triggers; "What the generated fil
 does on a real GitLab" below is that run, and anything in this section that names
 17.11.0 is measured rather than read off the generator.
 
-**One file, not five.** GitLab's Op generator returns a single document,
-`ops.gitlab-ci.yml`, with all five jobs in it (`generateGitlabOpPipeline`,
+**One file, not six.** GitLab's Op generator returns a single document,
+`ops.gitlab-ci.yml`, with all six jobs in it (`generateGitlabOpPipeline`,
 in the gitlab lexicon). A GitHub or Forgejo trigger lives on the workflow (`on:`), so
 each Op needs its own file; a GitLab trigger lives on the job (`rules:`), so there is
 nothing to split into separate files. `generate.ts`'s `WORKFLOW_DIR.gitlab` names a
@@ -486,7 +564,7 @@ it rides each Op's additive `permissions`. The run mints a short-lived OIDC toke
 action exchanges it for credentials that expire with the job, and the repository
 stores no long-lived key at all.
 
-Three roles, not one, which is the whole reason `setup` is a per-Op option:
+Four roles, not one, which is the whole reason `setup` is a per-Op option:
 
 | Job | Repository/project variable | What its role needs |
 |---|---|---|
@@ -494,6 +572,7 @@ Three roles, not one, which is the whole reason `setup` is a per-Op option:
 | `live-plan`, `live-discover` | `CHOUDOUFU_PLAN_ROLE_ARN` | read: describe the declared types, `tag:GetResources`, discover the account (below), and the record store bucket's read-only policy for this estate (`examples/record-store-bucket/iam/render-policy.sh --read-only`, #1370: `live-plan` reads the estate's records and never writes one) |
 | `live-adopt` | `CHOUDOUFU_ADOPT_ROLE_ARN` | the above, plus the per-service tagging calls that write a marker. The record store policy is the same read-only one: adoption writes two tags on the live resource and no record |
 | `live-apply` | `CHOUDOUFU_APPLY_ROLE_ARN` | the above, plus create/update/delete on the declared types, and the record store bucket's full policy for this estate (the same renderer without `--read-only`): the only one of the three that can write a record |
+| `backend-prepare` | `CHOUDOUFU_BACKEND_ROLE_ARN` | create and update the record store bucket's stack: see "The backend role" below. It holds no estate permission at all, and no other role holds any of this |
 
 **Discover the account.** Issue #807's first real-AWS dispatch (run
 34632345663) got past `live-check` and then failed `live-plan` with no
@@ -526,7 +605,37 @@ variable means they cannot disagree.
 it is an account number and a role name. Set each role's trust policy to this
 repository, and for the two write roles to the ref their push trigger fires on.
 
-**GitLab: the same three roles, over its own OIDC surface, and this is
+**The backend role.** `backend-prepare` assumes a fourth role,
+`CHOUDOUFU_BACKEND_ROLE_ARN`, rather than the apply role, because what it does is
+strictly larger than anything else here holds and of a different kind: a role that can
+rewrite the bucket policy can lock every run out of its own records, so the apply role
+must never hold it. Trust it for `refs/heads/bootstrap` only. What `just plan`,
+`just up` and `choudoufu live-bucket` call, scoped to the one bucket and to the stack
+named after it:
+
+- `sts:GetCallerIdentity`;
+- `cloudformation:DescribeStacks`, `DescribeStackEvents`, `GetTemplateSummary`,
+  `CreateChangeSet`, `DescribeChangeSet`, `ExecuteChangeSet`, `DeleteChangeSet` on
+  `arn:aws:cloudformation:<region>:<account>:stack/<bucket>/*` (`aws cloudformation
+  deploy` is a change set);
+- on `arn:aws:s3:::<bucket>`: `s3:CreateBucket`, `PutBucketVersioning`,
+  `PutLifecycleConfiguration`, `PutBucketPublicAccessBlock`,
+  `PutEncryptionConfiguration`, `PutBucketPolicy`, `DeleteBucketPolicy`, and the
+  matching reads `GetBucketVersioning`, `GetLifecycleConfiguration`,
+  `GetBucketPublicAccessBlock`, `GetEncryptionConfiguration`, `GetBucketPolicy`,
+  `GetBucketLocation`.
+
+That list is read off the recipes and the template, not measured: no run against real
+AWS has exercised this role yet, and CloudFormation's own S3 handler may read settings
+the list above does not name. `aws iam simulate-principal-policy` against the role
+before the first push is the cheap way to find out.
+
+No `s3:DeleteBucket`: the bucket carries `DeletionPolicy: Retain`, and taking it down
+is `just down`, by hand. No KMS permission: this project never creates a key, and
+the bucket's default encryption names one by ARN without using it.
+`scripts/oidc-bootstrap.sh` does not create this role yet; it is a follow-up to #1832.
+
+**GitLab: the same four roles, over its own OIDC surface, and this is
 unverified.** GitLab CI has no `uses:` step for `aws-actions/configure-aws-credentials`
 to ride - it runs `script:` lines only - so `assumeRole()` in `generate.ts` has a
 GitLab-specific branch that assembles the exchange from what a job there already has,
@@ -572,6 +681,7 @@ pull-request job no longer holds a credential that can change the estate:
 | `live-plan`, `live-discover` | `CHOUDOUFU_PLAN_ACCESS_KEY_ID` / `CHOUDOUFU_PLAN_SECRET_ACCESS_KEY` | read: describe the declared types, `tag:GetResources`, and the record store bucket's read-only policy for this estate (`render-policy.sh --read-only`) |
 | `live-adopt` | `CHOUDOUFU_ADOPT_ACCESS_KEY_ID` / `CHOUDOUFU_ADOPT_SECRET_ACCESS_KEY` | the above, plus the per-service tagging calls that write a marker; the same read-only record store policy |
 | `live-apply` | `CHOUDOUFU_APPLY_ACCESS_KEY_ID` / `CHOUDOUFU_APPLY_SECRET_ACCESS_KEY` | the above, plus create/update/delete on the declared types, and the record store bucket's full policy for this estate (rendered by `examples/record-store-bucket/iam/render-policy.sh`) |
+| `backend-prepare` | `CHOUDOUFU_BACKEND_ACCESS_KEY_ID` / `CHOUDOUFU_BACKEND_SECRET_ACCESS_KEY` | the backend role's permissions below, and nothing on the estate |
 
 The two write pairs are not the read pair, and `tests/pipelines.test.ts` asserts as
 much - the same shape the GitHub role table above is asserted by. What is still
@@ -800,10 +910,10 @@ workaround: the cache is never consulted for ownership, live always wins, and lo
 the record costs a slower run and nothing else. A bucket is shared and lives under
 IAM, which is what a pipeline should declare.
 
-The bucket is not created by this example. It is stood up once with
-[`examples/record-store-bucket`](../record-store-bucket/) (`just up`, then
-`just verify`), before `scripts/oidc-bootstrap.sh` runs, and its name is global, so a
-fork changes that line. `scripts/smoke.sh` makes its own on the emulator.
+The bucket is stood up by `backend-prepare` on a push to `bootstrap` (above), or by
+hand with [`examples/record-store-bucket`](../record-store-bucket/) (`just up`, then
+`just verify`). Either way it exists before `scripts/oidc-bootstrap.sh` runs, and its
+name is global, so a fork changes that line. `scripts/smoke.sh` makes its own on the emulator.
 
 `scripts/smoke.sh` counts `Resource type has no orphan recovery` warnings on
 every run and prints the count as its own verdict line. It is zero: the warning
@@ -818,7 +928,10 @@ half of adoption, and a CI example should carry it.
 
 ## Running it locally, against the emulator
 
-All five Ops run end to end against floci with no AWS account. The scripted version
+The five estate Ops run end to end against floci with no AWS account
+(`backend-prepare` does not: the pinned floci reports the bucket stack
+`CREATE_COMPLETE` and applies none of its properties, lex00/floci#213, so
+`choudoufu live-bucket` would refuse what it made). The scripted version
 is `scripts/smoke.sh`, or `just smoke-ci-pipelines` from the repository root, which
 starts the pinned emulator, runs the five in order, and prints one verdict line per
 Op read off that run's own `--json` status:
@@ -892,7 +1005,7 @@ way: "regenerate and diff", never "trust what is on disk".
 three forges into a scratch directory and diffs byte for byte, in both directions, so
 a file that changed and a file that should no longer exist fail equally loudly.
 GitLab's single combined file goes through the identical loop as GitHub's and
-Forgejo's five-files-each - the check does not care how many files a forge's
+Forgejo's six-files-each - the check does not care how many files a forge's
 generator returns, only that the committed set and the regenerated set agree.
 `tests/pipelines.test.ts` reads the checked-in workflows back field by field, asserting
 properties a reviewer would want to hold rather than the bytes that happen to be there;
@@ -909,7 +1022,7 @@ workflow is tracked, the set of workflows is exactly the set of `src/*.op.ts` pe
 forge (or, on GitLab, the one file names every Op by its own job key), each file
 names its own forge and its own Op source and sets a matching `CHANT_FORGE`, the
 choudoufu install is pinned to a version and verified against the release's published
-SHA256 (once per job, on GitLab, since its five jobs share one file), the generator
+SHA256 (once per job, on GitLab, since its six jobs share one file), the generator
 has been run since the inputs last changed, and no generator input was committed
 after the workflows it generates. Its blind spot is stated in the file: with no node
 it proves correspondence, input state and ordering, not equality, and a workflow

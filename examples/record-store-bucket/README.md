@@ -246,6 +246,14 @@ just chant-plan   # read-only
 just chant-apply  # stops at its gate; chant approve bucket-apply apply
 ```
 
+From CI, `examples/ci-pipelines`' `backend-prepare` Op (#1832) runs this
+project's own `just plan` and `just up` behind an unconditional gate on a
+push to `bootstrap`, then asks `choudoufu live-bucket` from the estate's
+root. It goes through `just up` rather than these two Ops so that the live
+reads `up` makes first, keeping the retention window and refusing a dropped
+KMS key, happen in the pipeline too. See that project's README,
+"backend-prepare".
+
 ## Where this runs
 
 Real AWS. The pinned floci emulator reports `CREATE_COMPLETE` for this
