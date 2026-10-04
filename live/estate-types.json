@@ -956,9 +956,11 @@
         "kubernetes_config_map_v1",
         "kubernetes_deployment_v1",
         "kubernetes_namespace_v1",
-        "kubernetes_service_account_v1"
+        "kubernetes_secret_v1",
+        "kubernetes_service_account_v1",
+        "random_password"
       ],
-      "count": 16,
+      "count": 18,
       "sources": [
         "script"
       ],
