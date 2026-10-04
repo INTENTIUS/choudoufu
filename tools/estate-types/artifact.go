@@ -66,6 +66,10 @@ type estateTypes struct {
 	// Notes).
 	ConfigDirs []string `json:"config_dirs,omitempty"`
 
+	// NotApplied are the types ConfigDirs declares that the crossing never
+	// applies (estateSpec.NotApplied), excluded from Types.
+	NotApplied []string `json:"not_applied,omitempty"`
+
 	// UnresolvedModules is the sum of check.LoadResult.UnresolvedModules
 	// across ConfigDirs: module calls check.Load could not read without
 	// installing them. Non-zero bounds how complete Types can be trusted to

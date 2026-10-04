@@ -118,6 +118,17 @@ func scanEstate(ctx context.Context, root string, spec estateSpec) (estateTypes,
 		sources = append(sources, "config")
 	}
 
+	var notApplied []string
+	for _, t := range spec.NotApplied {
+		if !types[t] {
+			loadErrs = append(loadErrs, fmt.Sprintf("NotApplied names %s, which no ConfigDirs directory declares - the spec is stale", t))
+			continue
+		}
+		delete(types, t)
+		notApplied = append(notApplied, t)
+	}
+	sort.Strings(notApplied)
+
 	if spec.ScanScript {
 		scriptPath := filepath.Join(root, "live", "e2e", spec.Name, "run.sh")
 		text, err := os.ReadFile(scriptPath) //nolint:gosec // fixed repo-relative path built from the spec table
@@ -157,6 +168,7 @@ func scanEstate(ctx context.Context, root string, spec estateSpec) (estateTypes,
 		Count:             len(out),
 		Sources:           sources,
 		ConfigDirs:        configDirsUsed,
+		NotApplied:        notApplied,
 		UnresolvedModules: unresolved,
 		Notes:             loadErrs,
 	}, nil
