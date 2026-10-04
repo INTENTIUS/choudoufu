@@ -283,6 +283,24 @@ else
     BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true \
     || die "could not set the public-access block on $RECORD_BUCKET"
   log "record store bucket on the emulator: s3://$RECORD_BUCKET"
+
+  # The sidecar pins the bucket's owner to the real account (bucket_owner,
+  # GitHub issues #1381 and #1421), and the bucket above belongs to the
+  # emulator's account instead. The scratch copy is pointed at the account
+  # the emulator says it is, read rather than assumed, and committed so the
+  # tree the Ops run in stays clean. The example itself is not touched.
+  EMU_ACCOUNT="$(aws sts get-caller-identity --query Account --output text)" \
+    || die "could not read the emulator's account id; the sidecar's bucket_owner cannot be pointed at it"
+  [[ "$EMU_ACCOUNT" =~ ^[0-9]{12}$ ]] || die "the emulator reported account id '$EMU_ACCOUNT', which is not twelve digits"
+  SIDECAR_COPY="$WORK/repo/terraform/estate.chdf.hcl"
+  grep -qE '^[[:space:]]*bucket_owner[[:space:]]*=' "$SIDECAR_COPY" \
+    || die "terraform/estate.chdf.hcl names no bucket_owner, so there is nothing to point at the emulator; if it was removed on purpose, remove this step too"
+  perl -pi -e 's/^(\s*bucket_owner\s*=\s*)"[0-9]+"/$1"'"$EMU_ACCOUNT"'"/' "$SIDECAR_COPY"
+  grep -qE "^[[:space:]]*bucket_owner[[:space:]]*=[[:space:]]*\"$EMU_ACCOUNT\"" "$SIDECAR_COPY" \
+    || die "could not point the scratch sidecar's bucket_owner at the emulator's account $EMU_ACCOUNT"
+  git -C "$WORK/repo" commit -qam "smoke: bucket_owner is the emulator's account" \
+    || die "could not commit the emulator's bucket_owner in the scratch repository"
+  log "bucket_owner in the scratch sidecar: $EMU_ACCOUNT (the emulator's account)"
 fi
 
 export CHANT_FORGE=forgejo
