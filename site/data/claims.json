@@ -403,7 +403,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not stated for Kubernetes yet. No record-only Kubernetes type exists (#1441): every object carries the tofu-estate label and is found again by kind and name, so there is no record-only identity for cache loss to threaten. The present-tense question is a label-selected list and a live read on a cluster, and no scenario asks it there."
+          "note": "Open: the proof is written and has not run. live/smoke/drafts/k8s-staleness-costs-reads.sh plans a converged estate under a fresh cache, a cache from a destroyed and rebuilt world (every uid dead, plus a ConfigMap that exists nowhere) and no cache, and requires one byte-identical plan; BREAK=1 edits the ConfigMap with kubectl and requires the plan to move. It leaves out the AWS proof's -refresh=false half, which serves nothing on Kubernetes today: that is claim 9's gap. The cell reads proven only after both arms run green (live/smoke/drafts/README.md)."
         }
       }
     },
@@ -432,7 +432,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "The property holds and is measured, but not by a scenario here: live/GAUNTLET.md stage 10 (day2_crash, active, tier-1 gated) injects a real SIGTERM between one object's create committing and the next object's dispatch on the kind substrate, and the next plan must bind the already-created object by its tofu-estate label, namespace and name rather than recreate or orphan it. It passes 4/4 on every kind-lane gauntlet estate measured (corpus-quickpizza, reference-k8s, reference-k8s-cert-manager, reference-k8s-stateful). This cell stays open because that proof is the gauntlet's, with its own oracle and break control, and not a BREAK-controlled scenario under live/smoke: claim 2's Kubernetes proof kills an apply only to show no lock survives it, not what the next plan names. #1110's items 1, 2, 3 and 5 are still open."
+          "note": "Open: the proof is written and has not run. live/smoke/drafts/k8s-recovery-is-a-rerun.sh SIGKILLs an apply between one ConfigMap's create and the next one's, then requires the next plan to bind the created object by its label, namespace and name (same uid after the re-run), propose only what was never reached, and replan empty; BREAK=1 strips the label after the kill and requires the plan to refuse the object by name. The property is also measured by live/GAUNTLET.md stage 10 (day2_crash) on every kind-lane estate. The cell reads proven only after both arms run green (live/smoke/drafts/README.md)."
         }
       }
     },
@@ -460,7 +460,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not stated for Kubernetes yet: no scenario measures this claim on a cluster."
+          "note": "Open: the proof is written and has not run. live/smoke/drafts/k8s-roundtrip.sh has stock Terraform stand an estate up on kind, adopts it with one live-import, deletes the state file, applies, and hands the cache back to stock Terraform to plan, converge and destroy; BREAK=1 skips live-import and requires the live plan to refuse the unlabelled objects by name. Stock Terraform resolves hashicorp/kubernetes against its own registry, so the handed-back file goes through `terraform state replace-provider` once, and the scenario says so. The cell reads proven only after both arms run green (live/smoke/drafts/README.md)."
         }
       }
     },
@@ -549,7 +549,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not stated for Kubernetes yet: no scenario measures this claim on a cluster."
+          "note": "Open: the proof is written and has not run. live/smoke/drafts/k8s-stock-when-you-need-it.sh plans one state-backed estate with no live block from choudoufu and from stock Terraform, both through live/smoke/k8sproxy.py, and requires the same plan text and the same request count; BREAK=1 turns the live block on for choudoufu's leg and requires the measurement to move. The AWS proof's second half, that foreign objects do not move a plan's cost, is claim 14's Kubernetes draft. The cell reads proven only after both arms run green (live/smoke/drafts/README.md)."
         }
       }
     },
@@ -583,7 +583,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not stated for Kubernetes yet: no scenario measures this claim on a cluster."
+          "note": "Open, and by reading the code the behaviour is missing on Kubernetes. The proof is written and has not run: live/smoke/drafts/k8s-unchanged-is-free.sh plans an unchanged estate with -refresh=false through live/smoke/k8sproxy.py, under the default and under CHOUDOUFU_READS=full, and requires cache hits, fewer requests and an identical answer; BREAK=1 deletes the cache and requires no hits and the full price. Its step 2 is expected to fail today. A cache hit needs a vouch (projection.cacheHit: Ownership.Verified, or a record envelope), and the Kubernetes sweep joins an object declared by its kind and natural key without recording one (internal/live/discovery/kubernetes.go skips declared objects; only address-annotation bindings reach Result.Bindings). Whether #692's cache-vouch listing reaches these types through the provider's list schema was not established by reading; the first run settles it. The AWS proof's record-backed half touches no cluster and is not repeated."
         }
       }
     },
@@ -673,7 +673,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "No scenario measures this on Kubernetes, so restated overstated it: nothing here has run and caught a control. What is true by the code (#1065): there is no cross-kind label-filtered list. A sweep is API discovery plus one cluster-wide, label-selected list per kind the cluster serves, custom kinds included; each list returns only the estate's objects and does not grow with the cluster, but \"one call\" does not survive. A scenario counting the API server's own apiserver_request_total series per kind (the technique k8s-records-in-the-cluster.sh's ssar_count already uses) could measure this cheaply against a padded cluster; nothing has written it yet."
+          "note": "Open: the proof is written and has not run. live/smoke/drafts/k8s-plan-cost-tracks-the-estate.sh counts one plan's requests through live/smoke/k8sproxy.py (one line per request this client sent, which apiserver_request_total cannot separate from the controllers'), grows the cluster by 80 ConfigMaps marked for another estate or not marked, and requires the same count, with no ConfigMap list sent without the estate's selector; BREAK=1 gives 40 of them this estate's label and requires the count to rise. What is true by the code (#1065) stands: there is no cross-kind label-filtered list, so a plan's floor is one label-selected list per kind served, and the draft prints that figure. The cell reads proven only after both arms run green (live/smoke/drafts/README.md)."
         }
       }
     },
@@ -889,7 +889,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not stated for Kubernetes yet. Under refuse no cache is written and a kubernetes_secret's record holds none of its data because the API returns it, but no scenario has measured that on a cluster."
+          "note": "Open: the proof is written and has not run. live/smoke/drafts/k8s-no-secret-survives-in-what-the-tool-keeps.sh, under strict { secrets = \"refuse\" }, requires a random_password to be refused by name with nothing written, a kubernetes_secret_v1 fed from the environment to apply with no state cache and the value in no kept file, the replan empty (the API server returns the data) and a rotated value still proposed; BREAK=1 applies the same estate under secrets = \"store\" and requires the same scan to find the value. The cell reads proven only after both arms run green (live/smoke/drafts/README.md)."
         }
       }
     },
@@ -918,7 +918,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "Not stated for Kubernetes yet. With the records in the cluster (claim 29 on Kubernetes) the grant would be RBAC on the other estate's output objects, and no scenario reads across estates there."
+          "note": "Open, and not written: the behaviour does not exist on Kubernetes yet. A data \"terraform_estate_outputs\" read goes through the reading estate's own record store (projection.ReadEstateOutputs). The Kubernetes store's default is one namespace per estate, so the producer's tofu-outputs/<estate>/ key is not in the reader's namespace and the read answers \"no recorded value\"; in a shared namespace, KubernetesStore.Get refuses a Secret labelled as another estate's (ForeignEstateRecordError, #1355). Neither is a declared read with an RBAC grant, so there is nothing yet for a scenario to prove."
         }
       }
     },
