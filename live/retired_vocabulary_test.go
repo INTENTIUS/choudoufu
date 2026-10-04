@@ -30,10 +30,14 @@ var retiredWord = "state" + "less"
 //
 // exact entries must match their count exactly, so a new line in an
 // allowed file fails too. atMost entries may only shrink, because their
-// producers rewrite them: the gauntlet artifact's free-text notes and two
-// stage details carry the word until the rows are re-run or the notes get
-// a writer (#1374 questions 0.1 and 0.2), and every release snapshot under
-// live/history/ is a byte copy of live/gauntlet.json at that release.
+// producers rewrite them. The gauntlet artifact and its two site copies
+// keep two lines: the last_run.detail of corpus-overture-tiles' day2_count
+// and corpus-simpleinfra-dns' day2_rename stages, whose run.sh text is
+// already reworded and which the next run of each estate rewrites (#1374
+// question 0.3, waiting on those re-runs). The four legacy notes were
+// reworded with `gauntlet set-notes`. The release snapshots under
+// live/history/ stay frozen by the maintainer's ruling (#1374 question
+// 0.1); each is a byte copy of live/gauntlet.json at that release.
 var retiredWordAllowed = struct {
 	exact        map[string]int
 	atMost       map[string]int
@@ -51,9 +55,10 @@ var retiredWordAllowed = struct {
 		"tools/importdocs-gen/testdata/docs/ecs_cluster.html.markdown": 3,
 	},
 	atMost: map[string]int{
-		"live/gauntlet.json":            6,
-		"site/data/gauntlet.json":       6,
-		"site/data/gauntlet_board.json": 6,
+		// The two stage details named above, until their estates re-run.
+		"live/gauntlet.json":            2,
+		"site/data/gauntlet.json":       2,
+		"site/data/gauntlet_board.json": 2,
 	},
 	atMostPrefix: map[string]int{
 		// Frozen release snapshots; a new one copies live/gauntlet.json.
@@ -185,9 +190,9 @@ func TestRetiredWordVerdict(t *testing.T) {
 		{"live/import-grammar.json", 12, false},
 		{"live/import-grammar.json", 13, true},
 		{"live/import-grammar.json", 11, true},
-		{"live/gauntlet.json", 6, false},
 		{"live/gauntlet.json", 2, false},
-		{"live/gauntlet.json", 7, true},
+		{"live/gauntlet.json", 0, false},
+		{"live/gauntlet.json", 3, true},
 		{"live/history/v9.9.9.json", 6, false},
 		{"live/history/v9.9.9.json", 7, true},
 	}
