@@ -3,11 +3,11 @@
   "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
   "banner": "Every estate below last ran against the pinned emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, recorded between 2026-10-02T19:19:40Z and 2026-10-03T02:57:13Z. Each row below carries its own `last_run` date; they are not all the same run.",
   "runtime_banner": "31 of 31 estates have a recorded run duration, totaling 5h13m32.9s, but not from one sweep: 13m1.3s across 1 estate(s) at commit `0b620164db`; 12m18.9s across 2 estate(s) at commit `66a25ed700`; 16m58.5s across 2 estate(s) at commit `debf8ccd05`; 4h31m14.2s across 26 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
-  "script_banner": "**31 of 31 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 24 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-stateful, terralith-scale.",
+  "script_banner": "**31 of 31 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 3 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-stateful, terralith-scale.",
   "provider_banner": "Estates were last measured against different hashicorp/aws versions: 22 against `6.63.0` (current pin), 1 against `5.100.0`, 1 against `6.59.0`. The current pin is `6.63.0`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work. Estates were last measured against different hashicorp/kubernetes versions: 3 against `3.2.1` (current pin), 1 against `3.3.0`. The current pin is `3.2.1`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
   "upstream_version": "1.13.0",
   "engine_banner": "The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 31 estates measured so far, 31 recorded running on it.",
-  "stage_count": 14,
+  "stage_count": 15,
   "stages": [
     {
       "id": "cold_deploy",
@@ -162,6 +162,17 @@
       "headline_cell": "no",
       "proves_first": "With every strict toggle on, the estate is refused for exactly the things the toggles name (secrets stored, markers unrepaired, and so on) with the documented message, and for nothing else.",
       "proves": "With every strict toggle on, the estate is refused for exactly the things the toggles name (secrets stored, markers unrepaired, and so on) with the documented message, and for nothing else. Tested and shown per estate; not part of the headline bars."
+    },
+    {
+      "id": "no_local_state",
+      "order": 15,
+      "title": "Plan with no local state",
+      "status": "active",
+      "headline": false,
+      "tier1_gated": false,
+      "headline_cell": "no",
+      "proves_first": "After the estate is applied and its plan is empty, deleting BOTH the local record store and the state cache - a fresh clone or a new machine, with only the account left - still yields a plan that finds every declared object by its own marker or a stamped parent: nothing created, destroyed or replaced.",
+      "proves": "After the estate is applied and its plan is empty, deleting BOTH the local record store and the state cache - a fresh clone or a new machine, with only the account left - still yields a plan that finds every declared object by its own marker or a stamped parent: nothing created, destroyed or replaced. The verdict line reports that plan's API call count beside the same estate's cache-serving plan, because the ratio between them is the claim. Tested and shown per estate; not part of the headline bars."
     }
   ],
   "estates": [
@@ -191,6 +202,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "10m55.1s",
@@ -293,6 +305,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -322,6 +339,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "10m18.4s",
@@ -424,6 +442,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -453,6 +476,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "4m54.6s",
@@ -462,7 +486,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-dynamodb-table-basic/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -555,6 +579,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -583,6 +612,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "9m43.2s",
@@ -685,6 +715,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -714,6 +749,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "12m59s",
@@ -816,6 +852,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -846,6 +887,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "9m41.4s",
@@ -947,6 +989,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -976,6 +1023,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "3m2.1s",
@@ -985,7 +1033,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-evoteum-modules/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1078,6 +1126,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1107,6 +1160,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "3m38.6s",
@@ -1116,7 +1170,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-giantswarm-crossplane/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1209,6 +1263,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1238,6 +1297,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "6m15.9s",
@@ -1247,7 +1307,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-hongbomiao-harbor/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1340,6 +1400,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1369,6 +1434,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "6m3s",
@@ -1378,7 +1444,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-hongbomiao-labelbox/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1471,6 +1537,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1500,6 +1571,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "4m27.9s",
@@ -1509,7 +1581,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-hongbomiao-storage/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1602,6 +1674,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1631,6 +1708,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "3m59.9s",
@@ -1640,7 +1718,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-iam-policy/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1733,6 +1811,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1762,6 +1845,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "6m41.6s",
@@ -1771,7 +1855,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-iam-read-only-policy/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1864,6 +1948,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1893,6 +1982,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "4m30.5s",
@@ -1902,7 +1992,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-lambda-simple/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1995,6 +2085,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2024,6 +2119,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "2m35.4s",
@@ -2033,7 +2129,7 @@
       "provider_note": "Provider: hashicorp/aws `5.100.0`. **Stale**: the current pin is `6.63.0`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-leynos-monitoring/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2126,6 +2222,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2155,6 +2256,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "9m4s",
@@ -2164,7 +2266,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-overture-tiles/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2257,6 +2359,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2286,6 +2393,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "14m20.1s",
@@ -2294,7 +2402,7 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-rds-complete-postgres/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2387,6 +2495,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2416,6 +2529,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "9m27.2s",
@@ -2425,7 +2539,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-s3-bucket-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2518,6 +2632,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2547,6 +2666,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "4m53.8s",
@@ -2556,7 +2676,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-security-group-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2649,6 +2769,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2678,6 +2803,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "12m44s",
@@ -2687,7 +2813,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-simpleinfra-dns/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2780,6 +2906,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2809,6 +2940,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "12m15s",
@@ -2817,7 +2949,7 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-sqs-basic/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2910,6 +3042,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2939,6 +3076,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "18m21.1s",
@@ -2948,7 +3086,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-sumaform-aws/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3041,6 +3179,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3070,6 +3213,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "6m39.7s",
@@ -3172,6 +3316,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3201,6 +3350,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "5m6.8s",
@@ -3210,7 +3360,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-xancloud-iac/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3303,6 +3453,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3330,7 +3485,8 @@
         "not run",
         "pass",
         "pass",
-        "pass"
+        "pass",
+        "not run"
       ],
       "runtime_total": "5m57s",
       "runtime_cells": "cold_deploy 1m49s, migrate 41s, test_plan 4s, test_apply 5s, drift_reconverge 11s, day2_rename 19s, day2_remove 13s, day2_count 39s, day2_replace 35s, day2_crash 46s, plan_approval 25s, greenfield 10s, strict -",
@@ -3339,7 +3495,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/reference-ec2-vpc/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3436,6 +3592,11 @@
           "verdict": "pass",
           "duration": "-",
           "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming aws_ebs_volume) against a scratch estate carrying one resource, random_password.db: exactly one refusal, matching live/LIMITATIONS.md's \"strict-secrets\" text word for word (Logical resource is not admitted / SECRET_REFUSED / strict { secrets = \"refuse\" }); no_source_create and marker_repair are on and silent, reaching nothing this config declares. BREAK_STRICT=1 turns secrets back to \"store\" alone: the refusal disappears, the plan becomes an ordinary create, and no other refusal appears. Not part of the headline bars: tools/gauntlet/stages.go keeps Status planned here, because isClear (tools/gauntlet/artifact.go) and NextUnits (tools/gauntlet/next.go) both key strictly off ActiveStages today, with no exemption for a stage the docs already call non-headline - flipping Status without first adding that exemption would silently start gating the two headline bars on this stage, which #363 did not ask for and this unit did not build."
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3462,6 +3623,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "10m16.9s",
@@ -3471,7 +3633,7 @@
       "provider_note": "Provider: hashicorp/aws `6.59.0`. **Stale**: the current pin is `6.63.0`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/terralith-scale/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3566,6 +3728,11 @@
           "verdict": "not run",
           "duration": "-",
           "detail": "this crossing script does not exercise the strict toggles: strict is Headline:false in tools/gauntlet/stages.go so it moves neither bar, and a toggle-by-toggle refusal fixture is a separate unit from the crossing this script exists to be. live/e2e/reference-ec2-vpc/run.sh's PART G is the pattern for the estate that does carry one"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3594,6 +3761,7 @@
         "not run",
         "pass",
         "pass",
+        "not run",
         "not run"
       ],
       "runtime_total": "13m56.7s",
@@ -3603,7 +3771,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-mastino-dns/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3696,6 +3864,11 @@
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3724,7 +3897,8 @@
         "pass",
         "pass",
         "pass",
-        "pass"
+        "pass",
+        "not run"
       ],
       "runtime_total": "13m1.3s",
       "runtime_cells": "cold_deploy 2m13s, migrate 4s, test_plan 12s, test_apply 12s, drift_reconverge 24s, day2_rename 24s, day2_remove 36s, day2_count 1m11s, day2_replace 1m1s, day2_crash 3m44s, day2_teardown 38s, plan_approval 35s, greenfield 1m21s, strict 25s",
@@ -3832,6 +4006,11 @@
           "verdict": "pass",
           "duration": "25s",
           "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_config_map_v1) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3858,7 +4037,8 @@
         "pass",
         "pass",
         "pass",
-        "pass"
+        "pass",
+        "not run"
       ],
       "runtime_total": "11m34.1s",
       "runtime_cells": "cold_deploy 1m35s, migrate 3s, test_plan 11s, test_apply 12s, drift_reconverge 24s, day2_rename 24s, day2_remove 36s, day2_count 59s, day2_replace 59s, day2_crash 3m41s, day2_teardown 25s, plan_approval 35s, greenfield 1m10s, strict 18s",
@@ -3966,6 +4146,11 @@
           "verdict": "pass",
           "duration": "18s",
           "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_config_map) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3992,7 +4177,8 @@
         "pass",
         "pass",
         "pass",
-        "pass"
+        "pass",
+        "not run"
       ],
       "runtime_total": "50m12.2s",
       "runtime_cells": "cold_deploy 2m49s, migrate 1m0s, test_plan 35s, test_apply 55s, drift_reconverge 1m53s, day2_rename 1m52s, day2_remove 4m4s, day2_count 6m10s, day2_replace 5m38s, day2_crash 13m42s, day2_teardown 1m37s, plan_approval 4m11s, greenfield 4m47s, strict 58s",
@@ -4100,6 +4286,11 @@
           "verdict": "pass",
           "duration": "58s",
           "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_manifest) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     },
@@ -4126,7 +4317,8 @@
         "pass",
         "pass",
         "pass",
-        "pass"
+        "pass",
+        "not run"
       ],
       "runtime_total": "15m56.4s",
       "runtime_cells": "cold_deploy 2m16s, migrate 3s, test_plan 12s, test_apply 13s, drift_reconverge 24s, day2_rename 25s, day2_remove 1m33s, day2_count 59s, day2_replace 1m0s, day2_crash 3m42s, day2_teardown 1m59s, plan_approval 35s, greenfield 1m26s, strict 1m6s",
@@ -4234,6 +4426,11 @@
           "verdict": "pass",
           "duration": "1m6s",
           "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_config_map_v1) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
         }
       ]
     }

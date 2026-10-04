@@ -187,7 +187,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 # ── 3. stand the estate up ──────────────────────────────────────────────────
 log "=== 3. init and apply: $INSTANCES instances ==="
 ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "init failed"; }
+  ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "init failed"; }
 APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$APPLY_OUT" | grep -E '^Error|^│' | head -30
   fail "the first apply failed"; }

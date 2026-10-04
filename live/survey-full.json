@@ -10796,19 +10796,20 @@
     },
     {
       "type": "aws_iam_service_linked_role",
-      "path": "moves to Ops",
+      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": false,
         "identity_schema": true,
-        "importable": true
+        "importable": true,
+        "service_list": true
       },
       "identity": {
         "required_for_import": [
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; taggable, but the tag-filtered list does not serve it in any region (issue #692; #1133; #1144), so no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "identity requires server-assigned arn; taggable, but the tag-filtered list does not serve it in any region (issue #692; #1133; #1144), so no native list resource and no input-free Cloud Control list handler, but the service's own listing (iam:ListRoles) enumerates it and the service's own tag API (iam:ListRoleTags) reads the marker, so discovery binds it by marker"
     },
     {
       "type": "aws_iam_service_specific_credential",

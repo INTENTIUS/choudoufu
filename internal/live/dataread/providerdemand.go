@@ -243,7 +243,20 @@ func ProviderConfigEvaluator(ctx context.Context, cfg *configs.Config, module ad
 // provider configuration that wanted it, which then fails to configure
 // exactly as it does today.
 func ReadProviderConfigs(ctx context.Context, cfg *configs.Config, analysis *Analysis, provs Providers) (map[string]cty.Value, tfdiags.Diagnostics) {
-	return read(ctx, cfg, analysis, provs)
+	return read(ctx, cfg, analysis, provs, nil)
+}
+
+// ReadProviderConfigsMemo is [ReadProviderConfigs] for a caller that reads
+// the same demand class more than once in one run - internal/command's
+// provider-configuration fixpoint, which re-analyzes after every managed
+// read it makes - and is GitHub issue #1537's fix. memo carries every
+// source instance an earlier call answered, and a later call reuses that
+// answer rather than asking the provider again whenever the request it
+// would send is the request it sent. See [ReadMemo] for why that, and
+// nothing coarser, is the invalidation rule. A nil memo is
+// [ReadProviderConfigs].
+func ReadProviderConfigsMemo(ctx context.Context, cfg *configs.Config, analysis *Analysis, provs Providers, memo *ReadMemo) (map[string]cty.Value, tfdiags.Diagnostics) {
+	return read(ctx, cfg, analysis, provs, memo)
 }
 
 // providerConfigDataDemand walks every provider block declared anywhere in

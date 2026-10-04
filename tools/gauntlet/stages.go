@@ -196,6 +196,18 @@ func registeredStages() []Stage {
 			Oracle: "No stock equivalent. The toggle documentation is the oracle, and each toggle's fixture is the comparison.",
 			Break:  "Turn a toggle off; its refusal must disappear and no other may appear.",
 		},
+		{
+			// #1098, ruled 2026-10-03: active and not headline, like
+			// strict, and "local state" means BOTH local artifacts - the
+			// record store and the #685 state cache - which is the actual
+			// fresh-clone case. day2_crash (#805) is the adjacent question,
+			// an interruption mid-write; this one is a clean loss of local
+			// state afterwards.
+			ID: "no_local_state", Order: 15, Title: "Plan with no local state", Status: StatusActive, Headline: false,
+			Proves: "After the estate is applied and its plan is empty, deleting BOTH the local record store and the state cache - a fresh clone or a new machine, with only the account left - still yields a plan that finds every declared object by its own marker or a stamped parent: nothing created, destroyed or replaced. The verdict line reports that plan's API call count beside the same estate's cache-serving plan, because the ratio between them is the claim. Tested and shown per estate; not part of the headline bars.",
+			Oracle: "Stock has no plan in this position: with its state file gone it needs one import block per object. The oracle is the estate's own cache-serving plan taken just before the deletion, which must be empty, and the declared configuration - every declared address must resolve to the existing object.",
+			Break:  "Delete one taggable object's marker before the plan; the object is then not found and the plan proposes creating it, which the stage must fail.",
+		},
 	}
 	for i := range stages {
 		note, ok := flociEKSNotes[stages[i].ID]
@@ -233,6 +245,7 @@ var flociEKSNotes = map[string]string{
 	"plan_approval":    "As on floci; the saved plan carries both legs, and the apply of it configures the kubernetes provider from the same cluster the plan read.",
 	"greenfield":       "Both legs are compared against stock's cold deploy: AWS objects as on floci, cluster objects as on kind. A greenfield plan starts with no cluster, so the kubernetes provider's sweep reads that leg as empty by construction, stock's order, and the apply configures the provider once the cluster exists.",
 	"strict":           "As on floci; the toggles apply to both legs alike.",
+	"no_local_state":   "Both legs lose their local record store and state cache together. The AWS leg's objects are found by their markers as on floci; the cluster leg's by their tofu-estate label, through a kubernetes provider configured from the cluster this plan reads live, so the plan also shows the provider block needs nothing local.",
 }
 
 // ActiveStages is every stage whose Status is "active" - headline or not.

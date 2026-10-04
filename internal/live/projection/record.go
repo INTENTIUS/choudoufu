@@ -459,10 +459,30 @@ type residueFields struct {
 	// what was last declared" and proposes removing nothing - the
 	// pre-#1211 behaviour, quiet rather than churning.
 	ManifestMetadataKeys map[string][]string `json:"manifest_metadata_keys,omitempty"`
+
+	// ProviderPrivate is the part of the provider's private state the
+	// last apply (or the migrated state file) carried that no import and
+	// read can rebuild - GitHub issue #1239. See privatestate.go for what
+	// counts and why.
+	//
+	// It belongs here for the same reason ManifestMetadataKeys does:
+	// Residue answers "what did we send, that the cloud will not tell us",
+	// and a provider's private is the provider's own answer to that
+	// question, written by the provider at apply time and read back by it
+	// at the next plan. The founding member is a hash of a write-only
+	// value (hashicorp/aws's privatestate.WriteOnlyValueStore, used by
+	// aws_transfer_host_key's host_key_body_wo), whose plan modifier
+	// proposes a REPLACE on every plan that has no hash to compare with.
+	//
+	// Opaque bytes, round-tripped unchanged. Absent for every record
+	// written before this field existed and for every instance whose
+	// private carries nothing an import cannot rebuild, which reads as
+	// "nothing to restore" - the pre-#1239 behaviour.
+	ProviderPrivate []byte `json:"provider_private,omitempty"`
 }
 
 func (r *residueFields) empty() bool {
-	return r == nil || (len(r.Attributes) == 0 && len(r.ManifestMetadataKeys) == 0)
+	return r == nil || (len(r.Attributes) == 0 && len(r.ManifestMetadataKeys) == 0 && len(r.ProviderPrivate) == 0)
 }
 
 // provisionedFields is [recordEnvelope.Provisioned]: today's
@@ -1346,6 +1366,28 @@ func (s *RecordStore) GetManifestDeclaredKeys(ctx context.Context, addr addrs.Ab
 		out[field] = append([]string(nil), list...)
 	}
 	return out, true, nil
+}
+
+// GetProviderPrivate reads addr's [residueFields.ProviderPrivate] -
+// GitHub issue #1239's record of the apply-time part of the provider's
+// private state.
+//
+// found is false for a key that does not exist, for an envelope with no
+// residue, and for a residue written before this member existed; all three
+// mean "nothing to restore". Only a store error is an error. The bytes are
+// a copy the caller may keep.
+func (s *RecordStore) GetProviderPrivate(ctx context.Context, addr addrs.AbsResourceInstance) (private []byte, found bool, err error) {
+	if s == nil {
+		return nil, false, nil
+	}
+	env, _, exists, err := s.getEnvelope(ctx, addr, false)
+	if err != nil {
+		return nil, false, err
+	}
+	if !exists || env.Residue == nil || len(env.Residue.ProviderPrivate) == 0 {
+		return nil, false, nil
+	}
+	return append([]byte(nil), env.Residue.ProviderPrivate...), true, nil
 }
 
 // getResidue reads addr's Residue member - GitHub issue #275's argument

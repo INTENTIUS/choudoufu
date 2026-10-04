@@ -349,7 +349,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy ($TF_COLD_BIN apply, the real unmodified example) ==="
 ( cd "$PLAIN" && "$TF_COLD_BIN" init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN" && "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
+  ( cd "$PLAIN" && "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "stage 1 init failed"; }
 gauntlet_report_lock "$PLAIN"  # the versions stage 1 resolved, for the row (#1739)
 COLD_OUT="$(cd "$PLAIN" && "$TF_COLD_BIN" apply -input=false -auto-approve -no-color 2>&1)"; COLD_RC=$?
 if [ "$COLD_RC" -ne 0 ]; then
@@ -409,7 +409,7 @@ moved {
 }
 EOF
 ( cd "$PLAIN_ORACLE" && "$TF_COLD_BIN" init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_ORACLE" && "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+  ( cd "$PLAIN_ORACLE" && "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_rename stock oracle's reinit failed"; }
 ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE" && "$TF_COLD_BIN" plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
 grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
@@ -439,7 +439,7 @@ perl -0777pi -e 's/module "default" \{.*?\n\}\n\n/\n/s' "$REMOVE_ORACLE/main.tf"
 grep -q 'module "default" {' "$REMOVE_ORACLE/main.tf" && fail "removing module.default's block from the day2_remove oracle copy did not match - the corpus example has moved"
 python3 "$ROOT/live/e2e/lib/strip-output-blocks.py" "$REMOVE_ORACLE/outputs.tf" "module.default." || fail "stripping module.default's outputs from the oracle copy failed"
 ( cd "$REMOVE_ORACLE" && "$TF_COLD_BIN" init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$REMOVE_ORACLE" && "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
+  ( cd "$REMOVE_ORACLE" && "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_remove stock oracle's reinit failed"; }
 REMOVE_ORACLE_PLAN_OUT="$(cd "$REMOVE_ORACLE" && "$TF_COLD_BIN" plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
 [ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
 ORACLE_REMOVE_N="$(grep -cE '^  # module\.default\..+ will be destroyed' <<< "$REMOVE_ORACLE_PLAN_OUT" || true)"
@@ -520,7 +520,7 @@ perl -0pi -e 's/module "asg_sg" \{\n  source  = "terraform-aws-modules\/security
 grep -q '${local.name}-v2' "$REPLACE_ORACLE/main.tf" \
   || fail "changing module.asg_sg's name argument in the replace-oracle copy did not match - the corpus pin has moved"
 ( cd "$REPLACE_ORACLE" && "$TF_COLD_BIN" init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$REPLACE_ORACLE" && "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+  ( cd "$REPLACE_ORACLE" && "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_replace stock oracle's reinit failed"; }
 REPLACE_ORACLE_PLAN_OUT="$(cd "$REPLACE_ORACLE" && "$TF_COLD_BIN" plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
 [ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
 grep -qE '^  # module\.asg_sg\.aws_security_group\.this_name_prefix\[0\] must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
@@ -546,7 +546,7 @@ gauntlet_begin_stage migrate
 gauntlet_begin_stage migrate
 log "=== STAGE 2: migrate (choudoufu live-import -approve) ==="
 ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "adopted-copy init failed"; }
+  ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "adopted-copy init failed"; }
 
 IMPORT_OUT="$(cd "$ADOPTED" && "$TOFU" live-import -state="$PLAIN/terraform.tfstate" -estate="$ESTATE" 2>&1)"; IMPORT_RC=$?
 if [ "$IMPORT_RC" -ne 0 ]; then
@@ -1041,7 +1041,7 @@ if [ "${BREAK:-}" = "1" ]; then
   sed -i.bak 's/aws_sqs_queue\.this\.name/aws_sqs_queue.this_renamed.name/' "$ADOPTED/main.tf"
   rm -f "$ADOPTED/main.tf.bak"
   ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-    ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the BREAK=1 rename's reinit failed"; }
+    ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "the BREAK=1 rename's reinit failed"; }
   BREAK_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
   [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=1 rename-without-moved plan exited $BREAK_PLAN_RC"; }
   grep -qE '^  # aws_sqs_queue\.this will be destroyed' <<< "$BREAK_PLAN_OUT" \
@@ -1062,7 +1062,7 @@ moved {
 }
 EOF
   ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-    ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
+    ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "the moved-block rename's reinit failed"; }
   MOVED_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; MOVED_PLAN_RC=$?
   [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
   # RE-VERIFIED against current main (re-verify-day2_remove unit, 2026-08):
@@ -1114,7 +1114,7 @@ EOF
   sed -i.bak 's/aws_sqs_queue\.this\.name/aws_sqs_queue.this_renamed.name/' "$ADOPTED/main.tf"
   rm -f "$ADOPTED/main.tf.bak"
   ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-    ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the live-mv rename's reinit failed"; }
+    ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "the live-mv rename's reinit failed"; }
   MV_OUT="$(cd "$ADOPTED" && "$TOFU" live-mv -estate="$ESTATE" aws_sqs_queue.this aws_sqs_queue.this_renamed 2>&1)"; MV_RC=$?
   [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
   grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
@@ -1486,7 +1486,7 @@ HCL
 
   write_count_oracle 2
   ( cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" "$TF_COLD_BIN" init -input=false -no-color >/dev/null 2>&1 ) || {
-    ( cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's init failed"; }
+    ( cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_count stock oracle's init failed"; }
   ORACLE_COUNT_APPLY_OUT="$(cd "$ORACLE_COUNT_DIR" && AWS_ENDPOINT_URL="$ENDPOINT" "$TF_COLD_BIN" apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_COUNT_APPLY_RC=$?
   [ "$ORACLE_COUNT_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's baseline apply exited $ORACLE_COUNT_APPLY_RC"; }
   grep -qE 'Apply complete! Resources: 3 added, 0 changed, 0 destroyed' <<< "$ORACLE_COUNT_APPLY_OUT" \
@@ -1705,7 +1705,7 @@ HCL
   grep -q 'module "default" {' "$ADOPTED/main.tf" && fail "removing module.default's block did not match - the config has moved"
   python3 "$ROOT/live/e2e/lib/strip-output-blocks.py" "$ADOPTED/outputs.tf" "module.default." || fail "stripping module.default's outputs failed"
   ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-    ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_remove reinit failed"; }
+    ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "the day2_remove reinit failed"; }
   REMOVE_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; REMOVE_PLAN_RC=$?
   [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
   if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
@@ -1836,7 +1836,7 @@ log "  DELTA  emulator flags + provider pin + live block (record_store, same rea
 
 log "=== PART GREENFIELD: 1. choudoufu apply from nothing, no migration, no state file ever existing ==="
 ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+  ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the greenfield init failed"; }
 GREEN_APPLY_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"
 if [ $? -ne 0 ]; then
   printf '%s\n' "$GREEN_APPLY_OUT" | grep -E '^Error' -A 6 | head -200

@@ -1652,6 +1652,11 @@ the same ownership record as stripping `tofu-address` itself, since a
 reader that cannot gather every chunk cannot reconstruct the address at
 all. See "`tofu-address` continuation tags," above.
 
+The SCP stops a marker being removed, not rewritten: setting `tofu-estate`
+to another value is a tag write, not an untag. The `aws:RequestTag`
+condition on the estate's grant ("Granting an estate," above) is the
+control for that.
+
 The eight actions in that statement are illustrative. The
 exhaustive list is generated, because each service's tag-removal verb is
 resolvable from botocore's service models the same way its tagging verb

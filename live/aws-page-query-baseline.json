@@ -1,5 +1,5 @@
 {
-  "_generated": "go run ./tools/aws-paginators-gen -baseline  -  DO NOT EDIT  -  2026-09-18",
+  "_generated": "go run ./tools/aws-paginators-gen -baseline  -  DO NOT EDIT  -  2026-10-04",
   "_comment": "Per-script count of AWS CLI call sites carrying a reducing --query on a paginating operation (issues #1042, #1206, #1214). Measured, not typed: go run ./tools/aws-paginators-gen -baseline. A count may only go down.",
   "scripts": {
     "e2e/corpus-alb-complete/run.sh": 35,
@@ -43,6 +43,6 @@
     "e2e/destroy-teardown/run.sh": 3,
     "e2e/reference-ec2-vpc/run.sh": 55,
     "e2e/repeated-module/run.sh": 2,
-    "e2e/terralith-scale/run.sh": 29
+    "e2e/terralith-scale/run.sh": 27
   }
 }
