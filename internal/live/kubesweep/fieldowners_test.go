@@ -62,7 +62,7 @@ func TestFieldOwnersNamesWhoOwnsWhat(t *testing.T) {
 // it owns the whole list, whatever members the write names.
 func TestFieldOwnersReadsAnAtomicListAsOwnedWhole(t *testing.T) {
 	obj := fmObject(fmEntry("choudoufu:a", "", `{"f:spec":{"f:taints":{}}}`))
-	write := FieldWrite{Root: []string{"f:spec", "f:taints"}, Members: []string{ListItemMember(map[string]string{"key": "k", "effect": "NoSchedule"})}}
+	write := FieldWrite{Root: []string{"f:spec", "f:taints"}, Members: []string{ListItemMember(map[string]string{"key": "k", "effect": "NoSchedule"})}, Atomic: true}
 	got := FieldOwners(obj, write, "choudoufu:me")
 	if len(got) != 1 || got[0].Manager != "choudoufu:a" || !got[0].Atomic {
 		t.Errorf("FieldOwners = %+v, want choudoufu:a owning spec.taints whole", got)
@@ -91,5 +91,26 @@ func TestFieldOwnersFindsAContainersEnv(t *testing.T) {
 	got := FieldOwners(obj, FieldWrite{Root: root, Members: []string{ListItemMember(map[string]string{"name": "LOG"}), ListItemMember(map[string]string{"name": "MODE"})}}, "choudoufu:me")
 	if len(got) != 1 || !reflect.DeepEqual(got[0].Members, []string{`k:{"name":"LOG"}`}) {
 		t.Errorf("FieldOwners = %+v, want choudoufu:a owning LOG alone (MODE is the other container's)", got)
+	}
+}
+
+// TestFieldOwnersSkipsAReleasedEntry (#1885): hashicorp/kubernetes
+// deletes a field-granular block with an apply of the empty map (or env
+// list), which leaves the manager's entry owning the empty container -
+// {"f:metadata":{"f:annotations":{}}}. labels, annotations, data and env
+// are granular, so that entry owns no key: read as atomic, it named a
+// released estate as the owner of every key another estate then wrote
+// there. Only a write whose root may be atomic (a Node's taints) reads
+// a memberless leaf as owned whole.
+func TestFieldOwnersSkipsAReleasedEntry(t *testing.T) {
+	obj := fmObject(
+		fmEntry("choudoufu:released", "", `{"f:metadata":{"f:annotations":{}}}`),
+		fmEntry("choudoufu:holder", "", `{"f:metadata":{"f:annotations":{"f:k":{}}}}`),
+	)
+	write := FieldWrite{Root: []string{"f:metadata", "f:annotations"}, Members: []string{MapMember("k")}}
+	got := FieldOwners(obj, write, "choudoufu:me")
+	want := []FieldOwner{{Manager: "choudoufu:holder", Members: []string{"f:k"}}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("FieldOwners =\n %+v\nwant\n %+v: a released entry owns no key", got, want)
 	}
 }

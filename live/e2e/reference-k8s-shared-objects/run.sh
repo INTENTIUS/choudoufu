@@ -482,15 +482,44 @@ PY
 }
 
 # owned_objects <kubeconfig> <manager>: how many objects the manager owns
-# any field of, over every Namespace and Node and the ConfigMaps, Secrets,
-# Services and Deployments in $NS - the field-granular estate's answer to
-# the label count, since no label names it.
+# a field-granular field of, over every Namespace and Node and the
+# ConfigMaps, Secrets, Services and Deployments in $NS - the field-granular
+# estate's answer to the label count, since no label names it.
+#
+# A field is a KEY of one of the surfaces the six types write: a label or
+# annotation key, a data key, an env item, or - taints being an atomic list
+# - the taints of a node that has any. A released block leaves its
+# manager's entry behind owning only the EMPTY map or env list
+# (hashicorp/kubernetes deletes by applying one, #1885); that entry owns no
+# field and is not counted. It is the rule choudoufu's own field-manager
+# sweep uses (internal/live/discovery's matchFieldGranular).
 owned_objects() {
   NS="$NS" python3 - "$@" <<'PY'
 import json, os, subprocess, sys
 _, cfg, manager = sys.argv
 ns = os.environ["NS"]
 n = 0
+def at(d, *path):
+    for p in path:
+        if not isinstance(d, dict) or p not in d:
+            return None
+        d = d[p]
+    return d if isinstance(d, dict) else None
+def keys(d):
+    return [k for k in (d or {}) if k != "."]
+def owns_field(fields, obj):
+    for path in [("f:metadata", "f:labels"), ("f:metadata", "f:annotations"), ("f:data",),
+                 ("f:spec", "f:template", "f:metadata", "f:annotations")]:
+        if keys(at(fields, *path)):
+            return True
+    for spec in [("f:spec",), ("f:spec", "f:template", "f:spec"), ("f:spec", "f:jobTemplate", "f:spec", "f:template", "f:spec")]:
+        for lst in ("f:containers", "f:initContainers"):
+            for item in (at(fields, *spec, lst) or {}).values():
+                if keys(at(item, "f:env")):
+                    return True
+    if at(fields, "f:spec", "f:taints") is not None and (obj.get("spec") or {}).get("taints"):
+        return True
+    return False
 for kind, scoped in [("namespaces", False), ("nodes", False), ("configmaps", True), ("secrets", True), ("services", True), ("deployments", True)]:
     args = ["kubectl", "--kubeconfig", cfg, "get", kind, "-o", "json", "--show-managed-fields"]
     if scoped:
@@ -499,7 +528,8 @@ for kind, scoped in [("namespaces", False), ("nodes", False), ("configmaps", Tru
     if out.returncode != 0:
         continue
     for o in json.loads(out.stdout).get("items", []):
-        if any(e.get("manager") == manager and not e.get("subresource") for e in o["metadata"].get("managedFields") or []):
+        if any(e.get("manager") == manager and not e.get("subresource") and owns_field(e.get("fieldsV1") or {}, o)
+               for e in o["metadata"].get("managedFields") or []):
             n += 1
 print(n)
 PY
@@ -1148,7 +1178,7 @@ TF_OUT="$(chdf "$APP" apply -destroy -auto-approve -input=false -no-color 2>&1)"
 ( stock_ab apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's final teardown of app failed on B"
 [ "$(owned_objects "$KCA" "$A_MANAGER")" = "0" ] || fail "$A_MANAGER still owns fields after app's final teardown"
 [ -z "$(kca get node "$NODE_A" -o jsonpath='{.spec.taints[?(@.key=="shared-objects/app")].key}')" ] || fail "app's node taint survived app's final teardown"
-gauntlet_stage day2_teardown pass "app first: apply -destroy released exactly its $A_OWNED field-granular instances in one apply, $A_MANAGER owns nothing anywhere afterwards, and platform's $P_COUNT objects still carry tofu-estate=$ESTATE with its plan empty - app's teardown left platform converged. Then, with app's fields written back, platform's apply -destroy removed exactly its $P_EXPECT instances (its labelled objects and the default-Namespace label) in one apply, the same count stock's destroy of the same estate removed on the oracle cluster with app's fields present there too; the namespace is gone, no object carries tofu-estate=$ESTATE and platform's label is released. What app had left behind planned the same on both: '${AP_LINE:-none}' here (exit $AP_RC), '${AO_LINE:-none}' from stock (exit $AO_RC); app's final destroy released the node taint"
+gauntlet_stage day2_teardown pass "app first: apply -destroy released exactly its $A_OWNED field-granular instances in one apply, $A_MANAGER owns no label, annotation or data key, env item or taint anywhere afterwards (a released block's manager entry is left owning only an empty map or env list, and is not counted), and platform's $P_COUNT objects still carry tofu-estate=$ESTATE with its plan empty - app's teardown left platform converged. Then, with app's fields written back, platform's apply -destroy removed exactly its $P_EXPECT instances (its labelled objects and the default-Namespace label) in one apply, the same count stock's destroy of the same estate removed on the oracle cluster with app's fields present there too; the namespace is gone, no object carries tofu-estate=$ESTATE and platform's label is released. What app had left behind planned the same on both: '${AP_LINE:-none}' here (exit $AP_RC), '${AO_LINE:-none}' from stock (exit $AO_RC); app's final destroy released the node taint"
 
 # ── 12. greenfield: both estates fresh, with live blocks ─────────────────
 gauntlet_begin_stage greenfield
