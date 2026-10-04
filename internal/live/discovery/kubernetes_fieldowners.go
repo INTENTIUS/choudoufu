@@ -62,6 +62,12 @@ const (
 	// blocks of one estate patch one object under one field manager.
 	SummaryFieldGranularSameObject = "Two field-granular blocks patch one object"
 
+	// SummaryFieldSharedWithStock is the warning: a planned create writes
+	// fields stock's default field manager, "Terraform", already owns on
+	// the object, and nothing records this instance as migrated, so they
+	// are not taken over (GitHub issue #1863).
+	SummaryFieldSharedWithStock = "Field shared with the stock field manager"
+
 	// SummaryFieldOwnersUnavailable is the warning: the object could not be
 	// read back, so whose fields the write meets is unknown. The apply is
 	// the next thing that asks, and the API server answers it.
@@ -75,6 +81,14 @@ type FieldGranularWrite struct {
 	Object kubesweep.ObjectRef
 	Writes []kubesweep.FieldWrite
 	Force  bool
+	// Create says the plan creates the instance: no prior under any
+	// manager. A create over fields stock's default manager owns is
+	// warned about (GitHub issue #1863).
+	Create bool
+	// HandoverFrom is the stock field manager a planned migration
+	// hand-over takes the fields from (GitHub issue #1863); empty for
+	// every other write.
+	HandoverFrom string
 }
 
 // SameObjectFieldWrites refuses every object more than one of writes
@@ -140,9 +154,17 @@ func CheckKubernetesFieldOwners(ctx context.Context, reader kubesweep.ObjectRead
 		}
 		owners := map[string][]string{}
 		var estates []string
+		var stock []string
 		for _, write := range w.Writes {
 			for _, o := range kubesweep.FieldOwners(obj, write, ours) {
 				other, ok := markers.EstateOfFieldManager(o.Manager)
+				if !ok && w.Create && o.Manager == kubesweep.DefaultFieldManager {
+					what := o.Members
+					if o.Atomic {
+						what = []string{strings.Join(write.Root, ".") + " as a whole"}
+					}
+					stock = append(stock, what...)
+				}
 				if !ok {
 					// Not an estate's manager: force keeps its ordinary
 					// meaning against it (#1106 section 3).
@@ -157,6 +179,16 @@ func CheckKubernetesFieldOwners(ctx context.Context, reader kubesweep.ObjectRead
 				}
 				owners[other] = append(owners[other], what...)
 			}
+		}
+		if len(stock) > 0 {
+			diags = diags.Append(&hcl.Diagnostic{
+				Severity: hcl.DiagWarning,
+				Summary:  SummaryFieldSharedWithStock,
+				Detail: fmt.Sprintf(
+					"%s creates fields of %s that field manager %q already owns (%s), and nothing in this estate's records says the block was migrated from a stock state file, so they are not taken over: the apply shares them with %q, which keeps its claim. If this block is the one stock applied, run choudoufu live-import -approve against that state file first, and the next plan hands the fields over instead.",
+					w.Addr, w.Object, kubesweep.DefaultFieldManager, strings.Join(stock, ", "), kubesweep.DefaultFieldManager),
+				Subject: manifestBlockRange(root, w.Addr),
+			})
 		}
 		sort.Strings(estates)
 		for _, other := range estates {

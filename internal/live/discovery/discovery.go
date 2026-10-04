@@ -3931,6 +3931,7 @@ func classifyOrphans(ctx context.Context, req Request, schemas listclient.Schema
 			// itself. See [identity.Resolution.Identity].
 			ImportID:         o.ImportID,
 			Identity:         o.Identity,
+			IdentityValues:   o.IdentityValues,
 			Undeclared:       !declared,
 			DestroyDependsOn: dependsOn,
 		})

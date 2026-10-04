@@ -4713,7 +4713,26 @@ func (p *projectionProviders) labelListLeg(ctx context.Context, sub substrate.Su
 			fmt.Sprintf("No cluster client could be built from provider configuration %s, so no Kubernetes object owned by this estate is listed this run and an object whose block was deleted is not proposed for removal: %s.", addr, err)))
 	}
 	p.rememberKubernetesSweeper(addr, client)
-	return discovery.KubernetesSweep{Client: client, Types: types, ManifestType: manifestType}, diags
+	leg := discovery.KubernetesSweep{Client: client, Types: types, ManifestType: manifestType}
+	if schema, schemaDiags := p.mgr.GetProviderSchema(ctx, addr.Provider); !schemaDiags.HasErrors() {
+		// GitHub issue #1863: the field-granular types, whose deleted
+		// blocks the sweep finds by field manager rather than by label.
+		leg.FieldGranular = kubernetesFieldGranularTypes(schema)
+	}
+	return leg, diags
+}
+
+// kubernetesFieldGranularTypes is every resource type of schema of the
+// field-granular shape ([discovery.FieldGranularTypeOf]), sorted by name.
+func kubernetesFieldGranularTypes(schema providers.ProviderSchema) []discovery.FieldGranularType {
+	var out []discovery.FieldGranularType
+	for name, rs := range schema.ResourceTypes {
+		if t, ok := discovery.FieldGranularTypeOf(name, rs.Block); ok {
+			out = append(out, t)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].TypeName < out[j].TypeName })
+	return out
 }
 
 // kubernetesClient is [projectionProviders.labelListLeg] before the

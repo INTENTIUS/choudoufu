@@ -562,6 +562,14 @@ type recordEnvelope struct {
 	// so Deposed rides along unchanged, same as every other member.
 	Deposed map[string]*deposedFields `json:"deposed,omitempty"`
 
+	// FieldGranular is GitHub issue #1863's record of a field-granular
+	// Kubernetes instance (kubernetes_labels and the five like it): the
+	// kind it patches and, after a migration off a stock state file, the
+	// field manager the stock apply wrote under. See
+	// [fieldGranularFields]. Nil for every other instance, and for an
+	// envelope written before this member existed.
+	FieldGranular *fieldGranularFields `json:"field_granular,omitempty"`
+
 	// Tombstone is every identity this address has held that this estate's
 	// own apply has since destroyed - see [tombstoneFields]'s own doc
 	// comment for why this exists and [RecordStore.tombstone] for how it
@@ -599,7 +607,7 @@ type recordEnvelope struct {
 // with nothing but a tombstone is the entire difference between it and a
 // plain delete.
 func (env recordEnvelope) isEmpty() bool {
-	return env.Identity.empty() && env.Object == nil && env.Residue.empty() && env.Provisioned.empty() && len(env.Deposed) == 0 && len(env.Tombstone) == 0
+	return env.Identity.empty() && env.Object == nil && env.Residue.empty() && env.Provisioned.empty() && len(env.Deposed) == 0 && len(env.Tombstone) == 0 && env.FieldGranular == nil
 }
 
 // providerString renders p as [recordEnvelope.Provider]'s value, "" for a
@@ -686,7 +694,7 @@ func decodeEnvelope(raw []byte) (recordEnvelope, error) {
 		env.Tombstone = nil
 	}
 
-	if env.Kind == "" && env.Object == nil && env.Identity == nil && env.Residue == nil && env.Provisioned == nil && env.Deposed == nil && env.Tombstone == nil {
+	if env.Kind == "" && env.Object == nil && env.Identity == nil && env.Residue == nil && env.Provisioned == nil && env.Deposed == nil && env.Tombstone == nil && env.FieldGranular == nil {
 		if len(env.LegacyValueType) == 0 {
 			// Neither v1-shaped (no legacy value_type) nor v2-shaped (no
 			// kind, no member at all) - a payload this package cannot
@@ -741,7 +749,11 @@ func decodeEnvelope(raw []byte) (recordEnvelope, error) {
 		if env.Object != nil {
 			return recordEnvelope{}, fmt.Errorf("the stored record's kind is %q but it also carries an object, which only %q ever carries", recordKindIdentity, recordKindObject)
 		}
-		if env.Identity == nil && env.Residue == nil && env.Provisioned == nil && len(env.Deposed) == 0 && len(env.Tombstone) == 0 {
+		if env.Identity == nil && env.Residue == nil && env.Provisioned == nil && len(env.Deposed) == 0 && len(env.Tombstone) == 0 && env.FieldGranular == nil {
+			// GitHub issue #1863: a field-granular-only envelope (an
+			// apply's record of the kind an instance patches, or
+			// live-import's migration evidence) is legitimate too.
+			//
 			// A GitHub issue #361-only envelope - an ordinary taggable
 			// instance whose only recorded fact this pass is a deposed
 			// object from an interrupted create-before-destroy - is a
@@ -750,7 +762,7 @@ func decodeEnvelope(raw []byte) (recordEnvelope, error) {
 			// reason [RecordStore.mergeEnvelope] wrote this key at all. A
 			// tombstone-only envelope ([RecordStore.tombstone]) is the
 			// same shape for the same reason.
-			return recordEnvelope{}, fmt.Errorf("the stored record's kind is %q but it carries none of an identity, a residue classification, a provisioner taint, a deposed object or a tombstone - not a payload this package ever wrote", recordKindIdentity)
+			return recordEnvelope{}, fmt.Errorf("the stored record's kind is %q but it carries none of an identity, a residue classification, a provisioner taint, a deposed object, a tombstone or a field-granular record - not a payload this package ever wrote", recordKindIdentity)
 		}
 	default:
 		return recordEnvelope{}, fmt.Errorf("the stored record names kind %q, which this version of choudoufu does not understand", env.Kind)

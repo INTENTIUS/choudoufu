@@ -140,6 +140,37 @@ func fieldGranularSeed(seed map[string]cty.Value, estate string) map[string]cty.
 	return out
 }
 
+// fieldGranularOrphanSeed adds to seed every top-level string attribute
+// of schema that values names and seed does not (GitHub issue #1863). An
+// orphan the field-manager sweep filed (internal/live/discovery's
+// kubernetes_fieldorphans.go) carries its object's api_version and kind
+// and, for kubernetes_env, the container whose env the estate's manager
+// owns: hashicorp/kubernetes' env read and delete find the container by
+// that argument, and an import stub never carries it. A declared block's
+// seed comes from its configuration instead, so this is for an undeclared
+// read only. The metadata block is not touched here; [fieldGranularStub]
+// places it from the same values.
+func fieldGranularOrphanSeed(seed map[string]cty.Value, schema providers.Schema, values map[string]string) map[string]cty.Value {
+	if schema.Block == nil || len(values) == 0 {
+		return seed
+	}
+	out := make(map[string]cty.Value, len(seed)+len(values))
+	for k, v := range seed {
+		out[k] = v
+	}
+	for name, v := range values {
+		if _, set := out[name]; set {
+			continue
+		}
+		a, ok := schema.Block.Attributes[name]
+		if !ok || a == nil || a.Type != cty.String || a.Computed && !a.Optional {
+			continue
+		}
+		out[name] = cty.StringVal(v)
+	}
+	return out
+}
+
 // fieldGranularHoldsFields reports whether a field-granular read came back
 // holding any written field: a non-empty written map, or a non-empty
 // written block. An unknown value counts as holding, so nothing is called

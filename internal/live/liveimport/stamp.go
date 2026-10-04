@@ -389,6 +389,12 @@ func (r *Ratification) entryWork(ctx context.Context, entry Entry, slot string) 
 		}
 		return res
 	}
+	if elig.fieldGranular {
+		// GitHub issue #1863: the migration evidence, written before the
+		// hand-over so that a hand-over this run cannot finish is one the
+		// next plan may finish. See recordFieldGranularMigration.
+		res.diags = res.diags.Append(recordFieldGranularMigration(ctx, r.recordStore, r.Estate, entry.Addr, elig))
+	}
 	res.outcome = approveOne(ctx, r.Estate, entry.Addr, elig, slot)
 	res.diags = res.diags.Append(recordResidueFor(ctx, r.recordStore, r.secrets, entry.Addr, &elig.residuable))
 	// GitHub issue #364 unit A2: a stamped instance's marker answers
@@ -656,6 +662,11 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 	if e.labelled {
 		// GitHub issue #1073: one label, no address, no slot - labels.go.
 		return approveLabel(ctx, estate, addr, e)
+	}
+	if e.fieldGranular {
+		// GitHub issue #1863: the marker is the field manager, so the
+		// write is a hand-over of ownership - fieldgranular.go.
+		return approveFieldGranular(ctx, estate, addr, e)
 	}
 	if e.manifested {
 		// GitHub issue #1109: the same one label, on an object with no

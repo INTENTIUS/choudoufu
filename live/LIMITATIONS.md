@@ -2648,8 +2648,12 @@ refused, and each says so in its own entry.
 | - | - | discovery | Delete accepted, object not gone | warning | `internal/live/discovery` | "Delete accepted, object not gone" |
 | - | - | discovery | Direct read could not settle a tag-index-lagged instance | error | `internal/live/discovery` | "Direct read could not settle a tag-index-lagged instance" |
 | - | - | discovery | Failed to list a resource type | error | `internal/live/discovery` | "Failed to list a resource type" |
+| - | - | discovery | Field hand-over from Terraform failed | warning | `internal/live/discovery` | "Field hand-over from Terraform failed" |
 | - | - | discovery | Field owned by another estate | warning | `internal/live/discovery` | "Field owned by another estate" |
 | - | - | discovery | Field owners unavailable | warning | `internal/live/discovery` | "Field owners unavailable" |
+| - | - | discovery | Field shared with the stock field manager | warning | `internal/live/discovery` | "Field shared with the stock field manager" |
+| - | - | discovery | Field-granular removals deferred | warning | `internal/live/discovery` | "Field-granular removals deferred" |
+| - | - | discovery | Fields owned by this estate's field manager not proposed for removal | warning | `internal/live/discovery` | "Fields owned by this estate's field manager not proposed for removal" |
 | - | - | discovery | Force refused over another estate's field | error | `internal/live/discovery` | "Force refused over another estate's field" |
 | - | - | discovery | Incomplete sweep for undeclared resources | warning | `internal/live/discovery` | "Incomplete sweep for undeclared resources" |
 | - | - | discovery | Indistinguishable instances without per-instance markers | error | `internal/live/discovery` | "Indistinguishable instances without per-instance markers" |
@@ -2878,7 +2882,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**270 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**274 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -3172,6 +3176,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Field hand-over from Terraform failed
+
+**What.** GitHub issue #1863: a planned update hands a field-granular Kubernetes instance's fields from stock's default field manager, Terraform, to this estate's, choudoufu:<estate>, and moving the ownership on the live object before the apply failed (the object could not be read or patched). A warning: the apply goes ahead, the estate's write then shares the fields with Terraform as it did before the hand-over existed, and where a value differs the API server's conflict names Terraform.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Field owned by another estate
 
 **What.** GitHub issue #1191: a field-granular Kubernetes block (kubernetes_labels, kubernetes_annotations, kubernetes_env, the *_v1_data types, kubernetes_node_taint) plans to write a field another estate's field manager, choudoufu:<other>, owns on the live object. A warning: the API server refuses the apply with a conflict naming that manager, and this names the estate before the apply does.
@@ -3183,6 +3195,30 @@ reserved for the limits wing's fixture directories, and
 #### Field owners unavailable
 
 **What.** GitHub issue #1191: the object a field-granular Kubernetes block patches could not be read back for its metadata.managedFields, so whether the write meets another estate's fields is unknown. A coverage gap: the plan stands and the API server answers at apply.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Field shared with the stock field manager
+
+**What.** GitHub issue #1863: a field-granular Kubernetes block plans a create over fields stock's default field manager, Terraform, already owns on the object, and this estate's records hold no evidence the block was migrated from a stock state file. The fields are not taken over: the apply shares them with Terraform. Running live-import -approve against the stock state file records the migration, and the next plan hands the fields over.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Field-granular removals deferred
+
+**What.** GitHub issue #1863: this estate's field manager owns fields no configured block names, and a field-granular block's object cannot be named yet (its name or kind is unknown until apply), so any of those fields may be that block's. No removal is proposed this run; the next plan in which every such block's object is known proposes it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Fields owned by this estate's field manager not proposed for removal
+
+**What.** GitHub issue #1863: this estate's field manager, choudoufu:<estate>, owns fields on an object no block of the configuration names, and the fields are not exactly one field-granular type's (they are none of the six types' fields, two types' fields, or env in more than one container). A removal is an apply under that manager, and one planned for the wrong type would release the wrong fields, so nothing is proposed and the objects are named.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 

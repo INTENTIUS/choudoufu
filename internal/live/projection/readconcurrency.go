@@ -176,6 +176,13 @@ type readPrep struct {
 	// because the read has neither the instance address nor the provider
 	// configuration in hand. See [manifestKeyLookup].
 	manifestKeys *manifestKeyLookup
+
+	// fieldGranularDeclared is, for a field-granular type under a live
+	// block, the written maps the configuration (or residue) declares,
+	// captured before the estate's seed takes them out of attrsSeed -
+	// GitHub issue #1863's stock hand-over read keeps only these keys.
+	// Nil for every other type.
+	fieldGranularDeclared map[string]cty.Value
 }
 
 // readTerminal is one of [builder.prepareRead]'s four refusals, carried as

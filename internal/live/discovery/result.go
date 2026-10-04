@@ -659,6 +659,15 @@ type OwnedResource struct {
 	// Identity is the full identity object as the provider sent it.
 	Identity cty.Value
 
+	// IdentityValues is the identity as named attribute values, for a
+	// type whose read needs them placed in its import stub and that no
+	// provider identity object carries: today only the field-granular
+	// Kubernetes orphans the field-manager sweep files (GitHub issue
+	// #1863), whose stub names the patched object in a metadata block
+	// and, for kubernetes_env, the container. Copied onto the removal's
+	// [identity.Resolution.IdentityValues]. Nil for every other orphan.
+	IdentityValues map[string]string
+
 	// Marker is the tofu-address tag value as carried.
 	Marker string
 

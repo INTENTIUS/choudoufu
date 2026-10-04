@@ -94,6 +94,10 @@ type KubernetesSweep struct {
 	Client       kubesweep.Sweeper
 	Types        []string
 	ManifestType string
+	// FieldGranular are the provider's field-granular types
+	// ([FieldGranularTypeOf]), whose orphans the field-manager leg finds
+	// (GitHub issue #1863; kubernetes_fieldorphans.go). Empty lists none.
+	FieldGranular []FieldGranularType
 }
 
 // Leg is [substrate.SweepLabelList].
@@ -288,6 +292,10 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 			Swept:             true,
 		})
 	}
+	// GitHub issue #1863: the fields a deleted field-granular block left
+	// behind, found by the field manager that wrote them rather than by a
+	// label. See kubernetes_fieldorphans.go.
+	diags = diags.Append(leg.sweepFieldGranular(ctx, req, kinds, res))
 	if manifestKinds > 0 {
 		res.Scans = append(res.Scans, TypeScan{
 			TypeName:  manifestType,

@@ -251,6 +251,8 @@ func (r *liveRunner) AfterPlan(ctx context.Context, config *configs.Config, plan
 	// holds them; nothing is asked of any cluster until an apply has run.
 	if r.resolver != nil {
 		r.sweeperDeletes = liveKubernetesDeletes(r.labelListSweepers, plan, schemas, r.resolver.MarkerIndex)
+		// GitHub issue #1863: the stock hand-overs, kept for BeforeApply.
+		r.fieldHandovers = fieldGranularHandovers(r.labelListSweepers, plan, schemas, r.resolver.Estate)
 	}
 
 	// GitHub issue #1002: the declared_tagged = "untag" releases the walk
