@@ -51,15 +51,10 @@ func (l *liveEstateOutputs) open(store staterecord.Store, rs *configs.LiveRecord
 	if l == nil {
 		return
 	}
-	src := &projection.EstateOutputsSource{
-		Store:       store,
-		Estate:      estate,
-		Unavailable: unavailable,
-	}
-	if rs != nil {
-		src.StoreType = rs.Type
-		src.Bucket = rs.Bucket
-	}
+	// A "kubernetes" store also carries the record_store block's
+	// reads_outputs_of declarations and a way to open the namespaces they
+	// name; see projection.NewEstateOutputsSource.
+	src := projection.NewEstateOutputsSource(store, rs, estate, unavailable)
 	l.mu.Lock()
 	l.src = src
 	l.mu.Unlock()
