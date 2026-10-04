@@ -146,6 +146,14 @@
       "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
     },
     {
+      "name": "corpus-k8s-metrics-server",
+      "source": "kubernetes/k8s.io infra/aws/terraform/kops-infra-ci/metrics-server.tf (commit 4046258e7d), the Kubernetes project's own metrics-server installation for its kops CI cluster, cut out of its root: two ClusterRoles, two ClusterRoleBindings, a RoleBinding, a ServiceAccount, a Deployment and a Service in kube-system, and the aggregated APIService v1beta1.metrics.k8s.io, all on the provider's non-_v1 type names (#1880, epic #1885). Measures an aggregated API (kubernetes_api_service) through the sweep and through a rollout that leaves it unavailable, and a teardown that leaves kube-system, a namespace the estate writes into and never declared, as it found it",
+      "url": "https://github.com/kubernetes/k8s.io.git",
+      "pin": "4046258e7d54fdc156e2f39ad8da51b57be88f55",
+      "lane": "kubernetes",
+      "set": "growing"
+    },
+    {
       "name": "corpus-lambda-simple",
       "source": "terraform-aws-modules/terraform-aws-lambda examples/simple (tag v8.8.1)",
       "url": "https://github.com/terraform-aws-modules/terraform-aws-lambda.git",
