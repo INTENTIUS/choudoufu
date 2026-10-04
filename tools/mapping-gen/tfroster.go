@@ -72,12 +72,11 @@ func loadIdentitySchemaSignals(path string) (map[string]bool, error) {
 	return out, nil
 }
 
-// loadCuratedRoster reads just the type-name column of live/SURVEY.md's
-// hand-written per-type table: the curated 68 the pin test measures
-// against. A minimal parser on purpose - tools/survey-gen's own readRoster
-// lives in a different main package (Go commands cannot import one
-// another) and carries columns (Path, Status, Source tier) this tool has no
-// use for.
+// loadCuratedRoster reads the curated 68-type roster from
+// tools/survey-gen/roster.txt: one type per line, blank lines and
+// #-comments ignored. (Until #696 it read the type-name column of
+// live/SURVEY.md's per-type table; that document was retired and the
+// roster moved to survey-gen's own input file unchanged.)
 func loadCuratedRoster(path string) ([]string, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // a fixed path inside the checkout
 	if err != nil {
@@ -86,23 +85,18 @@ func loadCuratedRoster(path string) ([]string, error) {
 	var out []string
 	seen := map[string]bool{}
 	for _, line := range strings.Split(string(data), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if !strings.HasPrefix(trimmed, "| aws_") {
+		typeName := strings.TrimSpace(line)
+		if typeName == "" || strings.HasPrefix(typeName, "#") {
 			continue
 		}
-		cells := strings.Split(strings.Trim(trimmed, "|"), "|")
-		if len(cells) == 0 {
-			continue
-		}
-		typeName := strings.TrimSpace(cells[0])
 		if seen[typeName] {
-			return nil, fmt.Errorf("%s appears twice in %s's per-type table", typeName, path)
+			return nil, fmt.Errorf("%s appears twice in %s", typeName, path)
 		}
 		seen[typeName] = true
 		out = append(out, typeName)
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("no per-type rows found in %s", path)
+		return nil, fmt.Errorf("no types found in %s", path)
 	}
 	return out, nil
 }
