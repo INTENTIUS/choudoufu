@@ -40,9 +40,10 @@ establishing before you write it.
 The stamp pass writes `tofu-estate` and `tofu-address` into the resource's own
 `tags` argument. For most types the AWS provider carries tags on the create
 call, which is what puts `aws:RequestTag` in the request for this condition to
-read. Where a service cannot tag on create, the provider tags immediately
-afterwards; the key is then absent from the create call, and this Deny stops a
-legitimate one.
+read. Where a type cannot take tags on create (`aws_route53_zone` is one;
+[#1084](https://github.com/INTENTIUS/choudoufu/issues/1084)), choudoufu tags
+immediately afterwards; the key is then absent from the create call, and this
+Deny stops a legitimate one.
 
 Name the actions you have confirmed. Do not reach for a wildcard and find out
 in production.

@@ -67,6 +67,16 @@ trap 'selftest_rc=$?
 PASS=1
 
 log() { printf '%s\n' "$*"; }
+# has <ERE> <text>: does any line of <text> match. A here-string, never
+# `printf ... | grep -q`: bash line-buffers the builtin printf, so a
+# multi-line string goes down the pipe one write per line, grep -q exits on
+# the first match, and when a line follows the match the next write gets
+# SIGPIPE. Under pipefail that 141 is the pipeline's status and a string
+# that carries the line reads as one that does not. That is how the run-form
+# check failed in CI with the line plainly in the output it printed (#1806):
+# the match was the second-last line, and on a loaded runner grep was
+# scheduled between the two writes.
+has() { grep -qE -- "$1" <<<"$2"; }
 ok() { log "  ok: $*"; }
 bad() { log "  FAIL: $*"; PASS=0; }
 
@@ -77,7 +87,9 @@ mkdir -p "$SB/bin" "$SB/tree/live/smoke/scenarios"
 cp "$SMOKE_SRC/smoke.sh" "$SMOKE_SRC/lib.sh" "$SMOKE_SRC/VERSION" "$SMOKE_SRC/claims.json" \
    "$SMOKE_SRC/docker-compose.yml" "$SB/tree/live/smoke/"
 [ ! -f "$SMOKE_SRC/ci-run.sh" ] || cp "$SMOKE_SRC/ci-run.sh" "$SB/tree/live/smoke/"
-cp "$REPO_ROOT/live/floci-image" "$REPO_ROOT/live/oracle-versions.json" "$SB/tree/live/"
+# Every file lib.sh reads at source time, or each run prints a `cat: ... No
+# such file` line into the very output the checks below grep (#1806).
+cp "$REPO_ROOT/live/floci-image" "$REPO_ROOT/live/oracle-versions.json" "$REPO_ROOT/live/kind-node-image" "$SB/tree/live/"
 printf '#!/bin/sh\nexit 0\n' > "$SB/bin/choudoufu"
 printf '#!/bin/sh\nexit 0\n' > "$SB/bin/docker"
 chmod +x "$SB/bin/choudoufu" "$SB/bin/docker"
@@ -171,7 +183,7 @@ expect() {
   n="$(grep -cE '^(PASS:|FAIL \[)' "$OUT")"
   last="$(tail -1 "$OUT")"
   if [ "$n" = "1" ]; then ok "exactly one verdict line"; else bad "$n verdict lines, wanted exactly 1"; fi
-  if printf '%s\n' "$last" | grep -qE -- "$re"; then ok "it is the last line and reads: $last"
+  if has "$re" "$last"; then ok "it is the last line and reads: $last"
   else bad "the last line does not match /$re/: $last"; fi
   if [ "$RC" = "$want" ]; then ok "exit $RC"; else bad "exit $RC, wanted $want"; fi
   [ "$PASS" = "1" ] || show_out
@@ -185,7 +197,7 @@ expect_nonzero() {
   n="$(grep -cE '^(PASS:|FAIL \[)' "$OUT")"
   last="$(tail -1 "$OUT")"
   if [ "$n" = "1" ]; then ok "exactly one verdict line"; else bad "$n verdict lines, wanted exactly 1"; fi
-  if printf '%s\n' "$last" | grep -qE -- "$re"; then ok "it is the last line and reads: $last"
+  if has "$re" "$last"; then ok "it is the last line and reads: $last"
   else bad "the last line does not match /$re/: $last"; fi
   if [ "$RC" != "0" ]; then ok "exit $RC, non-zero"; else bad "exit 0"; fi
   [ "$PASS" = "1" ] || show_out
@@ -233,7 +245,7 @@ else
     out="$(bash "$CI" --check "$@" 2>&1)"; rc=$?
     if [ "$rc" = "$want" ]; then ok "--check $* exits $rc"; else bad "--check $* exits $rc, wanted $want: $out"; fi
     if [ "$re" != "-" ]; then
-      if printf '%s\n' "$out" | grep -qE -- "$re"; then ok "and says: $(printf '%s\n' "$out" | grep -E -- "$re" | head -1 | cut -c1-120)"
+      if has "$re" "$out"; then ok "and says: $(grep -E -- "$re" <<<"$out" | head -1 | cut -c1-120)"
       else bad "and does not say /$re/: $out"; fi
     fi
   }
@@ -251,7 +263,7 @@ else
   # The run form, end to end: the throwaway that dies fails the reader too,
   # and the ordinary scenario passes it.
   out="$(PATH="$SB/bin:$PATH" CHOUDOUFU_BIN="$SB/bin/choudoufu" bash "$CI" selftest-dies "$L/run-dies.log" 2>&1)"; rc=$?
-  if [ "$rc" != "0" ] && printf '%s\n' "$out" | grep -q "^FAIL \[selftest-dies\]: no PASS line"; then ok "the run form fails a scenario that died mid-step by name (exit $rc)"
+  if [ "$rc" != "0" ] && has '^FAIL \[selftest-dies\]: no PASS line' "$out"; then ok "the run form fails a scenario that died mid-step by name (exit $rc)"
   else bad "the run form let a scenario that died mid-step through (exit $rc): $out"; fi
   if grep -q '^FAIL \[selftest-dies\]: no verdict line' "$L/run-dies.log"; then ok "and the log it names carries smoke.sh's own FAIL line"
   else bad "the log $L/run-dies.log does not carry smoke.sh's FAIL line"; fi

@@ -24,10 +24,16 @@ estate manages rather than applied by a convention someone has to remember.
   "Condition": {
     "StringEquals": {
       "aws:ResourceTag/tofu-estate": "${aws:PrincipalTag/team}"
+    },
+    "StringEqualsIfExists": {
+      "aws:RequestTag/tofu-estate": "${aws:PrincipalTag/team}"
     }
   }
 }
 ```
+
+Without the `aws:RequestTag` line a team could retag its own resource into
+another team's estate.
 
 One policy covers every team. Onboarding a team is a session tag rather than a
 new policy. There is no per-team document to review, drift, or forget to

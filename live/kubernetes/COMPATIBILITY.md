@@ -260,10 +260,13 @@ provider, the same way an AWS rename rewrites the `tofu-address` tag, and
 together, so the admission policy judges it like any other write
 ([#1081](https://github.com/INTENTIUS/choudoufu/issues/1081)). On the
 manifest shape, a same-estate rename is one annotation merge patch under
-the run's own credential (`internal/live/mv/manifest.go`); a cross-estate
-move of a `kubernetes_manifest` object is still refused by name, because
-the label patch a move needs has no manifest-shape counterpart yet
-([#1104](https://github.com/INTENTIUS/choudoufu/issues/1104)).
+the run's own credential (`internal/live/mv/manifest.go`), and a
+cross-estate move is the same patch carrying the `tofu-estate` label too
+([#1104](https://github.com/INTENTIUS/choudoufu/issues/1104)): sent first
+with `dryRun=All` (under `-dry-run` as well, so the admission verdict
+prints before anything is written), refused if the server's answer changes
+anything beyond the two markers, and written under the block's own field
+manager, which then owns the label in its Apply entry.
 
 `choudoufu live-import` traverses every managed resource instance in the
 whole state, root and child modules alike, for this substrate the same

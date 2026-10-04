@@ -602,7 +602,10 @@ func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 			// Leg two: the provider-configuration fixpoint, on a fresh cloud
 			// so the two legs' calls cannot be confused.
 			readCloud := newTargetWorkCloud()
-			results := statelessProviderDataReads(t.Context(), cfg, readCloud, nil, resolutions, nil, 1, scope, nil)
+			results, _, readDiags := statelessProviderDataReads(t.Context(), cfg, readCloud, nil, resolutions, nil, 1, scope, nil)
+			if readDiags.HasErrors() {
+				t.Errorf("the provider-configuration fixpoint raised an error: %v", renderDiags(readDiags))
+			}
 			if got := renderCounts(readCloud.imports); got != tc.imports {
 				t.Errorf("ImportResourceState calls: got %s, want %s", got, tc.imports)
 			}

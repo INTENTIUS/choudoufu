@@ -104,7 +104,7 @@ func faultProviderApply(dyn *fakedynamic.FakeDynamicClient, address string) erro
 
 // rerunRecovers is what the fault test expects of the rerun (GitHub issue
 // #1764). Before the fix the rerun read the new address on the object,
-// took the "already marked" branch (manifest.go's reannotateManifest),
+// took the "already marked" branch (manifest.go's rewriteManifest),
 // reported the rename verified, and never re-sent the ownership write, so
 // the Update entry kept the annotation and the provider's next rename
 // failed with

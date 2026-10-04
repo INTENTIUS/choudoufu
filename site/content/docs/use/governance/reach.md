@@ -28,14 +28,31 @@ this particular reference doesn't cover.
 
 ## Types that carry no tags
 
-A marker needs somewhere to live, and a minority of admitted types take no
-`tags` argument at all. A condition on either marker key is
-unmatched on those, so a grant covering them is wider than its condition.
+A marker needs somewhere to live, and a type with no `tags` argument has
+nowhere to put one.
 
-Being identifiable without a tag and being governable by one are different
-properties, and an IAM condition needs the second.
-[live/MARKERS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md)
-carries the generated count and the per-service breakdown.
+<!-- survey-gen:begin reach-untaggable -->
+345 of the 1027 admitted AWS resource types take no `tags` argument at all. Most untaggable, by service: EC2 29 of 95, S3 14 of 16, ApiGateway 11 of 19, Cognito 10 of 12, IAM 8 of 17, SSO 8 of 10.
+<!-- survey-gen:end reach-untaggable -->
+
+A condition on either marker key is unmatched on those, so a grant covering
+them is wider than its condition.
+[live/MARKERS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md#what-this-grant-cannot-reach)
+has the full per-service table.
+
+An object declared as a block inside another resource is not a resource at
+all: an EC2 instance's `root_block_device` is a real volume, but the marker
+goes on the instance's `tags` only, so no marker condition matches the volume.
+
+## Types tagged after the create
+
+Some taggable types cannot take tags in their create call, `aws_route53_zone`
+among them. choudoufu creates them unmarked and tags them straight afterwards
+([#1084](https://github.com/INTENTIUS/choudoufu/issues/1084)), so an
+`aws:RequestTag` condition never sees their create, and an `aws:ResourceTag`
+one never sees that tag write.
+[live/MARKERS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md#granting-an-estate)
+has the grant they need instead.
 
 ## What a run itself needs
 
