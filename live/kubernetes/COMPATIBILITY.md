@@ -124,7 +124,10 @@ Removal, migration and live-import
 
 The kind proof, `live/kubernetes/proof-ssa-conflict.sh`,
 is written and has not been run; neither has a proof of the rows
-above.
+above. The gauntlet estate `reference-k8s-shared-objects`
+([#1882](https://github.com/INTENTIUS/choudoufu/issues/1882)) measures
+both tables between two estates sharing one cluster's objects, and is
+not yet run either; the proof script retires once the estate runs green.
 
 `helm_release` is refused in a live root, and the refusal is the ordinary
 unadmitted-type one
