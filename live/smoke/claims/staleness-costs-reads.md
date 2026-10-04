@@ -61,3 +61,21 @@ is the new one; the cache answers as of the last apply. The next plan
 reads the present and proposes the one update that moves it back. This is
 the estate's own resources, not account-wide gap analysis. `BREAK=1`
 skips the out-of-band move, and the two answers must then agree.
+
+## On Kubernetes
+
+### k8s-staleness-costs-reads
+
+    just smoke k8s-staleness-costs-reads
+    BREAK=1 just smoke k8s-staleness-costs-reads
+
+Needs `kind` and `kubectl`. The run applies an estate plus one extra
+ConfigMap, keeps that cache aside, destroys everything, drops the extra
+block and applies again, so the kept cache remembers four dead uids and
+an object that exists nowhere. Plans under the fresh cache, the ancient
+one and no cache are byte-identical and the phantom is in none of them. A
+ConfigMap edited with kubectl then shows through a fresh cache as one
+in-place update, and one apply puts it back. `BREAK=1` makes that edit
+before the comparison is read back, and the plan must move. The
+`-refresh=false` path, the one that serves from the cache, is claim 9's
+Kubernetes proof.

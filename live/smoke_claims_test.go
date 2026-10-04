@@ -329,14 +329,25 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 		// named for the slug without the prefix. This reads the prefix off
 		// the slug, never a provider off a file name: which provider a
 		// scenario proves is still the providers.<name> key of its cell.
+		//
+		// The third form is a readability prefix put ON the slug. A claim
+		// born on AWS already has its AWS proof at <slug>.sh, so its
+		// Kubernetes proof is k8s-<slug>.sh (the 2026-10-04 promotions of
+		// claims 3, 5, 6, 8, 9, 14 and 44). The prefix still says nothing
+		// about which provider the file proves; the cell's key does.
 		named := s.Name == c.Slug || s.Name == unprefixedSlug(c.Slug)
+		for _, p := range smokeSlugReadabilityPrefixes {
+			if s.Name == p+c.Slug {
+				named = true
+			}
+		}
 		for _, r := range f.Retired {
 			if r.Claim == c.ID && (s.Name == r.Slug || s.Name == unprefixedSlug(r.Slug)) {
 				named = true
 			}
 		}
 		if !named {
-			t.Errorf("%s: a proof's scenario is named for its claim's slug (%s.sh), for that slug without its readability prefix (%s.sh), or for a retired claim that moved into this claim", s, c.Slug, unprefixedSlug(c.Slug))
+			t.Errorf("%s: a proof's scenario is named for its claim's slug (%s.sh), for that slug without its readability prefix (%s.sh), for that slug with one (k8s-%s.sh), or for a retired claim that moved into this claim", s, c.Slug, unprefixedSlug(c.Slug), c.Slug)
 		}
 		if want := "just smoke " + s.Name; cell.Command != want {
 			t.Errorf("%s: command is %q, want %q", s, cell.Command, want)

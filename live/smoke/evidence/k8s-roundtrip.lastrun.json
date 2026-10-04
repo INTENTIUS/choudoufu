@@ -1,0 +1,16 @@
+{
+  "claim": "k8s-roundtrip",
+  "provider": "kubernetes",
+  "target": "kind v0.32.0, Server Version: v1.37.0, one cluster per run, deleted afterwards; the stock side was Terraform v1.15.8 on PATH where CI pins live/oracle-versions.json's terraform_version",
+  "date": "2026-10-04",
+  "commit": "9a46ebe205e6eab2b42439ef9348d7341775b7ca",
+  "command": "just smoke k8s-roundtrip",
+  "verdict": "PASS: smoke scenario 'k8s-roundtrip' - every claim held (smoke v1.0.0)",
+  "break_commit": "9a46ebe205e6eab2b42439ef9348d7341775b7ca",
+  "break_command": "BREAK=1 just smoke k8s-roundtrip",
+  "break_verdict": "PASS: smoke scenario 'k8s-roundtrip' - the control (BREAK) caught what it broke, 1 proof line(s) (smoke v1.0.0)",
+  "break_controls": [
+    "caught: without the one command the live plan refuses the stock-made objects by name. Adoption is the label, and live-import is what writes it."
+  ],
+  "note": "The scenario's first run, both arms, on a developer machine and not CI, while it was still under live/smoke/drafts/ (run by the same smoke.sh, which falls back to drafts/). Every field but this note is copied from the two logs by a script. .github/workflows/k8s-smoke.yml runs this scenario and its BREAK=1 control nightly, so a green there is the continuous check and this file is the point-in-time record. It is stale the moment the scenario or the provider changes underneath it."
+}

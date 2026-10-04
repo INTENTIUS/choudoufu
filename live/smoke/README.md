@@ -42,6 +42,13 @@ just smoke k8s-a-held-delete-is-not-gone # a finalizer holds a delete: the run s
 just smoke k8s-the-server-gets-the-last-word # admission after the plan: a fail-closed webhook refuses an approved write, a mutating policy rewrites a declared field, and one that strips tofu-estate leaves an object the estate cannot claim (#1110)
 just smoke k8s-a-label-is-a-change # a label or annotation edited in the configuration plans and applies like any other change, a key the configuration never declared stays the server's, and a second directory removes the same label over records shared as Secrets and as bucket objects (#1177, #1394; the bucket half needs Docker and the AWS CLI as well as kind)
 just smoke k8s-a-deleted-namespace-is-gone # fault 5 of #1110: kubectl delete namespace under a converged estate; the plan reads its objects as gone and proposes stock's creates, and a deleted record-store namespace is refused by name (#1765)
+just smoke k8s-staleness-costs-reads # claim 3 on kind: a fresh, an ancient and no cache give one byte-identical plan, and a kubectl edit shows through a fresh cache
+just smoke k8s-recovery-is-a-rerun # claim 5 on kind: an apply SIGKILLed between two creates; the next plan binds what was made by its label and one re-run finishes
+just smoke k8s-roundtrip   # claim 6 on kind: stock Terraform's estate adopted with one live-import, run without its state file, handed back to stock as one file
+just smoke k8s-stock-when-you-need-it # claim 8 on kind: no live block, the same plan and the same request count as stock OpenTofu at the pinned tofu_version
+just smoke k8s-unchanged-is-free # claim 9 on kind: -refresh=false serves vouched objects from the cache and sends fewer requests, same answer
+just smoke k8s-plan-cost-tracks-the-estate # claim 14 on kind: 80 foreign ConfigMaps do not move one plan's request count
+just smoke k8s-an-estate-reads-another-by-declaring-it # claim 44 on kind: reading another estate's outputs is declared, granted one get, and refused by name without either
 just smoke a-held-delete-is-not-gone # claim 1 on AWS: a secret deleted with a recovery window stays in the account, and the plans after it read it as the provider does, empty (#1599)
 just smoke the-server-gets-the-last-word # claim 15 on AWS: a Deny landing after approval refuses the approved apply in AWS's words, and the same plan file applies once it lifts (#1599)
 just smoke full           # the comprehensive 15-step harness (~6 minutes)
