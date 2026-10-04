@@ -6,6 +6,9 @@
 # types and has NOT been run; live/kubernetes/FAULTS.md section 3 says so.
 # Once it runs green it becomes a smoke claim's Kubernetes proof
 # (live/smoke/claims.json needs a run before a cell may read proven).
+# Superseded by the gauntlet estate reference-k8s-shared-objects (#1882),
+# which takes every step below between two estates sharing one cluster's
+# objects; retire this script once that estate's first run is green.
 #
 #   KUBECONFIG=<a kind cluster's kubeconfig> live/kubernetes/proof-ssa-conflict.sh
 #
