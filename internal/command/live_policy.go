@@ -280,6 +280,7 @@ func livePolicyReport(projResult *projection.Result, disco *discovery.Result, re
 				Marker:      o.Normalized,
 				Verb:        string(o.PolicyVerb),
 				Withheld:    o.Withheld,
+				Quadrant:    o.PolicyQuadrant,
 			})
 		}
 	}

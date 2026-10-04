@@ -2290,6 +2290,14 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		// seed above, which would otherwise put the written fields back.
 		// See nodestamp_fieldmanager.go.
 		attrsSeed = fieldGranularSeed(attrsSeed, b.opts.Ownership.Estate)
+		// #1885: kubernetes_env's read keeps only the env vars the prior
+		// names. See fieldgranular_configargs.go.
+		if envs, ok := configuredEnvNamesSeed(ctx, seedEval, modPath, rc, schema); ok {
+			if attrsSeed == nil {
+				attrsSeed = make(map[string]cty.Value, 1)
+			}
+			attrsSeed[fieldGranularEnvBlock] = envs
+		}
 		if w.undeclared {
 			// GitHub issue #1863: an orphan the field-manager sweep found
 			// has no configuration to seed from, and kubernetes_env's
@@ -4040,6 +4048,14 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 	obj := imported.AsInstanceObject()
 	if obj.Value == cty.NilVal || obj.Value.IsNull() {
 		return nil, cty.NilVal, statusAbsent, diags
+	}
+	if fieldGranularOwned("", schema) {
+		// #1885: kubernetes_env's importer sets the id alone, and no
+		// field-granular read sets the metadata block. See
+		// fieldgranular_configargs.go.
+		if placed, ok := withFieldGranularMetadata(obj.Value, schema, identityValues); ok {
+			obj.Value = placed
+		}
 	}
 
 	return readImported(ctx, provider, schema, typeName, importID, obj, attrsSeed, configMarks, manifestKeys, diags)

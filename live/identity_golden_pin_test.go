@@ -3158,7 +3158,14 @@ const (
 	// whose provider the golden's sweep has no schema for. It adds no row,
 	// so instances and body-sha256 are unchanged. fixture-dirs 659 -> 660
 	// on the same row; the cohort pins are untouched.
-	identityGoldenPinDirs = 691
+	//
+	// 691 -> 692 for #1885's field-granular reads: one fixture directory,
+	// internal/live/projection/testdata/fieldgranular-config-args, a
+	// stub_labels and a stub_env whose provider the golden's sweep has no
+	// schema for. It adds no row, so instances and body-sha256 are
+	// unchanged. fixture-dirs 660 -> 661 on the same row; the cohort pins
+	// are untouched.
+	identityGoldenPinDirs = 692
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).

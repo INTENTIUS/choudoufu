@@ -114,8 +114,8 @@ func TestFieldGranularSweepFilesEachOrphanUnderTheTypeThatWroteIt(t *testing.T) 
 		if addr.Resource.Resource.Type != o.TypeName {
 			t.Errorf("orphan %s is filed as %s; classifyOrphans withholds a marker naming another type", addr, o.TypeName)
 		}
-		if o.Marker != "e" || !o.Swept {
-			t.Errorf("orphan %+v: want marker e and swept", o)
+		if o.Marker != "e" || !o.Swept || !o.FieldManagerMarked {
+			t.Errorf("orphan %+v: want marker e, swept and marked by the field manager", o)
 		}
 		orphans = append(orphans, got{addr.String(), o.TypeName, o.ImportID})
 		byType[o.TypeName] = o

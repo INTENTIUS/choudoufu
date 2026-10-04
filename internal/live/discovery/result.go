@@ -728,6 +728,17 @@ type OwnedResource struct {
 	// rename before policy ever saw it).
 	PolicyVerb policy.Verb
 
+	// PolicyQuadrant is the policy attribute PolicyVerb came from
+	// ([policy.Quadrant.Attribute]), set alongside it: undeclared_tagged or
+	// undeclared_untagged, whichever the orphan's tags put it in.
+	PolicyQuadrant string
+
+	// FieldManagerMarked is true for an orphan the field-manager sweep
+	// filed (kubernetes_fieldorphans.go): its ownership marker is the
+	// estate's field manager, not a tag, so it has no Tags to match a
+	// policy against. See [applyOrphanPolicy].
+	FieldManagerMarked bool
+
 	// Provider is the provider configuration whose pass found this
 	// resource, set by [Merge] (and by a single-pass caller that skips
 	// it, through [Result.AttributeOrphans]). An orphan has no resource
