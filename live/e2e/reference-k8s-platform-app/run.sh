@@ -694,10 +694,38 @@ if ! grep -q "No changes." <<< "$P_NET" || ! grep -q "No changes." <<< "$P_ADMIN
   ran chdf "$APP_LIVE" apply -auto-approve -input=false -no-color || { shown; fail "app's adopting apply failed"; }
   ran_has "No changes." chdf "$APP_LIVE" plan -input=false -no-color || { shown; fail "app's replan after the adopting apply is not empty; nothing below would measure day-2 behaviour"; }
 else
-  # app's planning identity: view everywhere (the provider's refresh and the
-  # sweep read), every verb on its own records, and nothing of network's.
+  # app's planning identity is an estate principal's ordinary RBAC, as
+  # live/kubernetes/estate-grant.yaml's comment names it, and nothing of
+  # network's records:
+  #   - the estate fence itself, that file with ESTATE=app bound to app-planner;
+  #   - get, list and watch on every listable kind but Secrets, cluster-wide.
+  #     That is the sweep's read, and it includes customresourcedefinitions,
+  #     which the provider lists to resolve kubernetes_manifest's GVK. Without
+  #     it the plan failed on that lookup, not on the read under test;
+  #   - every verb on the kinds app declares, in shop, the handoff ConfigMap's
+  #     kind in platform, and the shop Namespace by name;
+  #   - every verb on its own records in tofu-records-app.
+  # Secrets are left out of the cluster-wide read on purpose: a list on
+  # Secrets in tofu-records-network would read network's outputs, and the
+  # refusal below is about exactly that read. So the sweep still warns that
+  # cluster-wide Secrets were denied, and that warning is expected.
   kca create serviceaccount app-planner -n default >/dev/null || fail "could not create the app-planner ServiceAccount"
-  kca create clusterrolebinding app-planner-view --clusterrole=view --serviceaccount=default:app-planner >/dev/null || fail "could not bind view to app-planner"
+  FENCE="$(sed -e 's/PRINCIPAL_NAMESPACE/default/g' -e 's/PRINCIPAL/app-planner/g' -e "s/ESTATE/$APP/g" "$ROOT/live/kubernetes/estate-grant.yaml")"
+  FENCE_OUT="$(kca apply -f - <<< "$FENCE" 2>&1)" || { printf '%s\n' "$FENCE_OUT"; fail "could not apply live/kubernetes/estate-grant.yaml for $APP and app-planner"; }
+  READ_KINDS="$(kca api-resources --verbs=list -o name 2>&1)" || { printf '%s\n' "$READ_KINDS"; fail "could not list the cluster's listable kinds"; }
+  READ_KINDS="$(grep -vx 'secrets' <<< "$READ_KINDS" | paste -sd, -)"
+  grep -q 'customresourcedefinitions' <<< "$READ_KINDS" || fail "the listable kinds do not include customresourcedefinitions: $READ_KINDS"
+  kca create clusterrole app-planner-read --verb=get,list,watch --resource="$READ_KINDS" >/dev/null || fail "could not create app-planner's read ClusterRole"
+  kca create clusterrolebinding app-planner-read --clusterrole=app-planner-read --serviceaccount=default:app-planner >/dev/null || fail "could not bind app-planner's read ClusterRole"
+  W_VERBS="get,list,watch,create,update,patch,delete"
+  kca create role app-kinds -n "$NS_APP" --verb="$W_VERBS" \
+    --resource=configmaps,serviceaccounts,services,secrets,deployments.apps,horizontalpodautoscalers.autoscaling >/dev/null \
+    || fail "could not create app's kinds Role in $NS_APP"
+  kca create rolebinding app-kinds -n "$NS_APP" --role=app-kinds --serviceaccount=default:app-planner >/dev/null || fail "could not bind app's kinds Role in $NS_APP"
+  kca create role app-handoff -n "$NS_NET" --verb="$W_VERBS" --resource=configmaps >/dev/null || fail "could not create app's handoff Role in $NS_NET"
+  kca create rolebinding app-handoff -n "$NS_NET" --role=app-handoff --serviceaccount=default:app-planner >/dev/null || fail "could not bind app's handoff Role in $NS_NET"
+  kca create clusterrole app-namespace --verb=get,update,patch,delete --resource=namespaces --resource-name="$NS_APP" >/dev/null || fail "could not create app's Namespace ClusterRole"
+  kca create clusterrolebinding app-namespace --clusterrole=app-namespace --serviceaccount=default:app-planner >/dev/null || fail "could not bind app's Namespace ClusterRole"
   kca create role app-records -n "$REC_APP" --verb=get,list,create,update,delete --resource=secrets >/dev/null || fail "could not create app's records Role"
   kca create rolebinding app-records -n "$REC_APP" --role=app-records --serviceaccount=default:app-planner >/dev/null || fail "could not bind app's records Role"
   TOK="$(kca create token app-planner -n default --duration=2h)" || fail "could not mint a token for app-planner"
@@ -714,12 +742,28 @@ else
   }
   as_planner() { local d="$1"; shift; ( cd "$d" && KUBECONFIG="$KC_PLANNER" KUBE_CONFIG_PATH="$KC_PLANNER" "$TOFU" "$@" ); }
   kcp auth can-i list secrets -n "$REC_APP" >/dev/null 2>&1 || fail "app-planner cannot list its own records; the refusal below would not be about network"
+  kcp auth can-i list customresourcedefinitions.apiextensions.k8s.io >/dev/null 2>&1 || fail "app-planner cannot list CRDs; the plan would fail on kubernetes_manifest's GVK lookup, not on the read"
+  for v in get list; do
+    CAN="$(kcp auth can-i "$v" secrets -n "$REC_NET" 2>&1 || true)"
+    [ "$CAN" = "no" ] || fail "app-planner may $v secrets in $REC_NET before any grant ($CAN); the refusal below would not be measured"
+  done
   [ "${BREAK_READ:-}" = "1" ] && grant_read
   NET_BEFORE="$(kca get secrets -n "$REC_NET" -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.resourceVersion}{"\n"}{end}' | sort)"
   D_OUT="$(as_planner "$APP_LIVE" plan -input=false -no-color 2>&1)"; D_RC=$?
   D_FLAT="$(flat <<< "$D_OUT")"
+  # denied: the plan refused with the refusal's own summary, and every
+  # error it printed is that refusal. Any other error (the GVK lookup that
+  # failed when app-planner could not list CRDs, the projection import that
+  # followed it) means the plan stopped on app-planner's ordinary RBAC, not
+  # on the read under test, and the refusal half must not pass on it.
   denied() {
+    local errs other
     [ "$D_RC" -ne 0 ] || return 1
+    errs="$(grep '^Error: ' <<< "$D_OUT")"
+    grep -q "^Error: This estate may not read another estate's outputs" <<< "$errs" || return 1
+    other="$(grep -v "^Error: This estate may not read another estate's outputs" <<< "$errs")"
+    [ -z "$other" ] || return 1
+    grep -q "Failed to determine resource type from GVK" <<< "$D_OUT" && return 1
     grep -q "This estate may not read another estate's outputs" <<< "$D_FLAT" || return 1
     grep -q "estate \"$NET\"" <<< "$D_FLAT" || return 1
     grep -q "$REC_NET" <<< "$D_FLAT" || return 1
@@ -728,9 +772,9 @@ else
     denied && fail "BREAK_READ=1: with the read granted the plan still refused - the refusal is not the grant's doing"
     gauntlet_stage test_plan pass "BREAK_READ=1 control: with app-planner granted get on network's output Secrets before the plan, the withdrawn-grant refusal correctly fails to appear (exit $D_RC, $(plan_line <<< "$D_OUT")); the real check is skipped"
   else
-    denied || { printf '%s\n' "$D_OUT" | tail -20; fail "app's plan under an identity with no grant on network's outputs did not refuse with \"This estate may not read another estate's outputs\" naming estate $NET and $REC_NET (exit $D_RC)"; }
+    denied || { printf '%s\n' "$D_OUT" | tail -40; fail "app's plan under an identity with no grant on network's outputs did not refuse with \"This estate may not read another estate's outputs\" naming estate $NET and $REC_NET as its only error (exit $D_RC)"; }
     grant_read
-    G_OUT="$(as_planner "$APP_LIVE" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$G_OUT" | tail -20; fail "app's plan with the read granted failed"; }
+    G_OUT="$(as_planner "$APP_LIVE" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$G_OUT" | tail -40; fail "app's plan with the read granted failed"; }
     G_FLAT="$(flat <<< "$G_OUT")"
     NET_AFTER="$(kca get secrets -n "$REC_NET" -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.resourceVersion}{"\n"}{end}' | sort)"
     grep -q "No changes." <<< "$G_OUT" || { printf '%s\n' "$G_OUT" | tail -20; fail "app's plan with the read granted is not empty: $(plan_line <<< "$G_OUT")"; }
@@ -738,7 +782,7 @@ else
     [ "$NET_BEFORE" = "$NET_AFTER" ] || fail "app's two plans changed something in $REC_NET: before [$NET_BEFORE] after [$NET_AFTER]"
     ONE="$(kcp auth can-i list secrets -n "$REC_NET" 2>&1 || true)"
     [ "$ONE" = "no" ] || fail "app-planner may list secrets in $REC_NET ($ONE); the grant is wider than get by name"
-    gauntlet_stage test_plan pass "both plans with no state file are empty as the cluster admin (network 5 objects, app 9). app's plan under app-planner - view cluster-wide, every verb on its own records in $REC_APP, nothing in $REC_NET - refused with \"This estate may not read another estate's outputs\" naming estate $NET and $REC_NET (exit $D_RC); with one Role granting get on network's $(grep -c . <<< "$OUT_SECRETS") output Secret(s) by name, and still no list there, the same plan is empty and says the values are as of network's last apply. Nothing in $REC_NET changed across either plan (names and resourceVersions). BREAK_READ=1 grants the read first and the refusal correctly does not appear"
+    gauntlet_stage test_plan pass "both plans with no state file are empty as the cluster admin (network 5 objects, app 9). app's plan under app-planner - the estate fence for $APP, get/list/watch cluster-wide on every listable kind but Secrets, every verb on app's declared kinds and its own records in $REC_APP, nothing in $REC_NET - refused with \"This estate may not read another estate's outputs\" naming estate $NET and $REC_NET (exit $D_RC); with one Role granting get on network's $(grep -c . <<< "$OUT_SECRETS") output Secret(s) by name, and still no list there, the same plan is empty and says the values are as of network's last apply. Nothing in $REC_NET changed across either plan (names and resourceVersions). BREAK_READ=1 grants the read first and the refusal correctly does not appear"
   fi
 fi
 [ "$(count_net)" = "5" ] && [ "$(count_app)" = "9" ] || fail "after adoption network carries $(count_net) labels (want 5), app $(count_app) (want 9)"
@@ -927,7 +971,8 @@ X_OUT="$(cd "$APP_LIVE" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" TOFU_E2E_AP
 [ "$X_RC" -ne 0 ] || { printf '%s\n' "$X_OUT" | tail -20; fail "the interrupted apply exited 0 - the engine's self-signal never landed"; }
 exists_a secret crash-first || fail "crash-first does not exist after the interrupted apply - the kill landed before its create committed"
 exists_a configmap crash-second && fail "crash-second exists after the interrupted apply - the kill landed after both creates"
-kca get secret -n "$NS_APP" -l "tofu-estate=$APP" -o name 2>/dev/null | grep -qx "secret/crash-first" || fail "crash-first does not come back under tofu-estate=$APP"
+X_LABELLED="$(kca get secret -n "$NS_APP" -l "tofu-estate=$APP" -o name 2>&1)"
+grep -qx "secret/crash-first" <<< "$X_LABELLED" || { printf '%s\n' "$X_LABELLED" | tail -20; fail "crash-first does not come back under tofu-estate=$APP"; }
 mirror_records "$REC_APP" "$WORK/recs-after" || fail "could not read app's records after the interrupt"
 X_RECORDS_AFTER="$(gauntlet_record_envelope_count "$WORK/recs-after")"
 X_REC="$(gauntlet_record_file "$WORK/recs-after" "kubernetes_secret.crash_first")" || fail "the interrupted apply wrote no record for kubernetes_secret.crash_first in $REC_APP (records $X_RECORDS_BEFORE -> $X_RECORDS_AFTER)"
@@ -941,7 +986,9 @@ recovered() {
   [ "$R_RC" -eq 0 ] || return 1
   grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$R_PLAN" || return 1
   grep -qE '^[[:space:]]*# kubernetes_config_map\.crash_second will be created' <<< "$R_PLAN" || return 1
-  grep -E '^[[:space:]]*# .* will be' <<< "$R_PLAN" | grep -q 'crash_first\|crash-first' && return 1
+  local will
+  will="$(grep -E '^[[:space:]]*# .* will be' <<< "$R_PLAN")"
+  grep -q 'crash_first\|crash-first' <<< "$will" && return 1
   return 0
 }
 if [ "${BREAK_CRASH:-}" = "1" ]; then
