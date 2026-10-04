@@ -93,6 +93,14 @@
       "reason": "a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised"
     },
     {
+      "name": "corpus-govuk-cluster-access",
+      "source": "alphagov/govuk-infrastructure terraform/deployments/cluster-access (commit c02504fa4abb439234669e9ea9b662bdb35209e9, MIT), GOV.UK's platform team's own cluster access root: three Namespaces, then module \"access-entry\" called eight times, each a ClusterRole with dynamic rule blocks and its ClusterRoleBinding, plus a Role and RoleBinding per namespace through for_each for four of them - 31 objects, the kubernetes lane's first typed RBAC beyond one binding and its first module fan-out; the EKS access entries are dropped on kind",
+      "url": "https://github.com/alphagov/govuk-infrastructure.git",
+      "pin": "c02504fa4abb439234669e9ea9b662bdb35209e9",
+      "lane": "kubernetes",
+      "set": "growing"
+    },
+    {
       "name": "corpus-govuk-cluster-services",
       "source": "alphagov/govuk-infrastructure terraform/deployments/cluster-services (commit c02504fa4abb439234669e9ea9b662bdb35209e9), GOV.UK's own in-cluster platform services root for its EKS clusters, split into a live slice (namespaces, dex client Secrets, kubernetes_labels and kubernetes_annotations with force) and a recorded stock half of Helm, kubectl and AWS blocks; the first published root driving the field-granular types",
       "url": "https://github.com/alphagov/govuk-infrastructure.git",

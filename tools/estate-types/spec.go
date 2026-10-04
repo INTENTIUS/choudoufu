@@ -256,6 +256,12 @@ var estateSpecs = []estateSpec{
 		Note:                `The kubernetes lane's field-granular estate (#1878): alphagov/govuk-infrastructure's own cluster-services root at c02504fa4a, copied out of .corpus by live/e2e/corpus-govuk-cluster-services/run.sh and split by split.py beside it. ConfigDirs reads the whole published root; NotAppliedProviders removes the stock half the split records and never applies, by provider: aws (the IAM and S3 types, the IAM role ones from the registry IRSA modules), helm, kubectl, time (time_sleep) and the built-in terraform provider (terraform_data, which waits on a chart), leaving the live slice: kubernetes_namespace_v1 (one in the local gatekeeper module), kubernetes_secret_v1, kubernetes_labels, kubernetes_annotations, random_bytes, random_password and random_uuid. ScanScript adds day2_count's kubernetes_config_map_v1 shards, day2_crash's kubernetes_secret_v1/kubernetes_config_map_v1 pair and the strict_block() heredoc's random_password.`,
 	},
 	{
+		Name:       "corpus-govuk-cluster-access",
+		ConfigDirs: []string{".corpus/govuk-infrastructure/terraform/deployments/cluster-access"},
+		ScanScript: true,
+		Note:       `The kubernetes lane's typed-RBAC estate (#1879): alphagov/govuk-infrastructure's own terraform/deployments/cluster-access root at c02504fa4a, copied out of .corpus by live/e2e/corpus-govuk-cluster-access/run.sh's write_root() with variables-common.tf dereferenced and the integration environment's own var files beside it. Three kubernetes_namespace_v1 and module "access-entry" called eight times: kubernetes_cluster_role_v1 and kubernetes_cluster_role_binding_v1 per instance, kubernetes_role_v1 and kubernetes_role_binding_v1 through for_each for four of them, 31 objects. The config scan reads the unmodified root, so it also reports the module's aws_eks_access_entry and aws_eks_access_policy_association, which the script's delta 5 drops on kind (as corpus-quickpizza's row carries the helm_release its count = 0 never creates). ScanScript adds the two-instance count ConfigMap, the crash pair's Secret and ConfigMap the script declares for day2_count and day2_crash, and its strict_block() heredoc's random_password.`,
+	},
+	{
 		Name:       "corpus-quickpizza",
 		ConfigDirs: []string{".corpus/quickpizza/deployments/terraform"},
 		ScanScript: true,
