@@ -71,7 +71,7 @@ func (c RefreshCommand) Execute(args *arguments.Refresh, view views.Refresh) int
 	// left to produce one as a side effect of a command that changes nothing.
 	// What it would do is what a stateless plan does anyway: read the live
 	// system.
-	if guardDiags := c.statelessCommandGuard(ctx, "refresh"); len(guardDiags) > 0 {
+	if guardDiags := c.liveCommandGuard(ctx, "refresh"); len(guardDiags) > 0 {
 		diags = diags.Append(guardDiags)
 		if guardDiags.HasErrors() {
 			view.Diagnostics(diags)

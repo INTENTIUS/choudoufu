@@ -124,7 +124,7 @@ set -uo pipefail
 # resources. That was never an architecture question: live-plan has read
 # data sources through a real ReadDataSource RPC since #179
 # (internal/live/dataread, wired at internal/command/live_plan.go's
-# statelessDataReads). The value simply could not CROSS a module call.
+# liveDataReads). The value simply could not CROSS a module call.
 # internal/live/identity's resolver.callerVariables rebuilt a module
 # instance's var.* closure only when some call on the path carried its own
 # count or for_each; module "vpc" carries neither, so var.azs was answered

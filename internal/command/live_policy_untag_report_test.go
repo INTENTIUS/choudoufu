@@ -54,8 +54,8 @@ func untagReportLines(stdout string) []untagReportLine {
 	return out
 }
 
-func untagReportCloud() *statelessTestCloud {
-	cloud := newStatelessTestCloud()
+func untagReportCloud() *liveTestCloud {
+	cloud := newLiveTestCloud()
 	cloud.putMarked("aws_s3_bucket", "tofu-untag-1002-owned", "stateless-unit", markers.EscapeAddress(`aws_s3_bucket.pool["owned"]`), map[string]string{
 		"id": "tofu-untag-1002-owned", "bucket": "tofu-untag-1002-owned",
 	})
@@ -106,10 +106,10 @@ func TestLivePlan_untagReportNamesReleasedInstances(t *testing.T) {
 	assertUntagReport(t, output.Stdout())
 }
 
-// TestStatelessMode_untagReportNamesReleasedInstances is plain "plan" under
+// TestLiveMode_untagReportNamesReleasedInstances is plain "plan" under
 // the live block, which reaches the writer through the backend's walk and
-// reports from [statelessRunner.AfterPlan].
-func TestStatelessMode_untagReportNamesReleasedInstances(t *testing.T) {
+// reports from [liveRunner.AfterPlan].
+func TestLiveMode_untagReportNamesReleasedInstances(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath(untagReportFixture), td)
 	t.Chdir(td)

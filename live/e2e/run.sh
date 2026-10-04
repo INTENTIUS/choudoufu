@@ -1819,7 +1819,7 @@ else
   echo "  rejected-flag spot check: plan -out and refresh both refused with their named errors"
 
   # 6. Teardown via the AWS CLI: "choudoufu apply -destroy" is a named rejection
-  # under a live block in v0 (statelessRejections, internal/command/
+  # under a live block in v0 (liveRejections, internal/command/
   # live_mode.go), and emptying the config hits the whole-block-
   # removal gap (a deleted block leaves the live resource standing).
   # The AWS CLI is the only correct

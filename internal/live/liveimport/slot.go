@@ -243,13 +243,13 @@ func (r *Ratification) instanceNeedsDiscovery(addr addrs.AbsResourceInstance) bo
 // corpus-ecs-fargate rather than by reading resolve.go: a bare
 // [identity.ResolveWith] call - what Ratify makes, with no ManagedResults -
 // is NOT always the same answer a stateless live-plan's own resolution
-// settles on, because [statelessResolve] (internal/command/live_plan.go) is
+// settles on, because [liveResolve] (internal/command/live_plan.go) is
 // a TWO-PASS process. Its first pass is exactly what Ratify's bare call
 // reproduces; its second pass, run only when the first refuses something,
 // supplies ManagedResults - values a real provider PLAN call fills in for a
 // sibling resource - and can turn a first-pass ClassNeedsDiscovery into
 // ClassParentDerived or ClassConcrete once that value is in hand. It never
-// goes the other way (statelessResolve's own downgradedToDiscovery check
+// goes the other way (liveResolve's own downgradedToDiscovery check
 // refuses a second pass that would turn a class BACK into NeedsDiscovery),
 // so a bare resolution's ClassNeedsDiscovery is only trustworthy for a cause
 // that could never have depended on a sibling's live value in the first

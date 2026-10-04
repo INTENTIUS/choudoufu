@@ -114,7 +114,7 @@ func TestLivePlan_deniedSweepIsOneWarningAcrossProviderConfigurations(t *testing
 	log.SetOutput(&logBuf)
 	t.Cleanup(func() { log.SetOutput(prevLog) })
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	cloud.putMarked("aws_s3_bucket", "tofu-two-accounts-home", "two-accounts-unit", "aws_s3_bucket.home", map[string]string{
 		"id": "tofu-two-accounts-home", "bucket": "tofu-two-accounts-home",
 	})

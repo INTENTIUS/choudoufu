@@ -490,7 +490,7 @@ func directReadFallback(ctx context.Context, req Request, decl *declared, res *R
 // providers.Interface have no list protocol behind them") - so a test
 // double only has to grow the methods this leg actually calls, and the
 // production provider handle (already the full [providers.Interface];
-// see internal/command's statelessProviders.ConfiguredProvider) satisfies
+// see internal/command's projectionProviders.ConfiguredProvider) satisfies
 // it for free.
 type directReader interface {
 	ImportResourceState(ctx context.Context, req providers.ImportResourceStateRequest) providers.ImportResourceStateResponse

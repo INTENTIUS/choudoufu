@@ -28,7 +28,7 @@ func TestLiveApply_unmarkedApplyWhoseRecordCannotBeDerivedFails(t *testing.T) {
 
 	view, done := testView(t)
 	meta := unmarkedStore1637Meta(view, cloud)
-	inst := cloud.provider().(*statelessTestProvider)
+	inst := cloud.provider().(*liveTestProvider)
 	assign := inst.MockProvider.ApplyResourceChangeFn
 	inst.MockProvider.ApplyResourceChangeFn = func(req providers.ApplyResourceChangeRequest) providers.ApplyResourceChangeResponse {
 		resp := assign(req)

@@ -194,7 +194,7 @@ func TestDiscover_recordBackedWholeCountBlockStillMintsSlot(t *testing.T) {
 // single-member set: corpus-vpc-complete's 28 regressed objects are the same
 // shape at a larger scale (a migrated estate whose record store answers
 // every instance of a block at once - GitHub issue #388's
-// statelessRecordBackedNeedsDiscoveryAddrs reads the WHOLE estate's record in
+// liveRecordBackedNeedsDiscoveryAddrs reads the WHOLE estate's record in
 // one pass, so a block's members are never partly record-backed in
 // practice). Every declared index must get exactly the slot equal to its own
 // index, with zero provider calls and zero bindings, the same as the N=1
@@ -277,7 +277,7 @@ func TestDiscover_recordBackedCountBlockShrinkDestroysSurplus(t *testing.T) {
 			`aws_eip.pool[1]`: true,
 		},
 		Provider: cloud,
-		// live-plan's own real request always sets both (statelessDiscover),
+		// live-plan's own real request always sets both (liveDiscover),
 		// and TestDiscover_recordBackedWholeTypeStillCollectsUnclaimed pins
 		// why aws_eip needs it here too: with every declared instance
 		// record-backed, aws_eip has no non-record-backed member left to
@@ -427,7 +427,7 @@ func TestDiscover_recordBackedWholeTypeStillCollectsUnclaimed(t *testing.T) {
 // just above), with TWO live members carrying the identical tofu-address and
 // tofu-slot - the state a skipped destroy in a create-before-destroy replace
 // leaves behind. Sweep+CollectUnclaimed is what corpus-sqs-basic's
-// real live-plan callers always set (statelessDiscover, internal/command/
+// real live-plan callers always set (liveDiscover, internal/command/
 // live_plan.go) and what makes a record-backed type's own live objects
 // still get listed at all (see partitionSweepTypes and
 // TestDiscover_recordBackedWholeTypeStillCollectsUnclaimed above) - without

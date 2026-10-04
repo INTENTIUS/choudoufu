@@ -12,18 +12,18 @@ import (
 	"github.com/intentius/choudoufu/internal/terminal"
 )
 
-// TestStatelessPlan_progressGoesToStderr pins the property the "sweep
+// TestLivePlan_progressGoesToStderr pins the property the "sweep
 // progress" feature depends on: a heartbeat is stderr-only, never stdout,
 // so it can never end up in anything a script reads from this command's
 // output - today that is everything live-plan prints on success, since it
 // has no -json mode. It also checks the line names the type just scanned
 // and both running counts, since those are what makes it a heartbeat rather
 // than decoration.
-func TestStatelessPlan_progressGoesToStderr(t *testing.T) {
+func TestLivePlan_progressGoesToStderr(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
-	v := NewStatelessPlan(NewView(streams).SetRunningInAutomation(true))
+	v := NewLivePlan(NewView(streams).SetRunningInAutomation(true))
 
-	v.Progress(StatelessProgress{
+	v.Progress(LiveProgress{
 		TypeName:       "aws_cloudwatch_log_group",
 		TypesScanned:   12,
 		ResourcesFound: 37,
@@ -41,16 +41,16 @@ func TestStatelessPlan_progressGoesToStderr(t *testing.T) {
 	}
 }
 
-// TestStatelessPlan_unownedSection renders one of each disposition and pins
+// TestLivePlan_unownedSection renders one of each disposition and pins
 // the shape: the heading with its at-a-glance split, the copyable adoption
 // line with the exact tag values, and the in-the-way entries naming what
 // blocks them. The wording of the intro is the section's own business; the
 // lines an operator acts on are not.
-func TestStatelessPlan_unownedSection(t *testing.T) {
+func TestLivePlan_unownedSection(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
-	v := NewStatelessPlan(NewView(streams).SetRunningInAutomation(true))
+	v := NewLivePlan(NewView(streams).SetRunningInAutomation(true))
 
-	v.Unowned([]StatelessUnowned{
+	v.Unowned([]LiveUnowned{
 		{
 			Addr:          "aws_iam_role.app",
 			TypeName:      "aws_iam_role",
@@ -98,13 +98,13 @@ func TestStatelessPlan_unownedSection(t *testing.T) {
 	}
 }
 
-// TestStatelessPlan_unownedSectionEmpty: nothing refused, nothing rendered.
+// TestLivePlan_unownedSectionEmpty: nothing refused, nothing rendered.
 // The ownership check runs on every instance the projection reads, so an
 // empty list carries no coverage question the way an empty sweep does, and a
 // standing empty section would bury the sections that do say something.
-func TestStatelessPlan_unownedSectionEmpty(t *testing.T) {
+func TestLivePlan_unownedSectionEmpty(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
-	v := NewStatelessPlan(NewView(streams).SetRunningInAutomation(true))
+	v := NewLivePlan(NewView(streams).SetRunningInAutomation(true))
 
 	v.Unowned(nil)
 
@@ -113,13 +113,13 @@ func TestStatelessPlan_unownedSectionEmpty(t *testing.T) {
 	}
 }
 
-// TestStatelessPlan_guidedFallback pins the one-sentence note a configured
+// TestLivePlan_guidedFallback pins the one-sentence note a configured
 // but fallen-back guided-discovery pass renders: the heading names what
 // happened, and discovery's own reason - passed through unedited - is the
 // body.
-func TestStatelessPlan_guidedFallback(t *testing.T) {
+func TestLivePlan_guidedFallback(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
-	v := NewStatelessPlan(NewView(streams).SetRunningInAutomation(true))
+	v := NewLivePlan(NewView(streams).SetRunningInAutomation(true))
 
 	v.GuidedFallback(`the record store's hint for estate "unit" is stale (72h0m0s old, over the 168h0m0s limit); falling back to full enumeration`)
 
@@ -135,20 +135,20 @@ func TestStatelessPlan_guidedFallback(t *testing.T) {
 	}
 }
 
-// TestStatelessPlan_lookalikesSection pins the lookalike guard's exact
+// TestLivePlan_lookalikesSection pins the lookalike guard's exact
 // wording: a matchTable-confirmed warning names what it matched on, a
 // generic warning (no matchTable entry) says only that a live resource
 // exists, and both name the live ID and print the adoption remedy.
-func TestStatelessPlan_lookalikesSection(t *testing.T) {
+func TestLivePlan_lookalikesSection(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
-	v := NewStatelessPlan(NewView(streams).SetRunningInAutomation(true))
+	v := NewLivePlan(NewView(streams).SetRunningInAutomation(true))
 
-	v.Lookalikes([]StatelessLookalike{
+	v.Lookalikes([]LiveLookalike{
 		{
 			Addr:          "aws_security_group.main",
 			TypeName:      "aws_security_group",
 			LiveID:        "sg-0abc",
-			Matched:       []StatelessTag{{Key: "name", Value: "stateless-e2e-main"}},
+			Matched:       []LiveTag{{Key: "name", Value: "stateless-e2e-main"}},
 			MarkerEstate:  "stateless-e2e",
 			MarkerAddress: "aws_security_group.main",
 			Hint:          "aws ec2 create-tags --resources 'sg-0abc' --tags 'Key=tofu-estate,Value=stateless-e2e' 'Key=tofu-address,Value=aws_security_group.main'",
@@ -182,13 +182,13 @@ func TestStatelessPlan_lookalikesSection(t *testing.T) {
 	}
 }
 
-// TestStatelessPlan_guidedFallbackEmpty: an empty reason renders nothing,
+// TestLivePlan_guidedFallbackEmpty: an empty reason renders nothing,
 // which is the case for every pass that never configured guided discovery at
 // all and for every pass where it engaged successfully - neither is
 // something an operator needs told about on every run.
-func TestStatelessPlan_guidedFallbackEmpty(t *testing.T) {
+func TestLivePlan_guidedFallbackEmpty(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
-	v := NewStatelessPlan(NewView(streams).SetRunningInAutomation(true))
+	v := NewLivePlan(NewView(streams).SetRunningInAutomation(true))
 
 	v.GuidedFallback("")
 
@@ -197,12 +197,12 @@ func TestStatelessPlan_guidedFallbackEmpty(t *testing.T) {
 	}
 }
 
-// TestStatelessPlan_lookalikesSectionEmpty: no warnings, nothing rendered -
+// TestLivePlan_lookalikesSectionEmpty: no warnings, nothing rendered -
 // the ordinary case, since a plan with nothing to warn about should print
 // nothing about it.
-func TestStatelessPlan_lookalikesSectionEmpty(t *testing.T) {
+func TestLivePlan_lookalikesSectionEmpty(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
-	v := NewStatelessPlan(NewView(streams).SetRunningInAutomation(true))
+	v := NewLivePlan(NewView(streams).SetRunningInAutomation(true))
 
 	v.Lookalikes(nil)
 
@@ -245,7 +245,7 @@ func TestStatelessPlan_lookalikesSectionEmpty(t *testing.T) {
 // the same thing as the estate having no record-backed resources in it.
 func TestLivePlanDocument_topLevelShapeIsPinned(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
-	v := NewStatelessPlanJSON(NewView(streams))
+	v := NewLivePlanJSON(NewView(streams))
 
 	// Every field populated, including the three that carry omitempty
 	// somewhere inside them, so that this pins what a full document looks
@@ -268,10 +268,10 @@ func TestLivePlanDocument_topLevelShapeIsPinned(t *testing.T) {
 				Source:   LivePlanBoundRecord,
 			},
 		},
-		Omissions: []StatelessOmission{
+		Omissions: []LiveOmission{
 			{Addr: "aws_s3_bucket.data", Reason: "UNOWNED", Detail: "somebody else holds it"},
 		},
-		Unowned: []StatelessUnowned{
+		Unowned: []LiveUnowned{
 			{
 				Addr:          "aws_s3_bucket.data",
 				TypeName:      "aws_s3_bucket",
@@ -374,7 +374,7 @@ func TestLivePlanDocument_topLevelShapeIsPinned(t *testing.T) {
 	}
 }
 
-// TestStatelessPlan_unownedAdoptionHintOnALabelSurface: GitHub issue
+// TestLivePlan_unownedAdoptionHintOnALabelSurface: GitHub issue
 // #1108's consequence for this view. Reading a Kubernetes object's label
 // is what makes it possible for one to appear in this section at all, and
 // the adoption hint an operator copies out of it has to be the write that
@@ -384,14 +384,14 @@ func TestLivePlanDocument_topLevelShapeIsPinned(t *testing.T) {
 // MarkerAddress field empty, would print a bare trailing "tofu-address=".
 //
 // Proved red by restoring the single-branch body of the ADOPTABLE case in
-// [StatelessPlanView.Unowned]:
+// [LivePlanView.Unowned]:
 //
 //	out("      adopt by writing: tofu-estate=" + u.MarkerEstate + " tofu-address=" + u.MarkerAddress + "\n")
-func TestStatelessPlan_unownedAdoptionHintOnALabelSurface(t *testing.T) {
+func TestLivePlan_unownedAdoptionHintOnALabelSurface(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
-	v := NewStatelessPlan(NewView(streams).SetRunningInAutomation(true))
+	v := NewLivePlan(NewView(streams).SetRunningInAutomation(true))
 
-	v.Unowned([]StatelessUnowned{
+	v.Unowned([]LiveUnowned{
 		{
 			Addr:         "kubernetes_config_map.app",
 			TypeName:     "kubernetes_config_map",

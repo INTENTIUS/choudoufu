@@ -110,7 +110,7 @@ type Options struct {
 	// whose managed resources span more than one provider configuration
 	// (issue #69, aliased providers - typically multi-region). A sweep run
 	// once per distinct provider configuration
-	// ([internal/command/live_plan.go]'s statelessDiscover,
+	// ([internal/command/live_plan.go]'s liveDiscover,
 	// [discovery.Merge]) attributes each undeclared resource it finds to the
 	// provider configuration that found it, because that account and region
 	// is where the resource actually lives and any other provider
@@ -186,7 +186,7 @@ type Options struct {
 	RecordStore *RecordStore
 
 	// DataResults is GitHub issue #179's data-read phase output
-	// (internal/command's statelessDataReads, the same map
+	// (internal/command's liveDataReads, the same map
 	// identity.Context.DataResults takes and [identity.DataLookupFor]
 	// already knows how to index), threaded through so [configuredTagsSeed]
 	// and [configuredAttrsSeed] can resolve an argument that reads a data
@@ -2063,14 +2063,14 @@ func (b *builder) causeFor(parent addrs.AbsResourceInstance) string {
 // (a genuinely broken plugin, missing credentials, an unreadable schema).
 //
 // It is unconditional on which instance is asking, unlike internal/
-// command's statelessDiscoverProviderUnavailable, which also gates on
+// command's liveDiscoverProviderUnavailable, which also gates on
 // whether some declared instance's identity depends on the failing
 // provider (needsSet). That gate is not needed again here: every call
 // site below only ever reaches [ProviderConfigNotEvaluable] for a
 // provider whose discovery/sweep pass (if the estate had one) already
 // downgraded the identical failure for the identical reason - a provider
 // that DID configure successfully for discovery is cached
-// (statelessProviders.ConfiguredProvider) and would not fail again here.
+// (projectionProviders.ConfiguredProvider) and would not fail again here.
 // So an instance reaching this function already had its identity settled
 // some other way (a client-derived importID, or a real binding through a
 // DIFFERENT, working provider); this read is only ever "does it already

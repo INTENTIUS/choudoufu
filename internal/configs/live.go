@@ -22,13 +22,13 @@ import (
 // body is the same content the block would carry. Its presence is what puts a
 // run into live mode: no backend, no lock, and no AUTHORITATIVE state file.
 //
-// Throughout internal/ that mode is spelled "stateless" - statelessRunner,
-// StatelessRun, StatelessUnowned and roughly 2,500 more occurrences across
+// Throughout internal/ that mode is spelled "stateless" - liveRunner,
+// LiveRun, LiveUnowned and roughly 2,500 more occurrences across
 // 247 files when this was written. The name is inaccurate, it is known to
 // be inaccurate, and it stays: the maintainer ruled on 2026-09-17 (issue
 // #1172) that stateless* is permanently-internal vocabulary with no rename
 // scheduled. The harm the name does is that it regenerates itself into new
-// prose - a reader of StatelessRun writes "stateless" into the next refusal
+// prose - a reader of LiveRun writes "stateless" into the next refusal
 // message - and that is now stopped at the boundary where it does damage
 // instead of at the source: live/no_stateless_prose_test.go reads string
 // literals only, over every non-test .go file in internal/, so the word
@@ -545,7 +545,7 @@ type LiveRecordStore struct {
 	//     `markers "record"` without a declared store. That block is an
 	//     author giving UP an available marker for a record, and naming
 	//     where the record goes stays part of turning it on.
-	//   - internal/command's statelessApplyGuidedDiscovery, which leaves
+	//   - internal/command's liveApplyGuidedDiscovery, which leaves
 	//     guided discovery - an opt-in cost optimization that was reached
 	//     by declaring a store - opt-in.
 	//

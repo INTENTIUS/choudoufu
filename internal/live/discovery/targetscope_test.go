@@ -20,7 +20,7 @@ import (
 )
 
 // scopeExcluding is a [identity.Scope] that keeps everything except the
-// named blocks, written the way [statelessTargetScope] writes one: a
+// named blocks, written the way [liveTargetScope] writes one: a
 // lookup in a set of [addrs.ConfigResource] strings.
 func scopeExcluding(out ...string) identity.Scope {
 	gone := make(map[string]bool, len(out))

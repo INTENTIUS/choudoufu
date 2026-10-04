@@ -3,7 +3,7 @@
 # for_each and its one DIRECT reference to the certificate's arn, on a type
 # ([aws_cloudwatch_log_group], unlike aws_acm_certificate_validation) that is
 # in the ratified admission table. See
-# TestStatelessResolveAcceptsTheSecondPassOnceTheDirectFormulaSurvives.
+# TestLiveResolveAcceptsTheSecondPassOnceTheDirectFormulaSurvives.
 resource "aws_acm_certificate" "cert" {
   domain_name       = "example.com"
   validation_method = "DNS"

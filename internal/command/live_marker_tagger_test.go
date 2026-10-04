@@ -39,7 +39,7 @@ func TestEveryPostCreateWriteHasAWriter(t *testing.T) {
 // family that never needs one is refused rather than handed the AWS client;
 // a provider no family claims is refused by its address.
 func TestMarkerWriterChosenByTheWrite(t *testing.T) {
-	p := &statelessProviders{}
+	p := &projectionProviders{}
 	aws := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("aws")}
 	graph := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("graph")}
 

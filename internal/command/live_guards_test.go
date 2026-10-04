@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-// TestStatelessGuards_escapeHatchesRefused covers the commands that reach a
+// TestLiveGuards_escapeHatchesRefused covers the commands that reach a
 // state manager without going through plan or apply. Each of them would
 // otherwise open a Filesystem state manager in a stateless working directory
 // and write the state file the live block says does not exist, so each
@@ -19,7 +19,7 @@ import (
 // The check is the same for every row: exit code 1, the command's own summary
 // in the output, the sentence that says what to do instead, and no state
 // artifact anywhere under the working directory.
-func TestStatelessGuards_escapeHatchesRefused(t *testing.T) {
+func TestLiveGuards_escapeHatchesRefused(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		// summary is the diagnostic heading the command must produce.
@@ -167,11 +167,11 @@ func TestStatelessGuards_escapeHatchesRefused(t *testing.T) {
 	}
 }
 
-// TestStatelessGuards_escapeHatchesUnguarded is the other half: without a
+// TestLiveGuards_escapeHatchesUnguarded is the other half: without a
 // live block, none of the guarded commands say anything about stateless
 // mode. The fixture has no state file, so each command fails or reports
 // nothing for its own ordinary reasons; what matters is which reason.
-func TestStatelessGuards_escapeHatchesUnguarded(t *testing.T) {
+func TestLiveGuards_escapeHatchesUnguarded(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		run  func(m Meta) int
@@ -195,7 +195,7 @@ func TestStatelessGuards_escapeHatchesUnguarded(t *testing.T) {
 			t.Chdir(td)
 
 			view, done := testView(t)
-			tc.run(liveBlockMeta(view, newStatelessTestCloud()))
+			tc.run(liveBlockMeta(view, newLiveTestCloud()))
 			output := done(t)
 
 			if strings.Contains(output.Stderr()+output.Stdout(), "live resource markers") {

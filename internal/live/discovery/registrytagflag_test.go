@@ -144,7 +144,7 @@ func TestRegistryTagFlagNeverClaimsAnObjectCannotCarryAMarker(t *testing.T) {
 	if detail := detailFor(res, ordinaryFlagType); containsAny(detail, "can carry no ownership marker") {
 		t.Errorf("the gap detail for %s still says it can carry no ownership marker:\n%s\n"+
 			"That sentence is the whole of #1322. It is not softened by being suppressed - it travels into "+
-			"views.StatelessSweepGap and into internal/live/foreign's report.", ordinaryFlagType, detail)
+			"views.LiveSweepGap and into internal/live/foreign's report.", ordinaryFlagType, detail)
 	}
 
 	// Half two, and a change that only did half one would fail here: a type

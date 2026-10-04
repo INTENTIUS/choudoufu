@@ -12,13 +12,13 @@ import (
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
-// statelessCommandGuard refuses one whole command when the configuration in
+// liveCommandGuard refuses one whole command when the configuration in
 // the working directory has a live block, and is a no-op for every other
 // configuration.
 //
 // This is the third of the three stateless refusals, beside
-// [Meta.statelessStateGuard] for the "choudoufu state" family and
-// [Meta.statelessWorkspaceGuard] for the two workspace commands that change
+// [Meta.liveStateGuard] for the "choudoufu state" family and
+// [Meta.liveWorkspaceGuard] for the two workspace commands that change
 // which workspace is selected. It serves the commands whose whole product is
 // a write to a state file and which have no subcommand to name: import,
 // refresh, taint and untaint.
@@ -31,19 +31,19 @@ import (
 // have errors.
 //
 // The name is the command as it is typed. What each refusal says is in
-// statelessCommandRefusals below, one entry per command, so that the shape of
+// liveCommandRefusals below, one entry per command, so that the shape of
 // the refusal is written once and the sentence that tells an operator what to
 // do instead stays specific to the command they ran.
-func (m *Meta) statelessCommandGuard(ctx context.Context, command string) tfdiags.Diagnostics {
-	settings, diags := m.statelessSettings(ctx, false)
+func (m *Meta) liveCommandGuard(ctx context.Context, command string) tfdiags.Diagnostics {
+	settings, diags := m.liveSettings(ctx, false)
 	if diags.HasErrors() || settings == nil {
 		return diags
 	}
-	refusal, ok := statelessCommandRefusals[command]
+	refusal, ok := liveCommandRefusals[command]
 	if !ok {
 		// A command wired to this guard and not listed below still gets
 		// refused, with the answer that is true of all of them.
-		refusal = statelessCommandRefusal{
+		refusal = liveCommandRefusal{
 			summary: "Command not available under live resource markers",
 			detail: fmt.Sprintf("\"choudoufu %s\" operates on an authoritative state file, and under a live block the state file is only a disposable cache - it is never consulted for ownership, so there is nothing here this command could correctly change. ", command) +
 				"Run \"choudoufu plan\", which reads the live system on every run.",
@@ -52,14 +52,14 @@ func (m *Meta) statelessCommandGuard(ctx context.Context, command string) tfdiag
 	return diags.Append(tfdiags.Sourceless(tfdiags.Error, refusal.summary, refusal.detail))
 }
 
-// statelessCommandRefusal is what one command says when it is refused: the
+// liveCommandRefusal is what one command says when it is refused: the
 // headline, and the paragraph that names what to do instead.
-type statelessCommandRefusal struct {
+type liveCommandRefusal struct {
 	summary string
 	detail  string
 }
 
-var statelessCommandRefusals = map[string]statelessCommandRefusal{
+var liveCommandRefusals = map[string]liveCommandRefusal{
 	"force-unlock": {
 		summary: "There is no lock to force open",
 		detail:  "\"choudoufu force-unlock\" releases the lock protecting an authoritative state file, and under a live block no such lock exists: there is no shared record to protect, so concurrent runs are not serialized by this tool at all. Contention settles at the platform API - a duplicate client-named create is rejected by the cloud's own uniqueness constraint and the loser converges on its next plan; a genuine duplicate of a server-assigned resource is reported as a named collision for a human to resolve; record-store writes are conditional and a losing writer gets a named version conflict. Nothing is held that a crash could leave stuck, so there is nothing here to force.",

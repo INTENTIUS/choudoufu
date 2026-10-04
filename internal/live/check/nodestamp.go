@@ -150,7 +150,7 @@ func nodeStampDiagnostics(ctx context.Context, cfg *configs.Config, result *iden
 // Exported for GitHub issue #950: internal/command's live plan/apply
 // pipeline (live_plan.go, live_mode.go) calls this directly, at plan time,
 // on the exact same predicate this file's own offline [nodeStampDiagnostics]
-// has always computed - the retired stamp.go rewrite's statelessStampGaps
+// has always computed - the retired stamp.go rewrite's liveStampGaps
 // used to raise a plan-time "Unstamped marker-only resource" error for
 // precisely this population, and [projection.NodeResolver.AdjustConfigValue]
 // has no equivalent: it returns config unchanged, with no diagnostic
@@ -160,7 +160,7 @@ func nodeStampDiagnostics(ctx context.Context, cfg *configs.Config, result *iden
 // the plan that would have created the object had already been approved.
 //
 // recordBacked is the online caller's #364 record-backed set
-// (ordinarily [statelessRecordBackedNeedsDiscoveryAddrs]'s result), keyed
+// (ordinarily [liveRecordBackedNeedsDiscoveryAddrs]'s result), keyed
 // by resource INSTANCE address rather than by block: an instance whose
 // estate record already holds an identity is not "lost to every future
 // run" the way this refusal's whole warning describes (GitHub issue #364's

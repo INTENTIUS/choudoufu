@@ -6,7 +6,7 @@
 # live/survey-full.json), landed the same day this script did. It found and
 # fixed a real bug: EVERY unique-name type failed its first apply
 # unconditionally, before discovery ever ran, because
-# internal/command/live_plan.go's statelessStampGaps re-derived stamping
+# internal/command/live_plan.go's liveStampGaps re-derived stamping
 # severity without consulting identity.DiscoveryCause.BindsByName() the way
 # internal/live/stamp's own mustStamp() already did. Step 5 pins the fix and
 # fails on the pre-fix message if it regresses.
@@ -56,7 +56,7 @@ set -uo pipefail
 #           touched: "Marker discovery across several provider
 #           configurations", live/LIMITATIONS.md's v0 bound "Marker
 #           discovery goes through one provider configuration per run".
-#           Issue #283 lifted it - statelessDiscover runs one discovery pass
+#           Issue #283 lifted it - liveDiscover runs one discovery pass
 #           per provider configuration with discovery.Request.ScopeProvider
 #           narrowing each to the resolutions whose own resource block names
 #           it - and this step now asserts that refusal is GONE.
@@ -111,7 +111,7 @@ set -uo pipefail
 #           EVERY unique-name type failed its very first apply,
 #           unconditionally, with "Unstamped marker-only resource" - before
 #           discovery ever got a chance to run. internal/command/live_plan.go's
-#           statelessStampGaps re-derived stamping severity from
+#           liveStampGaps re-derived stamping severity from
 #           stamp.Result.Skipped without ever consulting
 #           identity.DiscoveryCause.BindsByName(), the exact method
 #           internal/live/stamp's OWN mustStamp() uses to make the same
@@ -297,7 +297,7 @@ RC=$?
 # touched must not fire. It is the ONLY assertion here that is about issue
 # #283; everything below it is bookkeeping about where the estate stops now.
 grep -q 'Marker discovery across several provider configurations' <<< "$APPLY_FULL" \
-  && fail "the multi-provider-configuration refusal fired again (issue #283 regression). This estate's discovery-needing resources sit on both the default (eu-west-1) and the aliased aws.global (us-east-1) configuration, which is the shape AWS's own CloudFront-plus-WAF guidance produces; statelessDiscover is supposed to run one scoped discovery pass per configuration and discovery.Merge combine them."
+  && fail "the multi-provider-configuration refusal fired again (issue #283 regression). This estate's discovery-needing resources sit on both the default (eu-west-1) and the aliased aws.global (us-east-1) configuration, which is the shape AWS's own CloudFront-plus-WAF guidance produces; liveDiscover is supposed to run one scoped discovery pass per configuration and discovery.Merge combine them."
 log "  the two-configuration refusal is GONE: discovery ran per provider"
 log "  configuration (default eu-west-1 and aliased global us-east-1)"
 log "  rather than refusing the estate outright.                (#283)"
@@ -401,7 +401,7 @@ log "  aws_cloudfront_origin_request_policy.all-viewer-headers"
 log "=== 5. first apply: the unique-name leg's first real cloud contact ==="
 APPLY1="$(cd "$UNIQ" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$APPLY1" | grep -E '^Error|^│' | head -20
-  fail "the isolated apply failed. If this says 'Unstamped marker-only resource', the fix internal/command/live_plan.go's statelessStampGaps needs (consulting identity.DiscoveryCause.BindsByName(), the same check stamp.mustStamp already makes) is missing or has regressed - see this script's header."
+  fail "the isolated apply failed. If this says 'Unstamped marker-only resource', the fix internal/command/live_plan.go's liveStampGaps needs (consulting identity.DiscoveryCause.BindsByName(), the same check stamp.mustStamp already makes) is missing or has regressed - see this script's header."
 }
 grep -qE 'Apply complete! Resources: 2 added' <<< "$APPLY1" \
   || { grep -E 'Apply complete' <<< "$APPLY1"; fail "the apply did not create exactly 2 instances"; }

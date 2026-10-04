@@ -102,7 +102,7 @@ func estateCompat(t *testing.T, tofuBin string) {
 		}
 	}
 
-	out := statelessPlan(t, tofuBin, dir)
+	out := livePlan(t, tofuBin, dir)
 
 	// The whole count set bound: no member of it is created, and nothing is
 	// destroyed anywhere.
@@ -151,7 +151,7 @@ func slotLifecycle(t *testing.T, tofuBin string) {
 	dropState(t, dir)
 
 	// --- Stamp the slots ------------------------------------------------
-	out := statelessPlan(t, tofuBin, dir)
+	out := livePlan(t, tofuBin, dir)
 	if add, _, destroy, ok := flocitest.PlanSummary(out); ok && (add != 0 || destroy != 0) {
 		t.Fatalf("the migration plan is not changes-only (%d add, %d destroy):\n%s", add, destroy, out)
 	}
@@ -189,13 +189,13 @@ func slotLifecycle(t *testing.T, tofuBin string) {
 	t.Logf("after migration: %v", bySlot)
 
 	// --- The stamped estate plans clean ---------------------------------
-	out = statelessPlan(t, tofuBin, dir)
+	out = livePlan(t, tofuBin, dir)
 	if !strings.Contains(out, "No changes.") {
 		t.Errorf("a fully slotted count set does not plan clean:\n%s", out)
 	}
 
 	// --- Scale down: exactly one destroy, the highest slot, no churn ----
-	out = statelessPlan(t, tofuBin, dir, "-var", "pool_size=2")
+	out = livePlan(t, tofuBin, dir, "-var", "pool_size=2")
 	add, change, destroy, ok := flocitest.PlanSummary(out)
 	if !ok {
 		t.Fatalf("no plan summary:\n%s", out)
@@ -216,13 +216,13 @@ func slotLifecycle(t *testing.T, tofuBin string) {
 	// --- Converge: release it, as an apply would -------------------------
 	flocitest.AWSCLI(t, flociPort, "ec2", "release-address", "--allocation-id", doomed)
 
-	out = statelessPlan(t, tofuBin, dir, "-var", "pool_size=2")
+	out = livePlan(t, tofuBin, dir, "-var", "pool_size=2")
 	if !strings.Contains(out, "No changes.") {
 		t.Errorf("the scaled-down estate does not plan clean after the delete:\n%s", out)
 	}
 
 	// --- Scale up: two creates, each carrying a freshly minted slot ------
-	out = statelessPlan(t, tofuBin, dir, "-var", "pool_size=4")
+	out = livePlan(t, tofuBin, dir, "-var", "pool_size=4")
 	add, change, destroy, ok = flocitest.PlanSummary(out)
 	if !ok {
 		t.Fatalf("no plan summary:\n%s", out)
@@ -402,7 +402,7 @@ func keysOf(m map[string]bool) []string {
 // Running the command and reading its output
 // ---------------------------------------------------------------------------
 
-func statelessPlan(t *testing.T, tofuBin, dir string, args ...string) string {
+func livePlan(t *testing.T, tofuBin, dir string, args ...string) string {
 	t.Helper()
 
 	full := append([]string{"live-plan", "-no-color", "-input=false"}, args...)

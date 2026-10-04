@@ -25,9 +25,9 @@ func TestLivePlan_foreachBindsByKey(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan-foreach"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	statelessMarkedSubnet(cloud, "subnet-a", "aws_subnet.this:a", "10.42.1.0/24")
-	statelessMarkedSubnet(cloud, "subnet-b", "aws_subnet.this:b", "10.42.2.0/24")
+	cloud := newLiveTestCloud()
+	liveMarkedSubnet(cloud, "subnet-a", "aws_subnet.this:a", "10.42.1.0/24")
+	liveMarkedSubnet(cloud, "subnet-b", "aws_subnet.this:b", "10.42.2.0/24")
 
 	c, done := newLivePlanCommand(t, cloud)
 
@@ -55,10 +55,10 @@ func TestLivePlan_foreachRenamedKeyIsOffered(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan-foreach"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	// The live estate as the fixture's default map created it.
-	statelessMarkedSubnet(cloud, "subnet-a", "aws_subnet.this:a", "10.42.1.0/24")
-	statelessMarkedSubnet(cloud, "subnet-b", "aws_subnet.this:b", "10.42.2.0/24")
+	liveMarkedSubnet(cloud, "subnet-a", "aws_subnet.this:a", "10.42.1.0/24")
+	liveMarkedSubnet(cloud, "subnet-b", "aws_subnet.this:b", "10.42.2.0/24")
 
 	c, done := newLivePlanCommand(t, cloud)
 
@@ -98,7 +98,7 @@ func TestLivePlan_foreachRenamedKeyIsOffered(t *testing.T) {
 	if !strings.Contains(stdout, "1 to add, 0 to change, 0 to destroy") {
 		t.Errorf("the plan is not a single create:\n%s", stdout)
 	}
-	changed := statelessChangedResources(stdout)
+	changed := liveChangedResources(stdout)
 	if len(changed) != 1 || changed[0] != `aws_subnet.this["c"] will be created` {
 		t.Errorf("the plan touches %v, want only the new key created:\n%s", changed, stdout)
 	}
@@ -117,9 +117,9 @@ func TestLivePlan_foreachAmbiguousRenameOffersNothing(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan-foreach"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	statelessMarkedSubnet(cloud, "subnet-a", "aws_subnet.this:a", "10.42.1.0/24")
-	statelessMarkedSubnet(cloud, "subnet-b", "aws_subnet.this:b", "10.42.2.0/24")
+	cloud := newLiveTestCloud()
+	liveMarkedSubnet(cloud, "subnet-a", "aws_subnet.this:a", "10.42.1.0/24")
+	liveMarkedSubnet(cloud, "subnet-b", "aws_subnet.this:b", "10.42.2.0/24")
 
 	c, done := newLivePlanCommand(t, cloud)
 
@@ -152,10 +152,10 @@ func TestLivePlan_foreachAmbiguousRenameOffersNothing(t *testing.T) {
 	}
 }
 
-// statelessMarkedSubnet adds a live subnet that lists (so discovery reads its
+// liveMarkedSubnet adds a live subnet that lists (so discovery reads its
 // markers) and reads back (so the projection can materialize it), carrying the
 // estate and address markers exactly as a stamped run wrote them.
-func statelessMarkedSubnet(c *statelessTestCloud, id, address, cidr string) {
+func liveMarkedSubnet(c *liveTestCloud, id, address, cidr string) {
 	tags := map[string]string{
 		"tofu-estate":  foreachEstate,
 		"tofu-address": address,

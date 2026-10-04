@@ -788,7 +788,7 @@ func (m *Meta) liveBackendGuard(ctx context.Context, prev *clistate.BackendState
 	// Load errors are tolerated: a working directory that will not parse is
 	// not evidence about stateless mode, and whatever is wrong with it will
 	// be reported by the caller that can say something useful about it.
-	settings, _ := m.statelessSettings(ctx, true)
+	settings, _ := m.liveSettings(ctx, true)
 	if settings == nil {
 		return false, nil
 	}

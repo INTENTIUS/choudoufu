@@ -13,7 +13,7 @@ provider "aws" {
 # GitHub issue #123: aws.nope is declared nowhere. Under stock OpenTofu the
 # graph's ProviderTransformer refuses this configuration ("Provider
 # configuration not present"). Live mode resolves the address through
-# statelessProviders.providerConfigValue long before that transformer runs,
+# projectionProviders.providerConfigValue long before that transformer runs,
 # and its miss used to fall through to an empty body - the provider was
 # configured from the environment alone, silently, and discovery read the
 # live system through it.

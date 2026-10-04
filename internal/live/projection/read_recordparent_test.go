@@ -144,7 +144,7 @@ func TestReadInstancesRendersAParentDerivedFormulaOverARecordBackedParent(t *tes
 // resolution never produces one; this fixture proves ReadInstances' own
 // orderWork refuses it with the honest cyclic-formula diagnostic rather
 // than spinning). It is the same termination guarantee
-// [statelessProviderDataReads]'s and [statelessResolve]'s own bounded
+// [liveProviderDataReads]'s and [liveResolve]'s own bounded
 // passes rely on one level up: a single [ReadInstances] call never loops on
 // its own input, however that input is shaped.
 func TestReadInstancesCapsARecordBackedReadCycle(t *testing.T) {

@@ -91,7 +91,7 @@ func (c *LiveBucketCommand) Execute(args *arguments.LiveBucket) int {
 	owner := args.BucketOwner
 	var rs *configs.LiveRecordStore
 	if bucket == "" {
-		live, liveDiags := c.statelessSettings(ctx, false)
+		live, liveDiags := c.liveSettings(ctx, false)
 		diags = diags.Append(liveDiags)
 		switch {
 		case liveDiags.HasErrors():

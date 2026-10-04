@@ -33,11 +33,11 @@ import (
 // resource, the manifest inside it already carrying the estate label the
 // node stamp wrote. The cluster client is the sweep's, built from the
 // provider block at the plan's first cluster contact and kept on
-// statelessProviders for this moment, since the provider plugins that
+// projectionProviders for this moment, since the provider plugins that
 // projected the prior state are closed by now and the sweep's client is
 // not a plugin.
 
-// statelessKubernetesDryRun submits every planned create or update of a
+// liveKubernetesDryRun submits every planned create or update of a
 // manifest-shaped instance to the cluster its provider configuration
 // names, one dry run each, and returns the evidence for the view and the
 // refusals for the run. An instance is manifest-shaped by its schema
@@ -45,7 +45,7 @@ import (
 // configuration with no client (the sweep already said so) keeps its
 // instances out of the evidence rather than raising a second warning
 // about the same cluster.
-func statelessKubernetesDryRun(ctx context.Context, sweepers map[string]kubesweep.Sweeper, config *configs.Config, plan *plans.Plan, schemas *tofu.Schemas) ([]views.StatelessKubernetesDryRun, tfdiags.Diagnostics) {
+func liveKubernetesDryRun(ctx context.Context, sweepers map[string]kubesweep.Sweeper, config *configs.Config, plan *plans.Plan, schemas *tofu.Schemas) ([]views.LiveKubernetesDryRun, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	if plan == nil || plan.Changes == nil || schemas == nil || len(sweepers) == 0 {
 		return nil, diags
@@ -101,12 +101,12 @@ func statelessKubernetesDryRun(ctx context.Context, sweepers map[string]kubeswee
 		byProvider[key] = append(byProvider[key], obj)
 	}
 	sort.Strings(keys)
-	var out []views.StatelessKubernetesDryRun
+	var out []views.LiveKubernetesDryRun
 	for _, key := range keys {
 		evidence, dryDiags := discovery.DryRunKubernetesManifests(ctx, sweepers[key], config, byProvider[key])
 		diags = diags.Append(dryDiags)
 		for _, e := range evidence {
-			out = append(out, views.StatelessKubernetesDryRun{
+			out = append(out, views.LiveKubernetesDryRun{
 				Addr:         e.Addr.String(),
 				Kind:         e.Kind,
 				Namespace:    e.Namespace,
@@ -223,7 +223,7 @@ func plannedNamespaceName(rc *plans.ResourceInstanceChangeSrc, schema *providers
 
 // kubernetesSweepers is a copy of every client kept, for a caller that
 // outlives the providers.
-func (p *statelessProviders) kubernetesSweepers() map[string]kubesweep.Sweeper {
+func (p *projectionProviders) kubernetesSweepers() map[string]kubesweep.Sweeper {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if len(p.labelListSweepers) == 0 {
@@ -236,7 +236,7 @@ func (p *statelessProviders) kubernetesSweepers() map[string]kubesweep.Sweeper {
 	return out
 }
 
-// AfterPlan implements [local.StatelessRun] (GitHub issue #1081, item 3):
+// AfterPlan implements [local.LiveRun] (GitHub issue #1081, item 3):
 // the server-side dry run of every planned kubernetes_manifest create or
 // update, through the sweep's own cluster clients captured in PriorState,
 // printed above the plan by this run's view. A rejection is an error and
@@ -245,22 +245,22 @@ func (p *statelessProviders) kubernetesSweepers() map[string]kubesweep.Sweeper {
 // It is also where the run reports what only the walk could have produced
 // (GitHub issue #1002's untag releases), since this is the one hook the
 // backend calls between the plan existing and the plan being rendered.
-func (r *statelessRunner) AfterPlan(ctx context.Context, config *configs.Config, plan *plans.Plan, schemas *tofu.Schemas) tfdiags.Diagnostics {
+func (r *liveRunner) AfterPlan(ctx context.Context, config *configs.Config, plan *plans.Plan, schemas *tofu.Schemas) tfdiags.Diagnostics {
 	// GitHub issue #1184: the plan's Kubernetes deletes, kept for
 	// AfterApply. Read here because this is the last moment the plan still
 	// holds them; nothing is asked of any cluster until an apply has run.
 	if r.resolver != nil {
-		r.sweeperDeletes = statelessKubernetesDeletes(r.labelListSweepers, plan, schemas, r.resolver.MarkerIndex)
+		r.sweeperDeletes = liveKubernetesDeletes(r.labelListSweepers, plan, schemas, r.resolver.MarkerIndex)
 	}
 
 	// GitHub issue #1002: the declared_tagged = "untag" releases the walk
 	// just made, reported here for the reason live_plan.go's own identical
 	// call gives - this is the first point in the run they exist.
 	if r.view != nil && r.resolver != nil {
-		r.view.Policy(statelessPolicyReport(nil, nil, nil, r.resolver.UntagReleases()))
+		r.view.Policy(livePolicyReport(nil, nil, nil, r.resolver.UntagReleases()))
 	}
 
-	evidence, diags := statelessKubernetesDryRun(ctx, r.labelListSweepers, config, plan, schemas)
+	evidence, diags := liveKubernetesDryRun(ctx, r.labelListSweepers, config, plan, schemas)
 	if r.view != nil {
 		r.view.KubernetesDryRun(evidence)
 	}
@@ -274,7 +274,7 @@ func (r *statelessRunner) AfterPlan(ctx context.Context, config *configs.Config,
 
 // rememberKubernetesSweeper keeps the sweep's client for the post-plan dry
 // run, keyed the way every configured provider instance is.
-func (p *statelessProviders) rememberKubernetesSweeper(addr addrs.AbsProviderConfig, sweeper kubesweep.Sweeper) {
+func (p *projectionProviders) rememberKubernetesSweeper(addr addrs.AbsProviderConfig, sweeper kubesweep.Sweeper) {
 	if sweeper == nil {
 		return
 	}

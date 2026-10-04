@@ -20,7 +20,7 @@ import (
 // not ask has to say so, and has to say how to ask.
 func TestForeign_narrowedSweepSaysSo(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
-	NewStatelessPlan(NewView(streams).SetRunningInAutomation(true)).Foreign(StatelessForeign{
+	NewLivePlan(NewView(streams).SetRunningInAutomation(true)).Foreign(LiveForeign{
 		Estate:             "dev",
 		NativeSweepSkipped: 987,
 	})
@@ -39,7 +39,7 @@ func TestForeign_narrowedSweepSaysSo(t *testing.T) {
 // the other direction.
 func TestForeign_unnarrowedSweepSaysNothingExtra(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
-	NewStatelessPlan(NewView(streams).SetRunningInAutomation(true)).Foreign(StatelessForeign{
+	NewLivePlan(NewView(streams).SetRunningInAutomation(true)).Foreign(LiveForeign{
 		Estate: "dev",
 		Swept:  []string{"aws_vpc"},
 	})

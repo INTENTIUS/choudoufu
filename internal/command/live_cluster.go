@@ -120,7 +120,7 @@ func (c *LiveClusterCommand) Execute(args *arguments.LiveCluster) int {
 	// directory that will not load is only an error without one: with
 	// -namespace this command still answers the cluster admin checking a
 	// namespace before any estate exists, from wherever they are standing.
-	live, liveDiags := c.statelessSettings(ctx, args.Namespace != "")
+	live, liveDiags := c.liveSettings(ctx, args.Namespace != "")
 	diags = diags.Append(liveDiags)
 	namespace, estate, rs, subjectDiags := liveClusterSubject(args, live, liveDiags.HasErrors())
 	diags = diags.Append(subjectDiags)

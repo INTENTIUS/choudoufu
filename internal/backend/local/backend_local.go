@@ -236,12 +236,12 @@ func (b *Local) localRunDirect(ctx context.Context, stopCtx context.Context, op 
 	}
 	run.Core = tfCtx
 
-	if b.Stateless != nil {
+	if b.LiveRun != nil {
 		// A stateless run has no stored snapshot to start from. The prior
 		// state is built here, by reading the live system, and written into
 		// the (non-persisting) state manager so that everything downstream
 		// reads it the ordinary way.
-		projected, projDiags := b.Stateless.PriorState(ctx, config, tfCtx)
+		projected, projDiags := b.LiveRun.PriorState(ctx, config, tfCtx)
 		diags = diags.Append(projDiags)
 		if projDiags.HasErrors() {
 			return nil, nil, diags
@@ -257,7 +257,7 @@ func (b *Local) localRunDirect(ctx context.Context, stopCtx context.Context, op 
 		// GitHub issue #349's remaining half rides in the last argument: what
 		// the estate remembers each output was, for the ones evaluation
 		// cannot reach at all. See rootoutput.go.
-		outputDiags := projection.ApplyRootOutputValues(ctx, tfCtx, config, projected, variables, b.Stateless.RootOutputData(), b.Stateless.RecordedRootOutputs())
+		outputDiags := projection.ApplyRootOutputValues(ctx, tfCtx, config, projected, variables, b.LiveRun.RootOutputData(), b.LiveRun.RecordedRootOutputs())
 		diags = diags.Append(outputDiags)
 		if outputDiags.HasErrors() {
 			return nil, nil, diags

@@ -242,7 +242,7 @@ func TestGuided_verifyAge(t *testing.T) {
 
 	// 36h old: past a 24h GuidedVerifyAge, but nowhere near the 7-day
 	// GuidedMaxAge also in play here - mirroring the fork's own default-on
-	// policy (internal/command/live_plan.go's statelessApplyGuidedDiscovery).
+	// policy (internal/command/live_plan.go's liveApplyGuidedDiscovery).
 	agedStore := newGuidedHintStore(t)
 	writeGuidedHintFixture(t, agedStore, time.Now().Add(-36*time.Hour), "aws_cloudwatch_log_group")
 

@@ -47,7 +47,7 @@ import (
 // The child-side shape stays refused, and unchanged from the first version
 // of this rule: it is wrong unless the root happens to declare a
 // configuration under the CHILD side's own local alias name, which is what
-// [statelessProviders.providerConfigValue] (internal/command/live_plan.go)
+// [projectionProviders.providerConfigValue] (internal/command/live_plan.go)
 // looks up today for a resource whose own local reference already carries
 // that alias, independent of any mapping walk.
 //

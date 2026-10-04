@@ -151,11 +151,11 @@ func TestRefuseWritesNoStateCacheEndToEnd(t *testing.T) {
 			t.Setenv("TF_DATA_DIR", dataDir)
 			t.Setenv(EnvStateCache, "")
 
-			cloud := newStatelessTestCloud()
+			cloud := newLiveTestCloud()
 			view, done := testView(t)
 			c := &ApplyCommand{Meta: liveBlockMeta(view, cloud)}
-			var captured *statelessRunner
-			defer statelessRunnerTestHook(func(r *statelessRunner) { captured = r })()
+			var captured *liveRunner
+			defer liveRunnerTestHook(func(r *liveRunner) { captured = r })()
 
 			code := c.Run([]string{"-no-color", "-auto-approve"})
 			output := done(t)

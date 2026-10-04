@@ -2,7 +2,7 @@
 # a value the provider derives during PlanResourceChange and no schema
 # records. It is the same fixture internal/live/check carries as
 # managed-result-foreach; this copy exists so the COMMAND-layer second pass
-# (statelessResolve) can be measured on it.
+# (liveResolve) can be measured on it.
 resource "aws_acm_certificate" "cert" {
   domain_name       = "example.com"
   validation_method = "DNS"

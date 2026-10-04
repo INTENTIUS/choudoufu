@@ -151,7 +151,7 @@ type ContractChecker interface {
 	ContractSubject() (label, value string)
 
 	// ContractRefusal is the headline and the paragraph for one finding
-	// that did not pass, in internal/command's statelessCommandRefusals
+	// that did not pass, in internal/command's liveCommandRefusals
 	// shape: what was refused, then what it protects against and what to do
 	// instead. Empty for a finding that passed.
 	ContractRefusal(f Finding) (summary, detail string)

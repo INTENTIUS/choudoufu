@@ -29,7 +29,7 @@ import (
 // Providers supplies a configured provider instance for a provider
 // configuration address - the same seam
 // [github.com/intentius/choudoufu/internal/live/projection.Providers] and the
-// command package's statelessProviders both implement, narrowed to the one
+// command package's projectionProviders both implement, narrowed to the one
 // method this package calls. Nothing here lists a resource type and nothing
 // here evaluates a provider block a second time; state already gives every
 // resource its identity.
@@ -38,7 +38,7 @@ type Providers interface {
 }
 
 // Clusters supplies the Kubernetes cluster client for a provider
-// configuration - the same seam internal/command's statelessProviders
+// configuration - the same seam internal/command's projectionProviders
 // already implements for the estate sweep and the server-side dry run,
 // narrowed to the one write this package makes.
 //

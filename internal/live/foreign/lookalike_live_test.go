@@ -124,7 +124,7 @@ func TestLookalikeGuardAgainstFloci(t *testing.T) {
 	// TOFU_LIVE_COLLECT_UNCLAIMED=1 is the documented way to ask on an
 	// ordinary plan (live/ADOPTION-ONLY.md); -adoption-only would ask the
 	// same question but its view drops the Lookalikes section this test
-	// reads (views.StatelessAdoptionHuman.Lookalikes is a no-op).
+	// reads (views.LiveAdoptionHuman.Lookalikes is a no-op).
 	output := runLivePlan(t, tofuBin, dir, []string{collectUnclaimedEnv + "=1"})
 
 	// The stripped security group's declared address is now unmatched by any

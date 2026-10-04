@@ -25,7 +25,7 @@ import (
 )
 
 // GitHub issue #1637, ruled 2026-09-27: #950's unmarked-apply refusal
-// ([statelessUnmarkedApplyGaps]) steps aside when the run's record store is
+// ([liveUnmarkedApplyGaps]) steps aside when the run's record store is
 // writable, because the apply writes the record that finds the object
 // again. It still fires when no writable store is open. The no-store arm is
 // TestLivePlan_unmarkedApplyOfAMarkerOnlyResourceRefuses, unchanged: its
@@ -37,13 +37,13 @@ import (
 
 const unmarkedStore1637Estate = "unmarked-store-1637"
 
-func unmarkedStore1637Setup(t *testing.T) (string, *statelessTestCloud) {
+func unmarkedStore1637Setup(t *testing.T) (string, *liveTestCloud) {
 	t.Helper()
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-apply-unmarked-store-1637"), td)
 	t.Chdir(td)
-	cloud := newStatelessTestCloud()
-	schemas := statelessTestSchemas()
+	cloud := newLiveTestCloud()
+	schemas := liveTestSchemas()
 	// No "tags": the real aws_iam_group_policy has nowhere to carry a marker.
 	attrs := map[string]*configschema.Attribute{}
 	for _, n := range []string{"id", "group", "name", "name_prefix", "policy"} {
@@ -59,9 +59,9 @@ func unmarkedStore1637Setup(t *testing.T) (string, *statelessTestCloud) {
 // the id built from it. The shared test cloud echoes the planned state, which
 // leaves both unknown and would make the record impossible to write for a
 // reason no real apply has.
-func unmarkedStore1637Meta(view *views.View, cloud *statelessTestCloud) Meta {
+func unmarkedStore1637Meta(view *views.View, cloud *liveTestCloud) Meta {
 	meta := liveBlockMeta(view, cloud)
-	inst := cloud.provider().(*statelessTestProvider)
+	inst := cloud.provider().(*liveTestProvider)
 	plan := inst.MockProvider.PlanResourceChangeFn
 	inst.MockProvider.PlanResourceChangeFn = func(req providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse {
 		resp := plan(req)

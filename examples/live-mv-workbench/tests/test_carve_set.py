@@ -23,7 +23,7 @@ def _result(stdout: str, rc: int = 0, stderr: str = "") -> guard.Result:
 
 def _dry_run(frm: str, to: str, addr: str, followers: list | None = None) -> str:
     """The document `live-mv -json -dry-run` prints for one cross-estate move,
-    MarshalIndent'd the way views.StatelessMvJSONHuman renders it."""
+    MarshalIndent'd the way views.LiveMvJSONHuman renders it."""
     doc = {
         "resource": {"type": "aws_iam_policy", "live_id": f"arn:aws:iam::354867293429:policy/{addr}"},
         "from": {"estate": frm, "address": addr, "marker": addr},

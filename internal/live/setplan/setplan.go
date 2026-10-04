@@ -15,7 +15,7 @@
 // its root module through the process working directory: upstream's -chdir
 // is an os.Chdir in main, [workdir.Dir.NormalizePath] answers relative to
 // the root module on the assumption the two are the same directory, and the
-// live pipeline loads "." directly (live_mode.go's statelessSettings,
+// live pipeline loads "." directly (live_mode.go's liveSettings,
 // live_plan.go's loadConfig, the record store opened at "." in
 // live_record_store_open.go, the variable files read from "." in
 // meta_vars.go, the operation's ConfigDir in plan.go). The working directory

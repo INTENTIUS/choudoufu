@@ -23,7 +23,7 @@ import (
 )
 
 // This file is GitHub issue #284's acceptance (b): the two-pass resolution
-// [statelessResolve] performs, and the bound on it.
+// [liveResolve] performs, and the bound on it.
 //
 // Every assertion here is on a RENDERED identity or on how many times the
 // provider seam was reached, never on "did it refuse". A second pass that
@@ -110,14 +110,14 @@ func (p *certPlanningProvider) seam() projection.Providers {
 	})
 }
 
-// TestStatelessResolveSecondPassClassifiesTheACMShape is the control. Without
+// TestLiveResolveSecondPassClassifiesTheACMShape is the control. Without
 // it the two guards below pass because the mechanism is unreachable rather
 // than because it is careful.
-func TestStatelessResolveSecondPassClassifiesTheACMShape(t *testing.T) {
-	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", "live-resolve-acm"))
+func TestLiveResolveSecondPassClassifiesTheACMShape(t *testing.T) {
+	cfg := liveTestLoadConfig(t, filepath.Join("testdata", "live-resolve-acm"))
 	prov := &certPlanningProvider{known: true}
 
-	result, diags := statelessResolve(t.Context(), cfg, prov.seam(), nil, nil, nil)
+	result, diags := liveResolve(t.Context(), cfg, prov.seam(), nil, nil, nil)
 	if diags.HasErrors() {
 		t.Fatalf("refused with the certificate's planned values in hand: %s", diags.Err())
 	}
@@ -141,16 +141,16 @@ func TestStatelessResolveSecondPassClassifiesTheACMShape(t *testing.T) {
 	}
 }
 
-// TestStatelessResolveAsksTheProviderOnce is the bound stated in
-// [statelessResolve]'s doc comment, enforced. [projection.PlanInstances]
+// TestLiveResolveAsksTheProviderOnce is the bound stated in
+// [liveResolve]'s doc comment, enforced. [projection.PlanInstances]
 // resolves each provider configuration once per call, so a second call - a
 // third resolution pass - shows up here as a second configure.
-func TestStatelessResolveAsksTheProviderOnce(t *testing.T) {
-	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", "live-resolve-acm"))
+func TestLiveResolveAsksTheProviderOnce(t *testing.T) {
+	cfg := liveTestLoadConfig(t, filepath.Join("testdata", "live-resolve-acm"))
 	prov := &certPlanningProvider{known: true}
 
-	if _, diags := statelessResolve(t.Context(), cfg, prov.seam(), nil, nil, nil); diags.HasErrors() {
-		t.Fatalf("statelessResolve: %s", diags.Err())
+	if _, diags := liveResolve(t.Context(), cfg, prov.seam(), nil, nil, nil); diags.HasErrors() {
+		t.Fatalf("liveResolve: %s", diags.Err())
 	}
 	if prov.configures != 1 {
 		t.Errorf("the provider seam was reached %d times, want exactly 1 - one retry is the whole bound, "+
@@ -162,17 +162,17 @@ func TestStatelessResolveAsksTheProviderOnce(t *testing.T) {
 	}
 }
 
-// TestStatelessResolveNeverConfiguresAProviderWithNothingToGain is the cost
+// TestLiveResolveNeverConfiguresAProviderWithNothingToGain is the cost
 // bound AND the shape that keeps the #183 cohort safe at this layer. A
 // configuration whose refusals name no managed resource block has nothing a
 // planned value could settle, so no plugin is started and no plan call is
 // made; a naive fixpoint that simply retried on any error would start a
 // provider for every refused run there is.
-func TestStatelessResolveNeverConfiguresAProviderWithNothingToGain(t *testing.T) {
-	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", "live-resolve-no-demand"))
+func TestLiveResolveNeverConfiguresAProviderWithNothingToGain(t *testing.T) {
+	cfg := liveTestLoadConfig(t, filepath.Join("testdata", "live-resolve-no-demand"))
 	prov := &certPlanningProvider{known: true}
 
-	_, diags := statelessResolve(t.Context(), cfg, prov.seam(), nil, nil, nil)
+	_, diags := liveResolve(t.Context(), cfg, prov.seam(), nil, nil, nil)
 	if !diags.HasErrors() {
 		t.Fatal("a bucket named with uuid() was resolved; an identity that changes every run cannot say which object a block owns")
 	}
@@ -181,7 +181,7 @@ func TestStatelessResolveNeverConfiguresAProviderWithNothingToGain(t *testing.T)
 	}
 }
 
-// TestStatelessResolveKeepsTheFirstPassWhenTheSecondIsNoBetter is the ratchet.
+// TestLiveResolveKeepsTheFirstPassWhenTheSecondIsNoBetter is the ratchet.
 //
 // A second pass is given MORE information, so it ordinarily refuses less - but
 // supplying managed results also changes which references resolution treats as
@@ -189,18 +189,18 @@ func TestStatelessResolveNeverConfiguresAProviderWithNothingToGain(t *testing.T)
 // pass can take the evaluate-and-refuse route on the second. Here the provider
 // answers with domain_validation_options wholly unknown, which settles nothing,
 // and the first pass's diagnostics must survive verbatim.
-func TestStatelessResolveKeepsTheFirstPassWhenTheSecondIsNoBetter(t *testing.T) {
-	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", "live-resolve-acm"))
+func TestLiveResolveKeepsTheFirstPassWhenTheSecondIsNoBetter(t *testing.T) {
+	cfg := liveTestLoadConfig(t, filepath.Join("testdata", "live-resolve-acm"))
 
 	useless := &certPlanningProvider{known: false}
-	_, withProvider := statelessResolve(t.Context(), cfg, useless.seam(), nil, nil, nil)
+	_, withProvider := liveResolve(t.Context(), cfg, useless.seam(), nil, nil, nil)
 	if useless.plans != 1 {
 		t.Fatalf("the provider was asked to plan %d times; this test is not exercising the second pass at all", useless.plans)
 	}
 
 	// The same configuration with no provider at all, which is exactly a
 	// first pass and nothing else.
-	_, firstOnly := statelessResolve(t.Context(), cfg, nil, nil, nil, nil)
+	_, firstOnly := liveResolve(t.Context(), cfg, nil, nil, nil, nil)
 
 	if !withProvider.HasErrors() {
 		t.Fatal("a second pass whose planned value settles nothing produced a clean resolution")
@@ -210,7 +210,7 @@ func TestStatelessResolveKeepsTheFirstPassWhenTheSecondIsNoBetter(t *testing.T) 
 	}
 }
 
-// TestStatelessResolveKeepsTheFirstPassWhenTheSecondDowngradesAnInstance is
+// TestLiveResolveKeepsTheFirstPassWhenTheSecondDowngradesAnInstance is
 // the half of the ratchet that counting error diagnostics cannot see.
 //
 // It used to be measured directly against simpleinfra's shared
@@ -230,11 +230,11 @@ func TestStatelessResolveKeepsTheFirstPassWhenTheSecondIsNoBetter(t *testing.T) 
 //
 // So the second pass here still clears the for_each refusal and raises none,
 // which the error count still calls a win, and it must still be rejected.
-func TestStatelessResolveKeepsTheFirstPassWhenTheSecondDowngradesAnInstance(t *testing.T) {
-	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", "live-resolve-acm-downgrade"))
+func TestLiveResolveKeepsTheFirstPassWhenTheSecondDowngradesAnInstance(t *testing.T) {
+	cfg := liveTestLoadConfig(t, filepath.Join("testdata", "live-resolve-acm-downgrade"))
 	prov := &certPlanningProvider{known: true}
 
-	kept, keptDiags := statelessResolve(t.Context(), cfg, prov.seam(), nil, nil, nil)
+	kept, keptDiags := liveResolve(t.Context(), cfg, prov.seam(), nil, nil, nil)
 	if prov.plans == 0 {
 		t.Fatal("the provider was never asked to plan; this test is not exercising the second pass at all")
 	}
@@ -265,7 +265,7 @@ func TestStatelessResolveKeepsTheFirstPassWhenTheSecondDowngradesAnInstance(t *t
 	}
 }
 
-// TestStatelessResolveAcceptsTheSecondPassOnceTheDirectFormulaSurvives is
+// TestLiveResolveAcceptsTheSecondPassOnceTheDirectFormulaSurvives is
 // the "net gain" the previous test's own doc comment describes: the shape
 // the ratchet used to reject entirely because the log group's direct
 // aws_acm_certificate.cert.arn reference downgraded alongside the for_each
@@ -273,11 +273,11 @@ func TestStatelessResolveKeepsTheFirstPassWhenTheSecondDowngradesAnInstance(t *t
 // reference no longer downgrades, so the ratchet has nothing left to reject
 // and the second pass is accepted whole: the for_each resolves AND the log
 // group keeps its formula, in one pass, with no errors.
-func TestStatelessResolveAcceptsTheSecondPassOnceTheDirectFormulaSurvives(t *testing.T) {
-	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", "live-resolve-acm-direct-fixed"))
+func TestLiveResolveAcceptsTheSecondPassOnceTheDirectFormulaSurvives(t *testing.T) {
+	cfg := liveTestLoadConfig(t, filepath.Join("testdata", "live-resolve-acm-direct-fixed"))
 	prov := &certPlanningProvider{known: true}
 
-	result, diags := statelessResolve(t.Context(), cfg, prov.seam(), nil, nil, nil)
+	result, diags := liveResolve(t.Context(), cfg, prov.seam(), nil, nil, nil)
 	if prov.plans == 0 {
 		t.Fatal("the provider was never asked to plan; this test is not exercising the second pass at all")
 	}

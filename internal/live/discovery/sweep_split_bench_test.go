@@ -312,7 +312,7 @@ func runSweepSplitBenchmark(t *testing.T, scale int) sweepSplitReport {
 	sort.Strings(perType)
 
 	// The production Request shape, not the ceiling benchmark's narrower
-	// one: internal/command/live_plan.go's statelessDiscoverOne sets
+	// one: internal/command/live_plan.go's liveDiscoverOne sets
 	// Sweep, CollectUnclaimed, and - whenever the run names an endpoint
 	// override, which every emulator run does - CloudControl, Roster,
 	// Tagging and TaggingSweep. Without those last four, Sweep=true would

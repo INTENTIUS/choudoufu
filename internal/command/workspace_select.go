@@ -53,8 +53,8 @@ func (c WorkspaceSelectCommand) Execute(args *arguments.WorkspaceSelect, view vi
 	// A live block makes every workspace but the default unrunnable, so
 	// selecting one is refused here rather than at the plan that would have
 	// been the operator's first sign. Selecting the default stays allowed,
-	// because it is the way out. See Meta.statelessWorkspaceGuard.
-	if guardDiags := c.statelessWorkspaceGuard(ctx, "select", args.WorkspaceName); guardDiags.HasErrors() {
+	// because it is the way out. See Meta.liveWorkspaceGuard.
+	if guardDiags := c.liveWorkspaceGuard(ctx, "select", args.WorkspaceName); guardDiags.HasErrors() {
 		view.Diagnostics(diags.Append(guardDiags))
 		return 1
 	}

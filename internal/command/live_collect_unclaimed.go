@@ -50,7 +50,7 @@ const collectUnclaimedEnvVar = "TOFU_LIVE_COLLECT_UNCLAIMED"
 // for the question. The charter's own words: -adoption-only "is the obvious
 // first place for the capability to become real, and it is not that yet".
 // Today it selects a different renderer and gates nothing
-// ([statelessPlanView]); with this, it also selects what the run goes and
+// ([livePlanView]); with this, it also selects what the run goes and
 // looks at.
 //
 // # What turning it off does and does not do
@@ -69,7 +69,7 @@ const collectUnclaimedEnvVar = "TOFU_LIVE_COLLECT_UNCLAIMED"
 //
 // A plan that did not ask says so rather than implying an answer: the
 // stateless plan view's "Foreign resources" section renders the narrowing
-// (see [views.StatelessForeign.NativeSweepSkipped]).
+// (see [views.LiveForeign.NativeSweepSkipped]).
 func collectUnclaimedSetting(adoptionOnly bool) (bool, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 

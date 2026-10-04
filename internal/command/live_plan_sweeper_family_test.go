@@ -61,7 +61,7 @@ var (
 func TestSweeperPlugsInThroughTheInterface(t *testing.T) {
 	ctx := context.Background()
 	addr := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("fakecluster")}
-	p := newStatelessProviders(nil, plugins.NewLibrary(plugins.ProviderFactories{
+	p := newProjectionProviders(nil, plugins.NewLibrary(plugins.ProviderFactories{
 		addr.Provider: providers.FactoryFixed(&tofu.MockProvider{GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{
 			Provider:      providers.Schema{Block: &configschema.Block{}},
 			ResourceTypes: map[string]providers.Schema{},
@@ -69,7 +69,7 @@ func TestSweeperPlugsInThroughTheInterface(t *testing.T) {
 	}, nil))
 
 	client := clusterClient{kind: substrate.SweepLabelList}
-	legs, _, diags := p.statelessSweepLegs(ctx, clusterFamily{Substrate: substrate.Kubernetes, built: client}, true, addr)
+	legs, _, diags := p.liveSweepLegs(ctx, clusterFamily{Substrate: substrate.Kubernetes, built: client}, true, addr)
 	if len(diags) != 0 {
 		t.Errorf("a label-list client of the family's own type: %d diagnostics, first %q: %q", len(diags), diags[0].Description().Summary, diags[0].Description().Detail)
 	}
@@ -82,7 +82,7 @@ func TestSweeperPlugsInThroughTheInterface(t *testing.T) {
 	}
 
 	wrong := clusterClient{kind: "graph-query"}
-	_, _, diags = p.statelessSweepLegs(ctx, clusterFamily{Substrate: substrate.Kubernetes, built: wrong}, true, addr)
+	_, _, diags = p.liveSweepLegs(ctx, clusterFamily{Substrate: substrate.Kubernetes, built: wrong}, true, addr)
 	if len(diags) != 1 || !containsAll(diags[0].Description().Detail, "fakecluster", "graph-query", string(substrate.SweepLabelList)) {
 		t.Errorf("a client for another sweep: diagnostics %v, want one warning naming the family, the client's sweep and the family's", diags)
 	}

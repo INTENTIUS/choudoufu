@@ -19,7 +19,7 @@ set -uo pipefail
 # separate mechanism, so internal/command/live_mode.go no longer refuses
 # plans.DestroyMode. This is the tier-1 (#522) crossing for it - the first
 # time that lifted refusal is exercised against a real emulator rather than
-# only the mock-cloud command tests (TestStatelessMode_applyDestroy).
+# only the mock-cloud command tests (TestLiveMode_applyDestroy).
 #
 # The claim under test, in one sentence: one "apply -destroy" removes every
 # object THIS estate owns - across all three #522-mandatory shapes (a real

@@ -37,7 +37,7 @@ import (
 //     the prior state a stateless run plans against does not arrive this way:
 //     it is a projection built from the live system by the run's own
 //     pipeline and handed to the operation (see internal/backend/local's
-//     StatelessRun seam). A projection needs the configuration and configured
+//     LiveRun seam). A projection needs the configuration and configured
 //     providers to build, and the state manager interface offers neither.
 //   - PersistState writes nothing authoritative, anywhere, and cannot fail
 //     the operation. It is not a "write to /dev/null" adapter over a file

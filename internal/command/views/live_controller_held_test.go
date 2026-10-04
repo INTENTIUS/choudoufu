@@ -18,9 +18,9 @@ import (
 // never under "Owned and undeclared".
 func TestForeign_controllerHeldNamesTheRelease(t *testing.T) {
 	streams, done := terminal.StreamsForTesting(t)
-	NewStatelessPlan(NewView(streams).SetRunningInAutomation(true)).Foreign(StatelessForeign{
+	NewLivePlan(NewView(streams).SetRunningInAutomation(true)).Foreign(LiveForeign{
 		Estate: "smoke-k8s",
-		ControllerHeld: []StatelessControllerHeld{
+		ControllerHeld: []LiveControllerHeld{
 			{TypeName: "kubernetes_config_map_v1", Kind: "ConfigMap", LiveID: "smoke-k8s/web-greeting", Controller: "Helm", HeldBy: "Helm release smoke-k8s/web"},
 		},
 	})

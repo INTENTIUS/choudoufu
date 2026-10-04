@@ -11,14 +11,14 @@ import (
 	"strings"
 )
 
-// StatelessMvReport is one completed (or, with DryRun, one rehearsed) rename,
+// LiveMvReport is one completed (or, with DryRun, one rehearsed) rename,
 // in a form this package can render without importing the mv package.
 //
 // The fields correspond to mv.Result. They are all strings on purpose: what a
 // rename produces is a set of labelled facts about one live resource, and the
 // operator needs to be able to read and to grep them, not to be told a story
 // about them.
-type StatelessMvReport struct {
+type LiveMvReport struct {
 	// Estate is the estate the rename happened within - the destination, for
 	// a cross-estate move.
 	Estate string
@@ -62,7 +62,7 @@ type StatelessMvReport struct {
 
 	// Reannotated means this was a same-estate rename of a Kubernetes
 	// object: the write is the address annotation beside the estate label
-	// (GitHub issue #1639), and the report is [StatelessMvHuman]'s
+	// (GitHub issue #1639), and the report is [LiveMvHuman]'s
 	// reportReannotate. AlreadyMarked beside it means the object already
 	// carried the new address and nothing was written.
 	Reannotated   bool
@@ -75,34 +75,34 @@ type StatelessMvReport struct {
 // internal/live; a test in internal/command pins the two equal.
 const AddressAnnotation = "choudoufu.intentius.io/tofu-address"
 
-// StatelessMv renders the report "choudoufu live-mv" prints when a rename
+// LiveMv renders the report "choudoufu live-mv" prints when a rename
 // succeeds. Diagnostics do not come through here: they go to [View] and out
 // to stderr, the way every other command's do.
-type StatelessMv interface {
-	Report(rep StatelessMvReport)
+type LiveMv interface {
+	Report(rep LiveMvReport)
 }
 
-// NewStatelessMv returns the human-readable implementation. See
-// [NewStatelessMvJSON] for -json's own, which live-mv's Run calls instead of
+// NewLiveMv returns the human-readable implementation. See
+// [NewLiveMvJSON] for -json's own, which live-mv's Run calls instead of
 // this one rather than through it: the two reports diverge (a refusal is
-// worth a JSON document too, which [StatelessMvHuman] never renders one
+// worth a JSON document too, which [LiveMvHuman] never renders one
 // for), so there is no single call site that decides between them by
 // swapping this function's return value alone.
-func NewStatelessMv(view *View) StatelessMv {
-	return &StatelessMvHuman{view: view}
+func NewLiveMv(view *View) LiveMv {
+	return &LiveMvHuman{view: view}
 }
 
-// StatelessMvHuman writes the report to the view's output stream, which is
+// LiveMvHuman writes the report to the view's output stream, which is
 // what makes live-mv's output land where every other command's does - and
 // what makes it testable through terminal.StreamsForTesting rather than
 // through an io.Writer bolted onto the command struct.
-type StatelessMvHuman struct {
+type LiveMvHuman struct {
 	view *View
 }
 
-var _ StatelessMv = (*StatelessMvHuman)(nil)
+var _ LiveMv = (*LiveMvHuman)(nil)
 
-func (v *StatelessMvHuman) Report(rep StatelessMvReport) {
+func (v *LiveMvHuman) Report(rep LiveMvReport) {
 	if rep.NothingToWrite {
 		v.reportNothingToWrite(rep)
 		return
@@ -175,7 +175,7 @@ func (v *StatelessMvHuman) Report(rep StatelessMvReport) {
 // name, and the next plan is empty - and it says where the governed write
 // would be, so an operator who reached for live-mv out of an AWS habit
 // learns which half of the command this substrate keeps.
-func (v *StatelessMvHuman) reportNothingToWrite(rep StatelessMvReport) {
+func (v *LiveMvHuman) reportNothingToWrite(rep LiveMvReport) {
 	rows := [][2]string{
 		{"estate", rep.Estate},
 		{"resource type", rep.TypeName},
@@ -195,7 +195,7 @@ func (v *StatelessMvHuman) reportNothingToWrite(rep StatelessMvReport) {
 // object (GitHub issue #1639): the object's ownership marker is its
 // tofu-estate label, which a rename does not move, and its block address
 // is an annotation beside it, which the rename rewrote.
-func (v *StatelessMvHuman) reportReannotate(rep StatelessMvReport) {
+func (v *LiveMvHuman) reportReannotate(rep LiveMvReport) {
 	headline := "Rewrote the address annotation on one live object. This was a cluster write."
 	switch {
 	case rep.AlreadyMarked:
@@ -232,7 +232,7 @@ func (v *StatelessMvHuman) reportReannotate(rep StatelessMvReport) {
 // reportRelabel is the cross-estate report on the label surface: the same
 // labelled facts as the tag report, with the address annotation (GitHub
 // issue #1639) in place of the tofu-address tag row.
-func (v *StatelessMvHuman) reportRelabel(rep StatelessMvReport) {
+func (v *LiveMvHuman) reportRelabel(rep LiveMvReport) {
 	headline := "Relabelled one live object into this estate. This was a cluster write."
 	if rep.DryRun {
 		headline = "Would relabel one live object into this estate. Nothing was written (-dry-run)."
@@ -266,8 +266,8 @@ func (v *StatelessMvHuman) reportRelabel(rep StatelessMvReport) {
 // -json (GitHub issue #791)
 // ---------------------------------------------------------------------------
 
-// StatelessMvJSONReport is one live-mv move, or one refusal, as the single
-// document -json prints instead of [StatelessMvReport]'s labelled rows.
+// LiveMvJSONReport is one live-mv move, or one refusal, as the single
+// document -json prints instead of [LiveMvReport]'s labelled rows.
 //
 // It exists so that anything reconstructing a move from live-mv's output -
 // the workbench's preview phase, which used to re-derive the map from the
@@ -278,11 +278,11 @@ func (v *StatelessMvHuman) reportRelabel(rep StatelessMvReport) {
 // confirm what a human ran - has one parse target instead of a prose
 // reconstruction. See the issue's "Ask" for the field-by-field reasoning;
 // this struct is that list, not a superset invented for convenience.
-type StatelessMvJSONReport struct {
+type LiveMvJSONReport struct {
 	// Resource is the live object: its type and its import identity - an
 	// ARN for the types that have one, the provider's own identity string
 	// otherwise.
-	Resource StatelessMvJSONResource `json:"resource"`
+	Resource LiveMvJSONResource `json:"resource"`
 
 	// From and To are the address on each side of the move: the unescaped
 	// address an operator would type, the estate it belongs to, and the
@@ -290,15 +290,15 @@ type StatelessMvJSONReport struct {
 	// the source estate for a cross-estate move (Request.FromEstate) and
 	// the same estate as To's otherwise - a rename never leaves the address
 	// without an estate to be found under.
-	From StatelessMvJSONEndpoint `json:"from"`
-	To   StatelessMvJSONEndpoint `json:"to"`
+	From LiveMvJSONEndpoint `json:"from"`
+	To   LiveMvJSONEndpoint `json:"to"`
 
 	// Followers are the declared instances that move along with Resource
 	// without a marker write of their own - mv.Result.Followers, unpacked
 	// into the two facts a reader needs to draw them moving too. Omitted
 	// entirely, not printed as [], when Resource has none: the zero value a
 	// reader gets by leaving out a JSON key it never asked about.
-	Followers []StatelessMvJSONFollower `json:"followers,omitempty"`
+	Followers []LiveMvJSONFollower `json:"followers,omitempty"`
 
 	// DryRun echoes -dry-run: true means nothing below was written, whether
 	// or not Refusal is set - a dry run still refuses exactly what a real
@@ -363,73 +363,73 @@ type StatelessMvJSONReport struct {
 	// empty Code for a refusal outside the five stable shapes [mv.RefusalCode]
 	// names (a malformed marker, a provider error, an argument problem
 	// raised before Move ever ran), and nil on an ordinary success.
-	Refusal *StatelessMvJSONRefusal `json:"refusal,omitempty"`
+	Refusal *LiveMvJSONRefusal `json:"refusal,omitempty"`
 }
 
-// StatelessMvJSONResource is the "the resource: ARN or identity, type" half
+// LiveMvJSONResource is the "the resource: ARN or identity, type" half
 // of the Ask, plus DisplayName where the list path supplied one - the same
-// three facts [StatelessMvReport] already carries as TypeName/LiveID/
+// three facts [LiveMvReport] already carries as TypeName/LiveID/
 // DisplayName, renamed to what a JSON reader expects them called.
-type StatelessMvJSONResource struct {
+type LiveMvJSONResource struct {
 	TypeName    string `json:"type"`
 	LiveID      string `json:"live_id"`
 	DisplayName string `json:"display_name,omitempty"`
 }
 
-// StatelessMvJSONEndpoint is one side of a move: the address as an operator
+// LiveMvJSONEndpoint is one side of a move: the address as an operator
 // would type it, unescaped, and the estate and escaped tag value that
 // address means as a marker.
-type StatelessMvJSONEndpoint struct {
+type LiveMvJSONEndpoint struct {
 	Estate  string `json:"estate,omitempty"`
 	Address string `json:"address"`
 	Marker  string `json:"marker,omitempty"`
 }
 
-// StatelessMvJSONFollower is one instance that follows Resource with no
+// LiveMvJSONFollower is one instance that follows Resource with no
 // write of its own - see mv.Result.Followers and mv.Follower's own doc
 // comments for what "follows" means here.
-type StatelessMvJSONFollower struct {
+type LiveMvJSONFollower struct {
 	Address  string `json:"address"`
 	TypeName string `json:"type"`
 }
 
-// StatelessMvJSONRefusal is the "reason as a stable code plus the text" the
+// LiveMvJSONRefusal is the "reason as a stable code plus the text" the
 // Ask names: Code is empty for a refusal outside the five [mv.RefusalCode]
-// shapes, and Summary/Detail are the same two halves [StatelessMvHuman]'s
+// shapes, and Summary/Detail are the same two halves [LiveMvHuman]'s
 // underlying diagnostic would otherwise only reach a reader as formatted
 // prose on stderr.
-type StatelessMvJSONRefusal struct {
+type LiveMvJSONRefusal struct {
 	Code    string `json:"code,omitempty"`
 	Summary string `json:"summary"`
 	Detail  string `json:"detail"`
 }
 
-// StatelessMvJSON renders the -json report: exactly one document, on both a
+// LiveMvJSON renders the -json report: exactly one document, on both a
 // completed move and a refused one, which is what makes it usable as a
 // preview (the workbench, over -dry-run) and as a receipt (the smoke's own
 // carve-by-retag assertion, comparing a dry run's document against a real
-// run's) alike - [StatelessMv]'s human report only ever renders a success.
-type StatelessMvJSON interface {
-	Report(rep StatelessMvJSONReport)
+// run's) alike - [LiveMv]'s human report only ever renders a success.
+type LiveMvJSON interface {
+	Report(rep LiveMvJSONReport)
 }
 
-// NewStatelessMvJSON returns the JSON implementation of the -json report.
-func NewStatelessMvJSON(view *View) StatelessMvJSON {
-	return &StatelessMvJSONHuman{view: view}
+// NewLiveMvJSON returns the JSON implementation of the -json report.
+func NewLiveMvJSON(view *View) LiveMvJSON {
+	return &LiveMvJSONHuman{view: view}
 }
 
-// StatelessMvJSONHuman is named to match [StatelessMvHuman] - "human" here
+// LiveMvJSONHuman is named to match [LiveMvHuman] - "human" here
 // means "the process talking to a human's terminal or a script's pipe",
-// [View]'s own streams, the same meaning [StatelessMvHuman] gives it, not a
+// [View]'s own streams, the same meaning [LiveMvHuman] gives it, not a
 // claim about the output being prose. There is exactly one JSON rendering;
 // this is it.
-type StatelessMvJSONHuman struct {
+type LiveMvJSONHuman struct {
 	view *View
 }
 
-var _ StatelessMvJSON = (*StatelessMvJSONHuman)(nil)
+var _ LiveMvJSON = (*LiveMvJSONHuman)(nil)
 
-func (v *StatelessMvJSONHuman) Report(rep StatelessMvJSONReport) {
+func (v *LiveMvJSONHuman) Report(rep LiveMvJSONReport) {
 	// MarshalIndent, not Marshal: this is a document a human reads while
 	// building a preview or a receipt reader, same as every other -json
 	// command in this codebase's tree prints one JSON value per line rather

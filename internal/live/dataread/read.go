@@ -41,7 +41,7 @@ type encryptedDataSourceReader interface {
 
 // Providers is the one seam the read phase needs from its caller: a
 // configured provider instance per provider configuration. The command
-// layer's statelessProviders satisfies it - the same instances the
+// layer's projectionProviders satisfies it - the same instances the
 // projection builder calls ImportResourceState and ReadResource on, so the
 // phase adds a verb, not a plumbing.
 type Providers interface {

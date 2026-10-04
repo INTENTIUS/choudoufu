@@ -15,8 +15,8 @@
 // of: OpenTofu's graph either destroys an orphan with no config or leaves
 // it alone, nothing in between. This package is the "in between" - one
 // provider round trip per resource, run once, after a real apply, outside
-// the graph entirely. See internal/backend/local's StatelessRun.AfterApply
-// and internal/command/live_mode.go's statelessRunner for where it is
+// the graph entirely. See internal/backend/local's LiveRun.AfterApply
+// and internal/command/live_mode.go's liveRunner for where it is
 // called from and why that is the one place a real apply, and never a
 // plan, is known to have happened.
 //

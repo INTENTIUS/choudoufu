@@ -20,10 +20,10 @@ import (
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 )
 
-// TestStatelessLifecycleAgainstFloci is P4.1's live half, and the first time
+// TestLiveLifecycleAgainstFloci is P4.1's live half, and the first time
 // this fork applies anything to a cloud.
 //
-//	TF_FLOCI_TEST=1 go test ./internal/live/lifecycle/ -run TestStatelessLifecycleAgainstFloci -v
+//	TF_FLOCI_TEST=1 go test ./internal/live/lifecycle/ -run TestLiveLifecycleAgainstFloci -v
 //
 // It starts from an empty account and drives an estate through its whole life
 // with the two plain commands - no stateless-prefixed subcommand, no flag
@@ -45,7 +45,7 @@ import (
 //     resource. This step asserted the opposite when P4.1 wrote it - the
 //     removal gap, which had no fix inside phase 4 - and P5.1's estate-wide
 //     sweep is what turned it round.
-func TestStatelessLifecycleAgainstFloci(t *testing.T) {
+func TestLiveLifecycleAgainstFloci(t *testing.T) {
 	flocitest.Gate(t, "stateless lifecycle")
 	flocitest.RequireBinary(t, "docker")
 	flocitest.RequireBinary(t, "aws")

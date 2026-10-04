@@ -11,10 +11,10 @@ import (
 	"strings"
 )
 
-// StatelessImportEntry is one resource instance's ratification verdict, in a
+// LiveImportEntry is one resource instance's ratification verdict, in a
 // form this package can render without importing the liveimport package.
 // The fields correspond to liveimport.Entry.
-type StatelessImportEntry struct {
+type LiveImportEntry struct {
 	Addr     string
 	TypeName string
 	Status   string
@@ -23,28 +23,28 @@ type StatelessImportEntry struct {
 	Drifted  []string
 }
 
-// StatelessImportReport is the whole ratification report "choudoufu
+// LiveImportReport is the whole ratification report "choudoufu
 // live-import" prints before any tag is written.
-type StatelessImportReport struct {
+type LiveImportReport struct {
 	Estate    string
 	StatePath string
-	Entries   []StatelessImportEntry
+	Entries   []LiveImportEntry
 }
 
-// StatelessImportOutcome is one resource instance's stamp outcome, in a form
+// LiveImportOutcome is one resource instance's stamp outcome, in a form
 // this package can render without importing the liveimport package. The
 // fields correspond to liveimport.StampOutcome.
-type StatelessImportOutcome struct {
+type LiveImportOutcome struct {
 	Addr     string
 	TypeName string
 	Outcome  string
 	Detail   string
 }
 
-// StatelessImportStamped is what one -approve run did.
-type StatelessImportStamped struct {
+// LiveImportStamped is what one -approve run did.
+type LiveImportStamped struct {
 	Estate   string
-	Outcomes []StatelessImportOutcome
+	Outcomes []LiveImportOutcome
 
 	// IdentitiesRecorded is [liveimport.StampReport.IdentitiesRecorded]:
 	// GitHub issue #364 unit A2's count of instances that now carry a
@@ -57,34 +57,34 @@ type StatelessImportStamped struct {
 	IdentitiesRecorded int
 }
 
-// StatelessImport renders what "choudoufu live-import" produces: the
+// LiveImport renders what "choudoufu live-import" produces: the
 // ratification report first, always, and the stamp report only on a run
 // given -approve. Diagnostics do not come through here: they go to [View]
 // and out to stderr, the way every other command's do.
-type StatelessImport interface {
-	Ratification(rep StatelessImportReport)
-	Stamped(rep StatelessImportStamped)
+type LiveImport interface {
+	Ratification(rep LiveImportReport)
+	Stamped(rep LiveImportStamped)
 }
 
-// NewStatelessImport returns the human-readable implementation. There is no
+// NewLiveImport returns the human-readable implementation. There is no
 // JSON implementation, matching live-mv.
-func NewStatelessImport(view *View) StatelessImport {
-	return &StatelessImportHuman{view: view}
+func NewLiveImport(view *View) LiveImport {
+	return &LiveImportHuman{view: view}
 }
 
-// StatelessImportHuman writes both reports to the view's output stream.
-type StatelessImportHuman struct {
+// LiveImportHuman writes both reports to the view's output stream.
+type LiveImportHuman struct {
 	view *View
 }
 
-var _ StatelessImport = (*StatelessImportHuman)(nil)
+var _ LiveImport = (*LiveImportHuman)(nil)
 
-// statelessImportStatusOrder is the order statuses print in: the two
+// liveImportStatusOrder is the order statuses print in: the two
 // something-to-see-here statuses first, then the three that a run cannot
 // act on, each explained once above its group rather than once per row.
-var statelessImportStatusOrder = []string{"VERIFIED", "DRIFTED", "MISSING", "UNTAGGABLE", "UNADMITTED_TYPE"}
+var liveImportStatusOrder = []string{"VERIFIED", "DRIFTED", "MISSING", "UNTAGGABLE", "UNADMITTED_TYPE"}
 
-var statelessImportStatusHeadline = map[string]string{
+var liveImportStatusHeadline = map[string]string{
 	"VERIFIED":        "verified against the live system",
 	"DRIFTED":         "verified, but drifted from the live system",
 	"MISSING":         "could not be verified",
@@ -92,12 +92,12 @@ var statelessImportStatusHeadline = map[string]string{
 	"UNADMITTED_TYPE": "outside the admitted type set",
 }
 
-func (v *StatelessImportHuman) Ratification(rep StatelessImportReport) {
+func (v *LiveImportHuman) Ratification(rep LiveImportReport) {
 	var b strings.Builder
 
 	fmt.Fprintf(&b, "\nRatifying %s for estate %q against the live system. This was read-only: nothing was written.\n\n", rep.StatePath, rep.Estate)
 
-	byStatus := make(map[string][]StatelessImportEntry)
+	byStatus := make(map[string][]LiveImportEntry)
 	for _, e := range rep.Entries {
 		byStatus[e.Status] = append(byStatus[e.Status], e)
 	}
@@ -106,13 +106,13 @@ func (v *StatelessImportHuman) Ratification(rep StatelessImportReport) {
 		b.WriteString("The state file names no managed resource instances. Nothing to ratify.\n")
 	}
 
-	for _, status := range statelessImportStatusOrder {
+	for _, status := range liveImportStatusOrder {
 		entries := byStatus[status]
 		if len(entries) == 0 {
 			continue
 		}
 		sort.Slice(entries, func(i, j int) bool { return entries[i].Addr < entries[j].Addr })
-		fmt.Fprintf(&b, "%s (%d) - %s:\n", status, len(entries), statelessImportStatusHeadline[status])
+		fmt.Fprintf(&b, "%s (%d) - %s:\n", status, len(entries), liveImportStatusHeadline[status])
 		for _, e := range entries {
 			liveID := e.LiveID
 			if liveID == "" {
@@ -136,17 +136,17 @@ func (v *StatelessImportHuman) Ratification(rep StatelessImportReport) {
 	v.view.streams.Print(b.String())
 }
 
-// statelessImportOutcomeOrder is the order outcome groups print in: what was
+// liveImportOutcomeOrder is the order outcome groups print in: what was
 // written first, then what was already so, then what was not attempted. An
 // outcome missing from this list renders nowhere at all, so a resource
 // carrying it vanishes from the report rather than printing oddly -
 // TestEveryStampOutcomePrintsAHeadline holds the list and the headline map
 // against each other for that reason.
-var statelessImportOutcomeOrder = []string{
+var liveImportOutcomeOrder = []string{
 	"STAMPED", "ALREADY_STAMPED", "RECORDED", "SENSITIVITY_RECORDED", "ALREADY_RECORDED", "FAILED", "SKIPPED",
 }
 
-// statelessImportOutcomeHeadline explains each outcome group once, above the
+// liveImportOutcomeHeadline explains each outcome group once, above the
 // group, rather than once per row.
 //
 // SENSITIVITY_RECORDED is a separate group from RECORDED on purpose, and the
@@ -155,7 +155,7 @@ var statelessImportOutcomeOrder = []string{
 // choudoufu persists, and calling that "newly recorded" tells an operator
 // that fifty resources were just seeded into a store that has held them for
 // weeks. See liveimport.OutcomeSensitivityRecorded.
-var statelessImportOutcomeHeadline = map[string]string{
+var liveImportOutcomeHeadline = map[string]string{
 	"STAMPED":              "stamped",
 	"ALREADY_STAMPED":      "already carried this estate's markers; no write made",
 	"RECORDED":             "record-backed: its value was seeded into the estate's record store, which is where such a resource's identity lives",
@@ -175,23 +175,23 @@ func pluralIdentitySuffix(n int) string {
 	return "ies"
 }
 
-func (v *StatelessImportHuman) Stamped(rep StatelessImportStamped) {
+func (v *LiveImportHuman) Stamped(rep LiveImportStamped) {
 	var b strings.Builder
 
 	b.WriteString("\nApprove: stamping tofu-estate and tofu-address on every eligible resource, and seeding the record store for every record-backed one. This was a cloud write, one tags-only apply per stamped resource.\n\n")
 
-	byOutcome := make(map[string][]StatelessImportOutcome)
+	byOutcome := make(map[string][]LiveImportOutcome)
 	for _, o := range rep.Outcomes {
 		byOutcome[o.Outcome] = append(byOutcome[o.Outcome], o)
 	}
 
-	for _, outcome := range statelessImportOutcomeOrder {
+	for _, outcome := range liveImportOutcomeOrder {
 		outcomes := byOutcome[outcome]
 		if len(outcomes) == 0 {
 			continue
 		}
 		sort.Slice(outcomes, func(i, j int) bool { return outcomes[i].Addr < outcomes[j].Addr })
-		fmt.Fprintf(&b, "%s (%d) - %s:\n", outcome, len(outcomes), statelessImportOutcomeHeadline[outcome])
+		fmt.Fprintf(&b, "%s (%d) - %s:\n", outcome, len(outcomes), liveImportOutcomeHeadline[outcome])
 		for _, o := range outcomes {
 			fmt.Fprintf(&b, "  %-42s %-24s %s\n", o.Addr, o.TypeName, o.Detail)
 		}

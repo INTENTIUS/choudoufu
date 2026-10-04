@@ -103,9 +103,9 @@ func TestLiveClusterFailsABlockThatSetsInsecure(t *testing.T) {
 func TestBeforeApplyRefusesInsecureAndSaysSoWhenWaived(t *testing.T) {
 	ctx := context.Background()
 	findings := insecureClusterFindings(t)
-	runnerOver := func(rs *configs.LiveRecordStore) *statelessRunner {
+	runnerOver := func(rs *configs.LiveRecordStore) *liveRunner {
 		store := &clusterContractCheckingStore{Store: localStoreForTest(t), findings: findings}
-		return &statelessRunner{rawStore: store, recordStoreCfg: rs, recordEstate: "prod"}
+		return &liveRunner{rawStore: store, recordStoreCfg: rs, recordEstate: "prod"}
 	}
 
 	t.Run("not waived refuses by name", func(t *testing.T) {

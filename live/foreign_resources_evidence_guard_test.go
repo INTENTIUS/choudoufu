@@ -18,7 +18,7 @@ import (
 // This file is issue #1158's guard, the third sighting of one pattern: an
 // assertion fails, and its failure branch greps a summary line out of the
 // captured output and prints only that, discarding everything
-// StatelessPlanHuman.Foreign (internal/command/views/live_plan.go) printed
+// LivePlanHuman.Foreign (internal/command/views/live_plan.go) printed
 // beneath it - the itemized list of type, live id, tags and reason. A
 // reader gets "N is not what we wanted" and never "which N".
 //
@@ -102,7 +102,7 @@ func TestNoFailureBranchDiscardsTheForeignResourcesList(t *testing.T) {
 		}
 	}
 	if len(violations) > 0 {
-		t.Errorf("%d failure branch(es) grep a \"Foreign resources:\" summary line out of their own captured plan output and print only that, discarding the itemized list StatelessPlanHuman.Foreign (internal/command/views/live_plan.go) prints beneath it - issue #1158, the same defect PR #1129 and PR #1157 fixed elsewhere. Call live/e2e/lib/gauntlet.sh's gauntlet_print_evidence with the WHOLE captured output instead of grepping it:\n  %s",
+		t.Errorf("%d failure branch(es) grep a \"Foreign resources:\" summary line out of their own captured plan output and print only that, discarding the itemized list LivePlanHuman.Foreign (internal/command/views/live_plan.go) prints beneath it - issue #1158, the same defect PR #1129 and PR #1157 fixed elsewhere. Call live/e2e/lib/gauntlet.sh's gauntlet_print_evidence with the WHOLE captured output instead of grepping it:\n  %s",
 			len(violations), strings.Join(violations, "\n  "))
 	}
 }

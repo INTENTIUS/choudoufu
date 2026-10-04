@@ -196,7 +196,7 @@ func TestLiveImportProviderDataGateIsOfflineAndExact(t *testing.T) {
 		{"live-import-providerdata", false},
 	} {
 		t.Run(tc.fixture, func(t *testing.T) {
-			cfg := statelessTestLoadConfig(t, testFixturePath(tc.fixture))
+			cfg := liveTestLoadConfig(t, testFixturePath(tc.fixture))
 			// No schemas, no providers, no scope - the same bare options
 			// liveImportProviderDataReads passes.
 			got := !dataread.AnalyzeProviderConfigs(t.Context(), cfg, dataread.Options{}).Demands()

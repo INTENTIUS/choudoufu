@@ -28,10 +28,10 @@ func TestLivePlan_countBoundBySlotPlansClean(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan-count"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	statelessSlottedEIP(cloud, "eipalloc-a", "0", "aws_eip.pool:0")
-	statelessSlottedEIP(cloud, "eipalloc-b", "1", "aws_eip.pool:1")
-	statelessSlottedEIP(cloud, "eipalloc-c", "2", "aws_eip.pool:2")
+	cloud := newLiveTestCloud()
+	liveSlottedEIP(cloud, "eipalloc-a", "0", "aws_eip.pool:0")
+	liveSlottedEIP(cloud, "eipalloc-b", "1", "aws_eip.pool:1")
+	liveSlottedEIP(cloud, "eipalloc-c", "2", "aws_eip.pool:2")
 
 	c, done := newLivePlanCommand(t, cloud)
 
@@ -65,10 +65,10 @@ func TestLivePlan_countScaleDownDestroysTheHighestSlot(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan-count"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	statelessSlottedEIP(cloud, "eipalloc-a", "0", "aws_eip.pool:0")
-	statelessSlottedEIP(cloud, "eipalloc-b", "1", "aws_eip.pool:1")
-	statelessSlottedEIP(cloud, "eipalloc-c", "2", "aws_eip.pool:2")
+	cloud := newLiveTestCloud()
+	liveSlottedEIP(cloud, "eipalloc-a", "0", "aws_eip.pool:0")
+	liveSlottedEIP(cloud, "eipalloc-b", "1", "aws_eip.pool:1")
+	liveSlottedEIP(cloud, "eipalloc-c", "2", "aws_eip.pool:2")
 
 	c, done := newLivePlanCommand(t, cloud)
 
@@ -85,7 +85,7 @@ func TestLivePlan_countScaleDownDestroysTheHighestSlot(t *testing.T) {
 
 	// The one destroy is the instance address just past the declared count -
 	// the same place a stock run's shrunken count puts its leftover.
-	changed := statelessChangedResources(stdout)
+	changed := liveChangedResources(stdout)
 	if len(changed) != 1 {
 		t.Fatalf("the plan touches %v, want only aws_eip.pool[2]:\n%s", changed, stdout)
 	}
@@ -112,9 +112,9 @@ func TestLivePlan_countScaleUpMintsSlots(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan-count"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	statelessSlottedEIP(cloud, "eipalloc-a", "0", "aws_eip.pool:0")
-	statelessSlottedEIP(cloud, "eipalloc-b", "3", "aws_eip.pool:1")
+	cloud := newLiveTestCloud()
+	liveSlottedEIP(cloud, "eipalloc-a", "0", "aws_eip.pool:0")
+	liveSlottedEIP(cloud, "eipalloc-b", "3", "aws_eip.pool:1")
 
 	c, done := newLivePlanCommand(t, cloud)
 
@@ -131,12 +131,12 @@ func TestLivePlan_countScaleUpMintsSlots(t *testing.T) {
 	// One past the highest live slot, and upward: never 1 or 2, which are
 	// free only in the sense that nothing live is holding them.
 	for _, want := range []string{"4", "5"} {
-		if !statelessTagIsSet(stdout, "tofu-slot", want) {
+		if !liveTagIsSet(stdout, "tofu-slot", want) {
 			t.Errorf("the plan does not show a create carrying tofu-slot %s:\n%s", want, stdout)
 		}
 	}
 	for _, unwanted := range []string{"1", "2"} {
-		if statelessTagIsSet(stdout, "tofu-slot", unwanted) {
+		if liveTagIsSet(stdout, "tofu-slot", unwanted) {
 			t.Errorf("a minted slot reused the value %s, below the high-water mark:\n%s", unwanted, stdout)
 		}
 	}
@@ -151,9 +151,9 @@ func TestLivePlan_countWithoutSlotsMigrates(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan-count"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
+	cloud := newLiveTestCloud()
 	for i, id := range []string{"eipalloc-a", "eipalloc-b", "eipalloc-c"} {
-		statelessMarkedEIP(cloud, id, fmt.Sprintf("aws_eip.pool:%d", i))
+		liveMarkedEIP(cloud, id, fmt.Sprintf("aws_eip.pool:%d", i))
 	}
 
 	c, done := newLivePlanCommand(t, cloud)
@@ -169,7 +169,7 @@ func TestLivePlan_countWithoutSlotsMigrates(t *testing.T) {
 		t.Errorf("the migration is not three in-place updates:\n%s", stdout)
 	}
 	for i := 0; i < 3; i++ {
-		if !statelessTagIsSet(stdout, "tofu-slot", fmt.Sprintf("%d", i)) {
+		if !liveTagIsSet(stdout, "tofu-slot", fmt.Sprintf("%d", i)) {
 			t.Errorf("instance %d is not proposed the slot its address implies:\n%s", i, stdout)
 		}
 	}
@@ -178,7 +178,7 @@ func TestLivePlan_countWithoutSlotsMigrates(t *testing.T) {
 	if strings.Contains(stdout, "will be created") || strings.Contains(stdout, "will be destroyed") {
 		t.Errorf("the slot migration proposed a create or destroy:\n%s", stdout)
 	}
-	if statelessTagIsRewritten(stdout, "tofu-address") {
+	if liveTagIsRewritten(stdout, "tofu-address") {
 		t.Errorf("the slot migration also rewrote an address:\n%s", stdout)
 	}
 }
@@ -192,9 +192,9 @@ func TestLivePlan_countStaleAddressIsRepaired(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan-count"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	statelessSlottedEIP(cloud, "eipalloc-b", "1", "aws_eip.pool:1")
-	statelessSlottedEIP(cloud, "eipalloc-c", "2", "aws_eip.pool:2")
+	cloud := newLiveTestCloud()
+	liveSlottedEIP(cloud, "eipalloc-b", "1", "aws_eip.pool:1")
+	liveSlottedEIP(cloud, "eipalloc-c", "2", "aws_eip.pool:2")
 
 	c, done := newLivePlanCommand(t, cloud)
 
@@ -215,7 +215,7 @@ func TestLivePlan_countStaleAddressIsRepaired(t *testing.T) {
 	}
 	// The slots themselves do not move: a rebinding is not a renaming of the
 	// set's members.
-	if statelessTagIsRewritten(stdout, "tofu-slot") {
+	if liveTagIsRewritten(stdout, "tofu-slot") {
 		t.Errorf("the repair rewrote a slot, which would rename the set's members:\n%s", stdout)
 	}
 }
@@ -228,10 +228,10 @@ func TestLivePlan_countMixedSlotsIsFatal(t *testing.T) {
 	testCopyDir(t, testFixturePath("live-plan-count"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	statelessSlottedEIP(cloud, "eipalloc-a", "0", "aws_eip.pool:0")
-	statelessMarkedEIP(cloud, "eipalloc-b", "aws_eip.pool:1")
-	statelessMarkedEIP(cloud, "eipalloc-c", "aws_eip.pool:2")
+	cloud := newLiveTestCloud()
+	liveSlottedEIP(cloud, "eipalloc-a", "0", "aws_eip.pool:0")
+	liveMarkedEIP(cloud, "eipalloc-b", "aws_eip.pool:1")
+	liveMarkedEIP(cloud, "eipalloc-c", "aws_eip.pool:2")
 
 	c, done := newLivePlanCommand(t, cloud)
 
@@ -253,56 +253,56 @@ func TestLivePlan_countMixedSlotsIsFatal(t *testing.T) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-// statelessSlottedEIP adds a live EIP that both lists (so discovery can read
+// liveSlottedEIP adds a live EIP that both lists (so discovery can read
 // its markers) and reads back (so the projection can materialize it), carrying
 // all three markers.
-func statelessSlottedEIP(c *statelessTestCloud, id, slot, address string) {
-	statelessEIP(c, id, map[string]string{
+func liveSlottedEIP(c *liveTestCloud, id, slot, address string) {
+	liveEIP(c, id, map[string]string{
 		"tofu-estate":  countEstate,
 		"tofu-address": address,
 		"tofu-slot":    slot,
 	})
 }
 
-// statelessMarkedEIP is the same for a member of a pre-slot estate: estate and
+// liveMarkedEIP is the same for a member of a pre-slot estate: estate and
 // address markers, no slot.
-func statelessMarkedEIP(c *statelessTestCloud, id, address string) {
-	statelessEIP(c, id, map[string]string{
+func liveMarkedEIP(c *liveTestCloud, id, address string) {
+	liveEIP(c, id, map[string]string{
 		"tofu-estate":  countEstate,
 		"tofu-address": address,
 	})
 }
 
-func statelessEIP(c *statelessTestCloud, id string, tags map[string]string) {
+func liveEIP(c *liveTestCloud, id string, tags map[string]string) {
 	attrs := map[string]string{"id": id, "domain": "vpc"}
 	c.put("aws_eip", id, attrs)
 	c.tags["aws_eip/"+id] = tags
 	c.list("aws_eip", id, "", tags, attrs)
 }
 
-var statelessChangeHeader = regexp.MustCompile(`^\s*# (.+ will be .+)$`)
+var liveChangeHeader = regexp.MustCompile(`^\s*# (.+ will be .+)$`)
 
-// statelessTagIsSet reports whether the plan output shows a tag being set to
+// liveTagIsSet reports whether the plan output shows a tag being set to
 // a value, whatever the renderer's alignment padding happens to be.
-func statelessTagIsSet(output, key, value string) bool {
+func liveTagIsSet(output, key, value string) bool {
 	re := regexp.MustCompile(`"` + regexp.QuoteMeta(key) + `"\s*=\s*"` + regexp.QuoteMeta(value) + `"`)
 	return re.MatchString(output)
 }
 
-// statelessTagIsRewritten reports whether a tag appears on a line proposing a
+// liveTagIsRewritten reports whether a tag appears on a line proposing a
 // change from one value to another.
-func statelessTagIsRewritten(output, key string) bool {
+func liveTagIsRewritten(output, key string) bool {
 	re := regexp.MustCompile(`"` + regexp.QuoteMeta(key) + `"\s*=\s*"[^"]*"\s*->`)
 	return re.MatchString(output)
 }
 
-// statelessChangedResources lists the renderer's per-resource headers, which
+// liveChangedResources lists the renderer's per-resource headers, which
 // is how "the plan touches exactly these" is asserted without matching on the
 // whole diff.
-func statelessChangedResources(output string) []string {
+func liveChangedResources(output string) []string {
 	var out []string
 	for _, line := range strings.Split(output, "\n") {
-		if m := statelessChangeHeader.FindStringSubmatch(line); m != nil {
+		if m := liveChangeHeader.FindStringSubmatch(line); m != nil {
 			out = append(out, strings.TrimSpace(m[1]))
 		}
 	}

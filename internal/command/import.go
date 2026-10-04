@@ -71,7 +71,7 @@ func (c ImportCommand) Execute(args *arguments.Import, view views.Import) int {
 	// configuration is refused here, before a backend is prepared and before
 	// anything can reach a state manager. Stateless mode has its own way to
 	// take over an existing resource, and it is named in the diagnostic.
-	if guardDiags := c.statelessCommandGuard(ctx, "import"); len(guardDiags) > 0 {
+	if guardDiags := c.liveCommandGuard(ctx, "import"); len(guardDiags) > 0 {
 		diags = diags.Append(guardDiags)
 		if guardDiags.HasErrors() {
 			view.Diagnostics(diags)

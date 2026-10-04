@@ -12,7 +12,7 @@ import (
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
-// statelessStateGuard refuses one "choudoufu state" subcommand when the
+// liveStateGuard refuses one "choudoufu state" subcommand when the
 // configuration in the working directory has a live block, and is a
 // no-op for every other configuration. Callers invoke it before they load a
 // backend or ask for a state manager, so that a refused command cannot leave
@@ -35,8 +35,8 @@ import (
 // subcommands embed both, and only the outer Meta is filled in when they are
 // constructed, so a StateMeta method would read the working directory out of
 // the empty one.
-func (m *Meta) statelessStateGuard(ctx context.Context, subcommand string) tfdiags.Diagnostics {
-	settings, diags := m.statelessSettings(ctx, false)
+func (m *Meta) liveStateGuard(ctx context.Context, subcommand string) tfdiags.Diagnostics {
+	settings, diags := m.liveSettings(ctx, false)
 	if diags.HasErrors() || settings == nil {
 		return diags
 	}
@@ -51,16 +51,16 @@ func (m *Meta) statelessStateGuard(ctx context.Context, subcommand string) tfdia
 		"Command not available under live resource markers",
 		fmt.Sprintf(
 			"\"choudoufu state %s\" operates on an authoritative state file, and under a live block the state file is only a disposable cache that is never consulted for ownership. %s",
-			subcommand, statelessStateReplacement(subcommand),
+			subcommand, liveStateReplacement(subcommand),
 		),
 	))
 }
 
-// statelessStateReplacement is the sentence that tells the operator what to do
+// liveStateReplacement is the sentence that tells the operator what to do
 // instead, one per subcommand. It lives here rather than at each call site so
 // that the shape of the refusal is written once.
-func statelessStateReplacement(subcommand string) string {
-	if s, ok := statelessStateReplacements[subcommand]; ok {
+func liveStateReplacement(subcommand string) string {
+	if s, ok := liveStateReplacements[subcommand]; ok {
 		return s
 	}
 	// A subcommand added later and not listed here still gets refused, with
@@ -68,7 +68,7 @@ func statelessStateReplacement(subcommand string) string {
 	return "Run \"choudoufu plan\", which reads the live system on every run."
 }
 
-var statelessStateReplacements = map[string]string{
+var liveStateReplacements = map[string]string{
 	"list": "Run \"choudoufu plan\", which builds the projection from the live system and prints what it read and what it could not.",
 	"show": "Run \"choudoufu plan\", which builds the projection from the live system and prints what it read and what it could not.",
 	"mv":   "Run \"choudoufu live-mv OLD NEW\", which rewrites the tofu-address marker on the live resource. That is the whole rename.",

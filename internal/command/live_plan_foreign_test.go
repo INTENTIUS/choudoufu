@@ -21,8 +21,8 @@ import (
 // choudoufuLivePlan activity had no way to ask the question even though the
 // run held the answer.
 func TestLivePlanForeignCarriesTheUnclaimedIntoTheDocument(t *testing.T) {
-	rep := views.StatelessForeign{
-		Items: []views.StatelessForeignItem{
+	rep := views.LiveForeign{
+		Items: []views.LiveForeignItem{
 			{
 				TypeName:    "aws_iam_role",
 				LiveID:      "left-behind",
@@ -32,7 +32,7 @@ func TestLivePlanForeignCarriesTheUnclaimedIntoTheDocument(t *testing.T) {
 			{
 				TypeName: "aws_s3_bucket",
 				LiveID:   "other-estates-bucket",
-				Tags: []views.StatelessTag{
+				Tags: []views.LiveTag{
 					{Key: markers.TagEstate, Value: "platform-prod"},
 					{Key: "Name", Value: "logs"},
 				},
@@ -69,7 +69,7 @@ func TestLivePlanForeignCarriesTheUnclaimedIntoTheDocument(t *testing.T) {
 // types were listed; this one returns nil so the two are distinguishable in
 // the document itself.
 func TestLivePlanForeignDistinguishesNoSweepFromNothingFound(t *testing.T) {
-	if got := livePlanForeign(views.StatelessForeign{}); got != nil {
+	if got := livePlanForeign(views.LiveForeign{}); got != nil {
 		t.Errorf("a run that swept nothing projected %#v, want nil", got)
 	}
 }
@@ -94,7 +94,7 @@ func TestLivePlanForeignIsInTheDocumentJSON(t *testing.T) {
 		}
 	}
 
-	// tofu_estate is omitempty, matching StatelessUnowned's own field, so a
+	// tofu_estate is omitempty, matching LiveUnowned's own field, so a
 	// resource nobody owns does not carry an empty string that reads as an
 	// estate named "".
 	plain, err := json.Marshal(views.LivePlanDocument{

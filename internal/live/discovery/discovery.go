@@ -57,7 +57,7 @@ type Request struct {
 	// CHOUDOUFU_NODE_RESOLVE=1, [projection.NodeResolver]'s own record step
 	// answers it directly, at plan-node time, from the same estate record
 	// this set is built from (see internal/command's
-	// statelessRecordBackedNeedsDiscoveryAddrs). The instance still
+	// liveRecordBackedNeedsDiscoveryAddrs). The instance still
 	// contributes to [declared.declares] - see the first loop in
 	// [declaredInstances] - so it is never misread as an orphan by this or
 	// any other pass; only the wasted binding ATTEMPT is skipped.
@@ -303,7 +303,7 @@ type Request struct {
 	// and the parent-read leg - to the ones whose resource block uses this
 	// provider configuration. It exists for issue #69's multi-provider
 	// sweep ([Merge], run by internal/command/live_plan.go's
-	// statelessDiscover once per distinct provider configuration among an
+	// liveDiscover once per distinct provider configuration among an
 	// estate's managed resources): a pass must never bind a needs-discovery
 	// instance, or read a parent-derived child, through the wrong account.
 	//
@@ -363,7 +363,7 @@ type Request struct {
 	// instead of paying one List call per admitted type on every plan.
 	// Default off in this package: a direct caller of [Discover] that
 	// never sets this gets exactly today's full enumeration, unchanged.
-	// The fork's own commands (internal/command's statelessDiscover) turn
+	// The fork's own commands (internal/command's liveDiscover) turn
 	// it on automatically instead of leaving it at the zero value - see
 	// the policy note in guided.go's file doc comment for exactly when,
 	// and with what defaults.
@@ -435,7 +435,7 @@ type Request struct {
 	// effect as GuidedVerify, but decided from the hint's own age rather
 	// than a caller-tracked cadence. Zero disables it, which leaves
 	// GuidedVerify as the only lever and matches every behavior this field
-	// did not exist to change. See internal/command's statelessDiscover for
+	// did not exist to change. See internal/command's liveDiscover for
 	// the default this fork's own commands set when they turn guided
 	// discovery on automatically - the "drift never hides longer than a
 	// day" half of that policy is this field, not GuidedMaxAge.
@@ -3212,7 +3212,7 @@ const (
 //     configuration ([declared.declares], never [declared.entryFor]): the
 //     two disagree exactly for a companion pair split across
 //     [Request.ScopeProvider] passes (issue #69's multi-provider sweep,
-//     GitHub issue #396), and declares is the one [statelessDiscover]'s own
+//     GitHub issue #396), and declares is the one [liveDiscover]'s own
 //     doc comment already promises callers - "Request.ScopeProvider is what
 //     keeps a pass from *binding* through the wrong account while still
 //     letting it recognize (via declared.declares, built from every
@@ -3855,7 +3855,7 @@ func classifyOrphans(ctx context.Context, req Request, schemas listclient.Schema
 		// thing suppressed is the PROPOSAL.
 		//
 		// The bound, stated because it is a divergence from stock and not a
-		// small one. [statelessTargetScope] builds the scope from the
+		// small one. [liveTargetScope] builds the scope from the
 		// configuration's own plan graph over an EMPTY state, so it can only
 		// answer for blocks the configuration still has. An orphan whose
 		// block is gone from configuration entirely is therefore never in
