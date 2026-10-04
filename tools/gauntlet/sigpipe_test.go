@@ -42,8 +42,6 @@ var grepQ = regexp.MustCompile(`(?:^|[^|])\|\s*grep((?:\s+-[A-Za-z]+)+)`)
 var sigpipeCeiling = map[string]int{
 	// fixed by its own PR (#1899); listed so this guard does not race it
 	"live/e2e/corpus-cloud-platform-components/run.sh": 10,
-	// #1895 fixed its cold deploy; the crash-recovery reads were out of scope
-	"live/e2e/reference-k8s-platform-app/run.sh": 2,
 	// floci/AWS estates, not on the kind substrate this sweep covered
 	"live/e2e/corpus-autoscaling-complete/run.sh":    1,
 	"live/e2e/corpus-ec2-instance-complete/run.sh":   1,
