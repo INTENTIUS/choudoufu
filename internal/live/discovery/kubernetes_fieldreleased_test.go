@@ -5,7 +5,13 @@
 
 package discovery
 
-import "testing"
+import (
+	"context"
+	"reflect"
+	"testing"
+
+	"github.com/intentius/choudoufu/internal/live/identity"
+)
 
 // TestReleasedFieldGranularWriteIsNoOrphan is corpus-govuk-cluster-
 // services' day2_replace (#1885): after day2_remove released the
@@ -47,5 +53,46 @@ func TestReleasedFieldGranularWriteIsNoOrphan(t *testing.T) {
 		case c.want != "" && (len(got) != 1 || got[0].t.TypeName != c.want):
 			t.Errorf("%s: matched %v, want exactly %s", c.name, got, c.want)
 		}
+	}
+}
+
+// TestFieldGranularSweepNamesUnheldDeclaredInstances (#1885): a declared
+// field-granular instance whose object's kind the sweep listed, and on
+// which the estate's manager owns no field of the instance's type -
+// released (only the empty container left) or never written - is named in
+// Result.FieldGranularUnheld, so the projection plans its create without a
+// read. One the manager holds is not, and neither is one whose kind was
+// not listed.
+func TestFieldGranularSweepNamesUnheldDeclaredInstances(t *testing.T) {
+	s, kinds := fieldSweepFixture()
+	s.managed["ConfigMap"] = append(s.managed["ConfigMap"],
+		managedObj("v1", "ConfigMap", "ns", "released", `{"f:metadata":{"f:labels":{}}}`))
+	s.managed["Deployment"] = append(s.managed["Deployment"],
+		managedObj("apps/v1", "Deployment", "ns", "gone-env", `{"f:spec":{"f:template":{"f:spec":{"f:containers":{"k:{\"name\":\"web\"}":{".":{},"f:name":{},"f:env":{}}}}}}}`))
+	leg := KubernetesSweep{Client: s, FieldGranular: testFieldGranularTypes}
+	held := k8sInstance(t, "kubernetes_labels", "held")
+	released := k8sInstance(t, "kubernetes_labels", "released")
+	never := k8sInstance(t, "kubernetes_labels", "never")
+	goneEnv := k8sInstance(t, "kubernetes_env", "goneenv")
+	heldEnv := k8sInstance(t, "kubernetes_env", "heldenv")
+	unlisted := k8sInstance(t, "kubernetes_labels", "unlisted")
+	req := Request{
+		Estate: "e",
+		Resolutions: []identity.Resolution{
+			{Addr: held, Class: identity.ClassConcrete, ImportID: "apiVersion=v1,kind=ConfigMap,namespace=ns,name=labelled"},
+			{Addr: released, Class: identity.ClassConcrete, ImportID: "apiVersion=v1,kind=ConfigMap,namespace=ns,name=released"},
+			{Addr: never, Class: identity.ClassConcrete, ImportID: "apiVersion=v1,kind=ConfigMap,namespace=ns,name=absent"},
+			{Addr: goneEnv, Class: identity.ClassConcrete, ImportID: "apiVersion=apps/v1,kind=Deployment,namespace=ns,name=gone-env"},
+			{Addr: heldEnv, Class: identity.ClassConcrete, ImportID: "apiVersion=apps/v1,kind=Deployment,namespace=ns,name=web"},
+			{Addr: unlisted, Class: identity.ClassConcrete, ImportID: "apiVersion=v1,kind=Namespace,name=ns"},
+		},
+	}
+	res := &Result{}
+	if diags := leg.sweepFieldGranular(context.Background(), req, kinds, res); diags.HasErrors() {
+		t.Fatal(diags.Err())
+	}
+	want := map[string]bool{released.String(): true, never.String(): true, goneEnv.String(): true}
+	if !reflect.DeepEqual(res.FieldGranularUnheld, want) {
+		t.Errorf("FieldGranularUnheld = %v, want %v", res.FieldGranularUnheld, want)
 	}
 }

@@ -96,10 +96,15 @@ func liveOwnershipWith(estate string, disco *discovery.Result, pol *policy.Polic
 			verified[k] = true
 		}
 	}
+	var unheld map[string]bool
+	if disco != nil {
+		unheld = disco.FieldGranularUnheld
+	}
 	return &projection.Ownership{
-		Estate:   estate,
-		Verified: verified,
-		Policy:   pol,
+		Estate:              estate,
+		Verified:            verified,
+		Policy:              pol,
+		FieldGranularUnheld: unheld,
 	}
 }
 

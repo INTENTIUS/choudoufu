@@ -31,6 +31,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/noimporter"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/live/strict"
+	"github.com/intentius/choudoufu/internal/logging"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
@@ -2340,6 +2341,8 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		manifestKeys: newManifestKeyLookup(schema, addr, providerAddr, b.opts.ManifestOwnedKeys, b.manifestDeclaredKeysFor(ctx, addr, schema)).withOpenPaths(manifestOpen),
 
 		fieldGranularDeclared: fieldGranularDeclared,
+
+		unheld: b.opts.Ownership != nil && !w.undeclared && fieldGranularOwned("", schema) && b.opts.Ownership.FieldGranularUnheld[addr.String()],
 	}
 }
 
@@ -4068,6 +4071,36 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 	return readImported(ctx, provider, schema, typeName, importID, obj, attrsSeed, configMarks, manifestKeys, diags)
 }
 
+// providerCrashedSummary is the summary the plugin client gives a call
+// the provider process never answered (internal/plugin6's grpc_error.go):
+// in practice, a panic in the provider.
+const providerCrashedSummary = "Plugin did not respond"
+
+// readFailedDetail is the detail of "Cannot read for projection". When the
+// provider process died during the read, it says so plainly, and carries
+// the provider's panic output when the plugin logger recorded one (#1885:
+// hashicorp/kubernetes' kubernetes_env Read panicked, and the plan showed
+// only "Plugin did not respond" for that read and every one after it).
+func readFailedDetail(typeName, importID string, readDiags tfdiags.Diagnostics, panics []string) string {
+	detail := fmt.Sprintf("The provider failed while refreshing the %s imported with identity %q.", typeName, importID)
+	crashed := false
+	for _, d := range readDiags {
+		if d.Severity() == tfdiags.Error && d.Description().Summary == providerCrashedSummary {
+			crashed = true
+		}
+	}
+	if !crashed {
+		return detail
+	}
+	detail = fmt.Sprintf("The provider crashed while reading the %s imported with identity %q: its process stopped answering, which is a bug in the provider (most often a panic). Every read on the same provider after this one fails the same way, so the reads reported after it name no further fault of their own.", typeName, importID)
+	if len(panics) > 0 {
+		detail += "\n\n" + strings.Join(panics, "\n")
+	} else {
+		detail += " The provider's panic output, when it wrote one, is in the log (TF_LOG=debug)."
+	}
+	return detail
+}
+
 // readImported is [importAndRead]'s shared tail: ReadResource against obj,
 // the stub either ImportResourceState produced or
 // [noimporter.SynthesizeStub] built in its place, then everything a
@@ -4141,10 +4174,7 @@ func readImported(ctx context.Context, provider providers.Interface, schema prov
 		diags = diags.Append(readResp.Diagnostics.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Cannot read for projection",
-			fmt.Sprintf(
-				"The provider failed while refreshing the %s imported with identity %q.",
-				typeName, importID,
-			),
+			readFailedDetail(typeName, importID, readResp.Diagnostics, logging.PluginPanics()),
 		)))
 		return nil, cty.NilVal, statusFailed, diags
 	}

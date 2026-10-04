@@ -327,6 +327,13 @@ type Result struct {
 	// Estate is the estate name that was searched for.
 	Estate string
 
+	// FieldGranularUnheld is the declared field-granular instances, by
+	// address, whose object the field-manager sweep listed and on which
+	// this estate's manager owns no field of the instance's type (#1885).
+	// The projection treats each as absent without a provider read. An
+	// address the sweep could not answer for is not in it.
+	FieldGranularUnheld map[string]bool
+
 	Verdicts
 	Report
 

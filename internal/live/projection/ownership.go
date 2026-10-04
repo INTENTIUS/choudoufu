@@ -54,6 +54,12 @@ type Ownership struct {
 	// same fact from the same tags would only be a way to get it wrong twice.
 	Verified map[string]bool
 
+	// FieldGranularUnheld names the declared field-granular instances on
+	// whose object the estate's field manager owns no field of the type
+	// (#1885, discovery's Result.FieldGranularUnheld). Each is absent: the
+	// plan proposes its create and the provider is never asked to read it.
+	FieldGranularUnheld map[string]bool
+
 	// Policy is GitHub issue #67's resolved ownership policy. Nil is today's
 	// fixed behavior: a declared+tagged instance converges and a declared+
 	// untagged one is refused, exactly as [checkOwnership] read them before
