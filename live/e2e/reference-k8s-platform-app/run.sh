@@ -723,7 +723,7 @@ else
     [ "$NET_BEFORE" = "$NET_AFTER" ] || fail "app's two plans changed something in $REC_NET: before [$NET_BEFORE] after [$NET_AFTER]"
     ONE="$(kcp auth can-i list secrets -n "$REC_NET" 2>&1 || true)"
     [ "$ONE" = "no" ] || fail "app-planner may list secrets in $REC_NET ($ONE); the grant is wider than get by name"
-    gauntlet_stage test_plan pass "both plans with no state file are empty as the cluster admin (network 5 objects, app 9, every identity NAMESPACE/NAME found by its label). app's plan under app-planner - view cluster-wide, every verb on its own records in $REC_APP, nothing in $REC_NET - refused with \"This estate may not read another estate's outputs\" naming estate $NET and $REC_NET (exit $D_RC); with one Role granting get on network's $(grep -c . <<< "$OUT_SECRETS") output Secret(s) by name, and still no list there, the same plan is empty and says the values are as of network's last apply. Nothing in $REC_NET changed across either plan (names and resourceVersions). BREAK_READ=1 grants the read first and the refusal correctly does not appear"
+    gauntlet_stage test_plan pass "both plans with no state file are empty as the cluster admin (network 5 objects, app 9). app's plan under app-planner - view cluster-wide, every verb on its own records in $REC_APP, nothing in $REC_NET - refused with \"This estate may not read another estate's outputs\" naming estate $NET and $REC_NET (exit $D_RC); with one Role granting get on network's $(grep -c . <<< "$OUT_SECRETS") output Secret(s) by name, and still no list there, the same plan is empty and says the values are as of network's last apply. Nothing in $REC_NET changed across either plan (names and resourceVersions). BREAK_READ=1 grants the read first and the refusal correctly does not appear"
   fi
 fi
 [ "$(count_net)" = "5" ] && [ "$(count_app)" = "9" ] || fail "after adoption network carries $(count_net) labels (want 5), app $(count_app) (want 9)"
@@ -1088,7 +1088,7 @@ kubectl --kubeconfig "$KCA" config view --raw --minify -o jsonpath='{.users[0].u
 for f in upstream-ca.crt upstream-client.crt upstream-client.key; do [ -s "$PROXY_DIR/$f" ] || fail "cluster A's kubeconfig yielded no $f for the request counter"; done
 openssl req -x509 -newkey rsa:2048 -nodes -keyout "$PROXY_DIR/proxy.key" -out "$PROXY_DIR/proxy.crt" -days 1 \
   -subj /CN=gauntlet-proxy -addext subjectAltName=IP:127.0.0.1 >/dev/null 2>&1 || fail "openssl could not write the counter's certificate"
-python3 "$ROOT/live/smoke/k8sproxy.py" "$SERVER" "$PROXY_DIR" 2>"$PROXY_DIR/proxy.err" &
+python3 "$ROOT/live/smoke/k8sproxy.py" "$SERVER" "$PROXY_DIR" >"$PROXY_DIR/proxy.out" 2>"$PROXY_DIR/proxy.err" &
 PROXY_PID=$!
 for _ in $(seq 1 50); do [ -s "$PROXY_DIR/proxy.port" ] && break; sleep 0.1; done
 [ -s "$PROXY_DIR/proxy.port" ] || fail "the request counter never started: $(cat "$PROXY_DIR/proxy.err")"
