@@ -541,13 +541,23 @@ EOF
 # removed at the end, so every later count is what it was.
 #
 # The caller supplies fail, log, kca, TOFU, TOFU_CRASH, KCA and ESTATE, and
-# reads CRASH_RENAME_DETAIL into its own day2_crash verdict. BREAK_CRASH=1 is the
+# reads CRASH_RENAME_DETAIL into its own day2_crash verdict. The records are
+# read from <records-dir>, the optional third argument, which defaults to
+# the local store at <adopted-root>/.tofu-records. An estate whose records
+# live elsewhere (record_store "kubernetes", reference-k8s-platform-app)
+# names a directory and sets GAUNTLET_RECORDS_REFRESH to a function that
+# rewrites that directory from the store before each read; it is called
+# with the directory as its one argument. BREAK_CRASH=1 is the
 # stage's Break line for this window too: after each interrupt it asserts
 # nothing is proposed, which must fail, and then recovers as the real check
 # does so the stage's own multi-object window starts from a converged estate.
 CRASH_RENAME_DETAIL=""
 gauntlet_kind_day2_crash_rename() {
-  local adopted="$1" ns="$2" leg block old new path x_out x_rc rec dep r_plan r_line r_apply replan legs_detail=""
+  local adopted="$1" ns="$2" records="${3:-$1/.tofu-records}" leg block old new path x_out x_rc rec dep r_plan r_line r_apply replan legs_detail=""
+  _crash_rename_record() { # $1 the address: the path of its record file
+    if [ -n "${GAUNTLET_RECORDS_REFRESH:-}" ]; then "$GAUNTLET_RECORDS_REFRESH" "$records" || return 1; fi
+    gauntlet_record_file "$records" "$1"
+  }
   _crash_rename_chdf() { ( cd "$adopted" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" "$@" ); }
   _crash_rename_tf() { # $1 leg, $2 the name's suffix
     case "$1" in
@@ -619,7 +629,7 @@ PY
     fi
     [ "$(_crash_rename_ann "$old")" = "$block" ] && [ "$(_crash_rename_ann "$new")" = "$block" ] \
       || fail "$leg leg: after the interrupt $old carries '$(_crash_rename_ann "$old")' and $new carries '$(_crash_rename_ann "$new")'; the window is both objects carrying $block"
-    rec="$(gauntlet_record_file "$adopted/.tofu-records" "$block")" || fail "$leg leg: the interrupted apply left no record for $block"
+    rec="$(_crash_rename_record "$block")" || fail "$leg leg: the interrupted apply left no record for $block"
     dep="$(_crash_rename_deposed "$rec" | tr '\n' ' ' | sed 's/ $//')"
     [ "$dep" = "$ns/$old" ] || fail "$leg leg: the record's deposed entries for $block are [${dep:-none}], want [$ns/$old]: the interrupted apply's write-back did not record the old object as deposed"
 
@@ -642,7 +652,7 @@ PY
     [ "$(_crash_rename_ann "$new")" = "$block" ] || fail "$leg leg: $new is not there carrying $block after the recovery apply ('$(_crash_rename_ann "$new")')"
     [ "$(kca get configmap -n "$ns" -l "tofu-estate=$ESTATE" -o name 2>/dev/null | grep -cE "^configmap/${old%a}[ab]\$")" = "1" ] \
       || fail "$leg leg: not exactly one of $old and $new carries tofu-estate=$ESTATE after the recovery: $(kca get configmap -n "$ns" -l "tofu-estate=$ESTATE" -o name 2>/dev/null | grep -E "^configmap/${old%a}" | tr '\n' ' ')"
-    rec="$(gauntlet_record_file "$adopted/.tofu-records" "$block")" || fail "$leg leg: the record for $block is gone after the recovery"
+    rec="$(_crash_rename_record "$block")" || fail "$leg leg: the record for $block is gone after the recovery"
     dep="$(_crash_rename_deposed "$rec" | tr '\n' ' ' | sed 's/ $//')"
     [ -z "$dep" ] || fail "$leg leg: the record still holds deposed [$dep] for $block after the recovery apply destroyed it"
     replan="$(_crash_rename_chdf "$TOFU" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$replan" | tail -20; fail "$leg leg: the replan after the recovery failed"; }

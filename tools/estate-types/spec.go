@@ -267,6 +267,12 @@ var estateSpecs = []estateSpec{
 		Note:       `The "kubernetes" lane's workload-breadth estate (#1884, epic #1885): no external source, a hand-written shape kept in this repository and crossed on a kind cluster. run.sh's resource_block() heredoc carries the whole estate: kubernetes_namespace_v1 (two), kubernetes_service_account_v1, kubernetes_role_v1, kubernetes_role_binding_v1, kubernetes_config_map_v1 (web-config and a two-instance count set), kubernetes_persistent_volume_claim_v1 (declared directly), kubernetes_horizontal_pod_autoscaler_v2, kubernetes_deployment_v1, kubernetes_service_v1, kubernetes_ingress_v1, kubernetes_network_policy_v1, kubernetes_daemon_set_v1, kubernetes_limit_range_v1, kubernetes_resource_quota_v1, kubernetes_job_v1, kubernetes_cron_job_v1, and the deprecated aliases kubernetes_daemonset, kubernetes_role and kubernetes_network_policy - no module, no AWS provider, no kubernetes_storage_class. Its crash_pair() heredoc adds day2_crash's kubernetes_secret_v1 and kubernetes_config_map_v1 pair, and its strict_block() heredoc (the strict-stage scratch estate) adds random_password, outside the estate itself. day2_replace's and day2_crash's create_before_destroy kubernetes_config_map blocks are live/e2e/lib/gauntlet.sh's and not scanned, as for the other kind estates.`,
 	},
 	{
+		Name:       "reference-k8s-platform-app",
+		ConfigDirs: nil,
+		ScanScript: true,
+		Note:       `The "kubernetes" lane's two-estate pair (#1883, epic #1885): no external source, a hand-written shape kept in this repository and crossed on a kind cluster. run.sh's write_net() heredoc is network's estate (kubernetes_namespace, kubernetes_network_policy, kubernetes_service, kubernetes_config_map) and its write_app() heredoc is app's (kubernetes_namespace, kubernetes_config_map, kubernetes_service, kubernetes_deployment, kubernetes_horizontal_pod_autoscaler_v2, kubernetes_service_account), with handoff_block()'s kubernetes_manifest in app until day2_crash moves it to network - no module, no AWS provider. crash_pair_tf() adds kubernetes_secret and a second kubernetes_config_map for day2_crash's own duration; live/e2e/lib/gauntlet.sh's day2_replace and crash-rename blocks are kubernetes_config_map too. Nine kubernetes types in all; its strict_block() heredoc (the strict-stage scratch estate) adds random_password, outside them.`,
+	},
+	{
 		Name:       "reference-k8s-shared-objects",
 		ConfigDirs: nil,
 		ScanScript: true,
