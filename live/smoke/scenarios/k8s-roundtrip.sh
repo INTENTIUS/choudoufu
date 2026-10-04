@@ -1,12 +1,15 @@
 # k8s-roundtrip
-# CLAIM 6 (kubernetes) - One command in, one file out. ~3 min.
+# CLAIM 6 (kubernetes) - One command in, one file out. ~2 min.
 #
 # This proof: an estate stock Terraform stood up on a real cluster is adopted
 # with one live-import, runs with its state file deleted, and is handed back
 # as the cache, which stock Terraform plans, converges and destroys.
 #
-# DRAFT: written and never run (live/smoke/drafts/README.md). Claim 6's
-# Kubernetes cell stays open until both arms have run green.
+# First run 2026-10-04, both arms green on kind (Kubernetes v1.37.0). The first
+# normal arm failed on the scenario, not the product: the check that every
+# changed line of stock's exit plan is the label or the annotation read the
+# plan's symbol legend ("~ update in-place") as a changed line. It now reads
+# only the diff, and refuses a diff with no tofu-estate line in it.
 #
 # The oracle here is stock Terraform on PATH, the binary k8s-smoke.yml
 # installs at live/oracle-versions.json's terraform_version, as every other
@@ -156,7 +159,12 @@ grep -qE 'Plan: 0 to add, [0-9]+ to change, 0 to destroy|No changes.' <<< "$POUT
   || fail "k8s-roundtrip" "the exit plan proposes more than removing the markers: $POUT"
 if ! grep -q "No changes." <<< "$POUT"; then
   # Every changed line in the diff must be the label or the annotation.
-  OTHER="$(grep -E '^ +[-+~] ' <<< "$POUT" | grep -vE 'tofu-estate|tofu-address|^ +[-+~] (resource|metadata|labels|annotations)( |$)' || true)"
+  # Only the diff is read: the symbol legend above it ("~ update in-place")
+  # has the shape of a changed line and is not one.
+  DIFF="$(sed -n '/will perform the following actions:/,$p' <<< "$POUT")"
+  grep -q 'tofu-estate' <<< "$DIFF" \
+    || fail "k8s-roundtrip" "the exit plan changes something, but no diff removing tofu-estate was found in it, so the check below would read nothing: $POUT"
+  OTHER="$(grep -E '^ +[-+~] ' <<< "$DIFF" | grep -vE 'tofu-estate|tofu-address|^ +[-+~] (resource|metadata|labels|annotations)( |$)' || true)"
   [ -z "$OTHER" ] || fail "k8s-roundtrip" "the exit plan changes something other than the label and the annotation: $OTHER"
   SA="$(cd "$STOCK" && terraform apply -auto-approve -input=false -no-color 2>&1)" \
     || fail "k8s-roundtrip" "the marker-removal apply failed: $SA"

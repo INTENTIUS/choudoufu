@@ -25,8 +25,7 @@ Promoting a draft after its first green run, both arms:
    (`live/k8s_ci_test.go` requires it for a `k8s-*` scenario).
 4. Add a `## On Kubernetes` section with the command to the claim's page
    under `live/smoke/claims/`.
-5. These drafts are named `k8s-<claim slug>`. The naming rule in
-   `TestSmokeClaimsMatchScenarios` accepts the slug, the slug without its
-   readability prefix, or a retired claim's slug, and the bare slug is
-   already the AWS proof's file. So the first promotion also has to extend
-   that rule to accept a readability prefix plus the slug.
+5. These drafts are named `k8s-<claim slug>`, because the bare slug is
+   already the AWS proof's file. `TestSmokeClaimsMatchScenarios` accepts a
+   readability prefix put on the slug since the first promotions
+   (2026-10-04), so this step needs nothing more.

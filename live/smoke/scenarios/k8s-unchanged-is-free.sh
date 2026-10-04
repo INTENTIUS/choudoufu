@@ -1,20 +1,21 @@
 # k8s-unchanged-is-free
-# CLAIM 9 (kubernetes) - Unchanged is free. ~3 min.
+# CLAIM 9 (kubernetes) - Unchanged is free. ~2 min.
 #
 # This proof: re-planning an unchanged Kubernetes estate with -refresh=false
 # serves the objects the sweep vouched for from the cache and skips their
 # reads, measured on the wire; reads = "full" (CHOUDOUFU_READS=full) turns
 # that off and pays every read; and the two plans print the same answer.
 #
-# DRAFT: written and never run (live/smoke/drafts/README.md). Its first
-# run is the measurement that settles it. The cache hit needs a vouch
+# First run 2026-10-04, both arms green on kind (Kubernetes v1.37.0): the
+# unchanged plan sent 65 requests against reads = "full"'s 74.
+# The cache hit needs a vouch
 # (projection.cacheHit: Ownership.Verified, fed by discovery's
 # Result.MarkerVerified, or a record envelope). Until #1860 the Kubernetes
 # sweep joined an object declared by its kind and natural key and recorded
 # no vouch for it, so step 2 could not pass; since #1860 it files the
 # declaring instance in Result.VerifiedDeclared
-# (internal/live/discovery/kubernetes.go, vouchesDeclared), and step 2 is
-# expected to pass. If it reports zero hits, read vouchesDeclared's
+# (internal/live/discovery/kubernetes.go, vouchesDeclared). If step 2 ever
+# reports zero hits, read vouchesDeclared's
 # withheld cases first: an object annotated for another block, a
 # terminating one, one two blocks declare, or one whose block uses another
 # provider configuration is deliberately read rather than served.

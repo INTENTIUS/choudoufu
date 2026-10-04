@@ -78,3 +78,21 @@ the one statement the flag adds. The tag-conditioned half, that the grant
 opens network's outputs and nothing else of network, is claim 28's
 (one-bucket-many-estates), on real
 AWS.
+
+## On Kubernetes
+
+### k8s-an-estate-reads-another-by-declaring-it
+
+    just smoke k8s-an-estate-reads-another-by-declaring-it
+    BREAK=1 just smoke k8s-an-estate-reads-another-by-declaring-it
+
+Needs `kind` and `kubectl`. On Kubernetes the declaration is the reader's
+`record_store` block: `reads_outputs_of "network" {}` opens network's
+records namespace through a store that can only get. With nothing
+declared, the read is refused before it is sent, under an identity RBAC
+would have let through. Declared, and with a Role granting one `get` on
+network's output Secret, the consumer plans with the value, says how old
+it is, and changes nothing of network's; after network's destroy deletes
+that output, the consumer is told so by name. `BREAK=1` declares the read
+and withholds the Role, and the plan must refuse, naming the estate, its
+namespace and the Role to grant.

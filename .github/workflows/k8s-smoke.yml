@@ -3,7 +3,11 @@
 # k8s-the-label-is-the-boundary, the Kubernetes proofs of claims 7, 1 and
 # 13; 24 k8s-custom-resource, 25 k8s-a-held-delete-is-not-gone, 26
 # k8s-the-server-gets-the-last-word, 27 k8s-a-label-is-a-change, 39
-# k8s-records-in-the-cluster, 46 k8s-a-deleted-namespace-is-gone)
+# k8s-records-in-the-cluster, 46 k8s-a-deleted-namespace-is-gone; and,
+# since their first runs on 2026-10-04, 3 k8s-staleness-costs-reads, 5
+# k8s-recovery-is-a-rerun, 6 k8s-roundtrip, 8 k8s-stock-when-you-need-it, 9
+# k8s-unchanged-is-free, 14 k8s-plan-cost-tracks-the-estate and 44
+# k8s-an-estate-reads-another-by-declaring-it)
 # runs against a kind cluster that
 # live/smoke/lib.sh's cluster_up creates per run, each followed by its
 # BREAK=1 control, so a regression in the label carrier, the sweep, the
@@ -179,6 +183,13 @@ jobs:
           - k8s-a-label-is-a-change
           - k8s-records-in-the-cluster
           - k8s-a-deleted-namespace-is-gone
+          - k8s-staleness-costs-reads
+          - k8s-recovery-is-a-rerun
+          - k8s-roundtrip
+          - k8s-stock-when-you-need-it
+          - k8s-unchanged-is-free
+          - k8s-plan-cost-tracks-the-estate
+          - k8s-an-estate-reads-another-by-declaring-it
     steps:
       - uses: actions/checkout@v7
         with:
@@ -188,10 +199,13 @@ jobs:
           go-version-file: go.mod
       - name: Read the pinned stock oracle version (issue #544)
         id: oracle
-        run: echo "terraform=$(jq -r .terraform_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "terraform=$(jq -r .terraform_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
+          echo "tofu=$(jq -r .tofu_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
       - uses: hashicorp/setup-terraform@v3
         with:
-          # The stock oracle, for the three scenarios that need it: claim
+          # Stock Terraform, for the scenarios that need it: claim 6's
+          # k8s-roundtrip, which hands the cache back to it, and claim
           # 24's migration of a custom resource stock created and recorded
           # in a state file this fork did not write (#1109), claim 45's
           # step 2, which measures what stock proposes for a one-label edit
@@ -202,6 +216,16 @@ jobs:
           # scenarios never call it.
           terraform_version: ${{ steps.oracle.outputs.terraform }}
           terraform_wrapper: false
+      - uses: opentofu/setup-opentofu@v2
+        with:
+          # Stock OpenTofu, the release this fork is built on, for claim 8's
+          # k8s-stock-when-you-need-it: its plan text and request count must
+          # equal stock's, and it refuses any tofu but the pinned
+          # tofu_version. Terraform was its oracle until its first run, where
+          # the two differed only by a warning Terraform prints and OpenTofu
+          # has no diagnostic for.
+          tofu_version: ${{ steps.oracle.outputs.tofu }}
+          tofu_wrapper: false
       - name: Docker and the AWS CLI, which claim 45's step 9 needs
         run: |
           docker info > /dev/null

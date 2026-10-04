@@ -1,5 +1,5 @@
 # k8s-an-estate-reads-another-by-declaring-it
-# CLAIM 44 (kubernetes) - Reading another estate is declared. ~4 min.
+# CLAIM 44 (kubernetes) - Reading another estate is declared. ~1 min.
 #
 # This proof: on record_store "kubernetes", an estate reads another estate's
 # outputs only by declaring the read in its record_store block
@@ -9,8 +9,7 @@
 # and says how old it is, and writes nothing to the producer's namespace; a
 # destroyed producer's values are gone.
 #
-# DRAFT: written and never run (live/smoke/drafts/README.md). Claim 44's
-# Kubernetes cell stays open until both arms have run green. The behaviour it
+# First run 2026-10-04, both arms green on kind (Kubernetes v1.37.0). The behaviour it
 # proves is internal/live/projection/estateoutputs_kubernetes.go, whose unit
 # tests (estateoutputs_kubernetes_test.go) are the same claim against a fake
 # API server; this is the real one, with real RBAC answering.

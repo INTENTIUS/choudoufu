@@ -49,3 +49,19 @@ The `BREAK=1` run plans the choudoufu leg with the live block on. The
 asked-for machinery must show up in the measurement - a live plan that
 measured identical to stock would mean the parity comparison compares
 nothing.
+
+## On Kubernetes
+
+### k8s-stock-when-you-need-it
+
+    just smoke k8s-stock-when-you-need-it
+    BREAK=1 just smoke k8s-stock-when-you-need-it
+
+Needs `kind`, `kubectl` and stock OpenTofu at `live/oracle-versions.json`'s
+`tofu_version` (`tofu` on PATH, or `ORACLE_TOFU=<binary>`; any other
+version is refused). With no live block, choudoufu and stock OpenTofu
+plan the same state-backed estate through `live/smoke/k8sproxy.py`, which
+logs one line per request the client sent. The plan texts match once each
+tool's name is taken out, and the request counts are equal (8 each on the
+first run). `BREAK=1` turns the live block on for choudoufu's leg, and the
+measurement must move. Foreign objects and a plan's cost are claim 14's.

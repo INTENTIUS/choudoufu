@@ -34,3 +34,19 @@ growth comes from. Needs Go. `BREAK=1` asks the account-wide question
 plan. #1817 folded `plan-cost-tracks-the-estate.sh`, the same steps
 against eight hand-written log groups, into this one; the measured tables
 are in [what a plan costs](https://intentius.io/choudoufu/docs/model/plan-cost/).
+
+## On Kubernetes
+
+### k8s-plan-cost-tracks-the-estate
+
+    just smoke k8s-plan-cost-tracks-the-estate
+    BREAK=1 just smoke k8s-plan-cost-tracks-the-estate
+
+Needs `kind` and `kubectl`. One plan's requests are counted through
+`live/smoke/k8sproxy.py`, which sees this client's requests and not the
+controllers'. Adding 80 ConfigMaps, marked for another estate or not
+marked at all, leaves the count where it was (74 for a four-object estate
+on the first run), and no ConfigMap list goes out without the estate's
+label selector. `BREAK=1` gives 40 of them this estate's label, and the
+count must rise. There is no cross-kind label-filtered list, so a plan's
+floor is one label-selected list per kind the cluster serves.
