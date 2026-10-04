@@ -109,6 +109,14 @@
       "reason": "a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised"
     },
     {
+      "name": "corpus-govuk-cluster-access",
+      "source": "alphagov/govuk-infrastructure terraform/deployments/cluster-access (commit c02504fa4abb439234669e9ea9b662bdb35209e9, MIT), GOV.UK's platform team's own cluster access root: three Namespaces, then module \"access-entry\" called eight times, each a ClusterRole with dynamic rule blocks and its ClusterRoleBinding, plus a Role and RoleBinding per namespace through for_each for four of them - 31 objects, the kubernetes lane's first typed RBAC beyond one binding and its first module fan-out; the EKS access entries are dropped on kind",
+      "url": "https://github.com/alphagov/govuk-infrastructure.git",
+      "pin": "c02504fa4abb439234669e9ea9b662bdb35209e9",
+      "lane": "kubernetes",
+      "set": "growing"
+    },
+    {
       "name": "corpus-hongbomiao-harbor",
       "source": "hongbo-miao/hongbomiao.com, a third disjoint slice: environments/production/aws/kubernetes/main.tofu's self-contained Harbor section (commit 3f69ab9c37211e163bbd4434bad39780b6d4b92b, same pin as corpus-hongbomiao-labelbox and corpus-hongbomiao-storage)",
       "url": "https://github.com/hongbo-miao/hongbomiao.com.git",
