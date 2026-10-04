@@ -348,7 +348,7 @@ fi
 # ══════════════════════════════════════════════════════════════════════
 # Not built yet for this estate.
 # ══════════════════════════════════════════════════════════════════════
-for s in drift_reconverge day2_rename day2_remove day2_count day2_replace day2_crash day2_teardown plan_approval strict; do
+for s in drift_reconverge day2_rename day2_remove day2_count day2_replace day2_crash day2_teardown plan_approval strict no_local_state; do
   gauntlet_stage "$s" not_run "not built for reference-eks yet: #1113 shipped cold_deploy, migrate, test_plan, test_apply and greenfield, the stages that measure the provider block against the cluster it creates; the day-2 stages are the estate's next unit"
 done
 
