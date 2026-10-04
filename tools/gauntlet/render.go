@@ -759,7 +759,7 @@ type emulatorGroup struct {
 // always last regardless of its count so a board-wide sentence names the
 // largest real agreement first.
 //
-// A kind-substrate row (r.Substrate != "", the kubernetes lane, #1067) is
+// A kind-substrate row (!RunsOnFloci(r.Substrate), the kubernetes lane, #1067) is
 // excluded entirely, the same way a.Sets already excludes it (Rebuild,
 // artifact.go): such a row never launches floci, so its last_run.emulator
 // is never stamped (#1594) and would otherwise inflate the "" bucket with

@@ -268,7 +268,7 @@ func TestCombineShardsAggregatesEqualASerialRun(t *testing.T) {
 	// And the headline cannot contradict its own rows.
 	clear := 0
 	for _, r := range got.Estates {
-		if r.Clear && r.Substrate == "" && r.Set == SetCore {
+		if r.Clear && RunsOnFloci(r.Substrate) && r.Set == SetCore {
 			clear++
 		}
 	}
