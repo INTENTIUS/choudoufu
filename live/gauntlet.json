@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
+  "emulator": "ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144",
   "oracle": {
     "terraform": "1.16.1",
     "tofu": "1.13.0"
@@ -240,8 +240,8 @@
       "label": "All estates",
       "estates": 28,
       "clear": 27,
-      "verified": 27,
-      "carried": 0,
+      "verified": 0,
+      "carried": 27,
       "stages": {
         "cold_deploy": {
           "pass": 27,
@@ -324,8 +324,8 @@
       "label": "Core estates",
       "estates": 26,
       "clear": 26,
-      "verified": 26,
-      "carried": 0,
+      "verified": 0,
+      "carried": 26,
       "stages": {
         "cold_deploy": {
           "pass": 26,
@@ -494,8 +494,8 @@
       "label": "opentofu-native lane",
       "estates": 9,
       "clear": 9,
-      "verified": 9,
-      "carried": 0,
+      "verified": 0,
+      "carried": 9,
       "stages": {
         "cold_deploy": {
           "pass": 9,
@@ -578,8 +578,8 @@
       "label": "published-deployment lane",
       "estates": 1,
       "clear": 1,
-      "verified": 1,
-      "carried": 0,
+      "verified": 0,
+      "carried": 1,
       "stages": {
         "cold_deploy": {
           "pass": 1,
@@ -662,8 +662,8 @@
       "label": "reference lane",
       "estates": 3,
       "clear": 2,
-      "verified": 2,
-      "carried": 0,
+      "verified": 0,
+      "carried": 2,
       "stages": {
         "cold_deploy": {
           "pass": 2,
@@ -746,8 +746,8 @@
       "label": "terraform-popular lane",
       "estates": 15,
       "clear": 15,
-      "verified": 15,
-      "carried": 0,
+      "verified": 0,
+      "carried": 15,
       "stages": {
         "cold_deploy": {
           "pass": 15,

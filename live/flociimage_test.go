@@ -70,6 +70,25 @@ var flociImageFields = map[string]string{
 // decision that says what re-measuring would cost; empty is the intended
 // state.
 //
+// 2026-10-03 repin (issue #1821, lex00/floci#218): sha256:ff46eb8d (tag
+// iam-atomic-create-1821) is the previous pin's source commit (b6b731f) plus
+// one commit, 39d9c7c, which makes every name-keyed IAM create (CreateRole,
+// CreateUser, CreateGroup, CreatePolicy, CreateInstanceProfile,
+// CreateServiceLinkedRole, and the UpdateUser/UpdateGroup rename) an atomic
+// check-and-insert. On the old pin two concurrent CreateRole calls for one
+// name both answered 200; AWS answers the second 409 EntityAlreadyExists,
+// and claims-smoke's nightly caught the difference. The fix changes which
+// concurrent creates succeed and which error a loser gets, and no response
+// shape. live/floci-capabilities.json was re-probed for the digest
+// (-mode=all with -watch networkmanager, then -mode=tagging on a fresh
+// container, then the three hand rows by hand) and no row moves status.
+// substrates.json was regenerated, the large-set records were re-measured
+// at N=5 against the new pin, and `go run ./tools/gauntlet render` carried
+// gauntlet.json's emulator field across (the board's rows now read as
+// carried, not verified, until the next board run). cohort-acceptance.json
+// gains an entry below: re-measuring it is the 31-cohort sweep, not
+// something this repin was ruled to re-run.
+//
 // 2026-09-22 repin (issue #1316, lex00/floci#215, main-line PR
 // lex00/floci#214): sha256:6c3d5c2d is the previous pin's source commit
 // (dba6617) plus one commit. The Resource Groups Tagging API's
@@ -168,11 +187,12 @@ var staleFlociMeasurements = map[string]string{
 	// own run time (single-digit minutes per N, but it is a call-count
 	// ratchet unrelated to EC2 subnet allocation - this fix touches no path
 	// bench-estate's synthetic fixture exercises).
-	"plan-budget.json": "measured against the pre-#672 pin, now six repins back; re-measuring costs a full `make bench-estate` run at N=200 and N=1000, and no fix since (EC2 CreateSubnet CIDR-conflict rejection, then the ELBv2 concurrent-RegisterTargets monitor, then the ELBv2 CreateRule priority monitor) touches a call this benchmark's synthetic fixture makes",
+	"plan-budget.json": "measured against the pre-#672 pin, now seven repins back; re-measuring costs a full `make bench-estate` run at N=200 and N=1000, and no fix since (EC2 CreateSubnet CIDR-conflict rejection, then the ELBv2 concurrent-RegisterTargets monitor, then the ELBv2 CreateRule priority monitor) touches a call this benchmark's synthetic fixture makes",
 	// TestCohortAcceptance (internal/live/acceptance) applies, deletes the
 	// state of, and replans all 31 estate-gen cohorts under
 	// live/e2e/estates/ against a live floci container; re-measuring costs
 	// that whole sweep, not the one estate this repin's ruling named.
+	"cohort-acceptance.json": "measured against the #1316 pin, one repin back; re-measuring costs TestCohortAcceptance's whole 31-cohort apply/delete-state/replan sweep; #1821's fix only changes which of two racing same-name IAM creates wins and what the loser is told, and no response shape",
 	// gauntlet-scale.json's top-level emulator field is NOT rewritten by
 	// `gauntlet render` the way gauntlet.json's is - render leaves the
 	// scale ladder's committed bytes alone (tools/gauntlet/render.go's own
@@ -188,7 +208,7 @@ var staleFlociMeasurements = map[string]string{
 	// index_wait for TARGET=floci entirely (see its own skip message and
 	// live/indexwait_partition_test.go for that decision, re-made on this
 	// repin).
-	"gauntlet-scale.json": "measured against the pre-#1152 pin, now two repins back; re-measuring costs three full terralith-scale floci crossings at SCALE 1, 128 and 136 plus four real-AWS ones. #1152 changed only which IAM ARNs GetResources returns, a call the floci arm of that ladder does not make because index_wait is skipped for TARGET=floci; #1316 makes a Tagging API write on a Route 53 zone reach Route 53's own tags, which the floci arm's steady-state plans of its zone do read, so its floci records predate that fix",
+	"gauntlet-scale.json": "measured against the pre-#1152 pin, now three repins back; re-measuring costs three full terralith-scale floci crossings at SCALE 1, 128 and 136 plus four real-AWS ones. #1152 changed only which IAM ARNs GetResources returns, a call the floci arm of that ladder does not make because index_wait is skipped for TARGET=floci; #1316 makes a Tagging API write on a Route 53 zone reach Route 53's own tags, which the floci arm's steady-state plans of its zone do read, so its floci records predate that fix",
 	// cohort-triage.json is hand triage reconciled against
 	// cohort-acceptance.json's own re-measurement (its own generated_by
 	// field says so); it cannot be re-measured independently of that file.
