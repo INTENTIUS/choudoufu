@@ -130,6 +130,18 @@ type Source struct {
 	// [SummaryCrossStackStateUnavailable].
 	RemoteState bool
 
+	// EstateOutputs marks a terraform_estate_outputs source (GitHub issues
+	// #1371 and #1575): another estate's recorded root outputs, read through
+	// the builtin terraform provider from this run's own record store. It
+	// goes through the same eligibility pipeline a same-stack source does -
+	// its estate and names arguments must be statically evaluable - and is
+	// exempt from the provider boundary for the reason the other two
+	// cross-stack flavors are (see [Source.crossStack]). A missing grant, an
+	// unrecorded output, or a store this run could not open refuses at read
+	// time in the record store's own words: [reader.callRead] passes the
+	// provider's diagnostics through rather than rewording them.
+	EstateOutputs bool
+
 	// Eligible reports that the phase can read this source before the plan:
 	// static arguments and count/for_each, a statically configurable
 	// provider, and no managed-resource dependency.
@@ -192,13 +204,53 @@ type SourceDep struct {
 
 func (d SourceDep) key() string { return sourceKey(d.Module, d.Resource) }
 
-// crossStack reports that this source is one of the two separately-ruled
-// cross-stack read classes, #179's stages 2 and 3. Both are read through a
-// provider no estate manages objects through, and both are nonetheless
-// deliberate remote, read-only classes of this phase - see
+// crossStack reports that this source is one of the separately-ruled
+// cross-stack read classes: #179's stages 2 and 3 (tfe_outputs,
+// terraform_remote_state) and #1575's terraform_estate_outputs. Each is read
+// through a provider no estate manages objects through, and each is
+// nonetheless a deliberate remote, read-only class of this phase - see
 // [ReadableProviders] for why [LiveProviders]' boundary does not apply to
 // them.
-func (s *Source) crossStack() bool { return s != nil && (s.TfeOutputs || s.RemoteState) }
+func (s *Source) crossStack() bool {
+	return s != nil && (s.TfeOutputs || s.RemoteState || s.EstateOutputs)
+}
+
+// boundaryExempt reports whether the provider boundary exempts this source
+// for a demand class: scoped selects the scoped classes (root outputs,
+// provider configuration), false the identity class.
+//
+// tfe_outputs and terraform_remote_state are exempt in every class.
+// terraform_estate_outputs is exempt for identity only, which is all GitHub
+// issue #1575 asked for. A scoped read would put a value in front of the
+// plan that the plan already has a better answer for: a root output's prior
+// value is this estate's OWN recorded output
+// (internal/live/projection's ReadRootOutputValues), and re-deriving it from
+// another estate's current record would show "no changes" for an output this
+// estate has never applied - the prior must be what this estate recorded,
+// not what the other estate holds now.
+func (s *Source) boundaryExempt(scoped bool) bool {
+	if s == nil {
+		return false
+	}
+	if s.EstateOutputs && scoped {
+		return false
+	}
+	return s.crossStack()
+}
+
+// EstateOutputsTypeName is the builtin terraform provider's cross-estate
+// output reader, internal/builtin/providers/tf's EstateOutputsTypeName. It is
+// repeated rather than imported because that package pulls in every state
+// backend; TestEstateOutputsTypeNameMatchesTheProvider holds the two
+// equal.
+const EstateOutputsTypeName = "terraform_estate_outputs"
+
+// isEstateOutputsType reports whether typeName is the
+// terraform_estate_outputs data source's. The type name alone is not enough: a module could bind the name to
+// a provider of its own, and only the builtin terraform provider's source
+// reads the record store. That check is the caller's (see
+// [analyzer.classify]), because it needs the declaring module.
+func isEstateOutputsType(typeName string) bool { return typeName == EstateOutputsTypeName }
 
 // Analysis is [Analyze]'s result: every demanded data source, classified,
 // with the readable ones in an order that reads dependencies first.
@@ -790,6 +842,15 @@ func (an *analyzer) classify(module addrs.Module, res addrs.Resource, neededBy s
 		// same-stack source does, below - credentials assumed present per
 		// the ruling [Source.TfeOutputs] documents.
 		src.TfeOutputs = true
+	}
+	if isEstateOutputsType(res.Type) && node.Module.ProviderForLocalConfig(rc.ProviderConfigAddr()) == addrs.NewBuiltInProvider("terraform") {
+		// GitHub issue #1575: terraform_estate_outputs goes through the same
+		// eligibility pipeline, below, and is read from this run's record
+		// store by the builtin provider. Only the builtin provider's source
+		// is marked: the exemption [Source.crossStack] grants is about what
+		// this source reads, which a same-named type under some other
+		// provider would not share.
+		src.EstateOutputs = true
 	}
 
 	an.visiting[key] = true

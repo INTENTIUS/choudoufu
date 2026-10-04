@@ -3079,7 +3079,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Data source provider manages no live object here
 
-**What.** A data source the phase must read belongs to a provider this configuration manages no live object through, so a pre-plan read of it would not be one more read of an API the projection already reads - and a provider reached only through its data sources may run a program on the machine running the plan (data "external"). For a source an identity needs, this refuses the run. For a source only a root output's value reaches, the read is skipped and the output shows its planned value as new; nothing else in the run is affected.
+**What.** A data source the phase must read belongs to a provider this configuration manages no live object through, so a pre-plan read of it would not be one more read of an API the projection already reads - and a provider reached only through its data sources may run a program on the machine running the plan (data "external"). For a source an identity needs, this refuses the run. For a source only a root output's value reaches, the read is skipped and the output shows its planned value as new; nothing else in the run is affected. The cross-stack sources - tfe_outputs, terraform_remote_state and, for a source an identity needs, terraform_estate_outputs - are exempt: each reads another stack's recorded outputs and carries its own read-time refusals. A root output's prior value comes from this estate's own record, never from another estate's.
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
