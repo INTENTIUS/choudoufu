@@ -17,8 +17,8 @@ import (
 // #54). This replaces TestContractEnumerationMatchesAdmissionTable's
 // two-way string scan: the doc is now generated rather than hand-edited,
 // so the test only has to prove the committed bytes are what the generator
-// would write, the same drift pattern TestSurveyMDRenderedSpans and
-// TestLimitationsMDResidueRosterSpans already apply to their docs. No
+// would write, the same drift pattern TestLimitationsMDResidueRosterSpans
+// already applies to its doc. No
 // provider and no network, so it is not gated.
 func TestContractMDXRenderedSpans(t *testing.T) {
 	root, err := repoRoot()

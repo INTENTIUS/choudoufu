@@ -51,7 +51,8 @@ const notImportableReason = "tools/survey-gen's ImportResourceState probe found 
 	"migrate calls it, regardless of what the resource identity schema or taggability otherwise promise (issue #331)"
 
 // notImportableExempt is the one hand-written input this file's derivation
-// carries, the same shape tools/survey-gen/classify.go's opsExcluded is: a
+// carries, the same shape tools/survey-gen/classify.go's opsExcluded was
+// before #696 retired it: a
 // ruling that genuinely cannot be derived from the importable signal alone,
 // recorded here with its own evidence rather than folded into the rule.
 //

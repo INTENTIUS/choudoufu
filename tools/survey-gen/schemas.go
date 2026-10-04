@@ -41,7 +41,7 @@ import (
 // then go-plugin launches the executable init unpacked. Going in-process
 // rather than shelling out to `providers schema -json` is deliberate - the
 // JSON dump carries resource schemas and resource_identity_schemas but no
-// list-resource section (SURVEY.md's 2026-08-12 re-run notes exactly that
+// list-resource section (the 2026-08-12 survey re-run noted exactly that
 // gap), while the GetProviderSchema response carries all three.
 //
 // The schema read itself needs no configuration, no cloud and no

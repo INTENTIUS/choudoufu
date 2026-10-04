@@ -10,11 +10,11 @@
 # for.
 #
 # aws_acm_certificate_validation is the type left standing. It is one of
-# live/SURVEY.md's curated top types (TestLimitationsDocAgainstSurvey
+# live/survey.json's curated top types (TestLimitationsDocAgainstSurvey
 # requires the example to stay in that roster), it is unadmitted, and it is
-# not on the markerless roster - it is a waiter rather than a resource, out
-# by the ops ruling recorded in tools/survey-gen's opsExcluded, and no
-# ratification batch retires it.
+# not on the markerless roster. It was once out by an ops ruling ("a waiter
+# rather than a resource"); the maintainer withdrew that on 2026-08-17, so it
+# is ordinary admission debt that no ratification batch has reached yet.
 
 resource "aws_acm_certificate_validation" "web" {
   certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/example"

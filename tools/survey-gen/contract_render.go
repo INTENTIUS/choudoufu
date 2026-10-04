@@ -8,8 +8,8 @@
 // roster used to be hand-updated every wiring batch (37 -> 42 in the Lambda
 // pilot); this file renders both from identity.AdmittedTypes, the same
 // compiled admission table TestContractMDXRenderedSpans holds them to, no
-// provider and no network - the same render/drift pattern SURVEY.md's and
-// LIMITATIONS.md's spans already use.
+// provider and no network - the same render/drift pattern LIMITATIONS.md's
+// spans already use.
 //
 // The spans lived in website/docs/language/live-markers.mdx until issue #79
 // moved the docs site to hand-written pages under site/content/ and #112
@@ -172,8 +172,7 @@ func readJSON(root, rel string, v any) error {
 	return nil
 }
 
-// renderContractCount is the admission table's size, the same figure
-// SURVEY.md's status-vocabulary span quotes (render.go's renderWiredCount).
+// renderContractCount is the admission table's size.
 func renderContractCount() string {
 	return fmt.Sprintf("%d", len(identity.AdmittedTypes()))
 }

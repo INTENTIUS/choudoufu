@@ -65,8 +65,9 @@ resource "aws_subnet" "app" {
 ```
 
 Where a type's data source offers no tag filter, an ARN-identity type, or
-one whose list schema has no filter argument (`live/SURVEY.md` and
-`live/LIMITATIONS.md`'s "Emulator-blocked"/registry sections name several),
+one whose list schema has no filter argument (`live/survey-full.json`'s
+signals and `live/LIMITATIONS.md`'s "Emulator-blocked"/registry sections
+name several),
 fall back to whatever client-assigned identity that type's data source does
 expose: a name, a bucket, an ARN built from a name the consumer already
 knows. Either way the consumer reads the producer's live resource

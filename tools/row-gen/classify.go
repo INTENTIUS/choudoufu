@@ -22,8 +22,10 @@ const (
 	// bucketClientNamed: a single create-only, non-read-only primary
 	// identifier, and the TF argument that supplies it is known with
 	// confidence (identity schema or carve seed). A pastable TypeIdentity
-	// row.
-	bucketClientNamed bucket = "client-named"
+	// row. Its value is "config-named" rather than survey-gen's retired
+	// "client-named" path token (#696): this is row-gen's own proposal
+	// bucket, a different concept that only shared the spelling.
+	bucketClientNamed bucket = "config-named"
 	// bucketNeedsHandSeparator: primaryIdentifier has more than one part.
 	// The character that joins them is in no schema; never pastable. This
 	// is the #39 trap aws_route lands in.

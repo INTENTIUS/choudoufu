@@ -30,7 +30,8 @@ import (
 // Nor does derivability say a type belongs in the live-mode subset. An
 // aws_iam_access_key is derivable in the weaker sense that a live read
 // could name it, and is excluded from the subset anyway, because the
-// secret half is unreadable after create (see live/SURVEY.md). Identity
+// secret half is unreadable after create (the hand exclusion the retired
+// live/SURVEY.md recorded; #696). Identity
 // recoverability and subset membership are different questions.
 //
 // This paragraph named aws_acm_certificate_validation until 2026-08-17,

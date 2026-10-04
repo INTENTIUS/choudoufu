@@ -72,9 +72,10 @@ const (
 	// cfnRosterRel is the CFN-side roster: issue #42's registry artifact.
 	cfnRosterRel = "live/registry.json"
 
-	// curatedMDRel is the hand-curated 68-type table the pin test measures
-	// against; mapping-gen itself only reads its type-name column.
-	curatedMDRel = "live/SURVEY.md"
+	// curatedRosterRel is the hand-curated 68-type roster the pin test
+	// measures against (tools/survey-gen's own input since #696 retired
+	// live/SURVEY.md, which carried it as a table).
+	curatedRosterRel = "tools/survey-gen/roster.txt"
 
 	// overlayJSONRel is the curated overlay this tool joins the two rosters
 	// against: aliases the name heuristic cannot derive, folds (TF

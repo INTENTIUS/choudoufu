@@ -8,8 +8,8 @@
 // with counts and one-sentence reasons, so that "not covered" is a named,
 // printable set rather than an implied one (#40's closing commitment).
 //
-// Seven spans, one per cohort, each rendered the same way SURVEY.md's own
-// spans are: from committed data, byte-for-byte, with no provider and no
+// Seven spans, one per cohort, each rendered the same way every survey-gen
+// span is: from committed data, byte-for-byte, with no provider and no
 // network. Two cohorts (deprecated services, registry-laggard live
 // services) and one roster (emulator-blocked) carry hand judgment residue.go
 // documents in its own comments; this file only formats what residue.go
@@ -38,8 +38,8 @@ const limitationsMDRel = "live/LIMITATIONS.md"
 
 // The seven residue-roster spans, one per exclusion cohort. Each lives in
 // live/LIMITATIONS.md between a `<!-- survey-gen:begin NAME -->` line and a
-// `<!-- survey-gen:end NAME -->` line, the same marker convention
-// SURVEY.md's spans use (see render.go's spanMarkers).
+// `<!-- survey-gen:end NAME -->` line, the marker convention every
+// survey-gen span uses (see render.go's spanMarkers).
 const (
 	spanResidueDeprecated   = "residue-deprecated"
 	spanResidueCFNOnly      = "residue-cfn-only"

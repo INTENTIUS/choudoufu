@@ -30,8 +30,8 @@
 //
 // # What is NOT recoverable from a committed artifact
 //
-// live/marker_identity_split_test.go's own surveyPathByType comment states
-// the fact this generator has to live with: "live/rowgen-buckets.json
+// live/marker_identity_split_test.go's own contradiction ledger states the
+// fact this generator has to live with: "live/rowgen-buckets.json
 // carries only counts, not per-type membership, so which of the two legs
 // fired cannot be read off a committed artifact and needs a row-gen run to
 // settle." That file only wrote it about one contradiction; it is true of
@@ -45,15 +45,17 @@
 // a `go run ./tools/row-gen` process.
 //
 // What it does instead, documented here because the ruling leaves this
-// representational choice to this issue: it reads live/survey-full.json's
-// own per-type Path column (SURVEY.md's five-token taxonomy, computed from
-// the provider's raw schema alone, independent of row-gen's richer,
-// doc-scraped classifier) to assign a DESTINED tier to an unratified type -
-// "marker" is destined tier A, the four client-suppliable paths are
-// destined tier B, and the two untaggable, non-client-suppliable paths
-// ("moves to Ops", "enumerable, unbindable") are destined tier C, the same
-// shape HANDOFF.md's "696 of 1699 types can be held only by a record" line
-// already names. Within that destined-C population, tools/row-gen/rejected.json's
+// representational choice to this issue: it reads two of
+// live/survey-full.json's per-type provider signals - signals.taggable and
+// admission, both computed from the provider's raw schemas alone,
+// independent of row-gen's richer, doc-scraped classifier - to assign a
+// DESTINED tier to an unratified type: taggable is destined tier A, an
+// untaggable type whose identity the schemas prove its declaration supplies
+// (admission "schema") is destined tier B, and every other untaggable type
+// is destined tier C, the same shape HANDOFF.md's "696 of 1699 types can be
+// held only by a record" line already names. (Until #696 this read
+// survey-gen's seven-token "path" column instead; see [destinedTier] for
+// why the two inputs give the same tiers.) Within that destined-C population, tools/row-gen/rejected.json's
 // free-text reason - when the type has one - is read for row-gen's own
 // slice vocabulary ("needs hand separator", "no Import section at all", "no
 // worked example") to choose between needs-separator, needs-evidence and
@@ -263,8 +265,13 @@ type Facts struct {
 	// signal.
 	Taggable bool `json:"taggable"`
 
-	// SurveyPath is live/survey-full.json's per-type Path column.
-	SurveyPath string `json:"survey_path"`
+	// Admission is live/survey-full.json's per-type admission column:
+	// "schema" when the provider's schemas alone prove the configuration
+	// names the resource (identity.Derivable), "needs-config-signal" when
+	// they leave it to whether a configuration sets the identity
+	// attributes, empty when neither. Tier B's defining signal for a type
+	// no ratified row covers yet.
+	Admission string `json:"admission,omitempty"`
 
 	// Admitted is whether the type is in identity.DefaultTable today - a
 	// ratification batch's row exists, so binding it works right now.
@@ -324,9 +331,9 @@ type Facts struct {
 // surveyType is the subset of live/survey-full.json's per-type row this
 // generator reads.
 type surveyType struct {
-	Type    string `json:"type"`
-	Path    string `json:"path"`
-	Signals struct {
+	Type      string `json:"type"`
+	Admission string `json:"admission"`
+	Signals   struct {
 		Taggable bool `json:"taggable"`
 	} `json:"signals"`
 }
@@ -607,13 +614,13 @@ func buildKubernetesSubstrate(tierD map[string]bool) (Substrate, error) {
 //  3. A markerless type (identity.MarkerlessTypes) is tier C,
 //     pending-mechanism, unless the located-route approximation says it
 //     already works.
-//  4. Everything else is destined-tiered from live/survey-full.json's Path
-//     column and statused from tools/row-gen/rejected.json's free text
+//  4. Everything else is destined-tiered from live/survey-full.json's
+//     taggable and admission signals and statused from tools/row-gen/rejected.json's free text
 //     (or pending-ratification, the default) - see the package doc comment.
 func classify(st surveyType, m mappingRow, hasRejected bool, re rejectedEntry, tierD map[string]bool) Row {
 	facts := Facts{
 		Taggable:          st.Signals.Taggable,
-		SurveyPath:        st.Path,
+		Admission:         st.Admission,
 		NotImportable:     identity.NotImportable(st.Type),
 		TierD:             tierD[st.Type],
 		Rejected:          hasRejected,
@@ -649,7 +656,7 @@ func classify(st surveyType, m mappingRow, hasRejected bool, re rejectedEntry, t
 		return Row{Type: st.Type, Tier: TierRecordCarried, Status: StatusPendingMechanism, Facts: facts}
 	}
 
-	tier := destinedTier(st.Signals.Taggable, st.Path)
+	tier := destinedTier(st.Signals.Taggable, st.Admission)
 	status := StatusPendingRatification
 	if hasRejected {
 		status = classifyRejectedReason(re.Reason)
@@ -657,20 +664,11 @@ func classify(st surveyType, m mappingRow, hasRejected bool, re rejectedEntry, t
 	return Row{Type: st.Type, Tier: tier, Status: status, Facts: facts}
 }
 
-// The seven survey Path tokens live/survey-full.json's own classifier
-// produces - see tools/survey-gen/classify.go's pathClientNamed and
-// neighboring consts, which this generator does not import (a tools/*-gen
-// binary importing another one's package is not this repository's shape;
-// the tokens are stable, published vocabulary, SURVEY.md's own contract).
-const (
-	surveyPathMarker               = "marker"
-	surveyPathClientNamed          = "client-named"
-	surveyPathParentDerived        = "parent-derived"
-	surveyPathAccountDerived       = "account-derived"
-	surveyPathUniqueName           = "unique-name"
-	surveyPathEnumerableUnbindable = "enumerable, unbindable"
-	surveyPathOps                  = "moves to Ops"
-)
+// admissionSchema is live/survey-full.json's admission value for a type
+// whose identity the provider's schemas alone prove its declaration
+// supplies - identity.AdmitSchema, read from the artifact rather than
+// imported so this generator's input stays the committed file.
+const admissionSchema = "schema"
 
 // destinedTier assigns a not-yet-admitted, not-markerless, not-tier-D
 // type's destined tier.
@@ -680,52 +678,39 @@ const (
 // type: the schema carries a settable top-level tags argument", and
 // signals.taggable is computed "by the same predicate
 // internal/live/markers.Taggable applies at run time" (the ruling's own tier C
-// mechanism note, about the same field). This is deliberately NOT the same
-// question as "does live/survey-full.json's Path column say marker": that
-// column's own classifier checks client-named evidence before taggability
-// (tools/survey-gen/classify.go's priority order), so 61 of the 1699 types
-// are taggable and ALSO schema-provably client-named, and Path picks the
-// stronger admission-table shape (client-named) for them - which is a fact
-// about which ROW a ratification batch would paste, not a fact about
-// whether the tag recovers the object when everything else is gone, which
-// is what this tier is about. A type in that overlap keeps the taggable
-// population's own guarantee (marker-sweep recovery needs no record and no
-// surviving configuration) on top of whatever its declaration also
-// supplies, so it is tier A here even where Path says otherwise.
+// mechanism note, about the same field). A taggable type whose declaration
+// ALSO supplies its identity keeps the taggable population's own guarantee
+// (marker-sweep recovery needs no record and no surviving configuration) on
+// top of whatever its declaration supplies, so it is tier A.
 //
-// For an untaggable type, Path is reliable: survey-gen's classifier only
-// reaches the four client-suppliable paths (client-named, parent-derived,
-// account-derived, unique-name) for a type it can prove resolves from
-// configuration alone, and it never assigns them to a taggable type either
-// (they are the paths checked BEFORE marker, so a taggable type reaching
-// them is exactly the overlap above). An untaggable type outside those four
-// is destined tier C by elimination - the same "moves to Ops" / "enumerable,
-// unbindable" population HANDOFF.md's "696 of 1699 types can be held only
-// by a record" line names.
-func destinedTier(taggable bool, path string) string {
+// An untaggable type is tier B when its declaration carries its identity,
+// and tier C otherwise. For a type this function sees, "its declaration
+// carries its identity" is exactly admission == "schema". Until #696 this
+// read survey-gen's path column, whose four declaration-carried tokens were
+// client-named, parent-derived, account-derived and unique-name, and the
+// two inputs agree on every type this function is reached for:
+//
+//   - client-named and parent-derived were both assigned from
+//     identity.Derivable, which is what admission "schema" records (the
+//     path split them only by whether an identity attribute names another
+//     managed type, which is not a tier question);
+//   - account-derived and unique-name were read off identity.DefaultTable's
+//     entry for the type, and [classify] returns before this function for
+//     every type DefaultTable carries, so neither can reach here;
+//   - the one hand Ops exclusion the path applied before identity.Derivable
+//     (aws_iam_access_key) is markerless, and [classify] returns before
+//     this function for those too.
+//
+// The regenerated live/readiness.json moved no tier when the input changed,
+// which is the measurement behind that argument.
+func destinedTier(taggable bool, admission string) string {
 	if taggable {
 		return TierMarkerCarried
 	}
-	switch path {
-	case surveyPathClientNamed, surveyPathParentDerived, surveyPathAccountDerived, surveyPathUniqueName:
+	if admission == admissionSchema {
 		return TierDeclarationCarried
-	case surveyPathEnumerableUnbindable, surveyPathOps, surveyPathMarker:
-		// surveyPathMarker cannot occur here (that path implies taggable),
-		// listed only so the switch is exhaustive over every token this
-		// package's consts name rather than silently falling to default for
-		// one of them.
-		return TierRecordCarried
-	default:
-		// A path token live/survey-full.json has not produced against any
-		// pin this generator was built against. Recording it as
-		// declaration-carried would be a silent guess; the fallback is the
-		// untaggable, no-clean-identity tier - the safer of the four to be
-		// wrong in, since it never claims a stronger recovery path than the
-		// type might have. TestDestinedTierCoversEverySurveyPath pins the
-		// token set so a new one is caught in CI rather than silently
-		// defaulted here.
-		return TierRecordCarried
 	}
+	return TierRecordCarried
 }
 
 // classifyRejectedReason is the best-effort text classifier over

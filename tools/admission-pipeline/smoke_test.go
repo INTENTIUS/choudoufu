@@ -49,7 +49,7 @@ func TestSmokeDetect_RealEndpoints(t *testing.T) {
 
 // TestSmokeRegenerateAndVerify runs the full REGENERATE chain (every
 // *-gen tool as a subprocess) against the real checkout, then VERIFY. It
-// mutates live/*.json and live/SURVEY.md in place - the same files a real
+// mutates live/*.json and the docs survey-gen -render writes in place - the same files a real
 // pipeline run would - so it only makes sense against a disposable
 // checkout; guarded by smokeEnv for exactly that reason, on top of the
 // network and multi-minute runtime.
@@ -59,7 +59,7 @@ func TestSmokeRegenerateAndVerify(t *testing.T) {
 	if dirty, err := gitDirty(root); err != nil {
 		t.Fatalf("gitDirty: %v", err)
 	} else if dirty {
-		t.Fatal("refusing to run TestSmokeRegenerateAndVerify against a dirty working tree - it writes live/*.json and live/SURVEY.md in place")
+		t.Fatal("refusing to run TestSmokeRegenerateAndVerify against a dirty working tree - it writes live/*.json and rendered docs in place")
 	}
 
 	regen, err := Regenerate(root, false, io.Discard)

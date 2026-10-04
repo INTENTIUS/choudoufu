@@ -776,8 +776,8 @@ v0 admission table.
 
 **Why bounded.** "The admission rule". A type participates only if its
 identity is recoverable from the live system with no memory, by one of the
-four admission paths (`live/SURVEY.md`, 67 of 68 top types admitted; the
-one out is the excluded-by-rule set below), and the tables that record
+routes the readiness tiers name (`live/readiness.json`, tiers A to C; tier
+D is the excluded-by-design set), and the tables that record
 admission
 (`internal/live/identity`'s `table_generated.go`, which lint, the sweep
 and identity resolution all read; lint derives its list from it at load
@@ -796,9 +796,10 @@ ruling, so no ratification batch would ever retire it. The maintainer
 withdrew that ruling: the resource gates whether the certificate is usable,
 so an estate does care about it, and "waiter" was a statement about what
 the resource means rather than about what can name it. Classified from its
-own schema it is parent-derived (`live/survey.json`), because the
-provider's identity schema for it requires exactly `certificate_arn`, a
-required argument pointing at the taggable, admitted `aws_acm_certificate`.
+own schema its identity is supplied by its declaration (`admission:
+"schema"` in `live/survey.json`), because the provider's identity schema
+for it requires exactly `certificate_arn`, a required argument pointing at
+the taggable, admitted `aws_acm_certificate`.
 So this example is admission debt like the rest of the entry, and a future
 ratification batch is expected to retire it.
 
@@ -814,7 +815,8 @@ now has a refusal of its own wherever the reason is derivable: see
 vetoes, `aws_iam_access_key` among them. What is left under this heading is
 one surveyed top type nobody has ratified a row for yet -
 `aws_acm_certificate_validation`, whose hand exclusion was withdrawn on
-2026-08-17 and which the survey now classes parent-derived.
+2026-08-17 and whose identity the provider's schemas show its own
+declaration supplies.
 `aws_iam_access_key`'s own forwarding is unchanged
 by the move: it becomes a lifecycle-layer Op writing to the secret store,
 referenced by ARN or pointer, never by value, the same forwarding
@@ -826,10 +828,12 @@ maintainer withdrew the exclusion: the ownership marker goes into a tag,
 never into the secret, so the credential rationale never applied to it. It
 is ordinary admission debt now, refused like every other untaggable type
 whose identity carries a server-minted component (#233).
-`live/SURVEY.md`, "The one the rule excludes", has the full account.
+The full account was in `live/SURVEY.md`'s "The one the rule excludes",
+retired under #696 (git history keeps it).
 
-**Forwarding address.** For types not yet covered: the provider survey
-(`live/SURVEY.md`) and the generated admission table, which grows as
+**Forwarding address.** For types not yet covered: the readiness tiers
+(`live/readiness.json`, which says per type what recovers its identity and
+what stands between it and admission) and the generated admission table, which grows as
 ratified identity rows are added. Note that provider resource identity
 schemas are already plumbed and load-bearing (issue #22): `admitted()`
 consults the provider's own schema, and the configuration's naming signal,
@@ -841,8 +845,8 @@ schema fallback runs only when the caller supplied provider schemas
 admission when every block of the type sets its identity argument
 explicitly. A `*_prefix` argument used in place of the name itself is the
 usual reason a type lands here. For the one
-type the rule excludes: the lifecycle layer, per its entry in
-`live/SURVEY.md`.
+type the rule excludes: the lifecycle layer, tier D in
+`live/readiness.json`.
 
 **Enforcement.** `RuleUnadmittedType`, `internal/live/lint/lint.go`
 (`checkManagedResources`). Fixture at `live/e2e/limits/unadmitted-type/`.
@@ -892,9 +896,9 @@ type in that shape.
 **Forwarding address.** None for the type as written. Where the same cloud
 object can be expressed by a taggable parent resource - a policy or
 attachment folded into the thing it attaches to - that parent is admitted
-in the ordinary way and carries the marker for both. `live/SURVEY.md`'s
-untaggable sections are where to check whether a given type has such a
-parent.
+in the ordinary way and carries the marker for both. The untaggable
+parent-read roster later in this document (the `untaggable-parent-read`
+span) is where to check whether a given type has such a parent.
 
 **Enforcement.** `RuleMarkerlessType`, `internal/live/lint/lint.go`
 (`checkManagedResources`), consulted ahead of `RuleUnadmittedType` and

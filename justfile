@@ -351,7 +351,7 @@ schema-precedence:
 survey init_bin="terraform":
     env -u PWD go run ./tools/survey-gen -all -init-bin {{init_bin}}
 
-# The committed surveys -> the rendered spans in SURVEY.md, LIMITATIONS.md, MARKERS.md and COVERAGE.md. No provider, no network.
+# The committed surveys -> the rendered spans in LIMITATIONS.md, MARKERS.md and COVERAGE.md. No provider, no network.
 survey-render:
     env -u PWD go run ./tools/survey-gen -render
 

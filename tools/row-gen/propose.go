@@ -371,7 +371,7 @@ WHAT THIS DOES NOT CLAIM:
     emulator or live proof exists for anything below; every cohort estate a
     batch has ever shipped still needed its own fixture and floci run, and
     this one is no different.
-  - It does not evaluate SURVEY.md's credential-material exclusion (the rule
+  - It does not evaluate the credential-material exclusion (the rule
     aws_iam_access_key and aws_iot_certificate are excluded by): nothing
     here reads whether a type mints or exports a secret.
   - It does not re-verify live/mapping.json's own CFN mapping for the type -

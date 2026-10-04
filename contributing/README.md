@@ -27,7 +27,7 @@ These live beside the code and the tests holding them to it.
 | [`../live/RECEIPTS.md`](../live/RECEIPTS.md) | Recording an effect that leaves nothing to read back. |
 | [`../live/OUTPUTS.md`](../live/OUTPUTS.md) | Sharing values between estates with no remote state. |
 | [`../live/COVERAGE.md`](../live/COVERAGE.md) | Which AWS types are covered, in layers. |
-| [`../live/SURVEY.md`](../live/SURVEY.md) | How admission is decided per type. |
+| [`../live/readiness.json`](../live/readiness.json) | Which readiness tier (A-D) each provider type is in, and why. |
 | [`../live/HARNESS.md`](../live/HARNESS.md) | The emulator harness. |
 
 ## Measurement

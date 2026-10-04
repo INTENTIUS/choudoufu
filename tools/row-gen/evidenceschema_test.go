@@ -7,17 +7,17 @@ package main
 
 import "testing"
 
-// TestApplySchemaFirstArgName_CoversClientNamedPath is issue #428's core
-// claim: a bucketEvidenceOnly row whose survey entry proves Path==client-named
-// with exactly one required-for-import attribute is promoted, with that
-// attribute as ArgName and the #428 provenance marker.
-func TestApplySchemaFirstArgName_CoversClientNamedPath(t *testing.T) {
+// TestApplySchemaFirstArgName_CoversSchemaAdmission is issue #428's core
+// claim: a bucketEvidenceOnly row whose survey entry records admission
+// "schema" with exactly one required-for-import attribute is promoted, with
+// that attribute as ArgName and the #428 provenance marker.
+func TestApplySchemaFirstArgName_CoversSchemaAdmission(t *testing.T) {
 	proposals := []proposal{{TFType: "aws_example_thing", Bucket: bucketEvidenceOnly, NoCFNModel: true}}
 	survey := map[string]surveyEntry{
 		"aws_example_thing": {
-			Type:     "aws_example_thing",
-			Path:     surveyPathClientNamed,
-			Identity: &surveyIdentity{RequiredForImport: []string{"name"}},
+			Type:      "aws_example_thing",
+			Admission: admissionSchema,
+			Identity:  &surveyIdentity{RequiredForImport: []string{"name"}},
 		},
 	}
 	applySchemaFirstArgName(proposals, survey)
@@ -34,26 +34,6 @@ func TestApplySchemaFirstArgName_CoversClientNamedPath(t *testing.T) {
 	}
 }
 
-// TestApplySchemaFirstArgName_CoversParentDerivedPath: parent-derived is the
-// same identity.DerivableWith safety check as client-named, differing only
-// in an informational cross-reference - see evidenceschema.go's own doc
-// comment. A single required attribute promotes exactly the same way.
-func TestApplySchemaFirstArgName_CoversParentDerivedPath(t *testing.T) {
-	proposals := []proposal{{TFType: "aws_example_child", Bucket: bucketEvidenceOnly, NoCFNModel: true}}
-	survey := map[string]surveyEntry{
-		"aws_example_child": {
-			Type:     "aws_example_child",
-			Path:     surveyPathParentDerived,
-			Identity: &surveyIdentity{RequiredForImport: []string{"parent_arn"}},
-		},
-	}
-	applySchemaFirstArgName(proposals, survey)
-
-	if proposals[0].Bucket != bucketClientNamed || proposals[0].ArgName != "parent_arn" {
-		t.Fatalf("got bucket=%s argName=%q, want bucketClientNamed/parent_arn", proposals[0].Bucket, proposals[0].ArgName)
-	}
-}
-
 // TestApplySchemaFirstArgName_LeavesMultiAttributeEvidenceOnly: more than
 // one required-for-import attribute is the identity-object-only shape
 // (issue #105) render.go's bucketClientNamed renderer does not build -
@@ -63,9 +43,9 @@ func TestApplySchemaFirstArgName_LeavesMultiAttributeEvidenceOnly(t *testing.T) 
 	proposals := []proposal{{TFType: "aws_example_composite", Bucket: bucketEvidenceOnly, NoCFNModel: true}}
 	survey := map[string]surveyEntry{
 		"aws_example_composite": {
-			Type:     "aws_example_composite",
-			Path:     surveyPathClientNamed,
-			Identity: &surveyIdentity{RequiredForImport: []string{"a", "b"}},
+			Type:      "aws_example_composite",
+			Admission: admissionSchema,
+			Identity:  &surveyIdentity{RequiredForImport: []string{"a", "b"}},
 		},
 	}
 	applySchemaFirstArgName(proposals, survey)
@@ -75,20 +55,45 @@ func TestApplySchemaFirstArgName_LeavesMultiAttributeEvidenceOnly(t *testing.T) 
 	}
 }
 
-// TestApplySchemaFirstArgName_LeavesOtherPathsEvidenceOnly: a schema-carrying
-// type whose Path is anything but client-named or parent-derived (marker,
-// account-derived, unique-name, the two dead-end tokens) is untouched - see
-// evidenceschema.go's own doc comment for why each is excluded.
-func TestApplySchemaFirstArgName_LeavesOtherPathsEvidenceOnly(t *testing.T) {
-	for _, path := range []string{"marker", "account-derived", "unique-name", "enumerable, unbindable", "moves to Ops"} {
+// TestApplySchemaFirstArgName_LeavesUnprovenAdmissionEvidenceOnly: a
+// schema-carrying type whose admission is anything but "schema" is
+// untouched - the schemas do not prove its declaration names it.
+func TestApplySchemaFirstArgName_LeavesUnprovenAdmissionEvidenceOnly(t *testing.T) {
+	for _, admission := range []string{"", "needs-config-signal"} {
 		proposals := []proposal{{TFType: "aws_example", Bucket: bucketEvidenceOnly, NoCFNModel: true}}
 		survey := map[string]surveyEntry{
-			"aws_example": {Type: "aws_example", Path: path, Identity: &surveyIdentity{RequiredForImport: []string{"name"}}},
+			"aws_example": {Type: "aws_example", Admission: admission, Identity: &surveyIdentity{RequiredForImport: []string{"name"}}},
 		}
 		applySchemaFirstArgName(proposals, survey)
 		if proposals[0].Bucket != bucketEvidenceOnly {
-			t.Errorf("path %q: bucket = %s, want unchanged %s", path, proposals[0].Bucket, bucketEvidenceOnly)
+			t.Errorf("admission %q: bucket = %s, want unchanged %s", admission, proposals[0].Bucket, bucketEvidenceOnly)
 		}
+	}
+}
+
+// TestApplySchemaFirstArgName_LeavesTableAssertedEvidenceOnly: a type the
+// schemas prove but whose identity-table entry builds the identity with a
+// cloud value is left alone - the account/region slot is a hand-ratified
+// table fact the schema-first pass cannot build. aws_sagemaker_user_profile
+// is the one such type at hashicorp/aws 6.59.0 (admission "schema" in
+// live/survey-full.json, a Cloud-valued component in the table); the test
+// checks that premise first so it fails loudly rather than passing vacuously
+// when the table moves.
+func TestApplySchemaFirstArgName_LeavesTableAssertedEvidenceOnly(t *testing.T) {
+	const typeName = "aws_sagemaker_user_profile"
+	if !tableAssertedBinding(typeName) {
+		t.Fatalf("%s no longer carries a cloud-valued or unique-name binding in identity.DefaultTable; pick another table-asserted type for this test", typeName)
+	}
+	proposals := []proposal{{TFType: typeName, Bucket: bucketEvidenceOnly, NoCFNModel: true}}
+	survey := map[string]surveyEntry{
+		typeName: {Type: typeName, Admission: admissionSchema, Identity: &surveyIdentity{RequiredForImport: []string{"user_profile_name"}}},
+	}
+	applySchemaFirstArgName(proposals, survey)
+	if proposals[0].Bucket != bucketEvidenceOnly {
+		t.Fatalf("bucket = %s, want unchanged %s", proposals[0].Bucket, bucketEvidenceOnly)
+	}
+	if got := schemaGapClass(survey[typeName]); got != gapTierBTableAsserted {
+		t.Errorf("schemaGapClass = %q, want %q", got, gapTierBTableAsserted)
 	}
 }
 
@@ -99,7 +104,7 @@ func TestApplySchemaFirstArgName_LeavesOtherPathsEvidenceOnly(t *testing.T) {
 func TestApplySchemaFirstArgName_NeverTouchesOtherBuckets(t *testing.T) {
 	proposals := []proposal{{TFType: "aws_example", Bucket: bucketClientNamed, ArgName: "existing", ArgSource: argSourceCarveSeed}}
 	survey := map[string]surveyEntry{
-		"aws_example": {Type: "aws_example", Path: surveyPathClientNamed, Identity: &surveyIdentity{RequiredForImport: []string{"other"}}},
+		"aws_example": {Type: "aws_example", Admission: admissionSchema, Identity: &surveyIdentity{RequiredForImport: []string{"other"}}},
 	}
 	applySchemaFirstArgName(proposals, survey)
 	if proposals[0].ArgName != "existing" || proposals[0].ArgSource != argSourceCarveSeed {

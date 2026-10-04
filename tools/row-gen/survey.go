@@ -18,20 +18,34 @@ import (
 // guess - it is the TF provider's own answer, not an inference this tool
 // makes.
 //
-// Path is tools/survey-gen/classify.go's own mechanically-derived admission
-// path (SURVEY.md's five-token, now seven-token, taxonomy) - issue #428's
-// evidenceschema.go is the one reader in this package, added because
-// Identity alone is not proof the schema names an argument this tool can
-// paste: a required_for_import attribute can be server-minted (an "arn" or
-// "id" the type's own block marks Computed), and Path==client-named is the
-// fact that survey-gen already ran the strict, schema-safe check
-// (identity.DerivableWith, over real provider schemas) that tells the two
-// apart. See evidenceschema.go's own doc comment.
+// Admission is identity.Report's schema-only verdict, as survey-gen records
+// it: "schema" when the provider's real schemas prove every
+// required-for-import identity attribute is a required configuration
+// argument (identity.Derivable), "needs-config-signal" when they leave that
+// to a configuration, empty when neither. Issue #428's evidenceschema.go is
+// the reader in this package, because Identity alone is not proof the
+// schema names an argument this tool can paste: a required_for_import
+// attribute can be server-minted (an "arn" or "id" the type's own block
+// marks Computed), and admission "schema" is the fact that survey-gen
+// already ran the strict, schema-safe check that tells the two apart. See
+// evidenceschema.go's own doc comment. (Until #696 this read survey-gen's
+// seven-token path column, whose client-named and parent-derived tokens
+// were both this same verdict.)
 type surveyEntry struct {
-	Type     string          `json:"type"`
-	Path     string          `json:"path"`
-	Identity *surveyIdentity `json:"identity"`
-	Signals  surveySignals   `json:"signals"`
+	Type      string          `json:"type"`
+	Admission string          `json:"admission"`
+	Identity  *surveyIdentity `json:"identity"`
+	Signals   surveySignals   `json:"signals"`
+}
+
+// admissionSchema is survey-gen's admission value for a type whose
+// identity the provider's schemas alone prove the configuration supplies.
+const admissionSchema = "schema"
+
+// schemaProvesDeclaration reports whether the provider's schemas alone
+// prove this type's declaration supplies its identity.
+func (e surveyEntry) schemaProvesDeclaration() bool {
+	return e.Admission == admissionSchema
 }
 
 // surveySignals is the per-type signal block tools/survey-gen derives from

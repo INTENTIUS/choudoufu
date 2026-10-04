@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -18,7 +17,8 @@ import (
 
 // #1249 is #1228's sibling sweep: four more documents state a figure over
 // rows in the same document, and one of them (live/SURVEY.md's Status
-// vocabulary) was already wrong when the sweep found it. Each check below is
+// vocabulary, since retired with that document under #696) was already
+// wrong when the sweep found it. Each check below is
 // a pure function of the committed bytes, like checkLimitationsCounts, so a
 // merge that takes the rows from one side and the figure from the other
 // fails here even when every generator would re-render cleanly. Each has a
@@ -28,7 +28,6 @@ import (
 // (spec_figures_test.go), next to the renderer that now derives it.
 
 const (
-	surveyMDPath    = "live/SURVEY.md"
 	coverageMDPath  = "live/COVERAGE.md"
 	referenceMDPath = "site/content/docs/use/reference.md"
 	handoffMDPath   = "HANDOFF.md"
@@ -62,7 +61,6 @@ var docCountChecks = []struct {
 	path  string
 	check func(string) ([]string, error)
 }{
-	{surveyMDPath, checkSurveyStatusRows},
 	{coverageMDPath, checkCoverageContractCount},
 	{referenceMDPath, checkReferenceTagVerbs},
 	{handoffMDPath, checkHandoffDifferenceRows},
@@ -82,88 +80,6 @@ func span(doc, tool, name string) (string, error) {
 		return "", fmt.Errorf("%q has no closing %q", begin, end)
 	}
 	return rest[:j], nil
-}
-
-var reHTMLComment = regexp.MustCompile(`<!--.*?-->`)
-
-// --- live/SURVEY.md -------------------------------------------------------
-
-// checkSurveyStatusRows holds the Status vocabulary table's `Rows below`
-// column to a tally of the per-type table's Status column, and requires every
-// Status token the per-type table uses to have a vocabulary row: the document
-// says "nothing outside them appears in those columns", and a token outside
-// the vocabulary would be dropped by anything matching on it.
-func checkSurveyStatusRows(doc string) ([]string, error) {
-	tally := map[string]int{}
-	perType := 0
-	for _, line := range strings.Split(doc, "\n") {
-		if !strings.HasPrefix(line, "| aws_") {
-			continue
-		}
-		cells := strings.Split(strings.Trim(strings.TrimSpace(line), "|"), "|")
-		if len(cells) != 5 {
-			return nil, fmt.Errorf("per-type row with %d cells: %s", len(cells), line)
-		}
-		tally[strings.TrimSpace(cells[2])]++
-		perType++
-	}
-	if perType == 0 {
-		return nil, fmt.Errorf("no per-type rows found; the table moved, so nothing was counted")
-	}
-
-	vocab := map[string]int{}
-	var order []string
-	inTable := false
-	for _, line := range strings.Split(doc, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "| Status | Meaning |") {
-			if inTable || len(order) > 0 {
-				return nil, fmt.Errorf("more than one Status vocabulary table; this check would read only one")
-			}
-			inTable = true
-			continue
-		}
-		if !inTable {
-			continue
-		}
-		if !strings.HasPrefix(trimmed, "|") {
-			inTable = false
-			continue
-		}
-		if strings.HasPrefix(trimmed, "|---") {
-			continue
-		}
-		cells := strings.Split(strings.Trim(trimmed, "|"), "|")
-		token := strings.Trim(strings.TrimSpace(cells[0]), "`")
-		cell := strings.TrimSpace(reHTMLComment.ReplaceAllString(cells[len(cells)-1], ""))
-		n, err := strconv.Atoi(cell)
-		if err != nil {
-			return nil, fmt.Errorf("the Status vocabulary row for %q has a Rows cell %q that is not a number", token, cells[len(cells)-1])
-		}
-		vocab[token] = n
-		order = append(order, token)
-	}
-	if len(order) == 0 {
-		return nil, fmt.Errorf("no Status vocabulary table (a `| Status | Meaning |` header); nothing was checked")
-	}
-
-	var findings []string
-	for _, token := range order {
-		if vocab[token] != tally[token] {
-			findings = append(findings, fmt.Sprintf("the Status vocabulary says `%s` has %d rows, but the per-type table has %d", token, vocab[token], tally[token]))
-		}
-	}
-	var missing []string
-	for token := range tally {
-		if _, ok := vocab[token]; !ok {
-			missing = append(missing, token)
-		}
-	}
-	sort.Strings(missing)
-	for _, token := range missing {
-		findings = append(findings, fmt.Sprintf("the per-type table uses Status `%s` in %d rows, and the Status vocabulary has no row for it", token, tally[token]))
-	}
-	return findings, nil
 }
 
 // --- live/COVERAGE.md -----------------------------------------------------
@@ -329,18 +245,6 @@ func TestDocCountsPlantedDisagreementIsCaught(t *testing.T) {
 		mutate func(t *testing.T, doc string) string
 	}{
 		{
-			name: "a per-type row changes Status under an unchanged vocabulary", path: surveyMDPath, check: checkSurveyStatusRows,
-			mutate: func(t *testing.T, d string) string {
-				return replaceOnce(t, d, "| aws_sns_topic_subscription | parent-derived | markerless |", "| aws_sns_topic_subscription | parent-derived | ops |")
-			},
-		},
-		{
-			name: "a per-type row uses a Status with no vocabulary row", path: surveyMDPath, check: checkSurveyStatusRows,
-			mutate: func(t *testing.T, d string) string {
-				return replaceOnce(t, d, "| aws_sns_topic_subscription | parent-derived | markerless |", "| aws_sns_topic_subscription | parent-derived | deferred |")
-			},
-		},
-		{
 			name: "the contract count is one behind its types", path: coverageMDPath, check: checkCoverageContractCount,
 			mutate: func(t *testing.T, d string) string {
 				s, err := span(d, "survey-gen", "contract-count")
@@ -408,7 +312,6 @@ func TestDocCountsCheckerRefusesABrokenRead(t *testing.T) {
 		check     func(string) ([]string, error)
 		old, repl string
 	}{
-		{"the Status vocabulary header is reworded", surveyMDPath, checkSurveyStatusRows, "| Status | Meaning |", "| Token | Meaning |"},
 		{"the contract-count span is renamed", coverageMDPath, checkCoverageContractCount, "survey-gen:begin contract-count", "survey-gen:begin admitted-count"},
 		{"the tag-verbs sentence is reworded", referenceMDPath, checkReferenceTagVerbs, "services carry an unambiguous tagging verb", "services have one tagging verb"},
 		{"the Difference table header is reworded", handoffMDPath, checkHandoffDifferenceRows, "| Difference | Action |", "| Case | Action |"},

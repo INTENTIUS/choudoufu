@@ -32,9 +32,11 @@ import (
 // deleting a condition: it is the two generators disagreeing about the
 // second fact while each stays internally consistent.
 //
-// tools/survey-gen classifies a type "client-named" from the provider's
-// identity schema, when every required-for-import attribute is a required
-// argument. tools/row-gen reaches the opposite verdict from its own
+// tools/survey-gen records admission "schema" for a type when the
+// provider's own schemas prove every required-for-import identity attribute
+// is a required argument (identity.Derivable) - the identity is fully client
+// assigned, which is readiness tier B's defining fact for an untaggable type.
+// tools/row-gen reaches the opposite verdict from its own
 // classifier bucket or the documentation's minted-segment leg. Where those
 // two disagree, a type is simultaneously "its identity is fully client
 // assigned" and "the provider mints its identity", and the veto wins
@@ -46,11 +48,11 @@ import (
 // MarkerlessTypes from the registry, its own proposals and the doc grammar.
 // Nothing an author can edit in one makes this test agree with itself.
 func TestMarkerlessVetoNeverContradictsClientNaming(t *testing.T) {
-	paths := surveyPathByType(t)
+	admission := surveyAdmissionByType(t)
 
 	var got []string
 	for typeName := range identity.MarkerlessTypes {
-		if paths[typeName] == surveyPathClientNamed {
+		if admission[typeName] == admissionSchema {
 			got = append(got, typeName)
 		}
 	}
@@ -62,7 +64,7 @@ func TestMarkerlessVetoNeverContradictsClientNaming(t *testing.T) {
 		if _, allowed := markerlessClientNamedContradictions[typeName]; allowed {
 			continue
 		}
-		t.Errorf("%s is vetoed as markerless while live/survey-full.json classifies it %q.\n"+
+		t.Errorf("%s is vetoed as markerless while live/survey-full.json records its admission as %q.\n"+
 			"Those are contradictory claims about the same fact: the survey says every "+
 			"required-for-import identity attribute is a required argument, and the veto says "+
 			"the provider mints the identity. One of the two generators is wrong, and until that "+
@@ -70,7 +72,7 @@ func TestMarkerlessVetoNeverContradictsClientNaming(t *testing.T) {
 			"A marker is delete permission, not identity - see HANDOFF.md, \"Two questions, not one\".\n"+
 			"Fix the generator that is wrong, or record the contradiction in "+
 			"markerlessClientNamedContradictions with the reason it stands.",
-			typeName, surveyPathClientNamed)
+			typeName, admissionSchema)
 	}
 
 	// The other direction, which is the half that rots. An exception whose
@@ -80,16 +82,16 @@ func TestMarkerlessVetoNeverContradictsClientNaming(t *testing.T) {
 		if seen[typeName] {
 			continue
 		}
-		if _, inSurvey := paths[typeName]; !inSurvey {
+		if _, inSurvey := admission[typeName]; !inSurvey {
 			t.Errorf("markerlessClientNamedContradictions names %s (%q), which live/survey-full.json "+
 				"does not describe at all - the provider roster moved under the exception. Delete it.",
 				typeName, reason)
 			continue
 		}
 		t.Errorf("markerlessClientNamedContradictions names %s (%q) and it no longer contradicts: "+
-			"it is either not vetoed as markerless, or no longer classified %q. Delete the entry - "+
+			"it is either not vetoed as markerless, or its admission is no longer %q. Delete the entry - "+
 			"an exception that no longer applies reads as a live one.",
-			typeName, reason, surveyPathClientNamed)
+			typeName, reason, admissionSchema)
 	}
 }
 
@@ -101,7 +103,7 @@ func TestMarkerlessVetoNeverContradictsClientNaming(t *testing.T) {
 var markerlessClientNamedContradictions = map[string]string{
 	"aws_datazone_user_profile": "survey-gen reads the provider's identity schema and finds both " +
 		"required-for-import attributes (domain_identifier, user_identifier) are required arguments, " +
-		"so it classifies client-named with admission evidence \"schema\". row-gen vetoes it, which " +
+		"so it records admission \"schema\". row-gen vetoes it, which " +
 		"means its classifier bucketed the type server-assigned or the documentation leg found a " +
 		"minted segment. live/rowgen-buckets.json carries only counts, not per-type membership, so " +
 		"which of the two legs fired cannot be read off a committed artifact and needs a row-gen run " +
@@ -109,33 +111,39 @@ var markerlessClientNamedContradictions = map[string]string{
 		"ledger edit, and the type appears in no corpus configuration - so it costs no estate today.",
 }
 
-const surveyPathClientNamed = "client-named"
+// admissionSchema is live/survey-full.json's admission value for a type
+// whose identity the provider's schemas alone prove the configuration
+// supplies (identity.AdmitSchema).
+const admissionSchema = "schema"
 
-// surveyPathByType is live/survey-full.json's per-type Path column, the
-// vocabulary live/SURVEY.md promises. It is read here rather than recomputed
-// so this test consults survey-gen's verdict rather than a second opinion of
-// its own - the point being to catch two generators disagreeing, which a
-// re-derivation would hide by replacing one of them.
-func surveyPathByType(t *testing.T) map[string]string {
+// surveyAdmissionByType is live/survey-full.json's per-type admission
+// column. It is read here rather than recomputed so this test consults
+// survey-gen's verdict rather than a second opinion of its own - the point
+// being to catch two generators disagreeing, which a re-derivation would
+// hide by replacing one of them. (Until #696 this read the survey's "path"
+// column and compared against its client-named token; admission "schema"
+// is the verdict that token was assigned from, and it also covers the
+// parent-derived token, which made the same claim.)
+func surveyAdmissionByType(t *testing.T) map[string]string {
 	t.Helper()
 	var survey struct {
 		Counts struct {
 			Types int `json:"types"`
 		} `json:"counts"`
 		Types []struct {
-			Type string `json:"type"`
-			Path string `json:"path"`
+			Type      string `json:"type"`
+			Admission string `json:"admission"`
 		} `json:"types"`
 	}
 	decodeInto(t, "survey-full.json", &survey)
 
-	paths := make(map[string]string, len(survey.Types))
+	admission := make(map[string]string, len(survey.Types))
 	for _, e := range survey.Types {
-		paths[e.Type] = e.Path
+		admission[e.Type] = e.Admission
 	}
-	if len(paths) != survey.Counts.Types {
+	if len(admission) != survey.Counts.Types {
 		t.Fatalf("live/survey-full.json lists %d distinct types but its own counts.types says %d; "+
-			"one of the two is stale", len(paths), survey.Counts.Types)
+			"one of the two is stale", len(admission), survey.Counts.Types)
 	}
-	return paths
+	return admission
 }

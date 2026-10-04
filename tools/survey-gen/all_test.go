@@ -56,7 +56,7 @@ func TestAllResourceTypeNames(t *testing.T) {
 
 // TestBuildSurveyAllRosterSupersedesCurated is issue #41's own framing of
 // the delta: buildSurvey already classifies provider-wide once given every
-// type name instead of the curated roster, so a type outside SURVEY.md's
+// type name instead of the curated roster, so a type outside the curated
 // table must appear in the -all roster's survey, and every type both
 // rosters share must classify identically either way - -all changes which
 // rows exist, not what an existing row says.
@@ -70,7 +70,7 @@ func TestBuildSurveyAllRosterSupersedesCurated(t *testing.T) {
 	}
 	curatedRoster := []string{"aws_curated_one", "aws_curated_two"}
 
-	curated := buildSurvey(schemas, curatedRoster, testServiceOf, noEnumeration, nil)
+	curated := buildSurvey(schemas, curatedRoster, nil)
 	if curated.Counts.Types != 2 {
 		t.Fatalf("curated survey has %d types, want 2", curated.Counts.Types)
 	}
@@ -80,7 +80,7 @@ func TestBuildSurveyAllRosterSupersedesCurated(t *testing.T) {
 		}
 	}
 
-	full := buildSurvey(schemas, allResourceTypeNames(schemas), testServiceOf, noEnumeration, nil)
+	full := buildSurvey(schemas, allResourceTypeNames(schemas), nil)
 	if full.Counts.Types != 3 {
 		t.Fatalf("full survey has %d types, want 3", full.Counts.Types)
 	}
@@ -121,7 +121,7 @@ func TestBuildSurveyImportableSignal(t *testing.T) {
 		"aws_no_importer":  false,
 	}
 
-	full := buildSurvey(schemas, allResourceTypeNames(schemas), testServiceOf, noEnumeration, importable)
+	full := buildSurvey(schemas, allResourceTypeNames(schemas), importable)
 	rows := map[string]Row{}
 	for _, r := range full.Types {
 		rows[r.Type] = r
@@ -149,7 +149,7 @@ func TestWriteSurveysCuratedBytesIndependentOfAll(t *testing.T) {
 			"aws_extra_only":  fakeAllSchema(true),
 		},
 	}
-	roster := []HandRow{{Type: "aws_curated_one"}, {Type: "aws_curated_two"}}
+	roster := []string{"aws_curated_one", "aws_curated_two"}
 
 	rootWithout, rootWith := t.TempDir(), t.TempDir()
 	for _, root := range []string{rootWithout, rootWith} {
@@ -209,7 +209,7 @@ func TestWriteSurveysAcceptStampsHeader(t *testing.T) {
 			"aws_curated_one": fakeAllSchema(true),
 		},
 	}
-	roster := []HandRow{{Type: "aws_curated_one"}}
+	roster := []string{"aws_curated_one"}
 
 	rootAccepted, rootUnaccepted := t.TempDir(), t.TempDir()
 	for _, root := range []string{rootAccepted, rootUnaccepted} {

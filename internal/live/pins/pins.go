@@ -16,7 +16,7 @@ package pins
 
 // AWSProviderVersion is the hashicorp/aws release every measurement
 // instrument surveys and analyzes against: tools/survey-gen (and everything
-// downstream - live/survey-full.json, live/SURVEY.md, the admission
+// downstream - live/survey.json, live/survey-full.json, the admission
 // evidence), and tools/corpus-gen's provider-schema pass
 // (live/corpus-refusals.json).
 //

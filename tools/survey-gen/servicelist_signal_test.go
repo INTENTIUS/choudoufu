@@ -18,14 +18,11 @@ import (
 )
 
 // TestServiceListRouteIsAThirdEnumerationSignal is GitHub issue #1496's
-// classifier check. A taggable type the tagging leg does not serve, with no
-// native list resource and no Cloud Control list handler, used to land on
-// "moves to Ops" with the sentence "no admission path recovers it". When
-// internal/live/servicetags has both a list route and a tag-read route for
-// it, internal/live/discovery's service-list leg enumerates it and binds it
-// by its marker, so the row belongs on the marker path and says which two
-// calls do it. A type in the same service with no list route keeps the Ops
-// row: the signal is the route table, not the service prefix.
+// signal check. When internal/live/servicetags has both a list route and a
+// tag-read route for a type, internal/live/discovery's service-list leg
+// enumerates it and binds it by its marker, and the survey row says so with
+// signals.service_list. A type in the same service with no list route does
+// not carry the signal: it is the route table, not the service prefix.
 func TestServiceListRouteIsAThirdEnumerationSignal(t *testing.T) {
 	const routed = "aws_iam_service_linked_role"
 	const unrouted = "aws_iam_no_such_listed_type"
@@ -44,33 +41,16 @@ func TestServiceListRouteIsAThirdEnumerationSignal(t *testing.T) {
 			unrouted: fakeAllSchema(true),
 		},
 	}
-	full := buildSurvey(schemas, allResourceTypeNames(schemas), testServiceOf, noEnumeration, nil)
+	full := buildSurvey(schemas, allResourceTypeNames(schemas), nil)
 	rows := map[string]Row{}
 	for _, row := range full.Types {
 		rows[row.Type] = row
 	}
 
-	got := rows[routed]
-	if got.Path != pathMarker {
-		t.Errorf("%s classifies %q, want %q: the service-list leg binds it by marker (evidence: %s)", routed, got.Path, pathMarker, got.Evidence)
-	}
-	if !got.Signals.ServiceList {
+	if !rows[routed].Signals.ServiceList {
 		t.Errorf("%s: Signals.ServiceList is false, want true", routed)
 	}
-	for _, want := range []string{r.ListAction(routed), r.Action(routed)} {
-		if !strings.Contains(got.Evidence, want) {
-			t.Errorf("%s: evidence does not name %s: %s", routed, want, got.Evidence)
-		}
-	}
-	if strings.Contains(got.Evidence, "no admission path recovers it") {
-		t.Errorf("%s: evidence still claims nothing recovers it: %s", routed, got.Evidence)
-	}
-
-	other := rows[unrouted]
-	if other.Path != pathOps {
-		t.Errorf("%s classifies %q, want %q: nothing lists it", unrouted, other.Path, pathOps)
-	}
-	if other.Signals.ServiceList {
+	if rows[unrouted].Signals.ServiceList {
 		t.Errorf("%s: Signals.ServiceList is true for a type with no list route", unrouted)
 	}
 }
@@ -79,7 +59,7 @@ func TestServiceListRouteIsAThirdEnumerationSignal(t *testing.T) {
 // live/survey-full.json, an external source this package does not write at
 // test time, and checks it agrees with the route table discovery drives in
 // both directions: every type servicetags can both list and tag-read is a
-// marker row carrying the signal, and no row carries the signal for a type
+// row carrying the signal, and no row carries the signal for a type
 // the table does not route. A stale artifact (the state #1496 was filed
 // against) fails the first half; a classifier that set the signal from
 // anything but the table fails the second.
@@ -123,13 +103,8 @@ func TestCommittedSurveyServiceListRowsMatchTheRouteTable(t *testing.T) {
 		t.Errorf("%s flags service_list on %v, and servicetags routes %v; regenerate with `just survey`", surveyFullJSONRel, flagged, want)
 	}
 	for _, tn := range want {
-		row, ok := rows[tn]
-		if !ok {
+		if _, ok := rows[tn]; !ok {
 			t.Errorf("%s has no row for routed type %s", surveyFullJSONRel, tn)
-			continue
-		}
-		if row.Path != pathMarker {
-			t.Errorf("%s classifies %s %q, want %q: discovery's service-list leg binds it by marker", surveyFullJSONRel, tn, row.Path, pathMarker)
 		}
 	}
 }

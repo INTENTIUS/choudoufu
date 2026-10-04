@@ -26,8 +26,8 @@
 // contains one and no grant is written over one. The population the claim is
 // wrong about is the other one: types the table ADMITS, which a configuration
 // can declare and this fork will manage, that have no tags argument. Those
-// are identified from their own declaration - the client-named,
-// parent-derived and account-derived admission paths - which is a different
+// are identified from their own declaration - readiness tier B,
+// declaration-carried - which is a different
 // question from whether IAM can condition on them. Being identifiable
 // without a tag is not the same as being governable by one.
 //
@@ -237,8 +237,8 @@ func renderGovernableGap(s governanceSplit) string {
 		"`internal/live/identity`'s `MarkerlessTypes` are untaggable *and* server-minted, "+
 		"and none of them is admitted, so no estate contains one. The %d here are admitted: "+
 		"a configuration declares them and this fork manages them, identified from the "+
-		"declaration itself rather than from a tag, which is what the client-named, "+
-		"parent-derived and account-derived admission paths mean. Being identifiable "+
+		"declaration itself rather than from a tag, which is what readiness tier B "+
+		"(declaration-carried, `live/readiness.json`) means. Being identifiable "+
 		"without a tag is a different property from being governable by one, and only the "+
 		"second is what an IAM condition needs.\n\n",
 		s.Markerless, len(s.Untaggable))

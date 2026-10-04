@@ -25,7 +25,6 @@ var pipelineArtifactPaths = []string{
 	"live/registry.json",
 	"live/mapping.json",
 	"live/import-grammar.json",
-	"live/SURVEY.md",
 }
 
 // StageRun captures one `go run ./tools/<name>` invocation for REPORT to
@@ -64,8 +63,9 @@ func (r *RegenerateResult) runFor(name string) *StageRun {
 // Regenerate runs every *-gen tool in dependency order: survey-gen -all,
 // registry-gen, mapping-gen, importdocs-gen, tagverbs-gen, row-gen (captured
 // to a file, not streamed - its report runs to thousands of lines), then
-// survey-gen -render to refresh live/SURVEY.md's derived spans from the
-// artifacts just written.
+// survey-gen -render to refresh the derived spans it owns in other
+// documents from the artifacts just written. (live/SURVEY.md, which this
+// list and that render used to include, was retired under #696.)
 //
 // Every tool is its own package main (see main.go's package doc), so each
 // step shells out to `go run ./tools/<name>` rather than calling a library

@@ -76,7 +76,7 @@ func testSources(t *testing.T) (tfTypes, cfnTypes []string, overlay Overlay, gen
 	return tfTypes, cfnTypes, overlay, generatedAliases, former2Usable, registryHandlerless, identitySchema
 }
 
-// TestCurated68Pin regenerates the join restricted to live/SURVEY.md's
+// TestCurated68Pin regenerates the join restricted to tools/survey-gen/roster.txt's
 // curated 68 and pins issue #43's own acceptance numbers: 59 mapped
 // (28 by name, 31 by the overlay's aliases), 9 not mapped (fold, or one of
 // issue #53's terminal taxonomy values - the one curated waiter,
@@ -93,12 +93,12 @@ func TestCurated68Pin(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	curated, err := loadCuratedRoster(filepath.Join(root, curatedMDRel))
+	curated, err := loadCuratedRoster(filepath.Join(root, curatedRosterRel))
 	if err != nil {
 		t.Fatalf("loading the curated roster: %v", err)
 	}
 	if len(curated) != 68 {
-		t.Fatalf("%s's per-type table has %d types, want 68", curatedMDRel, len(curated))
+		t.Fatalf("%s lists %d types, want 68", curatedRosterRel, len(curated))
 	}
 
 	cfnRoster := registryJSONRoster{path: filepath.Join(root, cfnRosterRel)}
@@ -787,8 +787,7 @@ func TestFormer2SampleRowsResolveCorrectly(t *testing.T) {
 // TestMappingJSONMatchesCommittedInputs regenerates live/mapping.json from
 // the other committed inputs (live/survey-full.json, live/registry.json,
 // the overlay, and issue #52's two generated/sourced tables) and diffs it
-// against the committed artifact, the same pattern tools/survey-gen's
-// TestSurveyJSONAgainstHandTable uses: it reads only committed files, so it
+// against the committed artifact. It reads only committed files, so it
 // needs no gate.
 func TestMappingJSONMatchesCommittedInputs(t *testing.T) {
 	root, err := repoRoot()

@@ -22,7 +22,7 @@ func TestRuleAdoption_GroupsByBucketAndRule(t *testing.T) {
 		{TFType: "aws_b", ProposedBucket: "server-assigned", ProposedRule: "rule-1", Matched: true},
 		{TFType: "aws_c", ProposedBucket: "server-assigned", ProposedRule: "rule-1", Matched: false},
 		{TFType: "aws_d", ProposedBucket: "server-assigned", ProposedRule: "rule-precedence", Matched: true},
-		{TFType: "aws_e", ProposedBucket: "client-named", ProposedRule: "rule-1", Matched: true},
+		{TFType: "aws_e", ProposedBucket: "config-named", ProposedRule: "rule-1", Matched: true},
 		{TFType: "aws_f", ProposedBucket: "fold-child", ProposedRule: "via==fold: property-child of X", Matched: false},
 		{TFType: "aws_g", ProposedBucket: "needs-hand-separator", ProposedRule: "composite", Matched: false},
 		{TFType: "aws_h", ProposedBucket: "evidence-only", ProposedRule: "rule-1", Matched: false},

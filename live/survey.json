@@ -11,7 +11,6 @@
   "types": [
     {
       "type": "aws_acm_certificate",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -22,12 +21,10 @@
         "required_for_import": [
           "arn"
         ]
-      },
-      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+      }
     },
     {
       "type": "aws_acm_certificate_validation",
-      "path": "parent-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -39,12 +36,10 @@
           "certificate_arn"
         ]
       },
-      "admission": "schema",
-      "evidence": "identity fully client-assigned (certificate_arn), composed over other types' identities: certificate_arn (-> aws_acm_certificate)"
+      "admission": "schema"
     },
     {
       "type": "aws_api_gateway_rest_api",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -63,12 +58,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_autoscaling_group",
-      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -87,12 +80,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_cloudfront_distribution",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -110,23 +101,19 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_cloudfront_origin_access_control",
-      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false,
         "importable": true
-      },
-      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::CloudFront::OriginAccessControl with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      }
     },
     {
       "type": "aws_cloudwatch_event_rule",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -145,12 +132,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_cloudwatch_log_group",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -169,12 +154,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_cloudwatch_metric_alarm",
-      "path": "client-named",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -193,34 +176,28 @@
           "account_id"
         ]
       },
-      "admission": "schema",
-      "evidence": "every required-for-import identity attribute is a required argument: alarm_name"
+      "admission": "schema"
     },
     {
       "type": "aws_db_instance",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": false,
         "identity_schema": false,
         "importable": true
-      },
-      "evidence": "no identity schema in v6.59.0; taggable, so recoverable by tag-filtered list"
+      }
     },
     {
       "type": "aws_db_parameter_group",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": false,
         "identity_schema": false,
         "importable": true
-      },
-      "evidence": "no identity schema in v6.59.0; taggable, so recoverable by tag-filtered list"
+      }
     },
     {
       "type": "aws_db_subnet_group",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -239,12 +216,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_dynamodb_table",
-      "path": "client-named",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -263,12 +238,10 @@
           "account_id"
         ]
       },
-      "admission": "schema",
-      "evidence": "every required-for-import identity attribute is a required argument: name"
+      "admission": "schema"
     },
     {
       "type": "aws_ebs_volume",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -287,12 +260,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_ecr_lifecycle_policy",
-      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -311,12 +282,10 @@
           "account_id"
         ]
       },
-      "admission": "schema",
-      "evidence": "every required-for-import identity attribute is a required argument: repository"
+      "admission": "schema"
     },
     {
       "type": "aws_ecr_repository",
-      "path": "client-named",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -335,23 +304,19 @@
           "account_id"
         ]
       },
-      "admission": "schema",
-      "evidence": "every required-for-import identity attribute is a required argument: name"
+      "admission": "schema"
     },
     {
       "type": "aws_ecs_cluster",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": false,
         "identity_schema": false,
         "importable": true
-      },
-      "evidence": "no identity schema in v6.59.0; taggable, so recoverable by tag-filtered list"
+      }
     },
     {
       "type": "aws_ecs_service",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -371,12 +336,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity attrs (cluster, name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_ecs_task_definition",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -395,23 +358,19 @@
         "not_resource_attributes": [
           "account_id"
         ]
-      },
-      "evidence": "identity requires server-assigned revision; taggable, so recoverable by tag-filtered list"
+      }
     },
     {
       "type": "aws_efs_file_system",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": false,
         "identity_schema": false,
         "importable": true
-      },
-      "evidence": "no identity schema in v6.59.0; taggable, so recoverable by tag-filtered list"
+      }
     },
     {
       "type": "aws_eip",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -430,12 +389,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_eks_cluster",
-      "path": "client-named",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -454,12 +411,10 @@
           "account_id"
         ]
       },
-      "admission": "schema",
-      "evidence": "every required-for-import identity attribute is a required argument: name"
+      "admission": "schema"
     },
     {
       "type": "aws_eks_node_group",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -479,12 +434,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity attrs (cluster_name, node_group_name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_iam_access_key",
-      "path": "moves to Ops",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -502,23 +455,19 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "excluded by hand per SURVEY.md's rule - credential: the secret half is unreadable after create, and an external holder makes set semantics inapplicable"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_iam_group",
-      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false,
         "importable": true
-      },
-      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::IAM::Group with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      }
     },
     {
       "type": "aws_iam_instance_profile",
-      "path": "enumerable, unbindable",
       "signals": {
         "taggable": true,
         "list_resource": false,
@@ -536,12 +485,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, but the tag-filtered list serves it only from us-east-1, and a survey row answers for no particular caller region (issues #1134, #1144), so Cloud Control listing AWS::IAM::InstanceProfile with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_iam_policy",
-      "path": "enumerable, unbindable",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -552,12 +499,10 @@
         "required_for_import": [
           "arn"
         ]
-      },
-      "evidence": "identity requires server-assigned arn; taggable, but the tag-filtered list serves it only from us-east-1, and a survey row answers for no particular caller region (issues #1134, #1144), so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      }
     },
     {
       "type": "aws_iam_role",
-      "path": "enumerable, unbindable",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -575,12 +520,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, but the tag-filtered list does not serve it in any region (issue #692; #1133; #1144), so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_iam_role_policy",
-      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -599,12 +542,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity attrs (name, role) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_iam_role_policy_attachment",
-      "path": "parent-derived",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -623,12 +564,10 @@
           "account_id"
         ]
       },
-      "admission": "schema",
-      "evidence": "identity fully client-assigned (policy_arn, role), composed over other types' identities: policy_arn (-> aws_iam_policy)"
+      "admission": "schema"
     },
     {
       "type": "aws_iam_user",
-      "path": "client-named",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -646,12 +585,10 @@
           "account_id"
         ]
       },
-      "admission": "schema",
-      "evidence": "every required-for-import identity attribute is a required argument: name"
+      "admission": "schema"
     },
     {
       "type": "aws_instance",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -670,12 +607,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_internet_gateway",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -694,23 +629,19 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_key_pair",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": false,
         "identity_schema": false,
         "importable": true
-      },
-      "evidence": "no identity schema in v6.59.0; taggable, so recoverable by tag-filtered list"
+      }
     },
     {
       "type": "aws_kms_alias",
-      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -729,12 +660,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_kms_key",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -753,12 +682,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_lambda_function",
-      "path": "client-named",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -777,12 +704,10 @@
           "account_id"
         ]
       },
-      "admission": "schema",
-      "evidence": "every required-for-import identity attribute is a required argument: function_name"
+      "admission": "schema"
     },
     {
       "type": "aws_lambda_permission",
-      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -803,12 +728,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity attrs (function_name, statement_id) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_launch_template",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -827,12 +750,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_lb",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -843,12 +764,10 @@
         "required_for_import": [
           "arn"
         ]
-      },
-      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+      }
     },
     {
       "type": "aws_lb_listener",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -859,12 +778,10 @@
         "required_for_import": [
           "arn"
         ]
-      },
-      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+      }
     },
     {
       "type": "aws_lb_target_group",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -875,12 +792,10 @@
         "required_for_import": [
           "arn"
         ]
-      },
-      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+      }
     },
     {
       "type": "aws_lb_target_group_attachment",
-      "path": "parent-derived",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -903,12 +818,10 @@
           "account_id"
         ]
       },
-      "admission": "schema",
-      "evidence": "identity fully client-assigned (target_group_arn, target_id), composed over other types' identities: target_group_arn (-> aws_lb_target_group)"
+      "admission": "schema"
     },
     {
       "type": "aws_nat_gateway",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -927,12 +840,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_route",
-      "path": "parent-derived",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -954,12 +865,10 @@
           "account_id"
         ]
       },
-      "admission": "schema",
-      "evidence": "identity fully client-assigned (route_table_id), composed over other types' identities: route_table_id (-> aws_route_table)"
+      "admission": "schema"
     },
     {
       "type": "aws_route53_record",
-      "path": "parent-derived",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -980,12 +889,10 @@
           "account_id"
         ]
       },
-      "admission": "schema",
-      "evidence": "identity fully client-assigned (name, type, zone_id), composed over other types' identities: zone_id (-> aws_route53_zone)"
+      "admission": "schema"
     },
     {
       "type": "aws_route53_zone",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -1002,12 +909,10 @@
         "not_resource_attributes": [
           "account_id"
         ]
-      },
-      "evidence": "identity requires server-assigned zone_id; taggable, so recoverable by tag-filtered list"
+      }
     },
     {
       "type": "aws_route_table",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -1026,12 +931,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_route_table_association",
-      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -1050,12 +953,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_s3_bucket",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -1074,12 +975,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity attrs (bucket) are settable but not required arguments, so client-naming is unprovable from the schema; taggable, so recoverable by tag-filtered list"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_s3_bucket_lifecycle_configuration",
-      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -1098,12 +997,10 @@
           "account_id"
         ]
       },
-      "admission": "schema",
-      "evidence": "every required-for-import identity attribute is a required argument: bucket"
+      "admission": "schema"
     },
     {
       "type": "aws_s3_bucket_policy",
-      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -1122,12 +1019,10 @@
           "account_id"
         ]
       },
-      "admission": "schema",
-      "evidence": "every required-for-import identity attribute is a required argument: bucket"
+      "admission": "schema"
     },
     {
       "type": "aws_s3_bucket_public_access_block",
-      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -1146,12 +1041,10 @@
           "account_id"
         ]
       },
-      "admission": "schema",
-      "evidence": "every required-for-import identity attribute is a required argument: bucket"
+      "admission": "schema"
     },
     {
       "type": "aws_s3_bucket_server_side_encryption_configuration",
-      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -1170,12 +1063,10 @@
           "account_id"
         ]
       },
-      "admission": "schema",
-      "evidence": "every required-for-import identity attribute is a required argument: bucket"
+      "admission": "schema"
     },
     {
       "type": "aws_s3_bucket_versioning",
-      "path": "client-named",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -1194,12 +1085,10 @@
           "account_id"
         ]
       },
-      "admission": "schema",
-      "evidence": "every required-for-import identity attribute is a required argument: bucket"
+      "admission": "schema"
     },
     {
       "type": "aws_secretsmanager_secret",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -1210,12 +1099,10 @@
         "required_for_import": [
           "arn"
         ]
-      },
-      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+      }
     },
     {
       "type": "aws_secretsmanager_secret_version",
-      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -1234,12 +1121,10 @@
         "not_resource_attributes": [
           "account_id"
         ]
-      },
-      "evidence": "identity requires server-assigned version_id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      }
     },
     {
       "type": "aws_security_group",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -1258,12 +1143,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_sfn_state_machine",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -1274,12 +1157,10 @@
         "required_for_import": [
           "arn"
         ]
-      },
-      "evidence": "identity requires server-assigned arn; taggable, so recoverable by tag-filtered list"
+      }
     },
     {
       "type": "aws_sns_topic",
-      "path": "account-derived",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -1290,12 +1171,10 @@
         "required_for_import": [
           "arn"
         ]
-      },
-      "evidence": "the identity table builds this type's import identity from configuration plus the run's region and account-id"
+      }
     },
     {
       "type": "aws_sns_topic_subscription",
-      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -1306,12 +1185,10 @@
         "required_for_import": [
           "arn"
         ]
-      },
-      "evidence": "identity requires server-assigned arn; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      }
     },
     {
       "type": "aws_sqs_queue",
-      "path": "account-derived",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -1322,12 +1199,10 @@
         "required_for_import": [
           "url"
         ]
-      },
-      "evidence": "the identity table builds this type's import identity from configuration plus the run's region and account-id"
+      }
     },
     {
       "type": "aws_ssm_document",
-      "path": "client-named",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -1346,12 +1221,10 @@
           "account_id"
         ]
       },
-      "admission": "schema",
-      "evidence": "every required-for-import identity attribute is a required argument: name"
+      "admission": "schema"
     },
     {
       "type": "aws_ssm_parameter",
-      "path": "client-named",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -1370,12 +1243,10 @@
           "account_id"
         ]
       },
-      "admission": "schema",
-      "evidence": "every required-for-import identity attribute is a required argument: name"
+      "admission": "schema"
     },
     {
       "type": "aws_subnet",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -1394,12 +1265,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_vpc",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -1418,12 +1287,10 @@
           "account_id"
         ]
       },
-      "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+      "admission": "needs-config-signal"
     },
     {
       "type": "aws_vpc_security_group_egress_rule",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -1441,12 +1308,10 @@
         "not_resource_attributes": [
           "account_id"
         ]
-      },
-      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+      }
     },
     {
       "type": "aws_vpc_security_group_ingress_rule",
-      "path": "marker",
       "signals": {
         "taggable": true,
         "list_resource": true,
@@ -1464,8 +1329,7 @@
         "not_resource_attributes": [
           "account_id"
         ]
-      },
-      "evidence": "identity requires server-assigned id; taggable, so recoverable by tag-filtered list"
+      }
     }
   ]
 }
