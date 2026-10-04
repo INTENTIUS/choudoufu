@@ -354,9 +354,12 @@ done
 if grep -q "No changes." <<< "$PLAN_OUT" && [ "$IDS_OK" = "1" ]; then
   gauntlet_stage test_plan pass "the plan with no state file is empty; all nine identities confirmed present by name with kubectl - the five cluster-scoped ones (the APIService, both ClusterRoles, both ClusterRoleBindings) by NAME, the four in kube-system by NAMESPACE/NAME"
 else
+  # The plan itself, so the log names what it proposed (#1885).
+  printf '%s\n' "$PLAN_OUT" | grep -vE '^[[:space:]]*$' | tail -120
   gauntlet_stage test_plan fail "the plan with no state file is not empty or an identity is missing (ids ok: $IDS_OK): $(grep -E '^Plan:|No changes' <<< "$PLAN_OUT" | head -1)"
   ADOPT_OUT="$(chdf_a "$ADOPTED" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$ADOPT_OUT" | tail -20; fail "the converging apply failed"; }
-  grep -q "No changes." <<< "$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)" || fail "the replan after the converging apply is not empty"
+  REPLAN_OUT="$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)"
+  grep -q "No changes." <<< "$REPLAN_OUT" || { printf '%s\n' "$REPLAN_OUT" | grep -vE '^[[:space:]]*$' | tail -120; fail "the replan after the converging apply is not empty: $(grep -E '^Plan:|No changes' <<< "$REPLAN_OUT" | head -1)"; }
 fi
 
 # ── 4. test_apply ─────────────────────────────────────────────────────────

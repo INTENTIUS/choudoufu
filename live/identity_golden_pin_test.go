@@ -3152,7 +3152,13 @@ const (
 	// pre-applied VPA CRDs and their namespaces. It adds no row, so
 	// instances and body-sha256 are unchanged. fixture-dirs 658 -> 659 on
 	// the same row; the cohort pins are untouched.
-	identityGoldenPinDirs = 690
+	//
+	// 690 -> 691 for #1885 (2026-10-04): one fixture directory,
+	// internal/live/projection/testdata/metadata-seed, a stub_namespace
+	// whose provider the golden's sweep has no schema for. It adds no row,
+	// so instances and body-sha256 are unchanged. fixture-dirs 659 -> 660
+	// on the same row; the cohort pins are untouched.
+	identityGoldenPinDirs = 691
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).
