@@ -711,3 +711,74 @@ resource "test_object" "a" {
 		t.Errorf("refusal summary = %v, want %q", found, "Resource type has no classic Importer")
 	}
 }
+
+// priorAwareStubAdjuster is stubConfigValueAdjuster that also implements
+// PriorConfigValueAdjuster: it copies the prior's test_map key "server"
+// into the adjusted map, recording what it was given.
+type priorAwareStubAdjuster struct {
+	stubConfigValueAdjuster
+	gotEvaluated, gotPrior cty.Value
+}
+
+func (s *priorAwareStubAdjuster) AdjustConfigValueToPrior(_ context.Context, _ addrs.AbsResourceInstance, evaluated, adjusted, prior cty.Value, _ providers.Schema) cty.Value {
+	s.gotEvaluated, s.gotPrior = evaluated, prior
+	elems := adjusted.AsValueMap()
+	m := elems["test_map"].AsValueMap()
+	m["server"] = prior.GetAttr("test_map").Index(cty.StringVal("server"))
+	elems["test_map"] = cty.MapVal(m)
+	return cty.ObjectVal(elems)
+}
+
+// TestContext2Plan_priorConfigValueAdjuster: an adjuster implementing
+// PriorConfigValueAdjuster is given the configuration as evaluated (before
+// AdjustConfigValue's write) and the prior object, and what it returns is
+// what is planned (epic #1885: the server-set keys of an Optional+Computed
+// map). Proving it red: drop the call in NodeAbstractResourceInstance.plan
+// and the hook is never asked and "server" is planned away.
+func TestContext2Plan_priorConfigValueAdjuster(t *testing.T) {
+	addr := mustResourceInstanceAddr("test_object.a")
+	m := testModuleInline(t, map[string]string{
+		"main.tf": `
+resource "test_object" "a" {
+  test_string = "foo"
+  test_map = {
+    other = "from config"
+  }
+}
+`,
+	})
+	p := simpleMockProvider()
+	p.PlanResourceChangeFn = func(req providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse {
+		return providers.PlanResourceChangeResponse{PlannedState: req.ProposedNewState}
+	}
+	s := states.BuildState(func(ss *states.SyncState) {
+		ss.SetResourceInstanceCurrent(addr, &states.ResourceInstanceObjectSrc{
+			Status:    states.ObjectReady,
+			AttrsJSON: []byte(`{"test_string":"foo","test_map":{"server":"set-by-server","other":"from config","marker_key":"m"}}`),
+		}, addrs.AbsProviderConfig{Provider: addrs.NewDefaultProvider("test"), Module: addrs.RootModule}, addrs.NoKey)
+	})
+	adjuster := &priorAwareStubAdjuster{stubConfigValueAdjuster: stubConfigValueAdjuster{attr: "test_map", key: "marker_key", value: "m"}}
+	ctx := testContext2(t, &ContextOpts{
+		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
+			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
+		}, nil),
+		ConfigValueAdjuster: adjuster,
+	})
+	plan, diags := ctx.Plan(context.Background(), m, s, DefaultPlanOpts)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected errors\n%s", diags.Err())
+	}
+	if adjuster.gotPrior == cty.NilVal || adjuster.gotPrior.IsNull() {
+		t.Fatal("AdjustConfigValueToPrior was not asked with the prior object")
+	}
+	if _, has := adjuster.gotEvaluated.GetAttr("test_map").AsValueMap()["marker_key"]; has {
+		t.Errorf("evaluated already carries AdjustConfigValue's write; it must be the configuration as written")
+	}
+	ric, err := plan.Changes.ResourceInstance(addr).Decode(&providers.Schema{Block: simpleTestSchema()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ric.Action != plans.NoOp {
+		t.Errorf("action = %s, want NoOp: the prior's server-set key was carried into the configuration", ric.Action)
+	}
+}

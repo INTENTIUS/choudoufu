@@ -1228,6 +1228,10 @@ func (n *NodeAbstractResourceInstance) plan(
 	// being created. NilVal otherwise, in which case the replace block
 	// below plans the create half with origConfigVal as before.
 	var replaceCreateConfigVal cty.Value
+	// evaluatedConfigVal is the configuration as written, before the
+	// adjuster below rewrites origConfigVal; PriorConfigValueAdjuster is
+	// given both once the prior object is known.
+	evaluatedConfigVal := origConfigVal
 	if adjuster := evalCtx.ConfigValueAdjuster(); adjuster != nil {
 		// GitHub issue #1084 (CreateConfigValueAdjuster, resource_identity.go):
 		// an instance with no prior object - or a tainted one, which the
@@ -1305,6 +1309,15 @@ func (n *NodeAbstractResourceInstance) plan(
 		}
 	} else {
 		priorVal = cty.NullVal(schema.Block.ImpliedType())
+	}
+
+	// PriorConfigValueAdjuster (resource_identity.go): the adjuster's
+	// second look, now that the prior object is known, still before
+	// ignore_changes and PlanResourceChange.
+	if adjuster := evalCtx.ConfigValueAdjuster(); adjuster != nil && priorVal != cty.NilVal && !priorVal.IsNull() {
+		if pa, ok := adjuster.(PriorConfigValueAdjuster); ok {
+			origConfigVal = pa.AdjustConfigValueToPrior(ctx, n.Addr, evaluatedConfigVal, origConfigVal, priorVal, *schema)
+		}
 	}
 
 	log.Printf("[TRACE] Re-validating config for %q", n.Addr)
