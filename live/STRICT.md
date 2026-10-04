@@ -65,7 +65,9 @@ that declares none gets the implied local store.
   file;
 - a **sensitive settable argument** on an ordinary cloud resource is never
   recorded as residue - the argument values this fork remembers because the
-  provider's own read never gives them back.
+  provider's own read never gives them back. Only the sensitive argument is
+  left out: the same resource's ordinary arguments are still recorded
+  (GitHub issue #1873).
 
 ```hcl
 terraform {

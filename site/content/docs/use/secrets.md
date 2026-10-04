@@ -55,7 +55,9 @@ written.
 - Seven types that generate secrets are refused outright: `random_password`,
   `random_bytes`, the four `tls_*` types and `local_sensitive_file`.
 - A sensitive argument the API never returns is left out of its record, so
-  every plan shows it as a change.
+  every plan shows it as a change. The resource's other arguments are still
+  recorded: a `kubernetes_secret_v1`'s `wait_for_service_account_token` is
+  kept and its `data` is not.
 - The cache file is not written or read, unless you name a path for it.
 
 One thing is outside it. A record-backed resource your configuration hands a
