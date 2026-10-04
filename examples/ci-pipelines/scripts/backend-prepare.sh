@@ -142,8 +142,14 @@ case "$stage" in
     template="$(bucket_just plan "$BUCKET")"
     [ -n "$template" ] || die "\`just plan $BUCKET\` built an empty template"
     printf '%s\n' "$template" >&2
-    # The one stdout line: what the gate is asked to approve.
-    printf '%s' "$template" | sha256sum | awk '{print "sha256:" $1}'
+    # The one stdout line: what the gate is asked to approve. shasum is the
+    # fallback for a machine without coreutils (macOS), so the script's own
+    # test can run where its author does.
+    if command -v sha256sum >/dev/null 2>&1; then
+      printf '%s' "$template" | sha256sum | awk '{print "sha256:" $1}'
+    else
+      printf '%s' "$template" | shasum -a 256 | awk '{print "sha256:" $1}'
+    fi
     ;;
 
   up)

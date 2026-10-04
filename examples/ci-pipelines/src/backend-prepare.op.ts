@@ -72,9 +72,7 @@
 
 import { Op, phase, gate, shell, stepOutput } from "@intentius/chant/op";
 
-const SCRIPT = "bash scripts/backend-prepare.sh";
-
-const plan = shell(`${SCRIPT} plan`, { id: "template", profile: "policyCheck" });
+const plan = shell("bash scripts/backend-prepare.sh plan", { id: "template", profile: "policyCheck" });
 
 export default Op({
   name: "backend-prepare",
@@ -91,7 +89,7 @@ export default Op({
         plan: stepOutput(plan),
       }),
     ]),
-    phase("Apply", [shell(`${SCRIPT} up`, { profile: "policyCheck" })]),
-    phase("Verify", [shell(`${SCRIPT} verify`, { profile: "policyCheck" })]),
+    phase("Apply", [shell("bash scripts/backend-prepare.sh up", { profile: "policyCheck" })]),
+    phase("Verify", [shell("bash scripts/backend-prepare.sh verify", { profile: "policyCheck" })]),
   ],
 });

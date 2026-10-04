@@ -51,8 +51,11 @@ type Forge = keyof typeof FORGE_DIR;
  */
 const GITLAB_FILE = join(exampleDir, "gitlab", "ops.gitlab-ci.yml");
 
-/** The five Ops, which are also the five job names. */
-const OPS = ["live-adopt", "live-apply", "live-check", "live-discover", "live-plan"] as const;
+/**
+ * The six Ops, which are also the six job names. Sorted, because the
+ * per-forge directory listing below is compared against this list as is.
+ */
+const OPS = ["backend-prepare", "live-adopt", "live-apply", "live-check", "live-discover", "live-plan"] as const;
 
 interface Step {
   id?: string;
@@ -68,6 +71,7 @@ interface Job {
   permissions?: Record<string, string>;
   outputs?: Record<string, string>;
   env?: Record<string, string>;
+  environment?: { name: string };
   steps?: Step[];
 }
 interface Workflow {
@@ -326,6 +330,8 @@ describe("forgejo gets the same pipeline minus what its runner cannot do", () =>
     assert.equal(secretOf("live-discover"), secretOf("live-plan"));
     assert.equal(keyOf("live-adopt"), "${{ secrets.CHOUDOUFU_ADOPT_ACCESS_KEY_ID }}");
     assert.equal(keyOf("live-apply"), "${{ secrets.CHOUDOUFU_APPLY_ACCESS_KEY_ID }}");
+    assert.equal(keyOf("backend-prepare"), "${{ secrets.CHOUDOUFU_BACKEND_ACCESS_KEY_ID }}");
+    assert.equal(secretOf("backend-prepare"), "${{ secrets.CHOUDOUFU_BACKEND_SECRET_ACCESS_KEY }}");
     assert.equal(workflow("forgejo", "live-check").jobs["live-check"].env, undefined);
   });
 
@@ -488,7 +494,7 @@ describe("trigger parity: github, forgejo and gitlab fire on the table specs() b
 });
 
 describe("gitlab: one job per Op, in the one file the generator emits", () => {
-  it("is exactly the five Ops, plus stages: and variables:", () => {
+  it("is exactly the six Ops, plus stages: and variables:", () => {
     const doc = gitlabDoc();
     const jobs = Object.keys(doc).filter((key) => !["stages", "variables"].includes(key));
     assert.deepEqual(jobs.sort(), [...OPS].sort());
@@ -615,5 +621,123 @@ describe("gitlab: no job's setup step is a GitHub Actions marketplace action", (
     for (const op of OPS) {
       assert.ok(!("uses" in gitlabJob(op)), `${op}: gitlab has no uses: step shape`);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// backend-prepare (#1832, #1244 ruling 3): the Op that stands the record store
+// bucket up. Its trigger is covered by the trigger-parity table above; what
+// is asserted here is what makes it safe to hand a role that can create a
+// bucket and rewrite its policy.
+// ---------------------------------------------------------------------------
+
+describe("backend-prepare: its own role, its own branch, an unconditional gate", () => {
+  const opSource = () => readFileSync(join(exampleDir, "src", "backend-prepare.op.ts"), "utf8");
+  const scriptSource = () => readFileSync(join(exampleDir, "scripts", "backend-prepare.sh"), "utf8");
+
+  it("fires on a push to bootstrap and nothing else, on every forge", () => {
+    // A gate on every merge to main is a gate people learn to click
+    // through; standing a bucket up is a deliberate push to its own branch.
+    for (const forge of Object.keys(FORGE_DIR) as Forge[]) {
+      assert.deepEqual(workflow(forge, "backend-prepare").on, { push: { branches: ["bootstrap"] } }, forge);
+    }
+    assert.deepEqual(gitlabJob("backend-prepare").rules, [
+      { if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "bootstrap"' },
+    ]);
+  });
+
+  it("github: assumes CHOUDOUFU_BACKEND_ROLE_ARN, which is none of the other three roles", () => {
+    const roleOf = (op: string) =>
+      steps("github", op).find((s) => s.uses?.startsWith("aws-actions/"))?.with?.["role-to-assume"];
+    assert.equal(roleOf("backend-prepare"), "${{ vars.CHOUDOUFU_BACKEND_ROLE_ARN }}");
+    for (const op of ["live-plan", "live-adopt", "live-apply"]) {
+      assert.notEqual(roleOf("backend-prepare"), roleOf(op), op);
+    }
+  });
+
+  it("gitlab: assumes CHOUDOUFU_BACKEND_ROLE_ARN over OIDC", () => {
+    const job = gitlabJob("backend-prepare");
+    assert.deepEqual(job.id_tokens, { CHANT_ID_TOKEN: { aud: "$CI_SERVER_URL" } });
+    assert.match(job.script!.join("\n"), /AWS_ROLE_ARN="\$CHOUDOUFU_BACKEND_ROLE_ARN"/);
+  });
+
+  it("forgejo: its key pair is not any other job's", () => {
+    const keyOf = (op: string) => workflow("forgejo", op).jobs[op].env?.AWS_ACCESS_KEY_ID;
+    for (const op of ["live-plan", "live-adopt", "live-apply"]) {
+      assert.notEqual(keyOf("backend-prepare"), keyOf(op), op);
+    }
+  });
+
+  it("the job may not touch the forge, and maps only the gated outcome to success", () => {
+    assert.deepEqual(workflow("github", "backend-prepare").permissions, { contents: "read", "id-token": "write" });
+    for (const forge of Object.keys(FORGE_DIR) as Forge[]) {
+      const run = steps(forge, "backend-prepare").find((s) => s.run?.includes("chant run backend-prepare"));
+      assert.ok(run, `${forge}: the job runs the Op`);
+      assert.match(run.run!, /--gated-exit 0/, forge);
+    }
+    const gitlabRun = gitlabJob("backend-prepare").script!.find((l) => l.includes("chant run backend-prepare"));
+    assert.match(gitlabRun!, /--gated-exit 0/);
+  });
+
+  it("installs the tools the bucket project's recipes need, with just pinned by checksum", () => {
+    const lines = [
+      ...(Object.keys(FORGE_DIR) as Forge[]).map((forge) =>
+        steps(forge, "backend-prepare")
+          .map((s) => s.run ?? "")
+          .join("\n"),
+      ),
+      gitlabJob("backend-prepare").script!.join("\n"),
+    ];
+    for (const body of lines) {
+      assert.match(body, /apt-get install [^\n]*awscli jq/);
+      assert.match(body, /casey\/just\/releases\/download\/\d+\.\d+\.\d+\/just-[^ ]+\.tar\.gz/);
+      assert.match(body, /[0-9a-f]{64}  \/tmp\/just-[^ ]+\.tar\.gz" \| sha256sum -c -/);
+    }
+    // No other job grows the install: the read roles' jobs have no use for it.
+    for (const forge of Object.keys(FORGE_DIR) as Forge[]) {
+      for (const op of OPS) {
+        if (op === "backend-prepare") continue;
+        assert.ok(!text(forge, op).includes("casey/just"), `${forge}/${op}`);
+      }
+    }
+  });
+
+  it("declares no environment: its gate is chant's own, and unconditional", () => {
+    assert.equal(workflow("github", "backend-prepare").jobs["backend-prepare"].environment, undefined);
+    assert.equal(gitlabJob("backend-prepare").environment, undefined);
+  });
+
+  it("the Op gates between Plan and Apply, binds the gate to the Plan step, and verifies last", () => {
+    const src = opSource();
+    const order = ['phase("Plan"', 'phase("Approve"', 'phase("Apply"', 'phase("Verify"'].map((p) => src.indexOf(p));
+    assert.ok(order.every((i) => i >= 0), `every phase is declared: ${order}`);
+    assert.deepEqual([...order].sort((a, b) => a - b), order, "Plan, Approve, Apply, Verify, in that order");
+    assert.match(src, /gate\("prepare"/);
+    // Unconditional: a gate() step, not a dial that only fires on a destroy.
+    assert.ok(!/on-destroy/.test(src.replace(/\/\*[\s\S]*?\*\//g, "")), "no conditional gate setting");
+    assert.match(src, /plan: stepOutput\(plan\)/, "the approval is bound to the Plan step's template digest");
+  });
+
+  it("the Op applies through the bucket project's own `just up`, never a template of its own", () => {
+    // #1244's 2026-09-19 note: an Op that hands the built template straight
+    // to CloudFormation skips `just up`'s encryption-downgrade refusal and its
+    // retention-window preservation. Nothing here may do that.
+    const code = opSource().replace(/\/\*[\s\S]*?\*\//g, "");
+    assert.ok(!code.includes("awsApply"), "no direct CloudFormation apply in the Op");
+    const script = scriptSource();
+    assert.match(script, /bucket_just up "\$BUCKET"/);
+    assert.match(script, /bucket_just plan "\$BUCKET"/);
+    assert.ok(!script.includes("cloudformation deploy"), "the script deploys nothing itself");
+  });
+
+  it("reads the bucket from the estate's own sidecar, the line its runs read", () => {
+    const script = scriptSource();
+    assert.match(script, /terraform\/estate\.chdf\.hcl/);
+    assert.match(script, /bucket_owner/);
+    assert.ok(!/RECORD_BUCKET:-/.test(script), "no second spelling of the bucket name as a pipeline variable");
+  });
+
+  it("verifies with choudoufu's own contract check, from the estate's root", () => {
+    assert.match(scriptSource(), /cd "\$ROOT_DIR" && choudoufu live-bucket \)/);
   });
 });
