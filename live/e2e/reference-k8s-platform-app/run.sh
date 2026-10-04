@@ -1230,9 +1230,26 @@ counted_plan() {
       "$TOFU" plan -refresh=false -input=false -no-color > "$WORK/$label.plan" 2>&1 ); rc=$?
   printf '%s %s %s\n' "$(grep -c 'state cache hit' "$WORK/$label.log" 2>/dev/null || true)" "$(grep -c . "$PROXY_DIR/proxy.log" || true)" "$rc"
 }
-CACHE="$GREEN_APP/.terraform/choudoufu-cache.tfstate"
-ran chdf "$GREEN_APP" plan -input=false -no-color || { shown; fail "the plan that writes app's cache failed"; }
-[ -s "$CACHE" ] || fail "no state cache at $CACHE after a plan, so there is nothing to serve from or delete"
+# The cache's path is internal/command's stateCachePathFor:
+# CHOUDOUFU_STATE_CACHE when it names a path, else choudoufu-cache.tfstate
+# under the data dir (TF_DATA_DIR, default .terraform) of the root.
+# The cache is written only where the run persists state, which is an apply
+# (internal/command/live_mode.go: "A plan never persists"), so a no-op
+# apply warms it; a plan would leave greenfield's deleted cache deleted.
+case "${CHOUDOUFU_STATE_CACHE:-}" in
+  off) fail "CHOUDOUFU_STATE_CACHE=off is set, so there is no cache for no_local_state to measure" ;;
+  "") CACHE="$GREEN_APP/${TF_DATA_DIR:-.terraform}/choudoufu-cache.tfstate"
+      case "${TF_DATA_DIR:-}" in /*) CACHE="$TF_DATA_DIR/choudoufu-cache.tfstate" ;; esac ;;
+  /*) CACHE="$CHOUDOUFU_STATE_CACHE" ;;
+  *) CACHE="$GREEN_APP/$CHOUDOUFU_STATE_CACHE" ;;
+esac
+ran_has "Apply complete! Resources: 0 added, 0 changed, 0 destroyed" chdf "$GREEN_APP" apply -auto-approve -input=false -no-color \
+  || { shown; fail "the no-op apply that writes app's cache did not apply cleanly"; }
+if [ ! -s "$CACHE" ]; then
+  DATA_LS="$(ls -la "$(dirname "$CACHE")" 2>&1)"
+  printf -- '--- %s after the warming apply ---\n%s\n---\n' "$(dirname "$CACHE")" "$DATA_LS"
+  fail "no state cache at $CACHE after a no-op apply, so there is nothing to serve from or delete"
+fi
 cp "$CACHE" "$WORK/cache.keep"
 read -r HITS_SEL REQ_SEL RC_SEL <<< "$(counted_plan selective)"
 cp "$WORK/cache.keep" "$CACHE"
@@ -1261,7 +1278,7 @@ else
   [ -z "$NLS_BAD" ] || fail "$NLS_BAD"
   NLS_UPD="$(grep -cE '# .+ will be updated in-place' "$WORK/nocache.plan" || true)"
   RATIO="$(awk -v a="$REQ_NONE" -v b="$REQ_SEL" 'BEGIN { printf "%.2f", a / b }')"
-  gauntlet_stage no_local_state pass "app's records live in the cluster, so the only local state is the state cache; with it deleted - a fresh clone - the plan found every declared object by its label and namespace and name: nothing created, destroyed or replaced, $NLS_UPD in-place update(s). The unchanged plan before the deletion was served from the cache: $HITS_SEL instance(s) answered by a cache hit (#1864's vouch), $REQ_SEL requests against reads = \"full\"'s $REQ_FULL with 0 hits, both plans empty. plan_calls_no_local_state=$REQ_NONE plan_calls_cache_serving=$REQ_SEL ratio=${RATIO}x (all plan -refresh=false, Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. BREAK_NO_LOCAL_STATE=1 strips the web Service's label and the check correctly fails"
+  gauntlet_stage no_local_state pass "app's records live in the cluster, so the only local state is the state cache; with it deleted - a fresh clone - the plan found every declared object by its label and namespace and name: nothing created, destroyed or replaced, $NLS_UPD in-place update(s). The unchanged plan before the deletion was served from the cache (written by a no-op apply, since a plan never persists it): $HITS_SEL instance(s) answered by a cache hit (#1864's vouch), $REQ_SEL requests against reads = \"full\"'s $REQ_FULL with 0 hits, both plans empty. plan_calls_no_local_state=$REQ_NONE plan_calls_cache_serving=$REQ_SEL ratio=${RATIO}x (all plan -refresh=false, Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. BREAK_NO_LOCAL_STATE=1 strips the web Service's label and the check correctly fails"
 fi
 kill "$PROXY_PID" 2>/dev/null || true; PROXY_PID=""
 ran chdf "$GREEN_APP" apply -destroy -auto-approve -input=false -no-color || { shown; fail "app's greenfield teardown failed"; }
