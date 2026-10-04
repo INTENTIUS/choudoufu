@@ -64,3 +64,18 @@ The plan warns that it is as of that apply. The producer's destroy deletes
 it. Sensitive outputs never cross.
 The bucket policy needs `--reads-outputs-of cluster-infrastructure`, or the
 plan stops naming that estate.
+
+On `record_store "kubernetes"` each estate's records sit in a namespace of
+their own, so the consumer names the producer in its record_store block:
+
+```hcl
+record_store "kubernetes" {
+  reads_outputs_of "cluster-infrastructure" {}
+}
+```
+
+The read goes to `tofu-records-cluster-infrastructure` (set `namespace`
+inside the block if the producer's records are elsewhere) and can only get.
+Without the block, the plan stops before reading anything. Without a Role
+granting `get` on the producer's output Secrets, the plan stops and prints
+the `kubectl` lines that grant it.
