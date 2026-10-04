@@ -82,6 +82,14 @@ nodes:
         pushAccessLevel: 40
         mergeAccessLevel: 30
         allowForcePush: false
+      # bootstrap is where backend-prepare (#1832) fires, holding the role
+      # that can create the record store bucket and rewrite its policy, so
+      # it is protected the same way as staging. The note on deletion below
+      # applies to it too.
+      - name: bootstrap
+        pushAccessLevel: 40
+        mergeAccessLevel: 30
+        allowForcePush: false
         # gitlab-warden's ProtectedBranchConfig (src/config/types.ts) has no
         # separate "no deletion" field, unlike GitHub's allowDeletions or
         # Forgejo's enablePush: on GitLab, deleting a protected branch is a
@@ -119,16 +127,17 @@ nodes:
     # API - not warden - rejects the empty value with
     # `POST .../variables returned 400: {"message":{"value":["is invalid"]}}`.
     # That is neither github-warden's refuse-and-name-it nor forgejo-warden's
-    # create-it-empty; provision the four masked ones below via
+    # create-it-empty; provision the five masked ones below via
     # `GITLAB_VAR_<KEY>` in whatever runs the apply before the first reconcile.
     # AWS_REGION carries a value, the same as on the other two forges,
     # because a pipeline pointed at the wrong region is an incident and a
     # region is not account-specific.
     #
-    # The three role ARNs are read the same way GitHub's OIDC jobs read
+    # The four role ARNs are read the same way GitHub's OIDC jobs read
     # theirs: live-plan and live-discover both read CHOUDOUFU_PLAN_ROLE_ARN,
     # live-adopt reads CHOUDOUFU_ADOPT_ROLE_ARN, live-apply reads
-    # CHOUDOUFU_APPLY_ROLE_ARN. GITLAB_TOKEN is the one credential neither
+    # CHOUDOUFU_APPLY_ROLE_ARN, backend-prepare reads
+    # CHOUDOUFU_BACKEND_ROLE_ARN. GITLAB_TOKEN is the one credential neither
     # other forge's policy declares: live-plan's merge-request note goes
     # through GitLab's own REST API rather than `gh`, and needs a token with
     # `api` scope to post it (examples/ci-pipelines/src/forge.ts). Left
@@ -144,6 +153,8 @@ nodes:
       - key: CHOUDOUFU_ADOPT_ROLE_ARN
         masked: true
       - key: CHOUDOUFU_APPLY_ROLE_ARN
+        masked: true
+      - key: CHOUDOUFU_BACKEND_ROLE_ARN
         masked: true
       - key: GITLAB_TOKEN
         masked: true

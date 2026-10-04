@@ -246,6 +246,8 @@ if ! aws s3api head-bucket --bucket "$RECORD_BUCKET" --expected-bucket-owner "$A
   echo "  $ESTATE_FILE names it as the estate's record store, and the apply role's" >&2
   echo "  policy below is written against it. Stand it up first:" >&2
   echo "    cd examples/record-store-bucket && AWS_REGION=$REGION just up $RECORD_BUCKET && just verify $RECORD_BUCKET" >&2
+  echo "  or through the pipeline: push to the bootstrap branch, which runs backend-prepare" >&2
+  echo "  under CHOUDOUFU_BACKEND_ROLE_ARN and stops at its gate (README, \"backend-prepare\")," >&2
   echo "  then re-run." >&2
   exit 1
 fi

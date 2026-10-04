@@ -75,6 +75,20 @@ orgs:
             allowForcePushes: false
             allowDeletions: false
 
+          # ── The branch backend-prepare stands the bucket up from ────────
+          #
+          # backend-prepare runs on a push to bootstrap (#1832), after chant's
+          # own gate, and holds the backend role, which can create the record
+          # store bucket and rewrite its policy - the widest role in the
+          # example. Protected the same way as staging, for the same reason:
+          # reaching a push here is a reviewed pull request. No required
+          # status checks, since nothing runs on a pull request to bootstrap.
+          - pattern: bootstrap
+            requirePullRequestReviews: true
+            requiredApprovingReviewCount: 1
+            allowForcePushes: false
+            allowDeletions: false
+
         # ── The production environment ─────────────────────────────────────
         #
         # READ examples/pipeline-governance/README.md, "What the environment
@@ -104,7 +118,7 @@ orgs:
         # mint an OIDC token and exchange it for credentials that expire with
         # the job, and a role ARN is an account number and a role name.
         #
-        # The three role ARNs carry no `value`, which is warden's presence-only
+        # The four role ARNs carry no `value`, which is warden's presence-only
         # form: it asserts the variable exists and refuses to invent one,
         # naming it, so a repository missing the apply role fails here rather
         # than at 3am in a run that then cannot authenticate.
@@ -119,3 +133,4 @@ orgs:
           - name: CHOUDOUFU_PLAN_ROLE_ARN
           - name: CHOUDOUFU_ADOPT_ROLE_ARN
           - name: CHOUDOUFU_APPLY_ROLE_ARN
+          - name: CHOUDOUFU_BACKEND_ROLE_ARN

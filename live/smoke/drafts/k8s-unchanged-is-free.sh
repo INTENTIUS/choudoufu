@@ -6,19 +6,18 @@
 # reads, measured on the wire; reads = "full" (CHOUDOUFU_READS=full) turns
 # that off and pays every read; and the two plans print the same answer.
 #
-# DRAFT: written and never run (live/smoke/drafts/README.md), and by reading
-# the code its step 2 is expected to FAIL today. Its first run is the
-# measurement that settles it. The cache hit needs a vouch
+# DRAFT: written and never run (live/smoke/drafts/README.md). Its first
+# run is the measurement that settles it. The cache hit needs a vouch
 # (projection.cacheHit: Ownership.Verified, fed by discovery's
-# Result.MarkerVerified, or a record envelope). The Kubernetes sweep joins an
-# object declared by its kind and natural key and records no vouch for it
-# (internal/live/discovery/kubernetes.go skips declared objects; only
-# address-annotation bindings reach Result.Bindings). The other route, #692's
-# cache-vouch listing (discovery.go, req.CacheVouchTypes), lists a type
-# through the provider's list schema, and whether hashicorp/kubernetes 3.2.1
-# answers one for these types was not established by reading. If step 2
-# reports zero hits, the claim does not hold on Kubernetes and the fix is a
-# vouch from the Kubernetes sweep, not this scenario.
+# Result.MarkerVerified, or a record envelope). Until #1860 the Kubernetes
+# sweep joined an object declared by its kind and natural key and recorded
+# no vouch for it, so step 2 could not pass; since #1860 it files the
+# declaring instance in Result.VerifiedDeclared
+# (internal/live/discovery/kubernetes.go, vouchesDeclared), and step 2 is
+# expected to pass. If it reports zero hits, read vouchesDeclared's
+# withheld cases first: an object annotated for another block, a
+# terminating one, one two blocks declare, or one whose block uses another
+# provider configuration is deliberately read rather than served.
 #
 # The AWS proof's record-backed half (a local record store's record is the
 # attestation) touches no cloud and no cluster, so it is not repeated here.
@@ -92,7 +91,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   proof "caught: with the cache gone the selective plan served nothing and paid the full price, so the saving the main arm measures is the cache's."
   exit 0
 fi
-[ "$HITS_SEL" -gt 0 ] || fail "k8s-unchanged" "the selective plan served nothing from a fresh cache: unchanged was not free on Kubernetes. Read this scenario's header: the Kubernetes sweep records no vouch for an object it joins by natural key"
+[ "$HITS_SEL" -gt 0 ] || fail "k8s-unchanged" "the selective plan served nothing from a fresh cache: unchanged was not free on Kubernetes. Read this scenario's header: the vouch comes from the Kubernetes sweep (#1860, vouchesDeclared)"
 [ "$REQ_SEL" -lt "$REQ_FULL" ] || fail "k8s-unchanged" "the selective plan saved no requests ($REQ_SEL against $REQ_FULL)"
 diff "$W/selective.plan" "$W/full.plan" > "$W/plan-diff.txt" \
   || fail "k8s-unchanged" "the toggle changed the plan's answer, and it may only change the price: $(cat "$W/plan-diff.txt")"
