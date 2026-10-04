@@ -20,7 +20,6 @@ import (
 func osisLikeSurvey() surveyEntry {
 	return surveyEntry{
 		Type: "aws_osis_pipeline",
-		Path: "marker",
 		Identity: &surveyIdentity{
 			RequiredForImport:     []string{"name"},
 			OptionalForImport:     []string{"account_id", "region"},

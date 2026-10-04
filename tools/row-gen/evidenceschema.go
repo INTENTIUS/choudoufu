@@ -7,6 +7,8 @@ package main
 
 import (
 	"fmt"
+
+	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
 // This file is issue #428's row-gen change: "let the schema name the
@@ -54,53 +56,51 @@ import (
 //     server-assigned or client-named shape" in the registry's terms,
 //     which says nothing about the provider's own terms.
 //
-// # Why Path==client-named, not merely Identity != nil
+// # Why admission "schema", not merely Identity != nil
 //
 // live/survey-full.json's own Identity field is required_for_import
 // attribute NAMES, nothing about whether the named attribute is a
 // configuration argument a caller sets or one the provider computes and
 // merely echoes back - many server-assigned types require "arn" or "id"
-// for import too. tools/survey-gen/classify.go already answers that
-// question, with real provider schemas identity.DerivableWith reads
-// directly (Required, not Computed; no nested-block flattening; every
-// required-for-import attribute this way), and records the answer as
-// Path==client-named - the same strict judgment
-// identity.SynthesizeTypeIdentity's own single-attribute branch would make
-// at runtime, computed offline once by survey-gen instead of per-run.
-// Consulting Path here rather than making a bare Identity != nil check
-// is deliberate: reading
-// "identity schema present" as "the schema names an argument" would
-// misclassify a server-assigned type whose required_for_import happens to
-// be a single Computed attribute as client-named, the false positive
-// [markerlessRoster]'s own docMintedSegment leg exists to keep out of the
-// veto's blind spot - see markerless.go's serverAssignmentVerdicts.
+// for import too. tools/survey-gen already answers that question, with
+// real provider schemas identity.Derivable reads directly (Required, not
+// Computed; no nested-block flattening; every required-for-import attribute
+// this way), and records the answer as admission "schema" - the same
+// strict judgment identity.SynthesizeTypeIdentity's own single-attribute
+// branch would make at runtime, computed offline once by survey-gen
+// instead of per-run. Consulting it here rather than making a bare
+// Identity != nil check is deliberate: reading "identity schema present" as
+// "the schema names an argument" would misclassify a server-assigned type
+// whose required_for_import happens to be a single Computed attribute as
+// client-named, the false positive [markerlessRoster]'s own
+// docMintedSegment leg exists to keep out of the veto's blind spot - see
+// markerless.go's serverAssignmentVerdicts.
 //
-// Path==parent-derived counts too, and is not a different row shape after
-// all: tools/survey-gen/classify.go's own derivable-then-parentRef branch
-// (see that file) computes BOTH paths from the exact same
-// identity.DerivableWith safety check and the exact same IdentityAttrs;
-// parent-derived only ADDS the informational fact that one of those
-// attributes' name also matches a known parent type. [DerivableType]'s own
-// doc comment says why that fact changes nothing about the row: "A route's
-// route_table_id is a required argument and is usually a reference to a
-// live rtb- ID... aws_route is derivable in this sense and still resolves
-// parent-derived per instance" - concrete-versus-parent-derived is decided
+// Whether one of those attributes also names another managed type (an
+// association's parent) does not matter here. [DerivableType]'s own doc
+// comment says why: "A route's route_table_id is a required argument and is
+// usually a reference to a live rtb- ID... aws_route is derivable in this
+// sense and still resolves parent-derived per instance" - that is decided
 // per INSTANCE, from the argument's expression, by [identity.Resolve]'s own
 // classify step at plan time, never by the table row. A row-gen
-// Components{Attrs: [argName]} row is exactly as correct whether or not
-// argName happens to name another type's ARN, so this pass treats the two
-// paths identically. Only account-derived and unique-name are excluded:
-// account-derived needs a Cloud-valued Component, which
-// [identity.SynthesizeTypeIdentity] and schemafirst.go's own comparison
-// both structurally refuse to build (a hand-ratified table fact, not a
-// schema-derivable one); unique-name needs tools/row-gen/uniquename.go's
-// own cross-referenced provider-docs-plus-registry evidence, not the
-// identity schema at all.
+// Components{Attrs: [argName]} row is exactly as correct either way.
+//
+// One population is excluded even when the schemas prove the declaration:
+// a type whose identity-table entry builds the identity from configuration
+// plus a cloud value (account or region), or binds it by an AWS-enforced
+// unique name - [tableAssertedBinding]. The first needs a Cloud-valued
+// Component, which [identity.SynthesizeTypeIdentity] and schemafirst.go's
+// own comparison both structurally refuse to build (a hand-ratified table
+// fact, not a schema-derivable one); the second needs
+// tools/row-gen/uniquename.go's own cross-referenced
+// provider-docs-plus-registry evidence, not the identity schema at all.
+// Until #696 this exclusion came through survey-gen's path column, which
+// read the same two table facts; it now reads the table directly.
 //
 // # Why exactly one required attribute
 //
-// Path==client-named's own derivable[typeName].IdentityAttrs can, in
-// principle, name more than one plain (non-parent) required attribute.
+// A schema-proven identity can, in principle, name more than one required
+// attribute.
 // [identity.SynthesizeTypeIdentity]'s real runtime behaviour for that case
 // is not classify.go's ordinary single-Attrs Component: it is
 // [identity.TypeIdentity.IdentityObjectOnly] (issue #105), a shape that
@@ -109,7 +109,7 @@ import (
 // renderClientNamedEntry and [proposedFields]'s bucketClientNamed case
 // build only the single-Attrs shape; extending them to emit an
 // IdentityObjectOnly row is issue #105 territory, not this one, so a
-// multi-attribute Path==client-named row is left evidence-only here and
+// multi-attribute schema-proven row is left evidence-only here and
 // ledgered by [schemaGapClass] as "multi-attribute" rather than silently
 // mis-rendered as a single-argument row it is not.
 //
@@ -136,7 +136,7 @@ import (
 
 // applySchemaFirstArgName is classifyAll's issue #428 pass, mutating
 // proposals in place. See this file's own doc comment for the population,
-// the safety reasoning behind Path==client-named, and why exactly one
+// the safety reasoning behind admission "schema", and why exactly one
 // required attribute.
 func applySchemaFirstArgName(proposals []proposal, survey map[string]surveyEntry) {
 	for i := range proposals {
@@ -145,7 +145,7 @@ func applySchemaFirstArgName(proposals []proposal, survey map[string]surveyEntry
 			continue
 		}
 		s, ok := survey[p.TFType]
-		if !ok || s.Identity == nil || (s.Path != surveyPathClientNamed && s.Path != surveyPathParentDerived) {
+		if !ok || s.Identity == nil || !s.schemaProvesDeclaration() || tableAssertedBinding(p.TFType) {
 			continue
 		}
 		if len(s.Identity.RequiredForImport) != 1 {
@@ -156,21 +156,43 @@ func applySchemaFirstArgName(proposals []proposal, survey map[string]surveyEntry
 		p.ArgName = arg
 		p.ArgSource = argSourceIdentitySchemaEvidenceOnly
 		p.Rule = fmt.Sprintf(
-			"issue #428: evidence-only, but live/survey-full.json's own %s path (survey-gen's identity.DerivableWith check against the provider's real schemas) proves the identity is fully client-supplied and names %s",
-			s.Path, arg)
+			"issue #428: evidence-only, but live/survey-full.json's admission %q (survey-gen's identity.Derivable check against the provider's real schemas) proves the identity is fully client-supplied and names %s",
+			s.Admission, arg)
 		p.Notes = append(p.Notes, "argument name sourced from the provider's own identity schema (live/survey-full.json), reached because this row never satisfied classifyMapped rule 2's CFN-registry-shaped gate that would otherwise have consulted it (see evidenceschema.go)")
 	}
 }
 
-// surveyPathClientNamed and surveyPathParentDerived mirror
-// tools/survey-gen/classify.go's own tokens (live/survey-full.json's Path
-// column). Redeclared rather than imported - a tools/*-gen binary importing
-// another one's package is not this repository's shape (see
-// tools/readiness-gen/build.go's own copy of the same token set for the
-// established precedent).
+// tableAssertedBinding reports whether identity.DefaultTable's entry for
+// typeName carries one of the two identity facts no provider schema states:
+// a component naming a cloud value (the run's account or region), or a
+// unique-name binding. Both are hand-ratified table facts; see this file's
+// doc comment for why either keeps a type out of the schema-first pass.
+func tableAssertedBinding(typeName string) bool {
+	entry, ok := identity.LookupType(typeName)
+	if !ok {
+		return false
+	}
+	if entry.UniqueName.Set() {
+		return true
+	}
+	for _, c := range entry.Components {
+		if c.Cloud != identity.CloudNone {
+			return true
+		}
+	}
+	return false
+}
+
+// The has-schema gap families, keyed by tier where the tier settles it.
+// Until #696 these were named after survey-gen's path tokens; the families
+// now follow the readiness tiers (live/readiness.json): tier A for a
+// taggable type, tier B for one whose declaration or the identity table
+// carries its identity, tier C for the rest.
 const (
-	surveyPathClientNamed   = "client-named"
-	surveyPathParentDerived = "parent-derived"
+	gapMultiAttribute     = "multi-attribute"
+	gapTierBTableAsserted = "tier-b-table-asserted"
+	gapTierATaggable      = "tier-a-taggable"
+	gapTierCRecordCarried = "tier-c-record-carried"
 )
 
 // schemaGapClass labels why a bucketEvidenceOnly type carrying a provider
@@ -179,20 +201,14 @@ const (
 // names what a later unit would need to actually close the gap, not merely
 // that one exists.
 func schemaGapClass(s surveyEntry) string {
-	switch s.Path {
-	case surveyPathClientNamed, surveyPathParentDerived:
-		return "multi-attribute" // len(RequiredForImport) != 1 - see applySchemaFirstArgName's own guard; both paths share the same single-argument shape once covered
-	case "marker":
-		return "taggable-marker-path"
-	case "account-derived":
-		return "account-derived"
-	case "unique-name":
-		return "unique-name"
-	case "enumerable, unbindable":
-		return "enumerable-unbindable"
-	case "moves to Ops":
-		return "ops-excluded"
+	switch {
+	case tableAssertedBinding(s.Type):
+		return gapTierBTableAsserted
+	case s.schemaProvesDeclaration():
+		return gapMultiAttribute // len(RequiredForImport) != 1 - see applySchemaFirstArgName's own guard
+	case s.Signals.Taggable:
+		return gapTierATaggable
 	default:
-		return "other"
+		return gapTierCRecordCarried
 	}
 }

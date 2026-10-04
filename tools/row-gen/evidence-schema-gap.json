@@ -15,9 +15,9 @@
       ]
     },
     {
-      "family": "taggable-marker-path",
+      "family": "tier-a-taggable",
       "count": 20,
-      "note": "The type IS taggable (live/survey-full.json Path=marker): tag-based discovery already binds a live object of this type without a plan-time identity argument, so being evidence-only here is about a different question (does the schema name a CREATE-time argument) than binding, which already works. The Components row row-gen would still paste for CREATE/PLAN has no schema-only answer for these - the schema's own required-for-import set failed identity.DerivableWith's strict client-naming check (most commonly the Optional+Computed cohort: a settable argument the schema cannot prove is client-chosen rather than provider-defaulted, survey-gen's classify.go's own identityNote branch). Closing it needs a worked `terraform import` example in the provider's own docs (the source live/import-grammar.json's scrape already reads for other types) or a future provider release marking the attribute Required rather than Optional+Computed.",
+      "note": "Tier A: the type is taggable, so marker-sweep recovery binds a live object of this type without a plan-time identity argument, and being evidence-only here is about a different question (does the schema name a CREATE-time argument) than binding. The Components row row-gen would still paste for CREATE/PLAN has no schema-only answer for these - the schema's own required-for-import set failed identity.Derivable's strict client-naming check (most commonly the Optional+Computed cohort: a settable argument the schema cannot prove is client-chosen rather than provider-defaulted). Closing it needs a worked `terraform import` example in the provider's own docs (the source live/import-grammar.json's scrape already reads for other types) or a future provider release marking the attribute Required rather than Optional+Computed.",
       "members": [
         "aws_appfabric_app_bundle",
         "aws_auditmanager_control",
@@ -42,18 +42,21 @@
       ]
     },
     {
-      "family": "ops-excluded",
-      "count": 19,
-      "note": "live/survey-full.json Path=moves to Ops: either hand-excluded (tools/survey-gen/classify.go's opsExcluded, one entry today, aws_iam_access_key) or the identity schema's required-for-import set failed the strict client-naming check AND the type is untaggable with no enumeration path either. The schema exists but does not, by itself, prove the identity is client-supplied. Closing it needs either a maintainer ruling (for the hand-excluded case) or the same worked-Import-example source the taggable-marker-path family needs, plus issue #233 if enumeration turns out to be the real blocker once the identity question is settled.",
+      "family": "tier-c-record-carried",
+      "count": 25,
+      "note": "Tier C: untaggable, and the provider's schemas do not prove the declaration supplies the identity, so nothing but a record holds it once its declaration is gone. The schema exists but its required-for-import set failed the strict client-naming check. Whether a native list resource or a Cloud Control list handler can enumerate the type does not change that: binding reads the two ownership tags, and this type has nowhere to write them. Closing it needs the same worked-Import-example source tier A's family needs (to settle the identity question), and issue #233's mechanism (a marker-capable argument, or a record store) for recovery.",
       "members": [
         "aws_auditmanager_framework_share",
         "aws_bedrock_use_case_for_model_access",
+        "aws_bedrockagentcore_registry",
+        "aws_cloudwatch_log_s3_table_integration_source",
         "aws_codestarconnections_host",
         "aws_config_retention_configuration",
         "aws_datazone_glossary",
         "aws_datazone_glossary_term",
         "aws_devicefarm_upload",
         "aws_dynamodb_table_export",
+        "aws_dynamodb_table_item",
         "aws_ec2_image_block_public_access",
         "aws_ec2_serial_console_access",
         "aws_globalaccelerator_custom_routing_endpoint_group",
@@ -61,21 +64,11 @@
         "aws_iam_outbound_web_identity_federation",
         "aws_iot_indexing_configuration",
         "aws_iot_logging_options",
+        "aws_osis_pipeline_endpoint",
         "aws_outposts_capacity_task",
         "aws_securityhub_action_target",
         "aws_securityhub_member",
-        "aws_uxc_account_customizations"
-      ]
-    },
-    {
-      "family": "enumerable-unbindable",
-      "count": 6,
-      "note": "Untaggable, and only bare enumeration (a native list resource or an unscoped Cloud Control list handler) recovers it - no tag write target exists for markers to bind through even though the schema is present. Blocked on issue #233 (a marker-capable argument, or a record store), not on missing identity evidence; the schema already names required attributes, they are simply not enough to prove client-naming or to substitute for a marker.",
-      "members": [
-        "aws_bedrockagentcore_registry",
-        "aws_cloudwatch_log_s3_table_integration_source",
-        "aws_dynamodb_table_item",
-        "aws_osis_pipeline_endpoint",
+        "aws_uxc_account_customizations",
         "aws_workmail_group",
         "aws_workmail_user"
       ]
@@ -140,9 +133,17 @@
       ]
     },
     {
-      "family": "taggable-marker-recoverable",
+      "family": "tier-b-table-asserted",
+      "count": 1,
+      "note": "Tier B by the identity table, with no identity schema present at all: internal/live/identity's own entry for the type builds the identity from configuration plus a Cloud-valued component, or binds it by an AWS-enforced unique name - hand-asserted facts independent of whether the provider serves an identity schema. row-gen's own registry-based classifier still calls the type evidence-only because it has never been given a fresh proposal carrying that fact. The source that closes this is the table ratification that already exists, not a new extraction.",
+      "members": [
+        "aws_glue_connection"
+      ]
+    },
+    {
+      "family": "tier-a-taggable",
       "count": 79,
-      "note": "Taggable (live/survey-full.json Path=marker) with no provider identity schema at all: tag-based discovery already binds a live object of this type without a plan-time identity argument, so evidence-only here is about a different question (does anything name a CREATE-time argument) than binding, which already works. Closing the Components-row gap for CREATE/PLAN needs the same source any ordinary evidence-only type needs: a worked `terraform import` example in the provider's own docs (the live/import-grammar.json scrape's own source), which for this family specifically has not yet been found or does not exist on the page.",
+      "note": "Tier A, with no provider identity schema at all: the type is taggable, so marker-sweep recovery binds a live object of this type without a plan-time identity argument, and evidence-only here is about a different question (does anything name a CREATE-time argument) than binding. Closing the Components-row gap for CREATE/PLAN needs the same source any ordinary evidence-only type needs: a worked `terraform import` example in the provider's own docs (the live/import-grammar.json scrape's own source), which for this family specifically has not yet been found or does not exist on the page.",
       "members": [
         "aws_ami",
         "aws_appfabric_app_authorization",
@@ -226,28 +227,9 @@
       ]
     },
     {
-      "family": "enumerable-unbindable",
-      "count": 4,
-      "note": "Untaggable, and only bare enumeration (a native list resource or an unscoped Cloud Control list handler) recovers it - no schema, no tag write target. Blocked on issue #233 (a marker-capable argument, or a record store), not on missing identity evidence; naming a new extraction source would not help until #233's mechanism exists.",
-      "members": [
-        "aws_dx_gateway_association",
-        "aws_route53_resolver_config",
-        "aws_securitylake_subscriber_notification",
-        "aws_ses_email_identity"
-      ]
-    },
-    {
-      "family": "account-derived-no-schema",
-      "count": 1,
-      "note": "live/survey-full.json's Path column already says account-derived for this type with no identity schema present at all - the account-derived judgment comes from internal/live/identity's own table (a Cloud-valued Component someone already hand-asserted for it, read by tools/survey-gen/classify.go's cloudValuesOf), independent of whether the provider serves an identity schema. row-gen's own registry-based classifier still calls the type evidence-only because it has never been given a table row of its own with that Cloud component in it (aws_glue_connection at this measurement, 1 type) - the source that closes this is table ratification from the same evidence that already produced the survey's own account-derived verdict, not a new extraction.",
-      "members": [
-        "aws_glue_connection"
-      ]
-    },
-    {
-      "family": "no-admission-signal",
-      "count": 134,
-      "note": "No native list resource, no Cloud Control list handler that needs no scoping input this fork's enumeration legs already supply, no provider identity schema, and - for the large majority - no CloudFormation model at all to read a primaryIdentifier from (live/mapping.json's own via=cfn-unmodeled/tf-only/deprecated-service/none). This is the least-evidenced population in the whole roster: closing any one of these needs the provider or CloudFormation to publish something new that does not exist in this repository's own artifacts today - a worked `terraform import` example naming the argument (a live/import-grammar.json scrape gap worth checking by hand before assuming the doc has none), a resource identity schema in a future provider release, or a CloudFormation registry entry with a primaryIdentifier. This note is a class-wide default, not a per-type audit - re-check the specific type's own provider doc page before citing this note as proof nothing exists.",
+      "family": "tier-c-record-carried",
+      "count": 138,
+      "note": "Tier C, with no provider identity schema: untaggable, and nothing in the provider's schemas names the identity. For the large majority there is also no CloudFormation model to read a primaryIdentifier from (live/mapping.json's own via=cfn-unmodeled/tf-only/deprecated-service/none), and where a native list resource or an unscoped Cloud Control list handler can enumerate the type, nothing can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them (issue #233). This is the least-evidenced population in the whole roster: closing any one of these needs the provider or CloudFormation to publish something new that does not exist in this repository's own artifacts today - a worked `terraform import` example naming the argument (a live/import-grammar.json scrape gap worth checking by hand before assuming the doc has none), a resource identity schema in a future provider release, or a CloudFormation registry entry with a primaryIdentifier. This note is a class-wide default, not a per-type audit - re-check the specific type's own provider doc page before citing this note as proof nothing exists.",
       "members": [
         "aws_account_alternate_contact",
         "aws_ami_launch_permission",
@@ -278,6 +260,7 @@
         "aws_db_instance_automated_backups_replication",
         "aws_directory_service_shared_directory",
         "aws_docdb_cluster_snapshot",
+        "aws_dx_gateway_association",
         "aws_dx_gateway_association_proposal",
         "aws_dx_macsec_key_association",
         "aws_dynamodb_tag",
@@ -342,6 +325,7 @@
         "aws_redshiftdata_statement",
         "aws_redshiftserverless_usage_limit",
         "aws_route53_delegation_set",
+        "aws_route53_resolver_config",
         "aws_route53_resolver_firewall_config",
         "aws_route53_traffic_policy",
         "aws_route53_traffic_policy_instance",
@@ -352,11 +336,13 @@
         "aws_sagemaker_model_card_export_job",
         "aws_security_group_rule",
         "aws_securityhub_invite_accepter",
+        "aws_securitylake_subscriber_notification",
         "aws_servicecatalog_constraint",
         "aws_servicecatalog_provisioning_artifact",
         "aws_servicequotas_template",
         "aws_servicequotas_template_association",
         "aws_ses_domain_identity",
+        "aws_ses_email_identity",
         "aws_ses_event_destination",
         "aws_ses_identity_notification_topic",
         "aws_sesv2_account_suppression_attributes",
