@@ -100,11 +100,11 @@ func retractionRefusal(retracted []string, allowFlag string) error {
 	return fmt.Errorf(
 		"row-gen -emit: %[1]d admitted type(s) would be retracted from %[2]s. Nothing has been written. "+
 			"A retracted type stops resolving for every configuration that names it, so this has to be deliberate: "+
-			"if it is, pass %[3]s; if it is not, fix the cause. The usual cause is a row deleted from %[6]s "+
+			"if it is, pass %[3]s; if it is not, fix the cause. The usual cause is a row deleted from %[5]s "+
 			"or an evidence change that made markerless.go's veto reach further. Re-emitting after fixing the cause "+
-			"DOES restore these rows - they are ratified in %[6]s, which no generator writes - and if a retraction has "+
-			"already been written, `git checkout -- %[2]s %[4]s %[5]s %[7]s` restores the tables directly:\n  %[8]s",
+			"DOES restore these rows - they are ratified in %[5]s, which no generator writes - and if a retraction has "+
+			"already been written, `git checkout -- %[2]s %[4]s %[6]s` restores the tables directly:\n  %[7]s",
 		len(retracted), identityTableRel, allowFlag,
-		lintTableRel, logicalTableRel, ratifiedJSONRel, markerlessTableRel,
+		logicalTableRel, ratifiedJSONRel, markerlessTableRel,
 		strings.Join(retracted, "\n  "))
 }
