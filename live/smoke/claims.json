@@ -628,7 +628,7 @@
               "break_mode": "BREAK=1 gives both roots the same tofu-estate value while everything else - the account, the shared data-source read, the resource address - stays identical; the concurrent applies still finish, but the next plan must name both live roles rather than reading clean"
             }
           ],
-          "note": ""
+          "note": "Across both legs of one EKS estate (#1113): live/e2e/reference-eks/two-fences.sh is written and has NOT run, so it is no proof yet and this cell's status does not rest on it. It shows two AWS roles reaching both legs through their own credential only: IAM on the ownership tags fences the AWS leg, live/kubernetes/estate-boundary.yaml fences the cluster leg per user, a grant moved on one leg does not move the other, and a carve is one live-mv -from-estate per leg, each judged by its own fence. It needs floci's opt-in principal identity (lex00/floci#220), without which every role is system:masters on the cluster. It moves to live/smoke/scenarios/ and registers here after its first green run with its BREAK control caught."
         },
         "kubernetes": {
           "status": "proven",
@@ -640,7 +640,7 @@
               "break_mode": "BREAK=1 removes the policy and requires the writes it refused - Bob's apply and plain kubectl on Alice's estate, and Alice's live-mv -from-estate into an estate she was never granted - to go through, while step 4's plan-side refusal of another estate's object must still hold with the policy gone"
             }
           ],
-          "note": "Write-only and cluster-wide: one ValidatingAdmissionPolicy on the estate label, installed by a cluster admin, fences create, update and delete and never get or list (#1066). An IAM condition on AWS also fences reads and can name an address, not only an estate. One estate across contexts, clusters or two estates applying to one cluster at once has not been measured."
+          "note": "Write-only and cluster-wide: one ValidatingAdmissionPolicy on the estate label, installed by a cluster admin, fences create, update and delete and never get or list (#1066). An IAM condition on AWS also fences reads and can name an address, not only an estate. One estate across contexts, clusters or two estates applying to one cluster at once has not been measured. Across both legs of one EKS estate (#1113): live/e2e/reference-eks/two-fences.sh is written and has NOT run, so it is no proof yet and this cell's status does not rest on it. It shows two AWS roles reaching both legs through their own credential only: IAM on the ownership tags fences the AWS leg, live/kubernetes/estate-boundary.yaml fences the cluster leg per user, a grant moved on one leg does not move the other, and a carve is one live-mv -from-estate per leg, each judged by its own fence. It needs floci's opt-in principal identity (lex00/floci#220), without which every role is system:masters on the cluster. It moves to live/smoke/scenarios/ and registers here after its first green run with its BREAK control caught."
         }
       }
     },
