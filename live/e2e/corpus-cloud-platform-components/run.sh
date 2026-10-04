@@ -324,7 +324,13 @@ plan_line() { gauntlet_plan_line <<< "$1"; }
 # autoscaling.k8s.io/v1. "The CRD object exists" is not the same fact as
 # "discovery serves the kind", and kubernetes_manifest plans against
 # discovery, so this is what the wait after a pre-apply asks.
-vpa_served() { kubectl --kubeconfig "$1" get --raw /apis/autoscaling.k8s.io/v1 2>/dev/null | grep -q '"verticalpodautoscalers"'; }
+# The answer is captured before it is read, so an early-exiting grep cannot
+# turn a served kind into a SIGPIPE failure under pipefail.
+vpa_served() {
+  local out
+  out="$(kubectl --kubeconfig "$1" get --raw /apis/autoscaling.k8s.io/v1 2>/dev/null)" || return 1
+  grep -q '"verticalpodautoscalers"' <<< "$out"
+}
 
 # vpa_addr <key>: the plan and report spelling of one for_each instance.
 vpa_addr() { printf 'kubernetes_manifest.vpa["%s"]' "$1"; }
