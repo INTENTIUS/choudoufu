@@ -479,9 +479,12 @@ else
     gauntlet_stage test_plan pass "the plan with no state file is empty; all $INSTANCES identities compared by value with kubectl - each object found by NAMESPACE/NAME (NAME for the 3 Namespaces, 8 ClusterRoles and 8 ClusterRoleBindings), carrying tofu-estate=$ESTATE and the escaped instance address in $ANN, module.<call>.<type>.<name> for the 28 under module calls and module.<call>.<type>.namespace_role:<namespace> for the 12 reached through for_each inside them. BREAK=1 corrupts one expected address and the comparison fails on exactly that one"
   else
     printf '%s\n' "$MISMATCH" | head -20
+    # The plan itself, so the log names what it proposed (#1885).
+    printf '%s\n' "$PLAN_OUT" | grep -vE '^[[:space:]]*$' | tail -120
     gauntlet_stage test_plan fail "the plan with no state file is not empty or an identity does not match by value ($(grep -c . <<< "$MISMATCH") mismatch(es), first: $(head -1 <<< "$MISMATCH")): $(plan_line "$PLAN_OUT")"
     ADOPT_OUT="$(chdf_a "$ADOPTED" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$ADOPT_OUT" | tail -20; fail "the converging apply failed"; }
-    grep -q "No changes." <<< "$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)" || fail "the replan after the converging apply is not empty"
+    REPLAN_OUT="$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)"
+    grep -q "No changes." <<< "$REPLAN_OUT" || { printf '%s\n' "$REPLAN_OUT" | grep -vE '^[[:space:]]*$' | tail -120; fail "the replan after the converging apply is not empty: $(plan_line "$REPLAN_OUT")"; }
   fi
 fi
 

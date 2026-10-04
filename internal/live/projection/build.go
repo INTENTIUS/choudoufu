@@ -2232,6 +2232,16 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 			manifestOpen = open
 		}
 	}
+	// GitHub issue #1885: a typed Kubernetes resource's configured
+	// metadata labels and annotations, which the provider's read consults
+	// in the prior to decide which *.kubernetes.io keys to keep. See
+	// metadataseed.go.
+	if meta := configuredMetadataSeed(ctx, seedEval, modPath, rc, schema); len(meta) > 0 {
+		if attrsSeed == nil {
+			attrsSeed = make(map[string]cty.Value, 1)
+		}
+		attrsSeed[metadataSeedKey] = cty.ObjectVal(meta)
+	}
 	if b.opts.Ownership != nil && markers.ManifestSurface(schema.Block) {
 		// GitHub issue #1079: a manifest-surface seed carries the
 		// estate's label the way the stamped configuration will, or the
@@ -4063,6 +4073,14 @@ func readImported(ctx context.Context, provider providers.Interface, schema prov
 	// see what a genuinely persisted state would have shown.
 	if seeded, ok := withSeededAttrs(obj.Value, attrsSeed, schema.Block); ok {
 		obj.Value = seeded
+	}
+	// GitHub issue #1885: the nested half of the same claim, for the one
+	// nested block whose leaves a read keys on - metadata.labels and
+	// metadata.annotations. See metadataseed.go.
+	if meta, ok := attrsSeed[metadataSeedKey]; ok && !meta.IsMarked() && meta.Type().IsObjectType() {
+		if seeded, ok := withSeededMetadata(obj.Value, meta.AsValueMap(), schema); ok {
+			obj.Value = seeded
+		}
 	}
 
 	// The exact PriorState ReadResource is about to see, captured before the
