@@ -134,7 +134,7 @@ func TestFieldGranularHandoversReadOnlyTheStockHandOver(t *testing.T) {
 	for _, ws := range got {
 		writes = ws
 	}
-	if len(writes) != 1 || writes[0].Addr.String() != "kubernetes_labels.migrated" {
+	if len(writes) != 1 || writes[0].Addr.String() != "kubernetes_labels.migrated" || writes[0].HandoverFrom != "Terraform" {
 		t.Fatalf("hand-overs = %+v, want kubernetes_labels.migrated alone", writes)
 	}
 	if want := (kubesweep.ObjectRef{APIVersion: "v1", Kind: "ConfigMap", Namespace: "ns", Name: "shared"}); writes[0].Object != want {
@@ -162,9 +162,10 @@ func TestFieldGranularHandoverFailureIsAWarning(t *testing.T) {
 	provider := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("kubernetes")}
 	addr := addrs.Resource{Mode: addrs.ManagedResourceMode, Type: "kubernetes_labels", Name: "migrated"}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance)
 	w := discovery.FieldGranularWrite{
-		Addr:   addr,
-		Object: kubesweep.ObjectRef{APIVersion: "v1", Kind: "ConfigMap", Namespace: "ns", Name: "shared"},
-		Writes: []kubesweep.FieldWrite{{Root: []string{"f:metadata", "f:labels"}, Members: []string{"f:team"}}},
+		Addr:         addr,
+		Object:       kubesweep.ObjectRef{APIVersion: "v1", Kind: "ConfigMap", Namespace: "ns", Name: "shared"},
+		Writes:       []kubesweep.FieldWrite{{Root: []string{"f:metadata", "f:labels"}, Members: []string{"f:team"}}},
+		HandoverFrom: kubesweep.DefaultFieldManager,
 	}
 	for name, sweeper := range map[string]kubesweep.Sweeper{
 		"fails":  &handoverStubSweeper{fail: errors.New("409 conflict")},

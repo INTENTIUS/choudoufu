@@ -11,7 +11,7 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
@@ -31,9 +31,16 @@ import (
 // than taking it over, so the stock manager kept a claim on fields the
 // estate now writes.
 //
-// So when the estate's read comes back holding nothing, the instance is
-// read a second time under "Terraform", and what that manager owns of the
-// keys this configuration declares is the prior. The plan is then an
+// So when the estate's read comes back holding nothing AND the estate's
+// record says the instance was migrated off a stock state file
+// (live-import writes the stock manager into it, fieldgranular_record.go),
+// the instance is read a second time under that manager - "Terraform"
+// unless the stock block named another - and what that manager owns of the
+// keys this configuration declares is the prior. Without that evidence
+// nothing is taken: a block this estate never migrated is planned as a
+// create, because "Terraform" fields on its object may be another stock
+// configuration's, and the plan-time boundary warns that the write will
+// share them (discovery.SummaryFieldSharedWithStock). The plan is then an
 // update - field_manager from "Terraform" to the estate's - rather than a
 // create, which is what stock would plan for the same block with its state
 // file in hand. The apply's half is internal/command's: before the first
@@ -75,11 +82,22 @@ func (b *builder) fieldGranularHandover(ctx context.Context, w wanted, p readPre
 	if p.entry == nil || p.schema.Block == nil {
 		return nil, cty.NilVal, nil, false
 	}
+	// Migration evidence first: only an instance live-import recorded as
+	// migrated off a stock state file is read under the stock manager. A
+	// block that was never migrated is planned as the create it is, and
+	// the plan-time boundary names the stock manager's shared fields.
+	rec, found, err := b.opts.RecordStore.GetFieldGranular(ctx, w.addr)
+	if err != nil || !found || rec.HandoverFrom == "" {
+		return nil, cty.NilVal, nil, false
+	}
+	if _, isEstate := markers.EstateOfFieldManager(rec.HandoverFrom); isEstate {
+		return nil, cty.NilVal, nil, false
+	}
 	seed := make(map[string]cty.Value, len(p.attrsSeed))
 	for k, v := range p.attrsSeed {
 		seed[k] = v
 	}
-	seed[substrate.FieldManagerAttr] = cty.StringVal(kubesweep.DefaultFieldManager)
+	seed[substrate.FieldManagerAttr] = cty.StringVal(rec.HandoverFrom)
 
 	obj, stub, status, diags := importAndRead(ctx, p.entry.provider, p.schema, w.addr.Resource.Resource.Type, p.target, w.importID, w.values, seed, p.attrsSeedMarks, p.manifestKeys)
 	if status != statusMaterialized || obj == nil {
@@ -89,7 +107,7 @@ func (b *builder) fieldGranularHandover(ctx context.Context, w wanted, p readPre
 	if !fieldGranularHoldsFields(kept, p.schema) {
 		return nil, cty.NilVal, nil, false
 	}
-	log.Printf("[TRACE] projection: %s has no fields under this estate's field manager and %q owns some it declares; planning the hand-over as an update", w.addr, kubesweep.DefaultFieldManager)
+	log.Printf("[TRACE] projection: %s has no fields under this estate's field manager, its record says it was migrated from %q, and %q owns some it declares; planning the hand-over as an update", w.addr, rec.HandoverFrom, rec.HandoverFrom)
 	obj.Value = kept
 	return obj, stub, diags, true
 }

@@ -151,3 +151,23 @@ func TestTwoBlocksOnOneObjectAreRefused(t *testing.T) {
 		t.Errorf("a block on another object was named: %s", detail)
 	}
 }
+
+// TestCreateOverStockFieldsIsWarnedNotTaken (GitHub issue #1863): a create
+// over fields "Terraform" owns - a block this estate's records do not say
+// was migrated - is warned about by name, and an update (the migrated
+// hand-over) is not.
+func TestCreateOverStockFieldsIsWarnedNotTaken(t *testing.T) {
+	reader := fieldOwnerReader{obj: sharedConfigMap(map[string]string{
+		kubesweep.DefaultFieldManager: `{"f:metadata":{"f:labels":{"f:team":{}}}}`,
+	})}
+	create := labelWrite(t, "kubernetes_labels.fresh", false, "team")
+	create.Create = true
+	detail := onlySummary(t, CheckKubernetesFieldOwners(context.Background(), reader, nil, "me", []FieldGranularWrite{create}), SummaryFieldSharedWithStock)
+	if !strings.Contains(detail, `"Terraform"`) || !strings.Contains(detail, "live-import") {
+		t.Errorf("the warning does not name Terraform and the way to migrate: %s", detail)
+	}
+	update := labelWrite(t, "kubernetes_labels.migrated", false, "team")
+	if diags := CheckKubernetesFieldOwners(context.Background(), reader, nil, "me", []FieldGranularWrite{update}); len(diags) != 0 {
+		t.Errorf("an update over Terraform's fields was warned about: %v", diagSummaries(diags))
+	}
+}

@@ -1165,6 +1165,27 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				touched = true
 			}
 
+			// ---- a field-granular instance's record (GitHub issue
+			// #1863) ----
+			//
+			// The kind it patches, so the field-manager orphan sweep can
+			// find its fields once its block is dropped, and the end of a
+			// migration's hand-over once this apply wrote it under the
+			// estate's own manager. Written only when it differs from
+			// what is recorded, so a steady estate pays no write. See
+			// fieldgranular_record.go.
+			fgRec, fgEstateOwned := fieldGranularRecordFor(schemaPtr, typeName, ri)
+			if fgRec != nil {
+				prev, found, err := req.Store.GetFieldGranular(ctx, addr)
+				var prevFields *fieldGranularFields
+				if found {
+					prevFields = &fieldGranularFields{APIVersion: prev.APIVersion, Kind: prev.Kind, HandoverFrom: prev.HandoverFrom}
+				}
+				if err != nil || prevFields == nil || *fieldGranularMerged(prevFields, fgRec, fgEstateOwned) != *prevFields {
+					touched = true
+				}
+			}
+
 			if !touched {
 				continue
 			}
@@ -1289,6 +1310,9 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				// nothing.
 				tombstoneDestroyedDeposed(env, ri, destroyedHere)
 				diffDeposedForWrite(env, ri, schemaPtr, typeName, res.ProviderConfig)
+				if fgRec != nil {
+					env.FieldGranular = fieldGranularMerged(env.FieldGranular, fgRec, fgEstateOwned)
+				}
 			})
 			if err != nil {
 				diags = diags.Append(writeBackConflictDiag(addr, "Writing", err, req.Backend, req.Retry))

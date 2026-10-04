@@ -151,7 +151,7 @@ func TestEveryRegisteredRefusalHasAStatedSeverity(t *testing.T) {
 			if SeverityForRefusal(r.Summary) != SeverityWarning {
 				t.Errorf("%q must be a warning, SeverityForRefusal says %v", r.Summary, SeverityForRefusal(r.Summary))
 			}
-		case r.Summary == SummaryFieldGranularOrphanUnclassified, r.Summary == SummaryFieldGranularOrphansPending, r.Summary == SummaryFieldHandoverFailed:
+		case r.Summary == SummaryFieldGranularOrphanUnclassified, r.Summary == SummaryFieldGranularOrphansPending, r.Summary == SummaryFieldHandoverFailed, r.Summary == SummaryFieldSharedWithStock:
 			// GitHub issue #1863: a removal not proposed, or a hand-over
 			// that falls back to sharing the fields; the plan in front of
 			// the operator is correct either way.

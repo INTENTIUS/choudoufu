@@ -51,8 +51,8 @@ import (
 // existed, and the next plan reads them under the estate's manager.
 
 // fieldGranularHandovers reads the planned hand-overs out of plan: every
-// update of a field-granular instance whose prior field_manager is
-// "Terraform" and whose planned one is the estate's, through a provider
+// update of a field-granular instance whose prior field_manager is a
+// stock one (not an estate's) and whose planned one is the estate's, through a provider
 // configuration the sweep holds a cluster client for. Nil when there are
 // none, which keeps BeforeApply from asking any cluster anything.
 func fieldGranularHandovers(sweepers map[string]kubesweep.Sweeper, plan *plans.Plan, schemas *tofu.Schemas, estate string) map[string][]discovery.FieldGranularWrite {
@@ -80,13 +80,19 @@ func fieldGranularHandovers(sweepers map[string]kubesweep.Sweeper, plan *plans.P
 		if err != nil {
 			continue
 		}
-		if fieldManagerOf(change.Before) != kubesweep.DefaultFieldManager || fieldManagerOf(change.After) != want {
+		// The prior names a non-estate manager only when the projection
+		// read the instance under the stock manager its record says it
+		// was migrated from (projection's fieldgranular_handover.go); a
+		// never-migrated block's prior is absent and its change a create.
+		from := fieldManagerOf(change.Before)
+		if _, isEstate := markers.EstateOfFieldManager(from); from == "" || isEstate || fieldManagerOf(change.After) != want {
 			continue
 		}
 		w, ok := plannedFieldGranularWrite(rc, schema)
 		if !ok || len(w.Writes) == 0 {
 			continue
 		}
+		w.HandoverFrom = from
 		if out == nil {
 			out = map[string][]discovery.FieldGranularWrite{}
 		}
@@ -122,12 +128,12 @@ func runFieldGranularHandovers(ctx context.Context, sweepers map[string]kubeswee
 		for _, w := range writes {
 			if transferer == nil {
 				diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryFieldHandoverFailed,
-					fmt.Sprintf("%s hands the fields it writes on %s from field manager %q to %q, and this run's cluster client cannot move field ownership, so the apply writes them shared with %q.", w.Addr, w.Object, kubesweep.DefaultFieldManager, to, kubesweep.DefaultFieldManager)))
+					fmt.Sprintf("%s hands the fields it writes on %s from field manager %q to %q, and this run's cluster client cannot move field ownership, so the apply writes them shared with %q.", w.Addr, w.Object, w.HandoverFrom, to, w.HandoverFrom)))
 				continue
 			}
-			if _, err := transferer.TransferFields(ctx, w.Object, kubesweep.DefaultFieldManager, to, w.Writes); err != nil {
+			if _, err := transferer.TransferFields(ctx, w.Object, w.HandoverFrom, to, w.Writes); err != nil {
 				diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryFieldHandoverFailed,
-					fmt.Sprintf("%s hands the fields it writes on %s from field manager %q to %q, and moving their ownership before the apply failed: %s. The apply goes ahead; the fields are written shared with %q, and where a planned value differs from the live one the API server's conflict names %q.", w.Addr, w.Object, kubesweep.DefaultFieldManager, to, err, kubesweep.DefaultFieldManager, kubesweep.DefaultFieldManager)))
+					fmt.Sprintf("%s hands the fields it writes on %s from field manager %q to %q, and moving their ownership before the apply failed: %s. The apply goes ahead; the fields are written shared with %q, and where a planned value differs from the live one the API server's conflict names %q.", w.Addr, w.Object, w.HandoverFrom, to, err, w.HandoverFrom, w.HandoverFrom)))
 			}
 		}
 	}

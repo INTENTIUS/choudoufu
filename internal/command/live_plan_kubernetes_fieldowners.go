@@ -66,6 +66,7 @@ func collectKubernetesFieldOwners(ctx context.Context, sweepers map[string]kubes
 		if !ok {
 			continue
 		}
+		w.Create = rc.Action == plans.Create
 		key := providerCacheKey(rc.ProviderAddr)
 		if _, seen := byProvider[key]; !seen {
 			keys = append(keys, key)

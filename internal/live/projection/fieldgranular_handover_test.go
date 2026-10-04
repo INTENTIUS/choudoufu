@@ -10,6 +10,7 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -106,5 +107,46 @@ func TestFieldGranularKeepDeclaredKeepsMarks(t *testing.T) {
 	}
 	if raw, _ := data.Unmark(); raw.LengthInt() != 1 {
 		t.Errorf("data = %#v, want the one declared key", raw)
+	}
+}
+
+// TestFieldGranularRecordCarriesTheMigrationEvidence (GitHub issue #1863):
+// live-import's record of a migration round-trips, an apply-time record
+// that names no hand-over keeps the recorded one, and the first apply
+// under an estate's own manager ends it.
+func TestFieldGranularRecordCarriesTheMigrationEvidence(t *testing.T) {
+	store := NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix("fieldgranular-evidence"))
+	addr := addrs.Resource{Mode: addrs.ManagedResourceMode, Type: "kubernetes_labels", Name: "team"}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance)
+	ctx := t.Context()
+
+	if _, found, err := store.GetFieldGranular(ctx, addr); err != nil || found {
+		t.Fatalf("an empty store has a record: found=%v err=%v", found, err)
+	}
+	if err := store.RecordFieldGranular(ctx, addr, "v1", "ConfigMap", "Terraform"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordFieldGranular(ctx, addr, "v1", "ConfigMap", ""); err != nil {
+		t.Fatal(err)
+	}
+	rec, found, err := store.GetFieldGranular(ctx, addr)
+	if err != nil || !found || rec.HandoverFrom != "Terraform" || rec.Kind != "ConfigMap" {
+		t.Errorf("record = %+v found=%v err=%v; want the migration from Terraform kept", rec, found, err)
+	}
+
+	listed, err := store.ListFieldGranular(ctx, map[string]bool{"kubernetes_labels": true})
+	if err != nil || len(listed) != 1 || listed[0].Addr.String() != addr.String() {
+		t.Errorf("ListFieldGranular = %+v, %v", listed, err)
+	}
+	if none, _ := store.ListFieldGranular(ctx, map[string]bool{"kubernetes_env": true}); len(none) != 0 {
+		t.Errorf("a type with no records listed %+v", none)
+	}
+
+	prev := &fieldGranularFields{APIVersion: "v1", Kind: "ConfigMap", HandoverFrom: "Terraform"}
+	applied := &fieldGranularFields{APIVersion: "v1", Kind: "ConfigMap"}
+	if got := fieldGranularMerged(prev, applied, false); got.HandoverFrom != "Terraform" {
+		t.Errorf("an apply not under the estate's manager ended the hand-over: %+v", got)
+	}
+	if got := fieldGranularMerged(prev, applied, true); got.HandoverFrom != "" {
+		t.Errorf("an apply under the estate's manager kept the hand-over: %+v", got)
 	}
 }

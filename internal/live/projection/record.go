@@ -562,6 +562,14 @@ type recordEnvelope struct {
 	// so Deposed rides along unchanged, same as every other member.
 	Deposed map[string]*deposedFields `json:"deposed,omitempty"`
 
+	// FieldGranular is GitHub issue #1863's record of a field-granular
+	// Kubernetes instance (kubernetes_labels and the five like it): the
+	// kind it patches and, after a migration off a stock state file, the
+	// field manager the stock apply wrote under. See
+	// [fieldGranularFields]. Nil for every other instance, and for an
+	// envelope written before this member existed.
+	FieldGranular *fieldGranularFields `json:"field_granular,omitempty"`
+
 	// Tombstone is every identity this address has held that this estate's
 	// own apply has since destroyed - see [tombstoneFields]'s own doc
 	// comment for why this exists and [RecordStore.tombstone] for how it
@@ -599,7 +607,7 @@ type recordEnvelope struct {
 // with nothing but a tombstone is the entire difference between it and a
 // plain delete.
 func (env recordEnvelope) isEmpty() bool {
-	return env.Identity.empty() && env.Object == nil && env.Residue.empty() && env.Provisioned.empty() && len(env.Deposed) == 0 && len(env.Tombstone) == 0
+	return env.Identity.empty() && env.Object == nil && env.Residue.empty() && env.Provisioned.empty() && len(env.Deposed) == 0 && len(env.Tombstone) == 0 && env.FieldGranular == nil
 }
 
 // providerString renders p as [recordEnvelope.Provider]'s value, "" for a

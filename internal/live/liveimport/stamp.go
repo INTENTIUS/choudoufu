@@ -389,6 +389,12 @@ func (r *Ratification) entryWork(ctx context.Context, entry Entry, slot string) 
 		}
 		return res
 	}
+	if elig.fieldGranular {
+		// GitHub issue #1863: the migration evidence, written before the
+		// hand-over so that a hand-over this run cannot finish is one the
+		// next plan may finish. See recordFieldGranularMigration.
+		res.diags = res.diags.Append(recordFieldGranularMigration(ctx, r.recordStore, r.Estate, entry.Addr, elig))
+	}
 	res.outcome = approveOne(ctx, r.Estate, entry.Addr, elig, slot)
 	res.diags = res.diags.Append(recordResidueFor(ctx, r.recordStore, r.secrets, entry.Addr, &elig.residuable))
 	// GitHub issue #364 unit A2: a stamped instance's marker answers

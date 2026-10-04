@@ -16,8 +16,10 @@ import (
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // The field-granular carrier (GitHub issue #1863, the third of PR #1828's
@@ -191,4 +193,27 @@ func fieldGranularMembers(writes []kubesweep.FieldWrite) string {
 		}
 	}
 	return strings.Join(parts, ", ")
+}
+
+// recordFieldGranularMigration writes, into the estate's record store, that
+// this instance was migrated off a stock state file and which manager the
+// stock apply wrote under (projection.RecordStore.RecordFieldGranular). It
+// is the one evidence a later live plan accepts for reading the instance's
+// fields under that manager and handing them over
+// (internal/live/projection's fieldgranular_handover.go): a block that was
+// never migrated is never given another stock configuration's fields. It is
+// written only for a hand-over -approve may attempt, and before the
+// attempt, so a hand-over cut short here is finished by the next apply. A
+// run with no record store writes nothing; a failed write is a warning,
+// since the hand-over below still runs and is the migration itself.
+func recordFieldGranularMigration(ctx context.Context, store *projection.RecordStore, estate string, addr addrs.AbsResourceInstance, e *eligible) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if store == nil || fieldGranularRefusal(estate, e) != "" || e.fieldManager == markers.FieldManagerFor(estate) {
+		return diags
+	}
+	if err := store.RecordFieldGranular(ctx, addr, e.fieldWrite.Object.APIVersion, e.fieldWrite.Object.Kind, e.fieldManager); err != nil {
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, "Migration not recorded",
+			fmt.Sprintf("Recording that %s was migrated from field manager %q failed: %s. The hand-over below still runs; if it does not finish, a later live plan has no evidence to finish it with and plans the block as a create.", addr, e.fieldManager, err)))
+	}
+	return diags
 }

@@ -134,6 +134,10 @@ var refusals = []Refusal{
 		What:    "GitHub issue #1863: this estate's field manager owns fields no configured block names, and a field-granular block's object cannot be named yet (its name or kind is unknown until apply), so any of those fields may be that block's. No removal is proposed this run; the next plan in which every such block's object is known proposes it.",
 	},
 	{
+		Summary: SummaryFieldSharedWithStock,
+		What:    "GitHub issue #1863: a field-granular Kubernetes block plans a create over fields stock's default field manager, Terraform, already owns on the object, and this estate's records hold no evidence the block was migrated from a stock state file. The fields are not taken over: the apply shares them with Terraform. Running live-import -approve against the stock state file records the migration, and the next plan hands the fields over.",
+	},
+	{
 		Summary: SummaryFieldHandoverFailed,
 		What:    "GitHub issue #1863: a planned update hands a field-granular Kubernetes instance's fields from stock's default field manager, Terraform, to this estate's, choudoufu:<estate>, and moving the ownership on the live object before the apply failed (the object could not be read or patched). A warning: the apply goes ahead, the estate's write then shares the fields with Terraform as it did before the hand-over existed, and where a value differs the API server's conflict names Terraform.",
 	},
@@ -320,7 +324,7 @@ func SeverityForRefusal(summary string) Severity {
 	if kind, ok := problemKindForSummary(summary); ok {
 		return kind.Severity()
 	}
-	if summary == SummaryIncompleteSweep || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesSweepDenied || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable || summary == SummaryKubernetesDeleteHeld || summary == SummaryHelmNotInManifest || summary == SummaryFieldOwnedByEstate || summary == SummaryFieldOwnersUnavailable || summary == SummaryFieldGranularOrphanUnclassified || summary == SummaryFieldGranularOrphansPending || summary == SummaryFieldHandoverFailed {
+	if summary == SummaryIncompleteSweep || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesSweepDenied || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable || summary == SummaryKubernetesDeleteHeld || summary == SummaryHelmNotInManifest || summary == SummaryFieldOwnedByEstate || summary == SummaryFieldOwnersUnavailable || summary == SummaryFieldGranularOrphanUnclassified || summary == SummaryFieldGranularOrphansPending || summary == SummaryFieldHandoverFailed || summary == SummaryFieldSharedWithStock {
 		// A gap in coverage, never a wrong plan: the run in front of the
 		// operator is correct and simply did not see everything. The held
 		// delete (GitHub issue #1184) is the same severity for a different
