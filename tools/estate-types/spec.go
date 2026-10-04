@@ -267,6 +267,12 @@ var estateSpecs = []estateSpec{
 		Note:       `The "kubernetes" lane's workload-breadth estate (#1884, epic #1885): no external source, a hand-written shape kept in this repository and crossed on a kind cluster. run.sh's resource_block() heredoc carries the whole estate: kubernetes_namespace_v1 (two), kubernetes_service_account_v1, kubernetes_role_v1, kubernetes_role_binding_v1, kubernetes_config_map_v1 (web-config and a two-instance count set), kubernetes_persistent_volume_claim_v1 (declared directly), kubernetes_horizontal_pod_autoscaler_v2, kubernetes_deployment_v1, kubernetes_service_v1, kubernetes_ingress_v1, kubernetes_network_policy_v1, kubernetes_daemon_set_v1, kubernetes_limit_range_v1, kubernetes_resource_quota_v1, kubernetes_job_v1, kubernetes_cron_job_v1, and the deprecated aliases kubernetes_daemonset, kubernetes_role and kubernetes_network_policy - no module, no AWS provider, no kubernetes_storage_class. Its crash_pair() heredoc adds day2_crash's kubernetes_secret_v1 and kubernetes_config_map_v1 pair, and its strict_block() heredoc (the strict-stage scratch estate) adds random_password, outside the estate itself. day2_replace's and day2_crash's create_before_destroy kubernetes_config_map blocks are live/e2e/lib/gauntlet.sh's and not scanned, as for the other kind estates.`,
 	},
 	{
+		Name:       "reference-k8s-shared-objects",
+		ConfigDirs: nil,
+		ScanScript: true,
+		Note:       `The "kubernetes" lane's two-estate estate (#1882, epic #1885): no external source, a hand-written shape kept in this repository and crossed on a kind cluster, as two roots with two live blocks. run.sh's platform_block() heredoc is the estate that owns whole objects - kubernetes_namespace_v1, kubernetes_config_map_v1 (settings and a two-instance count set), kubernetes_secret_v1, kubernetes_service_v1, kubernetes_deployment_v1 - plus one kubernetes_labels on the cluster's default Namespace; app_block() is the estate that owns only fields of those objects and of the node, written under the field manager choudoufu:<estate>: kubernetes_labels, kubernetes_annotations, kubernetes_config_map_v1_data, kubernetes_secret_v1_data, kubernetes_env, kubernetes_node_taint. The plan_approval and day2_crash heredocs add further kubernetes_labels and kubernetes_annotations blocks of app's; strict_block() (the strict-stage scratch estate) adds random_password. No module, no AWS provider.`,
+	},
+	{
 		Name:       "reference-k8s-cert-manager",
 		ConfigDirs: []string{"live/e2e/reference-k8s-cert-manager/root"},
 		ScanScript: true,
