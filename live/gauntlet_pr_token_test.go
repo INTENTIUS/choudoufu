@@ -153,3 +153,51 @@ func TestGauntletWorkflowSelectsItsTokenFromTheCheck(t *testing.T) {
 		t.Error("gauntlet.yml still prefers GAUNTLET_PR_TOKEN whenever it is set, which is the shape that discarded nine nights of verdicts (#496)")
 	}
 }
+
+// TestGauntletFallbackDispatchesCIOnTheVerdictsBranch is issue #948's guard.
+// A verdicts PR opened with GITHUB_TOKEN gets a pull_request CI run that
+// stalls at action_required, so its `fast` check never reports and the PR
+// sits until someone approves it by hand (#1731 was closed unmerged with its
+// CI never run). The fallback path dispatches CI on gauntlet/nightly instead,
+// which needs three things to stay true at once: ci.yml accepts a dispatch,
+// gauntlet.yml may start one, and the step that does it is still there and
+// still keyed to the fallback. Losing any one of them returns the PR to the
+// stalled state with no error anywhere.
+func TestGauntletFallbackDispatchesCIOnTheVerdictsBranch(t *testing.T) {
+	root := repoRoot(t)
+	read := func(name string) string {
+		t.Helper()
+		b, err := os.ReadFile(filepath.Join(root, ".github", "workflows", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+
+	ci := read("ci.yml")
+	triggers := ci
+	if i := strings.Index(ci, "\njobs:"); i > 0 {
+		triggers = ci[:i]
+	}
+	if !strings.Contains(triggers, "\n  workflow_dispatch:") {
+		t.Error("ci.yml has no workflow_dispatch trigger, so gauntlet.yml's dispatch on gauntlet/nightly is refused and the verdicts PR's CI never runs (#948)")
+	}
+
+	wf := read("gauntlet.yml")
+	perms := wf
+	if i := strings.Index(wf, "\njobs:"); i > 0 {
+		perms = wf[:i]
+	}
+	if !strings.Contains(perms, "\n  actions: write") {
+		t.Error("gauntlet.yml's top-level permissions lack `actions: write`, which `gh workflow run` needs (#948)")
+	}
+	for _, want := range []string{
+		"- name: Run CI on the verdicts branch (issue #948)",
+		"if: steps.open_pr.outcome == 'success' && steps.prtoken.outputs.usable != 'true' && steps.open_pr.outputs.pull-request-url != ''",
+		"gh workflow run ci.yml -R \"$GITHUB_REPOSITORY\" --ref gauntlet/nightly",
+	} {
+		if !strings.Contains(wf, want) {
+			t.Errorf("gauntlet.yml lacks %q (#948)", want)
+		}
+	}
+}

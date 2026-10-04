@@ -69,9 +69,12 @@ Identity resolution and marker stamping run through the plan-node seam
 then the provider's identity schema over the plan's own evaluated
 configuration, at the same graph node where stock plans a resource.
 `CHOUDOUFU_NODE_RESOLVE=0` in the environment that runs a plan or apply
-opts back out to the older pre-walk static evaluator and HCL-rewriting
-stamp. That path still ships and is scheduled for retirement, so the
-variable exists for an estate the node path does not yet handle. It is a
-build-migration switch and belongs in the environment that invokes the
-binary, never in a `live` block.
+opts identity resolution back out to the older pre-walk static evaluator.
+It governs resolution alone: the HCL-rewriting stamp it once also selected
+was deleted by GitHub issue #644, and the node-path marker writer runs on
+every plan and apply whichever way the variable is set, so an opted-out
+run still writes ownership markers. The static path still ships and is
+scheduled for retirement, so the variable exists for an estate the node
+path does not yet resolve. It is a build-migration switch and belongs in
+the environment that invokes the binary, never in a `live` block.
 
