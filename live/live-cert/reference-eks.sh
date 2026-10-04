@@ -76,7 +76,7 @@ set -uo pipefail
 #      day2_teardown measures (best effort; never trusted alone, and a
 #      no-op once day2_teardown has run).
 #   2. Stock `terraform destroy` on the cold-deploy state, in two steps:
-#      `-target` the four cluster-leg objects first, then everything, so no
+#      `-target` the cluster-leg blocks first, then everything, so no
 #      object in the cluster - and no load balancer or network interface a
 #      controller could have made for one - outlives the cluster.
 #   3. An independent listing (eks_verify_empty plus livecert_verify_empty)

@@ -124,9 +124,16 @@ reference_eks_stock_oracles() {
     log "  stock oracle $name: exit $(cat "$REF_ORACLES/$name.rc"), $(_ref_plan_line "$(cat "$REF_ORACLES/$name.out")")"
   done
 }
+# _ref_oracle_copy <name>: cold_deploy's configuration, lock file and state
+# copied, its .terraform linked rather than copied - the providers there are
+# hundreds of megabytes each and a plan only reads them. The state is the
+# copy's own, so a `state rm` in one oracle touches no other.
 _ref_oracle_copy() {
-  rm -rf "${REF_ORACLES:?}/$1"
-  cp -R "$STOCK" "$REF_ORACLES/$1"
+  local d="${REF_ORACLES:?}/$1"
+  rm -rf "$d"; mkdir -p "$d"
+  cp "$STOCK/main.tf" "$STOCK/terraform.tfstate" "$d/"
+  [ -f "$STOCK/.terraform.lock.hcl" ] && cp "$STOCK/.terraform.lock.hcl" "$d/"
+  ln -s "$(cd "$STOCK" && pwd)/.terraform" "$d/.terraform"
 }
 _ref_oracle_plan() { # <name> <variant...>
   local name="$1"; shift
