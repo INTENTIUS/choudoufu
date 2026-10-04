@@ -649,6 +649,19 @@ s2 += '\nmoved {\n  from = module.readonly\n  to   = module.viewer\n}\n'
 open(p, "w").write(s2)
 PY
 }
+# A renamed module call is a module the working directory has not installed:
+# plan refuses with "Module not installed" until init runs again. Every
+# other stage's root edit (removing a module call, adding kubernetes_*
+# resources in count_test.tf and crash_test.tf) needs no init - no new module
+# call and no new provider - so this is the one re-init the script makes on
+# an existing working directory. Stock on B goes through the shared plugin
+# cache's lock, as its first init did.
+reinit_renamed() {
+  ( cd "$ORACLE/root" && KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB" gauntlet_locked_init terraform init -input=false -no-color > "$WORK/init.rename-b.log" 2>&1 ) \
+    || { tail -20 "$WORK/init.rename-b.log"; fail "stock's init after the module rename failed on B"; }
+  ( chdf_a "$ADOPTED" init -input=false -no-color > "$WORK/init.rename-a.log" 2>&1 ) \
+    || { tail -20 "$WORK/init.rename-a.log"; fail "choudoufu's init after the module rename failed on A"; }
+}
 if [ "${BREAK:-}" = "1" ]; then
   python3 - "$ADOPTED/root/eks_access.tf" <<'PY' || fail "BREAK: could not change the readonly module call's name argument"
 import sys
@@ -665,12 +678,12 @@ import sys
 p = sys.argv[1]; s = open(p).read()
 open(p, "w").write(s.replace('name = "readonly-renamed"', 'name = "readonly"'))
 PY
-  rename_module "$ADOPTED"; rename_module "$ORACLE"
+  rename_module "$ADOPTED"; rename_module "$ORACLE"; reinit_renamed
   ( chdf_a "$ADOPTED" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK: the moved-block apply failed"
   ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK: stock's moved-block apply failed on B"
   gauntlet_stage day2_rename pass "BREAK=1 control: changing the readonly module call's name argument - the objects' own metadata.name, a genuine identity change - plans $(plan_line "$R_PLAN"), so the zero-churn assertion correctly fails to hold; the moved block then applied"
 else
-  rename_module "$ADOPTED"; rename_module "$ORACLE"
+  rename_module "$ADOPTED"; rename_module "$ORACLE"; reinit_renamed
   # How many objects the readonly call owns, from the identities test_plan
   # matched by value, not counted by hand.
   expected_ids readonly > "$WORK/ids.prerename"
