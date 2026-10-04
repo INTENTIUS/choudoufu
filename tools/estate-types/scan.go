@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/check"
@@ -119,13 +120,18 @@ func scanEstate(ctx context.Context, root string, spec estateSpec) (estateTypes,
 	}
 
 	var notApplied []string
-	for _, t := range spec.NotApplied {
-		if !types[t] {
-			loadErrs = append(loadErrs, fmt.Sprintf("NotApplied names %s, which no ConfigDirs directory declares - the spec is stale", t))
-			continue
+	for _, prov := range spec.NotAppliedProviders {
+		matched := false
+		for t := range types {
+			if p, _, ok := strings.Cut(t, "_"); ok && p == prov {
+				delete(types, t)
+				notApplied = append(notApplied, t)
+				matched = true
+			}
 		}
-		delete(types, t)
-		notApplied = append(notApplied, t)
+		if !matched {
+			loadErrs = append(loadErrs, fmt.Sprintf("NotAppliedProviders names %s, whose types no ConfigDirs directory declares - the spec is stale", prov))
+		}
 	}
 	sort.Strings(notApplied)
 

@@ -67,7 +67,7 @@ type estateTypes struct {
 	ConfigDirs []string `json:"config_dirs,omitempty"`
 
 	// NotApplied are the types ConfigDirs declares that the crossing never
-	// applies (estateSpec.NotApplied), excluded from Types.
+	// applies (estateSpec.NotAppliedProviders), excluded from Types.
 	NotApplied []string `json:"not_applied,omitempty"`
 
 	// UnresolvedModules is the sum of check.LoadResult.UnresolvedModules

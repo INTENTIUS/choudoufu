@@ -62,15 +62,18 @@ type estateSpec struct {
 	// live-cert script declare the same text. Empty for every other estate.
 	ScanFiles []string
 
-	// NotApplied are resource types ConfigDirs declares that the crossing
-	// script takes out of the root before anything is applied, so the
-	// estate never exercises them: corpus-govuk-cluster-services (#1878)
-	// splits its published root and only records the stock half. They are
-	// removed from the config-derived set (a ScanScript or ScanFiles hit
-	// still counts) and listed on the row as not_applied, so the index
-	// says what it left out rather than silently shrinking. A type named
-	// here that ConfigDirs no longer declares is a Note: the spec is stale.
-	NotApplied []string
+	// NotAppliedProviders names providers whose resource types ConfigDirs
+	// declares but the crossing script takes out of the root before
+	// anything is applied, so the estate never exercises them:
+	// corpus-govuk-cluster-services (#1878) splits its published root and
+	// only records the stock half. A type is not applied when its provider
+	// prefix (the part before the first "_") is listed; "terraform" is the
+	// built-in provider (terraform_data). Those types are removed from the
+	// config-derived set (a ScanScript or ScanFiles hit still counts) and
+	// listed on the row as not_applied, so the index says what it left out
+	// rather than silently shrinking. A provider named here that matches no
+	// ConfigDirs type is a Note: the spec is stale.
+	NotAppliedProviders []string
 
 	// Note records why ConfigDirs is what it is, for the next person to
 	// re-derive it rather than trust it - traced against the exact run.sh
@@ -246,18 +249,11 @@ var estateSpecs = []estateSpec{
 		Note:       `The "reference" lane: no external source (live/GAUNTLET.md - "the plainest hand-written reference shape, kept in this repository"). run.sh's resource_block()/resource_block_ami_replaced() heredocs carry the five-resource estate: aws_vpc, aws_subnet, aws_internet_gateway, aws_security_group, aws_instance - no module. GitHub issue #363's strict_block() heredoc (Part G, the strict-stage scratch estate) adds a sixth, random_password, local to the hashicorp/random provider and outside the five above.`,
 	},
 	{
-		Name:       "corpus-govuk-cluster-services",
-		ConfigDirs: []string{".corpus/govuk-infrastructure/terraform/deployments/cluster-services"},
-		ScanScript: true,
-		NotApplied: []string{
-			"aws_iam_policy", "aws_iam_role", "aws_iam_role_policy", "aws_iam_role_policy_attachment",
-			"aws_s3_bucket", "aws_s3_bucket_cors_configuration", "aws_s3_bucket_lifecycle_configuration",
-			"aws_s3_bucket_logging", "aws_s3_bucket_object_lock_configuration", "aws_s3_bucket_ownership_controls",
-			"aws_s3_bucket_policy", "aws_s3_bucket_public_access_block", "aws_s3_bucket_replication_configuration",
-			"aws_s3_bucket_server_side_encryption_configuration", "aws_s3_bucket_versioning",
-			"helm_release", "kubectl_manifest", "terraform_data", "time_sleep",
-		},
-		Note: `The kubernetes lane's field-granular estate (#1878): alphagov/govuk-infrastructure's own cluster-services root at c02504fa4a, copied out of .corpus by live/e2e/corpus-govuk-cluster-services/run.sh and split by split.py beside it. ConfigDirs reads the whole published root; NotApplied removes the stock half the split records and never applies (helm_release, kubectl_manifest, the time_sleep and terraform_data that wait on charts, and the aws_* IAM and S3 types, the IAM role ones from the registry IRSA modules), leaving the live slice: kubernetes_namespace_v1 (one in the local gatekeeper module), kubernetes_secret_v1, kubernetes_labels, kubernetes_annotations, random_bytes, random_password and random_uuid. ScanScript adds day2_count's kubernetes_config_map_v1 shards, day2_crash's kubernetes_secret_v1/kubernetes_config_map_v1 pair and the strict_block() heredoc's random_password.`,
+		Name:                "corpus-govuk-cluster-services",
+		ConfigDirs:          []string{".corpus/govuk-infrastructure/terraform/deployments/cluster-services"},
+		ScanScript:          true,
+		NotAppliedProviders: []string{"aws", "helm", "kubectl", "time", "terraform"},
+		Note:                `The kubernetes lane's field-granular estate (#1878): alphagov/govuk-infrastructure's own cluster-services root at c02504fa4a, copied out of .corpus by live/e2e/corpus-govuk-cluster-services/run.sh and split by split.py beside it. ConfigDirs reads the whole published root; NotAppliedProviders removes the stock half the split records and never applies, by provider: aws (the IAM and S3 types, the IAM role ones from the registry IRSA modules), helm, kubectl, time (time_sleep) and the built-in terraform provider (terraform_data, which waits on a chart), leaving the live slice: kubernetes_namespace_v1 (one in the local gatekeeper module), kubernetes_secret_v1, kubernetes_labels, kubernetes_annotations, random_bytes, random_password and random_uuid. ScanScript adds day2_count's kubernetes_config_map_v1 shards, day2_crash's kubernetes_secret_v1/kubernetes_config_map_v1 pair and the strict_block() heredoc's random_password.`,
 	},
 	{
 		Name:       "corpus-quickpizza",
