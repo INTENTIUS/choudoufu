@@ -3,27 +3,25 @@
 // Copyright (c) 2023 HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-// survey-gen generates live/survey.json, the machine-derived companion
-// to live/SURVEY.md's hand-written per-type table (issue #25,
-// increments 1 and 2).
+// survey-gen generates live/survey.json and live/survey-full.json, the
+// provider's own per-type signals (issue #25, increments 1 and 2; #41).
 //
 // It boots the pinned AWS provider release the same way the gated test tier
 // does - a temp working directory requiring the provider, `terraform init`
 // to download it, go-plugin to launch the binary - and reads one
-// GetProviderSchema response. That response carries all three raw signals
-// the survey records per type (a top-level tags argument, a native list
+// GetProviderSchema response. That response carries the raw signals the
+// survey records per type (a top-level tags argument, a native list
 // resource, a resource identity schema) plus the identity attribute
-// composition, and the classifier in classify.go turns those into an
-// admission path per the rules in SURVEY.md's Method section.
+// composition; one ImportResourceState probe per type adds whether the
+// provider has a classic Importer at all. classify.go records those facts
+// and identity.Report's schema-only admission verdict, and nothing else:
+// the seven-token "path" classification it used to derive from them, and
+// live/SURVEY.md that carried the same taxonomy by hand, were retired under
+// #696 in favour of the readiness tiers (tools/readiness-gen).
 //
-// The roster itself stays human (adjudicated under #100 item 1: which 68
-// types make up "the top set" is editorial, the rows carry evidence prose
-// no data file should flatten, readRoster is a strict parser that fails on
-// malformation, and TestRosterStatusAgreesWithAdmission holds the one
-// checkable claim - the Status column - against the identity table, which
-// is what actually went stale in #91): the 68 types are read out of SURVEY.md's
-// own table, because which types make up "the top set" is curation, not
-// schema. Everything else in survey.json is derived.
+// The curated roster live/survey.json covers is hand-owned
+// (tools/survey-gen/roster.txt, adjudicated under #100 item 1: which 68
+// types make up "the top set" is editorial, not schema).
 //
 // Usage, from anywhere in the checkout:
 //
@@ -32,27 +30,22 @@
 // It needs network for the provider download (or a warm
 // TF_PLUGIN_CACHE_DIR) and a terraform binary on PATH (-init-bin overrides).
 //
-// A -all flag classifies the provider's entire resource-type roster instead
-// of SURVEY.md's curated 68, and writes the result to a second artifact,
+// A -all flag surveys the provider's entire resource-type roster instead
+// of the curated 68, and writes the result to a second artifact,
 // live/survey-full.json (issue #41). It always still writes survey.json
-// from the curated roster, unchanged, so survey.json and SURVEY.md's
-// rendered spans never depend on whether -all was passed:
+// from the curated roster, unchanged, so survey.json never depends on
+// whether -all was passed:
 //
 //	go run ./tools/survey-gen -all
 //
 // A second mode rewrites every derived span this tool owns, each between
 // survey-gen marker comments, from committed artifacts and the compiled
-// admission table, with no provider and no network: live/SURVEY.md's
-// raw-signal counts sentence, Summary path-count table, Provider-wide
-// substrate paragraph (issue #679, read from live/survey-full.json rather
-// than the curated 68 - so this span DOES need -all to have been run at
-// least once, unlike the other two) and Status vocabulary table;
-// live/LIMITATIONS.md's five residue-roster spans and its
-// untaggable-admitted entry (issue #54); live/MARKERS.md's two estate-grant
-// governance spans, which say how much of the admitted table an IAM
-// condition on a marker tag reaches and name what it cannot; and
-// live/COVERAGE.md's admitted-set count and type
-// enumeration (issue #54):
+// admission table, with no provider and no network: live/LIMITATIONS.md's
+// residue-roster spans and its untaggable-admitted entry (issue #54);
+// live/MARKERS.md's estate-grant governance spans, which say how much of the
+// admitted table an IAM condition on a marker tag reaches and name what it
+// cannot; and live/COVERAGE.md's admitted-set count and type enumeration
+// (issue #54):
 //
 //	go run ./tools/survey-gen -render
 //
@@ -84,8 +77,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -100,12 +91,11 @@ const (
 
 	// surveyFullJSONRel is the -all artifact: the same per-type fields as
 	// surveyJSONRel, over the provider's entire resource-type roster
-	// instead of SURVEY.md's curated 68 (issue #41).
+	// instead of the curated 68 (issue #41).
 	surveyFullJSONRel = "live/survey-full.json"
 
-	// surveyMDRel is the hand-written survey whose per-type table names the
-	// roster this tool derives signals and paths for.
-	surveyMDRel = "live/SURVEY.md"
+	// rosterRel is the hand-owned curated roster live/survey.json covers.
+	rosterRel = "tools/survey-gen/roster.txt"
 
 	// providerSource pins the provider surveyed. The default version is
 	// internal/live/pins.AWSProviderVersion, one constant shared with
@@ -153,9 +143,9 @@ func main() {
 	initBin := flag.String("init-bin", defaultInitBin,
 		"binary that downloads the pinned provider (terraform, tofu or choudoufu)")
 	render := flag.Bool("render", false,
-		"rewrite live/SURVEY.md's derived spans from the committed live/survey.json instead of regenerating the artifact (needs no provider)")
+		"rewrite the derived spans this tool owns in live/LIMITATIONS.md, live/MARKERS.md and live/COVERAGE.md from committed artifacts instead of regenerating the survey (needs no provider)")
 	all := flag.Bool("all", false,
-		"also classify the provider's entire resource-type roster and write live/survey-full.json (issue #41); live/survey.json is still written unchanged")
+		"also survey the provider's entire resource-type roster and write live/survey-full.json (issue #41); live/survey.json is still written unchanged")
 	accept := flag.Bool("accept", false,
 		"stamp the artifact header's accepted field with today's date, ratifying the regenerated rows for review (tools/registry-gen/pin.go's SpecPin.Accepted vocabulary); omit to regenerate without ratifying, which drops any previously accepted date out of the diff")
 	providerVersionFlag := flag.String("provider-version", pins.AWSProviderVersion,
@@ -182,11 +172,11 @@ func run(initBin string, all, accept bool) error {
 		return err
 	}
 
-	roster, err := readRoster(filepath.Join(root, surveyMDRel))
+	roster, err := readRoster(filepath.Join(root, rosterRel))
 	if err != nil {
-		return fmt.Errorf("reading the roster from %s: %w", surveyMDRel, err)
+		return fmt.Errorf("reading the roster from %s: %w", rosterRel, err)
 	}
-	fmt.Fprintf(os.Stderr, "survey-gen: %d types in %s's table\n", len(roster), surveyMDRel)
+	fmt.Fprintf(os.Stderr, "survey-gen: %d types in %s\n", len(roster), rosterRel)
 
 	workdir, err := os.MkdirTemp("", "survey-gen-*")
 	if err != nil {
@@ -218,19 +208,8 @@ func run(initBin string, all, accept bool) error {
 // 1): when accept is true, both written artifacts carry today verbatim in
 // their accepted field; when it is false, today is unused and the field is
 // left unset, which is how an unreviewed regeneration surfaces in the diff.
-func writeSurveys(root string, schemas providers.GetProviderSchemaResponse, importable map[string]bool, roster []HandRow, all, accept bool, today string, log io.Writer) error {
-	// The CFN service per Terraform type, for parentRef's suffix-match
-	// affinity (issue #167). live/mapping.json is the only thing that knows
-	// two differently-prefixed types belong to one AWS service, and the
-	// embedded roster carries it.
-	reg, err := registry.Embedded()
-	if err != nil {
-		return fmt.Errorf("loading the embedded registry roster: %w", err)
-	}
-	serviceOf := identity.ServiceOf(reg.ServiceOf)
-	enumerate := rosterEnumeration(reg)
-
-	survey := buildSurvey(schemas, rosterTypes(roster), serviceOf, enumerate, importable)
+func writeSurveys(root string, schemas providers.GetProviderSchemaResponse, importable map[string]bool, roster []string, all, accept bool, today string, log io.Writer) error {
+	survey := buildSurvey(schemas, roster, importable)
 	if accept {
 		survey.Accepted = today
 	}
@@ -250,7 +229,7 @@ func writeSurveys(root string, schemas providers.GetProviderSchemaResponse, impo
 		return nil
 	}
 
-	full := buildSurvey(schemas, allResourceTypeNames(schemas), serviceOf, enumerate, importable)
+	full := buildSurvey(schemas, allResourceTypeNames(schemas), importable)
 	full.GeneratedBy = "tools/survey-gen (go run ./tools/survey-gen -all)"
 	if accept {
 		full.Accepted = today
@@ -267,26 +246,6 @@ func writeSurveys(root string, schemas providers.GetProviderSchemaResponse, impo
 	fmt.Fprintf(log, "survey-gen: wrote %s (%d types: %d taggable, %d with list resources, %d with identity schemas)%s\n",
 		surveyFullJSONRel, len(full.Types), full.Counts.Taggable, full.Counts.ListResource, full.Counts.IdentitySchema, acceptedSuffix(full.Accepted))
 	return nil
-}
-
-// rosterEnumeration adapts the embedded registry roster to the classifier's
-// cfnEnumeration: the two accessors internal/live/discovery's own
-// enumeration-source selection uses, read as one question.
-//
-// EnumerationSource and EnumerationSourceScoped are documented as never
-// both true for a type - the first excludes exactly what the second
-// requires - so their order here is a formality rather than a precedence
-// choice, and the roster stays the only source of the answer.
-func rosterEnumeration(reg *registry.Roster) cfnEnumeration {
-	return func(tfType string) (string, []string, bool) {
-		if cfnType, ok := reg.EnumerationSource(tfType); ok {
-			return cfnType, nil, true
-		}
-		if cfnType, required, ok := reg.EnumerationSourceScoped(tfType); ok {
-			return cfnType, required, true
-		}
-		return "", nil, false
-	}
 }
 
 // acceptedSuffix renders ", accepted <date>" for a log line when accepted

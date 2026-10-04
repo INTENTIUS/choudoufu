@@ -3,98 +3,40 @@
 // Copyright (c) 2023 HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-// Render mode (issue #25, increment 3): `go run ./tools/survey-gen -render`
-// rewrites the derivable spans of live/SURVEY.md in place, between HTML
-// comment markers, from committed inputs - live/survey.json for the
-// raw-signal counts, SURVEY.md's own per-type table for the summary tally,
-// and the compiled admission table (identity.AdmittedTypes) for the wired
-// count (issue #54). No provider and no network: rendering moves numbers
-// out of transcription, not out of the survey.
+// Render mode: `go run ./tools/survey-gen -render` rewrites the derivable
+// spans this tool owns in other documents, between HTML comment markers,
+// from committed inputs and the compiled admission table. No provider and no
+// network: rendering moves numbers out of transcription, not out of the
+// survey.
 //
-// Only the numbers are rendered. The per-type table and every line of prose
-// carry hand judgment and stay hand-written; the diff tests in
-// survey_gen_test.go are what hold them to the artifact.
+// It used to render four spans of live/SURVEY.md as well - the raw-signal
+// counts, a path-count summary, a provider-wide paragraph and a status
+// vocabulary tally. That document and the path taxonomy it carried were
+// retired under #696; the tiers in live/readiness.json are the coverage
+// vocabulary that stays.
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
-// The three rendered spans. Each lives in SURVEY.md between a
-// `<!-- survey-gen:begin NAME -->` marker and a `<!-- survey-gen:end NAME -->`
-// marker (a block span's begin marker ends its line; an inline span's does
-// not, see inlineSpanMarkers below); the renderer replaces everything
-// between the pair and touches nothing outside it.
-const (
-	// spanRawSignals is the "Raw signals" counts sentence, rendered from
-	// live/survey.json's counts block.
-	spanRawSignals = "raw-signals"
-
-	// spanSummary is the Summary path-count table, tallied from the
-	// per-type table's own Path column (modulo summaryOverrides below).
-	spanSummary = "summary"
-
-	// spanStatusVocabulary is the Status vocabulary table: one row per
-	// statusVocabulary token, its meaning, and a tally of the per-type
-	// table's Status column (#1249). The `Rows below` column used to be
-	// hand-typed and had drifted on three tokens, and `markerless` was in
-	// two Status cells with no vocabulary row at all. The `wired` row's
-	// meaning also carries the admission table's global size (issue #54),
-	// which used to be an inline wired-count span in the Rows cell and
-	// made that one cell a different measurement from the rest of its
-	// column.
-	spanStatusVocabulary = "status-vocabulary"
-
-	// spanProviderWide is the "Provider-wide" paragraph: the two substrate
-	// findings and the trajectory percentages, computed from the
-	// already-committed live/survey-full.json rather than typed by hand.
-	// Issue #679: three of these four figures (1,691 total / 468
-	// identity-schema / 183 list) had drifted from the committed artifact's
-	// 1699 / 479 / 195 by the time they were audited, because nothing
-	// recomputed them when the provider version moved.
-	spanProviderWide = "provider-wide"
-)
-
-// summaryOverrides pins the rows the Summary table counts under a different
-// path than the one the per-type table shows. Both facts are SURVEY.md's
-// own: the table shows the path the fork implements, the summary keeps the
-// survey's original classing, and the file's "classification wrinkles"
-// prose records each divergence. This map is that prose made mechanical, so
-// the tally reproduces the survey's counts instead of quietly restyling
-// them; a row leaving the wrinkle list should leave here in the same
-// change.
-var summaryOverrides = map[string]struct {
-	counted string
-	reason  string
-}{
-	"aws_iam_role_policy_attachment": {pathClientNamed,
-		"the table groups it structurally as parent-derived, but both components are client-named strings and the survey counted it under client-named"},
-}
-
 // runRender is the -render entry point: read the committed artifacts and
 // the committed docs, replace the marked spans, write the docs back. Three
-// docs are rendered this way: live/SURVEY.md (this function's original
-// scope, plus its status-vocabulary span, issues #54 and #1249), live/LIMITATIONS.md's
-// residue-roster spans and untaggable-admitted span (issue #49 and #54,
-// renderLimitationsMD in residue_render.go and untaggable_render.go), and
-// live/COVERAGE.md's admitted-set spans (issue #54,
-// renderContractMDX in contract_render.go). All from committed JSON and the
-// compiled admission table, with no provider and no network.
+// docs are rendered this way: live/LIMITATIONS.md's residue-roster spans
+// and untaggable-admitted span (issue #49 and #54, renderLimitationsMD in
+// residue_render.go and untaggable_render.go), live/MARKERS.md's governance
+// spans (governance_render.go), and live/COVERAGE.md's admitted-set spans
+// (issue #54, renderContractMDX in contract_render.go). All from committed
+// JSON and the compiled admission table, with no provider and no network.
 func runRender() error {
 	root, err := repoRoot()
 	if err != nil {
 		return err
 	}
 
-	if err := renderSurveyMD(root); err != nil {
-		return err
-	}
 	if err := renderLimitationsMD(root); err != nil {
 		return err
 	}
@@ -104,216 +46,11 @@ func runRender() error {
 	return renderContractMDX(root)
 }
 
-// renderSurveyMD rewrites live/SURVEY.md's raw-signals, summary and
-// provider-wide spans from the committed live/survey.json,
-// live/survey-full.json and the doc's own per-type table.
-func renderSurveyMD(root string) error {
-	data, err := os.ReadFile(filepath.Join(root, surveyJSONRel)) //nolint:gosec // a fixed path in the checkout
-	if err != nil {
-		return fmt.Errorf("reading %s (regenerate with `go run ./tools/survey-gen`): %w", surveyJSONRel, err)
-	}
-	var survey Survey
-	if err := json.Unmarshal(data, &survey); err != nil {
-		return fmt.Errorf("decoding %s: %w", surveyJSONRel, err)
-	}
-
-	mdPath := filepath.Join(root, surveyMDRel)
-	md, err := os.ReadFile(mdPath) //nolint:gosec // a fixed path in the checkout
-	if err != nil {
-		return err
-	}
-	rows, err := readRoster(mdPath)
-	if err != nil {
-		return fmt.Errorf("parsing %s's per-type table: %w", surveyMDRel, err)
-	}
-
-	fullData, err := os.ReadFile(filepath.Join(root, surveyFullJSONRel)) //nolint:gosec // a fixed path in the checkout
-	if err != nil {
-		return fmt.Errorf("reading %s (regenerate with `go run ./tools/survey-gen -all`): %w", surveyFullJSONRel, err)
-	}
-	var full Survey
-	if err := json.Unmarshal(fullData, &full); err != nil {
-		return fmt.Errorf("decoding %s: %w", surveyFullJSONRel, err)
-	}
-
-	out, err := renderSpans(string(md), survey, full, rows)
-	if err != nil {
-		return err
-	}
-	if out == string(md) {
-		fmt.Fprintf(os.Stderr, "survey-gen: %s's rendered spans are already current\n", surveyMDRel)
-		return nil
-	}
-	if err := os.WriteFile(mdPath, []byte(out), 0o644); err != nil { //nolint:gosec // a committed doc, not a secret
-		return err
-	}
-	fmt.Fprintf(os.Stderr, "survey-gen: rewrote the %s, %s, %s and %s spans of %s\n", spanRawSignals, spanSummary, spanStatusVocabulary, spanProviderWide, surveyMDRel)
-	return nil
-}
-
-// renderSpans returns the doc with all four marked spans replaced by their
-// rendered bodies. The rest of the file passes through byte-for-byte.
-func renderSpans(md string, survey, full Survey, rows []HandRow) (string, error) {
-	md, err := replaceSpan(surveyMDRel, md, spanRawSignals, renderRawSignals(survey.Counts))
-	if err != nil {
-		return "", err
-	}
-	md, err = replaceSpan(surveyMDRel, md, spanSummary, renderSummary(rows))
-	if err != nil {
-		return "", err
-	}
-	md, err = replaceSpan(surveyMDRel, md, spanProviderWide, renderProviderWide(full))
-	if err != nil {
-		return "", err
-	}
-	return replaceSpan(surveyMDRel, md, spanStatusVocabulary, renderStatusVocabulary(rows))
-}
-
-// renderProviderWide is the "Provider-wide" paragraph, computed from
-// live/survey-full.json's own per-type Signals rather than a hand count.
-// Percentages are floored (integer division), matching the convention the
-// hand-typed prose this replaces already used - re-deriving today's inputs
-// against a floor reproduces the figures that prose published before the
-// provider roster grew, which is the check that this is the same formula
-// and not a new one.
-func renderProviderWide(full Survey) string {
-	total := len(full.Types)
-	var taggable, listResource, identitySchema, tagsOrIdentity int
-	for _, r := range full.Types {
-		if r.Signals.Taggable {
-			taggable++
-		}
-		if r.Signals.ListResource {
-			listResource++
-		}
-		if r.Signals.IdentitySchema {
-			identitySchema++
-		}
-		if r.Signals.Taggable || r.Signals.IdentitySchema {
-			tagsOrIdentity++
-		}
-	}
-	pct := func(n int) int {
-		if total == 0 {
-			return 0
-		}
-		return n * 100 / total
-	}
-	return fmt.Sprintf(
-		"Provider-wide, two substrate findings. The provider now publishes\n"+
-			"`resource_identity_schemas` for %d types and growing: a per-type\n"+
-			"declaration of exactly what identifies the resource, which is the\n"+
-			"admission-rule metadata maintained upstream by the provider itself. And %d\n"+
-			"native list resources exist already (the query/search work), including\n"+
-			"nearly all high-traffic types.\n"+
-			"\n"+
-			"Global stats across all %d AWS resource types, for trajectory: %d%%\n"+
-			"taggable, %d%% identity-schema (mid-rollout), %d%% list (early rollout), %d%%\n"+
-			"tags-or-identity today. The long tail thins out, but usage concentrates in\n"+
-			"the head, and both identity and list coverage are actively expanding\n"+
-			"upstream.\n",
-		identitySchema, listResource, total,
-		pct(taggable), pct(identitySchema), pct(listResource), pct(tagsOrIdentity),
-	)
-}
-
 // renderWiredCount is the admission table's global size, straight off
 // identity.AdmittedTypes - the same set internal/live/lint/admission.go
-// admits and SURVEY.md's Contract-adjacent docs cite. Not a tally of
-// SURVEY.md's own per-type table: registry-ratified batches (#40, #44) add
-// types this file's provider-schema survey never rostered.
+// admits.
 func renderWiredCount() string {
 	return fmt.Sprintf("%d", len(identity.AdmittedTypes()))
-}
-
-// statusVocabulary is SURVEY.md's Status column vocabulary, in table order.
-// readRoster refuses a per-type row whose Status is not here, so the
-// document's "nothing outside them appears in those columns" is enforced
-// rather than stated. A token stays in the vocabulary at zero rows when the
-// next survey may need it again (the document says why for
-// needs-account-derived).
-var statusVocabulary = []struct{ token, meaning string }{
-	{"wired", "in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today. The admission table holds %s types in all, most of them outside the rows below"},
-	{"ready", "admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one)"},
-	{"needs-account-derived", "classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components"},
-	{"ops", "excluded by the rule, forwarded to the lifecycle layer"},
-	{"unadmitted", "not excluded by the rule and not yet admissible: no ratified row covers the type, whether because the identity carries a server-minted component with nowhere to write the ownership marker (#233) or simply because no batch has reached it"},
-	{"blocked-emulator", "admissible, but the e2e emulator cannot serve it, so the row cannot be proven live"},
-	{"markerless", "retracted by the markerless rule (#249): the identity carries a server-assigned component and the type has no tags argument to write the marker into, so it was taken out of the admission and identity tables"},
-	{"unknown", "path not determined"},
-}
-
-func validStatus(token string) bool {
-	for _, s := range statusVocabulary {
-		if s.token == token {
-			return true
-		}
-	}
-	return false
-}
-
-// renderStatusVocabulary is the Status vocabulary table, with each token's
-// `Rows below` tallied from the per-type table.
-func renderStatusVocabulary(rows []HandRow) string {
-	counts := map[string]int{}
-	for _, r := range rows {
-		counts[r.Status]++
-	}
-	var b strings.Builder
-	b.WriteString("| Status | Meaning | Rows below |\n")
-	b.WriteString("|---|---|---|\n")
-	for _, s := range statusVocabulary {
-		meaning := s.meaning
-		if s.token == "wired" {
-			meaning = fmt.Sprintf(meaning, renderWiredCount())
-		}
-		fmt.Fprintf(&b, "| `%s` | %s | %d |\n", s.token, meaning, counts[s.token])
-	}
-	return b.String()
-}
-
-// renderRawSignals is the "Raw signals" headline sentence, in the exact
-// shape survey_gen_test.go's headlineRe pins (the line break before "have"
-// keeps the doc's own wrap width).
-func renderRawSignals(c Counts) string {
-	return fmt.Sprintf("On the %d curated types: %d are taggable, %d have native list resources, %d\nhave provider identity schemas.\n",
-		c.Types, c.Taggable, c.ListResource, c.IdentitySchema)
-}
-
-// renderSummary tallies the per-type table's Path column into the Summary
-// table, applying the two readings SURVEY.md's own prose asserts: an
-// account-derived row is a refinement of client-named and counts there, and
-// the summaryOverrides rows count under the survey's classing rather than
-// the table's. The residue row is the remainder, held visible so a token
-// ever escaping the tally shows up as a nonzero residue instead of a
-// silently shrunken total.
-func renderSummary(rows []HandRow) string {
-	counts := map[string]int{}
-	for _, r := range rows {
-		path := r.Path
-		if o, ok := summaryOverrides[r.Type]; ok {
-			path = o.counted
-		}
-		if path == pathAccountDerived {
-			path = pathClientNamed
-		}
-		counts[path]++
-	}
-	residue := len(rows) - counts[pathClientNamed] - counts[pathMarker] -
-		counts[pathParentDerived] - counts[pathEnumerableUnbindable] -
-		counts[pathUniqueName] - counts[pathOps]
-
-	var b strings.Builder
-	b.WriteString("| Path | Count |\n")
-	b.WriteString("|---|---|\n")
-	fmt.Fprintf(&b, "| Client-named identity | %d |\n", counts[pathClientNamed])
-	fmt.Fprintf(&b, "| Marker (tags) | %d |\n", counts[pathMarker])
-	fmt.Fprintf(&b, "| Parent-derived | %d |\n", counts[pathParentDerived])
-	fmt.Fprintf(&b, "| Enumerable, unbindable (no admission path) | %d |\n", counts[pathEnumerableUnbindable])
-	fmt.Fprintf(&b, "| Unique name (AWS-enforced, discovery-bound) | %d |\n", counts[pathUniqueName])
-	fmt.Fprintf(&b, "| Moves to Ops (excluded by the rule) | %d |\n", counts[pathOps])
-	fmt.Fprintf(&b, "| Residue needing a store | %d |\n", residue)
-	return b.String()
 }
 
 // spanMarkers returns the begin and end marker lines for a named span. The
