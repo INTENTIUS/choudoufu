@@ -231,3 +231,24 @@ type AppliedMarkerWriter interface {
 	// object as it now stands.
 	WriteAppliedMarkers(ctx context.Context, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, action plans.Action, applied cty.Value, schema providers.Schema) (cty.Value, tfdiags.Diagnostics)
 }
+
+// PriorConfigValueAdjuster is an optional capability a [ConfigValueAdjuster]
+// may also implement (epic #1885, reference-k8s-workloads' test_plan). It
+// is asked once the prior object is known and before ignore_changes runs,
+// with the value [ConfigValueAdjuster.AdjustConfigValue] was given
+// (evaluated), the value it returned (adjusted) and the prior, and returns
+// the configuration value to plan with.
+//
+// It exists because AdjustConfigValue cannot see the prior object. A
+// marker write into an Optional+Computed map the configuration leaves
+// null turns that null - which the provider reads as "keep what the
+// server set" - into a value, and the provider then plans away every key
+// the server set. hashicorp/kubernetes' kubernetes_job_v1 is the measured
+// case: its metadata.labels are Optional+Computed because the API server
+// copies the pod template's labels onto the Job, and stamping tofu-estate
+// into a configuration that declares no labels planned the copied label's
+// removal on every plan. Only an instance with a non-null prior object is
+// asked; a create has nothing the server set yet.
+type PriorConfigValueAdjuster interface {
+	AdjustConfigValueToPrior(ctx context.Context, addr addrs.AbsResourceInstance, evaluated, adjusted, prior cty.Value, schema providers.Schema) cty.Value
+}
