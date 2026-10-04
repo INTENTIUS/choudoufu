@@ -245,7 +245,7 @@ STATUS="$(awsl eks describe-cluster --name "$CLUSTER" --query 'cluster.status' -
 STOCK_INVENTORY="$(inventory awsl "$FLOCI_NS")" || fail "could not read the stock inventory"
 UNLABELLED="$(labelled_count "$FLOCI_NS" "$ESTATE")" || fail "could not count tofu-estate labels with kubectl in the k3s container"
 [ "$UNLABELLED" = "0" ] || fail "the stock cluster leg already carries $UNLABELLED tofu-estate=$ESTATE label(s) before any migration"
-gauntlet_stage cold_deploy pass "${TOTAL_N} resources from stock terraform (${AWS_N} AWS, ${CLUSTER_N} cluster objects) against floci-eks; cluster $CLUSTER is $STATUS and its k3s container $(k3s_of "$FLOCI_NS") holds the cluster leg, read with kubectl; zero tofu-estate labels; the kubernetes provider was configured from aws_eks_cluster.this with an exec token as written; access entry and pod identity association not created (eks_access_api=false, floci serves list routes only)"
+gauntlet_stage cold_deploy pass "${TOTAL_N} resources from stock terraform (${AWS_N} AWS, ${CLUSTER_N} cluster objects) against floci-eks; cluster $CLUSTER is $STATUS and its k3s container $(k3s_of "$FLOCI_NS") holds the cluster leg, read with kubectl; zero tofu-estate labels; the kubernetes provider was configured from aws_eks_cluster.this with an exec token as written; access entry and pod identity association not created (eks_access_api=false: floci has no pod identity create, and the pinned image is not checked for access-entry create)"
 
 # ══════════════════════════════════════════════════════════════════════
 # migrate: live-import against stock's state; both legs bound.
