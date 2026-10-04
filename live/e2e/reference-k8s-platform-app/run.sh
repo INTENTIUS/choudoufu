@@ -485,6 +485,21 @@ chdf() { local d="$1"; shift; ( cd "$d" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$
 stock_b() { ( cd "$ORACLE_APP" && KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB" terraform "$@" ); }
 stock_bn() { ( cd "$ORACLE_NET" && KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB" terraform "$@" ); }
 stock_a() { local d="$1"; shift; ( cd "$d" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" terraform "$@" ); }
+in_dir() { local d="$1"; shift; ( cd "$d" && "$@" ); }
+
+# ran <cmd...>: runs a stock or choudoufu call with its output captured in
+# RAN_OUT and its exit status in RAN_RC, and returns that status. Every call
+# whose output a FAIL path used to drop goes through here, so `shown` can
+# print it before the FAIL. Never `terraform ... | grep -q`: grep exits at
+# its match, terraform takes SIGPIPE writing whatever follows it (network's
+# Outputs block follows "Apply complete!"), and pipefail turns a good apply
+# into a FAIL with nothing in the log - cold_deploy's first measured failure.
+ran() { RAN_OUT="$("$@" 2>&1)"; RAN_RC=$?; return "$RAN_RC"; }
+# ran_has <text> <cmd...>: ran, and the command exited 0 with <text> in its output.
+ran_has() { local want="$1"; shift; ran "$@" && grep -qF -- "$want" <<< "$RAN_OUT"; }
+# shown: the last ran's exit status and the tail of its output.
+shown() { printf -- '--- exit %s; last 40 lines of output ---\n%s\n---\n' "$RAN_RC" "$(tail -40 <<< "$RAN_OUT")"; }
+RAN_OUT=""; RAN_RC=0
 
 # count_a <estate> <kinds...>: objects of those kinds carrying
 # tofu-estate=<estate> on cluster A, every namespace but the records ones.
@@ -621,10 +636,10 @@ export KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA"
 mkdir -p "$STOCK_NET" "$STOCK_APP" "$ORACLE_NET" "$ORACLE_APP"
 for d in "$STOCK_NET" "$ORACLE_NET"; do versions_tf "$d" stock "$NET"; write_net "$d"; done
 for d in "$STOCK_APP" "$ORACLE_APP"; do versions_tf "$d" stock "$APP"; write_app "$d" stock; done
-( cd "$STOCK_NET" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed in network's root on A"
-( cd "$STOCK_APP" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed in app's root on A"
-( cd "$ORACLE_NET" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed in network's root on B"
-( cd "$ORACLE_APP" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed in app's root on B"
+ran in_dir "$STOCK_NET" gauntlet_locked_init terraform init -input=false -no-color || { shown; fail "stock init failed in network's root on A"; }
+ran in_dir "$STOCK_APP" gauntlet_locked_init terraform init -input=false -no-color || { shown; fail "stock init failed in app's root on A"; }
+ran in_dir "$ORACLE_NET" gauntlet_locked_init terraform init -input=false -no-color || { shown; fail "stock init failed in network's root on B"; }
+ran in_dir "$ORACLE_APP" gauntlet_locked_init terraform init -input=false -no-color || { shown; fail "stock init failed in app's root on B"; }
 C_NET="$(stock_a "$STOCK_NET" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$C_NET" | tail -20; fail "stock's cold deploy of network failed on A"; }
 grep -qF "Apply complete! Resources: 5 added, 0 changed, 0 destroyed" <<< "$C_NET" || { printf '%s\n' "$C_NET" | tail -5; fail "stock's cold deploy of network did not add exactly 5 objects on A"; }
 C_APP="$(stock_a "$STOCK_APP" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$C_APP" | tail -20; fail "stock's cold deploy of app failed on A"; }
@@ -632,8 +647,8 @@ grep -qF "Apply complete! Resources: 9 added, 0 changed, 0 destroyed" <<< "$C_AP
 [ -f "$STOCK_NET/terraform.tfstate" ] && [ -f "$STOCK_APP/terraform.tfstate" ] || fail "stock left no terraform.tfstate in one of the two roots on A"
 [ "$(count_net)" = "0" ] && [ "$(count_app)" = "0" ] || fail "objects already carry tofu-estate after a plain stock apply (network $(count_net), app $(count_app)) - this proves nothing"
 inventory "$KCA" > "$WORK/inventory.stock.json" || fail "could not read the cold-deployed inventory on A"
-( stock_bn apply -auto-approve -input=false -no-color 2>&1 | grep -qF "Apply complete! Resources: 5 added" ) || fail "stock's cold deploy of network failed on B"
-( stock_b apply -auto-approve -input=false -no-color 2>&1 | grep -qF "Apply complete! Resources: 9 added" ) || fail "stock's cold deploy of app failed on B"
+ran_has "Apply complete! Resources: 5 added" stock_bn apply -auto-approve -input=false -no-color || { shown; fail "stock's cold deploy of network failed on B"; }
+ran_has "Apply complete! Resources: 9 added" stock_b apply -auto-approve -input=false -no-color || { shown; fail "stock's cold deploy of app failed on B"; }
 gauntlet_stage cold_deploy pass "plain terraform against kind $(kca version 2>/dev/null | gauntlet_k8s_server_version): network's 5 objects (Namespace, NetworkPolicy, Service, 2 ConfigMaps) and two root outputs, then app's 9 (Namespace, 3 ConfigMaps, Service, Deployment, HorizontalPodAutoscaler v2, ServiceAccount, and a kubernetes_manifest ConfigMap in network's namespace) reading network's outputs through data terraform_remote_state; two terraform.tfstate files, zero tofu-estate labels read back with kubectl; the same two estates cold-deployed by stock on a second cluster as every later stage's oracle"
 
 # ── 2. migrate: live-import both estates, records in the cluster ─────────
@@ -643,8 +658,8 @@ for ns in "$REC_NET" "$REC_APP"; do kca create namespace "$ns" >/dev/null || fai
 mkdir -p "$NET_LIVE" "$APP_LIVE"
 versions_tf "$NET_LIVE" live "$NET"; write_net "$NET_LIVE"
 versions_tf "$APP_LIVE" live "$APP"; write_app "$APP_LIVE" live
-chdf "$NET_LIVE" init -input=false -no-color >/dev/null 2>&1 || fail "choudoufu init failed in network's live root"
-chdf "$APP_LIVE" init -input=false -no-color >/dev/null 2>&1 || fail "choudoufu init failed in app's live root"
+ran chdf "$NET_LIVE" init -input=false -no-color || { shown; fail "choudoufu init failed in network's live root"; }
+ran chdf "$APP_LIVE" init -input=false -no-color || { shown; fail "choudoufu init failed in app's live root"; }
 M_NET="$(chdf "$NET_LIVE" live-import -state="$STOCK_NET/terraform.tfstate" -estate="$NET" -approve -no-color 2>&1)" || { printf '%s\n' "$M_NET" | tail -20; fail "network's live-import -approve failed"; }
 M_NET_LINE="$(grep -E 'resource\(s\) newly stamped' <<< "$M_NET" | head -1 | sed 's/\.$//')"
 # app reads network's outputs at plan time, and an output is recorded by an
@@ -675,9 +690,9 @@ P_ADMIN="$(chdf "$APP_LIVE" plan -input=false -no-color 2>&1)" || { printf '%s\n
 if ! grep -q "No changes." <<< "$P_NET" || ! grep -q "No changes." <<< "$P_ADMIN"; then
   gauntlet_stage test_plan fail "the plan with no state file is not empty: network $(plan_line <<< "$P_NET"), app $(plan_line <<< "$P_ADMIN")"
   log "  adopting through choudoufu's own applies so the stages below run on labelled estates"
-  chdf "$NET_LIVE" apply -auto-approve -input=false -no-color >/dev/null 2>&1 || fail "network's adopting apply failed"
-  chdf "$APP_LIVE" apply -auto-approve -input=false -no-color >/dev/null 2>&1 || fail "app's adopting apply failed"
-  chdf "$APP_LIVE" plan -input=false -no-color 2>&1 | grep -q "No changes." || fail "app's replan after the adopting apply is not empty; nothing below would measure day-2 behaviour"
+  ran chdf "$NET_LIVE" apply -auto-approve -input=false -no-color || { shown; fail "network's adopting apply failed"; }
+  ran chdf "$APP_LIVE" apply -auto-approve -input=false -no-color || { shown; fail "app's adopting apply failed"; }
+  ran_has "No changes." chdf "$APP_LIVE" plan -input=false -no-color || { shown; fail "app's replan after the adopting apply is not empty; nothing below would measure day-2 behaviour"; }
 else
   # app's planning identity: view everywhere (the provider's refresh and the
   # sweep read), every verb on its own records, and nothing of network's.
@@ -747,17 +762,17 @@ kcb patch configmap app-config -n "$NS_APP" --type merge -p '{"data":{"gateway":
 [ "${BREAK:-}" = "1" ] && { kca patch configmap shard-0 -n "$NS_APP" --type merge -p '{"data":{"shard":"tampered"}}' >/dev/null || fail "BREAK: could not tamper shard-0"; }
 O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's plan on B after the tamper failed"; }
 grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's plan on B does not propose exactly one change"; }
-( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock could not reconverge B"
+ran stock_b apply -auto-approve -input=false -no-color || { shown; fail "stock could not reconverge B"; }
 DR_PLAN="$(chdf "$APP_LIVE" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$DR_PLAN" | tail -20; fail "the plan after the tamper failed"; }
 if [ "${BREAK:-}" = "1" ]; then
   grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$DR_PLAN" && fail "BREAK=1: two objects were tampered and the plan still proposes exactly one change"
-  chdf "$APP_LIVE" apply -auto-approve -input=false -no-color >/dev/null 2>&1 || fail "BREAK: could not reconverge A"
+  ran chdf "$APP_LIVE" apply -auto-approve -input=false -no-color || { shown; fail "BREAK: could not reconverge A"; }
   gauntlet_stage drift_reconverge pass "BREAK=1 control: with two objects tampered the single-object assertion correctly fails ($(plan_line <<< "$DR_PLAN")); reconverged afterwards"
 else
   grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$DR_PLAN" || { printf '%s\n' "$DR_PLAN" | tail -20; fail "the plan after one tamper does not propose exactly one change"; }
   grep -q "kubernetes_config_map.app " <<< "$DR_PLAN" || fail "the plan does not name kubernetes_config_map.app"
   RC_OUT="$(chdf "$APP_LIVE" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$RC_OUT" | tail -20; fail "the reconverging apply failed"; }
-  grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$RC_OUT" || fail "the reconverging apply did not change exactly one object"
+  grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$RC_OUT" || { printf '%s\n' "$RC_OUT" | tail -20; fail "the reconverging apply did not change exactly one object"; }
   GW="$(kca get configmap app-config -n "$NS_APP" -o jsonpath='{.data.gateway}')"
   [ "$GW" = "gateway.$NS_NET.svc.cluster.local" ] || fail "app-config's gateway reads $GW after reconverging, want gateway.$NS_NET.svc.cluster.local"
   gauntlet_stage drift_reconverge pass "app-config tampered with kubectl patch; choudoufu proposed exactly kubernetes_config_map.app (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle cluster; apply changed 1 and the gateway value - built from network's recorded outputs - reads back as gateway.$NS_NET.svc.cluster.local. BREAK=1 tampers a second object and the single-object assertion correctly fails"
@@ -774,8 +789,8 @@ PA_APPLY="$(chdf "$APP_LIVE" apply -input=false -no-color approved.tfplan 2>&1)"
 if [ "${BREAK_APPROVAL:-}" = "1" ]; then
   [ "$PA_RC" -eq 0 ] && fail "BREAK_APPROVAL=1: applying the saved plan after the world moved succeeded"
   kca label configmap shard-0 -n "$NS_APP" stray- >/dev/null
-  chdf "$APP_LIVE" apply -input=false -no-color approved.tfplan >/dev/null 2>&1 || fail "BREAK_APPROVAL: the saved plan did not apply once the world was put back"
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_APPROVAL: stock could not apply the reviewed change on B"
+  ran chdf "$APP_LIVE" apply -input=false -no-color approved.tfplan || { shown; fail "BREAK_APPROVAL: the saved plan did not apply once the world was put back"; }
+  ran stock_b apply -auto-approve -input=false -no-color || { shown; fail "BREAK_APPROVAL: stock could not apply the reviewed change on B"; }
   gauntlet_stage plan_approval pass "BREAK_APPROVAL=1 control: applying the saved plan after the world moved exited $PA_RC (refused), so 'expect success' correctly fails; applied once the world was put back"
 else
   [ "$PA_RC" -eq 3 ] || { printf '%s\n' "$PA_APPLY" | tail -20; fail "apply of the saved plan after the world moved exited $PA_RC, want 3"; }
@@ -783,9 +798,9 @@ else
   [ -z "$(kca get configmap app-config -n "$NS_APP" -o jsonpath='{.data.reviewed}')" ] || fail "app-config gained reviewed despite the refusal"
   kca label configmap shard-0 -n "$NS_APP" stray- >/dev/null || fail "could not put the world back"
   PA_APPLY2="$(chdf "$APP_LIVE" apply -input=false -no-color approved.tfplan 2>&1)" || { printf '%s\n' "$PA_APPLY2" | tail -20; fail "the saved plan did not apply once the world was put back"; }
-  grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$PA_APPLY2" || fail "the saved plan's apply did not change exactly one object"
+  grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$PA_APPLY2" || { printf '%s\n' "$PA_APPLY2" | tail -20; fail "the saved plan's apply did not change exactly one object"; }
   [ "$(kca get configmap app-config -n "$NS_APP" -o jsonpath='{.data.reviewed}')" = "yes" ] || fail "app-config does not read reviewed=yes after the saved plan applied"
-  ( stock_b plan -out=approved.tfplan -input=false -no-color >/dev/null 2>&1 && stock_b apply -input=false -no-color approved.tfplan >/dev/null 2>&1 ) || fail "stock's own planfile did not apply on B"
+  { ran stock_b plan -out=approved.tfplan -input=false -no-color && ran stock_b apply -input=false -no-color approved.tfplan; } || { shown; fail "stock's own planfile did not apply on B"; }
   gauntlet_stage plan_approval pass "plan -out wrote one update (app-config gains reviewed=yes); a stray label on shard-0 (kubectl) moved the world and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied; with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and reviewed=yes reads back; stock's own planfile applied on the oracle cluster. BREAK_APPROVAL=1 expects success after the move and correctly fails"
 fi
 
@@ -795,7 +810,7 @@ log "=== 7. day2_rename: kubernetes_service_account.app becomes .team through a 
 write_app "$ORACLE_APP" stock reviewed=1 sa=team moved=1
 O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's moved-block plan failed on B"; }
 grep -qE "^No changes|Plan: 0 to add, 0 to change, 0 to destroy" <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's moved-block plan on B is not zero churn"; }
-( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's moved-block apply failed on B"
+ran stock_b apply -auto-approve -input=false -no-color || { shown; fail "stock's moved-block apply failed on B"; }
 if [ "${BREAK:-}" = "1" ]; then
   write_app "$APP_LIVE" live reviewed=1
   sed -i.bak 's/^    name      = "app"$/    name      = "app-renamed"/' "$APP_LIVE/main.tf" && rm -f "$APP_LIVE/main.tf.bak"
@@ -803,7 +818,7 @@ if [ "${BREAK:-}" = "1" ]; then
   RN_PLAN="$(chdf "$APP_LIVE" plan -input=false -no-color 2>&1)" || fail "BREAK: the plan after renaming the object failed"
   grep -q "1 to add" <<< "$RN_PLAN" && grep -q "1 to destroy" <<< "$RN_PLAN" || fail "BREAK=1: renaming the object's own name did not plan a destroy and a create: $(plan_line <<< "$RN_PLAN")"
   write_app "$APP_LIVE" live reviewed=1 sa=team moved=1
-  chdf "$APP_LIVE" apply -auto-approve -input=false -no-color >/dev/null 2>&1 || fail "BREAK: the moved-block apply failed"
+  ran chdf "$APP_LIVE" apply -auto-approve -input=false -no-color || { shown; fail "BREAK: the moved-block apply failed"; }
   gauntlet_stage day2_rename pass "BREAK=1 control: renaming the ServiceAccount's own metadata.name plans a replace ($(plan_line <<< "$RN_PLAN")), so the marker-rewritten-in-place assertion correctly fails; the moved block then applied"
 else
   write_app "$APP_LIVE" live reviewed=1 sa=team moved=1
@@ -812,7 +827,7 @@ else
   grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$RN_PLAN" || { printf '%s\n' "$RN_PLAN" | tail -20; fail "the moved-block plan is not exactly one in-place change"; }
   grep -qE '~ +"choudoufu\.intentius\.io/tofu-address" = ".*" -> ".*"' <<< "$RN_PLAN" || { printf '%s\n' "$RN_PLAN"; fail "the moved-block plan does not rewrite the tofu-address annotation"; }
   RN_APPLY="$(chdf "$APP_LIVE" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$RN_APPLY" | tail -20; fail "the moved-block apply failed"; }
-  grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$RN_APPLY" || fail "the moved-block apply was not exactly one in-place change"
+  grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$RN_APPLY" || { printf '%s\n' "$RN_APPLY" | tail -20; fail "the moved-block apply was not exactly one in-place change"; }
   exists_a serviceaccount app || fail "the ServiceAccount is gone after the rename"
   [ "$(count_app)" = "9" ] || fail "$(count_app) labelled app objects after the rename, want 9"
   gauntlet_stage day2_rename pass "moved block kubernetes_service_account.app -> .team: no add and no destroy, one in-place change confined to the address annotation rewrite (0 add, 1 change, 0 destroy); the ServiceAccount untouched and still labelled, read with kubectl; stock's plan for the same moved block on the oracle cluster is zero churn, since stock never writes the annotation. BREAK=1 renames metadata.name instead, a real identity change, and the in-place assertion correctly fails"
@@ -826,22 +841,22 @@ if [ "${BREAK_REMOVE:-}" = "1" ]; then
   grep -qE "will be destroyed|[1-9][0-9]* to destroy" <<< "$K_PLAN" && fail "BREAK_REMOVE=1: with the block kept a destroy was still proposed"
   gauntlet_stage day2_remove pass "BREAK_REMOVE=1 control: with the ServiceAccount block kept, no destroy is proposed; the real check is skipped"
   write_app "$APP_LIVE" live reviewed=1 sa=none; write_app "$ORACLE_APP" stock reviewed=1 sa=none
-  chdf "$APP_LIVE" apply -auto-approve -input=false -no-color >/dev/null 2>&1 || fail "BREAK_REMOVE: the removal apply failed afterwards"
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_REMOVE: stock's removal apply failed on B"
+  ran chdf "$APP_LIVE" apply -auto-approve -input=false -no-color || { shown; fail "BREAK_REMOVE: the removal apply failed afterwards"; }
+  ran stock_b apply -auto-approve -input=false -no-color || { shown; fail "BREAK_REMOVE: stock's removal apply failed on B"; }
 else
   write_app "$APP_LIVE" live reviewed=1 sa=none; write_app "$ORACLE_APP" stock reviewed=1 sa=none
   O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's remove plan failed on B"; }
   grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's remove plan on B is not exactly one destroy"; }
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's remove apply failed on B"
+  ran stock_b apply -auto-approve -input=false -no-color || { shown; fail "stock's remove apply failed on B"; }
   RM_PLAN="$(chdf "$APP_LIVE" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$RM_PLAN" | tail -20; fail "the remove plan failed"; }
   grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$RM_PLAN" || { printf '%s\n' "$RM_PLAN" | tail -20; fail "the remove plan is not exactly one destroy"; }
   RM_LINE="$(grep -E '^[[:space:]]*# .* will be destroyed' <<< "$RM_PLAN" | head -1)"
   RM_ADDR="$(sed -E 's/^[[:space:]#]*//; s/ will be destroyed.*$//' <<< "$RM_LINE")"
   [ "$RM_ADDR" = "kubernetes_service_account_v1.orphan_${NS_APP}_app" ] || fail "the one destroy is ${RM_ADDR:-unnamed}, not the orphan address kubernetes_service_account_v1.orphan_${NS_APP}_app"
   RM_APPLY="$(chdf "$APP_LIVE" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$RM_APPLY" | tail -20; fail "the remove apply failed"; }
-  grep -qF "Apply complete! Resources: 0 added, 0 changed, 1 destroyed" <<< "$RM_APPLY" || fail "the remove apply did not destroy exactly one object"
+  grep -qF "Apply complete! Resources: 0 added, 0 changed, 1 destroyed" <<< "$RM_APPLY" || { printf '%s\n' "$RM_APPLY" | tail -20; fail "the remove apply did not destroy exactly one object"; }
   exists_a serviceaccount app && fail "the ServiceAccount still exists after the remove apply"
-  chdf "$APP_LIVE" plan -input=false -no-color 2>&1 | grep -q "No changes." || fail "the replan after the remove is not empty"
+  ran_has "No changes." chdf "$APP_LIVE" plan -input=false -no-color || { shown; fail "the replan after the remove is not empty"; }
   [ "$(count_app)" = "8" ] || fail "$(count_app) labelled app objects after the remove, want 8"
   gauntlet_stage day2_remove pass "deleting kubernetes_service_account.team's block proposed exactly one destroy at the sweep's orphan address $RM_ADDR, applied cleanly, the ServiceAccount gone (kubectl) and the next plan empty; stock's plan for the same removal on the oracle cluster is also exactly one destroy. BREAK_REMOVE=1 keeps the block and no destroy is proposed"
 fi
@@ -852,29 +867,29 @@ log "=== 9. day2_count: kubernetes_config_map.shard scales 2 -> 1 -> 2 ==="
 write_app "$APP_LIVE" live reviewed=1 sa=none shards=1; write_app "$ORACLE_APP" stock reviewed=1 sa=none shards=1
 O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || fail "stock's scale-down plan failed on B"
 grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$O_PLAN" && grep -q 'kubernetes_config_map.shard\[1\]' <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's scale-down on B is not exactly shard[1]'s destroy"; }
-( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's scale-down apply failed on B"
+ran stock_b apply -auto-approve -input=false -no-color || { shown; fail "stock's scale-down apply failed on B"; }
 CD_PLAN="$(chdf "$APP_LIVE" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$CD_PLAN" | tail -20; fail "the scale-down plan failed"; }
 grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$CD_PLAN" || { printf '%s\n' "$CD_PLAN" | tail -20; fail "the scale-down plan is not exactly one destroy"; }
 CD_ADDR="$(grep -E '^[[:space:]]*# .* will be destroyed' <<< "$CD_PLAN" | head -1 | sed -E 's/^[[:space:]#]*//; s/ will be destroyed.*$//')"
 grep -qE "^kubernetes_config_map(_v1)?\.orphan_${NS_APP}_shard-1$" <<< "$CD_ADDR" || fail "the scale-down destroys ${CD_ADDR:-nothing named}, not shard-1 at its orphan address"
-chdf "$APP_LIVE" apply -auto-approve -input=false -no-color 2>&1 | grep -qF "0 added, 0 changed, 1 destroyed" || fail "the scale-down apply did not destroy exactly one object"
+ran_has "0 added, 0 changed, 1 destroyed" chdf "$APP_LIVE" apply -auto-approve -input=false -no-color || { shown; fail "the scale-down apply did not destroy exactly one object"; }
 if [ "${BREAK_COUNT:-}" = "1" ]; then
   exists_a configmap shard-0 || fail "BREAK_COUNT=1: shard-0 was destroyed - the 'wrong instance' assertion would hold"
   gauntlet_stage day2_count pass "BREAK_COUNT=1 control: asserting shard-0 was the one destroyed correctly fails to hold; the real check is skipped"
   write_app "$APP_LIVE" live reviewed=1 sa=none; write_app "$ORACLE_APP" stock reviewed=1 sa=none
-  chdf "$APP_LIVE" apply -auto-approve -input=false -no-color >/dev/null 2>&1 || fail "BREAK_COUNT: the scale-up failed afterwards"
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_COUNT: stock's scale-up failed on B afterwards"
+  ran chdf "$APP_LIVE" apply -auto-approve -input=false -no-color || { shown; fail "BREAK_COUNT: the scale-up failed afterwards"; }
+  ran stock_b apply -auto-approve -input=false -no-color || { shown; fail "BREAK_COUNT: stock's scale-up failed on B afterwards"; }
 else
   exists_a configmap shard-0 || fail "shard-0 was destroyed on the scale-down"
   exists_a configmap shard-1 && fail "shard-1 still exists after the scale-down"
   write_app "$APP_LIVE" live reviewed=1 sa=none; write_app "$ORACLE_APP" stock reviewed=1 sa=none
   O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || fail "stock's scale-up plan failed on B"
   grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's scale-up plan on B is not exactly one add"; }
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's scale-up apply failed on B"
+  ran stock_b apply -auto-approve -input=false -no-color || { shown; fail "stock's scale-up apply failed on B"; }
   CU_PLAN="$(chdf "$APP_LIVE" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$CU_PLAN" | tail -20; fail "the scale-up plan failed"; }
   grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$CU_PLAN" && grep -q 'kubernetes_config_map.shard\[1\]' <<< "$CU_PLAN" || { printf '%s\n' "$CU_PLAN" | tail -20; fail "the scale-up plan is not exactly shard[1]'s create"; }
-  chdf "$APP_LIVE" apply -auto-approve -input=false -no-color 2>&1 | grep -qF "1 added, 0 changed, 0 destroyed" || fail "the scale-up apply did not create exactly one object"
-  chdf "$APP_LIVE" plan -input=false -no-color 2>&1 | grep -q "No changes." || fail "the replan after the scale-up is not empty"
+  ran_has "1 added, 0 changed, 0 destroyed" chdf "$APP_LIVE" apply -auto-approve -input=false -no-color || { shown; fail "the scale-up apply did not create exactly one object"; }
+  ran_has "No changes." chdf "$APP_LIVE" plan -input=false -no-color || { shown; fail "the replan after the scale-up is not empty"; }
   [ "$(count_app)" = "8" ] || fail "$(count_app) labelled app objects after the count cycle, want 8"
   gauntlet_stage day2_count pass "scaling kubernetes_config_map.shard 2 -> 1 destroyed exactly shard-1 at the sweep's orphan address $CD_ADDR (shard-0 untouched, kubectl); back to 2 created exactly shard[1]; the next plan is empty; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
 fi
@@ -897,12 +912,12 @@ GAUNTLET_RECORDS_REFRESH=""
 # 10b. An apply creating two objects, killed after the first (#1110 part 4),
 # as reference-k8s, with the record read back from the cluster.
 crash_pair_tf "$ORACLE_APP"
-( stock_b apply -auto-approve -input=false -no-color 2>&1 | grep -qF "Apply complete! Resources: 1 added" ) || fail "stock's crash-first apply failed on B"
+ran_has "Apply complete! Resources: 1 added" stock_b apply -auto-approve -input=false -no-color || { shown; fail "stock's crash-first apply failed on B"; }
 crash_pair_tf "$ORACLE_APP" both
 O_REM="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_REM" | tail -10; fail "stock's remainder plan failed on B"; }
 grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$O_REM" && grep -q 'kubernetes_config_map.crash_second' <<< "$O_REM" \
   || { printf '%s\n' "$O_REM" | tail -10; fail "stock's remainder plan on B is not exactly crash_second's add"; }
-( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's remainder apply failed on B"
+ran stock_b apply -auto-approve -input=false -no-color || { shown; fail "stock's remainder apply failed on B"; }
 crash_pair_tf "$APP_LIVE" both
 X_PLAN="$(chdf "$APP_LIVE" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$X_PLAN" | tail -20; fail "the pre-crash plan failed"; }
 grep -qF "Plan: 2 to add, 0 to change, 0 to destroy." <<< "$X_PLAN" || { printf '%s\n' "$X_PLAN" | tail -20; fail "the pre-crash plan is not exactly two adds"; }
@@ -931,7 +946,7 @@ recovered() {
 }
 if [ "${BREAK_CRASH:-}" = "1" ]; then
   grep -qF "No changes." <<< "$R_PLAN" && fail "BREAK_CRASH=1: the plan after a real interrupted two-object apply came back empty"
-  chdf "$APP_LIVE" apply -auto-approve -input=false -no-color >/dev/null 2>&1 || fail "BREAK_CRASH: the recovery apply failed afterwards"
+  ran chdf "$APP_LIVE" apply -auto-approve -input=false -no-color || { shown; fail "BREAK_CRASH: the recovery apply failed afterwards"; }
   CRASH_APPLY_DETAIL="BREAK_CRASH=1: after the two-object interrupt the plan proposes work ($R_LINE), so 'nothing is proposed' correctly fails."
 else
   recovered || { printf '%s\n' "$R_PLAN" | grep -E '^Plan:|^No changes|will be' | head -20; fail "the plan after the interrupt between crash_first's and crash_second's creates is not exactly the remainder: ${R_LINE:-no plan line} (exit $R_RC)"; }
@@ -952,11 +967,11 @@ PY
   [ "$N_RC" -eq 0 ] && grep -qF "Plan: 1 to add, 1 to change, 0 to destroy." <<< "$N_PLAN" && grep -qE '^[[:space:]]+\+ wait_for_service_account_token +=' <<< "$N_PLAN" \
     || { printf '%s\n' "$N_PLAN" | grep -E '^Plan:|will be|^ +[+~-] ' | head -20; fail "with the crash record's Secret taken out of $REC_APP the plan is $N_LINE (exit $N_RC), not the remainder plus wait_for_service_account_token put back"; }
   B_PLAN="$(chdf "$APP_LIVE" plan -input=false -no-color 2>&1)"
-  grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$B_PLAN" || fail "putting the record Secret back does not restore the exact-remainder plan"
+  grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$B_PLAN" || { printf '%s\n' "$B_PLAN" | tail -20; fail "putting the record Secret back does not restore the exact-remainder plan"; }
   R_APPLY="$(chdf "$APP_LIVE" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$R_APPLY" | tail -20; fail "the recovery apply failed"; }
-  grep -qF "Apply complete! Resources: 1 added, 0 changed, 0 destroyed" <<< "$R_APPLY" || fail "the recovery apply did not add exactly the one remaining object"
+  grep -qF "Apply complete! Resources: 1 added, 0 changed, 0 destroyed" <<< "$R_APPLY" || { printf '%s\n' "$R_APPLY" | tail -20; fail "the recovery apply did not add exactly the one remaining object"; }
   exists_a configmap crash-second && exists_a secret crash-first || fail "after the recovery crash-first and crash-second do not both exist"
-  chdf "$APP_LIVE" plan -input=false -no-color 2>&1 | grep -q "No changes." || fail "the replan after the recovery is not empty"
+  ran_has "No changes." chdf "$APP_LIVE" plan -input=false -no-color || { shown; fail "the replan after the recovery is not empty"; }
   CRASH_APPLY_DETAIL="An apply creating two objects was killed by the engine's own SIGTERM the instant kubernetes_secret.crash_first's create committed (exit $X_RC, -parallelism=1, crash_second reads crash_first's name); the next plan proposed exactly the remainder ($R_LINE) and nothing for crash-first, matching stock's plan from the same position on the oracle cluster, and one apply finished it. The record the interrupted apply wrote is a Secret in $REC_APP (envelopes $X_RECORDS_BEFORE -> $X_RECORDS_AFTER) carrying residue $X_RESIDUE: taking that Secret out turns the plan into $N_LINE, putting it back restores the remainder."
 fi
 [ "$(count_app)" = "10" ] || fail "$(count_app) labelled app objects after the two-object crash, want 10"
@@ -971,10 +986,10 @@ fi
 # object network's, network's plan and app's plan both empty.
 write_net "$ORACLE_NET" 1
 write_app "$ORACLE_APP" stock reviewed=1 sa=none handoff=0
-( stock_b state rm kubernetes_manifest.handoff >/dev/null 2>&1 ) || fail "stock's state rm of the handoff manifest failed on B"
-( stock_bn import -input=false -no-color kubernetes_manifest.handoff "apiVersion=v1,kind=ConfigMap,namespace=$NS_NET,name=handoff" >/dev/null 2>&1 ) || fail "stock's import of the handoff manifest into network failed on B"
-stock_bn plan -input=false -no-color 2>&1 | grep -q "No changes." || fail "stock's network plan on B after the move is not empty"
-stock_b plan -input=false -no-color 2>&1 | grep -q "No changes." || fail "stock's app plan on B after the move is not empty"
+ran stock_b state rm kubernetes_manifest.handoff || { shown; fail "stock's state rm of the handoff manifest failed on B"; }
+ran stock_bn import -input=false -no-color kubernetes_manifest.handoff "apiVersion=v1,kind=ConfigMap,namespace=$NS_NET,name=handoff" || { shown; fail "stock's import of the handoff manifest into network failed on B"; }
+ran_has "No changes." stock_bn plan -input=false -no-color || { shown; fail "stock's network plan on B after the move is not empty"; }
+ran_has "No changes." stock_b plan -input=false -no-color || { shown; fail "stock's app plan on B after the move is not empty"; }
 
 write_net "$NET_LIVE" 1
 write_app "$APP_LIVE" live reviewed=1 sa=none handoff=0
@@ -1031,8 +1046,8 @@ kca get namespace "$NS_APP" >/dev/null 2>&1 && fail "the $NS_APP namespace still
 T_NET_REC="$(record_secrets "$REC_NET" "$NET" tofu-records)"; T_NET_OUT="$(record_secrets "$REC_NET" "$NET" tofu-outputs)"
 [ "$T_NET_REC" = "0" ] && [ "$T_NET_OUT" = "0" ] || fail "network's destroy left $T_NET_REC record and $T_NET_OUT output Secret(s) in $REC_NET"
 T_HINTS="$(( $(record_secrets "$REC_NET" "$NET" tofu-hints) + $(record_secrets "$REC_APP" "$APP" tofu-hints) ))"
-( stock_b apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's destroy of app failed on B"
-( stock_bn apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's destroy of network failed on B"
+ran stock_b apply -destroy -auto-approve -input=false -no-color || { shown; fail "stock's destroy of app failed on B"; }
+ran stock_bn apply -destroy -auto-approve -input=false -no-color || { shown; fail "stock's destroy of network failed on B"; }
 gauntlet_stage day2_teardown pass "app's apply -destroy removed exactly its $T_APP objects while network's $T_NET stood untouched and app's records left $REC_APP with them (0 record Secrets); then network's removed its $T_NET (the handoff manifest it took over by live-mv included), both namespaces are gone, no object of either estate carries tofu-estate (kubectl, every namespace but the records ones), and $REC_NET holds 0 record and 0 output Secrets - so app's read of network's outputs would now be told they are not recorded. Guided-discovery hints left in the records namespaces: $T_HINTS. Stock's destroys of the same two estates on the oracle cluster, app then network, both completed"
 
 # ── 12. greenfield: both estates fresh, records in the cluster ───────────
@@ -1041,12 +1056,12 @@ log "=== 12. greenfield: network then app applied fresh on the now-empty cluster
 mkdir -p "$GREEN_NET" "$GREEN_APP"
 versions_tf "$GREEN_NET" live "$NET"; write_net "$GREEN_NET"
 versions_tf "$GREEN_APP" live "$APP"; write_app "$GREEN_APP" live
-chdf "$GREEN_NET" init -input=false -no-color >/dev/null 2>&1 || fail "greenfield init failed in network's root"
-chdf "$GREEN_APP" init -input=false -no-color >/dev/null 2>&1 || fail "greenfield init failed in app's root"
+ran chdf "$GREEN_NET" init -input=false -no-color || { shown; fail "greenfield init failed in network's root"; }
+ran chdf "$GREEN_APP" init -input=false -no-color || { shown; fail "greenfield init failed in app's root"; }
 G_NET="$(chdf "$GREEN_NET" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$G_NET" | tail -20; fail "network's greenfield apply failed"; }
-grep -qF "Apply complete! Resources: 5 added, 0 changed, 0 destroyed" <<< "$G_NET" || fail "network's greenfield apply did not add exactly 5 objects"
+grep -qF "Apply complete! Resources: 5 added, 0 changed, 0 destroyed" <<< "$G_NET" || { printf '%s\n' "$G_NET" | tail -20; fail "network's greenfield apply did not add exactly 5 objects"; }
 G_APP="$(chdf "$GREEN_APP" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$G_APP" | tail -20; fail "app's greenfield apply failed"; }
-grep -qF "Apply complete! Resources: 9 added, 0 changed, 0 destroyed" <<< "$G_APP" || fail "app's greenfield apply did not add exactly 9 objects"
+grep -qF "Apply complete! Resources: 9 added, 0 changed, 0 destroyed" <<< "$G_APP" || { printf '%s\n' "$G_APP" | tail -20; fail "app's greenfield apply did not add exactly 9 objects"; }
 G_LOCAL="$(find "$GREEN_NET" "$GREEN_APP" -name '.tofu-records' -o -name 'terraform.tfstate' | head -3)"
 [ -z "$G_LOCAL" ] || fail "a live-block apply with records in the cluster left local files: $G_LOCAL"
 [ "$(count_net)" = "5" ] && [ "$(count_app)" = "9" ] || fail "after greenfield network carries $(count_net) labels (want 5), app $(count_app) (want 9)"
@@ -1055,9 +1070,9 @@ G_OUTS="$(record_secrets "$REC_NET" "$NET" tofu-outputs)"
 mirror_records "$REC_APP" "$WORK/green-records" || fail "could not read app's greenfield records"
 G_RECORDS="$(gauntlet_record_envelope_count "$WORK/green-records")"
 for d in "$GREEN_NET" "$GREEN_APP"; do
-  chdf "$d" plan -input=false -no-color 2>&1 | grep -q "No changes." || fail "the greenfield replan in $(basename "$d") is not empty"
+  ran_has "No changes." chdf "$d" plan -input=false -no-color || { shown; fail "the greenfield replan in $(basename "$d") is not empty"; }
   rm -f "$d/.terraform/choudoufu-cache.tfstate"
-  chdf "$d" plan -input=false -no-color 2>&1 | grep -q "No changes." || fail "the greenfield replan in $(basename "$d") without the cache is not empty"
+  ran_has "No changes." chdf "$d" plan -input=false -no-color || { shown; fail "the greenfield replan in $(basename "$d") without the cache is not empty"; }
 done
 DROP=""; [ "${BREAK:-}" = "1" ] && DROP="hpa/web"
 inventory "$KCA" "$DROP" > "$WORK/inventory.green.json" || fail "could not read the greenfield inventory"
@@ -1106,14 +1121,14 @@ counted_plan() {
   printf '%s %s %s\n' "$(grep -c 'state cache hit' "$WORK/$label.log" 2>/dev/null || true)" "$(grep -c . "$PROXY_DIR/proxy.log" || true)" "$rc"
 }
 CACHE="$GREEN_APP/.terraform/choudoufu-cache.tfstate"
-chdf "$GREEN_APP" plan -input=false -no-color >/dev/null 2>&1 || fail "the plan that writes app's cache failed"
+ran chdf "$GREEN_APP" plan -input=false -no-color || { shown; fail "the plan that writes app's cache failed"; }
 [ -s "$CACHE" ] || fail "no state cache at $CACHE after a plan, so there is nothing to serve from or delete"
 cp "$CACHE" "$WORK/cache.keep"
 read -r HITS_SEL REQ_SEL RC_SEL <<< "$(counted_plan selective)"
 cp "$WORK/cache.keep" "$CACHE"
 read -r HITS_FULL REQ_FULL RC_FULL <<< "$(counted_plan full CHOUDOUFU_READS=full)"
 [ "$RC_SEL" = "0" ] && grep -q "No changes." "$WORK/selective.plan" || fail "the cache-serving plan (exit $RC_SEL) is not empty: $(tail -5 "$WORK/selective.plan")"
-[ "$RC_FULL" = "0" ] && grep -q "No changes." "$WORK/full.plan" || fail "the reads = \"full\" plan (exit $RC_FULL) is not empty"
+[ "$RC_FULL" = "0" ] && grep -q "No changes." "$WORK/full.plan" || fail "the reads = \"full\" plan (exit $RC_FULL) is not empty: $(tail -5 "$WORK/full.plan")"
 [ "$REQ_FULL" -gt 0 ] || fail "the reads = \"full\" plan sent no request through the counter, so it is not on the plan's path"
 [ "$HITS_FULL" = "0" ] || fail "reads = \"full\" still served $HITS_FULL instance(s) from the cache"
 [ "$HITS_SEL" -gt 0 ] || fail "the unchanged plan served nothing from a fresh cache (#1864's vouch did not happen)"
@@ -1139,8 +1154,8 @@ else
   gauntlet_stage no_local_state pass "app's records live in the cluster, so the only local state is the state cache; with it deleted - a fresh clone - the plan found every declared object by its label and namespace and name: nothing created, destroyed or replaced, $NLS_UPD in-place update(s). The unchanged plan before the deletion was served from the cache: $HITS_SEL instance(s) answered by a cache hit (#1864's vouch), $REQ_SEL requests against reads = \"full\"'s $REQ_FULL with 0 hits, both plans empty. plan_calls_no_local_state=$REQ_NONE plan_calls_cache_serving=$REQ_SEL ratio=${RATIO}x (all plan -refresh=false, Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. BREAK_NO_LOCAL_STATE=1 strips the web Service's label and the check correctly fails"
 fi
 kill "$PROXY_PID" 2>/dev/null || true; PROXY_PID=""
-chdf "$GREEN_APP" apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 || fail "app's greenfield teardown failed"
-chdf "$GREEN_NET" apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 || fail "network's greenfield teardown failed"
+ran chdf "$GREEN_APP" apply -destroy -auto-approve -input=false -no-color || { shown; fail "app's greenfield teardown failed"; }
+ran chdf "$GREEN_NET" apply -destroy -auto-approve -input=false -no-color || { shown; fail "network's greenfield teardown failed"; }
 
 # ── 14. strict: every toggle on, one refusal ─────────────────────────────
 gauntlet_begin_stage strict
@@ -1178,7 +1193,7 @@ EOF
 }
 log "=== 14. strict: every strict toggle on ==="
 strict_block "refuse" > "$STRICT/main.tf"
-( cd "$STRICT" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || fail "choudoufu init for the strict-stage scratch estate failed"
+ran in_dir "$STRICT" "$TOFU" init -input=false -no-color || { shown; fail "choudoufu init for the strict-stage scratch estate failed"; }
 STRICT_ON="$(cd "$STRICT" && "$TOFU" plan -input=false -no-color 2>&1)"; STRICT_ON_RC=$?
 if [ "${BREAK_STRICT:-}" = "1" ]; then
   strict_block "store" > "$STRICT/main.tf"
