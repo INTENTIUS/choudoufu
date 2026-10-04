@@ -114,41 +114,6 @@ func (diags Diagnostics) Append(new ...any) Diagnostics {
 	return diags
 }
 
-// AppendWithoutDuplicates appends each of newDiags unless the receiver
-// already holds one with the same severity, description (address, summary
-// and detail) and source range. It is stock terraform's merge of a plan's
-// diagnostics into the ones its validate walk already produced
-// (hashicorp/terraform internal/backend/local/backend_plan.go): a provider
-// warning raised by ValidateResourceConfig, such as the kubernetes
-// provider's "Deprecated Resource", is returned by both walks for the same
-// block and would otherwise print twice per resource.
-//
-// Only diagnostics already in the receiver are compared against, never two
-// members of newDiags with each other, so a walk that reports the same thing
-// twice on its own keeps both, as it always has.
-func (diags Diagnostics) AppendWithoutDuplicates(newDiags ...Diagnostic) Diagnostics {
-	existing := len(diags)
-	for _, d := range newDiags {
-		if d == nil {
-			continue
-		}
-		dup := false
-		for _, have := range diags[:existing] {
-			if have.Severity() == d.Severity() && have.Description().Equal(d.Description()) && have.Source().Equal(d.Source()) {
-				dup = true
-				break
-			}
-		}
-		if !dup {
-			diags = append(diags, d)
-		}
-	}
-	if len(diags) == 0 {
-		return nil
-	}
-	return diags
-}
-
 func (diags Diagnostics) StrictDeduplicateMerge(other Diagnostics) Diagnostics {
 	if len(diags) == 0 {
 		return other

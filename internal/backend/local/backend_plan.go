@@ -137,7 +137,7 @@ func (b *Local) opPlan(
 	// is the measured case, epic #1885) comes back here a second time after
 	// localRun's validate walk already reported it. Stock terraform merges
 	// with the same deduplication.
-	diags = diags.AppendWithoutDuplicates(planDiags...)
+	diags = appendWithoutDuplicates(diags, planDiags)
 
 	// Even if there are errors we need to handle anything that may be
 	// contained within the plan, so only exit if there is no data at all.
@@ -301,4 +301,39 @@ func maybeWriteGeneratedConfig(plan *plans.Plan, out string) (wroteConfig bool, 
 	}
 
 	return wroteConfig, diags
+}
+
+// appendWithoutDuplicates appends each of more to diags unless diags already
+// held one with the same severity, description (address, summary and
+// detail) and source range before this call. It is stock terraform's merge
+// of a plan's diagnostics into what its validate walk already reported
+// (hashicorp/terraform's tfdiags.AppendWithoutDuplicates, used by its own
+// backend_plan.go): a provider warning from ValidateResourceConfig, such as
+// the kubernetes provider's "Deprecated Resource", comes back from both
+// walks for the same block and would otherwise print twice per resource.
+//
+// Kept here, in the fork's own file in this package, rather than added to
+// upstream's tfdiags, so internal/tfdiags stays exactly OpenTofu's.
+//
+// Only members diags held on entry are compared against, never two members
+// of more with each other: a walk that reports the same thing twice on its
+// own keeps both, as it always has.
+func appendWithoutDuplicates(diags tfdiags.Diagnostics, more tfdiags.Diagnostics) tfdiags.Diagnostics {
+	existing := len(diags)
+	for _, d := range more {
+		if d == nil {
+			continue
+		}
+		dup := false
+		for _, have := range diags[:existing] {
+			if have.Severity() == d.Severity() && have.Description().Equal(d.Description()) && have.Source().Equal(d.Source()) {
+				dup = true
+				break
+			}
+		}
+		if !dup {
+			diags = diags.Append(d)
+		}
+	}
+	return diags
 }
