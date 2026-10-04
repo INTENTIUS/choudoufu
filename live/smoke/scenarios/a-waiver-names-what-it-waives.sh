@@ -90,7 +90,7 @@ run_logged() { local dir="$1" log="$2"; shift 2; ( cd "$dir" && TF_LOG=debug TF_
 # in one run's log. The record store logs its own S3 requests under
 # TF_LOG=debug (#682), which is what makes this readable at all.
 bucket_reads() {
-  grep 'stateless/recordstore: HTTP Request Sent' "$1" \
+  grep 'live/recordstore: HTTP Request Sent' "$1" \
     | grep -cE 'rpc\.method=(GetBucketVersioning|GetBucketLifecycleConfiguration|GetPublicAccessBlock)' || true
 }
 
@@ -142,7 +142,7 @@ PLAN_READS="$(bucket_reads "$PLAN_LOG")"
 [ "$APPLY_READS" -ge 1 ] \
   || fail "waiver" "the apply in step 1 sent no GetBucketVersioning, GetBucketLifecycleConfiguration or GetPublicAccessBlock at all. Either the assertions no longer read the bucket or this count is looking in the wrong place; either way the plan's zero below would prove nothing."
 [ "$PLAN_READS" -eq 0 ] \
-  || fail "waiver" "the plan sent $PLAN_READS bucket-configuration request(s), so its warning is not made from the configuration alone: $(grep 'stateless/recordstore: HTTP Request Sent' "$PLAN_LOG" | grep -oE 'rpc\.method=[A-Za-z0-9]+' | sort -u | tr '\n' ' ')"
+  || fail "waiver" "the plan sent $PLAN_READS bucket-configuration request(s), so its warning is not made from the configuration alone: $(grep 'live/recordstore: HTTP Request Sent' "$PLAN_LOG" | grep -oE 'rpc\.method=[A-Za-z0-9]+' | sort -u | tr '\n' ' ')"
 echo "bucket-configuration requests - the apply: $APPLY_READS, the plan: $PLAN_READS" | evidence
 write_estate "$SMOKE_WORK/est" smoke-waived v2 '["versioning"]'
 cmd "choudoufu apply -auto-approve   # a second apply"

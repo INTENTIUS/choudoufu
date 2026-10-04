@@ -6,7 +6,7 @@
 # exactly the authority stateless mode gives up. See live/LIMITATIONS.md.
 
 resource "aws_s3_bucket" "data" {
-  bucket = "tofu-stateless-limits-local-exec"
+  bucket = "tofu-live-limits-local-exec"
 
   provisioner "local-exec" {
     command = "echo hello"

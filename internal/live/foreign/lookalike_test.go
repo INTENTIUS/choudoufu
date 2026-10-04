@@ -19,9 +19,9 @@ import (
 // warns about when that same address is actually about to be created.
 func TestLookalikesMatchTableCandidate(t *testing.T) {
 	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_security_group", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")}, Unclaimed: []discovery.UnclaimedResource{
-		live("aws_security_group", "sg-0abc", "stateless-e2e-main",
-			map[string]string{"Name": "stateless-e2e-main"},
-			map[string]string{"name": "stateless-e2e-main", "description": "estate fixture security group"}),
+		live("aws_security_group", "sg-0abc", "live-e2e-main",
+			map[string]string{"Name": "live-e2e-main"},
+			map[string]string{"name": "live-e2e-main", "description": "estate fixture security group"}),
 	}}})
 
 	warnings := Lookalikes(Request{Estate: estateName}, res, []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")})
@@ -35,7 +35,7 @@ func TestLookalikesMatchTableCandidate(t *testing.T) {
 	if w.LiveID != "sg-0abc" {
 		t.Errorf("warning names live ID %q, want sg-0abc", w.LiveID)
 	}
-	if len(w.Matched) != 1 || w.Matched[0].Attr != "name" || w.Matched[0].Value != "stateless-e2e-main" {
+	if len(w.Matched) != 1 || w.Matched[0].Attr != "name" || w.Matched[0].Value != "live-e2e-main" {
 		t.Errorf("warning carries matched arguments %v, want the name match", w.Matched)
 	}
 	if w.MarkerEstate != estateName || w.MarkerAddress != "aws_security_group.main" {
@@ -51,7 +51,7 @@ func TestLookalikesMatchTableCandidate(t *testing.T) {
 // would point an operator at the wrong resource.
 func TestLookalikesMatchTableNoConfirmedMatch(t *testing.T) {
 	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_security_group", 1)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")}, Unclaimed: []discovery.UnclaimedResource{
-		live("aws_security_group", "sg-old", "", nil, map[string]string{"name": "stateless-e2e-main-old"}),
+		live("aws_security_group", "sg-old", "", nil, map[string]string{"name": "live-e2e-main-old"}),
 	}}})
 	if len(res.Candidates) != 0 {
 		t.Fatalf("test fixture unexpectedly produced a candidate: %v", res.Candidates)
@@ -68,8 +68,8 @@ func TestLookalikesMatchTableNoConfirmedMatch(t *testing.T) {
 // picking one.
 func TestLookalikesMatchTableAmbiguousStaysSilent(t *testing.T) {
 	res := classifyFixture(t, discovery.Result{Report: discovery.Report{Scans: []discovery.TypeScan{scan("aws_security_group", 2)}, Unbound: []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")}, Unclaimed: []discovery.UnclaimedResource{
-		live("aws_security_group", "sg-one", "", nil, map[string]string{"name": "stateless-e2e-main"}),
-		live("aws_security_group", "sg-two", "", nil, map[string]string{"name": "stateless-e2e-main"}),
+		live("aws_security_group", "sg-one", "", nil, map[string]string{"name": "live-e2e-main"}),
+		live("aws_security_group", "sg-two", "", nil, map[string]string{"name": "live-e2e-main"}),
 	}}})
 
 	warnings := Lookalikes(Request{Estate: estateName}, res, []addrs.AbsResourceInstance{mustAddr(t, "aws_security_group.main")})

@@ -245,7 +245,7 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 		}
 	}
 	if err == nil {
-		log.Printf("[DEBUG] stateless/projection: marked %s (%s) after its create: %s", addr, substrate.CreatedObject(surface, created), markers.TagsArgument(want))
+		log.Printf("[DEBUG] live/projection: marked %s (%s) after its create: %s", addr, substrate.CreatedObject(surface, created), markers.TagsArgument(want))
 		return withMarkersAt(applied, want, substrate.CarrierPaths(surface)), diags
 	}
 

@@ -8,7 +8,7 @@ terraform {
     organization = "example"
 
     workspaces {
-      name = "stateless-limits"
+      name = "live-limits"
     }
   }
 }

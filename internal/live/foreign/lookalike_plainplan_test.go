@@ -33,9 +33,9 @@ import (
 // were never visible" directly above a warning naming an unclaimed one.
 func TestLookalikeGuardOnAPlainPlanReport(t *testing.T) {
 	const typeName = "aws_security_group"
-	stripped := live(typeName, "sg-70c37520658184e7c", "stateless-e2e-main",
-		map[string]string{"Name": "stateless-e2e-main"},
-		map[string]string{"name": "stateless-e2e-main", "description": "estate fixture security group"})
+	stripped := live(typeName, "sg-70c37520658184e7c", "live-e2e-main",
+		map[string]string{"Name": "live-e2e-main"},
+		map[string]string{"name": "live-e2e-main", "description": "estate fixture security group"})
 	create := mustAddr(t, "aws_security_group.main")
 
 	t.Run("before #1480: estate-scoped, and the guard is blind", func(t *testing.T) {

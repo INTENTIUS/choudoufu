@@ -37,9 +37,9 @@ func approvalFixture(t *testing.T, estate string) string {
 		if err != nil {
 			t.Fatalf("reading the copied fixture: %s", err)
 		}
-		out := strings.Replace(string(src), `estate = "stateless-unit"`, `estate = "`+estate+`"`, 1)
+		out := strings.Replace(string(src), `estate = "live-unit"`, `estate = "`+estate+`"`, 1)
 		if out == string(src) {
-			t.Fatalf("the fixture no longer names estate stateless-unit; this test's rewrite is stale")
+			t.Fatalf("the fixture no longer names estate live-unit; this test's rewrite is stale")
 		}
 		if err := os.WriteFile(path, []byte(out), 0o644); err != nil {
 			t.Fatalf("rewriting the copied fixture: %s", err)
@@ -129,8 +129,8 @@ func TestApproval_driftRefuses(t *testing.T) {
 	cloud := newLiveTestCloud()
 	path := planOut(t, dir, cloud, "approved.tfplan")
 
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	code, output := applyPlanFile(t, dir, cloud, filepath.Base(path))
@@ -234,7 +234,7 @@ func TestApproval_wrongEstateRefuses(t *testing.T) {
 	for _, want := range []string{
 		summaryApprovalWrongEstate,
 		`estate "some-other-estate"`,
-		`estate "stateless-unit"`,
+		`estate "live-unit"`,
 	} {
 		if !strings.Contains(flat, want) {
 			t.Errorf("the refusal does not carry %q:\n%s", want, output)

@@ -3,7 +3,7 @@
 # (aws_cloudwatch_log_group.optional, count = var.enabled ? 1 : 0).
 
 resource "aws_cloudwatch_log_group" "app" {
-  name              = "/stateless-e2e/app"
+  name              = "/live-e2e/app"
   retention_in_days = 1
 
   tags = {
@@ -15,7 +15,7 @@ resource "aws_cloudwatch_log_group" "app" {
 resource "aws_cloudwatch_log_group" "optional" {
   count = var.enabled ? 1 : 0
 
-  name              = "/stateless-e2e/optional"
+  name              = "/live-e2e/optional"
   retention_in_days = 1
 
   tags = {

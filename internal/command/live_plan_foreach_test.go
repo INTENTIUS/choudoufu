@@ -15,7 +15,7 @@ import (
 // what a run says when a key in the configuration changes and the live
 // resource is still marked with the old one.
 
-const foreachEstate = "stateless-subnets"
+const foreachEstate = "live-subnets"
 
 // TestLivePlan_foreachBindsByKey is the baseline the rename case is a
 // deviation from: two declared keys, two live subnets marked with those keys,

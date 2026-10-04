@@ -5,7 +5,7 @@ terraform {
     organization = "example"
 
     workspaces {
-      name = "stateless-lint"
+      name = "live-lint"
     }
   }
 }

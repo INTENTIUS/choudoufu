@@ -61,9 +61,9 @@ produces comes from stamping, which is itself part of what step 11 checks.
 
 ## Estate name and identifier separation
 
-Every identifier in this fixture (`stateless-e2e-block` estate name, VPC/
+Every identifier in this fixture (`live-e2e-block` estate name, VPC/
 subnet CIDRs, bucket name, log group name, security group name) is distinct
-from the main estate's (`stateless-e2e`), so the two can stand up in the same
+from the main estate's (`live-e2e`), so the two can stand up in the same
 floci account without either estate's plan seeing the other's resources —
 step 11 (`live/e2e/run.sh`) asserts exactly that: the main estate's
 resource counts are unchanged before and after this fixture's apply.

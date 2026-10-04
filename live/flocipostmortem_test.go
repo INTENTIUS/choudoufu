@@ -35,7 +35,7 @@ import (
 // Wider than CrossingScriptSources in awspagequery_baseline.go, deliberately,
 // and each addition is a script that actually starts one:
 //
-//	e2e/run.sh          the stateless-mode harness, which e2e/*/run.sh misses
+//	e2e/run.sh          the live-mode harness, which e2e/*/run.sh misses
 //	                    because it sits one directory up.
 //	live-cert/*.sh      reference-ec2-vpc.sh and terralith-scale.sh both do,
 //	                    and a paid real-AWS run is the LAST place to discover

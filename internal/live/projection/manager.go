@@ -361,7 +361,7 @@ func (m *Manager) GetRootOutputValues(context.Context) (map[string]*states.Outpu
 // Unlock with the wrong id is impossible to construct: there is only one
 // possible id, and it unlocks nothing.
 func (m *Manager) Lock(context.Context, *statemgr.LockInfo) (string, error) {
-	return "stateless", nil
+	return "live", nil
 }
 
 // Unlock implements [statemgr.Locker] without releasing anything.

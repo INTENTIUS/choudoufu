@@ -14,7 +14,7 @@ resource "aws_s3_bucket" "data" {
   bucket = "tofu-mv-unit-data"
 
   tags = {
-    tofu-estate  = "stateless-unit"
+    tofu-estate  = "live-unit"
     tofu-address = "aws_s3_bucket.data"
   }
 }

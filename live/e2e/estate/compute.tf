@@ -20,7 +20,7 @@ resource "aws_eip" "pool" {
 # a template, not to launch anything: floci cannot bring an instance to
 # "running" (lex00/floci#32), which is why aws_instance is not here.
 resource "aws_launch_template" "app" {
-  name          = "tofu-stateless-e2e-app"
+  name          = "tofu-live-e2e-app"
   image_id      = "ami-12345678"
   instance_type = "t3.micro"
 

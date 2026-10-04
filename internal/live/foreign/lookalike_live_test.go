@@ -188,7 +188,7 @@ func assertLookalikeWarning(t *testing.T, output, sgID, which string) {
 	if !strings.Contains(section, sgID) {
 		t.Errorf("%s's warning does not name the stripped security group %s:\n%s", which, sgID, section)
 	}
-	if !strings.Contains(section, "matched on: name=stateless-e2e-main") {
+	if !strings.Contains(section, "matched on: name=live-e2e-main") {
 		t.Errorf("%s's warning does not show what it matched on:\n%s", which, section)
 	}
 	if !strings.Contains(section, "adopt with: aws ec2 create-tags") {

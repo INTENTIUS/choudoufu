@@ -140,7 +140,7 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 		res.SweepCovered = append(res.SweepCovered, typeName)
 	}
 
-	log.Printf("[DEBUG] stateless/discovery: listing %s via Cloud Control (%s), %d resources, client-side tag filtering (Cloud Control offers no server-side filter)", typeName, cfnType, len(descs))
+	log.Printf("[DEBUG] live/discovery: listing %s via Cloud Control (%s), %d resources, client-side tag filtering (Cloud Control offers no server-side filter)", typeName, cfnType, len(descs))
 
 	// GitHub issue #272's leg, and it REPLACES the marker path below rather
 	// than running before it: a name-bound type has no tags argument, so
@@ -168,7 +168,7 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 		taggable := read == ccTagsPresent
 		if refined {
 			scan.Refined++
-			log.Printf("[DEBUG] stateless/discovery: %s identifier %q carried no Tags in its Cloud Control listing; refined with GetResource", typeName, desc.Identifier)
+			log.Printf("[DEBUG] live/discovery: %s identifier %q carried no Tags in its Cloud Control listing; refined with GetResource", typeName, desc.Identifier)
 		}
 
 		importID, idOK := resolveCloudControlImportID(typeName, desc.Identifier)
@@ -195,7 +195,7 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 			case joinBound:
 				tags, taggable = joined, true
 				scan.Joined++
-				log.Printf("[DEBUG] stateless/discovery: %s %q came back from Cloud Control with no ownership marker; joined one from the estate's tag index", typeName, importID)
+				log.Printf("[DEBUG] live/discovery: %s %q came back from Cloud Control with no ownership marker; joined one from the estate's tag index", typeName, importID)
 			case joinAmbiguous:
 				diags = diags.Append(problemDiag(res, Problem{
 					Kind:     ProblemAmbiguousTagJoin,

@@ -584,7 +584,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// [declared.bindTypeNames] - and decl.typeNames() (the scan loop just
 	// below) is unchanged, so the config-driven scan itself still runs zero
 	// iterations for such a type. It is not skipped forever, though: when
-	// req.Sweep is also set (every real stateless-plan caller sets it
+	// req.Sweep is also set (every real live-plan caller sets it
 	// alongside req.CollectUnclaimed), the sweep loops below still list a
 	// type in this state - see [partitionSweepTypes] and the per-type
 	// collectUnclaimed argument to [scanTypeReporting] in both sweep legs.
@@ -652,7 +652,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			delete(decl.unscanned, typeName)
 		}
 		if vdiags.HasErrors() || len(vres.Problems) > 0 {
-			log.Printf("[INFO] stateless/discovery: cache-vouch listing for %s produced %d problem(s) and error=%v; dropped - no vouches for the type, its instances read as if there were no cache", typeName, len(vres.Problems), vdiags.HasErrors())
+			log.Printf("[INFO] live/discovery: cache-vouch listing for %s produced %d problem(s) and error=%v; dropped - no vouches for the type, its instances read as if there were no cache", typeName, len(vres.Problems), vdiags.HasErrors())
 		}
 		res.VerifiedDeclared = append(res.VerifiedDeclared, vres.VerifiedDeclared...)
 		for _, u := range vres.Unclaimed {
@@ -1428,7 +1428,7 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 			// is how the shrink is measured against a migrated estate,
 			// the same way the two DEBUG lines a few hundred lines below
 			// already narrate this pass's other per-instance decisions.
-			log.Printf("[DEBUG] stateless/discovery: %s excluded from the binding demand: identity already recorded", r.Addr)
+			log.Printf("[DEBUG] live/discovery: %s excluded from the binding demand: identity already recorded", r.Addr)
 			typeName := r.Type()
 			escaped := EscapeAddress(r.Addr.String())
 			if d.recordBacked[typeName] == nil {
@@ -2042,7 +2042,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 	}
 
 	if scan.Filtering == FilterClientSide {
-		log.Printf("[DEBUG] stateless/discovery: listing %s unfiltered (%s)", typeName, scan.FilterReason)
+		log.Printf("[DEBUG] live/discovery: listing %s unfiltered (%s)", typeName, scan.FilterReason)
 	}
 
 	// The full object is always requested: the markers are resource tags,
@@ -2218,7 +2218,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				// TestTaggingSweepAgainstFloci's removal-or-gap subtest
 				// asserts on the recovered branch.
 				markerReadWorked = true
-				log.Printf("[DEBUG] stateless/discovery: %s %q came back from the list call with no ownership marker; joined one from the estate's tag index", typeName, importID)
+				log.Printf("[DEBUG] live/discovery: %s %q came back from the list call with no ownership marker; joined one from the estate's tag index", typeName, importID)
 			case joinAmbiguous:
 				diags = diags.Append(problemDiag(res, Problem{
 					Kind:     ProblemAmbiguousTagJoin,

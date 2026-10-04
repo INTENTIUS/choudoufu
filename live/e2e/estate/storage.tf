@@ -3,7 +3,7 @@
 # — its own identity is the parent bucket's name; exactly one per bucket).
 
 resource "aws_s3_bucket" "data" {
-  bucket = "tofu-stateless-e2e-data"
+  bucket = "tofu-live-e2e-data"
 
   tags = {
     tofu-estate  = local.estate_tag

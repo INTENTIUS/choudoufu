@@ -7,7 +7,7 @@
 SMOKE_WORK="$SMOKE_WORKROOT/no-locks"
 mkdir -p "$SMOKE_WORK/a" "$SMOKE_WORK/b"; export SMOKE_WORK
 for c in a b; do
-  sed 's/stateless-e2e-block/smoke-locks/' "$ROOT/live/e2e/estate-block/versions.tf" > "$SMOKE_WORK/$c/versions.tf"
+  sed 's/live-e2e-block/smoke-locks/' "$ROOT/live/e2e/estate-block/versions.tf" > "$SMOKE_WORK/$c/versions.tf"
   cat > "$SMOKE_WORK/$c/role.tf" <<'TFEOF'
 resource "aws_iam_role" "contender" {
   name               = "smoke-locks-contender"

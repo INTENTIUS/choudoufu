@@ -158,13 +158,13 @@ func TestNodeResolver_UnownedBlocksAllThreeSteps(t *testing.T) {
 	ctx := context.Background()
 	addr := locatedTestAddr(t, "aws_s3_bucket", "data")
 	config := cty.ObjectVal(map[string]cty.Value{
-		"bucket": cty.StringVal("tofu-stateless-unit-data"),
+		"bucket": cty.StringVal("tofu-live-unit-data"),
 	})
 
 	t.Run("blocks the record", func(t *testing.T) {
 		store := NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix("my-estate"))
 		if _, err := store.mergeEnvelope(ctx, addr, "", func(env *recordEnvelope) {
-			env.Identity = &identityPayload{ImportID: "tofu-stateless-unit-data"}
+			env.Identity = &identityPayload{ImportID: "tofu-live-unit-data"}
 		}); err != nil {
 			t.Fatalf("mergeEnvelope: %s", err)
 		}
@@ -184,7 +184,7 @@ func TestNodeResolver_UnownedBlocksAllThreeSteps(t *testing.T) {
 	t.Run("blocks the marker index", func(t *testing.T) {
 		resolver := &NodeResolver{
 			MarkerIndex: map[string]providers.ImportTarget{
-				addr.String(): {ID: "tofu-stateless-unit-data"},
+				addr.String(): {ID: "tofu-live-unit-data"},
 			},
 			Unowned: map[string]bool{addr.String(): true},
 		}

@@ -34,25 +34,25 @@ func TestConcreteIdentityValues(t *testing.T) {
 		want map[string]string
 	}{
 		// One attribute, read from the argument of the same name.
-		{`aws_s3_bucket.data`, map[string]string{"bucket": "tofu-stateless-e2e-data"}},
-		{`aws_iam_role.app`, map[string]string{"name": "tofu-stateless-e2e-app"}},
-		{`aws_cloudwatch_log_group.app`, map[string]string{"name": "/stateless-e2e/app"}},
-		{`aws_cloudwatch_metric_alarm.cpu`, map[string]string{"alarm_name": "tofu-stateless-e2e-cpu"}},
+		{`aws_s3_bucket.data`, map[string]string{"bucket": "tofu-live-e2e-data"}},
+		{`aws_iam_role.app`, map[string]string{"name": "tofu-live-e2e-app"}},
+		{`aws_cloudwatch_log_group.app`, map[string]string{"name": "/live-e2e/app"}},
+		{`aws_cloudwatch_metric_alarm.cpu`, map[string]string{"alarm_name": "tofu-live-e2e-cpu"}},
 
 		// Two attributes and a separator. The ":" is in the import ID and in
 		// neither attribute, which is the whole point.
 		{`aws_iam_role_policy.app`, map[string]string{
-			"role": "tofu-stateless-e2e-app",
-			"name": "tofu-stateless-e2e-app-inline",
+			"role": "tofu-live-e2e-app",
+			"name": "tofu-live-e2e-app-inline",
 		}},
 		{`aws_iam_role_policy_attachment.app`, map[string]string{
-			"role":       "tofu-stateless-e2e-app",
+			"role":       "tofu-live-e2e-app",
 			"policy_arn": "arn:aws:iam::aws:policy/ReadOnlyAccess",
 		}},
 
 		// The child collapses to a literal because its parent is concrete,
 		// and the attribute follows the same collapse.
-		{`aws_s3_bucket_policy.data`, map[string]string{"bucket": "tofu-stateless-e2e-data"}},
+		{`aws_s3_bucket_policy.data`, map[string]string{"bucket": "tofu-live-e2e-data"}},
 	}
 
 	for _, tc := range tests {

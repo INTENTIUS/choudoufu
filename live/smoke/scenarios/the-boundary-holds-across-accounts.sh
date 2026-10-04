@@ -134,7 +134,7 @@ requests_as() { grep -oE "Credential=$2/[0-9]{8}/us-east-1/" "$LOGDIR/$1.log" 2>
 # end the run before the assertion below could say why (the same trap
 # HITS_BIND's own `|| true` guards), and zero is the count this exists to
 # catch.
-tagging_as() { { grep -c "stateless/tagging: HTTP Request Sent: .* signed_as=$2\$" "$LOGDIR/$1.log" 2>/dev/null || true; } | tr -d ' '; }
+tagging_as() { { grep -c "live/tagging: HTTP Request Sent: .* signed_as=$2\$" "$LOGDIR/$1.log" 2>/dev/null || true; } | tr -d ' '; }
 
 step "the claim"
 explain \

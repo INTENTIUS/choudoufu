@@ -54,12 +54,12 @@ func TestLivePlan_jsonBoundCarriesTheIdentityItMatchedOn(t *testing.T) {
 		testCopyDir(t, testFixturePath("live-block-record-store"), td)
 		t.Chdir(td)
 
-		const estate = "stateless-unit"
+		const estate = "live-unit"
 		cloud := newLiveTestCloud()
 		// The bucket: client-named, so its identity is derivable from
 		// configuration and the projection reads it back directly.
-		cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", estate, "aws_s3_bucket.data", map[string]string{
-			"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+		cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", estate, "aws_s3_bucket.data", map[string]string{
+			"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 		})
 		// The VPC: marked and readable, but deliberately NOT listed, so the
 		// estate-wide sweep finds nothing to bind it with - the tag-index
@@ -82,8 +82,8 @@ func TestLivePlan_jsonBoundCarriesTheIdentityItMatchedOn(t *testing.T) {
 			{
 				Addr:           "aws_s3_bucket.data",
 				TypeName:       "aws_s3_bucket",
-				Identity:       "tofu-stateless-unit-data",
-				IdentityValues: map[string]string{"bucket": "tofu-stateless-unit-data"},
+				Identity:       "tofu-live-unit-data",
+				IdentityValues: map[string]string{"bucket": "tofu-live-unit-data"},
 				Source:         views.LivePlanBoundDerived,
 			},
 			{
@@ -121,10 +121,10 @@ func TestLivePlan_jsonBoundCarriesTheIdentityItMatchedOn(t *testing.T) {
 		testCopyDir(t, testFixturePath("live-block-record-store"), td)
 		t.Chdir(td)
 
-		const estate = "stateless-unit"
+		const estate = "live-unit"
 		cloud := newLiveTestCloud()
-		cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", estate, "aws_s3_bucket.data", map[string]string{
-			"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+		cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", estate, "aws_s3_bucket.data", map[string]string{
+			"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 		})
 		cloud.putMarked("aws_vpc", "vpc-0a1b2c3d", estate, "aws_vpc.main", map[string]string{
 			"id": "vpc-0a1b2c3d", "cidr_block": "10.42.0.0/16",
@@ -146,8 +146,8 @@ func TestLivePlan_jsonBoundCarriesTheIdentityItMatchedOn(t *testing.T) {
 			{
 				Addr:           "aws_s3_bucket.data",
 				TypeName:       "aws_s3_bucket",
-				Identity:       "tofu-stateless-unit-data",
-				IdentityValues: map[string]string{"bucket": "tofu-stateless-unit-data"},
+				Identity:       "tofu-live-unit-data",
+				IdentityValues: map[string]string{"bucket": "tofu-live-unit-data"},
 				Source:         views.LivePlanBoundDerived,
 			},
 			{

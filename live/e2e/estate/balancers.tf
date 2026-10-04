@@ -19,7 +19,7 @@
 # for this slice observed before the argument came out.
 
 resource "aws_lb" "main" {
-  name               = "tofu-stateless-e2e-lb"
+  name               = "tofu-live-e2e-lb"
   internal           = true
   load_balancer_type = "application"
   subnets            = [for s in aws_subnet.this : s.id]
@@ -31,7 +31,7 @@ resource "aws_lb" "main" {
 }
 
 resource "aws_lb_target_group" "app" {
-  name        = "tofu-stateless-e2e-tg"
+  name        = "tofu-live-e2e-tg"
   port        = 80
   protocol    = "HTTP"
   vpc_id      = aws_vpc.main.id

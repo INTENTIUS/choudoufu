@@ -20,7 +20,7 @@
 # gets broken (delete/create, not overwrite), and the next plan proposing
 # exactly that create again is the re-arm signal.
 resource "aws_ssm_parameter" "demo_existence" {
-  name  = "/tofu-receipts/stateless-e2e/demo-existence"
+  name  = "/tofu-receipts/live-e2e/demo-existence"
   type  = "String" # never SecureString — the value carries no information (RECEIPTS.md)
   value = "done"   # constant by design: existence is the bit, not the value
 
@@ -46,7 +46,7 @@ locals {
 }
 
 resource "aws_ssm_parameter" "demo_effect" {
-  name  = "/tofu-receipts/stateless-e2e/demo-effect"
+  name  = "/tofu-receipts/live-e2e/demo-effect"
   type  = "String" # never SecureString — a hash is not a secret (RECEIPTS.md)
   value = sha256(jsonencode(local.demo_effect_inputs))
 

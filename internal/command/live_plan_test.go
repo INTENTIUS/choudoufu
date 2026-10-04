@@ -55,8 +55,8 @@ func TestLivePlan_noChanges(t *testing.T) {
 	// this estate's to plan against at all: the projection leaves it alone
 	// and the plan proposes creating what the configuration declares. See
 	// TestLivePlan_unownedNameIsNotAdopted for that half.
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
@@ -65,7 +65,7 @@ func TestLivePlan_noChanges(t *testing.T) {
 	// so it is the only one that can show "no changes" yet. The VPC is
 	// targeted out for the same reason the P1.5 harness step targets the
 	// concrete set only.
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-target=aws_s3_bucket.data"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "-target=aws_s3_bucket.data"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -75,7 +75,7 @@ func TestLivePlan_noChanges(t *testing.T) {
 	if !strings.Contains(stdout, "No changes.") {
 		t.Errorf("plan is not empty:\n%s", stdout)
 	}
-	if !cloud.imported("aws_s3_bucket", "tofu-stateless-unit-data") {
+	if !cloud.imported("aws_s3_bucket", "tofu-live-unit-data") {
 		t.Errorf("the bucket was never read from the live system; imports were %v", cloud.imports)
 	}
 
@@ -109,8 +109,8 @@ func TestLivePlan_sidecarOnlyConfig(t *testing.T) {
 	t.Chdir(td)
 
 	cloud := newLiveTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
@@ -123,7 +123,7 @@ func TestLivePlan_sidecarOnlyConfig(t *testing.T) {
 	if !strings.Contains(output.Stdout(), "No changes.") {
 		t.Errorf("plan is not empty:\n%s", output.Stdout())
 	}
-	if !cloud.imported("aws_s3_bucket", "tofu-stateless-unit-data") {
+	if !cloud.imported("aws_s3_bucket", "tofu-live-unit-data") {
 		t.Errorf("the bucket was never read from the live system; imports were %v", cloud.imports)
 	}
 }
@@ -160,13 +160,13 @@ func TestLivePlan_proposesCreate(t *testing.T) {
 	t.Chdir(td)
 
 	cloud := newLiveTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-detailed-exitcode"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "-detailed-exitcode"})
 	output := done(t)
 	if code != 2 {
 		t.Fatalf("exit code %d, want 2 (changes present, -detailed-exitcode)\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -243,13 +243,13 @@ func TestLivePlan_providerVersionSkewWarns(t *testing.T) {
 	t.Chdir(td)
 
 	cloud := newLiveTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-target=aws_s3_bucket.data"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "-target=aws_s3_bucket.data"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0 (a version skew warns, it does not fail the run)\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -286,13 +286,13 @@ func TestLivePlan_providerVersionMatchIsSilent(t *testing.T) {
 	t.Chdir(td)
 
 	cloud := newLiveTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-target=aws_s3_bucket.data"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "-target=aws_s3_bucket.data"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -410,8 +410,8 @@ func TestLivePlan_ignoresStateFile(t *testing.T) {
 	}
 
 	cloud := newLiveTestCloud()
-	cloud.put("aws_s3_bucket", "tofu-stateless-unit-data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.put("aws_s3_bucket", "tofu-live-unit-data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
@@ -508,8 +508,8 @@ func TestLivePlan_jsonDocument(t *testing.T) {
 	// with no sweep involved; being unowned keeps it out of prior state,
 	// so it is both this run's one "unowned" entry and (since nothing
 	// materialized it) its one "omission".
-	cloud.put("aws_s3_bucket", "tofu-stateless-unit-data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.put("aws_s3_bucket", "tofu-live-unit-data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 	// The VPC: this estate's own object, found and bound by the marker
 	// sweep - putMarked (for the later import/read) plus list (for the
@@ -518,18 +518,18 @@ func TestLivePlan_jsonDocument(t *testing.T) {
 	// entry, and its source has to be "marker": aws_vpc's identity is
 	// server-assigned, so nothing about it is derivable from configuration
 	// alone.
-	cloud.putMarked("aws_vpc", "vpc-42", "stateless-unit", "aws_vpc.main", map[string]string{
+	cloud.putMarked("aws_vpc", "vpc-42", "live-unit", "aws_vpc.main", map[string]string{
 		"id": "vpc-42", "cidr_block": "10.42.0.0/16",
 	})
 	cloud.list("aws_vpc", "vpc-42", "the estate's own VPC",
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_vpc.main"},
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_vpc.main"},
 		map[string]string{"cidr_block": "10.42.0.0/16"})
 
 	// The human-mode run first, so this test has the text's own counts to
 	// cross-check the document against rather than asserting a number
 	// against itself.
 	human, doneHuman := newLivePlanCommand(t, cloud)
-	humanCode := human.Run([]string{"-no-color", "-estate=stateless-unit", "-detailed-exitcode"})
+	humanCode := human.Run([]string{"-no-color", "-estate=live-unit", "-detailed-exitcode"})
 	humanOut := doneHuman(t).Stdout()
 	if humanCode != 2 {
 		t.Fatalf("human-mode exit code %d, want 2 (the bucket create is a change)\nstdout:\n%s", humanCode, humanOut)
@@ -550,7 +550,7 @@ func TestLivePlan_jsonDocument(t *testing.T) {
 
 	// -json against the identical cloud and estate.
 	jsonCmd, doneJSON := newLivePlanCommand(t, cloud)
-	jsonCode := jsonCmd.Run([]string{"-no-color", "-estate=stateless-unit", "-detailed-exitcode", "-json"})
+	jsonCode := jsonCmd.Run([]string{"-no-color", "-estate=live-unit", "-detailed-exitcode", "-json"})
 	jsonOut := doneJSON(t)
 	if jsonCode != 2 {
 		t.Fatalf("-json exit code %d, want 2\nstdout:\n%s\nstderr:\n%s", jsonCode, jsonOut.Stdout(), jsonOut.Stderr())
@@ -564,8 +564,8 @@ func TestLivePlan_jsonDocument(t *testing.T) {
 		t.Fatalf("-json's stdout does not parse as one JSON document: %s\nstdout:\n%s", err, jsonOut.Stdout())
 	}
 
-	if doc.Estate != "stateless-unit" {
-		t.Errorf("document estate = %q, want %q", doc.Estate, "stateless-unit")
+	if doc.Estate != "live-unit" {
+		t.Errorf("document estate = %q, want %q", doc.Estate, "live-unit")
 	}
 	if doc.UpstreamVersion == "" {
 		t.Error("document's upstream_version is empty")
@@ -609,12 +609,12 @@ func TestLivePlan_jsonDocument(t *testing.T) {
 	if un.Addr != "aws_s3_bucket.data" || un.TypeName != "aws_s3_bucket" {
 		t.Errorf("unowned[0] = %+v, want aws_s3_bucket.data/aws_s3_bucket", un)
 	}
-	if un.LiveID != "tofu-stateless-unit-data" {
-		t.Errorf("unowned[0].identity = %q, want %q", un.LiveID, "tofu-stateless-unit-data")
+	if un.LiveID != "tofu-live-unit-data" {
+		t.Errorf("unowned[0].identity = %q, want %q", un.LiveID, "tofu-live-unit-data")
 	}
-	if un.MarkerEstate != "stateless-unit" || un.MarkerAddress != "aws_s3_bucket.data" {
+	if un.MarkerEstate != "live-unit" || un.MarkerAddress != "aws_s3_bucket.data" {
 		t.Errorf("unowned[0]'s exact tag write = (tofu_estate=%q, tofu_address=%q), want (%q, %q)",
-			un.MarkerEstate, un.MarkerAddress, "stateless-unit", "aws_s3_bucket.data")
+			un.MarkerEstate, un.MarkerAddress, "live-unit", "aws_s3_bucket.data")
 	}
 }
 
@@ -637,27 +637,27 @@ func TestLivePlan_undeclaredIsDestroyed(t *testing.T) {
 	t.Chdir(td)
 
 	cloud := newLiveTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
-	cloud.putMarked("aws_vpc", "vpc-owned", "stateless-unit", "aws_vpc.main", map[string]string{
+	cloud.putMarked("aws_vpc", "vpc-owned", "live-unit", "aws_vpc.main", map[string]string{
 		"id": "vpc-owned", "cidr_block": "10.42.0.0/16",
 	})
 	cloud.list("aws_vpc", "vpc-owned", "the estate's own VPC",
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_vpc.main"},
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_vpc.main"},
 		map[string]string{"cidr_block": "10.42.0.0/16"})
 
 	// The deleted block's resource: owned, and declared nowhere.
-	cloud.putMarked("aws_subnet", "subnet-gone", "stateless-unit", "aws_subnet.gone", map[string]string{
+	cloud.putMarked("aws_subnet", "subnet-gone", "live-unit", "aws_subnet.gone", map[string]string{
 		"id": "subnet-gone", "cidr_block": "10.42.1.0/24",
 	})
 	cloud.list("aws_subnet", "subnet-gone", "the deleted block's subnet",
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_subnet.gone"},
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_subnet.gone"},
 		map[string]string{"cidr_block": "10.42.1.0/24"})
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -705,19 +705,19 @@ func TestLivePlan_sweepGapsAreReported(t *testing.T) {
 	t.Chdir(td)
 
 	cloud := newLiveTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
-	cloud.putMarked("aws_vpc", "vpc-owned", "stateless-unit", "aws_vpc.main", map[string]string{
+	cloud.putMarked("aws_vpc", "vpc-owned", "live-unit", "aws_vpc.main", map[string]string{
 		"id": "vpc-owned", "cidr_block": "10.42.0.0/16",
 	})
 	cloud.list("aws_vpc", "vpc-owned", "the estate's own VPC",
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_vpc.main"},
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_vpc.main"},
 		map[string]string{"cidr_block": "10.42.0.0/16"})
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -769,19 +769,19 @@ func TestLivePlan_sweepGapsVerboseListsEveryType(t *testing.T) {
 	t.Chdir(td)
 
 	cloud := newLiveTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
-	cloud.putMarked("aws_vpc", "vpc-owned", "stateless-unit", "aws_vpc.main", map[string]string{
+	cloud.putMarked("aws_vpc", "vpc-owned", "live-unit", "aws_vpc.main", map[string]string{
 		"id": "vpc-owned", "cidr_block": "10.42.0.0/16",
 	})
 	cloud.list("aws_vpc", "vpc-owned", "the estate's own VPC",
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_vpc.main"},
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_vpc.main"},
 		map[string]string{"cidr_block": "10.42.0.0/16"})
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-verbose", "-estate=stateless-unit"})
+	code := c.Run([]string{"-no-color", "-verbose", "-estate=live-unit"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -828,14 +828,14 @@ func TestLivePlan_foreignIsProtected(t *testing.T) {
 	// fixture's configuration declares no tags at all; the markers reach it
 	// through stamping, which is exactly why a plan over an already-stamped
 	// estate is empty.
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
-	cloud.putMarked("aws_vpc", "vpc-owned", "stateless-unit", "aws_vpc.main", map[string]string{
+	cloud.putMarked("aws_vpc", "vpc-owned", "live-unit", "aws_vpc.main", map[string]string{
 		"id": "vpc-owned", "cidr_block": "10.42.0.0/16",
 	})
 	cloud.list("aws_vpc", "vpc-owned", "the estate's own VPC",
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_vpc.main"},
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_vpc.main"},
 		map[string]string{"cidr_block": "10.42.0.0/16"})
 	cloud.list("aws_vpc", "vpc-foreign", "somebody else's VPC",
 		map[string]string{"Name": "legacy-network", "owner": "platform"},
@@ -843,7 +843,7 @@ func TestLivePlan_foreignIsProtected(t *testing.T) {
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -851,7 +851,7 @@ func TestLivePlan_foreignIsProtected(t *testing.T) {
 	stdout := output.Stdout()
 
 	// Half one: it is reported, by type, live ID and tags, in its own section.
-	if !strings.Contains(stdout, "Foreign resources: 1 live resource not owned by estate stateless-unit") {
+	if !strings.Contains(stdout, "Foreign resources: 1 live resource not owned by estate live-unit") {
 		t.Errorf("no foreign section naming the estate:\n%s", stdout)
 	}
 	if !strings.Contains(stdout, "aws_vpc vpc-foreign") {
@@ -905,8 +905,8 @@ func TestLivePlan_bindCandidateIsOfferedNotTaken(t *testing.T) {
 	t.Chdir(td)
 
 	cloud := newLiveTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 	// Nothing carries a marker, and this one's CIDR is exactly the declared
 	// VPC's.
@@ -915,7 +915,7 @@ func TestLivePlan_bindCandidateIsOfferedNotTaken(t *testing.T) {
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-detailed-exitcode"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "-detailed-exitcode"})
 	output := done(t)
 	if code != 2 {
 		t.Fatalf("exit code %d, want 2 (a create is proposed)\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -983,8 +983,8 @@ func TestLivePlan_estateName(t *testing.T) {
 		t.Chdir(td)
 
 		cloud := newLiveTestCloud()
-		cloud.put("aws_s3_bucket", "tofu-stateless-unit-data", map[string]string{
-			"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+		cloud.put("aws_s3_bucket", "tofu-live-unit-data", map[string]string{
+			"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 		})
 		c, done := newLivePlanCommand(t, cloud)
 
@@ -1025,8 +1025,8 @@ func TestLivePlan_estateName(t *testing.T) {
 		if estateDiags.HasErrors() {
 			t.Fatalf("deriving the estate name: %s", estateDiags.Err())
 		}
-		if got != "stateless-e2e" {
-			t.Errorf("derived estate name %q, want stateless-e2e", got)
+		if got != "live-e2e" {
+			t.Errorf("derived estate name %q, want live-e2e", got)
 		}
 	})
 
@@ -1062,16 +1062,16 @@ func TestLivePlan_stampsMissingMarkers(t *testing.T) {
 	// resource is the only kind whose markers can arrive as an in-place
 	// update: one carrying no estate marker at all is not this estate's to
 	// update, and the pass that used to adopt it is audit finding C1.
-	cloud.put("aws_s3_bucket", "tofu-stateless-unit-data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.put("aws_s3_bucket", "tofu-live-unit-data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
-	cloud.tags["aws_s3_bucket/tofu-stateless-unit-data"] = map[string]string{
-		"tofu-estate": "stateless-unit",
+	cloud.tags["aws_s3_bucket/tofu-live-unit-data"] = map[string]string{
+		"tofu-estate": "live-unit",
 	}
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-detailed-exitcode"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "-detailed-exitcode"})
 	output := done(t)
 	if code != 2 {
 		t.Fatalf("exit code %d, want 2 (the markers are a change)\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -1086,7 +1086,7 @@ func TestLivePlan_stampsMissingMarkers(t *testing.T) {
 	}
 	for _, want := range []string{
 		`+ "tofu-address" = "aws_s3_bucket.data"`,
-		`+ "tofu-estate"  = "stateless-unit"`,
+		`+ "tofu-estate"  = "live-unit"`,
 		`+ "tofu-address" = "aws_vpc.main"`,
 		`~ tags`,
 	} {
@@ -1133,13 +1133,13 @@ func TestLivePlan_unownedNameIsNotAdopted(t *testing.T) {
 	cloud := newLiveTestCloud()
 	// Somebody else's bucket, at the name this configuration declares. No
 	// markers on it: that is what "not ours" looks like.
-	cloud.put("aws_s3_bucket", "tofu-stateless-unit-data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.put("aws_s3_bucket", "tofu-live-unit-data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-target=aws_s3_bucket.data", "-detailed-exitcode"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "-target=aws_s3_bucket.data", "-detailed-exitcode"})
 	output := done(t)
 	if code != 2 {
 		t.Fatalf("exit code %d, want 2 (the create is a change)\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -1165,16 +1165,16 @@ func TestLivePlan_unownedNameIsNotAdopted(t *testing.T) {
 	if !strings.Contains(stdout, "Unowned: 1 live resource holds an identity this configuration declares (1 adoptable)") {
 		t.Errorf("no Unowned section heading:\n%s", stdout)
 	}
-	if !strings.Contains(stdout, "aws_s3_bucket.data [ADOPTABLE] <- aws_s3_bucket tofu-stateless-unit-data") {
+	if !strings.Contains(stdout, "aws_s3_bucket.data [ADOPTABLE] <- aws_s3_bucket tofu-live-unit-data") {
 		t.Errorf("the Unowned section does not offer the resource as adoptable:\n%s", stdout)
 	}
-	if !strings.Contains(stdout, "adopt by writing: tofu-estate=stateless-unit tofu-address=aws_s3_bucket.data") {
+	if !strings.Contains(stdout, "adopt by writing: tofu-estate=live-unit tofu-address=aws_s3_bucket.data") {
 		t.Errorf("the Unowned section does not carry the exact tag values to write:\n%s", stdout)
 	}
 	if !strings.Contains(stdout, "Live resource outside this estate") {
 		t.Errorf("no warning about the unowned resource:\n%s", stdout)
 	}
-	for _, want := range []string{"tofu-estate", "stateless-unit", "tofu-stateless-unit-data"} {
+	for _, want := range []string{"tofu-estate", "live-unit", "tofu-live-unit-data"} {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("the report does not name %q, so it cannot be acted on:\n%s", want, stdout)
 		}
@@ -1191,13 +1191,13 @@ func TestLivePlan_otherEstatesResourceIsNotAdopted(t *testing.T) {
 	t.Chdir(td)
 
 	cloud := newLiveTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "somebody-elses-estate", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "somebody-elses-estate", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-target=aws_s3_bucket.data", "-detailed-exitcode"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "-target=aws_s3_bucket.data", "-detailed-exitcode"})
 	output := done(t)
 	if code != 2 {
 		t.Fatalf("exit code %d, want 2\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -1212,7 +1212,7 @@ func TestLivePlan_otherEstatesResourceIsNotAdopted(t *testing.T) {
 	}
 	// The Unowned section says at a glance that this one is not adoptable
 	// here: it is in the way, and its holder is named.
-	if !strings.Contains(stdout, "aws_s3_bucket.data [IN_THE_WAY] <- aws_s3_bucket tofu-stateless-unit-data") {
+	if !strings.Contains(stdout, "aws_s3_bucket.data [IN_THE_WAY] <- aws_s3_bucket tofu-live-unit-data") {
 		t.Errorf("the Unowned section does not report the resource as in the way:\n%s", stdout)
 	}
 	if !strings.Contains(stdout, `held by estate "somebody-elses-estate"`) {
@@ -1232,8 +1232,8 @@ func TestLivePlan_stampingNeedsAnEstateName(t *testing.T) {
 	t.Chdir(td)
 
 	cloud := newLiveTestCloud()
-	cloud.put("aws_s3_bucket", "tofu-stateless-unit-data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.put("aws_s3_bucket", "tofu-live-unit-data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
@@ -1266,13 +1266,13 @@ func TestLivePlan_markerConflictIsFatal(t *testing.T) {
 	t.Chdir(td)
 
 	cloud := newLiveTestCloud()
-	cloud.put("aws_s3_bucket", "tofu-stateless-unit-data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.put("aws_s3_bucket", "tofu-live-unit-data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 
 	c, done := newLivePlanCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit"})
 	output := done(t)
 	if code != 1 {
 		t.Fatalf("exit code %d, want 1\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -2809,11 +2809,11 @@ func TestLivePlan_targetScopesTheLivePipeline(t *testing.T) {
 		t.Chdir(td)
 
 		cloud := newLiveTestCloud()
-		cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-			"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+		cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+			"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 		})
 		c, done := newLivePlanCommand(t, cloud)
-		code := c.Run(append([]string{"-no-color", "-estate=stateless-unit"}, args...))
+		code := c.Run(append([]string{"-no-color", "-estate=live-unit"}, args...))
 		return code, done(t)
 	}
 
@@ -2879,8 +2879,8 @@ func TestLivePlan_jsonDocumentCarriesTheContentMatch(t *testing.T) {
 	t.Setenv(collectUnclaimedEnvVar, "1")
 
 	cloud := newLiveTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
 	cloud.list("aws_vpc", "vpc-unmarked", "", nil,
 		map[string]string{"cidr_block": "10.42.0.0/16"})
@@ -2888,7 +2888,7 @@ func TestLivePlan_jsonDocumentCarriesTheContentMatch(t *testing.T) {
 	// The human run first, so the document is checked against what the
 	// text says rather than against itself.
 	human, doneHuman := newLivePlanCommand(t, cloud)
-	if code := human.Run([]string{"-no-color", "-estate=stateless-unit", "-detailed-exitcode"}); code != 2 {
+	if code := human.Run([]string{"-no-color", "-estate=live-unit", "-detailed-exitcode"}); code != 2 {
 		t.Fatalf("human-mode exit code %d, want 2", code)
 	}
 	humanOut := doneHuman(t).Stdout()
@@ -2898,7 +2898,7 @@ func TestLivePlan_jsonDocumentCarriesTheContentMatch(t *testing.T) {
 	}
 
 	jsonCmd, doneJSON := newLivePlanCommand(t, cloud)
-	if code := jsonCmd.Run([]string{"-no-color", "-estate=stateless-unit", "-detailed-exitcode", "-json"}); code != 2 {
+	if code := jsonCmd.Run([]string{"-no-color", "-estate=live-unit", "-detailed-exitcode", "-json"}); code != 2 {
 		t.Fatalf("-json exit code %d, want 2", code)
 	}
 	raw := doneJSON(t).Stdout()
@@ -2925,8 +2925,8 @@ func TestLivePlan_jsonDocumentCarriesTheContentMatch(t *testing.T) {
 	if len(got.Matched) != 1 || got.Matched[0].Attribute != "cidr_block" || got.Matched[0].Value != "10.42.0.0/16" {
 		t.Errorf("adoptable[0].matched = %+v, want exactly cidr_block=10.42.0.0/16, the argument the human run printed after \"matched on:\"", got.Matched)
 	}
-	if got.MarkerEstate != "stateless-unit" || got.MarkerAddress != "aws_vpc.main" {
-		t.Errorf("adoptable[0] markers = %q/%q, want stateless-unit/aws_vpc.main - the two values a consumer writes to adopt", got.MarkerEstate, got.MarkerAddress)
+	if got.MarkerEstate != "live-unit" || got.MarkerAddress != "aws_vpc.main" {
+		t.Errorf("adoptable[0] markers = %q/%q, want live-unit/aws_vpc.main - the two values a consumer writes to adopt", got.MarkerEstate, got.MarkerAddress)
 	}
 	if !strings.Contains(got.AdoptCommand, "aws ec2 create-tags --resources 'vpc-unmarked'") {
 		t.Errorf("adoptable[0].adopt_command = %q, want the same create-tags command the human run prints", got.AdoptCommand)
@@ -2996,7 +2996,7 @@ func TestLivePlan_jsonDocumentReachesADeclaredEstate(t *testing.T) {
 		t.Chdir(td)
 
 		c, done := newLivePlanCommand(t, liveBlockCloud())
-		code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-json"})
+		code := c.Run([]string{"-no-color", "-estate=live-unit", "-json"})
 		out := done(t)
 		if code != 0 {
 			t.Fatalf("the -estate form exited %d, want 0 - this test's reference is broken\nstdout:\n%s\nstderr:\n%s", code, out.Stdout(), out.Stderr())
@@ -3073,8 +3073,8 @@ func TestLivePlan_jsonDocumentReachesADeclaredEstate(t *testing.T) {
 			if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
 				t.Fatalf("stdout does not parse as one JSON document: %s\nstdout:\n%s", err, stdout)
 			}
-			if doc.Estate != "stateless-unit" {
-				t.Errorf("document estate = %q, want %q - the estate name did not come from the configuration", doc.Estate, "stateless-unit")
+			if doc.Estate != "live-unit" {
+				t.Errorf("document estate = %q, want %q - the estate name did not come from the configuration", doc.Estate, "live-unit")
 			}
 			if doc.UpstreamVersion == "" {
 				t.Error("document's upstream_version is empty")
@@ -3204,8 +3204,8 @@ func TestLivePlan_jsonStdoutCarriesOnlyTheDocument(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
 		t.Fatalf("stdout does not parse as one JSON document - something printed beside it: %s\nstdout:\n%s", err, stdout)
 	}
-	if doc.Estate != "stateless-unit" {
-		t.Errorf("document estate = %q, want %q", doc.Estate, "stateless-unit")
+	if doc.Estate != "live-unit" {
+		t.Errorf("document estate = %q, want %q", doc.Estate, "live-unit")
 	}
 	if len(doc.Omissions) != 2 {
 		t.Errorf("omissions has %d entries, want 2 (nothing exists in this cloud): %#v", len(doc.Omissions), doc.Omissions)

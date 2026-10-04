@@ -237,8 +237,8 @@ func TestCloudControlAccessDeniedFewServices(t *testing.T) {
 		t.Errorf("want 4 sweep gaps, got %d", len(res.SweepGaps))
 	}
 	for _, line := range []string{
-		"[WARN] stateless/discovery: sweep denied: Cloud Control ListResources on AWS::XRay::Group (for aws_xray_group) needs xray:GetGroups: cloudcontrol: ListResources: AccessDeniedException (HTTP 400)",
-		"[WARN] stateless/discovery: the sweep was denied Cloud Control ListResources on 4 types; each is logged above with the action its denial named. Denied: AWS::AccessAnalyzer::Analyzer, AWS::WorkSpacesWeb::Portal, AWS::XRay::Group, AWS::XRay::SamplingRule",
+		"[WARN] live/discovery: sweep denied: Cloud Control ListResources on AWS::XRay::Group (for aws_xray_group) needs xray:GetGroups: cloudcontrol: ListResources: AccessDeniedException (HTTP 400)",
+		"[WARN] live/discovery: the sweep was denied Cloud Control ListResources on 4 types; each is logged above with the action its denial named. Denied: AWS::AccessAnalyzer::Analyzer, AWS::WorkSpacesWeb::Portal, AWS::XRay::Group, AWS::XRay::SamplingRule",
 	} {
 		if !strings.Contains(logBuf.String(), line) {
 			t.Errorf("the log lacks the line %q; log:\n%s", line, logBuf.String())

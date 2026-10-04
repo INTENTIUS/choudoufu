@@ -679,7 +679,7 @@ The grammar is `[a-z][a-z0-9-]{0,127}`. A lowercase ASCII letter, then
 lowercase letters, digits, or hyphens, 1 to 128 characters in total. This is
 narrower than the AWS-allowed character set on purpose. An estate name is
 meant to be typed, grepped, and read aloud, not to carry arbitrary content.
-An example is `stateless-e2e`, the demo estate's name
+An example is `live-e2e`, the demo estate's name
 (`live/e2e/estate/`).
 
 ## `tofu-address`

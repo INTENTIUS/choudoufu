@@ -3,7 +3,7 @@
 A Terraform/OpenTofu project against floci, standing in for a real estate
 that later phases plan and apply without a state file. Every taggable
 resource carries the marker tags this whole branch depends on:
-`tofu-estate = "stateless-e2e"` and `tofu-address = "<its own address>"`.
+`tofu-estate = "live-e2e"` and `tofu-address = "<its own address>"`.
 No modules, no remote state (no `backend` block — the local statefile this
 fixture's own `terraform apply` writes is scaffolding for verification, not
 a feature under test), no provisioners, no logical resources.
@@ -79,7 +79,7 @@ parent-derived path, not from a marker, so admission doesn't need a tag.
 ## Verifying by hand
 
 ```
-docker run -d --rm -p 4602:4566 --name tofu-stateless-p01-verify floci/floci:latest
+docker run -d --rm -p 4602:4566 --name tofu-live-p01-verify floci/floci:latest
 export AWS_ENDPOINT_URL=http://localhost:4602 AWS_ACCESS_KEY_ID=test \
        AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
 
@@ -91,5 +91,5 @@ aws --endpoint-url "$AWS_ENDPOINT_URL" ec2 describe-vpcs \
   --filters Name=tag:tofu-address,Values=aws_vpc.main
 
 terraform destroy -auto-approve
-docker rm -f tofu-stateless-p01-verify
+docker rm -f tofu-live-p01-verify
 ```

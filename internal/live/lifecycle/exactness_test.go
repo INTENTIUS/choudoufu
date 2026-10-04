@@ -532,7 +532,7 @@ func exUnexpectedAttrs(block, want string, unserved []string) []string {
 
 // exRenameLine matches the rename hint the plan prints. The command is
 // "choudoufu live-mv" since RN.1 (it was "tofu live-mv" since PN.1, and
-// before that this regex still said "stateless-mv" and so killed the test
+// before that this regex still said "live-mv" and so killed the test
 // at the rename section, before it ever reached removal exactness - the two
 // claims P5.1 is named for).
 var exRenameLine = regexp.MustCompile(`rename with: (choudoufu live-mv .*)$`)

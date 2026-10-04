@@ -147,23 +147,23 @@ func TestBuildAgainstFloci(t *testing.T) {
 	// husk: a projection whose objects are empty would plan a diff on
 	// everything.
 	for _, spec := range []struct{ addr, wantAttr string }{
-		{`aws_s3_bucket.data`, "tofu-stateless-e2e-data"},
-		{`aws_iam_role.app`, "tofu-stateless-e2e-app"},
-		{`aws_cloudwatch_log_group.app`, "/stateless-e2e/app"},
+		{`aws_s3_bucket.data`, "tofu-live-e2e-data"},
+		{`aws_iam_role.app`, "tofu-live-e2e-app"},
+		{`aws_cloudwatch_log_group.app`, "/live-e2e/app"},
 		{`aws_s3_bucket_policy.data`, "AllowAppRoleReadWrite"},
 		{`aws_iam_role_policy_attachment.app`, "ReadOnlyAccess"},
-		{`aws_dynamodb_table.events`, "tofu-stateless-e2e-events"},
-		{`aws_ecs_cluster.app`, "tofu-stateless-e2e-cluster"},
+		{`aws_dynamodb_table.events`, "tofu-live-e2e-events"},
+		{`aws_ecs_cluster.app`, "tofu-live-e2e-cluster"},
 		// #19's second slice: the four S3 bucket children, each read back
 		// with a real attribute so the singleton-child import is proven to
 		// return the configured object, not an empty husk.
 		{`aws_s3_bucket_versioning.data`, "Enabled"},
-		{`aws_s3_bucket_public_access_block.data`, "tofu-stateless-e2e-data"},
+		{`aws_s3_bucket_public_access_block.data`, "tofu-live-e2e-data"},
 		{`aws_s3_bucket_server_side_encryption_configuration.data`, "AES256"},
 		{`aws_s3_bucket_lifecycle_configuration.data`, "expire-tmp"},
 		{`aws_iam_role_policy.app`, "AllowListDataBucket"},
-		{`aws_kms_alias.main`, "alias/tofu-stateless-e2e-main"},
-		{`aws_cloudwatch_metric_alarm.cpu`, "tofu-stateless-e2e-cpu"},
+		{`aws_kms_alias.main`, "alias/tofu-live-e2e-main"},
+		{`aws_cloudwatch_metric_alarm.cpu`, "tofu-live-e2e-cpu"},
 	} {
 		is := res.State.ResourceInstance(mustAddr(t, spec.addr))
 		if is == nil || is.Current == nil {

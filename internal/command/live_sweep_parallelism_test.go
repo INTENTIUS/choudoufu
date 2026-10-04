@@ -240,12 +240,12 @@ func TestLivePlan_sweepParallelismIsReachableFromTheCommandLine(t *testing.T) {
 		t.Chdir(td)
 
 		cloud := newLiveTestCloud()
-		cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-			"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+		cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+			"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 		})
 
 		c, done := newLivePlanCommand(t, cloud)
-		code := c.Run([]string{"-no-color", "-estate=stateless-unit", "-target=aws_s3_bucket.data"})
+		code := c.Run([]string{"-no-color", "-estate=live-unit", "-target=aws_s3_bucket.data"})
 		output := done(t)
 		return code, output.Stdout() + output.Stderr()
 	}

@@ -3,7 +3,7 @@
 # is the composite of role name + policy ARN, both already in config).
 
 resource "aws_iam_role" "app" {
-  name = "tofu-stateless-e2e-app"
+  name = "tofu-live-e2e-app"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -41,7 +41,7 @@ resource "aws_iam_role_policy_attachment" "app" {
 # literal keeps this block out of the emulator's boundary; on real AWS both
 # spellings plan identically.
 resource "aws_iam_role_policy" "app" {
-  name = "tofu-stateless-e2e-app-inline"
+  name = "tofu-live-e2e-app-inline"
   role = aws_iam_role.app.name
 
   policy = jsonencode({
@@ -50,7 +50,7 @@ resource "aws_iam_role_policy" "app" {
       Sid      = "AllowListDataBucket"
       Effect   = "Allow"
       Action   = ["s3:ListBucket"]
-      Resource = "arn:aws:s3:::tofu-stateless-e2e-data"
+      Resource = "arn:aws:s3:::tofu-live-e2e-data"
     }]
   })
 }

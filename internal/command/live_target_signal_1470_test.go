@@ -93,11 +93,11 @@ func TestLivePlan_targetIsNotRefusedByAnExcludedForEachTheSecondPassCannotSettle
 
 		cloud := newLiveTestCloud()
 		cloud.schemas = targetSignalSchemas()
-		cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-			"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+		cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+			"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 		})
 		c, done := newLivePlanCommand(t, cloud)
-		code := c.Run(append([]string{"-no-color", "-estate=stateless-unit"}, args...))
+		code := c.Run(append([]string{"-no-color", "-estate=live-unit"}, args...))
 		return code, done(t), cloud
 	}
 
@@ -122,7 +122,7 @@ func TestLivePlan_targetIsNotRefusedByAnExcludedForEachTheSecondPassCannotSettle
 		if !strings.Contains(output.Stdout(), "No changes.") {
 			t.Errorf("the bucket's plan is not empty:\n%s", output.Stdout())
 		}
-		if !cloud.imported("aws_s3_bucket", "tofu-stateless-unit-data") {
+		if !cloud.imported("aws_s3_bucket", "tofu-live-unit-data") {
 			t.Errorf("the bucket was never read from the live system; imports were %v", cloud.imports)
 		}
 	})

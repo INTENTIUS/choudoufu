@@ -53,7 +53,7 @@ variable "suffixes" {
 }
 
 resource "aws_s3_bucket" "data" {
-  bucket = "tofu-stateless-limits-child-module"
+  bucket = "tofu-live-limits-child-module"
 }
 
 module "network" {

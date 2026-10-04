@@ -448,7 +448,7 @@ func removeAged(t *testing.T, prefix string) {
 	t.Helper()
 
 	// The ^ anchors the filter to the start of the name and the trailing -
-	// stops "tofu-stateless-p2" from reaching "tofu-stateless-p21"'s
+	// stops "tofu-live-p2" from reaching "tofu-live-p21"'s
 	// containers.
 	out, err := exec.Command("docker", "ps", "-a", "--filter", "name=^"+prefix+"-",
 		"--format", "{{.ID}}\t{{.Names}}\t{{.CreatedAt}}").Output()

@@ -56,7 +56,7 @@ func TestLiveMv_renamesByMarker(t *testing.T) {
 	if got := cloud.tagsOf("aws_security_group", "sg-owned")["tofu-address"]; got != "aws_security_group.renamed" {
 		t.Errorf("the live security group carries tofu-address = %q, want aws_security_group.renamed", got)
 	}
-	if got := cloud.tagsOf("aws_security_group", "sg-owned")["tofu-estate"]; got != "stateless-unit" {
+	if got := cloud.tagsOf("aws_security_group", "sg-owned")["tofu-estate"]; got != "live-unit" {
 		t.Errorf("the estate marker was lost: tofu-estate = %q", got)
 	}
 	if got := cloud.tagsOf("aws_security_group", "sg-owned")["Name"]; got != "keep-me" {
@@ -106,7 +106,7 @@ func TestLiveMv_renamesByIdentity(t *testing.T) {
 	cloud := mvRenamedFixture(t)
 
 	c, done := newLiveMvCommand(t, cloud)
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "aws_s3_bucket.data", "aws_s3_bucket.archive"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "aws_s3_bucket.data", "aws_s3_bucket.archive"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -204,7 +204,7 @@ func TestLiveMv_typeNotListable(t *testing.T) {
 func TestLiveMv_ambiguity(t *testing.T) {
 	cloud := mvRenamedFixture(t)
 	cloud.put("aws_security_group", "sg-twin", map[string]string{"id": "sg-twin", "name": "twin"},
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_security_group.main"})
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_security_group.main"})
 
 	c, done := newLiveMvCommand(t, cloud)
 	code := c.Run([]string{"-no-color", "aws_security_group.main", "aws_security_group.renamed"})
@@ -231,7 +231,7 @@ func TestLiveMv_ambiguity(t *testing.T) {
 func TestLiveMv_destinationClaimed(t *testing.T) {
 	cloud := mvRenamedFixture(t)
 	cloud.put("aws_security_group", "sg-squatter", map[string]string{"id": "sg-squatter", "name": "squatter"},
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_security_group.renamed"})
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_security_group.renamed"})
 
 	c, done := newLiveMvCommand(t, cloud)
 	code := c.Run([]string{"-no-color", "aws_security_group.main", "aws_security_group.renamed"})
@@ -278,7 +278,7 @@ func TestLiveMv_crossEstate(t *testing.T) {
 	cloud.tags["aws_s3_bucket/tofu-mv-unit-data"]["tofu-estate"] = "somebody-else"
 
 	c, done := newLiveMvCommand(t, cloud)
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "aws_s3_bucket.data", "aws_s3_bucket.archive"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "aws_s3_bucket.data", "aws_s3_bucket.archive"})
 	output := done(t)
 	if code != 1 {
 		t.Fatalf("exit code %d, want 1\nstdout:\n%s", code, output.Stdout())
@@ -355,7 +355,7 @@ func TestLiveMv_lintFatal(t *testing.T) {
 	cloud := mvNewCloud()
 	c, done := newLiveMvCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-estate=stateless-unit", "aws_s3_bucket.data", "aws_s3_bucket.archive"})
+	code := c.Run([]string{"-no-color", "-estate=live-unit", "aws_s3_bucket.data", "aws_s3_bucket.archive"})
 	output := done(t)
 	if code != 1 {
 		t.Fatalf("exit code %d, want 1\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -409,12 +409,12 @@ func TestLiveMv_estateFromTheLiveBlock(t *testing.T) {
 	cloud.listable("aws_security_group")
 	cloud.put("aws_security_group", "sg-1",
 		map[string]string{"id": "sg-1", "name": "tofu-mv-unit"},
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_security_group.main"})
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_security_group.main"})
 
 	td := t.TempDir()
 	body := `terraform {
   live {
-    estate = "stateless-unit"
+    estate = "live-unit"
   }
 
   required_providers {
@@ -588,10 +588,10 @@ func TestLiveMv_jsonRenamesByMarker(t *testing.T) {
 	if rep.Resource.TypeName != "aws_security_group" || rep.Resource.LiveID != "sg-owned" {
 		t.Errorf("resource = %+v, want aws_security_group/sg-owned", rep.Resource)
 	}
-	if rep.From.Estate != "stateless-unit" || rep.From.Address != "aws_security_group.main" || rep.From.Marker != "aws_security_group.main" {
+	if rep.From.Estate != "live-unit" || rep.From.Address != "aws_security_group.main" || rep.From.Marker != "aws_security_group.main" {
 		t.Errorf("from = %+v", rep.From)
 	}
-	if rep.To.Estate != "stateless-unit" || rep.To.Address != "aws_security_group.renamed" || rep.To.Marker != "aws_security_group.renamed" {
+	if rep.To.Estate != "live-unit" || rep.To.Address != "aws_security_group.renamed" || rep.To.Marker != "aws_security_group.renamed" {
 		t.Errorf("to = %+v", rep.To)
 	}
 	if rep.DryRun {
@@ -688,7 +688,7 @@ func TestLiveMv_jsonRefusals(t *testing.T) {
 			setup: func(t *testing.T) *mvCloud {
 				cloud := mvRenamedFixture(t)
 				cloud.put("aws_security_group", "sg-twin", map[string]string{"id": "sg-twin", "name": "twin"},
-					map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_security_group.main"})
+					map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_security_group.main"})
 				return cloud
 			},
 			args:     []string{"aws_security_group.main", "aws_security_group.renamed"},
@@ -699,7 +699,7 @@ func TestLiveMv_jsonRefusals(t *testing.T) {
 			setup: func(t *testing.T) *mvCloud {
 				cloud := mvRenamedFixture(t)
 				cloud.put("aws_security_group", "sg-squatter", map[string]string{"id": "sg-squatter", "name": "squatter"},
-					map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_security_group.renamed"})
+					map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_security_group.renamed"})
 				return cloud
 			},
 			args:     []string{"aws_security_group.main", "aws_security_group.renamed"},
@@ -759,7 +759,7 @@ func TestLiveMv_jsonRefusalOutsideTheFiveCodes(t *testing.T) {
 	cloud := mvNewCloud()
 	c, done := newLiveMvCommand(t, cloud)
 
-	code := c.Run([]string{"-no-color", "-json", "-estate=stateless-unit", "aws_s3_bucket.data", "aws_s3_bucket.archive"})
+	code := c.Run([]string{"-no-color", "-json", "-estate=live-unit", "aws_s3_bucket.data", "aws_s3_bucket.archive"})
 	output := done(t)
 	if code != 1 {
 		t.Fatalf("exit code %d, want 1\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
@@ -848,10 +848,10 @@ func mvRenamedFixture(t *testing.T) *mvCloud {
 	cloud.listable("aws_security_group")
 	cloud.put("aws_s3_bucket", "tofu-mv-unit-data",
 		map[string]string{"id": "tofu-mv-unit-data", "bucket": "tofu-mv-unit-data"},
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_s3_bucket.data"})
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_s3_bucket.data"})
 	cloud.put("aws_security_group", "sg-owned",
 		map[string]string{"id": "sg-owned", "name": "mv-unit"},
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_security_group.main", "Name": "keep-me"})
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_security_group.main", "Name": "keep-me"})
 	// Somebody else's, carrying the same address in a different estate: the
 	// estate is the ownership boundary, so this must never be picked.
 	cloud.put("aws_security_group", "sg-elsewhere",
@@ -872,7 +872,7 @@ func mvUnrenamedFixture(t *testing.T) *mvCloud {
 	cloud := mvNewCloud()
 	cloud.put("aws_s3_bucket", "tofu-mv-unit-data",
 		map[string]string{"id": "tofu-mv-unit-data", "bucket": "tofu-mv-unit-data"},
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_s3_bucket.data"})
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_s3_bucket.data"})
 	return cloud
 }
 
@@ -1161,8 +1161,8 @@ func TestLiveMv_movesAcrossEstates(t *testing.T) {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
 	}
 
-	if got := cloud.tagsOf("aws_s3_bucket", "tofu-mv-unit-data")["tofu-estate"]; got != "stateless-unit" {
-		t.Errorf("the live bucket carries tofu-estate = %q, want stateless-unit", got)
+	if got := cloud.tagsOf("aws_s3_bucket", "tofu-mv-unit-data")["tofu-estate"]; got != "live-unit" {
+		t.Errorf("the live bucket carries tofu-estate = %q, want live-unit", got)
 	}
 	if got := cloud.tagsOf("aws_s3_bucket", "tofu-mv-unit-data")["tofu-address"]; got != "aws_s3_bucket.data" {
 		t.Errorf("the address moved too: tofu-address = %q", got)
@@ -1174,7 +1174,7 @@ func TestLiveMv_movesAcrossEstates(t *testing.T) {
 	report := output.Stdout()
 	for _, want := range []string{
 		"Moved one live resource into this estate. This was a cloud write.",
-		`"monolith" -> "stateless-unit"`,
+		`"monolith" -> "live-unit"`,
 		"tofu-mv-unit-data",
 	} {
 		if !strings.Contains(report, want) {
@@ -1214,8 +1214,8 @@ func TestLiveMv_movesAcrossEstatesByList(t *testing.T) {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
 	}
 
-	if got := cloud.tagsOf("aws_security_group", "sg-owned")["tofu-estate"]; got != "stateless-unit" {
-		t.Errorf("the live security group carries tofu-estate = %q, want stateless-unit", got)
+	if got := cloud.tagsOf("aws_security_group", "sg-owned")["tofu-estate"]; got != "live-unit" {
+		t.Errorf("the live security group carries tofu-estate = %q, want live-unit", got)
 	}
 	if got := cloud.tagsOf("aws_security_group", "sg-owned")["tofu-address"]; got != "aws_security_group.renamed" {
 		t.Errorf("the live security group carries tofu-address = %q, want aws_security_group.renamed", got)
@@ -1238,7 +1238,7 @@ func TestLiveMv_fromEstateSameAsDestination(t *testing.T) {
 	cloud := mvUnrenamedFixture(t)
 
 	c, done := newLiveMvCommand(t, cloud)
-	code := c.Run([]string{"-no-color", "-from-estate=stateless-unit", "aws_s3_bucket.data", "aws_s3_bucket.data"})
+	code := c.Run([]string{"-no-color", "-from-estate=live-unit", "aws_s3_bucket.data", "aws_s3_bucket.data"})
 	output := done(t)
 	if code != 1 {
 		t.Fatalf("exit code %d, want 1\nstdout:\n%s", code, output.Stdout())

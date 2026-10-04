@@ -13,7 +13,7 @@ provider "aws" {
 # The resource this run is about. Client-named, so its identity comes
 # straight out of the configuration.
 resource "aws_s3_bucket" "data" {
-  bucket = "tofu-stateless-unit-data"
+  bucket = "tofu-live-unit-data"
 }
 
 # GitHub issue #352's shape: a resource whose identity this fork cannot
@@ -27,7 +27,7 @@ resource "aws_s3_bucket" "data" {
 # drops it entirely under -target=aws_s3_bucket.data.
 #
 # No tags argument: this block used to carry tags = { tofu-estate = "unit" },
-# a literal unrelated to this run's own "-estate=stateless-unit" that was
+# a literal unrelated to this run's own "-estate=live-unit" that was
 # never reached before CHOUDOUFU_NODE_RESOLVE defaulted on and its identity
 # refusal downgraded to a warning - internal/live/stamp's own marker-conflict
 # check (SummaryMarkerConflict) runs unscoped by -target, over every declared

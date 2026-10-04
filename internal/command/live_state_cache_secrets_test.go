@@ -137,7 +137,7 @@ func TestRefuseWritesNoStateCacheEndToEnd(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				const anchor = "    estate = \"stateless-unit\"\n"
+				const anchor = "    estate = \"live-unit\"\n"
 				if !strings.Contains(string(raw), anchor) {
 					t.Fatalf("the fixture no longer has the line this test edits: %q", anchor)
 				}

@@ -5,7 +5,7 @@
 # live/LIMITATIONS.md.
 
 resource "aws_s3_bucket" "data" {
-  bucket = "tofu-stateless-limits-remote-exec"
+  bucket = "tofu-live-limits-remote-exec"
 
   provisioner "remote-exec" {
     inline = ["echo hello"]

@@ -33,7 +33,7 @@ func recordStoreRequestLog(stack *middleware.Stack) error {
 	return stack.Finalize.Add(middleware.FinalizeMiddlewareFunc("choudoufuRecordStoreRequestLog",
 		func(ctx context.Context, in middleware.FinalizeInput, next middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
 			if req, ok := in.Request.(*smithyhttp.Request); ok {
-				log.Printf("[DEBUG] stateless/recordstore: HTTP Request Sent: rpc.service=%s rpc.method=%s http.method=%s http.url=%s",
+				log.Printf("[DEBUG] live/recordstore: HTTP Request Sent: rpc.service=%s rpc.method=%s http.method=%s http.url=%s",
 					awsmiddleware.GetServiceID(ctx), awsmiddleware.GetOperationName(ctx), req.Method, req.URL.String())
 			}
 			return next.HandleFinalize(ctx, in)

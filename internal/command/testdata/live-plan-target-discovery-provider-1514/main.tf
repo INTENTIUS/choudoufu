@@ -23,11 +23,11 @@ provider "aws" {
 }
 
 resource "aws_s3_bucket" "data" {
-  bucket = "tofu-stateless-unit-data"
+  bucket = "tofu-live-unit-data"
 }
 
 resource "aws_s3_bucket" "region_source" {
-  bucket = "tofu-stateless-unit-region-source"
+  bucket = "tofu-live-unit-region-source"
 }
 
 resource "aws_acm_certificate" "cert" {

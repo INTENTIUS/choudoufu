@@ -16,7 +16,7 @@ provider "aws" {
 # "live-plan") so a clean run needs no -target and no discovery pass - the
 # outputs below are the only thing under test.
 resource "aws_s3_bucket" "data" {
-  bucket = "tofu-stateless-unit-data"
+  bucket = "tofu-live-unit-data"
 }
 
 # A plain resource-attribute reference - GitHub issue #348's exact repro

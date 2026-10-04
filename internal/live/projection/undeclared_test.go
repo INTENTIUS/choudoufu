@@ -29,15 +29,15 @@ func TestUndeclaredInstanceIsMaterialized(t *testing.T) {
 	cfg := loadConfig(t, estateDir(t))
 
 	cloud := newFakeCloud()
-	cloud.put("aws_cloudwatch_log_group", "/stateless-e2e/deleted", map[string]string{
-		"id": "/stateless-e2e/deleted", "name": "/stateless-e2e/deleted",
+	cloud.put("aws_cloudwatch_log_group", "/live-e2e/deleted", map[string]string{
+		"id": "/live-e2e/deleted", "name": "/live-e2e/deleted",
 	})
 
 	addr := mustAddr(t, `aws_cloudwatch_log_group.deleted`)
 	res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{{
 		Addr:       addr,
 		Class:      identity.ClassConcrete,
-		ImportID:   "/stateless-e2e/deleted",
+		ImportID:   "/live-e2e/deleted",
 		Undeclared: true,
 	}}, cloud.providers(t), Options{UndeclaredProvider: awsProvider})
 	assertNoErrors(t, diags)
@@ -73,8 +73,8 @@ func TestUndeclaredInstanceUsesItsOwnAttributedProvider(t *testing.T) {
 	cfg := loadConfig(t, estateDir(t))
 
 	cloud := newFakeCloud()
-	cloud.put("aws_cloudwatch_log_group", "/stateless-e2e/deleted", map[string]string{
-		"id": "/stateless-e2e/deleted", "name": "/stateless-e2e/deleted",
+	cloud.put("aws_cloudwatch_log_group", "/live-e2e/deleted", map[string]string{
+		"id": "/live-e2e/deleted", "name": "/live-e2e/deleted",
 	})
 
 	west := addrs.AbsProviderConfig{
@@ -100,7 +100,7 @@ func TestUndeclaredInstanceUsesItsOwnAttributedProvider(t *testing.T) {
 	res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{{
 		Addr:       addr,
 		Class:      identity.ClassConcrete,
-		ImportID:   "/stateless-e2e/deleted",
+		ImportID:   "/live-e2e/deleted",
 		Undeclared: true,
 	}}, multi, Options{
 		// The scalar fallback deliberately names the *other* provider, so
@@ -134,14 +134,14 @@ func TestUndeclaredInstanceFallsBackToTheImpliedProvider(t *testing.T) {
 	cfg := loadConfig(t, estateDir(t))
 
 	cloud := newFakeCloud()
-	cloud.put("aws_cloudwatch_log_group", "/stateless-e2e/deleted", map[string]string{
-		"id": "/stateless-e2e/deleted", "name": "/stateless-e2e/deleted",
+	cloud.put("aws_cloudwatch_log_group", "/live-e2e/deleted", map[string]string{
+		"id": "/live-e2e/deleted", "name": "/live-e2e/deleted",
 	})
 
 	res, diags := BuildFrom(context.Background(), cfg, []identity.Resolution{{
 		Addr:       mustAddr(t, `aws_cloudwatch_log_group.deleted`),
 		Class:      identity.ClassConcrete,
-		ImportID:   "/stateless-e2e/deleted",
+		ImportID:   "/live-e2e/deleted",
 		Undeclared: true,
 	}}, cloud.providers(t))
 	assertNoErrors(t, diags)
@@ -159,7 +159,7 @@ func TestUndeclaredInstanceThatIsAlreadyGone(t *testing.T) {
 	res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{{
 		Addr:       mustAddr(t, `aws_cloudwatch_log_group.deleted`),
 		Class:      identity.ClassConcrete,
-		ImportID:   "/stateless-e2e/deleted",
+		ImportID:   "/live-e2e/deleted",
 		Undeclared: true,
 	}}, newFakeCloud().providers(t), Options{UndeclaredProvider: awsProvider})
 	assertNoErrors(t, diags)
@@ -179,14 +179,14 @@ func TestUndeclaredIsNotAWayAroundTheConfigCheck(t *testing.T) {
 	cfg := loadConfig(t, estateDir(t))
 
 	cloud := newFakeCloud()
-	cloud.put("aws_cloudwatch_log_group", "/stateless-e2e/deleted", map[string]string{
-		"id": "/stateless-e2e/deleted", "name": "/stateless-e2e/deleted",
+	cloud.put("aws_cloudwatch_log_group", "/live-e2e/deleted", map[string]string{
+		"id": "/live-e2e/deleted", "name": "/live-e2e/deleted",
 	})
 
 	res, diags := BuildFrom(context.Background(), cfg, []identity.Resolution{{
 		Addr:     mustAddr(t, `aws_cloudwatch_log_group.deleted`),
 		Class:    identity.ClassConcrete,
-		ImportID: "/stateless-e2e/deleted",
+		ImportID: "/live-e2e/deleted",
 	}}, cloud.providers(t))
 
 	if !diags.HasErrors() {
@@ -227,8 +227,8 @@ func TestUndeclaredConcreteSupersededByRelocatedDeclaredInstance(t *testing.T) {
 	cfg := loadConfig(t, estateDir(t))
 
 	cloud := newFakeCloud()
-	cloud.put("aws_s3_bucket_policy", "tofu-stateless-e2e-data", map[string]string{
-		"id": "tofu-stateless-e2e-data", "bucket": "tofu-stateless-e2e-data",
+	cloud.put("aws_s3_bucket_policy", "tofu-live-e2e-data", map[string]string{
+		"id": "tofu-live-e2e-data", "bucket": "tofu-live-e2e-data",
 		"policy": `{"Version":"2012-10-17","Statement":[{"Sid":"AllowAppRoleReadWrite"}]}`,
 	})
 
@@ -239,12 +239,12 @@ func TestUndeclaredConcreteSupersededByRelocatedDeclaredInstance(t *testing.T) {
 		{
 			Addr:     declaredAddr,
 			Class:    identity.ClassConcrete,
-			ImportID: "tofu-stateless-e2e-data",
+			ImportID: "tofu-live-e2e-data",
 		},
 		{
 			Addr:       oldAddr,
 			Class:      identity.ClassConcrete,
-			ImportID:   "tofu-stateless-e2e-data",
+			ImportID:   "tofu-live-e2e-data",
 			Undeclared: true,
 		},
 	}, cloud.providers(t), Options{UndeclaredProvider: awsProvider})
@@ -281,12 +281,12 @@ func TestUndeclaredConcreteWithDifferentIdentityStillDestroyed(t *testing.T) {
 	cfg := loadConfig(t, estateDir(t))
 
 	cloud := newFakeCloud()
-	cloud.put("aws_s3_bucket_policy", "tofu-stateless-e2e-data", map[string]string{
-		"id": "tofu-stateless-e2e-data", "bucket": "tofu-stateless-e2e-data",
+	cloud.put("aws_s3_bucket_policy", "tofu-live-e2e-data", map[string]string{
+		"id": "tofu-live-e2e-data", "bucket": "tofu-live-e2e-data",
 		"policy": `{"Version":"2012-10-17","Statement":[{"Sid":"AllowAppRoleReadWrite"}]}`,
 	})
-	cloud.put("aws_s3_bucket_policy", "tofu-stateless-e2e-orphan", map[string]string{
-		"id": "tofu-stateless-e2e-orphan", "bucket": "tofu-stateless-e2e-orphan",
+	cloud.put("aws_s3_bucket_policy", "tofu-live-e2e-orphan", map[string]string{
+		"id": "tofu-live-e2e-orphan", "bucket": "tofu-live-e2e-orphan",
 		"policy": `{"Version":"2012-10-17","Statement":[]}`,
 	})
 
@@ -297,12 +297,12 @@ func TestUndeclaredConcreteWithDifferentIdentityStillDestroyed(t *testing.T) {
 		{
 			Addr:     declaredAddr,
 			Class:    identity.ClassConcrete,
-			ImportID: "tofu-stateless-e2e-data",
+			ImportID: "tofu-live-e2e-data",
 		},
 		{
 			Addr:       orphanAddr,
 			Class:      identity.ClassConcrete,
-			ImportID:   "tofu-stateless-e2e-orphan",
+			ImportID:   "tofu-live-e2e-orphan",
 			Undeclared: true,
 		},
 	}, cloud.providers(t), Options{UndeclaredProvider: awsProvider})

@@ -108,7 +108,7 @@ func sweepGapDenied(req Request, res *Result, g SweepGap, cfnType string, err er
 	if provider != "" {
 		through = ", through provider " + provider
 	}
-	log.Printf("[WARN] stateless/discovery: sweep denied: Cloud Control ListResources on %s (for %s%s) needs %s: %v", cfnType, g.TypeName, through, needs, err)
+	log.Printf("[WARN] live/discovery: sweep denied: Cloud Control ListResources on %s (for %s%s) needs %s: %v", cfnType, g.TypeName, through, needs, err)
 	return nil
 }
 
@@ -184,7 +184,7 @@ func deniedSweepDiag(denials []sweepDenial) tfdiags.Diagnostics {
 
 	// The full list, on one line, for a reader who has the log and not the
 	// per-type lines above it.
-	log.Printf("[WARN] stateless/discovery: the sweep was denied Cloud Control ListResources on %d %s; each is logged above with the action its denial named. Denied: %s",
+	log.Printf("[WARN] live/discovery: the sweep was denied Cloud Control ListResources on %d %s; each is logged above with the action its denial named. Denied: %s",
 		len(cfnTypes), plural(len(cfnTypes), "type", "types"), strings.Join(cfnTypes, ", "))
 
 	return diags.Append(tfdiags.Sourceless(
@@ -308,7 +308,7 @@ func sweepGapKubeDenied(res *Result, g SweepGap, kind string, detail kubesweep.F
 	if detail.Namespace != "" {
 		scope = fmt.Sprintf("in namespace %q", detail.Namespace)
 	}
-	log.Printf("[WARN] stateless/discovery: Kubernetes sweep denied: listing %s (for %s) needs %s, %s: %v", kind, g.TypeName, needs, scope, err)
+	log.Printf("[WARN] live/discovery: Kubernetes sweep denied: listing %s (for %s) needs %s, %s: %v", kind, g.TypeName, needs, scope, err)
 }
 
 // kubeGrantLine is the one line naming what a denial's own message said to
@@ -351,7 +351,7 @@ func kubeDeniedSweepDiag(denials []kubeDenial) tfdiags.Diagnostics {
 	sort.Strings(kinds)
 	sort.Strings(grants)
 
-	log.Printf("[WARN] stateless/discovery: the Kubernetes sweep was denied list on %d %s; each is logged above with the verb, resource and scope the denial named. Denied: %s",
+	log.Printf("[WARN] live/discovery: the Kubernetes sweep was denied list on %d %s; each is logged above with the verb, resource and scope the denial named. Denied: %s",
 		len(kinds), plural(len(kinds), "kind", "kinds"), strings.Join(kinds, ", "))
 
 	grantText := "the verb and resource each denial named (in the log)"

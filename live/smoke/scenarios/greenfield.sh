@@ -37,8 +37,8 @@ explain \
   "tags. tofu-estate says which estate owns it; tofu-address says which" \
   "resource block it is. Your IAM can condition on these tags - that is" \
   "the whole permission model."
-cmd "aws logs list-tags-log-group --log-group-name /stateless-e2e-block/app"
-LG_TAGS="$(awsl logs list-tags-log-group --log-group-name "/stateless-e2e-block/app" --query 'tags' --output json 2>/dev/null || echo '{}')"
+cmd "aws logs list-tags-log-group --log-group-name /live-e2e-block/app"
+LG_TAGS="$(awsl logs list-tags-log-group --log-group-name "/live-e2e-block/app" --query 'tags' --output json 2>/dev/null || echo '{}')"
 grep -E 'tofu-(estate|address)' <<< "$LG_TAGS" | evidence
 grep -q '"tofu-estate"' <<< "$LG_TAGS" && grep -q '"tofu-address"' <<< "$LG_TAGS" \
   || fail "greenfield" "the log group carries no ownership markers: $LG_TAGS"
@@ -53,7 +53,7 @@ if [ "${BREAK:-0}" = "1" ]; then
     "would cause. If the next plan is still empty, this whole scenario is" \
     "scenery and the run fails itself."
   cmd "aws logs tag-log-group ... tofu-address=aws_cloudwatch_log_group.hijacked"
-  awsl logs tag-log-group --log-group-name "/stateless-e2e-block/app" \
+  awsl logs tag-log-group --log-group-name "/live-e2e-block/app" \
     --tags tofu-address="aws_cloudwatch_log_group.hijacked" \
     || fail "greenfield" "BREAK: could not rewrite the marker"
   BOUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1 || true)"

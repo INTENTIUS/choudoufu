@@ -4,7 +4,7 @@
 # and compares.
 terraform {
   live {
-    estate = "stateless-unit"
+    estate = "live-unit"
   }
 
   required_providers {
@@ -21,7 +21,7 @@ provider "aws" {
 # Client-named identity: the bucket name is in the configuration, so the
 # projection can read this one back with no memory at all.
 resource "aws_s3_bucket" "data" {
-  bucket = "tofu-stateless-unit-data"
+  bucket = "tofu-live-unit-data"
 }
 
 # Server-assigned identity: nothing in configuration names it, so it is found

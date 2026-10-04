@@ -139,7 +139,7 @@ func TestLiveMode_planParity(t *testing.T) {
 		t.Chdir(td)
 
 		c, done := newLivePlanCommand(t, liveBlockCloud())
-		if code := c.Run([]string{"-no-color", "-estate=stateless-unit"}); code != 0 {
+		if code := c.Run([]string{"-no-color", "-estate=live-unit"}); code != 0 {
 			out := done(t)
 			t.Fatalf("live-plan exit code %d, want 0\n%s\n%s", code, out.Stdout(), out.Stderr())
 		}
@@ -342,8 +342,8 @@ func TestLiveMode_plainApply(t *testing.T) {
 		if tags == nil {
 			t.Fatalf("%s was never applied; applied: %v", addr, cloud.applied)
 		}
-		if got := tags["tofu-estate"]; got != "stateless-unit" {
-			t.Errorf("%s was created with tofu-estate %q, want %q", addr, got, "stateless-unit")
+		if got := tags["tofu-estate"]; got != "live-unit" {
+			t.Errorf("%s was created with tofu-estate %q, want %q", addr, got, "live-unit")
 		}
 		if got := tags["tofu-address"]; got != addr {
 			t.Errorf("%s was created with tofu-address %q, want %q", addr, got, addr)
@@ -720,12 +720,12 @@ func TestLiveMode_plainApplyWritesHint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("opening the record store the apply should have written into: %s", err)
 	}
-	hint, err := projection.ReadHintStore(context.Background(), store, "stateless-unit")
+	hint, err := projection.ReadHintStore(context.Background(), store, "live-unit")
 	if err != nil {
 		t.Fatalf("no hint was persisted by the apply: %s", err)
 	}
-	if hint.Estate != "stateless-unit" {
-		t.Errorf("estate is %q, want %q", hint.Estate, "stateless-unit")
+	if hint.Estate != "live-unit" {
+		t.Errorf("estate is %q, want %q", hint.Estate, "live-unit")
 	}
 	if hint.WrittenAt.IsZero() {
 		t.Error("writtenAt is zero")
@@ -1006,14 +1006,14 @@ func assertNoStateArtifacts(t *testing.T, root string) {
 // empty.
 func liveBlockCloud() *liveTestCloud {
 	cloud := newLiveTestCloud()
-	cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
-		"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+	cloud.putMarked("aws_s3_bucket", "tofu-live-unit-data", "live-unit", "aws_s3_bucket.data", map[string]string{
+		"id": "tofu-live-unit-data", "bucket": "tofu-live-unit-data",
 	})
-	cloud.putMarked("aws_vpc", "vpc-owned", "stateless-unit", "aws_vpc.main", map[string]string{
+	cloud.putMarked("aws_vpc", "vpc-owned", "live-unit", "aws_vpc.main", map[string]string{
 		"id": "vpc-owned", "cidr_block": "10.42.0.0/16",
 	})
 	cloud.list("aws_vpc", "vpc-owned", "the estate's VPC",
-		map[string]string{"tofu-estate": "stateless-unit", "tofu-address": "aws_vpc.main"},
+		map[string]string{"tofu-estate": "live-unit", "tofu-address": "aws_vpc.main"},
 		map[string]string{"cidr_block": "10.42.0.0/16"})
 	return cloud
 }

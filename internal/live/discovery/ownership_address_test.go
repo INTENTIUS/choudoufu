@@ -48,7 +48,7 @@ import (
 // TestOwnershipAddress_displacedObjectIsReported is #244 half 2's own shape.
 //
 // Two live buckets, both this estate's. One sits at the identity the
-// configuration computes for aws_s3_bucket.data ("tofu-stateless-e2e-data" -
+// configuration computes for aws_s3_bucket.data ("tofu-live-e2e-data" -
 // storage.tf's own bucket argument). The other carries the SAME tofu-address
 // marker at a different identity, which is what a renumbered count.index
 // leaves behind: the object that used to be this address's is still marked as
@@ -62,15 +62,15 @@ func TestOwnershipAddress_displacedObjectIsReported(t *testing.T) {
 	cloud.listable("aws_s3_bucket")
 
 	// The object the configuration's identity finds.
-	cloud.own("aws_s3_bucket", "tofu-stateless-e2e-data", `aws_s3_bucket.data`)
+	cloud.own("aws_s3_bucket", "tofu-live-e2e-data", `aws_s3_bucket.data`)
 	// The displaced object: same estate, same address marker, different
 	// identity.
-	cloud.own("aws_s3_bucket", "tofu-stateless-e2e-data-displaced", `aws_s3_bucket.data`)
+	cloud.own("aws_s3_bucket", "tofu-live-e2e-data-displaced", `aws_s3_bucket.data`)
 
 	res, diags := discoverFixture(t, cloud, Request{Sweep: true})
 	assertNoErrors(t, diags)
 
-	const displaced = "tofu-stateless-e2e-data-displaced"
+	const displaced = "tofu-live-e2e-data-displaced"
 
 	p := findDisplaced(t, res, displaced)
 	if p.TypeName != "aws_s3_bucket" {
@@ -81,7 +81,7 @@ func TestOwnershipAddress_displacedObjectIsReported(t *testing.T) {
 	}
 	// The detail has to name BOTH identities, or the operator cannot tell
 	// which of the two objects the configuration means.
-	if !strings.Contains(p.Detail, displaced) || !strings.Contains(p.Detail, "tofu-stateless-e2e-data\"") {
+	if !strings.Contains(p.Detail, displaced) || !strings.Contains(p.Detail, "tofu-live-e2e-data\"") {
 		t.Errorf("the detail does not name both identities:\n%s", p.Detail)
 	}
 
@@ -92,7 +92,7 @@ func TestOwnershipAddress_displacedObjectIsReported(t *testing.T) {
 			continue
 		}
 		for _, id := range q.LiveIDs {
-			if id == "tofu-stateless-e2e-data" {
+			if id == "tofu-live-e2e-data" {
 				t.Errorf("the object the configuration's own identity names was reported as displaced:\n%s", q.Detail)
 			}
 		}
@@ -143,12 +143,12 @@ func TestOwnershipAddress_undeclaredAddressIsStillAnOrphan(t *testing.T) {
 	cloud := newFakeCloud()
 	ownWholeEstate(cloud)
 	cloud.listable("aws_s3_bucket")
-	cloud.own("aws_s3_bucket", "tofu-stateless-e2e-deleted", `aws_s3_bucket.deleted`)
+	cloud.own("aws_s3_bucket", "tofu-live-e2e-deleted", `aws_s3_bucket.deleted`)
 
 	res, diags := discoverFixture(t, cloud, Request{Sweep: true})
 	assertNoErrors(t, diags)
 
-	if len(res.Orphans) != 1 || res.Orphans[0].ImportID != "tofu-stateless-e2e-deleted" {
+	if len(res.Orphans) != 1 || res.Orphans[0].ImportID != "tofu-live-e2e-deleted" {
 		t.Fatalf("a marker for an address the configuration no longer declares is not an orphan:\n%s", res)
 	}
 }
@@ -161,7 +161,7 @@ func TestOwnershipAddress_matchingObjectIsSilent(t *testing.T) {
 	cloud := newFakeCloud()
 	ownWholeEstate(cloud)
 	cloud.listable("aws_s3_bucket")
-	cloud.own("aws_s3_bucket", "tofu-stateless-e2e-data", `aws_s3_bucket.data`)
+	cloud.own("aws_s3_bucket", "tofu-live-e2e-data", `aws_s3_bucket.data`)
 
 	res, diags := discoverFixture(t, cloud, Request{Sweep: true})
 	assertNoErrors(t, diags)
@@ -171,7 +171,7 @@ func TestOwnershipAddress_matchingObjectIsSilent(t *testing.T) {
 			t.Fatalf("a client-named resource at exactly the identity its own address computes was reported as displaced:\n%s", p.Detail)
 		}
 	}
-	assertNotAnOrphan(t, res, "tofu-stateless-e2e-data")
+	assertNotAnOrphan(t, res, "tofu-live-e2e-data")
 }
 
 // TestOwnershipAddress_movedBlockIsNotDisplacement is the #198 guard, over the
@@ -191,7 +191,7 @@ func TestOwnershipAddress_matchingObjectIsSilent(t *testing.T) {
 func TestOwnershipAddress_movedBlockIsNotDisplacement(t *testing.T) {
 	cloud := newFakeCloud()
 	cloud.listable("aws_s3_bucket")
-	cloud.own("aws_s3_bucket", "tofu-stateless-e2e-renamed", `aws_s3_bucket.old`)
+	cloud.own("aws_s3_bucket", "tofu-live-e2e-renamed", `aws_s3_bucket.old`)
 
 	cfg := loadConfig(t, "testdata/moved-clientnamed")
 	res, diags := Discover(context.Background(), Request{
@@ -208,7 +208,7 @@ func TestOwnershipAddress_movedBlockIsNotDisplacement(t *testing.T) {
 			t.Fatalf("a pending move over a client-named resource was reported as a displacement:\n%s", p.Detail)
 		}
 	}
-	assertNotAnOrphan(t, res, "tofu-stateless-e2e-renamed")
+	assertNotAnOrphan(t, res, "tofu-live-e2e-renamed")
 }
 
 // TestOwnershipAddress_movedBlockWithAWrongIdentityIsStillDisplacement is the
@@ -298,11 +298,11 @@ func TestOwnershipAddress_forceNewReplaceIsNotDisplacement(t *testing.T) {
 	ownWholeEstate(cloud)
 	cloud.listable("aws_s3_bucket")
 	// The bucket the last apply created. The configuration now computes
-	// "tofu-stateless-e2e-data" for this address instead.
-	cloud.own("aws_s3_bucket", "tofu-stateless-e2e-data-v1", `aws_s3_bucket.data`)
+	// "tofu-live-e2e-data" for this address instead.
+	cloud.own("aws_s3_bucket", "tofu-live-e2e-data-v1", `aws_s3_bucket.data`)
 
 	rawStore, seedStore := supersededHintStore(t, estateName)
-	seedCurrentIdentity(t, seedStore, `aws_s3_bucket.data`, projection.LocatedRecord{ImportID: "tofu-stateless-e2e-data-v1"})
+	seedCurrentIdentity(t, seedStore, `aws_s3_bucket.data`, projection.LocatedRecord{ImportID: "tofu-live-e2e-data-v1"})
 
 	res, diags := discoverFixture(t, cloud, Request{Sweep: true, HintStore: rawStore})
 	assertNoErrors(t, diags)
@@ -314,7 +314,7 @@ func TestOwnershipAddress_forceNewReplaceIsNotDisplacement(t *testing.T) {
 	// have become an orphan, and the silence must not have become issue
 	// #692's vouch - the projection reads the object at the identity the
 	// configuration names, which this sighting says nothing about.
-	assertNotAnOrphan(t, res, "tofu-stateless-e2e-data-v1")
+	assertNotAnOrphan(t, res, "tofu-live-e2e-data-v1")
 	if res.MarkerVerified()[`aws_s3_bucket.data`] {
 		t.Errorf("a sighting of the object a replace is about to destroy vouched for the address, which would admit whatever sits at the new identity without reading its tags:\n%s", res)
 	}
@@ -331,16 +331,16 @@ func TestOwnershipAddress_recordNamingAnotherObjectIsStillDisplacement(t *testin
 	cloud := newFakeCloud()
 	ownWholeEstate(cloud)
 	cloud.listable("aws_s3_bucket")
-	cloud.own("aws_s3_bucket", "tofu-stateless-e2e-data-leftover", `aws_s3_bucket.data`)
+	cloud.own("aws_s3_bucket", "tofu-live-e2e-data-leftover", `aws_s3_bucket.data`)
 
 	rawStore, seedStore := supersededHintStore(t, estateName)
-	seedCurrentIdentity(t, seedStore, `aws_s3_bucket.data`, projection.LocatedRecord{ImportID: "tofu-stateless-e2e-data-somebody-else"})
+	seedCurrentIdentity(t, seedStore, `aws_s3_bucket.data`, projection.LocatedRecord{ImportID: "tofu-live-e2e-data-somebody-else"})
 
 	res, diags := discoverFixture(t, cloud, Request{Sweep: true, HintStore: rawStore})
 	assertNoErrors(t, diags)
 
-	findDisplaced(t, res, "tofu-stateless-e2e-data-leftover")
-	assertNotAnOrphan(t, res, "tofu-stateless-e2e-data-leftover")
+	findDisplaced(t, res, "tofu-live-e2e-data-leftover")
+	assertNotAnOrphan(t, res, "tofu-live-e2e-data-leftover")
 }
 
 // TestOwnershipAddress_displacedDetailDoesNotDescribeThePlan pins the other

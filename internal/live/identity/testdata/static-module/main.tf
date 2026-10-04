@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "root" {
-  bucket = "tofu-stateless-static-module-root"
+  bucket = "tofu-live-static-module-root"
 }
 
 module "net" {

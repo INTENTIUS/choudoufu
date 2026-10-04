@@ -7,7 +7,7 @@
 // the escaping rule that lets a resource address live in a tag value, and the
 // reading of those tags off a live object.
 //
-// It is a leaf package with no stateless-mode dependencies on purpose. The
+// It is a leaf package with no live-mode dependencies on purpose. The
 // marker vocabulary is the one integration surface the whole fork - and
 // anything outside it that honors the spec - agrees on, so every package that
 // writes a marker (stamp), reads one (discovery, projection) or rewrites one

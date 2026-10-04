@@ -47,7 +47,7 @@ provider "aws" {
 // argument the cohort's estate.chdf.hcl sidecar declares
 // (estateSidecarHCL). "<cohort>-cohort" is the naming convention
 // live/e2e/estates/lambda/locals.tf's "lambda-cohort" already used by
-// hand, distinct from the demo estate's "stateless-e2e" and from every
+// hand, distinct from the demo estate's "live-e2e" and from every
 // other cohort's own tag, so no two cohorts collide if ever applied
 // against the same account side by side.
 //
@@ -67,7 +67,7 @@ func estateTag(cohort string) string {
 func localsTF(cohort string) string {
 	return fmt.Sprintf(`locals {
   # The marker's estate value (live/MARKERS.md, P0.3), distinct from the
-  # demo estate's "stateless-e2e" and from every other cohort's own tag, so
+  # demo estate's "live-e2e" and from every other cohort's own tag, so
   # no two cohorts collide if ever applied against the same account side by
   # side.
   estate_tag = %q

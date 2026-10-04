@@ -11,7 +11,7 @@ rm -rf "$SMOKE_WORK/README.md"
 python3 - "$SMOKE_WORK" <<'PYEOF'
 import re, sys
 d = sys.argv[1]
-src = open(f'{d}/versions.tf').read().replace('stateless-e2e-block', 'smoke-roundtrip')
+src = open(f'{d}/versions.tf').read().replace('live-e2e-block', 'smoke-roundtrip')
 open(f'{d}/versions-live.tf.keep', 'w').write(src)
 stock = re.sub(r'\n  live \{\n    estate = "smoke-roundtrip"\n  \}\n', '\n', src)
 assert 'live {' not in stock

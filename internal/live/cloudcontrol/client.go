@@ -332,7 +332,7 @@ func (c *Client) call(ctx context.Context, operation string, payload any, out an
 		// while the provider's were fully accounted. The next attempt is
 		// attempt+1, matching the SDK's convention that the first retry is
 		// "attempt 2".
-		log.Printf("[DEBUG] stateless/%s: retrying request %s/%s, attempt %d: after %s, %v",
+		log.Printf("[DEBUG] live/%s: retrying request %s/%s, attempt %d: after %s, %v",
 			c.service, c.serviceLabel(), operation, attempt+1, delay, err)
 
 		if sleepErr := sleep(ctx, delay); sleepErr != nil {
@@ -389,19 +389,19 @@ func (c *Client) callOnce(ctx context.Context, operation string, payload any, ou
 	// provider configuration whose principal made it, read off the wire
 	// rather than off any counter of ours - the same attribution the
 	// provider's own request log gives through its Authorization header.
-	log.Printf("[DEBUG] stateless/%s: HTTP Request Sent: rpc.service=%s rpc.method=%s http.method=POST http.url=%s http.request_content_length=%d signed_as=%s",
+	log.Printf("[DEBUG] live/%s: HTTP Request Sent: rpc.service=%s rpc.method=%s http.method=POST http.url=%s http.request_content_length=%d signed_as=%s",
 		c.service, c.serviceLabel(), operation, c.baseURL(), len(body), signedAs(req))
 
 	started := c.clock()
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		log.Printf("[DEBUG] stateless/%s: HTTP Request Failed: rpc.service=%s rpc.method=%s duration_ms=%d error=%v",
+		log.Printf("[DEBUG] live/%s: HTTP Request Failed: rpc.service=%s rpc.method=%s duration_ms=%d error=%v",
 			c.service, c.serviceLabel(), operation, c.clock().Sub(started).Milliseconds(), err)
 		return fmt.Errorf("cloudcontrol: %s: %w", operation, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	log.Printf("[DEBUG] stateless/%s: HTTP Response Received: rpc.service=%s rpc.method=%s http.status_code=%d duration_ms=%d",
+	log.Printf("[DEBUG] live/%s: HTTP Response Received: rpc.service=%s rpc.method=%s http.status_code=%d duration_ms=%d",
 		c.service, c.serviceLabel(), operation, resp.StatusCode, c.clock().Sub(started).Milliseconds())
 
 	respBody, err := io.ReadAll(resp.Body)

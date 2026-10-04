@@ -41,7 +41,7 @@ resource "aws_eip" "pool" {
 resource "aws_cloudwatch_log_group" "optional" {
   count = var.enabled ? 1 : 0
 
-  name = "/stateless-lint/optional"
+  name = "/live-lint/optional"
 }
 
 resource "aws_cloudwatch_log_group" "meta" {
@@ -52,7 +52,7 @@ resource "aws_cloudwatch_log_group" "meta" {
   # that boundary rather than assume it.
   count = tobool(count.index) ? 1 : 0
 
-  name = "/stateless-lint/meta"
+  name = "/live-lint/meta"
 }
 
 data "aws_region" "current" {
