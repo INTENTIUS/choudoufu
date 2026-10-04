@@ -48,7 +48,10 @@ type Naming string
 const (
 	// NamingClientNamed: every identity argument asked about is set, on
 	// every instance asked about. The configuration names these objects.
-	NamingClientNamed Naming = "client-named"
+	// The value is "config-named", not survey-gen's retired "client-named"
+	// path token (#696): this is a claim one configuration makes, not a
+	// classification of the type.
+	NamingClientNamed Naming = "config-named"
 
 	// NamingServerAssigned: none of the identity arguments is set on any
 	// instance. Nothing in the configuration names these objects, so their
