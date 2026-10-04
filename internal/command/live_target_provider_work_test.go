@@ -462,9 +462,10 @@ func TestTargetWorkScopeIsThePlanGraphs(t *testing.T) {
 // has no managed demand at all: it is readable on the first pass, so the
 // only thing that can stop it being read is [dataread.Options.Scope], and
 // its zero on the record row is that option's and nothing else's. Take the
-// option out and this test goes red on that one count. It is read twice on
+// option out and this test goes red on that one count. It was read twice on
 // the rows that read it at all, once per analysis pass, which is what a
-// second pass costs a source the first pass already answered.
+// second pass cost a source the first pass already answered; since GitHub
+// issue #1537 it is read once, and the column reads 2 where it read 3.
 //
 // Only the record row moves, and it moves to zero. Targeting the record
 // drops data.aws_eks_cluster.cluster from the plan graph, so
@@ -497,14 +498,16 @@ func TestProviderWorkOverTargetExcludedBlocks(t *testing.T) {
 
 	const allNinePlans = "9 [aws_acm_certificate=1 aws_cloudwatch_log_group=1 aws_eks_cluster=1 aws_s3_bucket=2 aws_sns_topic=1 aws_sqs_queue=1 kubernetes_config_map=1 kubernetes_namespace=1]"
 	const oneCluster = "1 [aws_eks_cluster=1]"
-	// Both provider-configuration sources, and aws_region twice: the first
-	// analysis pass reads it (nothing in its arguments waits on a managed
-	// value) and the pass that follows the cluster read re-reads every
-	// source it classifies, the cluster included. So the cluster's own read
-	// is what a pass BUYS and aws_region's second is what a pass COSTS -
-	// both are the fixpoint's, and this counts them rather than quietly
-	// choosing one.
-	const bothSources = "3 [aws_eks_cluster=1 aws_region=2]"
+	// Both provider-configuration sources, once each. The first analysis
+	// pass reads aws_region (nothing in its arguments waits on a managed
+	// value); the pass that follows the cluster read reads the cluster and,
+	// since GitHub issue #1537, takes aws_region's answer from the run's
+	// [dataread.ReadMemo] because its request is unchanged. It read
+	// "3 [aws_eks_cluster=1 aws_region=2]" before that: the cluster's own
+	// read is what a pass BUYS, and aws_region's second read was what a
+	// pass COST. TestProviderConfigFixpointReadsEachSourceOncePerRequest
+	// splits the same count by pass.
+	const bothSources = "2 [aws_eks_cluster=1 aws_region=1]"
 
 	for _, tc := range []struct {
 		name   string

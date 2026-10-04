@@ -392,7 +392,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AW
 gauntlet_begin_stage cold_deploy
 log "=== STAGE 1: cold deploy (plain tofu apply, the real unmodified module) ==="
 ( cd "$PLAIN" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
+  ( cd "$PLAIN" && tofu init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "stage 1 init failed"; }
 gauntlet_report_lock "$PLAIN"  # the versions stage 1 resolved, for the row (#1739)
 COLD_OUT="$(cd "$PLAIN" && tofu apply -input=false -auto-approve -no-color 2>&1)"; COLD_RC=$?
 [ "$COLD_RC" -eq 0 ] || { printf '%s\n' "$COLD_OUT" | tail -40; fail "stage 1 (cold deploy) failed"; }
@@ -484,7 +484,7 @@ GREEN_POLICY_ARN="arn:aws:iam::000000000000:policy/giantswarm-${GREEN_INSTALLATI
 
 log "=== G1. choudoufu apply from nothing, no migration, no state file ever existing ==="
 ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield init failed"; }
+  ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the greenfield init failed"; }
 GREEN_APPLY_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$GREEN_APPLY_OUT" | tail -60; fail "the greenfield apply failed"; }
 grep -qE 'Apply complete! Resources: 6 added, 0 changed, 0 destroyed' <<< "$GREEN_APPLY_OUT" \
@@ -515,7 +515,7 @@ log "  No changes."
 
 log "=== G5. stock oracle - the identical module applied fresh in its own namespace ==="
 ( cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the greenfield oracle's init failed"; }
+  ( cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the greenfield oracle's init failed"; }
 ORACLE_APPLY_OUT="$(cd "$GREEN_ORACLE" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$ORACLE_APPLY_OUT" | tail -60; fail "the greenfield oracle apply failed"; }
 grep -qE 'Apply complete! Resources: 6 added, 0 changed, 0 destroyed' <<< "$ORACLE_APPLY_OUT" \
@@ -589,7 +589,7 @@ moved {
 }
 EOF
 ( cd "$PLAIN_ORACLE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_rename stock oracle's reinit failed"; }
+  ( cd "$PLAIN_ORACLE" && tofu init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_rename stock oracle's reinit failed"; }
 ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE" && tofu plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
 [ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
 grep -qE '^  # .+ will be (destroyed|created)' <<< "$ORACLE_PLAN_OUT" \
@@ -614,7 +614,7 @@ PLAIN_ORACLE_REMOVE="$WORK/plain-oracle-remove"
 cp -r "$PLAIN" "$PLAIN_ORACLE_REMOVE"
 remove_module_block "$PLAIN_ORACLE_REMOVE/main.tofu" "crossplane"
 ( cd "$PLAIN_ORACLE_REMOVE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_ORACLE_REMOVE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove stock oracle's reinit failed"; }
+  ( cd "$PLAIN_ORACLE_REMOVE" && tofu init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_remove stock oracle's reinit failed"; }
 REMOVE_ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE_REMOVE" && tofu plan -input=false -no-color 2>&1)"; REMOVE_ORACLE_PLAN_RC=$?
 [ "$REMOVE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_remove stock oracle plan exited $REMOVE_ORACLE_PLAN_RC"; }
 REMOVE_ORACLE_CHANGES="$(grep -oE '^  # \S+ will be (destroyed|created|updated in-place)' <<< "$REMOVE_ORACLE_PLAN_OUT" | sed -E 's/^  # //' | sort -u)"
@@ -653,7 +653,7 @@ rm -f "$PLAIN_ORACLE_REPLACE/main.tofu.bak"
 grep -q "${INSTALLATION}-v2" "$PLAIN_ORACLE_REPLACE/main.tofu" \
   || fail "changing module.crossplane's installation_name argument in the replace-oracle copy did not match - the corpus pin has moved"
 ( cd "$PLAIN_ORACLE_REPLACE" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$PLAIN_ORACLE_REPLACE" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_replace stock oracle's reinit failed"; }
+  ( cd "$PLAIN_ORACLE_REPLACE" && tofu init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_replace stock oracle's reinit failed"; }
 REPLACE_ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE_REPLACE" && tofu plan -input=false -no-color 2>&1)"; REPLACE_ORACLE_PLAN_RC=$?
 [ "$REPLACE_ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REPLACE_ORACLE_PLAN_OUT" | tail -40; fail "the day2_replace stock oracle plan exited $REPLACE_ORACLE_PLAN_RC"; }
 grep -qE '^  # module\.crossplane\.aws_iam_role\.giantswarm_crossplane_role must be replaced' <<< "$REPLACE_ORACLE_PLAN_OUT" \
@@ -682,7 +682,7 @@ log "=== STAGE 2: choudoufu live-import ==="
 # an already-warm cache. The estate's own init still runs below, against its
 # own configuration, and still has to succeed.
 ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "estate init failed"; }
+  ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "estate init failed"; }
 
 log "--- 2a: live-import, read-only first ---"
 IMPORT_OUT="$(cd "$ESTATE" && "$TOFU" live-import -state="$PLAIN/terraform.tfstate" -estate="$ESTATE_NAME" -no-color 2>&1)"; IMPORT_RC=$?
@@ -1153,7 +1153,7 @@ if [ "${BREAK:-}" = "rename" ]; then
   sed -i.bak 's/module "crossplane" {/module "crossplane_broken" {/' "$ESTATE/main.tofu"
   rm -f "$ESTATE/main.tofu.bak"
   ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the BREAK=rename reinit failed"; }
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the BREAK=rename reinit failed"; }
   BREAK_PLAN_OUT="$(plan_into 2>&1)"; BREAK_PLAN_RC=$?
   # Verified directly: this module's two client-named taggable objects take
   # genuinely different paths under a bare rename, and neither reproduces
@@ -1195,7 +1195,7 @@ EOF
   # instance registry .terraform tracks, unlike a plain resource rename -
   # a re-init is required even though the source path itself is unchanged.
   ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the moved-block rename's reinit failed"; }
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the moved-block rename's reinit failed"; }
   MOVED_PLAN_OUT="$(plan_into 2>&1)"; MOVED_PLAN_RC=$?
   [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
   # FIXED by gauntlet:sweep-moved-alias (internal/live/discovery/recordorphan_read.go):
@@ -1260,7 +1260,7 @@ EOF
   sed -i.bak 's/module "crossplane_renamed" {/module "crossplane_final" {/' "$ESTATE/main.tofu"
   rm -f "$ESTATE/main.tofu.bak"
   ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the live-mv rename's reinit failed"; }
+    ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the live-mv rename's reinit failed"; }
   # Both taggable objects live under the SAME renamed module boundary, so
   # live-mv is invoked once per object - it rewrites one live resource's own
   # marker per call, the same as every other estate's live-mv leg.
@@ -1553,7 +1553,7 @@ EOF
     log "=== E1. choudoufu: delete module.crossplane_final's block ==="
     remove_module_block "$ESTATE/main.tofu" "crossplane_final"
     ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
-      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_remove reinit failed"; }
+      ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_remove reinit failed"; }
     REMOVE_PLAN_OUT="$(plan_into 2>&1)"; REMOVE_PLAN_RC=$?
     [ "$REMOVE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$REMOVE_PLAN_OUT" | tail -40; fail "the day2_remove plan exited $REMOVE_PLAN_RC"; }
     if grep -q 'is unclaimed, so this may be the same resource under a new instance key' <<< "$REMOVE_PLAN_OUT"; then
@@ -1789,7 +1789,7 @@ COUNTPROVEOF
     mkdir -p "$PLAIN_ORACLE_COUNT"
     { oracle_count_provider; count_test_block 2; } > "$PLAIN_ORACLE_COUNT/main.tofu"
     ( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color >/dev/null 2>&1 ) || {
-      ( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color 2>&1 | tail -30 ); fail "the day2_count stock oracle's init failed"; }
+      ( cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "the day2_count stock oracle's init failed"; }
     ORACLE_COUNT_APPLY_OUT="$(cd "$PLAIN_ORACLE_COUNT" && AWS_ENDPOINT_URL="$ORACLE_ENDPOINT" tofu apply -input=false -auto-approve -no-color 2>&1)"; ORACLE_COUNT_APPLY_RC=$?
     [ "$ORACLE_COUNT_APPLY_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_COUNT_APPLY_OUT" | tail -30; fail "the day2_count stock oracle's baseline apply failed"; }
     grep -qE 'Apply complete! Resources: 2 added, 0 changed, 0 destroyed' <<< "$ORACLE_COUNT_APPLY_OUT" \

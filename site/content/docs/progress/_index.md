@@ -33,11 +33,10 @@ cluster and count toward neither AWS bar.
 
 {{< gauntlet-board "script-staleness" >}}
 
-A row is evidence about its crossing script as it stood the day it ran. When
-the script or the shared protocol library changes afterwards, the row keeps
-its old verdicts until someone re-runs the estate. The line above counts the
-rows in that state. It does not fail the build, because a re-run can take
-half an hour.
+A row describes its crossing script as it stood the day it ran; the line
+above counts rows whose script has changed since, without failing the build
+([`live/GAUNTLET.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/GAUNTLET.md#the-artifact)
+has why).
 
 The behaviors-proven line counts how many of the
 {{< gauntlet-board "stage-count" >}} stages have a fast fixture that runs in
@@ -51,13 +50,10 @@ render`; the prose around them is the only thing typed by hand.
 
 {{< gauntlet-board "stages" >}}
 
-Planned stages are listed so the target is visible. They do not count toward
-clear until they are activated, and, for a headline stage, activating one
-lowers the bars until the estates catch up - a non-headline stage can be
-active, and measured per estate, without moving either bar. The full
-definition of every stage, including what stock's answer is and how each
-check is proven non-vacuous, is
-[`live/GAUNTLET.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/GAUNTLET.md).
+Planned stages show the target and count toward nothing until activated.
+[`live/GAUNTLET.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/GAUNTLET.md)
+defines every stage, what stock answers, how each check is proven
+non-vacuous, and what activating one does to the bars.
 
 ## The estates
 
@@ -69,13 +65,10 @@ check is proven non-vacuous, is
 
 ## Live-AWS certification
 
-Separate from the two bars above, and never counted toward either of
-them: a real-AWS run for the named estate, at the date and account
-below, is evidence about ONE run against a real account, not a
-repeatable comparison against stock the way an emulator row is. See
+A real-AWS run for the named estate, at the date and account below, is
+evidence about one run and never counts toward either bar.
 [HANDOFF.md](https://github.com/INTENTIUS/choudoufu/blob/main/HANDOFF.md)
-"What a measurement is worth" for why the two are never averaged
-together.
+"What a measurement is worth" has why the two are never averaged.
 
 {{< gauntlet-board "livecert" >}}
 
