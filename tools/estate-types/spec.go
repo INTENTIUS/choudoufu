@@ -268,6 +268,13 @@ var estateSpecs = []estateSpec{
 		Note:       `The kubernetes lane's first published estate (#1067): grafana/quickpizza's own deployments/terraform root at v0.15.28, copied out of .corpus verbatim by live/e2e/corpus-quickpizza/run.sh with three deltas (the provider block's minikube kubeconfig lines dropped; placeholder values for the two Grafana Cloud secrets; wait_for_rollout = false on Alloy's Deployment, whose pod cannot become ready without a real token). 27 hashicorp/kubernetes resources over eight kinds plus a helm_release behind count = 0. ScanScript adds the two-instance count ConfigMap the script itself declares for day2_count, and its strict_block() heredoc's random_password.`,
 	},
 	{
+		Name:       "corpus-k8s-metrics-server",
+		ConfigDirs: nil,
+		ScanScript: true,
+		ScanFiles:  []string{".corpus/k8s-io/infra/aws/terraform/kops-infra-ci/metrics-server.tf"},
+		Note:       `kubernetes/k8s.io's metrics-server installation (#1880): live/e2e/corpus-k8s-metrics-server/run.sh's write_root() copies ONE file, infra/aws/terraform/kops-infra-ci/metrics-server.tf, out of .corpus and writes its own providers.tf, so the rest of kops-infra-ci (VPC, EKS, IAM, ECR, S3, the aws providers) is never part of the estate and ConfigDirs, which would load the whole directory, is nil. ScanFiles reads that one file: nine hashicorp/kubernetes resources on the non-_v1 type names, kubernetes_api_service among them. ScanScript adds the stage additions the script declares itself: day2_count's kubernetes_config_map_v1, day2_crash's kubernetes_secret_v1 and kubernetes_config_map_v1 pair, and the strict scratch estate's random_password.`,
+	},
+	{
 		Name:       "reference-eks",
 		ConfigDirs: nil,
 		ScanScript: true,

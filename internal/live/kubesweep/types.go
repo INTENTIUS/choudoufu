@@ -81,6 +81,24 @@ const TypePrefix = "kubernetes_"
 // _v1, _v1beta1, _v2, _v2beta2.
 var versionSuffix = regexp.MustCompile(`_v[0-9]+(?:(?:alpha|beta)[0-9]+)?$`)
 
+// aggregatedKindSpellings is the kind a provider type manages, keyed by the
+// type name's kind segment (prefix and version suffix stripped), for a kind
+// whose spelling neither the snake-case join below nor
+// k8s.io/client-go/kubernetes/scheme can supply (GitHub issue #1880).
+//
+// One entry, and the reason it has to be written down: hashicorp/kubernetes
+// 3.2.1's kubernetes_api_service and kubernetes_api_service_v1 manage an
+// APIService (apiregistration.k8s.io), which the join reads as "ApiService".
+// The sweep matches a served resource to its types by r.Kind, the server's
+// spelling, so a declared APIService could never meet its listed self, and
+// both types sat in the unserved list. client-go's scheme is no help:
+// apiregistration.k8s.io is kube-aggregator's group, registered by the
+// aggregator's own generated clientset, which this module does not depend
+// on. The group half of the same gap is [builtinGroupOverrides]' entry.
+var aggregatedKindSpellings = map[string]string{
+	"api_service": "APIService",
+}
+
 // KindOfType recovers the Kubernetes kind a provider resource type manages
 // from its name: kubernetes_config_map_v1 is ConfigMap, versioned true.
 // A name outside the provider's prefix reports ok false.
@@ -95,6 +113,9 @@ func KindOfType(typeName string) (kind string, versioned bool, ok bool) {
 	}
 	if rest == "" {
 		return "", false, false
+	}
+	if kind, ok := aggregatedKindSpellings[rest]; ok {
+		return kind, versioned, true
 	}
 	var b strings.Builder
 	for _, part := range strings.Split(rest, "_") {

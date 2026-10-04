@@ -2,8 +2,8 @@
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144",
   "banner": "Every estate below last ran against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, recorded between 2026-10-02T19:19:40Z and 2026-10-03T02:57:13Z. Each row below carries its own `last_run` date; they are not all the same run. The pin has since moved to `ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144`; every row below is stale evidence against the current image.",
-  "runtime_banner": "31 of 37 estates have a recorded run duration, totaling 5h13m32.9s, but not from one sweep: 13m1.3s across 1 estate(s) at commit `0b620164db`; 12m18.9s across 2 estate(s) at commit `66a25ed700`; 16m58.5s across 2 estate(s) at commit `debf8ccd05`; 4h31m14.2s across 26 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 6 estate(s) with no recorded duration yet.",
-  "script_banner": "**31 of 37 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 1 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-stateful, terralith-scale. 6 more cannot be checked from this checkout: corpus-govuk-cluster-access, corpus-govuk-cluster-services, reference-eks, reference-k8s-platform-app, reference-k8s-shared-objects, reference-k8s-workloads.",
+  "runtime_banner": "31 of 38 estates have a recorded run duration, totaling 5h13m32.9s, but not from one sweep: 13m1.3s across 1 estate(s) at commit `0b620164db`; 12m18.9s across 2 estate(s) at commit `66a25ed700`; 16m58.5s across 2 estate(s) at commit `debf8ccd05`; 4h31m14.2s across 26 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 7 estate(s) with no recorded duration yet.",
+  "script_banner": "**31 of 38 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 1 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-stateful, terralith-scale. 7 more cannot be checked from this checkout: corpus-govuk-cluster-access, corpus-govuk-cluster-services, corpus-k8s-metrics-server, reference-eks, reference-k8s-platform-app, reference-k8s-shared-objects, reference-k8s-workloads.",
   "provider_banner": "Estates were last measured against different hashicorp/aws versions: 22 against `6.63.0` (current pin), 1 against `5.100.0`, 1 against `6.59.0`. The current pin is `6.63.0`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work. Estates were last measured against different hashicorp/kubernetes versions: 3 against `3.2.1` (current pin), 1 against `3.3.0`. The current pin is `3.2.1`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
   "upstream_version": "1.13.0",
   "engine_banner": "The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 31 estates measured so far, 31 recorded running on it.",
@@ -3880,6 +3880,117 @@
       "legacy_note": "Verdicts were recorded from this estate's crossing script by hand before the script spoke the gauntlet protocol; the next run that does will replace them.",
       "script_stale": "unknown",
       "script_note": "**Unverified**: whether `live/e2e/corpus-govuk-cluster-services` or `live/e2e/lib` has changed since the run recorded above cannot be told from this checkout - this row has recorded no run, so there is nothing to compare the script against. The verdicts above may describe an earlier version of the script (#1264, #1292).",
+      "stage_rows": [
+        {
+          "id": "cold_deploy",
+          "title": "Cold deploy",
+          "verdict": "not run"
+        },
+        {
+          "id": "migrate",
+          "title": "Migrate",
+          "verdict": "not run"
+        },
+        {
+          "id": "test_plan",
+          "title": "Replan from nothing",
+          "verdict": "not run"
+        },
+        {
+          "id": "test_apply",
+          "title": "No-op apply",
+          "verdict": "not run"
+        },
+        {
+          "id": "drift_reconverge",
+          "title": "Drift and reconverge",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_rename",
+          "title": "Rename",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_remove",
+          "title": "Remove a block",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_count",
+          "title": "Change count",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_replace",
+          "title": "Replace with create_before_destroy",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_crash",
+          "title": "Crash mid-apply",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_teardown",
+          "title": "Teardown",
+          "verdict": "not run"
+        },
+        {
+          "id": "plan_approval",
+          "title": "Plan, review, apply",
+          "verdict": "not run"
+        },
+        {
+          "id": "greenfield",
+          "title": "Greenfield apply",
+          "verdict": "not run"
+        },
+        {
+          "id": "strict",
+          "title": "Strict profile (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
+        }
+      ]
+    },
+    {
+      "name": "corpus-k8s-metrics-server",
+      "set": "growing",
+      "lane": "kubernetes",
+      "substrate": "kind",
+      "clear": false,
+      "source": "kubernetes/k8s.io infra/aws/terraform/kops-infra-ci/metrics-server.tf (commit 4046258e7d), the Kubernetes project's own metrics-server installation for its kops CI cluster, cut out of its root: two ClusterRoles, two ClusterRoleBindings, a RoleBinding, a ServiceAccount, a Deployment and a Service in kube-system, and the aggregated APIService v1beta1.metrics.k8s.io, all on the provider's non-_v1 type names (#1880, epic #1885). Measures an aggregated API (kubernetes_api_service) through the sweep and through a rollout that leaves it unavailable, and a teardown that leaves kube-system, a namespace the estate writes into and never declared, as it found it",
+      "url": "https://github.com/kubernetes/k8s.io.git",
+      "pin": "4046258e7d54fdc156e2f39ad8da51b57be88f55",
+      "script": "live/e2e/corpus-k8s-metrics-server/run.sh",
+      "protocol": "legacy",
+      "cells": [
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run"
+      ],
+      "runtime_total": "-",
+      "runtime_cells": "none recorded yet",
+      "legacy_note": "Verdicts were recorded from this estate's crossing script by hand before the script spoke the gauntlet protocol; the next run that does will replace them.",
+      "script_stale": "unknown",
+      "script_note": "**Unverified**: whether `live/e2e/corpus-k8s-metrics-server` or `live/e2e/lib` has changed since the run recorded above cannot be told from this checkout - this row has recorded no run, so there is nothing to compare the script against. The verdicts above may describe an earlier version of the script (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",

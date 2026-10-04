@@ -48,3 +48,28 @@ func TestBuiltinGroupsMatchTheGroupsIssue1111Named(t *testing.T) {
 		t.Error("CustomResourceDefinition/apiextensions.k8s.io is now derived; groups.go's package doc claiming otherwise needs updating, and builtinGroupOverrides may no longer need it explained away")
 	}
 }
+
+// TestAPIServiceJoinsItsServedResource is GitHub issue #1880's guard: both
+// provider types for an APIService name the kind the server lists
+// (APIService, not the join's "ApiService"), and that kind is accepted
+// under apiregistration.k8s.io, a group k8s.io/client-go's scheme does not
+// register. Without either half the sweep files kubernetes_api_service(_v1)
+// as unserved and a declared APIService as an undeclared object.
+func TestAPIServiceJoinsItsServedResource(t *testing.T) {
+	for _, typeName := range []string{"kubernetes_api_service", "kubernetes_api_service_v1"} {
+		kind, _, ok := KindOfType(typeName)
+		if !ok || kind != "APIService" {
+			t.Errorf("KindOfType(%q) = %q, %v; want APIService, true", typeName, kind, ok)
+		}
+	}
+	if !servesBuiltinKind("APIService", "apiregistration.k8s.io") {
+		t.Error("servesBuiltinKind(APIService, apiregistration.k8s.io) = false, want true")
+	}
+	if servesBuiltinKind("APIService", "example.com") {
+		t.Error("servesBuiltinKind(APIService, example.com) = true, want false: a CRD spelled APIService in its own group is not the built-in")
+	}
+	kt := KindTypes([]string{"kubernetes_api_service", "kubernetes_api_service_v1"})
+	if got, ok := TypeFor(kt, map[string]bool{"kubernetes_api_service": true}, "APIService"); !ok || got != "kubernetes_api_service" {
+		t.Errorf("TypeFor(APIService) with the deprecated type declared = %q, %v; want kubernetes_api_service", got, ok)
+	}
+}

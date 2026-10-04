@@ -56,11 +56,18 @@ import (
 // silently re-opening the collision.
 
 // builtinGroupOverrides is the guarded exception table for a kind whose
-// group k8s.io/client-go/kubernetes/scheme does not carry: empty today,
-// on purpose (see the package doc above). A kind added here without a
-// scheme entry needs its own comment naming which built-in provider type
-// it is for and why the scheme cannot answer.
-var builtinGroupOverrides = map[string][]string{}
+// group k8s.io/client-go/kubernetes/scheme does not carry. A kind added
+// here without a scheme entry needs its own comment naming which built-in
+// provider type it is for and why the scheme cannot answer.
+var builtinGroupOverrides = map[string][]string{
+	// kubernetes_api_service(_v1) manages APIService, served by every
+	// Kubernetes API server under apiregistration.k8s.io (the aggregation
+	// layer is part of kube-apiserver). The scheme cannot answer because
+	// that group is registered by kube-aggregator's own clientset, which
+	// this module does not depend on (GitHub issue #1880; the kind's
+	// spelling is types.go's aggregatedKindSpellings).
+	"APIService": {"apiregistration.k8s.io"},
+}
 
 var (
 	builtinKindGroupsOnce sync.Once
