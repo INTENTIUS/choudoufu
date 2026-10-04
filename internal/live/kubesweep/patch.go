@@ -220,6 +220,16 @@ func (c *Client) ReadObject(ctx context.Context, ref ObjectRef) (*unstructured.U
 	return obj, true, nil
 }
 
+// AfterMarkerPatch, when not nil, is called by [Client.PatchMarkers]
+// between its two requests: after the merge patch writing the markers has
+// landed and before the request handing their ownership to the field
+// manager's Apply entry. That gap is the window GitHub issue #1858's rerun
+// recovers. Nothing in an ordinary build sets it; an e2eTestingFeatures
+// build of live-mv does, from TOFU_E2E_LIVE_MV_INTERRUPT
+// (internal/command/live_mv_e2etesting.go), so that an estate script can
+// kill a real move inside the window (GitHub issue #1883).
+var AfterMarkerPatch func(ref ObjectRef)
+
 // PatchMarkers implements [LabelPatcher]. The body is a JSON merge patch
 // naming the given keys inside metadata.labels and metadata.annotations
 // and nothing else, so the request itself cannot carry a change to any
@@ -252,6 +262,9 @@ func (c *Client) PatchMarkers(ctx context.Context, ref ObjectRef, labels, annota
 	obj, rejected, err := c.mergePatch(ctx, ref, map[string]any{"metadata": meta}, fieldManager, dryRun)
 	if err != nil || rejected != "" || dryRun {
 		return obj, rejected, err
+	}
+	if AfterMarkerPatch != nil {
+		AfterMarkerPatch(ref)
 	}
 	return c.handMarkersToApply(ctx, ref, obj, slices.Collect(maps.Keys(labels)), slices.Collect(maps.Keys(annotations)), fieldManager)
 }
