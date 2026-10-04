@@ -2266,6 +2266,13 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		attrsSeed[name] = val
 	}
 
+	var fieldGranularDeclared map[string]cty.Value
+	if b.opts.Ownership != nil && fieldGranularOwned("", schema) {
+		// GitHub issue #1863: what the configuration writes, kept before
+		// the seed below takes it out, for the stock hand-over read in
+		// [builder.fieldGranularHandover].
+		fieldGranularDeclared = fieldGranularDeclaredMaps(attrsSeed)
+	}
 	if b.opts.Ownership != nil && fieldGranularOwned("", schema) {
 		// GitHub issue #1191: the prior names this estate's field manager
 		// and none of the fields the block writes, so the provider reads
@@ -2306,6 +2313,8 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		// neither. Nil for every type that is not manifest-shaped, which
 		// is every read that is not a Kubernetes one.
 		manifestKeys: newManifestKeyLookup(schema, addr, providerAddr, b.opts.ManifestOwnedKeys, b.manifestDeclaredKeysFor(ctx, addr, schema)).withOpenPaths(manifestOpen),
+
+		fieldGranularDeclared: fieldGranularDeclared,
 	}
 }
 
@@ -2367,6 +2376,17 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 		return false
 	}
 	b.diags = b.diags.Append(matDiags)
+
+	if status == statusAbsent && rc != nil && !w.undeclared && b.opts.Ownership != nil && fieldGranularOwned("", schema) {
+		// GitHub issue #1863: nothing is owned under this estate's field
+		// manager, but a stock apply's may own the fields - the first plan
+		// after a migration off a stock state file. See
+		// [builder.fieldGranularHandover].
+		if hObj, hStub, hDiags, ok := b.fieldGranularHandover(ctx, w, f.prep); ok {
+			obj, importStub, status = hObj, hStub, statusMaterialized
+			b.diags = b.diags.Append(hDiags)
+		}
+	}
 
 	switch status {
 	case statusAbsent:
