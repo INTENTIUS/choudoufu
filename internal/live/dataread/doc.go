@@ -51,4 +51,13 @@
 // #181 models the owner (consistent with stage 1's treatment of the aws
 // provider block: eligibility assumes the owner's credentials exist), and
 // their actual absence surfaces honestly at read time instead.
+//
+// terraform_estate_outputs (GitHub issues #1371 and #1575) is the third
+// cross-stack flavor: another estate's recorded root outputs, read by the
+// builtin terraform provider from this run's own record store rather than
+// from a remote API. It goes through the same eligibility and read
+// pipeline, and its failures - a missing read grant, an output the other
+// estate never recorded, a store this run could not open - surface in the
+// record store's own registered words (internal/live/projection's
+// SummaryEstateOutputs* refusals), passed through rather than reworded.
 package dataread

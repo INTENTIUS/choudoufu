@@ -428,8 +428,39 @@ func (r *reader) callRead(src *Source, provider providers.Interface, dsSchema pr
 				src.Resource.String(), src.NeededBy, encDiags.Error())
 		}
 		resp = tfp.ReadDataSourceEncrypted(r.ctx, req, r.representativeInstance(src, keys), enc)
+	} else if src.EstateOutputs {
+		// GitHub issue #1575: terraform_estate_outputs is served by the same
+		// builtin provider, whose ordinary ReadDataSource panics for every
+		// type it serves; internal/tofu reaches this source through
+		// ReadDataSourceEncrypted too, which dispatches on the type name
+		// before touching the address or the encryption. Neither is used by
+		// an estate-outputs read, so this passes disabled encryption rather
+		// than building the configuration's own - a broken encryption block
+		// must not refuse a read that never decrypts anything.
+		tfp, ok := provider.(encryptedDataSourceReader)
+		if !ok {
+			return cty.NilVal, r.refuse(src, SummaryReadFailed,
+				"%s's provider does not support the builtin terraform provider's read path; this is a defect in the calling code.",
+				src.Resource.String())
+		}
+		resp = tfp.ReadDataSourceEncrypted(r.ctx, req, r.representativeInstance(src, keys), encryption.Disabled())
 	} else {
 		resp = provider.ReadDataSource(r.ctx, req)
+	}
+	if resp.Diagnostics.HasErrors() && src.EstateOutputs {
+		// GitHub issue #1575: the builtin provider answers this source from
+		// the record store through internal/live/projection's
+		// ReadEstateOutputs, whose refusals are already named and registered
+		// there - a missing grant names the other estate and the grant to
+		// add, an unrecorded output names the output - and the plan walk's
+		// own read of the same block raises them in exactly these words.
+		// Wrapping them in this phase's generic read failure would hide the
+		// one actionable sentence behind "the provider said", so they pass
+		// through as the store raised them. Warnings ride along only on
+		// failure; on success the plan walk raises the as-of warning itself,
+		// and raising it here too would say it twice.
+		r.diags = r.diags.Append(resp.Diagnostics)
+		return cty.NilVal, false
 	}
 	if resp.Diagnostics.HasErrors() {
 		switch {
