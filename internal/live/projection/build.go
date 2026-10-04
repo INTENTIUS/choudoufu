@@ -2273,6 +2273,13 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		// seed above, which would otherwise put the written fields back.
 		// See nodestamp_fieldmanager.go.
 		attrsSeed = fieldGranularSeed(attrsSeed, b.opts.Ownership.Estate)
+		if w.undeclared {
+			// GitHub issue #1863: an orphan the field-manager sweep found
+			// has no configuration to seed from, and kubernetes_env's
+			// read finds its container by name in the prior. See
+			// [fieldGranularOrphanSeed].
+			attrsSeed = fieldGranularOrphanSeed(attrsSeed, schema, w.values)
+		}
 	}
 
 	// GitHub issues #1185 and #1240: one decode of the resource's own
