@@ -127,6 +127,8 @@ var providerStringAllowed = map[string]providerStringException{
 	"internal/command/live_bucket_contract.go:bucketWaiverWarnings": {Why: "warns once per waived allow_insecure setting, named per record_store kind (the bucket's three settings, the cluster's four); same record-store enum as configs/live.go's, not a Substrate dispatch"},
 
 	// uniquename regex.
+	// managed control plane recognition (#1524).
+	"internal/live/managedk8s/infer.go:eksClusterFromExec": {Why: "\"aws\" here is the AWS CLI's executable name, compared against a kubeconfig exec plugin's command to read `aws eks get-token --cluster-name`; it recognises which managed Kubernetes control plane (EKS, GKE, AKS) a cluster runs on for the record store's encryption_at_rest read, which is not a choice between the aws and kubernetes substrates and has no counterpart behind the seam"},
 	"internal/live/uniquename/uniquename.go:listingScopes": {Why: "issue #51's Cloud Control listing-scope word list, read only from AWS provider argument descriptions (Asserted's only caller is the AWS-only row-gen path); \"aws\" is a scope word (\"unique to your AWS account\") like \"account\" and \"region\", not a substrate dispatch"},
 
 	// --- sites this guard's own first run found beyond the seed list ---

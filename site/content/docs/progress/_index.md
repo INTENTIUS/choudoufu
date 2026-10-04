@@ -6,9 +6,22 @@ bookCollapseSection: true
 
 # How close AWS is
 
-An estate is a real OpenTofu or Terraform configuration, pinned by commit,
-run through every stage below side by side with stock OpenTofu. It is clear
-when every headline stage passes.
+This page is for people building choudoufu. If you are deciding whether to
+use it, [the claims]({{< relref "/docs/claims" >}}) are the proof surface:
+each promise is a scenario you can run, with an arm that breaks it on
+purpose. That ruling is
+[#643](https://github.com/INTENTIUS/choudoufu/issues/643)'s, building on
+[#522](https://github.com/INTENTIUS/choudoufu/issues/522)'s split of the old
+single headline number.
+
+What this page measures is breadth and regression. An estate is a real
+OpenTofu or Terraform configuration someone else wrote, pinned by commit, run
+through every stage below side by side with stock OpenTofu. It is clear when
+every headline stage passes. Real, externally authored configurations
+surface defects no purpose-built scenario anticipates, so the board is the
+net that catches them. It is re-measured on a cadence, when the maintainer
+dispatches the Gauntlet workflow (typically before a release), not on every
+change, so a row is as current as its commit and date.
 
 {{< gauntlet-bars >}}
 

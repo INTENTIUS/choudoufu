@@ -348,3 +348,33 @@ func repoRootFromTest(t *testing.T) string {
 	}
 	return root
 }
+
+// TestReachUntaggableSpanMatchesTheArtifacts is issue #1088's drift guard
+// for the site's governance reach page. It used to say "a minority" of
+// admitted types take no tags; it now carries the generated count and the
+// worst services, and this holds that span to the same split live/MARKERS.md
+// renders from.
+func TestReachUntaggableSpanMatchesTheArtifacts(t *testing.T) {
+	root := repoRootFromTest(t)
+	split, err := deriveGovernanceSplit(root)
+	if err != nil {
+		t.Fatalf("deriving the split: %v", err)
+	}
+	raw, err := os.ReadFile(filepath.Join(root, reachMDRel))
+	if err != nil {
+		t.Fatalf("reading %s: %v", reachMDRel, err)
+	}
+	shipped, err := spanContent(reachMDRel, string(raw), spanReachUntaggable)
+	if err != nil {
+		t.Fatalf("%s no longer carries the %q span: %v", reachMDRel, spanReachUntaggable, err)
+	}
+	want := renderReachUntaggable(split)
+	if strings.TrimSpace(shipped) != strings.TrimSpace(want) {
+		t.Errorf("%s's %q span is stale.\n\nshipped:\n%s\n\nre-rendered:\n%s\n\n"+
+			"Run `just survey-render` rather than editing the figure.",
+			reachMDRel, spanReachUntaggable, shipped, want)
+	}
+	if len(split.Untaggable) == 0 || !strings.Contains(want, "S3 ") {
+		t.Errorf("the reach span names no untaggable types, or lost S3 (14 of 16 admitted S3 types at #1088): %q", want)
+	}
+}

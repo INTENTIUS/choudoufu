@@ -17,7 +17,9 @@ set -uo pipefail
 # unblocked only by a hand SIGTERM.
 #
 # This self-test extracts teardown() and provider_block() VERBATIM out of
-# a real terralith-scale.sh (default: the one shipped beside this script)
+# a real terralith-scale.sh (default: the one shipped beside this script),
+# with heartbeat_stop() when that revision defines it (teardown() calls it
+# since #1324),
 # and runs them in a minimal, fully-stubbed harness: no AWS calls, no
 # docker, no terraform, no go build. The untrusted step's own binary (TOFU)
 # is a fake that sleeps (simulating the hang); the trusted step's binary
@@ -28,8 +30,8 @@ set -uo pipefail
 #
 # The self-test's own OUTER bound (further below) exists only so that
 # running this against the UNFIXED script - which has no inner timeout at
-# all - fails in seconds rather than hanging this self-test for the fake
-# step's own sleep duration.
+# all - fails in bounded time rather than hanging this self-test for the
+# fake step's own sleep duration.
 #
 # Usage: bash live/live-cert/selftest-teardown-timeout.sh
 #   TERRALITH_SCALE_SH=<path> to extract from a different revision, e.g.
@@ -66,7 +68,7 @@ command -v timeout >/dev/null 2>&1 || { echo "FAIL: timeout is not on PATH - thi
 SRC="$WORK/source.sh"
 cat "$SRC_ARG" > "$SRC"
 
-echo "=== selftest-teardown-timeout: extracting teardown()/provider_block() from $SRC_ARG ==="
+echo "=== selftest-teardown-timeout: extracting teardown()/provider_block()/heartbeat_stop() from $SRC_ARG ==="
 
 # Anchored on the exact signature both functions have always had ("<name>()
 # {" on its own line) and tracks brace depth (skipping the body of any
@@ -109,6 +111,13 @@ TEARDOWN_SRC="$(extract_func teardown "$SRC")"
 PROVIDER_SRC="$(extract_func provider_block "$SRC")"
 [ -n "$TEARDOWN_SRC" ] || { echo "FAIL: could not find teardown() in $SRC"; exit 1; }
 [ -n "$PROVIDER_SRC" ] || { echo "FAIL: could not find provider_block() in $SRC"; exit 1; }
+# teardown() calls heartbeat_stop first thing (#1324). It was not extracted
+# until #1568, so every run printed "heartbeat_stop: command not found" and
+# went on, testing a teardown() that was no longer the one that runs. It is
+# extracted when the source defines it and NOT stubbed when it does not: a
+# pre-#1324 revision never calls it, and a later rename shows up as the
+# "command not found" the check after the run refuses by name.
+HEARTBEAT_SRC="$(extract_func heartbeat_stop "$SRC")"
 
 BIN="$WORK/bin"; mkdir -p "$BIN"
 ADOPTED_DIR_PATH="$WORK/adopted"; COLD_DIR_PATH="$WORK/cold"
@@ -121,7 +130,7 @@ cat > "$BIN/fake-tofu" <<'EOF'
 # CreatePolicy/EntityAlreadyExists hang observed 2026-09-11. Finite (not
 # forever) purely so a run against the unfixed script - which has nothing
 # to kill this with - cannot leave a permanent orphan process behind.
-sleep 30
+sleep 120
 EOF
 cat > "$BIN/fake-terraform" <<EOF
 #!/usr/bin/env bash
@@ -138,6 +147,7 @@ RUNNER="$WORK/runner.sh"
   printf '%s\n' 'set -uo pipefail'
   printf '%s\n' "$TEARDOWN_SRC"
   printf '%s\n' "$PROVIDER_SRC"
+  [ -z "$HEARTBEAT_SRC" ] || { printf 'HEARTBEAT_PID=\n'; printf '%s\n' "$HEARTBEAT_SRC"; }
   # The harness: everything else teardown() touches, stubbed.
   printf '%s\n' 'log() { printf "  [harness] %s\n" "$*"; }'
   printf '%s\n' 'verify_empty() { return 0; }'
@@ -164,18 +174,33 @@ RUNNER="$WORK/runner.sh"
 } > "$RUNNER"
 
 # Outer bound: comfortably more than the fixed script's own (short)
-# UNTRUSTED_TEARDOWN_TIMEOUT_S so the fix has time to finish, comfortably
-# LESS than fake-tofu's own sleep so the unfixed script fails this test in
-# seconds rather than in 30s.
-OUTER_BOUND_S=15
-echo "=== selftest-teardown-timeout: running teardown() with a hung untrusted step (fake-tofu sleeps 30s), outer self-test bound ${OUTER_BOUND_S}s ==="
+# UNTRUSTED_TEARDOWN_TIMEOUT_S so the fix has time to finish, and well
+# under fake-tofu's own sleep so the unfixed script still fails here rather
+# than reaching the trusted destroy once the sleep ends. It was 15s under a
+# 30s sleep, and a run with `go test ./internal/command/...` loading the
+# same machine took all 15 (#1568): the bound has to absorb every fork,
+# exec and awk in the harness, not only the 2s inner timeout, so it is 60s
+# under a 120s sleep now. The fixed script finishes in ~2s; the margin is
+# for the load, and costs nothing on a pass.
+OUTER_BOUND_S=60
+echo "=== selftest-teardown-timeout: running teardown() with a hung untrusted step (fake-tofu sleeps 120s), outer self-test bound ${OUTER_BOUND_S}s ==="
 START=$(date +%s)
-timeout "${OUTER_BOUND_S}s" bash "$RUNNER"
+RUNNER_OUT="$WORK/runner.out"
+timeout "${OUTER_BOUND_S}s" bash "$RUNNER" > "$RUNNER_OUT" 2>&1
 RUNNER_RC=$?
 END=$(date +%s)
+cat "$RUNNER_OUT"
 echo "  runner exited ${RUNNER_RC} after $((END - START))s"
 
 selftest_finished=1
+# A function teardown() calls that the harness neither extracted nor
+# stubbed prints "command not found" and bash carries on, so the run still
+# reaches the marker while testing a teardown() that is not the shipped one
+# (#1568). That is a failure of this self-test, named here.
+if grep -q 'command not found' "$RUNNER_OUT"; then
+  echo "=== selftest-teardown-timeout: FAIL - teardown() called something this harness neither extracted nor stubbed, so the function under test is not the shipped one: $(grep 'command not found' "$RUNNER_OUT" | head -3 | tr '\n' ' ')==="
+  exit 1
+fi
 if [ -f "$MARKER" ]; then
   echo "=== selftest-teardown-timeout: PASS - the trusted destroy (fake-terraform) ran and left its marker, even though the untrusted step (fake-tofu) hung ==="
   exit 0

@@ -39,6 +39,17 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.22.0 (Unreleased)
 
+- New: `record_store "kubernetes"` takes a `control_plane "eks" | "gke" |
+  "aks"` block naming the managed control plane its cluster runs on, and
+  `encryption_at_rest` is then read from that provider's API (EKS
+  `DescribeCluster` `encryptionConfig` and its 1.28+ envelope default, GKE
+  `databaseEncryption.currentState`, AKS `securityProfile.azureKeyVaultKms`)
+  instead of reporting NOT CHECKED on every managed cluster. An EKS
+  connection through `aws eks get-token --cluster-name` is recognised with no
+  block. The answer is believed only when the provider's endpoint for the
+  cluster is the host the store reaches. `live/managed-k8s/harness.sh` runs
+  the store against a real managed cluster; it is a paid run and the
+  maintainer's (#1524).
 - New: `choudoufu live-plan-set ROOT...` plans a set of estate roots in one
   invocation, `-parallel-estates` at a time, with one provider cache shared
   across them so a provider release is installed once rather than once per

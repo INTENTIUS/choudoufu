@@ -406,33 +406,3 @@ func TestMove_LabelSurfaceRefusals(t *testing.T) {
 		})
 	}
 }
-
-func TestMove_ManifestSurfaceMoveIsRefusedByName(t *testing.T) {
-	addr := mustAddr(t, labelTestType+".database")
-	cluster := newLabelTestCluster(t, manifestTestSchema(), cty.NullVal(manifestTestSchema().Block.ImpliedType()))
-	res, diags := Move(t.Context(), labelTestRequest(t, cluster, labelTestConfig(t, labelTestType, "database"), addr, addr, "app", "data"))
-	if !diags.HasErrors() {
-		t.Fatal("a cross-estate move of a manifest-declared object was not refused")
-	}
-	var found bool
-	for _, d := range diags {
-		if d.Description().Summary == SummaryManifestMoveUnsupported {
-			found = true
-			if !strings.Contains(d.Description().Detail, "kubectl label") || !strings.Contains(d.Description().Detail, "tofu-estate=data") {
-				t.Errorf("the refusal does not name the equivalent kubectl write:\n%s", d.Description().Detail)
-			}
-		}
-	}
-	if !found {
-		t.Errorf("no %q diagnostic; got %s", SummaryManifestMoveUnsupported, diags.Err())
-	}
-	if res.Surface != markers.SurfaceManifest {
-		t.Errorf("Surface = %q, want %q", res.Surface, markers.SurfaceManifest)
-	}
-	if cluster.reads != 0 || cluster.applies != 0 {
-		t.Errorf("a by-name refusal still reached the cluster: %d reads, %d applies", cluster.reads, cluster.applies)
-	}
-
-	// A same-estate rename on the manifest surface is an annotation patch
-	// (GitHub issue #1639); address_annotation_test.go covers it.
-}

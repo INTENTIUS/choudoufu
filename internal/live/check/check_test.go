@@ -144,7 +144,13 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// label-selected list per kind over client-go, consumed by
 		// internal/live/discovery's own Kubernetes leg, which is where
 		// every verdict about what it finds is made and classified.
-		"kubesweep":   true,
+		"kubesweep": true,
+		// GitHub issue #1524: asks EKS, GKE or AKS whether a managed
+		// cluster encrypts Secrets at rest and returns the provider's
+		// answer as data. It emits no diagnostic; the encryption_at_rest
+		// finding is made in internal/live/staterecord's cluster contract,
+		// which is where every verdict about that answer lives.
+		"managedk8s":  true,
 		"markerstrip": true,
 		"marksafe":    true, // issue #240's lockstep scanner over mark-unsafe cty accessors, plus its mark-injection sweep
 		"mdspan":      true, // rewrites generated regions of a markdown doc

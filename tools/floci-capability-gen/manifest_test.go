@@ -131,3 +131,47 @@ func TestWriteManifestRoundTrips(t *testing.T) {
 		t.Fatalf("reloaded artifact = %+v, want the one image back", reloaded)
 	}
 }
+
+// TestPruneToPinKeepsOnlyThePinnedDigest covers -mode=prune (#697): every
+// other digest goes, the pinned entry survives byte for byte, and the pin is
+// recorded as the manifest's image.
+func TestPruneToPinKeepsOnlyThePinnedDigest(t *testing.T) {
+	pinned := imageArtifact{
+		Digest: "sha256:bbb",
+		Ref:    "ghcr.io/lex00/floci@sha256:bbb",
+		Types:  []typeRow{{Type: "aws_qldb_ledger", Status: "unimplemented", Evidence: "hand row", Source: "README"}},
+	}
+	art := &manifestArtifact{Images: []imageArtifact{
+		{Digest: "sha256:aaa", Ref: "ghcr.io/lex00/floci@sha256:aaa"},
+		pinned,
+		{Digest: "sha256:ccc", Ref: "ghcr.io/lex00/floci@sha256:ccc"},
+	}}
+	if err := art.pruneToPin("ghcr.io/lex00/floci@sha256:bbb"); err != nil {
+		t.Fatalf("pruneToPin: %v", err)
+	}
+	if len(art.Images) != 1 || art.Images[0].Digest != "sha256:bbb" {
+		t.Fatalf("images after prune = %+v, want only sha256:bbb", art.Images)
+	}
+	if len(art.Images[0].Types) != 1 || art.Images[0].Types[0] != pinned.Types[0] {
+		t.Errorf("the pinned entry changed under prune: %+v", art.Images[0])
+	}
+	if art.Image != "ghcr.io/lex00/floci@sha256:bbb" {
+		t.Errorf("image = %q, want the pin ref", art.Image)
+	}
+}
+
+// TestPruneToPinRefusesAnUnprobedPin: pruning to a digest with no entry
+// would write an empty manifest and turn every capability gate into "not
+// yet investigated" silently, so it refuses and leaves the artifact alone.
+func TestPruneToPinRefusesAnUnprobedPin(t *testing.T) {
+	art := &manifestArtifact{Images: []imageArtifact{{Digest: "sha256:aaa"}}}
+	if err := art.pruneToPin("ghcr.io/lex00/floci@sha256:zzz"); err == nil {
+		t.Fatal("pruneToPin accepted a pin with no manifest entry")
+	}
+	if len(art.Images) != 1 {
+		t.Errorf("a refused prune still modified the manifest: %+v", art.Images)
+	}
+	if err := art.pruneToPin("ghcr.io/lex00/floci:latest"); err == nil {
+		t.Error("pruneToPin accepted a tag-only pin; the manifest is keyed by digest")
+	}
+}

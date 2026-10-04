@@ -37,23 +37,22 @@ as `tofu plan`
 | `choudoufu live-mv <old> <new>` | Renames a resource by rewriting its marker, with an empty plan on both sides |
 | `choudoufu live-check` | Says what in a configuration would be refused, before anything runs |
 
-## The promise, and where it is measured
+## The promise, and where it is proven
 
 If OpenTofu runs an estate, choudoufu runs it too: an equal plan, or a refusal
 this documentation names in advance. Anything else is a defect.
 [Plan fidelity]({{< relref "/docs/model/plan-fidelity" >}}) states the
-contract. It is measured by running real Terraform and OpenTofu
-configurations side by side with stock OpenTofu:
-
-{{< gauntlet-bars >}}
+contract, and [the claims]({{< relref "/docs/claims" >}}) are where it is
+proven: one runnable scenario per promise, each with an arm that breaks it on
+purpose and must be caught. `just smoke import` runs one in about two minutes.
 
 | Evidence | What it is |
 |---|---|
-| [The claims]({{< relref "/docs/claims" >}}) | Runnable scenarios, one per claim, each with an arm that breaks it on purpose. `just smoke import` runs one in about two minutes |
-| [How close AWS is]({{< relref "/docs/progress" >}}) | Every stage and every estate behind the two bars above |
+| [The claims]({{< relref "/docs/claims" >}}) | Runnable scenarios, one per claim, each with an arm that breaks it on purpose. This is the proof surface |
 | [What a plan costs]({{< relref "/docs/model/plan-cost" >}}) | The measured cost of a plan, with links to every figure behind it |
 | [Resource tier lookup]({{< relref "/docs/use/resource-tiers" >}}) | Every provider resource type, and what recovers its identity |
 | [`live/LIMITATIONS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md) | Every construct that is refused, the rule that refuses it, and the remedy |
+| [How close AWS is]({{< relref "/docs/progress" >}}) | The contributors' regression net: real-world configurations run through every stage beside stock OpenTofu, re-measured before a release |
 
 ## The stock base
 
