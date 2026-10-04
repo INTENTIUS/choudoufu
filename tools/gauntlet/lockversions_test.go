@@ -270,7 +270,7 @@ func TestK8sServerVersionReadsTheServerLine(t *testing.T) {
 			t.Errorf("gauntlet_k8s_server_version on %q = %q, want %q", tc.in, got, tc.want)
 		}
 	}
-	for _, rel := range []string{"corpus-quickpizza", "reference-k8s", "reference-k8s-stateful", "reference-k8s-cert-manager"} {
+	for _, rel := range []string{"corpus-quickpizza", "reference-k8s", "reference-k8s-stateful", "reference-k8s-cert-manager", "reference-k8s-workloads"} {
 		b, err := os.ReadFile(filepath.Join(root, "live", "e2e", rel, "run.sh"))
 		if err != nil {
 			t.Fatal(err)
