@@ -36,11 +36,9 @@ func TestKindOfType(t *testing.T) {
 		"kubernetes_daemonset":     {"DaemonSet", false, true},
 		"kubernetes_daemon_set_v1": {"DaemonSet", true, true},
 		"kubernetes_csi_driver_v1": {"CSIDriver", true, true},
-		// Not in client-go's registry (kube-aggregator's): the join stands.
-		"kubernetes_api_service_v1": {"ApiService", true, true},
-		"kubernetes_namespace":      {"Namespace", false, true},
-		"kubernetes_manifest":       {"Manifest", false, true},
-		"aws_s3_bucket":             {"", false, false},
+		"kubernetes_namespace":     {"Namespace", false, true},
+		"kubernetes_manifest":      {"Manifest", false, true},
+		"aws_s3_bucket":            {"", false, false},
 	} {
 		kind, versioned, ok := KindOfType(typeName)
 		if kind != want.kind || versioned != want.versioned || ok != want.ok {

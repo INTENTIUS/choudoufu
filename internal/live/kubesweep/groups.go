@@ -117,8 +117,8 @@ var (
 // undeclared object. The same k8s.io/client-go registry
 // [builtinKindGroups] reads is the authority here, with no type named; a
 // fold that would match two registered spellings changes nothing, and a
-// kind the registry does not carry (APIService, which lives in
-// kube-aggregator's) keeps the join.
+// kind the registry does not carry keeps the join (APIService, which lives
+// in kube-aggregator's, is spelled explicitly - #1880).
 func builtinKindSpelling(joined string) string {
 	builtinKindSpellingsOnce.Do(func() {
 		seen := map[string]map[string]bool{}
