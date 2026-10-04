@@ -774,6 +774,18 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 		return skip(fmt.Sprintf("%s is outside the subset a live run can plan (%d issue(s)); run \"choudoufu live-check %s\" for the detail.", dir, len(issues), dir))
 	}
 
+	// GitHub issue #1859: an identity that reads terraform_estate_outputs
+	// is read before resolution (GitHub issue #1575), through a record
+	// store this command never otherwise opens. Opened only for a
+	// configuration that declares such a block, so every other listing
+	// touches no store at all, as before.
+	storeDiags := c.liveLsOpenEstateOutputs(ctx, estate, dir, config)
+	diags = diags.Append(storeDiags)
+	if storeDiags.HasErrors() {
+		closeProviders()
+		return skip(fmt.Sprintf("the record store terraform_estate_outputs reads through refused to open: %s.", storeDiags.Err()))
+	}
+
 	dataResults, drDiags := liveDataReads(ctx, config, provs, resourceSchemas, nil)
 	if drDiags.HasErrors() {
 		closeProviders()

@@ -34,12 +34,18 @@ set -uo pipefail
 # (eks_access_api=false; estate.sh's header gives floci's list-only routes
 # as the reason). live/live-cert/reference-eks.sh creates them on real AWS.
 #
-# Stages run: cold_deploy, migrate, test_plan, test_apply, greenfield. Every
-# other active stage is reported not_run with the reason, so the row reads
-# honestly incomplete rather than silently short; the day-2 stages are the
-# next unit of work on this estate. Written under the maintainer's
-# no-testing ruling for #1113 and NOT run by the change that added it - the
-# first emulator run is its first measurement.
+# Stages run: every active stage. cold_deploy, migrate, test_plan,
+# test_apply and greenfield are this file's own; the day-2 stages, strict
+# and no_local_state are live/e2e/reference-eks/stages.sh's, the same
+# bodies live/live-cert/reference-eks.sh runs against real AWS, reached
+# through the ref_* hooks below. Their stock oracles are planned on copies
+# of cold_deploy's own state before migrate marks anything (stages.sh's
+# reference_eks_stock_oracles), except day2_replace's and day2_crash's,
+# which stock applies for real in a root and namespace of its own on the
+# same cluster. day2_teardown runs last: it destroys the cluster the
+# cluster leg lives on. Written under the maintainer's no-testing ruling
+# for #1113 and NOT run by the changes that added it - the first emulator
+# run is its first measurement.
 #
 #   bash live/e2e/reference-eks/run.sh
 #
@@ -49,16 +55,22 @@ set -uo pipefail
 #                greenfield emulator is FLOCI_PORT+1000).
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
 #                live/floci-image.
-#   BREAK        set to 1 to run the greenfield stage's negative control:
-#                one object (the config map) is dropped from the expected
-#                inventory, and the object-by-object comparison must then
-#                fail to hold.
+#   BREAK        set to 1 to run the negative controls of drift_reconverge
+#                (a second object tampered), day2_rename (the object's own
+#                name changed) and greenfield (the config maps dropped from
+#                the expected inventory). BREAK_APPROVAL, BREAK_REMOVE,
+#                BREAK_COUNT, BREAK_REPLACE, BREAK_CRASH,
+#                BREAK_CRASH_UNBOUND, BREAK_STRICT, BREAK_NO_LOCAL_STATE and
+#                BREAK_TEARDOWN run the others; stages.sh says what each
+#                does.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 # shellcheck source=live/e2e/lib/gauntlet.sh
 source "$ROOT/live/e2e/lib/gauntlet.sh"
 # shellcheck source=live/e2e/reference-eks/estate.sh
 source "$ROOT/live/e2e/reference-eks/estate.sh"
+# shellcheck source=live/e2e/reference-eks/stages.sh
+source "$ROOT/live/e2e/reference-eks/stages.sh"
 
 gauntlet_plugin_cache
 
@@ -89,7 +101,7 @@ CLUSTER="${PREFIX}-eks"
 # estate.sh. The count every assertion below uses follows from it.
 ACCESS_API=false
 AWS_N=15
-CLUSTER_N=4
+CLUSTER_N=6
 TOTAL_N=$((AWS_N + CLUSTER_N))
 
 cleanup() {
@@ -142,45 +154,22 @@ kc() {
 }
 
 # labelled_count <namespace> <estate>: cluster-leg objects carrying
-# tofu-estate=<estate>, over the four kinds the estate declares.
+# tofu-estate=<estate>, over the kinds the estate and its day-2 stages
+# declare (day2_crash adds a Secret).
 labelled_count() {
   local ns="$1" estate="$2" n=0 k got
-  for k in namespace serviceaccount configmap deployment; do
+  for k in namespace serviceaccount configmap deployment secret; do
     got="$(kc "$ns" get "$k" -A -l "tofu-estate=$estate" -o name)" || return 1
     n=$((n + $(printf '%s\n' "$got" | awk 'NF' | wc -l | tr -d ' ')))
   done
   printf '%s\n' "$n"
 }
 
-# inventory <aws-fn> <namespace>: the structural inventory greenfield
-# compares, one line per object, markers never part of it. The AWS leg by
-# the AWS CLI, the cluster leg by kubectl in the k3s container. The
-# first field of each line labels the object it describes.
-inventory() {
-  local awsf="$1" ns="$2" vpc
-  # Whole responses through jq, never a reducing CLI query: the CLI merges a
-  # paginated response's pages only when nothing reduces it first
-  # (live/awspagequery_test.go, #1042).
-  vpc="$("$awsf" ec2 describe-vpcs --filters "Name=tag:Name,Values=${PREFIX}-vpc" --output json | jq -r '.Vpcs[0].VpcId // empty')" || return 1
-  [ -n "$vpc" ] || return 1
-  "$awsf" ec2 describe-vpcs --vpc-ids "$vpc" --output json | jq -r '.Vpcs[] | ["vpc", .CidrBlock] | @tsv'
-  "$awsf" ec2 describe-subnets --filters "Name=vpc-id,Values=$vpc" --output json \
-    | jq -r '.Subnets[] | ["subnet", .CidrBlock, .AvailabilityZone, (.MapPublicIpOnLaunch|tostring)] | @tsv'
-  "$awsf" ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$vpc" --output json \
-    | jq -r '.InternetGateways[] | ["igw", .Attachments[0].State] | @tsv'
-  "$awsf" ec2 describe-route-tables --filters "Name=vpc-id,Values=$vpc" "Name=tag:Name,Values=${PREFIX}-public" --output json \
-    | jq -r '.RouteTables[] | ["rtb", (.Associations|length|tostring)] | @tsv'
-  "$awsf" iam get-role --role-name "${PREFIX}-cluster" --output json | jq -r '["role", .Role.RoleName] | @tsv'
-  "$awsf" iam get-role --role-name "${PREFIX}-node" --output json | jq -r '["role", .Role.RoleName] | @tsv'
-  "$awsf" eks describe-cluster --name "$CLUSTER" --output json \
-    | jq -r '["cluster", .cluster.name, (.cluster.resourcesVpcConfig.subnetIds|length|tostring)] | @tsv'
-  "$awsf" eks describe-nodegroup --cluster-name "$CLUSTER" --nodegroup-name "${PREFIX}-default" --output json \
-    | jq -r '.nodegroup | ["nodegroup", .nodegroupName, (.scalingConfig.desiredSize|tostring), (.scalingConfig.minSize|tostring), (.scalingConfig.maxSize|tostring)] | @tsv'
-  kc "$ns" get namespace app -o jsonpath='{"namespace\t"}{.metadata.name}{"\n"}'
-  kc "$ns" get serviceaccount app -n app -o jsonpath='{"serviceaccount\t"}{.metadata.name}{"\n"}'
-  kc "$ns" get configmap app-config -n app -o jsonpath='{"configmap\t"}{.metadata.name}{"\t"}{.data.greeting}{"\n"}'
-  kc "$ns" get deployment app -n app -o jsonpath='{"deployment\t"}{.metadata.name}{"\t"}{.spec.template.spec.serviceAccountName}{"\t"}{.spec.template.spec.containers[0].image}{"\n"}'
-}
+# The greenfield inventory is stages.sh's reference_eks_inventory, read
+# through these two: kubectl in the main run's k3s container and in the
+# greenfield run's.
+kc_main() { kc "$FLOCI_NS" "$@"; }
+kc_green() { kc "$FLOCI_GREEN_NS" "$@"; }
 
 aws_provider_block() {
   cat <<EOF
@@ -229,6 +218,36 @@ else
   ( cd "$ROOT" && env -u PWD go build -o "$TOFU" ./cmd/choudoufu ) || fail "go build ./cmd/choudoufu failed"
 fi
 log "  choudoufu: $TOFU"
+# day2_crash needs a build with e2eTestingFeatures set: the engine's own
+# TOFU_E2E_APPLY_RESOURCE_INTERRUPT hook (internal/command/
+# apply_e2etesting_crash.go) is compiled in only then.
+mkdir -p "$WORK/bin"
+TOFU_CRASH="$WORK/bin/choudoufu-e2e"
+( cd "$ROOT" && env -u PWD go build -ldflags="-X 'main.e2eTestingFeatures=yes'" -o "$TOFU_CRASH" ./cmd/choudoufu ) \
+  || fail "go build -ldflags e2eTestingFeatures ./cmd/choudoufu failed"
+log "  built $TOFU_CRASH (e2eTestingFeatures=yes, for day2_crash's interrupt)"
+
+# ── the hooks stages.sh runs every day-2 stage through ──────────────────────
+REF_RECORDS="$ADOPTED/.tofu-records"
+ref_kubectl() { kc "$FLOCI_NS" "$@"; }
+ref_aws() { awsl "$@"; }
+ref_tofu() { local d="$1"; shift; ( cd "$d" && with_endpoint "$ENDPOINT" "$TOFU" "$@" ); }
+ref_tofu_crash() { local d="$1"; shift; ( cd "$d" && with_endpoint "$ENDPOINT" "$TOFU_CRASH" "$@" ); }
+ref_stock() { local d="$1"; shift; with_endpoint "$ENDPOINT" terraform -chdir="$d" "$@"; }
+ref_root() { local d="$1" e="$2"; shift 2; reference_eks_main_tf "$e" "$(aws_provider_block)" "$PREFIX" "$ACCESS_API" "$REGION" "$@" > "$d/main.tf"; }
+ref_aws_provider() { aws_provider_block; }
+ref_labelled() { labelled_count "$FLOCI_NS" "$ESTATE"; }
+ref_aws_marked() { gauntlet_estate_objects "$ESTATE" awsl || return 1; printf '%s\n' "$GAUNTLET_ESTATE_N"; }
+# The create_before_destroy rename window is the kind lane's own body
+# (live/e2e/lib/gauntlet.sh's gauntlet_kind_day2_crash_rename), which reads
+# the record it asserts on from the local store this run keeps. It runs
+# kubectl through kca and choudoufu with KUBECONFIG=$KCA; here kubectl is
+# the k3s container's and the kubernetes provider is configured by the
+# estate's own block, so KCA is empty, and the emulator's endpoint reaches
+# the aws provider through with_endpoint's environment.
+kca() { kc "$FLOCI_NS" "$@"; }
+KCA=""
+ref_crash_rename() { with_endpoint "$ENDPOINT" gauntlet_kind_day2_crash_rename "$ADOPTED" "$REF_NS"; }
 
 log "=== 0b. floci on :$FLOCI_PORT ($FLOCI_IMAGE), EKS real mode, host endpoints ==="
 start_floci "$FLOCI_NAME" "$FLOCI_PORT" "$FLOCI_NS" || fail "floci did not come up healthy (eks) at $ENDPOINT"
@@ -251,10 +270,16 @@ grep -qE "Apply complete! Resources: ${TOTAL_N} added" "$WORK/stock_apply.out" \
 STATUS="$(awsl eks describe-cluster --name "$CLUSTER" --output json | jq -r '.cluster.status')" \
   || fail "the AWS CLI cannot describe cluster $CLUSTER after the cold apply"
 [ -n "$(k3s_of "$FLOCI_NS")" ] || fail "no k3s container for namespace $FLOCI_NS: floci did not start the cluster this estate's provider block configures against"
-STOCK_INVENTORY="$(inventory awsl "$FLOCI_NS")" || fail "could not read the stock inventory"
+STOCK_INVENTORY="$(reference_eks_inventory awsl kc_main "$PREFIX")" || fail "could not read the stock inventory"
 UNLABELLED="$(labelled_count "$FLOCI_NS" "$ESTATE")" || fail "could not count tofu-estate labels with kubectl in the k3s container"
 [ "$UNLABELLED" = "0" ] || fail "the stock cluster leg already carries $UNLABELLED tofu-estate=$ESTATE label(s) before any migration"
 gauntlet_stage cold_deploy pass "${TOTAL_N} resources from stock terraform (${AWS_N} AWS, ${CLUSTER_N} cluster objects) against floci-eks; cluster $CLUSTER is $STATUS and its k3s container $(k3s_of "$FLOCI_NS") holds the cluster leg, read with kubectl; zero tofu-estate labels; the kubernetes provider was configured from aws_eks_cluster.this with an exec token as written; access entry and pod identity association not created (eks_access_api=false: floci has no pod identity create, and the pinned image is not checked for access-entry create)"
+
+# The stock oracles for the day-2 stages, planned now, while the account is
+# exactly what stock left and nothing carries a marker (stages.sh). Nothing
+# here applies; each stage reads its own and fails on it if it is missing.
+log "=== stock oracles: day-2 plans on copies of cold_deploy's own state ==="
+reference_eks_stock_oracles
 
 # ══════════════════════════════════════════════════════════════════════
 # migrate: live-import against stock's state; both legs bound.
@@ -333,13 +358,13 @@ GREEN_APPLY="$(cd "$GREEN" && with_endpoint "$GREEN_ENDPOINT" "$TOFU" apply -inp
 [ "$GREEN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_APPLY" | tail -40; fail "the greenfield apply exited $GREEN_RC - a cluster that does not exist yet must read as empty, stock's order, not refuse"; }
 grep -qE "Apply complete! Resources: ${TOTAL_N} added" <<< "$GREEN_APPLY" \
   || { grep -E 'Apply complete' <<< "$GREEN_APPLY"; fail "the greenfield apply did not create exactly ${TOTAL_N} resources"; }
-GREEN_INVENTORY="$(inventory awsg "$FLOCI_GREEN_NS")" || fail "could not read the greenfield inventory"
+GREEN_INVENTORY="$(reference_eks_inventory awsg kc_green "$PREFIX")" || fail "could not read the greenfield inventory"
 EXPECTED="$STOCK_INVENTORY"
 if [ "${BREAK:-}" = "1" ]; then
   EXPECTED="$(grep -v '^configmap' <<< "$STOCK_INVENTORY")"
 fi
 if [ "$(sort <<< "$EXPECTED")" = "$(sort <<< "$GREEN_INVENTORY")" ]; then
-  [ "${BREAK:-}" = "1" ] && fail "BREAK=1: the config map was dropped from the expected inventory and the comparison still held"
+  [ "${BREAK:-}" = "1" ] && fail "BREAK=1: the config maps were dropped from the expected inventory and the comparison still held"
   GREEN_LABELLED="$(labelled_count "$FLOCI_GREEN_NS" "$GREEN_ESTATE")" || fail "could not count greenfield labels"
   [ "$GREEN_LABELLED" = "$CLUSTER_N" ] || fail "the greenfield cluster leg carries $GREEN_LABELLED tofu-estate=$GREEN_ESTATE label(s), want ${CLUSTER_N}"
   REPLAN="$(cd "$GREEN" && with_endpoint "$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$REPLAN" | tail -30; fail "the greenfield replan failed"; }
@@ -347,7 +372,7 @@ if [ "$(sort <<< "$EXPECTED")" = "$(sort <<< "$GREEN_INVENTORY")" ]; then
   gauntlet_stage greenfield pass "choudoufu applied ${TOTAL_N} resources into an empty floci-eks account, the kubernetes provider configured only once aws_eks_cluster.this existed; $(wc -l <<< "$GREEN_INVENTORY" | tr -d ' ') inventory lines (AWS CLI and kubectl) match stock's cold deploy object by object; ${CLUSTER_N} cluster-leg objects labelled; the replan is empty"
 else
   if [ "${BREAK:-}" = "1" ]; then
-    gauntlet_stage greenfield pass "BREAK=1 control: with the config map dropped from the expected inventory the object-by-object comparison correctly fails to hold"
+    gauntlet_stage greenfield pass "BREAK=1 control: with the config maps dropped from the expected inventory the object-by-object comparison correctly fails to hold"
   else
     diff <(sort <<< "$EXPECTED") <(sort <<< "$GREEN_INVENTORY") | sed 's/^/  /'
     fail "the greenfield inventory differs from stock's cold deploy (diff above)"
@@ -355,11 +380,21 @@ else
 fi
 
 # ══════════════════════════════════════════════════════════════════════
-# Not built yet for this estate.
+# The day-2 stages, strict and no_local_state: stages.sh's bodies, on the
+# adopted estate, in the order each leaves the next its starting point.
+# day2_teardown is last because it destroys the cluster the cluster leg
+# lives on.
 # ══════════════════════════════════════════════════════════════════════
-for s in drift_reconverge day2_rename day2_remove day2_count day2_replace day2_crash day2_teardown plan_approval strict no_local_state; do
-  gauntlet_stage "$s" not_run "not built for reference-eks yet: #1113 shipped cold_deploy, migrate, test_plan, test_apply and greenfield, the stages that measure the provider block against the cluster it creates; the day-2 stages are the estate's next unit"
-done
+reference_eks_stage_drift_reconverge
+reference_eks_stage_plan_approval
+reference_eks_stage_day2_rename
+reference_eks_stage_day2_remove
+reference_eks_stage_day2_count
+reference_eks_stage_day2_replace
+reference_eks_stage_day2_crash
+reference_eks_stage_strict
+reference_eks_stage_no_local_state
+reference_eks_stage_day2_teardown
 
 gauntlet_end
-log "=== reference-eks: five stages run on floci-eks; the rest reported not_run ==="
+log "=== reference-eks: every active stage run on floci-eks ==="

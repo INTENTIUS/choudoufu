@@ -37,10 +37,11 @@ Read out of the generated workflows, not out of prose:
 | `live-adopt` | push to `staging` | all three forges |
 | `live-apply` | push to `main` | all three forges |
 | `live-discover` | cron `0 6 * * *` | all three forges |
-| `live-adopt-gate-notice`, `live-apply-gate-notice` | after their job, when it gated | GitHub only |
+| `backend-prepare` | push to `bootstrap` | all three forges |
+| `live-adopt-gate-notice`, `live-apply-gate-notice`, `backend-prepare-gate-notice` | after their job, when it gated | GitHub only |
 
 Only the first two can be required status checks. A forge reports a check when
-a job runs, and the other four never run on a pull request, so requiring
+a job runs, and the other five never run on a pull request, so requiring
 `live-apply` would leave every pull request pending forever. That is the whole
 list of jobs a branch-protection rule here can name.
 

@@ -11,7 +11,7 @@ them.
 [`examples/ci-pipelines`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/ci-pipelines/README.md)
 is that project, with the generated workflows checked in beside it.
 
-Five Ops, whose names are also the five job names:
+Six Ops, whose names are also the six job names:
 
 | Job | Trigger | What it does |
 |---|---|---|
@@ -20,9 +20,13 @@ Five Ops, whose names are also the five job names:
 | `live-apply` | push to `main` | Init, `plan -out`, a gate on the rendered plan, then `apply <planfile>`. |
 | `live-adopt` | push to `staging` | Check, the adoption ledger, a gate, then the two marker tags per adoptable resource. Nothing in the source changes. |
 | `live-discover` | cron | Sweeps the account with `live-ls -consistent`, reads the adoption ledger over it, and reports what carries this estate's marker that nobody declared. |
+| `backend-prepare` | push to `bootstrap` | Builds the record store bucket's template from [`examples/record-store-bucket`](https://github.com/INTENTIUS/choudoufu/tree/main/examples/record-store-bucket), a gate bound to that template, then that project's own `just up` and `choudoufu live-bucket`. |
 
-Three of them read and nothing else. The two that write are the two on a push
-trigger, and both stop at an approval first.
+Three of them read and nothing else. The three that write are the three on a
+push trigger, and all three stop at an approval first. `backend-prepare` is
+the one the other five stand on: it creates the bucket the estate's records
+live in, so a fresh environment needs nobody to run a justfile on a laptop
+first.
 
 The gate is a fact on chant's ledger, and no runner is held open for it. A
 run that reaches the gate finds no resolution, records that it is waiting,
@@ -58,6 +62,9 @@ environment. Here it is a choice of which Op an environment runs:
 - production applies, behind its gate. A push to `main` runs `live-apply`.
 - the account is swept regardless. `live-discover` runs on its cron, which is
   the only job looking at resources nobody has opened a pull request about.
+- the backend is prepared once per environment, behind its own gate. A push
+  to `bootstrap` runs `backend-prepare`, which stands the record store
+  bucket up, or updates it, under a role no other job holds.
 
 All of that is one `chant.config.ts` over one root, so there is no second
 copy of the pipeline to keep in step with the first. An environment differs
@@ -65,7 +72,7 @@ by which Op fires on which trigger.
 
 ## Per forge
 
-What each forge's pipeline does. All three generate the full five-job set
+What each forge's pipeline does. All three generate the full six-job set
 now (GitLab crossed over in chant #2268), and the differences below come
 from what each forge's dialect can carry:
 
@@ -156,9 +163,9 @@ carries the GitLab run in full.
 [`examples/pipeline-governance`](https://github.com/INTENTIUS/choudoufu/tree/main/examples/pipeline-governance)
 holds one warden policy per forge - `github`, `forgejo` and `gitlab`
 ([#1008](https://github.com/INTENTIUS/choudoufu/issues/1008)) - written
-against the five job names above. `live-check` and `live-plan` are required
-checks before a pull request can merge; `main`, `staging` and
-`chant/lifecycle` are all protected branches on every forge
+against the six job names above. `live-check` and `live-plan` are required
+checks before a pull request can merge; `main`, `staging`,
+`bootstrap` and `chant/lifecycle` are all protected branches on every forge
 ([#1024](https://github.com/INTENTIUS/choudoufu/issues/1024)); the apply
 credential is required to be present without its value being read.
 
@@ -197,7 +204,7 @@ of the generated trees themselves, not assumed.
 | | GitHub | Forgejo | GitLab |
 |---|---|---|---|
 | Region | `AWS_REGION` repository variable, read by every job | `AWS_REGION` repository variable | `AWS_REGION` project CI/CD variable |
-| Credentials | 3 role ARNs as repository variables (`CHOUDOUFU_PLAN_ROLE_ARN` for `live-plan`/`live-discover`, `CHOUDOUFU_ADOPT_ROLE_ARN` for `live-adopt`, `CHOUDOUFU_APPLY_ROLE_ARN` for `live-apply`) plus matching IAM roles, OIDC-trusted for `pull_request`+`refs/heads/main` (plan role), `refs/heads/staging` (adopt role), `refs/heads/main` (apply role); `live-check` needs none | 3 static key pairs as repository secrets, one per job that needs one (`CHOUDOUFU_PLAN_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY` for `live-plan`/`live-discover`, `CHOUDOUFU_ADOPT_*` for `live-adopt`, `CHOUDOUFU_APPLY_*` for `live-apply`) - job-scoped since #1028, so `live-check` holds none | the same three role ARNs as project CI/CD variables (unprotected, or paired with protected source branches - a protected one is silently absent otherwise) plus IAM roles trusting `aud: $CI_SERVER_URL`; `GITLAB_TOKEN` (masked, scope `api`) for `live-plan`'s note and `live-discover`'s issue, required rather than a fallback |
+| Credentials | 4 role ARNs as repository variables (`CHOUDOUFU_PLAN_ROLE_ARN` for `live-plan`/`live-discover`, `CHOUDOUFU_ADOPT_ROLE_ARN` for `live-adopt`, `CHOUDOUFU_APPLY_ROLE_ARN` for `live-apply`, `CHOUDOUFU_BACKEND_ROLE_ARN` for `backend-prepare`) plus matching IAM roles, OIDC-trusted for `pull_request`+`refs/heads/main` (plan role), `refs/heads/staging` (adopt role), `refs/heads/main` (apply role), `refs/heads/bootstrap` (backend role); `live-check` needs none | 4 static key pairs as repository secrets, one per job that needs one (`CHOUDOUFU_PLAN_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY` for `live-plan`/`live-discover`, `CHOUDOUFU_ADOPT_*` for `live-adopt`, `CHOUDOUFU_APPLY_*` for `live-apply`, `CHOUDOUFU_BACKEND_*` for `backend-prepare`) - job-scoped since #1028, so `live-check` holds none | the same four role ARNs as project CI/CD variables (unprotected, or paired with protected source branches - a protected one is silently absent otherwise) plus IAM roles trusting `aud: $CI_SERVER_URL`; `GITLAB_TOKEN` (masked, scope `api`) for `live-plan`'s note and `live-discover`'s issue, required rather than a fallback |
 | Compute | - | a runner registered under the `docker` label, reachable to `https://code.forgejo.org/actions/checkout@v4` (every job's first step) | `gitlab-runner` on the docker executor |
 | Apply gate | `production` environment, required reviewer - `live-apply` declares `environment: { name: production }` and nothing else gates it | none - Forgejo Actions has no environments | `production` protected environment; Premium only, 404 on CE, where chant's own gate is the only control |
 | Governance | [`examples/pipeline-governance/github`](https://github.com/INTENTIUS/choudoufu/tree/main/examples/pipeline-governance/github)'s branch rules | [`examples/pipeline-governance/forgejo`](https://github.com/INTENTIUS/choudoufu/tree/main/examples/pipeline-governance/forgejo)'s branch rules | [`examples/pipeline-governance/gitlab`](https://github.com/INTENTIUS/choudoufu/tree/main/examples/pipeline-governance/gitlab)'s rules |

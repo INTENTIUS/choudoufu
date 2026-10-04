@@ -211,6 +211,14 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		// listing would find it and the plan would propose destroying
 		// whatever it names.
 		rootOutputStore = projection.NewRootOutputStore(store, args.Estate)
+		// GitHub issue #1859: terraform_estate_outputs reads another
+		// estate's recorded outputs through the same store, and the
+		// identity data-read phase below reads it before resolution
+		// (GitHub issue #1575). Without this the builtin provider answered
+		// every such read "Estate outputs need a live block" on a
+		// configuration that has one. A configuration with no live block
+		// never reaches here, and that refusal stays true for it.
+		c.liveEstateOutputs().open(store, recordStoreCfg, args.Estate, "")
 	}
 
 	// GitHub issue #1543: the provider-configuration data-read phase, which

@@ -10,14 +10,14 @@
   },
   "condition": "choudoufu-live-plan-set-vs-separate-live-plan-after-own-apply",
   "substrate": "floci",
-  "emulator": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
-  "commit": "269c0a0911cc3a37c7e24b5e69f12e35793672b6",
-  "date": "2026-10-03T02:23:35Z",
+  "emulator": "ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144",
+  "commit": "f650063f1ba232affa293462716cecbe7711f569",
+  "date": "2026-10-04T03:24:17Z",
   "repeats": 3,
   "baseline": {
     "path": "live/large-set/baseline-n5.json",
-    "commit": "316b310d9ad5243eee709d60e076b4c3f60e19a5",
-    "date": "2026-10-03T02:04:49Z"
+    "commit": "afa7cc4d72cb63d46906a4cd9c66db1d2aee3de5",
+    "date": "2026-10-04T03:17:00Z"
   },
   "set": {
     "calls": [
@@ -26,14 +26,14 @@
       393
     ],
     "seconds": [
-      7.7,
-      9.99,
-      14.43
+      2.55,
+      2.56,
+      2.62
     ],
     "peak_rss_kb": [
-      3224704,
-      3740976,
-      3721088
+      3584912,
+      3644352,
+      3612304
     ],
     "peak_procs": [
       11,
@@ -55,14 +55,14 @@
         393
       ],
       "seconds": [
-        27.33,
-        33.81,
-        37.25
+        8.82,
+        9.24,
+        9.35
       ],
       "peak_rss_kb": [
-        758096,
-        782944,
-        768384
+        735952,
+        719904,
+        749632
       ],
       "peak_procs": [
         2,
@@ -71,14 +71,14 @@
       ]
     },
     "slowest_seconds": [
-      6.66,
-      8.48,
-      9.54
+      1.82,
+      1.94,
+      1.94
     ],
     "show_seconds": [
-      0.18,
-      0.2,
-      0.46
+      0.13,
+      0.14,
+      0.14
     ]
   },
   "estates": [

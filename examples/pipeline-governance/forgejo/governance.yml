@@ -77,6 +77,17 @@ orgs:
             enablePush: false
             requiredApprovals: 1
 
+          # ── The branch backend-prepare stands the bucket up from ──────────
+          #
+          # backend-prepare runs on a push to bootstrap (#1832), after chant's
+          # own gate, holding the backend key pair - the only credential in
+          # the example that can create the record store bucket and rewrite
+          # its policy. Protected the same way as staging, for the same
+          # reason, and with no required status checks for the same reason.
+          - ruleName: bootstrap
+            enablePush: false
+            requiredApprovals: 1
+
         # ── The credentials the workflows read ───────────────────────────────
         #
         # No OIDC path from Forgejo to AWS is verified anywhere in this
@@ -84,8 +95,9 @@ orgs:
         # repository secrets - one pair per Op that needs one, since #1028
         # moved them off the workflow-wide `variables:` and onto each Op's own
         # job. `live-check` needs none, `live-plan` and `live-discover` share
-        # a read pair, and `live-adopt`/`live-apply` each get their own write
-        # pair - the same split GitHub's three role ARNs make. warden manages
+        # a read pair, and `live-adopt`/`live-apply`/`backend-prepare` each
+        # get their own write pair - the same split GitHub's four role ARNs
+        # make. warden manages
         # a secret's PRESENCE and never its value.
         #
         # One caveat with teeth, from forgejo-warden's own
@@ -95,7 +107,7 @@ orgs:
         # unset. So an apply run that has not been handed the key creates the
         # secret empty rather than refusing - which is the opposite of
         # github-warden's behaviour, and the reason to run this policy in
-        # dry-run first and provision all six values before the first apply.
+        # dry-run first and provision all eight values before the first apply.
         secrets:
           - name: CHOUDOUFU_PLAN_ACCESS_KEY_ID
           - name: CHOUDOUFU_PLAN_SECRET_ACCESS_KEY
@@ -103,6 +115,8 @@ orgs:
           - name: CHOUDOUFU_ADOPT_SECRET_ACCESS_KEY
           - name: CHOUDOUFU_APPLY_ACCESS_KEY_ID
           - name: CHOUDOUFU_APPLY_SECRET_ACCESS_KEY
+          - name: CHOUDOUFU_BACKEND_ACCESS_KEY_ID
+          - name: CHOUDOUFU_BACKEND_SECRET_ACCESS_KEY
 
         # A variable value is not secret and is reconciled fully: warden puts
         # it back if someone edits it in the UI. The generated workflows read

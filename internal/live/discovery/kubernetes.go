@@ -19,6 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -160,6 +161,7 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 	// kind: a reader of the scan table asks "was kubernetes_manifest
 	// swept", and the kinds are the detail of the answer.
 	manifestKinds, manifestDeclared := 0, declared.Count()
+	stmts := moved.Honoured(req.Config)
 	listed := ListedObjects{}
 	var undeclared []UndeclaredObject
 	var unlisted []kubesweep.Kind
@@ -238,8 +240,12 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 		}
 		notInManifest = append(notInManifest, ownerSkipped.Unlisted...)
 		for _, o := range objects {
-			listed.Add(k.Kind, kubesweep.NaturalKey(o.Namespace, o.Name))
-			if _, isDeclared := declared.Declares(k.Kind, kubesweep.NaturalKey(o.Namespace, o.Name)); isDeclared {
+			key := kubesweep.NaturalKey(o.Namespace, o.Name)
+			listed.Add(k.Kind, key)
+			if addr, isDeclared := declared.Declares(k.Kind, key); isDeclared {
+				if vouchesDeclared(req, declared, stmts, k.Kind, key, addr, o) {
+					res.VerifiedDeclared = append(res.VerifiedDeclared, addr)
+				}
 				continue
 			}
 			undeclared = append(undeclared, UndeclaredObject{Kind: k, TypeName: typeName, Object: o})
@@ -326,6 +332,13 @@ type KubernetesDeclared struct {
 	// declared that way meets a listed ConfigMap exactly as a
 	// kubernetes_config_map block's would.
 	Objects map[string]map[string]addrs.AbsResourceInstance
+	// Ambiguous names every object two or more instances declare (a
+	// built-in block and a manifest block naming one ConfigMap, say).
+	// Objects keeps the last of them, which is right for the join -
+	// the object is declared either way - and wrong for anything that
+	// needs to know WHICH instance's object it is: [vouchesDeclared]
+	// vouches for none of them.
+	Ambiguous map[KubernetesObjectKey]bool
 	// Keys is Objects inverted: a declaring instance's address
 	// ([addrs.AbsResourceInstance.String]) -> the kind and natural key its
 	// configuration names. An instance whose object cannot be named yet
@@ -373,6 +386,8 @@ func DeclaredKubernetesObjects(resolutions []identity.Resolution, typeNames []st
 		Types:   map[string]bool{},
 		Objects: map[string]map[string]addrs.AbsResourceInstance{},
 		Keys:    map[string]KubernetesObjectKey{},
+
+		Ambiguous: map[KubernetesObjectKey]bool{},
 	}
 	kindOf := map[string]string{}
 	for _, t := range typeNames {
@@ -386,6 +401,9 @@ func DeclaredKubernetesObjects(resolutions []identity.Resolution, typeNames []st
 	declare := func(kind, key string, addr addrs.AbsResourceInstance) {
 		if out.Objects[kind] == nil {
 			out.Objects[kind] = map[string]addrs.AbsResourceInstance{}
+		}
+		if prev, ok := out.Objects[kind][key]; ok && prev.String() != addr.String() {
+			out.Ambiguous[KubernetesObjectKey{Kind: kind, Key: key}] = true
 		}
 		out.Objects[kind][key] = addr
 		out.Keys[addr.String()] = KubernetesObjectKey{Kind: kind, Key: key}
@@ -576,4 +594,51 @@ func helmNotInManifestDiag(objs []kubesweep.HeldObject) tfdiags.Diagnostics {
 	}
 	b.WriteString("\nA chart that dropped an object under helm.sh/resource-policy: keep leaves it like this, and so does a copy of a Helm object's YAML. Declare and import it to keep it in the estate; remove its meta.helm.sh/release-name annotation to let the sweep propose destroying it.")
 	return diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryHelmNotInManifest, b.String()))
+}
+
+// vouchesDeclared is the Kubernetes leg's half of issue #692's vouch
+// (GitHub issue #1860): whether a listed object the configuration
+// declares by its kind and natural key goes into
+// [Result.VerifiedDeclared], so that [Result.MarkerVerified] carries its
+// instance and a -refresh=false plan may serve that instance from the
+// state cache instead of reading it (projection's cacheHit).
+//
+// Before this the join recorded nothing for a declared object - it was
+// skipped as "not an orphan" - so no Kubernetes instance was ever vouched
+// and an unchanged estate's second plan paid every read (claim 9,
+// live/smoke/drafts/k8s-unchanged-is-free.sh).
+//
+// The evidence is the same grade the AWS legs vouch on. The list that
+// returned the object was label-selected on this estate's tofu-estate
+// marker and excluded owner-referenced objects, so the object carries
+// this estate's marker; and its kind and NAMESPACE/NAME are exactly the
+// identity the declaring instance's configuration computes, which on
+// AWS is the displacement check's own-object verdict and here holds by
+// construction of the join. What the vouch is withheld for fails toward
+// reading, never toward serving:
+//
+//   - two instances declare the object ([KubernetesDeclared.Ambiguous]):
+//     no single instance is named, the same rule as AWS's ambiguous
+//     marker;
+//   - the object carries an address annotation that names some other
+//     instance (or does not parse): the block that made it says it is
+//     not this one's. An object with no annotation is vouched, because
+//     the Kubernetes marker is the label (live/MARKERS.md, "Kubernetes:
+//     one label") and an object an older build made carries none;
+//   - the object is terminating: the API server accepted its delete, so
+//     a cached answer for it would outlive it;
+//   - on a multi-provider run, the instance's block is another provider
+//     configuration's: that configuration may name another cluster, and
+//     this pass's list says nothing about it ([ownsInstance]).
+func vouchesDeclared(req Request, declared KubernetesDeclared, stmts []moved.Statement, kind, key string, addr addrs.AbsResourceInstance, o kubesweep.Object) bool {
+	if declared.Ambiguous[KubernetesObjectKey{Kind: kind, Key: key}] {
+		return false
+	}
+	if o.DeletionTimestamp != "" {
+		return false
+	}
+	if o.Address != "" && !namesInstance(stmts, addr, o.Address) {
+		return false
+	}
+	return ownsInstance(req, addr)
 }

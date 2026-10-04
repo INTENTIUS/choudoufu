@@ -97,3 +97,102 @@ func TestLiveCertWorkflowOffersEveryLiveCertScript(t *testing.T) {
 		t.Errorf("live-cert.yml offers %v, but live/live-cert has scripts for %v", got, want)
 	}
 }
+
+// TestReferenceEKSRunsEveryActiveStageOnBothTargets: the emulator crossing
+// and the live-cert cycle both run every active stage, through one set of
+// stage bodies (live/e2e/reference-eks/stages.sh), so the two cannot drift
+// apart stage by stage the way two hand-kept copies would. Written under
+// the maintainer's no-testing ruling and not run by the change that added
+// it.
+//
+// What it holds, read statically:
+//   - every active stage is begun somewhere in the crossing (run.sh plus
+//     stages.sh), so no stage is left to the runner's silent not_run;
+//   - run.sh reports no stage not_run on purpose any more;
+//   - every reference_eks_stage_<id> body stages.sh defines is called by
+//     BOTH scripts, and names a registered stage;
+//   - the live-cert cycle carries #1524's records check: a record_store
+//     "kubernetes" with control_plane "eks", read with live-cluster -json,
+//     and encryption_at_rest required to have been answered.
+func TestReferenceEKSRunsEveryActiveStageOnBothTargets(t *testing.T) {
+	root := testRoot(t)
+	read := func(rel string) string {
+		b, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	runSh := read(filepath.Join("live", "e2e", "reference-eks", "run.sh"))
+	stagesSh := read(filepath.Join("live", "e2e", "reference-eks", "stages.sh"))
+	certSh := read(LiveCertScript("reference-eks"))
+	estateSh := read(filepath.Join("live", "e2e", "reference-eks", "estate.sh"))
+
+	for _, rel := range []string{"run.sh", "live-cert"} {
+		body := runSh
+		if rel == "live-cert" {
+			body = certSh
+		}
+		if !strings.Contains(body, "live/e2e/reference-eks/stages.sh") {
+			t.Errorf("%s does not source live/e2e/reference-eks/stages.sh", rel)
+		}
+	}
+
+	begun := regexp.MustCompile(`(?m)^\s*gauntlet_begin_stage ([a-z0-9_]+)\s*$`)
+	seen := map[string]bool{}
+	for _, m := range begun.FindAllStringSubmatch(runSh+"\n"+stagesSh, -1) {
+		seen[m[1]] = true
+	}
+	for _, s := range ActiveStages() {
+		if !seen[s.ID] {
+			t.Errorf("no gauntlet_begin_stage %s in run.sh or stages.sh: the crossing does not run active stage %s", s.ID, s.ID)
+		}
+	}
+	certSeen := map[string]bool{}
+	for _, m := range begun.FindAllStringSubmatch(certSh+"\n"+stagesSh, -1) {
+		certSeen[m[1]] = true
+	}
+	for _, s := range ActiveStages() {
+		if !certSeen[s.ID] {
+			t.Errorf("no gauntlet_begin_stage %s in the live-cert script or stages.sh: the live-cert cycle does not run active stage %s", s.ID, s.ID)
+		}
+	}
+
+	if regexp.MustCompile(`(?m)^[^#\n]*gauntlet_stage\s+"?\$?[a-z0-9_{}]+"?\s+not_run`).MatchString(runSh) {
+		t.Errorf("run.sh still reports a stage not_run by hand; every active stage is built for reference-eks")
+	}
+
+	def := regexp.MustCompile(`(?m)^(reference_eks_stage_([a-z0-9_]+))\(\) \{`)
+	defs := def.FindAllStringSubmatch(stagesSh, -1)
+	if len(defs) == 0 {
+		t.Fatal("stages.sh defines no reference_eks_stage_<id> body - the pattern or the file moved")
+	}
+	for _, d := range defs {
+		fn, id := d[1], d[2]
+		if _, ok := StageByID(id); !ok {
+			t.Errorf("stages.sh defines %s, but %s is not a registered stage", fn, id)
+		}
+		call := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(fn) + `\s*$`)
+		if !call.MatchString(runSh) {
+			t.Errorf("run.sh never calls %s", fn)
+		}
+		if !call.MatchString(certSh) {
+			t.Errorf("the live-cert script never calls %s", fn)
+		}
+	}
+
+	for _, want := range []string{
+		"reference_eks_kubernetes_store",
+		"live-cluster -json",
+		"encryption_at_rest",
+		"read_isolation",
+		"namespace_access",
+	} {
+		if !strings.Contains(certSh, want) {
+			t.Errorf("the live-cert script does not carry #1524's records check: %q is missing", want)
+		}
+	}
+	if !strings.Contains(estateSh, `control_plane "eks"`) {
+		t.Error(`estate.sh's record_store "kubernetes" block carries no control_plane "eks" block (#1524)`)
+	}
+}

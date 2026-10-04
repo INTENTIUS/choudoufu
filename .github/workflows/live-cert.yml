@@ -24,7 +24,9 @@ name: Live cert
 # list. reference-eks (#1113, ruled 2026-10-03 with a $5/run ceiling) also
 # needs the live-cert role to hold EKS, IAM-role and EC2 networking rights,
 # and kubectl and the AWS CLI on the runner, both preinstalled on
-# ubuntu-latest. -ceiling-usd is informational to the
+# ubuntu-latest. Its cycle runs every active stage and stands a second
+# cluster up for greenfield, roughly two and a half hours, so dispatch it
+# with timeout_minutes=250. -ceiling-usd is informational to the
 # tool itself (RunLiveCert's own doc comment) - the account's AWS Budgets
 # alarm and this job's timeout-minutes are the real backstops.
 #
