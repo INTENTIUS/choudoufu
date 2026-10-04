@@ -504,8 +504,18 @@ gauntlet_begin_stage drift_reconverge
 log "=== 5. drift_reconverge: the ithctester ClusterRole's rules replaced out of band; the boundary judges the write first ==="
 TAMPER='[{"op":"replace","path":"/rules","value":[{"apiGroups":[""],"resources":["pods"],"verbs":["get"]}]}]'
 rule_count() { kc_as "$1" get clusterrole "$2" -o json 2>/dev/null | python3 -c 'import json,sys; print(len(json.load(sys.stdin).get("rules") or []))'; }
-ITHC_RULES="$(rule_count "$KCA" ithctester)"
-[ "$ITHC_RULES" = "5" ] || fail "the ithctester ClusterRole carries $ITHC_RULES rule(s) before the tamper, want the 5 eks_access.tf declares"
+# The declared rule count is read, not written down: stock applied the same
+# root to the oracle cluster B, so B's ClusterRole is what the configuration
+# renders. It is one more than eks_access.tf's ithctester call lists (five),
+# because modules/access-entry's local.cluster_role_rules prepends a
+# namespaces get/list/watch rule to every caller's list - the 6th rule is
+# the root's own, not aggregation (the module sets no aggregation_rule).
+ITHC_RULES="$(rule_count "$KCB" ithctester)"
+case "$ITHC_RULES" in ''|*[!0-9]*) fail "could not read the ithctester ClusterRole's rules on the oracle cluster B: '$ITHC_RULES'" ;; esac
+[ "$ITHC_RULES" -ge 2 ] || fail "the ithctester ClusterRole carries $ITHC_RULES rule(s) on B; the one-rule tamper would not be a change"
+A_RULES="$(rule_count "$KCA" ithctester)"
+[ "$A_RULES" = "$ITHC_RULES" ] || fail "the ithctester ClusterRole carries $A_RULES rule(s) on A before the tamper, want the $ITHC_RULES stock rendered from the same root on B"
+log "  ithctester ClusterRole: $ITHC_RULES rule(s) on A and on B before the tamper"
 
 # The boundary probe. A ServiceAccount with ordinary RBAC to patch
 # ClusterRoles - escalate included, so the API server's own escalation
@@ -552,7 +562,7 @@ grep -qF "ValidatingAdmissionPolicy 'choudoufu-estate-boundary'" <<< "$DENY_OUT"
   || fail "the patch by $EDITOR_USER failed, but not as a refusal from ValidatingAdmissionPolicy 'choudoufu-estate-boundary': $DENY_OUT"
 grep -qF "is not bound to that estate" <<< "$DENY_OUT" \
   || fail "the boundary refused the patch by $EDITOR_USER, but not in the policy's own words for the estate an object belongs to: $DENY_OUT"
-[ "$(rule_count "$KCA" ithctester)" = "5" ] || fail "the ithctester ClusterRole's rules moved although the boundary refused the write"
+[ "$(rule_count "$KCA" ithctester)" = "$ITHC_RULES" ] || fail "the ithctester ClusterRole's rules moved although the boundary refused the write"
 DENY_LINE="$(grep -o 'denied request: .*' <<< "$DENY_OUT" | head -1)"
 log "  boundary: refused for $EDITOR_USER - ${DENY_LINE:-$DENY_OUT}"
 sed -e "s/ESTATE/$ESTATE/g" -e 's/PRINCIPAL_NAMESPACE/default/g' -e "s/PRINCIPAL/$EDITOR/g" "$GRANT" | kca apply -f - >/dev/null \
@@ -581,9 +591,9 @@ else
   grep -qF "module.ithctester.kubernetes_cluster_role_v1.cluster_role will be updated in-place" <<< "$DRIFT_PLAN" || fail "the plan does not update module.ithctester.kubernetes_cluster_role_v1.cluster_role"
   RECONV="$(chdf_a "$ADOPTED" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$RECONV" | tail -20; fail "the reconverging apply failed"; }
   grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$RECONV" || fail "the reconverging apply did not change exactly one object"
-  [ "$(rule_count "$KCA" ithctester)" = "5" ] || fail "the ithctester ClusterRole does not carry its 5 declared rules after reconverging"
+  [ "$(rule_count "$KCA" ithctester)" = "$ITHC_RULES" ] || fail "the ithctester ClusterRole does not carry its $ITHC_RULES declared rules after reconverging"
   grep -q "No changes." <<< "$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)" || fail "the replan after reconverging is not empty"
-  gauntlet_stage drift_reconverge pass "the ithctester ClusterRole's dynamic rules replaced out of band with one rule (kubectl patch); choudoufu proposed exactly module.ithctester.kubernetes_cluster_role_v1.cluster_role (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle cluster for the same tamper; apply changed 1, the 5 declared rules read back, the next plan is empty. The write was judged by the estate boundary first: the identical patch by $EDITOR_USER, holding RBAC patch and escalate on clusterroles but not the estate, was refused by ValidatingAdmissionPolicy 'choudoufu-estate-boundary' (\"is not bound to that estate\") with the rules unchanged, and admitted once live/kubernetes/estate-grant.yaml granted it $ESTATE - that admitted write is the drift. BREAK=1 tampers the readonly ClusterRole too and the single-object assertion correctly fails"
+  gauntlet_stage drift_reconverge pass "the ithctester ClusterRole's dynamic rules replaced out of band with one rule (kubectl patch); choudoufu proposed exactly module.ithctester.kubernetes_cluster_role_v1.cluster_role (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle cluster for the same tamper; apply changed 1, the $ITHC_RULES declared rules (as stock rendered them on B) read back, the next plan is empty. The write was judged by the estate boundary first: the identical patch by $EDITOR_USER, holding RBAC patch and escalate on clusterroles but not the estate, was refused by ValidatingAdmissionPolicy 'choudoufu-estate-boundary' (\"is not bound to that estate\") with the rules unchanged, and admitted once live/kubernetes/estate-grant.yaml granted it $ESTATE - that admitted write is the drift. BREAK=1 tampers the readonly ClusterRole too and the single-object assertion correctly fails"
 fi
 
 # ── 6. plan_approval ──────────────────────────────────────────────────────
@@ -661,24 +671,29 @@ PY
   gauntlet_stage day2_rename pass "BREAK=1 control: changing the readonly module call's name argument - the objects' own metadata.name, a genuine identity change - plans $(plan_line "$R_PLAN"), so the zero-churn assertion correctly fails to hold; the moved block then applied"
 else
   rename_module "$ADOPTED"; rename_module "$ORACLE"
+  # How many objects the readonly call owns, from the identities test_plan
+  # matched by value, not counted by hand.
+  expected_ids readonly > "$WORK/ids.prerename"
+  RO_N="$(grep -c ' module\.readonly\.' "$WORK/ids.prerename")"
+  [ "$RO_N" -gt 0 ] || fail "expected_ids lists no object under module.readonly"
   O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's moved-block plan failed on B"; }
   grep -qE "^No changes|Plan: 0 to add, 0 to change, 0 to destroy" <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's moved-block plan on B is not zero churn"; }
   ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's moved-block apply failed on B"
   R_PLAN="$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$R_PLAN" | tail -20; fail "the moved-block plan failed"; }
   grep -qE 'will be (created|destroyed)|must be replaced' <<< "$R_PLAN" \
     && { printf '%s\n' "$R_PLAN" | grep -E '^  # .+ (will|must) be'; fail "the module rename proposes a create, a destroy or a replace - not the marker rewritten in place"; }
-  grep -qF 'Plan: 0 to add, 6 to change, 0 to destroy.' <<< "$R_PLAN" \
-    || { printf '%s\n' "$R_PLAN" | tail -20; fail "the module rename is not exactly six in-place changes (the address annotation rewrites): $(plan_line "$R_PLAN")"; }
+  grep -qF "Plan: 0 to add, $RO_N to change, 0 to destroy." <<< "$R_PLAN" \
+    || { printf '%s\n' "$R_PLAN" | tail -20; fail "the module rename is not exactly $RO_N in-place changes (the address annotation rewrites): $(plan_line "$R_PLAN")"; }
   REWRITES="$(grep -cE '~ +"choudoufu\.intentius\.io/tofu-address" = "module\.readonly\.[^"]*" -> "module\.viewer\.' <<< "$R_PLAN")"
-  [ "$REWRITES" = "6" ] || { printf '%s\n' "$R_PLAN"; fail "the module rename rewrites $REWRITES address annotation(s) from module.readonly to module.viewer, want 6"; }
+  [ "$REWRITES" = "$RO_N" ] || { printf '%s\n' "$R_PLAN"; fail "the module rename rewrites $REWRITES address annotation(s) from module.readonly to module.viewer, want $RO_N"; }
   R_APPLY_OUT="$(chdf_a "$ADOPTED" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$R_APPLY_OUT" | tail -20; fail "the moved-block apply failed"; }
-  grep -qF "Apply complete! Resources: 0 added, 6 changed, 0 destroyed" <<< "$R_APPLY_OUT" || { printf '%s\n' "$R_APPLY_OUT" | tail -10; fail "the moved-block apply was not exactly six in-place changes"; }
+  grep -qF "Apply complete! Resources: 0 added, $RO_N changed, 0 destroyed" <<< "$R_APPLY_OUT" || { printf '%s\n' "$R_APPLY_OUT" | tail -10; fail "the moved-block apply was not exactly $RO_N in-place changes"; }
   expected_ids viewer > "$WORK/ids.renamed"
   MISMATCH="$(identity_mismatches "$KCA" "$WORK/ids.renamed")"
   [ -z "$MISMATCH" ] || { printf '%s\n' "$MISMATCH"; fail "after the module rename an identity does not match by value: $(head -1 <<< "$MISMATCH")"; }
   [ "$(count_a)" = "$INSTANCES" ] || fail "$(count_a) labelled objects after the rename, want $INSTANCES"
   grep -q "No changes." <<< "$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)" || fail "the replan after the module rename is not empty"
-  gauntlet_stage day2_rename pass "a module call renamed through a moved block: module.readonly -> module.viewer moves six instances at once - its ClusterRole, ClusterRoleBinding, and the Role and RoleBinding its for_each keys put in apps and licensify - with no add and no destroy, six in-place changes confined to the address annotation rewrite (0 add, 6 change, 0 destroy, every one module.readonly.* -> module.viewer.*, the for_each keys carried across), the marker rewritten in place; all $INSTANCES identities then compared by value with kubectl at their new addresses, each object's metadata.name untouched, and the next plan empty; stock's plan for the same moved block on the oracle cluster is zero churn, since stock never writes this annotation. The moved-block half only: live-mv also has a Kubernetes leg since #1639, not exercised by this stage. BREAK=1 changes the module call's name argument - the objects' own names - and the zero-churn assertion correctly fails"
+  gauntlet_stage day2_rename pass "a module call renamed through a moved block: module.readonly -> module.viewer moves $RO_N instances at once - its ClusterRole, ClusterRoleBinding, and the Role and RoleBinding its for_each keys put in apps and licensify - with no add and no destroy, $RO_N in-place changes confined to the address annotation rewrite (0 add, $RO_N change, 0 destroy, every one module.readonly.* -> module.viewer.*, the for_each keys carried across), the marker rewritten in place; all $INSTANCES identities then compared by value with kubectl at their new addresses, each object's metadata.name untouched, and the next plan empty; stock's plan for the same moved block on the oracle cluster is zero churn, since stock never writes this annotation. The moved-block half only: live-mv also has a Kubernetes leg since #1639, not exercised by this stage. BREAK=1 changes the module call's name argument - the objects' own names - and the zero-churn assertion correctly fails"
 fi
 
 # ── 8. day2_remove: one module instance leaves the configuration ────────
@@ -712,11 +727,16 @@ if [ "${BREAK_REMOVE:-}" = "1" ]; then
 else
   remove_module "$ADOPTED" || fail "could not remove the licensinguser module block from the adopted root"
   remove_module "$ORACLE" || fail "could not remove the licensinguser module block from the oracle root"
+  # How many objects the licensinguser call owns, from the identities the
+  # earlier stages matched by value, not counted by hand.
+  expected_ids viewer > "$WORK/ids.preremove"
+  LU_N="$(grep -c ' module\.licensinguser\.' "$WORK/ids.preremove")"
+  [ "$LU_N" -gt 0 ] || fail "expected_ids lists no object under module.licensinguser"
   O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's remove plan failed on B"; }
-  grep -qF "Plan: 0 to add, 0 to change, 4 to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's remove plan on B is not exactly four destroys"; }
+  grep -qF "Plan: 0 to add, 0 to change, $LU_N to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's remove plan on B is not exactly $LU_N destroys"; }
   ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's remove apply failed on B"
   D_PLAN="$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$D_PLAN" | tail -20; fail "the remove plan failed"; }
-  grep -qF "Plan: 0 to add, 0 to change, 4 to destroy." <<< "$D_PLAN" || { printf '%s\n' "$D_PLAN" | tail -20; fail "the remove plan is not exactly four destroys: $(plan_line "$D_PLAN")"; }
+  grep -qF "Plan: 0 to add, 0 to change, $LU_N to destroy." <<< "$D_PLAN" || { printf '%s\n' "$D_PLAN" | tail -20; fail "the remove plan is not exactly $LU_N destroys: $(plan_line "$D_PLAN")"; }
   D_ADDRS="$(grep -E '^[[:space:]]*# .* will be destroyed' <<< "$D_PLAN" | sed -E 's/^[[:space:]#]*//; s/ will be destroyed.*$//' | tr '\n' ' ' | sed 's/ $//')"
   D_TYPES="$(destroyed_types "$D_PLAN")"
   [ "$D_TYPES" = "kubernetes_cluster_role kubernetes_cluster_role_binding kubernetes_role kubernetes_role_binding" ] \
@@ -734,8 +754,9 @@ else
   MISMATCH="$(identity_mismatches "$KCA" "$WORK/ids.removed")"
   [ -z "$MISMATCH" ] || { printf '%s\n' "$MISMATCH"; fail "a module instance the removal should not have touched no longer matches by value: $(head -1 <<< "$MISMATCH")"; }
   grep -q "No changes." <<< "$(chdf_a "$ADOPTED" plan -input=false -no-color 2>&1)" || fail "the replan after the remove is not empty"
-  [ "$(count_a)" = "27" ] || fail "$(count_a) labelled objects after the remove, want 27"
-  gauntlet_stage day2_remove pass "deleting the licensinguser module block - one of eight instances of module \"access-entry\" - proposed exactly four destroys (0 add, 0 change, 4 destroy), one of each RBAC kind and all of them that instance's: $D_ADDRS; applied cleanly, all four gone (kubectl: the ClusterRole, the ClusterRoleBinding, and the Role and RoleBinding in licensify NotFound), while the 27 identities that remain - developer's and viewer's Role and RoleBinding in the same licensify namespace among them - still match by value, and the next plan is empty; stock's plan for the same removal on the oracle cluster is also exactly four destroys. BREAK_REMOVE=1 keeps the block and no destroy is proposed"
+  REMAIN_N="$(grep -c . "$WORK/ids.removed")"
+  [ "$(count_a)" = "$REMAIN_N" ] || fail "$(count_a) labelled objects after the remove, want the $REMAIN_N expected_ids lists"
+  gauntlet_stage day2_remove pass "deleting the licensinguser module block - one of eight instances of module \"access-entry\" - proposed exactly four destroys (0 add, 0 change, 4 destroy), one of each RBAC kind and all of them that instance's: $D_ADDRS; applied cleanly, all four gone (kubectl: the ClusterRole, the ClusterRoleBinding, and the Role and RoleBinding in licensify NotFound), while the $REMAIN_N identities that remain - developer's and viewer's Role and RoleBinding in the same licensify namespace among them - still match by value, and the next plan is empty; stock's plan for the same removal on the oracle cluster is also exactly four destroys. BREAK_REMOVE=1 keeps the block and no destroy is proposed"
 fi
 
 # ── 9. day2_count ─────────────────────────────────────────────────────────
