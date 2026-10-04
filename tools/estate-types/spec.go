@@ -267,6 +267,12 @@ var estateSpecs = []estateSpec{
 		Note:       `The "kubernetes" lane's stateful estate (#1175, surface 2 of #1107): no external source, a hand-written shape kept in this repository and crossed on a kind cluster, on the _v1 type names throughout. run.sh's resource_block() heredoc carries the whole estate: kubernetes_namespace_v1, kubernetes_service_account_v1, kubernetes_secret_v1, kubernetes_config_map_v1 (postgres-init, api-config and a two-instance count set), kubernetes_service_v1 (two headless, one ClusterIP), kubernetes_stateful_set_v1 (postgres and redis, each with a volume_claim_template), kubernetes_deployment_v1, kubernetes_pod_disruption_budget_v1 - no module, no AWS provider, and deliberately no kubernetes_storage_class, since kind's own default class is what the claim templates bind against. Its strict_block() heredoc (the strict-stage scratch estate) adds random_password, outside the eight above. The PersistentVolumeClaims the claim templates produce are the estate's subject and are declared by nothing, so no kubernetes_persistent_volume_claim type appears here.`,
 	},
 	{
+		Name:       "reference-k8s-shared-objects",
+		ConfigDirs: nil,
+		ScanScript: true,
+		Note:       `The "kubernetes" lane's two-estate estate (#1882, epic #1885): no external source, a hand-written shape kept in this repository and crossed on a kind cluster, as two roots with two live blocks. run.sh's platform_block() heredoc is the estate that owns whole objects - kubernetes_namespace_v1, kubernetes_config_map_v1 (settings and a two-instance count set), kubernetes_secret_v1, kubernetes_service_v1, kubernetes_deployment_v1 - plus one kubernetes_labels on the cluster's default Namespace; app_block() is the estate that owns only fields of those objects and of the node, written under the field manager choudoufu:<estate>: kubernetes_labels, kubernetes_annotations, kubernetes_config_map_v1_data, kubernetes_secret_v1_data, kubernetes_env, kubernetes_node_taint. The plan_approval and day2_crash heredocs add further kubernetes_labels and kubernetes_annotations blocks of app's; strict_block() (the strict-stage scratch estate) adds random_password. No module, no AWS provider.`,
+	},
+	{
 		Name:       "reference-k8s-cert-manager",
 		ConfigDirs: []string{"live/e2e/reference-k8s-cert-manager/root"},
 		ScanScript: true,

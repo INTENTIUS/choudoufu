@@ -408,7 +408,7 @@
   "lanes": {
     "kubernetes": {
       "label": "kubernetes lane",
-      "estates": 5,
+      "estates": 6,
       "clear": 4,
       "verified": 4,
       "carried": 0,
@@ -416,77 +416,77 @@
         "cold_deploy": {
           "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "day2_count": {
           "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "day2_crash": {
           "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "day2_remove": {
           "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "day2_rename": {
           "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "day2_replace": {
           "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "day2_teardown": {
           "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "drift_reconverge": {
           "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "greenfield": {
           "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "migrate": {
           "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "no_local_state": {
           "pass": 0,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "plan_approval": {
           "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "strict": {
           "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "test_apply": {
           "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "test_plan": {
           "pass": 4,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         }
       }
     },
@@ -4271,6 +4271,33 @@
           "test_plan": 35
         }
       }
+    },
+    {
+      "name": "reference-k8s-shared-objects",
+      "source": "hand-written reference shape kept in this repository, the kubernetes lane's two-estate estate (#1882, epic #1885): estate platform owns a Namespace, a ConfigMap, a Secret, a Service, a Deployment on the node image's pause container and a two-instance count ConfigMap as whole objects, plus one label on the cluster's default Namespace through kubernetes_labels; estate app owns no object, only fields of platform's objects and of the kind node, each written under the field manager choudoufu:<estate> - kubernetes_labels, kubernetes_annotations, kubernetes_config_map_v1_data, kubernetes_secret_v1_data, kubernetes_env and kubernetes_node_taint. Measures the field manager as the boundary between two estates on one object (#1191), the force refusal across estates (#1106 section 3), field release on removal and the stock hand-over in live-import (#1869). Nothing published puts two estates on one object, so this is #1107's hand-written fallback",
+      "lane": "kubernetes",
+      "set": "growing",
+      "substrate": "kind",
+      "script": "live/e2e/reference-k8s-shared-objects/run.sh",
+      "stages": {
+        "cold_deploy": "not_run",
+        "day2_count": "not_run",
+        "day2_crash": "not_run",
+        "day2_remove": "not_run",
+        "day2_rename": "not_run",
+        "day2_replace": "not_run",
+        "day2_teardown": "not_run",
+        "drift_reconverge": "not_run",
+        "greenfield": "not_run",
+        "migrate": "not_run",
+        "no_local_state": "not_run",
+        "plan_approval": "not_run",
+        "strict": "not_run",
+        "test_apply": "not_run",
+        "test_plan": "not_run"
+      },
+      "clear": false,
+      "protocol": "legacy"
     },
     {
       "name": "reference-k8s-stateful",
