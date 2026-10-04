@@ -219,6 +219,20 @@
       "substrates": {
         "floci-eks": "As on floci; the toggles apply to both legs alike."
       }
+    },
+    {
+      "id": "no_local_state",
+      "order": 15,
+      "title": "Plan with no local state",
+      "status": "active",
+      "headline": false,
+      "tier1_gated": false,
+      "proves": "After the estate is applied and its plan is empty, deleting BOTH the local record store and the state cache - a fresh clone or a new machine, with only the account left - still yields a plan that finds every declared object by its own marker or a stamped parent: nothing created, destroyed or replaced. The verdict line reports that plan's API call count beside the same estate's cache-serving plan, because the ratio between them is the claim. Tested and shown per estate; not part of the headline bars.",
+      "oracle": "Stock has no plan in this position: with its state file gone it needs one import block per object. The oracle is the estate's own cache-serving plan taken just before the deletion, which must be empty, and the declared configuration - every declared address must resolve to the existing object.",
+      "break": "Delete one taggable object's marker before the plan; the object is then not found and the plan proposes creating it, which the stage must fail.",
+      "substrates": {
+        "floci-eks": "Both legs lose their local record store and state cache together. The AWS leg's objects are found by their markers as on floci; the cluster leg's by their tofu-estate label, through a kubernetes provider configured from the cluster this plan reads live, so the plan also shows the provider block needs nothing local."
+      }
     }
   ],
   "sets": {
@@ -278,6 +292,11 @@
           "pass": 27,
           "fail": 0,
           "not_run": 1
+        },
+        "no_local_state": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 28
         },
         "plan_approval": {
           "pass": 27,
@@ -357,6 +376,11 @@
           "pass": 26,
           "fail": 0,
           "not_run": 0
+        },
+        "no_local_state": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 26
         },
         "plan_approval": {
           "pass": 26,
@@ -439,6 +463,11 @@
           "fail": 0,
           "not_run": 0
         },
+        "no_local_state": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 4
+        },
         "plan_approval": {
           "pass": 4,
           "fail": 0,
@@ -517,6 +546,11 @@
           "pass": 9,
           "fail": 0,
           "not_run": 0
+        },
+        "no_local_state": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 9
         },
         "plan_approval": {
           "pass": 9,
@@ -597,6 +631,11 @@
           "fail": 0,
           "not_run": 0
         },
+        "no_local_state": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
         "plan_approval": {
           "pass": 1,
           "fail": 0,
@@ -675,6 +714,11 @@
           "pass": 2,
           "fail": 0,
           "not_run": 1
+        },
+        "no_local_state": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 3
         },
         "plan_approval": {
           "pass": 2,
@@ -755,6 +799,11 @@
           "fail": 0,
           "not_run": 0
         },
+        "no_local_state": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 15
+        },
         "plan_approval": {
           "pass": 15,
           "fail": 0,
@@ -799,6 +848,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -913,6 +963,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -1027,6 +1078,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -1141,6 +1193,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -1254,6 +1307,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -1369,6 +1423,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -1482,6 +1537,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -1596,6 +1652,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -1710,6 +1767,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -1824,6 +1882,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -1938,6 +1997,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -2052,6 +2112,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -2166,6 +2227,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -2280,6 +2342,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -2394,6 +2457,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -2507,6 +2571,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -2621,6 +2686,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -2735,6 +2801,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "pass",
         "test_apply": "pass",
@@ -2866,6 +2933,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -2979,6 +3047,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -3093,6 +3162,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -3207,6 +3277,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -3321,6 +3392,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -3434,6 +3506,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -3548,6 +3621,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -3662,6 +3736,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -3774,6 +3849,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "pass",
         "test_apply": "pass",
@@ -3898,6 +3974,7 @@
         "drift_reconverge": "not_run",
         "greenfield": "not_run",
         "migrate": "not_run",
+        "no_local_state": "not_run",
         "plan_approval": "not_run",
         "strict": "not_run",
         "test_apply": "not_run",
@@ -3924,6 +4001,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "pass",
         "test_apply": "pass",
@@ -4053,6 +4131,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "pass",
         "test_apply": "pass",
@@ -4182,6 +4261,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "pass",
         "test_apply": "pass",
@@ -4311,6 +4391,7 @@
         "drift_reconverge": "pass",
         "greenfield": "pass",
         "migrate": "pass",
+        "no_local_state": "not_run",
         "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
@@ -4412,7 +4493,7 @@
     }
   ],
   "behaviors_proven": 1,
-  "behaviors_total": 14,
+  "behaviors_total": 15,
   "live_cert": [
     {
       "estate": "reference-ec2-vpc",
