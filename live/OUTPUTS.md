@@ -10,11 +10,16 @@ may also be split out by choice rather than necessity (#59 phase 3). Once
 that split happens, the two estates need a way to share values: a network
 estate's VPC ID, an IAM estate's role ARN.
 
-`terraform_remote_state` is banned because it reads a state file, and prior
-state here is a projection rebuilt from the live system on every run
-(`internal/live/lint/lint.go`'s `checkDataResources`, `live/LIMITATIONS.md`'s
-"remote-state" entry). This file is what replaces the output-passing it used
-to provide.
+`terraform_remote_state` is not refused. Since #179 stage 3 it is read
+from its own backend through `internal/live/dataread`, under the same
+eligibility rule as any other data source (`live/COMPATIBILITY.md`, "Constructs
+this page used to refuse"). What it cannot do is stay current: once a
+producer estate adopts live markers it stops writing the state file, and a
+reader pointed there keeps getting a snapshot frozen at migration time, with
+no "abandoned as of" marker on either side to say so (`live/LIMITATIONS.md`,
+"A foreign stack's remote state can go stale with no way to detect it"). This
+file is the answer to that staleness: what an estate reads instead once its
+producer no longer keeps a state file of record.
 
 ## The decision
 
@@ -68,10 +73,10 @@ knows. Either way the consumer reads the producer's live resource
 through the provider's read contract for that type, not through a side
 channel this mode maintains on the producer's behalf.
 
-This is the "read the live resource with a data source of its own
-type" half of `checkDataResources`'s refusal message
-(`internal/live/lint/lint.go`). This file is the spec that half now
-points to by name.
+This is the "read the producer's own live resource with a data source of
+its own type" forwarding address that `live/LIMITATIONS.md`'s remote-state
+staleness entry gives. This file is the spec that address points to by
+name.
 
 ## Why not outputs-as-receipts
 
