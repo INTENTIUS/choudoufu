@@ -449,11 +449,11 @@ EOF
     grep -qF "Plan: 1 to add, 0 to change, 1 to destroy." <<< "$1" || { printf '%s\n' "$1" | tail -20; fail "$2: the rename is not one add and one destroy: $(grep -E '^Plan:|^No changes' <<< "$1" | head -1)"; }
     grep -qE "# ${block//./\\.} must be replaced" <<< "$1" || { printf '%s\n' "$1" | grep -E '# ' | head -5; fail "$2: $block is not planned as a replace"; }
     grep -qF "+/- create replacement and then destroy" <<< "$1" || fail "$2: the replace is not create-first"
-    if grep -q "orphan_" <<< "$1"; then
+    # Only a planned change counts: the plan also reports orphans in its
+    # policy and absence sections, which plan nothing (#1885).
+    if grep -qE '^[[:space:]]*# [^ ]*orphan_[^ ]* (will be|must be)' <<< "$1"; then
       printf '%s\n' "$1" | grep -E '# ' | head -5
-      # Every line naming an orphan address, wherever in the plan it is -
-      # a planned change, a warning or a policy section - so the failure
-      # says which (#1885).
+      # Every line naming an orphan address, wherever in the plan it is.
       printf '%s\n' "$1" | grep -n "orphan_" | head -20
       fail "$2: the old object is planned as an orphan beside a create (#1541) rather than as the replace's deposed half"
     fi

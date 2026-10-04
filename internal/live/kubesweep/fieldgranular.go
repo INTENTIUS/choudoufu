@@ -143,7 +143,10 @@ func EnvContainers(raw []byte, kind string) (names, initNames []string) {
 				continue
 			}
 			envRoot := append(append([]string(nil), root...), item, "f:env")
-			if members, atomic, found := fieldsAt(raw, envRoot); found && (len(members) > 0 || atomic) {
+			// env is a list keyed by name: an item is the field. An env
+			// owned with no item is what a release (an apply of an empty
+			// env list) leaves behind (#1885), and owns no variable.
+			if members, _, found := fieldsAt(raw, envRoot); found && len(members) > 0 {
 				*list.out = append(*list.out, name)
 			}
 		}
