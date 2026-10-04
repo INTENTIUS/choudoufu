@@ -288,20 +288,33 @@ func pathString(p cty.Path) string {
 }
 
 // TestResidueLeafPathCandidatesRefusesUnderSecretsRefuse is the write-time
-// half of the secrets=refuse boundary: under [strict.Refuse],
-// [identity.CredentialMaterial] sees the schema-Sensitive client_secret
-// leaf (its own walk descends nested blocks, unlike residueEligibleBlock's
-// shallower per-block question) and the whole schema is refused before any
-// candidate is built - the same gate [residueCandidates] is already
-// subject to for a flat Sensitive attribute, now reached from a nested one
-// too.
+// half of the secrets=refuse boundary at depth: under [strict.Refuse] the
+// schema-Sensitive client_secret leaf two levels down is never a candidate,
+// while client_id, identical in every schema respect but the Sensitive
+// flag, still is. Until GitHub issue #1873 the whole schema was refused
+// instead, which kept every ordinary leaf beside the secret unrecorded too.
 func TestResidueLeafPathCandidatesRefusesUnderSecretsRefuse(t *testing.T) {
 	schema := listenerLikeSchema()
 	applied := listenerApplied()
 
 	candidates := residueLeafPathCandidates(schema, applied, strict.Refuse)
-	if len(candidates) != 0 {
-		t.Fatalf("residueLeafPathCandidates under secrets=refuse returned %d candidate(s), want 0: %v", len(candidates), candidates)
+	secretKey := pathString(listenerClientSecretPath())
+	clientIDPath := append(listenerClientSecretPath()[:4:4], cty.GetAttrStep{Name: "client_id"})
+	clientIDKey := pathString(clientIDPath)
+	sawClientID := false
+	for _, c := range candidates {
+		switch pathString(c.Path) {
+		case secretKey:
+			t.Fatalf("client_secret reached the leaf candidate set under secrets=refuse: %v", candidates)
+		case clientIDKey:
+			sawClientID = true
+		}
+		if c.Attr != nil && c.Attr.Sensitive {
+			t.Fatalf("a sensitive leaf %s reached the candidate set under secrets=refuse", pathString(c.Path))
+		}
+	}
+	if !sawClientID {
+		t.Fatalf("client_id is not a candidate under secrets=refuse; refuse drops the secret, not its ordinary siblings. Got %d candidate(s)", len(candidates))
 	}
 }
 

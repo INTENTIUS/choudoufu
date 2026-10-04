@@ -80,6 +80,27 @@ step 3 scan runs over the same set of files. It must find the password,
 and it finds it in two files, the record and the cache. If it found
 nothing, the zero under `refuse` would prove nothing, and the run fails.
 
+## On Kubernetes
+
+### k8s-no-secret-survives-in-what-the-tool-keeps
+
+    just smoke k8s-no-secret-survives-in-what-the-tool-keeps
+    BREAK=1 just smoke k8s-no-secret-survives-in-what-the-tool-keeps
+
+Needs `kind` and `kubectl`. Under `strict { secrets = "refuse" }` a
+`random_password` is refused by name and nothing is written or created.
+A `kubernetes_secret_v1` whose `data` comes from `TF_VAR_app_password`
+applies, no state cache is written, and a scan of every file the run kept
+finds the value in none of them (six files on the first green run). Unlike RDS, the API server returns a Secret's data,
+so the unchanged replan is `No changes.`; a rotated value is still
+proposed. `BREAK=1` applies the same estate under `secrets = "store"` and
+the same scan must find the value, which it does, in the state cache.
+
+Until #1873 the replan here was not empty: refuse recorded nothing for a
+type holding any sensitive attribute, so the configuration-only
+`wait_for_service_account_token` was proposed on every plan. Refuse now
+drops each sensitive argument and records the rest.
+
 ## What this does not claim
 
 The debug log and the saved plan hold the value. They are the operator's

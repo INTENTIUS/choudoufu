@@ -1818,7 +1818,10 @@ terraform {
 or sets the way stock OpenTofu keeps it: in the estate's record store rather
 than in a state file, with its sensitivity travelling beside it. `"refuse"`
 keeps none of it — a secret-generating logical type is refused outright, and
-a sensitive settable argument is never recorded as residue.
+a sensitive settable argument is never recorded as residue. The refusal is
+per argument, not per type: the same resource's ordinary arguments are still
+recorded (GitHub issue #1873), so a `kubernetes_secret_v1`'s
+`wait_for_service_account_token` converges while its `data` stays out.
 
 `"ssm"` keeps what `"store"` keeps and puts the values in Parameter Store
 instead, and **this build does not implement it yet** (GitHub issue #1515).

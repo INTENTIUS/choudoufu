@@ -39,6 +39,11 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.22.0 (Unreleased)
 
+- Fixed: under `strict { secrets = "refuse" }` a resource whose schema holds
+  any sensitive attribute had none of its arguments recorded, so an ordinary
+  config-only one beside the secret was proposed on every plan
+  (`kubernetes_secret_v1`'s `wait_for_service_account_token`). Refuse now
+  drops each sensitive argument and records the rest (#1873).
 - Emulator repinned from `ghcr.io/lex00/floci@sha256:6c3d5c2d...` to
   `ghcr.io/lex00/floci@sha256:ff46eb8d...` (lex00/floci#218): concurrent
   same-name IAM creates (`CreateRole`, `CreateUser`, `CreateGroup`,
