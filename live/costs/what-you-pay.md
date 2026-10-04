@@ -205,15 +205,58 @@ record store and nothing in the cache yet.
 |---|---|
 | stock `terraform plan`, state file | 150, 150, 150 |
 | stock `tofu plan`, state file | 150, 150, 150 |
-| `choudoufu plan`, live block, migrated | **157, 157, 157** |
-| `choudoufu live-plan`, the same estate | 157, 157, 157 |
+| `choudoufu plan`, live block, migrated | **186** |
+| `choudoufu live-plan`, the same estate | not re-measured |
 
-Those 157s were measured at `b20a144ab0` and are stale: the same fixture
-reads 186 at head, which #1082 tracks - two legs added under #692 each cost
-one call per marked instance on the identity path.
+This page used to print 157 in that row, three runs each, measured at
+`b20a144ab0`. That figure describes a plan that no longer exists, the same
+way the 710 before it did ([#1082](https://github.com/INTENTIUS/choudoufu/issues/1082)).
+#1082 bisected it twice with `internal/live/discovery/slicing_bench_test.go`
+at `SLICE_SCALE=1 SLICE_K=1`, one of the three harnesses that produced the
+157. Two correctness fixes under #692 each added a leg:
 
-157 against 150 is **+4.7%**, and the residual is seven calls rather than a
-percentage, because the two sides can be diffed action by action. Of stock's
+| Commit | choudoufu | What it added |
+|---|---|---|
+| `5ff7f43f5b` | 157 | nothing: the seven-call residual itemised below |
+| `e15b23eb7b` | 168 | marker vouching. `iam:ListRoles` returns roles without their tags, on real AWS and the emulator alike, so vouching an IAM instance's marker costs one tags call per instance |
+| `19e9f8b3b9` | 187 | parent-list orphan recovery. `parentListChildSweep` lists each owned role's inline policies, one `ListRolePolicies` per role |
+| head when #1082 was filed | 186 | |
+
+Stock is 150 on every one of those runs.
+
+**On this path the excess over stock grows with the estate.** Both legs cost
+one call per marked instance on the identity path, and a terralith is 84% IAM
+by construction. Measured on the emulator by #1082, migrated, every plan
+exiting 0 and empty:
+
+| Resources | Marked | stock | choudoufu | Excess | Excess per marked |
+|---|---|---|---|---|---|
+| 79 | 38 | 150 | 186 | 36 | 0.95 |
+| 9,477 | 4,229 | 17,422 | 21,423 | 4,001 | 0.95 |
+| 10,069 | 4,493 | 18,510 | 22,760 | 4,250 | 0.95 |
+
+Budget a plan straight after adoption at stock plus about 0.95 calls per
+marked instance on an IAM-heavy estate: **1.23x at 10,069 resources**. The
+model this page used to give, stock + 6 + `ceil(tagged/100)`, predicts 18,561
+calls and 1.003x at that size. It held only while the residual was a constant.
+The tags leg exists because the tagging API does not index IAM. An estate
+whose marked instances are tagging-served types should pay less here, but
+that has not been measured on this path.
+
+This is the adoption moment only. `live-import -approve` reports `0 newly
+recorded`, so straight after it the record store is empty and there is
+nothing to vouch from in bulk. Once the estate's own state cache is serving,
+the same 10,069-resource terralith plans at 19,666 against 18,510 (+6.2%), in
+[the table above](#planning-an-estate-you-already-run). That table is the
+steady-state budget. `e15b23eb7b` names where a cheap adoption-time vouch
+has to come from: the record store's bulk load, one List per run rather than
+one call per instance. Until a change of that shape lands and is measured, the
+0.95 per marked instance above is the figure to budget with.
+
+At `5ff7f43f5b`, before either leg, 157 against 150 was **+4.7%**, and the
+residual was seven calls rather than a percentage, because the two sides can
+be diffed action by action. The itemisation below is that base, before the
+two legs above were added to it. Of stock's
 150 calls, **148 across 18 AWS actions are matched exactly** - same actions,
 same counts:
 
@@ -251,15 +294,17 @@ The first three are the estate-scoped sweep, and they do not shrink further
 without giving up removal coverage for those types. The last four are this
 fork's own structure and have nothing to do with the sweep.
 
-The 157 has now been produced three separate times on this fixture and pin: by
+The 157 was produced three separate times on this fixture and pin before
+#692's two legs landed: by
 [#627](https://github.com/INTENTIUS/choudoufu/pull/627), which landed the
 narrowing that produced it; by
 [the slicing measurement](https://github.com/INTENTIUS/choudoufu/issues/584)
 (#584, corrected by #634)'s re-measure at `5ff7f43f5b`, which reproduced its
 seven-call residual call for call; and by the run reported here, at
-`b20a144ab0`. Reproduce it with
+`b20a144ab0`, with
 `TF_FLOCI_TEST=1 go test ./internal/live/statefulcost/`, which is also where
-the no-live-block table above comes from.
+the no-live-block table above comes from. #1082's 186 came from the slicing
+bench named above.
 
 Until `09d180f921` a plan enumerated the whole admission table on every run,
 about 512 native-leg list calls whatever the estate contained, and this same
@@ -718,6 +763,10 @@ same pin, scale 1, every plan exiting 0 with `No changes`:
 | Whole estate (k=1) | 150 | 157 | **1.05x** |
 | Two states, summed | 152 | 163 | **1.07x** |
 | Eight states, summed | 164 | 198 | **1.21x** |
+
+**Stale**: this table predates #692's two per-instance legs. k=1 reads 186
+on the same harness at head (#1082, [above](#planning-an-estate-straight-after-adoption)),
+and the sliced rows have not been re-measured.
 
 **Stock is not flat under slicing either.** Stock is `148 + 2k`, two calls per
 slice to resolve the account; choudoufu pays about six calls per slice,
