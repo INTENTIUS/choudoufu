@@ -70,6 +70,11 @@ func (aws) Sweep() Sweep { return SweepTaggingIndex }
 // admission table, read a different way ([Sweeps]).
 func (aws) SweepFindsUnadmitted() bool { return false }
 
+// MarkerOutlivesObject is true: the tagging index keeps listing a
+// terminated object's tags for a time, and a record tombstone is how the
+// estate tells that lingering tag from a second claimant.
+func (aws) MarkerOutlivesObject() bool { return true }
+
 func (aws) NewSweeper(cty.Value, bool) (Sweeper, error) { return nil, nil }
 
 // ---- GitHub issue #1584: the answers the projection's shadow enum held ----

@@ -563,6 +563,44 @@ PY
 }
 refresh_app_records() { mirror_records "$REC_APP" "$1"; }
 
+# instance_records <records-namespace> <estate>: record_secrets for the
+# tofu-records namespace, less the store's provisioning sentinel
+# (<prefix>/.store-sentinel, #693), which belongs to the store and not to
+# any instance, so it stays after a whole destroy by design.
+instance_records() {
+  local keys
+  keys="$(kca get secrets -n "$1" -l "tofu-estate=$2,choudoufu.intentius.io/record-namespace=tofu-records" \
+    -o jsonpath='{range .items[*]}{.metadata.annotations.choudoufu\.intentius\.io/record-key}{"\n"}{end}' 2>/dev/null)"
+  grep -v '/\.store-sentinel$' <<< "$keys" | grep -c . || true
+}
+
+# show_records <records-namespace> <estate>: every Secret the estate's store
+# holds there, one line each - its name, its record-namespace label, its
+# record key, and which envelope members its payload carries (object,
+# identity, residue, provisioned, deposed, tombstone, field-granular...) -
+# so a teardown that leaves records says what they are.
+show_records() {
+  local out
+  out="$(kca get secrets -n "$1" -l "tofu-estate=$2" -o json 2>&1)" || { printf 'could not list Secrets in %s: %s\n' "$1" "$out"; return 0; }
+  python3 -c '
+import base64, gzip, json, sys
+for s in json.load(sys.stdin).get("items", []):
+    meta = s.get("metadata") or {}
+    lab = meta.get("labels") or {}
+    ann = meta.get("annotations") or {}
+    members = "-"
+    try:
+        raw = base64.b64decode((s.get("data") or {}).get("tfstate", ""))
+        if ann.get("encoding") == "gzip":
+            raw = gzip.decompress(raw)
+        env = json.loads(raw)
+        members = ",".join(k for k, v in sorted(env.items()) if v not in (None, "", {}, []))
+    except Exception as e:
+        members = "unreadable (%s)" % e
+    print("  %s  record-namespace=%s  key=%s  members=%s" % (meta.get("name"), lab.get("choudoufu.intentius.io/record-namespace", "-"), ann.get("choudoufu.intentius.io/record-key", "-"), members))
+' <<< "$out"
+}
+
 # inventory <kubeconfig>: both estates' objects, normalised to what the
 # configuration declares, labels and annotations never compared.
 inventory() {
@@ -1093,9 +1131,9 @@ log "=== 11. day2_teardown: app's apply -destroy, then network's; each estate's 
 T_APP="$(count_app)"; T_NET="$(count_net)"
 T_OUT="$(chdf "$APP_LIVE" apply -destroy -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$T_OUT" | tail -20; fail "app's apply -destroy failed"; }
 grep -qF "Resources: 0 added, 0 changed, $T_APP destroyed" <<< "$T_OUT" || { printf '%s\n' "$T_OUT" | tail -5; fail "app's destroy did not remove exactly its $T_APP objects"; }
-T_APP_LEFT="$(count_app)"; T_APP_REC="$(record_secrets "$REC_APP" "$APP" tofu-records)"
+T_APP_LEFT="$(count_app)"; T_APP_REC="$(instance_records "$REC_APP" "$APP")"
 [ "$T_APP_LEFT" = "0" ] || fail "$T_APP_LEFT object(s) still carry tofu-estate=$APP after app's destroy"
-[ "$T_APP_REC" = "0" ] || fail "$T_APP_REC record Secret(s) of app's remain in $REC_APP after its destroy"
+[ "$T_APP_REC" = "0" ] || { show_records "$REC_APP" "$APP"; fail "$T_APP_REC record Secret(s) of app's remain in $REC_APP after its destroy"; }
 [ "$(count_net)" = "$T_NET" ] || fail "app's destroy moved network's count ($T_NET -> $(count_net))"
 T_OUT="$(chdf "$NET_LIVE" apply -destroy -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$T_OUT" | tail -20; fail "network's apply -destroy failed"; }
 grep -qF "Resources: 0 added, 0 changed, $T_NET destroyed" <<< "$T_OUT" || { printf '%s\n' "$T_OUT" | tail -5; fail "network's destroy did not remove exactly its $T_NET objects"; }
@@ -1103,12 +1141,12 @@ for _ in $(seq 1 30); do kca get namespace "$NS_NET" >/dev/null 2>&1 || kca get 
 kca get namespace "$NS_NET" >/dev/null 2>&1 && fail "the $NS_NET namespace still exists after the destroys"
 kca get namespace "$NS_APP" >/dev/null 2>&1 && fail "the $NS_APP namespace still exists after the destroys"
 [ "$(count_net)" = "0" ] || fail "$(count_net) object(s) still carry tofu-estate=$NET"
-T_NET_REC="$(record_secrets "$REC_NET" "$NET" tofu-records)"; T_NET_OUT="$(record_secrets "$REC_NET" "$NET" tofu-outputs)"
-[ "$T_NET_REC" = "0" ] && [ "$T_NET_OUT" = "0" ] || fail "network's destroy left $T_NET_REC record and $T_NET_OUT output Secret(s) in $REC_NET"
+T_NET_REC="$(instance_records "$REC_NET" "$NET")"; T_NET_OUT="$(record_secrets "$REC_NET" "$NET" tofu-outputs)"
+[ "$T_NET_REC" = "0" ] && [ "$T_NET_OUT" = "0" ] || { show_records "$REC_NET" "$NET"; fail "network's destroy left $T_NET_REC record and $T_NET_OUT output Secret(s) in $REC_NET"; }
 T_HINTS="$(( $(record_secrets "$REC_NET" "$NET" tofu-hints) + $(record_secrets "$REC_APP" "$APP" tofu-hints) ))"
 ran stock_b apply -destroy -auto-approve -input=false -no-color || { shown; fail "stock's destroy of app failed on B"; }
 ran stock_bn apply -destroy -auto-approve -input=false -no-color || { shown; fail "stock's destroy of network failed on B"; }
-gauntlet_stage day2_teardown pass "app's apply -destroy removed exactly its $T_APP objects while network's $T_NET stood untouched and app's records left $REC_APP with them (0 record Secrets); then network's removed its $T_NET (the handoff manifest it took over by live-mv included), both namespaces are gone, no object of either estate carries tofu-estate (kubectl, every namespace but the records ones), and $REC_NET holds 0 record and 0 output Secrets - so app's read of network's outputs would now be told they are not recorded. Guided-discovery hints left in the records namespaces: $T_HINTS. Stock's destroys of the same two estates on the oracle cluster, app then network, both completed"
+gauntlet_stage day2_teardown pass "app's apply -destroy removed exactly its $T_APP objects while network's $T_NET stood untouched and app's records left $REC_APP with them (0 instance record Secrets; the store's own provisioning sentinel stays by design); then network's removed its $T_NET (the handoff manifest it took over by live-mv included), both namespaces are gone, no object of either estate carries tofu-estate (kubectl, every namespace but the records ones), and $REC_NET holds 0 record and 0 output Secrets - so app's read of network's outputs would now be told they are not recorded. Guided-discovery hints left in the records namespaces: $T_HINTS. Stock's destroys of the same two estates on the oracle cluster, app then network, both completed"
 
 # ── 12. greenfield: both estates fresh, records in the cluster ───────────
 gauntlet_begin_stage greenfield

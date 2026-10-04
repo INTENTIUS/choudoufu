@@ -148,6 +148,15 @@ type Substrate interface {
 	// block is removed ([Sweeps], GitHub issue #1742).
 	SweepFindsUnadmitted() bool
 
+	// MarkerOutlivesObject is whether a deleted object's marker can still
+	// be listed after the object is gone, which is the only thing a record
+	// tombstone is for (internal/live/projection's tombstoneFields): AWS's
+	// tagging index lists a terminated instance's tags for a while. On a
+	// family whose marker is a field of the object it is false, a tombstone
+	// has no reader, and a destroy deletes the record instead (GitHub issue
+	// #1883; live/MARKERS.md's record table).
+	MarkerOutlivesObject() bool
+
 	// NewSweeper builds the family's estate-sweep client from its provider
 	// block's evaluated configuration (ok false when the run holds none):
 	// nil with no error for a family whose sweep runs through the
@@ -232,6 +241,16 @@ func ForProvider(providerType string) (Substrate, bool) {
 func Sweeps(providerType string) bool {
 	s, ok := ForProvider(providerType)
 	return ok && s.SweepFindsUnadmitted()
+}
+
+// TombstonesRead reports whether a record tombstone written for an object
+// of providerType's family can ever be read: true unless the family is
+// known and its marker dies with the object ([Substrate.MarkerOutlivesObject]).
+// An unregistered provider answers true, which keeps the tombstone, the
+// conservative side.
+func TombstonesRead(providerType string) bool {
+	s, ok := ForProvider(providerType)
+	return !ok || s.MarkerOutlivesObject()
 }
 
 // For is the family a surface belongs to, or nil for the zero Surface.

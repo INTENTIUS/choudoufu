@@ -86,6 +86,10 @@ var refusals = []Refusal{
 		What:    "A live object read from the cloud could not be encoded against the provider's schema for its type.",
 	},
 	{
+		Summary: "Cannot clear the destroyed estate's remaining records",
+		What:    "GitHub issue #1883: a destroy of the whole estate removes the records its plan never read (an address a moved block, an orphan destroy or live-mv -from-estate left behind), and listing the store or removing one of them failed. A warning: the records are left in place and a later destroy removes them.",
+	},
+	{
 		Summary: "Cannot confirm the destroy removed every record",
 		What:    "GitHub issue #1355: after a destroy of the whole estate, listing or reading the record store back to confirm no record-backed instance survived failed. Nothing is known to be wrong, but the destroy is not reported complete until the check succeeds.",
 	},
