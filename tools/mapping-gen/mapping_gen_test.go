@@ -787,8 +787,7 @@ func TestFormer2SampleRowsResolveCorrectly(t *testing.T) {
 // TestMappingJSONMatchesCommittedInputs regenerates live/mapping.json from
 // the other committed inputs (live/survey-full.json, live/registry.json,
 // the overlay, and issue #52's two generated/sourced tables) and diffs it
-// against the committed artifact, the same pattern tools/survey-gen's
-// TestSurveyJSONAgainstHandTable uses: it reads only committed files, so it
+// against the committed artifact. It reads only committed files, so it
 // needs no gate.
 func TestMappingJSONMatchesCommittedInputs(t *testing.T) {
 	root, err := repoRoot()

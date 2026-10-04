@@ -294,23 +294,7 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"exceptions - this file is the same contract one level up.",
 		Data: 8, Code: 0,
 	},
-	"tools/survey-gen/classify.go": {
-		Reason: "opsExcluded: aws_iam_access_key, one of the four sanctioned credential-material exclusions (a ruling, not " +
-			"hand-wiring). The secret half is unreadable after create, which is a fact about the resource's own contents " +
-			"and is in no schema. It was two until 2026-08-17, when the maintainer withdrew aws_acm_certificate_validation " +
-			"(\"waiter: records only that DNS validation finished\") - a judgment about what the resource means, not about " +
-			"what can name it, and the classifier settles the naming question from the schemas.",
-		Data: 1, Code: 0,
-	},
-	"tools/survey-gen/render.go": {
-		Reason: "summaryOverrides: one row, aws_iam_role_policy_attachment, where the survey's strongest-path classing and " +
-			"the identity table's structural grouping disagree, so the rendered tally reproduces the survey's counts instead " +
-			"of restyling them. A row leaving live/LIMITATIONS.md's wrinkle list should leave here in the same change. It was " +
-			"two until 2026-08-17: aws_eip's override said 'count it as marker, the table shows the fork's list-plus-content " +
-			"wiring', and there is no such wiring - bindCountBySlot binds an eip by its tofu-slot tag, which is a marker. The " +
-			"table now says marker too, so there is nothing left to override and the rendered counts did not move.",
-		Data: 1, Code: 0,
-	},
+
 	"tools/survey-gen/untaggable_render.go": {
 		Reason: "nonAWSAdmittedUntaggable (issue #326): a named ledger, not hand-wiring in the sense this file exists to " +
 			"catch - it is the exact escape hatch contributing/LIVE-TABLES.md and tools/row-gen/annotations.json's own doc " +
@@ -692,7 +676,14 @@ const (
 	// (live/survey-full.json is AWS-only) and is not a taggability answer
 	// this fork could compute either way - it is a maintainer ruling still
 	// open on #1600 over which tier the Kubernetes label surface maps to.
-	typeLiteralDataTotal = 1182
+	// 1182 -> 1180 data, code unchanged at 131, on 2026-10-03 (issue #696):
+	// survey-gen's path taxonomy and live/SURVEY.md were retired, and with
+	// them the two hand ledgers that only fed that taxonomy -
+	// tools/survey-gen/classify.go's opsExcluded (aws_iam_access_key) and
+	// tools/survey-gen/render.go's summaryOverrides
+	// (aws_iam_role_policy_attachment). Both registry entries went too. Two
+	// Data literals deleted, none moved.
+	typeLiteralDataTotal = 1180
 	typeLiteralCodeTotal = 131
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

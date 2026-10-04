@@ -22,7 +22,8 @@
 // an infrastructure resource, or that an emulator gap blocks a type from
 // e2e proof. Those three judgments are curated below, with their evidence
 // in comments, the same way tools/survey-gen/classify.go's opsExcluded
-// carries the credential and waiter judgments no schema can prove. (That
+// carried the credential and waiter judgments no schema can prove, until
+// #696 retired it with the survey's path taxonomy. (That
 // symbol used to be cited here as living in internal/live/lint/admission.go;
 // it moved packages, it did not go away.)
 //
