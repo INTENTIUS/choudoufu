@@ -9,12 +9,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=691 instances=2441
+# shape: dirs=692 instances=2441
 # shape: class CONCRETE=1495
 # shape: class NEEDS_DISCOVERY=781
 # shape: class PARENT_DERIVED=138
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=660 fixture-instances=1737
+# shape: fixture-dirs=661 fixture-instances=1737
 # shape: cohort-dirs=31 cohort-instances=704
 # shape: body-sha256=9db19c70869e3d1c397c31499999ba1064f0e473e54f13c9fa513deac6aae0ba
 #

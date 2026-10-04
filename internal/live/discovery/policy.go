@@ -51,6 +51,16 @@ func applyOrphanPolicy(req Request, res *Result) {
 		// explained to the operator under the other quadrant's name. See
 		// GitHub issue #116.
 		tagged := req.Policy.TagMatches(o.Tags)
+		if o.FieldManagerMarked && !tagged {
+			// #1885: a field-granular write has no tags; its marker is the
+			// estate's field manager, the estate marker for that shape
+			// (markers.FieldManagerFor). It carries the policy's tag
+			// exactly when the policy's tag is the estate marker naming
+			// this estate. Read as untagged, every removed field-granular
+			// block was kept by undeclared_untagged's default instead of
+			// released by undeclared_tagged's.
+			tagged = req.Policy.TagKey == markers.TagEstate && req.Policy.TagValue == o.Marker && o.Marker != ""
+		}
 		quadrant := policy.QuadrantOf(false, tagged)
 		verb := req.Policy.Verb(false, tagged)
 		if verb == policy.Delete {
@@ -68,6 +78,7 @@ func applyOrphanPolicy(req Request, res *Result) {
 		}
 		o.Removal = false
 		o.PolicyVerb = verb
+		o.PolicyQuadrant = quadrant.Attribute()
 		o.Withheld = policyWithheldMessage(req.Policy, verb, quadrant.Attribute(), o.TypeName, o.Normalized)
 		kept[o.Addr.String()] = true
 	}

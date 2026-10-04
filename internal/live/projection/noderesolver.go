@@ -292,6 +292,27 @@ func (n *NodeResolver) ResolveResourceIdentity(ctx context.Context, addr addrs.A
 		return providers.ImportTarget{}, false, diags
 	}
 
+	// A field-granular instance (epic #1885) is never resolved to an
+	// import. Its presence is decided by the pre-walk projection alone,
+	// which reads it under this estate's field manager (or the stock
+	// manager a migration record names) and puts it in prior state when
+	// that manager owns any of its fields; reaching here with no prior
+	// state means the projection found it owning nothing. Its identity is
+	// the patched object, which exists whether or not this estate wrote to
+	// it, so every step below would name it anyway - the marker index
+	// carries the static evaluator's config-derived resolution, and a
+	// record outlives fields another apply released - and an import then
+	// asks for an Importer five of the six types lack ("Resource type has
+	// no classic Importer"), or for kubernetes_env reads under the
+	// provider's default manager instead of the estate's. Not-found plans
+	// the create, which is the provider's server-side-apply patch of just
+	// the block's fields: no duplicate object is possible, and
+	// internal/command's field-owner pass judges it against the managers
+	// that own those fields (discovery.CheckKubernetesFieldOwners).
+	if fieldGranularOwned(n.providerType(addr), schema) {
+		return providers.ImportTarget{}, false, diags
+	}
+
 	// (a) The estate's record - GitHub issue #364's write half, read the
 	// same way [builder.materializeFromRecord] reads it for the pre-walk
 	// path.

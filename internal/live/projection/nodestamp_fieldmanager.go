@@ -126,7 +126,7 @@ var fieldGranularWrittenBlocks = []string{"env", "taint"}
 // estate's ownership, read off the API server. See this file's doc
 // comment.
 func fieldGranularSeed(seed map[string]cty.Value, estate string) map[string]cty.Value {
-	if estate == "" || markers.ValidFieldManagerEstate(estate) != "" {
+	if !fieldGranularMarked(estate) {
 		return seed
 	}
 	out := make(map[string]cty.Value, len(seed)+1)
@@ -138,6 +138,12 @@ func fieldGranularSeed(seed map[string]cty.Value, estate string) map[string]cty.
 	}
 	out[substrate.FieldManagerAttr] = cty.StringVal(markers.FieldManagerFor(estate))
 	return out
+}
+
+// fieldGranularMarked reports whether estate can carry a field manager, so
+// [fieldGranularSeed] reads under it.
+func fieldGranularMarked(estate string) bool {
+	return estate != "" && markers.ValidFieldManagerEstate(estate) == ""
 }
 
 // fieldGranularOrphanSeed adds to seed every top-level string attribute
@@ -245,16 +251,7 @@ func fieldGranularStub(schema providers.Schema, values map[string]string, import
 		attrs[name] = stub.GetAttr(name)
 	}
 
-	metaAttrs := map[string]cty.Value{}
-	for name, ty := range nested.Block.ImpliedType().AttributeTypes() {
-		v, has := values[name]
-		if has && (name == "name" || name == "namespace") && ty == cty.String {
-			metaAttrs[name] = cty.StringVal(v)
-			continue
-		}
-		metaAttrs[name] = cty.NullVal(ty)
-	}
-	attrs["metadata"] = cty.ListVal([]cty.Value{cty.ObjectVal(metaAttrs)})
+	attrs["metadata"] = fieldGranularMetadata(nested, values)
 	if ty, ok := schema.Block.ImpliedType().AttributeTypes()["id"]; ok && ty == cty.String {
 		attrs["id"] = cty.StringVal(importID)
 	}

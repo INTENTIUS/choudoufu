@@ -37,7 +37,8 @@ import (
 // env, a taint block the node's taints.
 
 // collectKubernetesFieldOwners judges every planned create or update of a
-// field-granular instance, per cluster, and returns the refusals and
+// field-granular instance, per cluster, refuses two kept instances of the
+// estate on one object whatever their actions, and returns the refusals and
 // warnings discovery.CheckKubernetesFieldOwners and
 // discovery.SameObjectFieldWrites raise. estate "" (a run with no estate
 // name has stamped nothing) checks nothing.
@@ -47,12 +48,23 @@ func collectKubernetesFieldOwners(ctx context.Context, sweepers map[string]kubes
 		return diags
 	}
 	byProvider := map[string][]discovery.FieldGranularWrite{}
+	// kept is every field-granular instance the plan keeps, per provider
+	// configuration, whatever its action: the same-object refusal's input.
+	// A block with nothing to change still writes under the estate's one
+	// field manager on its next apply, so a new block on its object erases
+	// it as surely as an updated one would (epic #1885: a
+	// kubernetes_annotations added to the Deployment an unchanged
+	// kubernetes_env.web writes into planned "1 to add" at exit 0). Only
+	// the planned creates and updates in byProvider are read back for
+	// their fields' owners.
+	kept := map[string][]discovery.FieldGranularWrite{}
 	var keys []string
 	for _, rc := range plan.Changes.Resources {
 		if rc.Addr.Resource.Resource.Mode != addrs.ManagedResourceMode {
 			continue
 		}
-		if rc.Action != plans.Create && rc.Action != plans.Update && rc.Action != plans.CreateThenDelete && rc.Action != plans.DeleteThenCreate {
+		writes := rc.Action == plans.Create || rc.Action == plans.Update || rc.Action == plans.CreateThenDelete || rc.Action == plans.DeleteThenCreate
+		if !writes && rc.Action != plans.NoOp {
 			continue
 		}
 		schema, _ := schemas.ResourceTypeConfig(rc.ProviderAddr.Provider, rc.Addr.Resource.Resource.Mode, rc.Addr.Resource.Resource.Type)
@@ -63,19 +75,27 @@ func collectKubernetesFieldOwners(ctx context.Context, sweepers map[string]kubes
 			continue
 		}
 		w, ok := plannedFieldGranularWrite(rc, schema)
-		if !ok {
+		key := providerCacheKey(rc.ProviderAddr)
+		if ok || w.Object.Name != "" && w.Object.Kind != "" && w.Object.APIVersion != "" {
+			// The object alone is what the same-object refusal needs: a
+			// value whose written keys are not known yet still names it.
+			if _, seen := kept[key]; !seen {
+				keys = append(keys, key)
+			}
+			kept[key] = append(kept[key], w)
+		}
+		if !ok || !writes {
 			continue
 		}
 		w.Create = rc.Action == plans.Create
-		key := providerCacheKey(rc.ProviderAddr)
-		if _, seen := byProvider[key]; !seen {
-			keys = append(keys, key)
-		}
 		byProvider[key] = append(byProvider[key], w)
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		diags = diags.Append(discovery.SameObjectFieldWrites(config, estate, byProvider[key]))
+		diags = diags.Append(discovery.SameObjectFieldWrites(config, estate, kept[key]))
+		if len(byProvider[key]) == 0 {
+			continue
+		}
 		reader, _ := sweepers[key].(kubesweep.ObjectReader)
 		if reader == nil {
 			// No cluster client for this provider configuration: the sweep
