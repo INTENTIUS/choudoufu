@@ -201,7 +201,16 @@ func (c *Client) ListFieldManaged(ctx context.Context, k Kind, manager string) (
 		return nil, fmt.Errorf("listing by field manager needs a manager name")
 	}
 	var out []FieldManagedObject
-	add := func(namespace, name string, entries []metav1.ManagedFieldsEntry) error {
+	add := func(namespace, name string, labels, annotations map[string]string, entries []metav1.ManagedFieldsEntry) error {
+		// The estate's own record Secrets are never a field-granular
+		// block's, whoever wrote them; the label leg sets them aside the
+		// same way ([RecordStoreObject]).
+		probe := &unstructured.Unstructured{}
+		probe.SetLabels(labels)
+		probe.SetAnnotations(annotations)
+		if RecordStoreObject(probe) {
+			return nil
+		}
 		fields, ok, err := ManagerFields(entries, manager)
 		if err != nil {
 			return fmt.Errorf("%s %s: %w", k.Kind, NaturalKey(namespace, name), err)
@@ -220,7 +229,7 @@ func (c *Client) ListFieldManaged(ctx context.Context, k Kind, manager string) (
 				return nil, c.creds.explain(err)
 			}
 			for _, item := range list.Items {
-				if err := add(item.GetNamespace(), item.GetName(), item.GetManagedFields()); err != nil {
+				if err := add(item.GetNamespace(), item.GetName(), item.GetLabels(), item.GetAnnotations(), item.GetManagedFields()); err != nil {
 					return nil, err
 				}
 			}
@@ -231,7 +240,7 @@ func (c *Client) ListFieldManaged(ctx context.Context, k Kind, manager string) (
 				return nil, c.creds.explain(err)
 			}
 			for _, item := range list.Items {
-				if err := add(item.GetNamespace(), item.GetName(), item.GetManagedFields()); err != nil {
+				if err := add(item.GetNamespace(), item.GetName(), item.GetLabels(), item.GetAnnotations(), item.GetManagedFields()); err != nil {
 					return nil, err
 				}
 			}

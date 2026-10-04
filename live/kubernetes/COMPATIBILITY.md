@@ -110,15 +110,20 @@ anything is applied:
 | Two field-granular blocks of one estate on one object | Refused (`Two field-granular blocks patch one object`). Both would write under the one manager, and server-side apply drops the fields a manager's next apply leaves out, so each would erase the other |
 | A `field_manager` the configuration sets to anything but `choudoufu:<estate>` | Refused as an ownership marker conflict, the same refusal a hand-written `tofu-estate` naming another estate gets |
 
-What is not done yet. A block removed from the configuration leaves its
-fields on the object: nothing lists objects by field manager, so the
-sweep does not find them and no destroy is proposed. A state migrated
-from stock wrote under `Terraform`, so its first live plan proposes the
-write again as a create, and the apply then shares each field with
-`Terraform` rather than taking it over
-([#1106](https://github.com/INTENTIUS/choudoufu/issues/1106) section 3's
-migration item). The kind proof, `live/kubernetes/proof-ssa-conflict.sh`,
-is written and has not been run.
+Removal, migration and live-import
+([#1863](https://github.com/INTENTIUS/choudoufu/issues/1863)):
+
+| Case | What happens |
+|---|---|
+| A field-granular block removed from the configuration | The sweep lists every object of every kind it lists (no selector can match on `managedFields`) and reads which fields `choudoufu:<estate>` owns. An object holding such fields that no block names is an orphan of the one type whose fields they are, at a synthetic address, and the plan proposes its destroy: the provider's own Delete, an apply of an empty map under the estate's manager, which releases the fields as stock's destroy does |
+| Fields the estate's manager owns that are not exactly one type's | Not proposed; a warning names the objects (`Fields owned by this estate's field manager not proposed for removal`) |
+| A field-granular block whose object is not known yet | No field-granular removal is proposed that run (`Field-granular removals deferred`) |
+| `live-import -approve` of a stock state entry | Ownership of exactly the fields the state records moves from the manager the state names (`Terraform` by default) to `choudoufu:<estate>` on the live object, values unchanged. A state naming another estate's manager is refused by name |
+| The first live plan on fields stock wrote, without `live-import` | Read under `Terraform` when the estate's manager owns nothing, kept to the keys the configuration declares, and planned as an update of `field_manager`. After approval and before the apply, those fields move from `Terraform` to the estate's manager, so the write does not leave them shared |
+
+The kind proof, `live/kubernetes/proof-ssa-conflict.sh`,
+is written and has not been run; neither has a proof of the rows
+above.
 
 `helm_release` is refused in a live root, and the refusal is the ordinary
 unadmitted-type one
