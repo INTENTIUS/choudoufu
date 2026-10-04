@@ -1400,6 +1400,25 @@ gauntlet_first_error_line() {
   { grep -m1 -E '^[[:space:]]*(│[[:space:]]*)?Error: ' || true; } | sed -E 's/^[[:space:]]*│?[[:space:]]*//'
 }
 
+# gauntlet_api_call_total <debug log> - the number of provider-mediated AWS
+# API requests in one TF_LOG=DEBUG capture, by the same rule
+# live/live-cert/terralith-scale.sh's analyze_api_calls uses and every call
+# count in live/costs/what-you-pay.md was taken with: one per hclog entry
+# carrying "HTTP Request Sent". An entry can span lines, so lines are folded
+# into the entry their timestamp opened before matching. Prints 0 for a log
+# with none, and nothing (returning 1) when the file is missing, so a caller
+# can tell "measured zero" from "not measured" (#1098).
+gauntlet_api_call_total() {
+  local f="$1"
+  [ -f "$f" ] || return 1
+  awk '
+    function flush() { if (entry ~ /HTTP Request Sent/) total++; entry = "" }
+    /^20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T/ { flush(); entry = $0; next }
+    { entry = entry " " $0 }
+    END { flush(); printf "%d\n", total + 0 }
+  ' "$f"
+}
+
 # gauntlet_plan_line - the plan's own "Plan: ..." or "No changes." summary
 # line on stdin, without its trailing period; empty when there is none.
 gauntlet_plan_line() {

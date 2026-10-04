@@ -796,7 +796,7 @@ else
   if [ "${BREAK_MIGRATE:-}" = "1" ]; then
     log "  BREAK_MIGRATE=1: the summary-line assertion correctly failed with the count off by one: $(grep -E 'eligible for stamping' <<< "$IMPORT_OUT" | head -1)"
     not_run_rest "BREAK_MIGRATE=1 control run: this run exists to prove migrate's own count assertion is load-bearing and stops once it has" \
-      migrate test_plan test_apply greenfield drift_reconverge day2_rename day2_remove day2_count day2_replace strict
+      migrate test_plan test_apply greenfield no_local_state drift_reconverge day2_rename day2_remove day2_count day2_replace strict
     gauntlet_end
     exit 0
   fi
@@ -853,7 +853,7 @@ if [ "${BREAK_PLAN:-}" = "1" ]; then
     || { printf '%s\n' "$BREAK_MIS"; fail "BREAK_PLAN=1: the single mismatch is not the corrupted string"; }
   log "  BREAK_PLAN=1: exactly one mismatch, and it is the corrupted string ($BAD) - the identity assertion fails on that string and nothing else, as it must"
   not_run_rest "BREAK_PLAN=1 control run: this run exists to prove test_plan's identity assertion is load-bearing and stops once it has" \
-    test_plan test_apply greenfield drift_reconverge day2_rename day2_remove day2_count day2_replace strict
+    test_plan test_apply greenfield no_local_state drift_reconverge day2_rename day2_remove day2_count day2_replace strict
   gauntlet_end
   exit 0
 fi
@@ -906,7 +906,7 @@ ${PREFIX}-an-object-that-was-never-there"
   fi
   log "  BREAK_APPLY=1: the inventory comparison correctly failed against a deliberately wrong expectation"
   not_run_rest "BREAK_APPLY=1 control run: this run exists to prove test_apply's inventory assertion is load-bearing and stops once it has" \
-    test_apply greenfield drift_reconverge day2_rename day2_remove day2_count day2_replace strict
+    test_apply greenfield no_local_state drift_reconverge day2_rename day2_remove day2_count day2_replace strict
   gauntlet_end
   exit 0
 fi
@@ -998,6 +998,23 @@ plan_is_noop "$GF_PLAN" \
   || { grep -E '^  #' <<< "$GF_PLAN" | head -20; fail "the greenfield replan is not empty"; }
 log "  No changes."
 
+# no_local_state's baseline (#1098), taken here because this is the last
+# moment both local artifacts are intact: F5 below deletes the record store.
+# It is the steady-state plan what-you-pay.md's "cache serving" column
+# measures - `plan -refresh=false`, record store and state cache both
+# present - instrumented with TF_LOG=DEBUG to count its calls. It never
+# fails here: this is still greenfield's window, and a failure now would be
+# blamed on greenfield. no_local_state reads what it recorded and decides.
+log "=== F4b. no_local_state baseline: the cache-serving plan, counted (#1098) ==="
+NLS_CACHE="$GREENDIR/${TF_DATA_DIR:-.terraform}/choudoufu-cache.tfstate"
+case "${TF_DATA_DIR:-}" in /*) NLS_CACHE="$TF_DATA_DIR/choudoufu-cache.tfstate" ;; esac
+NLS_CACHE_BEFORE=no; [ -s "$NLS_CACHE" ] && NLS_CACHE_BEFORE=yes
+NLS_BASE_LOG="$WORK/no_local_state.base.debug.log"
+NLS_BASE_PLAN="$(cd "$GREENDIR" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" TF_LOG=DEBUG TF_LOG_PATH="$NLS_BASE_LOG" "$TOFU" plan -refresh=false -input=false -no-color 2>&1)"; NLS_BASE_RC=$?
+NLS_BASE_CALLS="$(gauntlet_api_call_total "$NLS_BASE_LOG" || true)"
+NLS_BASE_EMPTY=no; [ "$NLS_BASE_RC" -eq 0 ] && plan_is_noop "$NLS_BASE_PLAN" && NLS_BASE_EMPTY=yes
+log "  cache-serving plan: exit $NLS_BASE_RC, empty=$NLS_BASE_EMPTY, ${NLS_BASE_CALLS:-?} API call(s); state cache present beforehand: $NLS_CACHE_BEFORE ($NLS_CACHE)"
+
 # F5 deletes the whole local record store and replans. What that proves,
 # and what it deliberately does NOT demand:
 #
@@ -1048,7 +1065,7 @@ if [ "${BREAK_GREENFIELD:-}" = "1" ]; then
   fi
   log "  BREAK_GREENFIELD=1: correctly mismatched with one resource kind dropped"
   not_run_rest "BREAK_GREENFIELD=1 control run: this run exists to prove greenfield's object-by-object comparison is load-bearing and stops once it has" \
-    greenfield drift_reconverge day2_rename day2_remove day2_count day2_replace strict
+    greenfield no_local_state drift_reconverge day2_rename day2_remove day2_count day2_replace strict
   gauntlet_end
   exit 0
 fi
@@ -1058,6 +1075,69 @@ if [ "$GF_SHAPE" != "$COLD_SHAPE" ]; then
 fi
 log "  object-by-object match across $GF_SHAPE_N structural facts: IAM role names and every role's inline policies and attachments, customer-managed policy names, instance-profile names and the role each holds, VPC cidr, subnet cidr and AZ, security-group egress rules, ECS cluster, service (name/desired/launch type) and task-definition family with its ACTIVE revision count, the hosted zone and all its records (name/type/ttl/value) - marker tags never read on either side"
 gauntlet_stage greenfield pass "choudoufu applied ${EXPECTED} resources into an account a stock destroy had left enumerated empty (A2), and its cloud matches stock's cold deploy across $GF_SHAPE_N structural facts compared object by object with marker tags never read on either side - the oracle this stage names. Also, beyond the oracle: the six representative identities are correct by value via the AWS CLI across Route 53/IAM/ECS/EC2; the apply persisted $GF_RECORDS records, matching stock's own instance list type for type with no gap - #671 closed the last one (aws_ecs_task_definition), which used to get no record and now does; the next plan is empty; and with the local record store deleted outright every one of the ${EXPECTED} objects is still found - nothing created, destroyed or replaced, ${UNTAGGABLE} of them untaggable and composing from a stamped parent - with the only movement being ${GF_NOREC_N} residue-held aws_ecs_service update(s), which is what deleting the residue store (issue #275) means rather than a divergence"
+
+# ══════════════════════════════════════════════════════════════════════════
+# no_local_state (#1098): plan with the record store AND the state cache gone
+# ══════════════════════════════════════════════════════════════════════════
+#
+# F5 already deleted the record store and proved every object is still
+# found. That was the tail of greenfield's detail sentence, and it left the
+# state cache in place. Ruled on #1098: "local state gone" means both local
+# artifacts, which is the fresh-clone case - a new machine has neither. So
+# this deletes the cache too, plans with only the account left, makes F5's
+# by-value assertions again, and reports the call count beside F4b's
+# cache-serving baseline, because that ratio is the claim.
+gauntlet_begin_stage no_local_state
+log "=== F7. no_local_state: delete the record store AND the state cache, then plan ==="
+[ -n "${NLS_BASE_CALLS:-}" ] && [ "$NLS_BASE_CALLS" -gt 0 ] \
+  || fail "the cache-serving baseline (F4b) recorded no API calls (${NLS_BASE_CALLS:-no debug log}) - there is nothing to compare the no-local-state plan against"
+[ "$NLS_BASE_EMPTY" = "yes" ] \
+  || { printf '%s\n' "$NLS_BASE_PLAN" | tail -30; fail "the cache-serving baseline plan (F4b) was not empty (exit $NLS_BASE_RC), so it is no baseline"; }
+[ "$NLS_CACHE_BEFORE" = "yes" ] \
+  || fail "no state cache existed at $NLS_CACHE before the baseline plan, so F4b was not a cache-serving plan and deleting it below would delete nothing"
+rm -rf "$GREENDIR/.tofu-records"
+rm -f "$NLS_CACHE"
+[ ! -e "$GREENDIR/.tofu-records" ] && [ ! -e "$NLS_CACHE" ] \
+  || fail "the record store or the state cache survived deletion - the plan below would not be a plan with no local state"
+if [ "${BREAK_NO_LOCAL_STATE:-}" = "1" ]; then
+  NLS_BREAK_ROLE="${PREFIX}-team-0000-role"
+  awsg iam untag-role --role-name "$NLS_BREAK_ROLE" --tag-keys tofu-address tofu-estate \
+    || fail "BREAK_NO_LOCAL_STATE=1: could not strip $NLS_BREAK_ROLE's markers"
+  log "  BREAK_NO_LOCAL_STATE=1: stripped $NLS_BREAK_ROLE's markers - with no local state, nothing else can say it is the estate's"
+fi
+NLS_LOG="$WORK/no_local_state.debug.log"
+NLS_PLAN="$(cd "$GREENDIR" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" TF_LOG=DEBUG TF_LOG_PATH="$NLS_LOG" "$TOFU" plan -refresh=false -input=false -no-color 2>&1)"; NLS_RC=$?
+NLS_CALLS="$(gauntlet_api_call_total "$NLS_LOG" || true)"
+# nls_violation names the first thing that makes this NOT a plan that found
+# everything, or prints nothing. The BREAK leg needs the answer without
+# failing on it, so it is a function rather than a chain of fail calls.
+nls_violation() {
+  [ "$NLS_RC" -eq 0 ] || { echo "the plan with no local state exited $NLS_RC"; return; }
+  grep -qE '^  # .+ will be created' <<< "$NLS_PLAN" && { echo "with no local state the plan proposes CREATING something that already exists - an object is not being found by its marker"; return; }
+  grep -qE '^  # .+ will be destroyed' <<< "$NLS_PLAN" && { echo "with no local state the plan proposes destroying something the configuration still declares"; return; }
+  grep -qE '^  # .+ must be replaced' <<< "$NLS_PLAN" && { echo "with no local state the plan proposes replacing something the configuration still declares"; return; }
+  local other
+  other="$(grep -oE '^  # \S+ will be updated' <<< "$NLS_PLAN" | awk '{print $2}' | grep -v '^aws_ecs_service\.' || true)"
+  [ -z "$other" ] || { echo "with no local state the plan proposes in-place updates outside aws_ecs_service (the one type here with residue the provider's Read does not return): $(printf '%s' "$other" | head -5 | tr '\n' ' ')"; return; }
+}
+NLS_BAD="$(nls_violation)"
+if [ "${BREAK_NO_LOCAL_STATE:-}" = "1" ]; then
+  [ -n "$NLS_BAD" ] \
+    || fail "BREAK_NO_LOCAL_STATE=1: with ${NLS_BREAK_ROLE}'s markers stripped and no local state, the plan still found everything - this stage's check is not load-bearing"
+  log "  BREAK_NO_LOCAL_STATE=1: correctly failed: $NLS_BAD"
+  gauntlet_stage no_local_state not_run "BREAK_NO_LOCAL_STATE=1 control run: the check failed as it must ($NLS_BAD); this run proves the stage is load-bearing and measures nothing"
+  not_run_rest "BREAK_NO_LOCAL_STATE=1 control run: stopped once no_local_state's check was proven load-bearing" \
+    drift_reconverge day2_rename day2_remove day2_count day2_replace strict
+  gauntlet_end
+  exit 0
+fi
+[ -z "$NLS_BAD" ] || { grep -E '^  # .+ (will be|must be)' <<< "$NLS_PLAN" | head -20; printf '%s\n' "$NLS_PLAN" | tail -20; fail "$NLS_BAD"; }
+[ -n "${NLS_CALLS:-}" ] && [ "$NLS_CALLS" -gt 0 ] \
+  || fail "the plan with no local state left no countable debug log at $NLS_LOG - the call count this stage reports would be invented"
+NLS_UPD_N="$(grep -cE '^  # aws_ecs_service\.\S+ will be updated' <<< "$NLS_PLAN" || true)"
+NLS_RATIO="$(awk -v a="$NLS_CALLS" -v b="$NLS_BASE_CALLS" 'BEGIN { printf "%.2f", a / b }')"
+log "  every one of the ${EXPECTED} objects found with neither the record store nor the state cache: ${NLS_CALLS} API calls against the cache-serving plan's ${NLS_BASE_CALLS} (${NLS_RATIO}x)"
+gauntlet_stage no_local_state pass "with BOTH the local record store and the state cache deleted, the plan found every one of the ${EXPECTED} objects from the account alone - nothing created, destroyed or replaced, ${TAGGABLE} by their own marker and ${UNTAGGABLE} composed from a stamped parent, the only movement ${NLS_UPD_N} residue-held aws_ecs_service update(s); plan_calls_no_local_state=${NLS_CALLS} plan_calls_cache_serving=${NLS_BASE_CALLS} ratio=${NLS_RATIO}x (both plan -refresh=false, counted from TF_LOG=DEBUG as live/costs/what-you-pay.md counts); stock in this position has no plan at all, only one import block per object"
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART G: day2_count's STOCK ORACLE, in the now-idle GREEN account
