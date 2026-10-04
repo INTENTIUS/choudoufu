@@ -60,7 +60,16 @@
 #      which its charts create, and apps, which argo-bootstrap does) are
 #      created with kubectl on both clusters before the first apply. They
 #      carry no estate label and no stage counts them;
-#   6. choudoufu's roots get a live block with a local record store.
+#   6. choudoufu's roots get a live block with a local record store;
+#   7. dex_client's lifecycle { ignore_changes = [metadata[0].labels] }
+#      is narrowed to the one key the root's own kubernetes_labels
+#      .argocd_secret writes onto those Secrets,
+#      metadata[0].labels["app.kubernetes.io/part-of"]. Ignoring the whole
+#      labels map is refused in a live root (live/LIMITATIONS.md,
+#      "ignore-changes"): it would throw away the tofu-estate stamp. The
+#      single foreign key is the admitted form, and it keeps the reason the
+#      upstream root ignores labels at all, so it applies to the stock
+#      oracle too and both clusters plan the same shape.
 # And three additions, each in a file of its own, because the published
 # shape has none: day2_count's two-instance count ConfigMap, day2_crash's
 # Secret/ConfigMap pair with an edge between them, and the shared
@@ -202,7 +211,7 @@ log "  built $TOFU_CRASH (e2eTestingFeatures=yes, for day2_crash's interrupt)"
 # write_root <dst> <stock|live>: copies the root, the variables file its
 # variables-common.tf links to and the shared module it calls into <dst>,
 # keeping the repository's layout so every relative path still resolves;
-# runs split.py (delta 1) and applies deltas 2-4, plus 6 for "live". The
+# runs split.py (delta 1) and applies deltas 2-4 and 7, plus 6 for "live". The
 # working root is <dst>/$RD and the recorded stock half <dst>/$PD.
 write_root() {
   local dst="$1" mode="$2" r
@@ -299,6 +308,15 @@ EOF
   # delta 4: the default class kind ships, not the one EKS does.
   perl -0777 -pi -e 's/(resource "kubernetes_annotations" "rm_default_storageclass" \{.*?metadata \{ name = )"gp2"( \})/$1"standard"$2 # delta 4: kind'"'"'s default class, not EKS'"'"'s gp2/s' "$r/aws_ebs_csi_driver.tf"
   grep -q 'name = "standard" } # delta 4' "$r/aws_ebs_csi_driver.tf" || fail "delta 4 did not match aws_ebs_csi_driver.tf (no gp2 annotations block) - the corpus pin has moved"
+
+  # delta 7: narrow dex_client's ignore_changes from the whole labels map
+  # (refused, rule ignore-changes) to the key kubernetes_labels.argocd_secret
+  # writes. The original line is asserted first, so a moved pin fails here.
+  grep -q '^    ignore_changes = \[metadata\[0\]\.labels\]$' "$r/dex.tf" || fail "delta 7: dex.tf no longer carries ignore_changes = [metadata[0].labels] - the corpus pin has moved"
+  grep -q '"app.kubernetes.io/part-of" = "argocd"' "$r/argo.tf" || fail "delta 7: kubernetes_labels.argocd_secret no longer writes app.kubernetes.io/part-of - the corpus pin has moved"
+  perl -pi -e 's/^(    ignore_changes = \[metadata\[0\]\.labels)\]$/$1\["app.kubernetes.io\/part-of"\]] # delta 7: the key kubernetes_labels.argocd_secret writes, not the whole map/' "$r/dex.tf"
+  [ "$(grep -c 'ignore_changes = \[metadata\[0\]\.labels\["app.kubernetes.io/part-of"\]\] # delta 7' "$r/dex.tf")" = "1" ] || fail "delta 7 did not land exactly once in dex.tf"
+  grep -q '^    ignore_changes = \[metadata\[0\]\.labels\]$' "$r/dex.tf" && fail "delta 7 left a whole-map ignore_changes in dex.tf"
 
   if [ "$mode" = "live" ]; then
     cat >> "$r/gauntlet_versions.tf" <<EOF
