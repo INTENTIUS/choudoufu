@@ -1,10 +1,10 @@
 {
   "generated_by": "tools/floci-capability-gen (go run ./tools/floci-capability-gen); see its package doc for the probe/merge workflow",
-  "image": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
+  "image": "ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144",
   "images": [
     {
-      "digest": "sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
-      "ref": "ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072",
+      "digest": "sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144",
+      "ref": "ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144",
       "services": [
         {
           "service": "access-analyzer",
@@ -2178,7 +2178,7 @@
           "type": "aws_dynamodb_table",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "dynamodb create-table tagged tofu-probe-table-b3f221c6 at creation; list-tags-of-resource confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:dynamodb:us-east-1:000000000000:table/tofu-probe-table-b3f221c6",
+          "evidence": "dynamodb create-table tagged tofu-probe-table-10b9c818 at creation; list-tags-of-resource confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:dynamodb:us-east-1:000000000000:table/tofu-probe-table-10b9c818",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -2199,7 +2199,7 @@
           "type": "aws_ebs_volume",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "ec2 create-volume tagged vol-bb45dcc59fe522d6d at creation; describe-volumes confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:ec2:us-east-1:000000000000:volume/vol-bb45dcc59fe522d6d",
+          "evidence": "ec2 create-volume tagged vol-7ca090cb2b6faef68 at creation; describe-volumes confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:ec2:us-east-1:000000000000:volume/vol-7ca090cb2b6faef68",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -2899,7 +2899,7 @@
           "type": "aws_iam_instance_profile",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "iam create-instance-profile tagged tofu-probe-profile-b3f221c6 at creation; list-instance-profile-tags confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:iam::000000000000:instance-profile/tofu-probe-profile-b3f221c6",
+          "evidence": "iam create-instance-profile tagged tofu-probe-profile-10b9c818 at creation; list-instance-profile-tags confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:iam::000000000000:instance-profile/tofu-probe-profile-10b9c818",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -2913,7 +2913,7 @@
           "type": "aws_iam_policy",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "iam create-policy tagged tofu-probe-policy-b3f221c6 at creation; list-policy-tags confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:iam::000000000000:policy/tofu-probe-policy-b3f221c6",
+          "evidence": "iam create-policy tagged tofu-probe-policy-10b9c818 at creation; list-policy-tags confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:iam::000000000000:policy/tofu-probe-policy-10b9c818",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -2927,7 +2927,7 @@
           "type": "aws_iam_role",
           "mechanism": "tagging-sweep",
           "status": "unimplemented",
-          "evidence": "iam create-role tagged tofu-probe-role-b3f221c6 at creation; list-role-tags confirms tofu-estate/tofu-address natively, but an unfiltered resourcegroupstaggingapi GetResources sweep (8 resources total) does not include arn:aws:iam::000000000000:role/tofu-probe-role-b3f221c6",
+          "evidence": "iam create-role tagged tofu-probe-role-10b9c818 at creation; list-role-tags confirms tofu-estate/tofu-address natively, but an unfiltered resourcegroupstaggingapi GetResources sweep (8 resources total) does not include arn:aws:iam::000000000000:role/tofu-probe-role-10b9c818",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -3990,7 +3990,7 @@
         {
           "type": "aws_opensearch_domain",
           "status": "partial",
-          "evidence": "Re-probed against this digest 2026-09-22 (issue #1316, lex00/floci#215 - Resource Groups Tagging API TagResources/UntagResources on a Route 53 hostedzone or healthcheck ARN now writes Route 53's own tag store; unrelated to this type): create-domain returns Processing=false immediately and delete-domain returns Deleted=true, the same daemonless-control-plane round trip as every prior digest. The search data plane remains unverifiable without the docker socket.",
+          "evidence": "Re-probed against this digest 2026-10-03 (issue #1821, lex00/floci#218 - IAM name-keyed creates (CreateRole, CreateUser, CreateGroup, CreatePolicy, CreateInstanceProfile, CreateServiceLinkedRole) are now an atomic check-and-insert, so a racing same-name create gets 409 EntityAlreadyExists; unrelated to this type): create-domain returns Processing=false immediately and delete-domain returns Deleted=true, the same daemonless-control-plane round trip as every prior digest. The search data plane remains unverifiable without the docker socket.",
           "source": "hand probe against this digest"
         },
         {
@@ -4164,7 +4164,7 @@
         {
           "type": "aws_qldb_ledger",
           "status": "unimplemented",
-          "evidence": "Re-probed against this digest 2026-09-22 (issue #1316, lex00/floci#215 - Resource Groups Tagging API TagResources/UntagResources on a Route 53 hostedzone or healthcheck ARN now writes Route 53's own tag store; unrelated to this type): a real, SigV4-shaped GET /ledgers with Host: qldb.us-east-1.amazonaws.com issued directly (botocore SigV4Auth signing a raw request; the AWS CLI no longer ships a qldb service model to route it through `aws qldb`, which this probe confirmed again - `Found invalid choice 'qldb'`). Result: HTTP 404 with a clean UnknownOperationException (\"Unknown operation: GET /ledgers\"), same as every prior digest - still no QLDB handler.",
+          "evidence": "Re-probed against this digest 2026-10-03 (issue #1821, lex00/floci#218 - IAM name-keyed creates (CreateRole, CreateUser, CreateGroup, CreatePolicy, CreateInstanceProfile, CreateServiceLinkedRole) are now an atomic check-and-insert, so a racing same-name create gets 409 EntityAlreadyExists; unrelated to this type): a real, SigV4-shaped GET /ledgers with Host: qldb.us-east-1.amazonaws.com issued directly (botocore SigV4Auth signing a raw request; the AWS CLI no longer ships a qldb service model to route it through `aws qldb`, which this probe confirmed again - `Found invalid choice 'qldb'`). Result: HTTP 404 with a clean UnknownOperationException (\"Unknown operation: GET /ledgers\"), same as every prior digest - still no QLDB handler.",
           "source": "hand probe against this digest"
         },
         {
@@ -4289,7 +4289,7 @@
         {
           "type": "aws_redshift_cluster",
           "status": "implemented",
-          "evidence": "Re-probed against this digest 2026-09-22 (issue #1316, lex00/floci#215 - Resource Groups Tagging API TagResources/UntagResources on a Route 53 hostedzone or healthcheck ARN now writes Route 53's own tag store; unrelated to this type): redshift create-cluster (single-node, dc2.large) succeeds and returns ClusterStatus \"available\", and delete-cluster returns ClusterStatus \"deleting\" - unchanged from every prior digest. Cloud Control's List route is still what is broken here, not the type itself.",
+          "evidence": "Re-probed against this digest 2026-10-03 (issue #1821, lex00/floci#218 - IAM name-keyed creates (CreateRole, CreateUser, CreateGroup, CreatePolicy, CreateInstanceProfile, CreateServiceLinkedRole) are now an atomic check-and-insert, so a racing same-name create gets 409 EntityAlreadyExists; unrelated to this type): redshift create-cluster (single-node, dc2.large) succeeds and returns ClusterStatus \"available\", and delete-cluster returns ClusterStatus \"deleting\" - unchanged from every prior digest. Cloud Control's List route is still what is broken here, not the type itself.",
           "source": "hand probe against this digest"
         },
         {
@@ -4597,7 +4597,7 @@
           "type": "aws_s3_bucket",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "s3api create-bucket + put-bucket-tagging on tofu-probe-bucket-b3f221c6; get-bucket-tagging confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:s3:::tofu-probe-bucket-b3f221c6",
+          "evidence": "s3api create-bucket + put-bucket-tagging on tofu-probe-bucket-10b9c818; get-bucket-tagging confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:s3:::tofu-probe-bucket-10b9c818",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -4877,7 +4877,7 @@
           "type": "aws_secretsmanager_secret",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "secretsmanager create-secret tagged tofu-probe-secret-b3f221c6 at creation; describe-secret confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:secretsmanager:us-east-1:000000000000:secret:tofu-probe-secret-b3f221c6-H11G1R",
+          "evidence": "secretsmanager create-secret tagged tofu-probe-secret-10b9c818 at creation; describe-secret confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:secretsmanager:us-east-1:000000000000:secret:tofu-probe-secret-10b9c818-JYB46H",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -5122,7 +5122,7 @@
           "type": "aws_sns_topic",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "sns create-topic tagged tofu-probe-topic-b3f221c6 at creation; list-tags-for-resource confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:sns:us-east-1:000000000000:tofu-probe-topic-b3f221c6",
+          "evidence": "sns create-topic tagged tofu-probe-topic-10b9c818 at creation; list-tags-for-resource confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:sns:us-east-1:000000000000:tofu-probe-topic-10b9c818",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -5143,7 +5143,7 @@
           "type": "aws_sqs_queue",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "sqs create-queue tagged tofu-probe-queue-b3f221c6 at creation; list-queue-tags confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:sqs:us-east-1:000000000000:tofu-probe-queue-b3f221c6",
+          "evidence": "sqs create-queue tagged tofu-probe-queue-10b9c818 at creation; list-queue-tags confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:sqs:us-east-1:000000000000:tofu-probe-queue-10b9c818",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
