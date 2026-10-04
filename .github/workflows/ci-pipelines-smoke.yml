@@ -77,7 +77,7 @@ jobs:
       # a service image cannot read a file, so the two are checked rather
       # than shared.
       floci:
-        image: ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072
+        image: ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144
 
     env:
       # Service containers are reachable from a job container by their
