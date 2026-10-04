@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -37,9 +38,15 @@ import (
 // under the block's field manager, which releases every field the manager
 // owned and deletes each one no other manager also owns.
 //
-// So this leg lists every object of every kind the sweep lists, without a
-// selector, and reads which own fields the estate's manager holds on each
-// ([kubesweep.FieldManagedLister]). An object whose fields the manager
+// So this leg lists objects without a selector and reads which fields the
+// estate's manager holds on each ([kubesweep.FieldManagedLister]). That is
+// one unselected list per kind, so it runs only for an estate that has
+// field-granular instances - in its configuration, or in its record store,
+// which write-back keeps for every applied instance and so still knows one
+// whose block was dropped - and only over the kinds those types patch:
+// ConfigMap, Secret and Node, the workload kinds kubernetes_env writes
+// into, and the kinds the configuration's and the records' labels and
+// annotations blocks name. An estate with none lists nothing. An object whose fields the manager
 // owns and that no field-granular block of the configuration names is an
 // orphan, filed the way the label leg files one, at a synthetic address,
 // so [classifyOrphans] and [applyOrphanPolicy] decide its removal with no
@@ -184,6 +191,72 @@ func parseFieldGranularImportID(t FieldGranularType, id string) (apiVersion, kin
 	return apiVersion, kind, namespace, name, apiVersion != "" && kind != "" && name != ""
 }
 
+// fieldGranularEnvKinds are the workload kinds hashicorp/kubernetes'
+// kubernetes_env patches a container's env in, by API group: the kinds
+// whose pod spec [kubesweep.PodSpecRoot] reads.
+var fieldGranularEnvKinds = []string{
+	"|Pod", "|ReplicationController",
+	"apps|Deployment", "apps|StatefulSet", "apps|DaemonSet", "apps|ReplicaSet",
+	"batch|Job", "batch|CronJob",
+}
+
+// fieldGranularKindKey is a kind's group|Kind, the key the scan's kind
+// filter is on.
+func fieldGranularKindKey(apiVersion, kind string) string {
+	group := ""
+	if i := strings.LastIndex(apiVersion, "/"); i >= 0 {
+		group = apiVersion[:i]
+	}
+	return group + "|" + kind
+}
+
+// fieldGranularKinds is the kinds the field-granular types patch whatever
+// a configuration says: each fixed-kind type's kind, and the env type's
+// workload kinds. The kinds labels and annotations name come from the
+// configuration and the records, and the caller adds them.
+func fieldGranularKinds(types []FieldGranularType) map[string]bool {
+	out := map[string]bool{}
+	for _, t := range types {
+		if !t.NamesKind {
+			out[fieldGranularKindKey(t.FixedAPIVersion, t.FixedKind)] = true
+		}
+		if t.Env {
+			for _, k := range fieldGranularEnvKinds {
+				out[k] = true
+			}
+		}
+	}
+	return out
+}
+
+// fieldGranularRecords is every field-granular instance the estate's record
+// store knows of, read by key so that an estate with none reads nothing
+// but the key listing. A store that cannot be listed is a gap for every
+// field-granular type, never grounds to assume there is nothing.
+func (leg KubernetesSweep) fieldGranularRecords(ctx context.Context, req Request, byType map[string]FieldGranularType, res *Result) ([]projection.FieldGranularRecord, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	if req.HintStore == nil {
+		return nil, diags
+	}
+	prefix := req.KeyPrefix
+	if prefix == "" {
+		prefix = projection.RecordKeyPrefix(req.Estate)
+	}
+	types := make(map[string]bool, len(byType))
+	for name := range byType {
+		types[name] = true
+	}
+	recs, err := projection.NewRecordEnvelopeStore(req.HintStore, prefix).ListFieldGranular(ctx, types)
+	if err != nil {
+		for _, t := range leg.FieldGranular {
+			res.SweepGaps = append(res.SweepGaps, SweepGap{TypeName: t.TypeName, Reason: SweepGapListFailed,
+				Detail: fmt.Sprintf("listing the record store for field-granular instances failed: %s", err)})
+		}
+		return nil, diags
+	}
+	return recs, diags
+}
+
 // fieldGranularMatch is one type's reading of what a manager owns on one
 // object: whether it explains any of it, and the identity values the
 // orphan's import stub needs beyond the object's name.
@@ -277,6 +350,27 @@ func (leg KubernetesSweep) sweepFieldGranular(ctx context.Context, req Request, 
 		declaredCount[t.TypeName]++
 	}
 
+	// Gate and scope (GitHub issue #1863's follow-up ruling): the scan is
+	// one unselected list per kind, so it runs only for an estate that has
+	// field-granular instances - declared now, or recorded by an earlier
+	// apply or migration, which is how an instance whose block the
+	// configuration dropped is still known - and only over the kinds
+	// those types patch. An estate with none pays nothing.
+	recorded, recDiags := leg.fieldGranularRecords(ctx, req, byType, res)
+	diags = diags.Append(recDiags)
+	declaredAny := len(declared) > 0 || len(pending) > 0
+	if !declaredAny && len(recorded) == 0 {
+		return diags
+	}
+	wantKinds := fieldGranularKinds(leg.FieldGranular)
+	for key := range declared {
+		parts := strings.SplitN(key, "|", 3)
+		wantKinds[parts[0]+"|"+parts[1]] = true
+	}
+	for _, r := range recorded {
+		wantKinds[fieldGranularKindKey(r.APIVersion, r.Kind)] = true
+	}
+
 	type found struct {
 		obj   kubesweep.FieldManagedObject
 		match fieldGranularMatch
@@ -286,7 +380,7 @@ func (leg KubernetesSweep) sweepFieldGranular(ctx context.Context, req Request, 
 	listedAll := true
 	seen := map[string]bool{}
 	for _, k := range kinds {
-		if seen[k.GVR.String()] {
+		if seen[k.GVR.String()] || !wantKinds[k.GVR.Group+"|"+k.Kind] {
 			continue
 		}
 		seen[k.GVR.String()] = true

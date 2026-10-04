@@ -14,9 +14,12 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
+	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 )
 
 // fieldStubSweeper is a [stubSweeper] that also answers
@@ -251,5 +254,71 @@ func TestFieldGranularTypeOfReadsTheSchema(t *testing.T) {
 	delete(block.Attributes, "force")
 	if _, ok := FieldGranularTypeOf("kubernetes_config_map_v1_data", block); ok {
 		t.Error("a schema without force is not the field-granular shape")
+	}
+}
+
+// TestFieldGranularSweepCostsNothingWithoutFieldGranularInstances (GitHub
+// issue #1863's ruling on cost): an estate with no field-granular block
+// and none in its records makes zero extra list calls, with no store and
+// with a store that holds only other types' records.
+func TestFieldGranularSweepCostsNothingWithoutFieldGranularInstances(t *testing.T) {
+	raw, err := staterecord.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := projection.NewRecordEnvelopeStore(raw, projection.RecordKeyPrefix("e"))
+	other := k8sInstance(t, "kubernetes_config_map_v1", "plain")
+	provider := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("kubernetes")}
+	if _, err := projection.SeedLocatedForInstance(t.Context(), store, other, provider, projection.LocatedRecord{ImportID: "ns/plain"}); err != nil {
+		t.Fatalf("seeding an unrelated record: %s", err)
+	}
+	for name, hint := range map[string]staterecord.Store{"no store": nil, "unrelated records": raw} {
+		s, kinds := fieldSweepFixture()
+		res := &Result{}
+		req := Request{
+			Estate:      "e",
+			HintStore:   hint,
+			Resolutions: []identity.Resolution{{Addr: other, Class: identity.ClassConcrete, ImportID: "ns/plain"}},
+		}
+		KubernetesSweep{Client: s, FieldGranular: testFieldGranularTypes}.sweepFieldGranular(t.Context(), req, kinds, res)
+		if len(s.asked) != 0 || len(res.Orphans) != 0 {
+			t.Errorf("%s: %d extra lists (%v), %d orphans; want none", name, len(s.asked), s.asked, len(res.Orphans))
+		}
+	}
+}
+
+// TestFieldGranularSweepRunsForARecordedInstanceOnlyOverItsKinds: an
+// instance whose block the configuration dropped is still known from the
+// record store, so the scan runs - over the fixed and env kinds and the
+// recorded kind, never every kind the cluster serves.
+func TestFieldGranularSweepRunsForARecordedInstanceOnlyOverItsKinds(t *testing.T) {
+	raw, err := staterecord.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := projection.NewRecordEnvelopeStore(raw, projection.RecordKeyPrefix("e"))
+	dropped := k8sInstance(t, "kubernetes_labels", "dropped")
+	if err := store.RecordFieldGranular(t.Context(), dropped, "v1", "ConfigMap", ""); err != nil {
+		t.Fatal(err)
+	}
+	s, kinds := fieldSweepFixture()
+	// A kind no field-granular type patches and nothing names.
+	kinds = append(kinds, kubesweep.Kind{GVR: schema.GroupVersionResource{Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "roles"}, Kind: "Role", APIVersion: "rbac.authorization.k8s.io/v1", Namespaced: true})
+	res := &Result{}
+	KubernetesSweep{Client: s, FieldGranular: testFieldGranularTypes}.sweepFieldGranular(t.Context(), Request{Estate: "e", HintStore: raw}, kinds, res)
+	listed := map[string]bool{}
+	for _, a := range s.asked {
+		listed[strings.Fields(a)[0]] = true
+	}
+	for _, want := range []string{"ConfigMap", "Deployment", "Node"} {
+		if !listed[want] {
+			t.Errorf("%s not listed; asked %v", want, s.asked)
+		}
+	}
+	if listed["Role"] {
+		t.Errorf("Role was listed; no field-granular type patches it and nothing names it")
+	}
+	if len(res.Orphans) == 0 {
+		t.Error("the dropped block's fields were not found")
 	}
 }
