@@ -594,10 +594,22 @@ for s in json.load(sys.stdin).get("items", []):
         if ann.get("encoding") == "gzip":
             raw = gzip.decompress(raw)
         env = json.loads(raw)
-        members = ",".join(k for k, v in sorted(env.items()) if v not in (None, "", {}, []))
+        parts = []
+        for k, v in sorted(env.items()):
+            if v in (None, "", {}, []):
+                continue
+            if k in ("tombstone", "deposed") and isinstance(v, dict):
+                parts.append("%s[%s]" % (k, " ".join(sorted(v))))
+            elif isinstance(v, (str, int)):
+                parts.append("%s=%s" % (k, v))
+            else:
+                parts.append(k)
+        members = " ".join(parts)
     except Exception as e:
         members = "unreadable (%s)" % e
-    print("  %s  record-namespace=%s  key=%s  members=%s" % (meta.get("name"), lab.get("choudoufu.intentius.io/record-namespace", "-"), ann.get("choudoufu.intentius.io/record-key", "-"), members))
+    print("  %s  record-namespace=%s" % (meta.get("name"), lab.get("choudoufu.intentius.io/record-namespace", "-")))
+    print("    key=%s" % ann.get("choudoufu.intentius.io/record-key", "-"))
+    print("    members: %s" % members)
 ' <<< "$out"
 }
 
