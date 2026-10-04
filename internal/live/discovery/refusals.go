@@ -110,8 +110,24 @@ var refusals = []Refusal{
 		What:    "The estate name does not match the tofu-estate marker grammar (a lowercase letter, then letters, digits or hyphens, at most 128 characters).",
 	},
 	{
+		Summary: SummaryFieldOwnedByEstate,
+		What:    "GitHub issue #1191: a field-granular Kubernetes block (kubernetes_labels, kubernetes_annotations, kubernetes_env, the *_v1_data types, kubernetes_node_taint) plans to write a field another estate's field manager, choudoufu:<other>, owns on the live object. A warning: the API server refuses the apply with a conflict naming that manager, and this names the estate before the apply does.",
+	},
+	{
+		Summary: SummaryFieldOwnersUnavailable,
+		What:    "GitHub issue #1191: the object a field-granular Kubernetes block patches could not be read back for its metadata.managedFields, so whether the write meets another estate's fields is unknown. A coverage gap: the plan stands and the API server answers at apply.",
+	},
+	{
+		Summary: SummaryFieldForceAcrossEstates,
+		What:    "GitHub issue #1191 and #1106 section 3: a field-granular Kubernetes block sets force = true and plans to write a field another estate's field manager, choudoufu:<other>, owns. Forcing would move the field across the estate boundary with a flag, so the plan stops with nothing applied, naming the owning estate. Force against a manager that is not an estate's keeps its ordinary meaning.",
+	},
+	{
 		Summary: "Kubernetes API server rejected the planned object",
 		What:    "The plan proposes to create or update a kubernetes_manifest object and the API server, asked to write exactly that object with dryRun=All (GitHub issue #1081, item 3), refused it: the kind's schema, the server's own validation, or an admission policy such as live/kubernetes/estate-boundary.yaml said no, in the words quoted. Nothing was written. The plan exits non-zero and nothing is applied, since the apply would fail at this object with the same answer after writing whatever came before it. live-check is offline and does not raise it; a built-in type's block is not submitted (the mapping from its schema shape to the API object is the provider's own), so this covers the manifest shape only.",
+	},
+	{
+		Summary: SummaryFieldGranularSameObject,
+		What:    "GitHub issue #1191: two field-granular Kubernetes blocks of one estate plan to patch one object. Both write under the estate's one field manager, choudoufu:<estate>, and server-side apply removes the fields a manager's next apply leaves out, so each apply would erase the other's writes. The plan stops with nothing applied.",
 	},
 	{
 		Summary: "Kubernetes dry run unavailable",
@@ -292,7 +308,7 @@ func SeverityForRefusal(summary string) Severity {
 	if kind, ok := problemKindForSummary(summary); ok {
 		return kind.Severity()
 	}
-	if summary == SummaryIncompleteSweep || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesSweepDenied || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable || summary == SummaryKubernetesDeleteHeld || summary == SummaryHelmNotInManifest {
+	if summary == SummaryIncompleteSweep || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesSweepDenied || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable || summary == SummaryKubernetesDeleteHeld || summary == SummaryHelmNotInManifest || summary == SummaryFieldOwnedByEstate || summary == SummaryFieldOwnersUnavailable {
 		// A gap in coverage, never a wrong plan: the run in front of the
 		// operator is correct and simply did not see everything. The held
 		// delete (GitHub issue #1184) is the same severity for a different

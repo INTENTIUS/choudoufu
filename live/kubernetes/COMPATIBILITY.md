@@ -75,9 +75,50 @@ are refused rather than defaulted; the full rule is under Identity
 arguments, below, alongside the other configuration-shape stops this
 substrate adds to the ones AWS already has.
 
-Still refused: the handful of types whose block is not object metadata
-(`kubernetes_labels`, `kubernetes_annotations`, `kubernetes_env`, the
-`*_data` patch types), which act on an object rather than being one.
+The six field-granular types plan
+([#1191](https://github.com/INTENTIUS/choudoufu/issues/1191), ruled
+2026-10-03): `kubernetes_labels`, `kubernetes_annotations`,
+`kubernetes_env`, `kubernetes_config_map_v1_data`,
+`kubernetes_secret_v1_data` and `kubernetes_node_taint`. They write some
+fields of an object they do not own, by server-side apply, so they are
+admitted by their own schema shape: a top-level `field_manager` and
+`force`, and a `metadata` block that names the patched object rather than
+being one. That shape is the predicate (`substrate.FieldGranularShape`),
+not a list of names. The identity is the patched object:
+`apiVersion=...,kind=...,[namespace=...,]name=...` for the three that
+name their kind, `NAMESPACE/NAME` for the two data types and `NAME` for a
+node's taints.
+
+Their ownership marker is not a label. It is the field manager every
+write is made under, `choudoufu:<estate>`: the plan sets `field_manager`
+to it, and the API server's own `metadata.managedFields` then records,
+per field, which estate wrote it. The patched object's own `tofu-estate`
+label, if it has one, does not matter. So two estates can each own one
+field of an object neither of them owns, which no whole-object type can
+do. A live plan reads a field-granular instance under the estate's
+manager and counts it as present only when that manager owns at least
+one of its fields.
+
+What the boundary does at plan time, after the plan exists and before
+anything is applied:
+
+| Plan | What happens |
+|---|---|
+| A write over a field another estate's manager owns | A warning naming that estate (`Field owned by another estate`). The API server refuses the apply with a 409 that names `choudoufu:<other>` |
+| The same write with `force = true` | Refused by name, exit 1, nothing applied (`Force refused over another estate's field`). This is [#1106](https://github.com/INTENTIUS/choudoufu/issues/1106) section 3's control |
+| `force = true` over a field kubectl, a controller or the provider's default `Terraform` manager owns | Planned and applied as stock does: force keeps its usual meaning against a manager that is not an estate's |
+| Two field-granular blocks of one estate on one object | Refused (`Two field-granular blocks patch one object`). Both would write under the one manager, and server-side apply drops the fields a manager's next apply leaves out, so each would erase the other |
+| A `field_manager` the configuration sets to anything but `choudoufu:<estate>` | Refused as an ownership marker conflict, the same refusal a hand-written `tofu-estate` naming another estate gets |
+
+What is not done yet. A block removed from the configuration leaves its
+fields on the object: nothing lists objects by field manager, so the
+sweep does not find them and no destroy is proposed. A state migrated
+from stock wrote under `Terraform`, so its first live plan proposes the
+write again as a create, and the apply then shares each field with
+`Terraform` rather than taking it over
+([#1106](https://github.com/INTENTIUS/choudoufu/issues/1106) section 3's
+migration item). The kind proof, `live/kubernetes/proof-ssa-conflict.sh`,
+is written and has not been run.
 
 `helm_release` is refused in a live root, and the refusal is the ordinary
 unadmitted-type one

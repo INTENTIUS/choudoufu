@@ -596,3 +596,44 @@ instrument_summary() {
     | grep -oE "rpc.method=[A-Za-z0-9/_-]+" | sort | uniq -c | sort -rn | head -8 \
     | sed 's/^/    /'
 }
+
+# k8s_counting_proxy_up <dir> <tag> starts live/smoke/k8sproxy.py in front
+# of the run's kind API server with no fault armed, so it only relays and
+# writes one line per request to <dir>/proxy.log ("METHOD path?query
+# status"). That log counts what ONE client sent, which the API server's own
+# apiserver_request_total cannot: the cluster's controllers are on that
+# counter too. It sets PROXY_PID and PROXY_KC, a copy of the run's
+# kubeconfig pointed at the proxy; a caller runs a measured command under
+# KUBECONFIG and KUBE_CONFIG_PATH set to PROXY_KC, and kills PROXY_PID on
+# exit. The setup is k8s-records-in-the-cluster's step 12, which is where
+# the proxy's TLS arrangement is explained.
+PROXY_PID=""
+PROXY_KC=""
+k8s_counting_proxy_up() {
+  local dir="$1" tag="$2" server
+  mkdir -p "$dir"
+  server="$(kubectl --kubeconfig "$KUBECONFIG" config view --raw --minify -o jsonpath='{.clusters[0].cluster.server}')"
+  [ -n "$server" ] || fail "$tag" "the kind kubeconfig names no server"
+  kubectl --kubeconfig "$KUBECONFIG" config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 -d > "$dir/upstream-ca.crt"
+  kubectl --kubeconfig "$KUBECONFIG" config view --raw --minify -o jsonpath='{.users[0].user.client-certificate-data}' | base64 -d > "$dir/upstream-client.crt"
+  kubectl --kubeconfig "$KUBECONFIG" config view --raw --minify -o jsonpath='{.users[0].user.client-key-data}' | base64 -d > "$dir/upstream-client.key"
+  local f
+  for f in upstream-ca.crt upstream-client.crt upstream-client.key; do
+    [ -s "$dir/$f" ] || fail "$tag" "the kind kubeconfig yielded no $f, so the proxy has nothing to reach the API server with"
+  done
+  openssl req -x509 -newkey rsa:2048 -nodes -keyout "$dir/proxy.key" -out "$dir/proxy.crt" -days 1 \
+    -subj /CN=smoke-proxy -addext subjectAltName=IP:127.0.0.1 >/dev/null 2>&1 \
+    || fail "$tag" "openssl could not write the proxy's certificate"
+  python3 "$SMOKE_DIR/k8sproxy.py" "$server" "$dir" 2>"$(smoke_log_dir)/$tag-proxy.err" &
+  PROXY_PID=$!
+  for _ in $(seq 1 50); do [ -s "$dir/proxy.port" ] && break; sleep 0.1; done
+  [ -s "$dir/proxy.port" ] || fail "$tag" "the proxy never started: $(cat "$(smoke_log_dir)/$tag-proxy.err")"
+  PROXY_KC="$dir/proxy.kubeconfig"
+  cp "$KUBECONFIG" "$PROXY_KC"
+  kubectl --kubeconfig "$PROXY_KC" config set-cluster "kind-$CLUSTER_NAME" \
+    --server="https://127.0.0.1:$(cat "$dir/proxy.port")" --insecure-skip-tls-verify=true >/dev/null
+  [ -z "$(kubectl --kubeconfig "$PROXY_KC" config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')" ] \
+    || fail "$tag" "the proxy kubeconfig still carries the kind CA beside insecure-skip-tls-verify, which clientcmd refuses"
+  kc_as "$PROXY_KC" get namespace kube-system >/dev/null 2>&1 \
+    || fail "$tag" "a read through the proxy failed, so it does not relay: $(cat "$(smoke_log_dir)/$tag-proxy.err")"
+}

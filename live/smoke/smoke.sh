@@ -52,6 +52,13 @@ list_scenarios() {
     b="$(basename "$s" .sh)"
     printf "  %-12s %s\n" "$b" "$(sed -n '2s/^# //p' "$s")"
   done
+  # A draft is a written proof that has never run, so it is no claim's
+  # proof yet (live/smoke/drafts/README.md). It runs the same way.
+  for s in "$HERE"/drafts/*.sh; do
+    [ -f "$s" ] || continue
+    b="$(basename "$s" .sh)"
+    printf "  %-12s (draft, never run) %s\n" "$b" "$(sed -n '2s/^# //p' "$s")"
+  done
 }
 
 SCENARIO="${1:-}"
@@ -60,7 +67,9 @@ if [ -z "$SCENARIO" ]; then
   list_scenarios
   exit 0
 fi
-if [ ! -f "$HERE/scenarios/$SCENARIO.sh" ]; then
+SCENARIO_FILE="$HERE/scenarios/$SCENARIO.sh"
+[ -f "$SCENARIO_FILE" ] || SCENARIO_FILE="$HERE/drafts/$SCENARIO.sh"
+if [ ! -f "$SCENARIO_FILE" ]; then
   echo "no scenario named '$SCENARIO'" >&2
   list_scenarios >&2
   exit 2
@@ -253,7 +262,7 @@ if [ "$(scenario_is_real_aws)" != "1" ]; then
 fi
 
 # shellcheck source=/dev/null
-. "$HERE/scenarios/$SCENARIO.sh"
+. "$SCENARIO_FILE"
 
 instrument_summary
 # The scenario returned. The closing line is cleanup's, from this mark: an
