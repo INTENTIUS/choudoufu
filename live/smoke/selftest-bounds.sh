@@ -334,11 +334,8 @@ if wanted last-word-wait; then
 fi
 
 # --- 5. every kubectl request carries a timeout ---
-# Two halves. What the stub saw: each request the cases above made has
-# --request-timeout on it. And the roster: no k8s scenario, and nothing in
-# lib.sh but kc_as, calls kubectl bare, so a scenario written tomorrow cannot
-# go round the helper. `kubectl config` only edits a local file and is
-# allowed.
+# What the stub saw: each request the cases above made has --request-timeout
+# on it. The roster that keeps scenarios on the helper is case 5b.
 if wanted kc-request-timeout; then
   sandbox kc-request-timeout
   run_smoke k8s-selftest-stall 25 SELFTEST_STALL=none SMOKE_TIMEOUT_SECS=60
@@ -348,32 +345,51 @@ if wanted kc-request-timeout; then
   missing="$(grep -v -- '--request-timeout=' "$SB/kubectl.log" || true)"
   if [ -z "$missing" ]; then ok "every one of them carries --request-timeout"
   else bad "kubectl requests without --request-timeout: $(echo "$missing" | tr '\n' ';')"; fi
+  [ "$PASS" = "1" ] || show_out
+fi
 
+# --- 5b. the roster: no scenario calls kubectl bare ---
+# No k8s scenario or draft, and nothing in lib.sh but kc_as, calls kubectl
+# bare, so a scenario written tomorrow cannot go round the helper. Drafts
+# are read too (#1876): seven drafts were promoted on 2026-10-04 that this
+# roster had never read, and one of them tripped it the first night. It
+# reads files only and runs nothing, so `--only kubectl-roster` is the lint
+# on its own. `kubectl config` only edits a local file and is allowed.
+if wanted kubectl-roster; then
+  log ""
+  log "=== kubectl-roster ==="
+  RSB="$WORK/kubectl-roster"; mkdir -p "$RSB"
   # bare_kubectl <file>: lines where kubectl is a command word. `kubectl
   # config` is allowed, and so are the lines that only print a command for
   # the reader (cmd, note, proof, step, echo, and explain's quoted lines).
+  # A grep that matches the word in its pattern writes it kube[c]tl.
   bare_kubectl() {
     grep -nE '(^|[|;&(]|\$\(|as_role [A-Za-z_]+ )[[:space:]]*kubectl[[:space:]]' "$1" \
       | grep -vE '^[0-9]+:[[:space:]]*(#|"|(cmd|note|proof|step|echo|explain)[[:space:]])' \
       | grep -vE 'kubectl[[:space:]]+(--kubeconfig[[:space:]]+"[^"]*"[[:space:]]+)?config[[:space:]]'
   }
-  checked=0
-  for f in "$SMOKE_SRC"/scenarios/k8s-*.sh; do
+  checked=0; drafts=0
+  for f in "$SMOKE_SRC"/scenarios/k8s-*.sh "$SMOKE_SRC"/drafts/k8s-*.sh; do
+    [ -f "$f" ] || continue
     checked=$((checked+1))
+    case "$f" in "$SMOKE_SRC"/drafts/*) drafts=$((drafts+1)) ;; esac
     hits="$(bare_kubectl "$f" || true)"
-    [ -z "$hits" ] || bad "$(basename "$f") calls kubectl bare; use kc or kc_as, which carry --request-timeout: $(echo "$hits" | head -3 | tr '\n' ';')"
+    [ -z "$hits" ] || bad "${f#"$SMOKE_SRC"/} calls kubectl bare; use kc or kc_as, which carry --request-timeout: $(echo "$hits" | head -3 | tr '\n' ';')"
   done
-  if [ "$checked" -ge 8 ]; then ok "$checked k8s scenarios read for a bare kubectl"
-  else bad "only $checked k8s scenarios found under $SMOKE_SRC/scenarios; the roster read nothing"; fi
+  if [ "$checked" -ge 8 ]; then ok "$checked k8s scenarios and drafts read for a bare kubectl ($drafts of them drafts)"
+  else bad "only $checked k8s scenarios found under $SMOKE_SRC/scenarios and drafts; the roster read nothing"; fi
   libhits="$(bare_kubectl "$SMOKE_SRC/lib.sh" | grep -vc -- '--request-timeout=' || true)"
   if [ "$libhits" = "0" ]; then ok "lib.sh calls kubectl in kc_as and nowhere else"
   else bad "lib.sh has $libhits kubectl call(s) with no --request-timeout"; fi
-  # The roster's own red: a bare call planted in a copy must be found.
-  cp "$SMOKE_SRC/scenarios/k8s-greenfield.sh" "$SB/planted.sh"
-  echo 'LEFT="$(kubectl get configmaps -A -o name)"' >> "$SB/planted.sh"
-  if [ -n "$(bare_kubectl "$SB/planted.sh" || true)" ]; then ok "a bare kubectl planted in a copy of k8s-greenfield.sh is found"
+  # The roster's own red: a bare call planted in a copy must be found, and
+  # the kube[c]tl spelling of a grep pattern must not be.
+  cp "$SMOKE_SRC/scenarios/k8s-greenfield.sh" "$RSB/planted.sh"
+  echo 'LEFT="$(kubectl get configmaps -A -o name)"' >> "$RSB/planted.sh"
+  if [ -n "$(bare_kubectl "$RSB/planted.sh" || true)" ]; then ok "a bare kubectl planted in a copy of k8s-greenfield.sh is found"
   else bad "the roster did not find a planted bare kubectl, so it cannot go red"; fi
-  [ "$PASS" = "1" ] || show_out
+  echo 'grep -oE "Error: x|kube[c]tl -n ns create role" <<< "$OUT"' > "$RSB/pattern.sh"
+  if [ -z "$(bare_kubectl "$RSB/pattern.sh" || true)" ]; then ok "a grep pattern spelling it kube[c]tl is not read as a call"
+  else bad "the roster reads a kube[c]tl grep pattern as a bare call"; fi
 fi
 
 # --- 6. the mutant: the same stall with the scenario bound taken out ---

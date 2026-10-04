@@ -48,6 +48,9 @@ import (
 // smokeTeardownSelftest is the script, relative to this package.
 const smokeTeardownSelftest = "smoke/selftest-teardown.sh"
 
+// smokeDraftsDir holds the unrun proofs (smoke/drafts/README.md).
+const smokeDraftsDir = "smoke/drafts"
+
 // smokeTeardownBound is how long the selftest gets before it is killed and
 // this test fails. Measured at 1.4s on a 2026-09-19 laptop: twelve cases
 // over stubs, plus one re-run of a single case against a mutated copy. It
@@ -120,6 +123,17 @@ func TestRealAWSSmokeTeardownsAreGuarded(t *testing.T) {
 	for _, e := range entries {
 		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sh") {
 			files = append(files, filepath.Join(smokeScenariosDir, e.Name()))
+		}
+	}
+	// Drafts are promoted into scenarios/ by a git mv, so a trap body is
+	// held to this while it is still a draft (#1876).
+	draftEntries, err := os.ReadDir(smokeDraftsDir)
+	if err != nil {
+		t.Fatalf("reading %s: %v", smokeDraftsDir, err)
+	}
+	for _, e := range draftEntries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sh") {
+			files = append(files, filepath.Join(smokeDraftsDir, e.Name()))
 		}
 	}
 

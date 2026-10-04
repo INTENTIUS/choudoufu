@@ -199,7 +199,9 @@ if [ "${BREAK:-0}" = "1" ]; then
     || fail "k8s-estateoutputs" "the refusal does not name network's namespace: $C_OUT"
   grep -q "create role tofu-reads-outputs-of-network --verb=get --resource=secrets --resource-name=$SECRET" <<< "$C_FLAT" \
     || fail "k8s-estateoutputs" "the refusal does not give the Role that grants exactly this read: $C_OUT"
-  grep -oE "Error: This estate may not read another estate's outputs|kubectl -n $NET_NS create role [^ ]+ --verb=get --resource=secrets --resource-name=[a-z0-9-]+" <<< "$C_FLAT" | evidence
+  # kube[c]tl matches the same text and keeps selftest-bounds.sh's bare-kubectl
+  # roster from reading this grep as a call (#1876).
+  grep -oE "Error: This estate may not read another estate's outputs|kube[c]tl -n $NET_NS create role [^ ]+ --verb=get --resource=secrets --resource-name=[a-z0-9-]+" <<< "$C_FLAT" | evidence
   proof "caught - with the read declared and the grant missing, the plan refuses and names estate network, its namespace and the Role that grants get on its output Secret."
   exit 0
 fi

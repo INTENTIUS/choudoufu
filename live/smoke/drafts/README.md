@@ -29,3 +29,9 @@ Promoting a draft after its first green run, both arms:
    already the AWS proof's file. `TestSmokeClaimsMatchScenarios` accepts a
    readability prefix put on the slug since the first promotions
    (2026-10-04), so this step needs nothing more.
+
+The scenario lints read drafts as well as scenarios (#1876), so a draft is
+held to them before it is promoted: no bare `kubectl` in a `k8s-*` draft
+(`bash live/smoke/selftest-bounds.sh --only kubectl-roster`), no bare `wait`
+(`live/smoke_bare_wait_test.go`), and an EXIT-trap teardown that turns
+errexit off (`live/smoke_teardown_test.go`).
