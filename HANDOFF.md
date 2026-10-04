@@ -529,7 +529,7 @@ workflow's own header comment.
 Dispatching one:
 
 ```bash
-# A real-AWS certification. estate is terralith-scale or reference-ec2-vpc.
+# A real-AWS certification. estate is terralith-scale, reference-ec2-vpc or reference-eks.
 gh workflow run live-cert.yml -R INTENTIUS/choudoufu --ref <branch> \
   -f estate=reference-ec2-vpc -f scale=1 -f ceiling_usd=15
 

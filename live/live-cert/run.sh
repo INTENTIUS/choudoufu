@@ -18,7 +18,8 @@ set -uo pipefail
 # Usage:
 #   bash live/live-cert/run.sh <estate> [-target floci|aws] [-timeout SECONDS] [-region REGION]
 #
-# living estates today: reference-ec2-vpc only (2026-08-29 ruling, #440).
+# living estates today: reference-ec2-vpc (2026-08-29 ruling, #440),
+# terralith-scale, and reference-eks (2026-10-03 ruling, #1113, $5/run).
 
 usage() { echo "usage: $0 <estate> [-target floci|aws] [-timeout SECONDS] [-region REGION]" >&2; }
 

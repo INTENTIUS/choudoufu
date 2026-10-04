@@ -3,9 +3,9 @@
   "generated_by": "go run ./tools/estate-types",
   "method": "static config parsing: internal/live/check.Load (the module-graph loader tools/corpus-fetch and tools/corpus-gen already use) reads each estate's .corpus configuration directory/directories - see spec.go for the directory list and the run.sh line each was traced against - and every instance's managed-resource type is collected across the whole resolved module tree, local and registry alike. A handful of estates whose crossing script writes its own root wiring with a heredoc (rather than deploying a .corpus directory verbatim) add a text scan of that script for literal resource blocks - see estateSpec.ScanScript. No gauntlet run, no docker, no cloud calls: every estate's types come from its committed or fetched configuration, not from a live plan or state file.",
   "totals": {
-    "estates": 31,
-    "distinct_types": 178,
-    "types_in_no_cohort": 102
+    "estates": 32,
+    "distinct_types": 181,
+    "types_in_no_cohort": 103
   },
   "estates": [
     {
@@ -933,6 +933,32 @@
         "random_password"
       ],
       "count": 6,
+      "sources": [
+        "script"
+      ],
+      "unresolved_modules": 0
+    },
+    {
+      "name": "reference-eks",
+      "types": [
+        "aws_eks_access_entry",
+        "aws_eks_access_policy_association",
+        "aws_eks_cluster",
+        "aws_eks_node_group",
+        "aws_eks_pod_identity_association",
+        "aws_iam_role",
+        "aws_iam_role_policy_attachment",
+        "aws_internet_gateway",
+        "aws_route_table",
+        "aws_route_table_association",
+        "aws_subnet",
+        "aws_vpc",
+        "kubernetes_config_map_v1",
+        "kubernetes_deployment_v1",
+        "kubernetes_namespace_v1",
+        "kubernetes_service_account_v1"
+      ],
+      "count": 16,
       "sources": [
         "script"
       ],
