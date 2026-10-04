@@ -1109,7 +1109,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// manager owns is named here, and refused when it sets force = true;
 	// two blocks of this estate patching one object are refused. See
 	// live_plan_kubernetes_fieldowners.go.
-	fieldOwnerDiags := statelessKubernetesFieldOwners(ctx, provs.kubernetesSweepers(), config, plan, schemas, resolver.Estate)
+	fieldOwnerDiags := kubernetesFieldOwners(ctx, provs.kubernetesSweepers(), config, plan, schemas, resolver.Estate)
 	diags = diags.Append(fieldOwnerDiags)
 	if fieldOwnerDiags.HasErrors() {
 		return 1, false, diags

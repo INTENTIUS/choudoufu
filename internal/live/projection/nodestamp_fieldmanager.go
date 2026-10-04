@@ -156,7 +156,9 @@ func fieldGranularHoldsFields(obj cty.Value, schema providers.Schema) bool {
 			continue
 		}
 		sawWritten = true
-		v := obj.GetAttr(name)
+		// Unmarked here, at the read: a secret's data map is sensitive,
+		// and only its length is asked.
+		v, _ := obj.GetAttr(name).UnmarkDeep()
 		if !v.IsKnown() {
 			return true
 		}
