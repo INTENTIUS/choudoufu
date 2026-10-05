@@ -118,6 +118,10 @@ var refusals = []Refusal{
 		What:    "GitHub issue #1191: the object a field-granular Kubernetes block patches could not be read back for its metadata.managedFields, so whether the write meets another estate's fields is unknown. A coverage gap: the plan stands and the API server answers at apply.",
 	},
 	{
+		Summary: SummaryFieldGranularTargetMissing,
+		What:    "GitHub issue #1885, ruled 2026-10-04: a field-granular Kubernetes block (kubernetes_labels, kubernetes_annotations, kubernetes_env, the *_v1_data types, kubernetes_node_taint) patches an object that does not exist - deleted, typically by the estate that owned it. Stock keeps the block in its state and plans no change, because the provider's read answers a missing object with a warning and leaves state as it was; with no state the block would plan a create the apply refuses. The plan stops, naming the block and the object: recreate the object or remove the block. A destroy plan is not refused, and destroys nothing for the block.",
+	},
+	{
 		Summary: SummaryFieldForceAcrossEstates,
 		What:    "GitHub issue #1191 and #1106 section 3: a field-granular Kubernetes block sets force = true and plans to write a field another estate's field manager, choudoufu:<other>, owns. Forcing would move the field across the estate boundary with a flag, so the plan stops with nothing applied, naming the owning estate. Force against a manager that is not an estate's keeps its ordinary meaning.",
 	},

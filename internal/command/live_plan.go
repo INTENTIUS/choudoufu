@@ -768,6 +768,13 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		diags = diags.Append(provs.close(ctx))
 		return 1, false, diags
 	}
+	// #1885, ruled 2026-10-04: a field-granular block whose patched object
+	// does not exist. This surface only plans in the normal mode.
+	if missing := discovery.FieldGranularMissingRefusals(disco, scope); missing.HasErrors() {
+		diags = diags.Append(missing)
+		diags = diags.Append(provs.close(ctx))
+		return 1, false, diags
+	}
 	if disco != nil {
 		merged = disco.Resolutions
 	}

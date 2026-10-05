@@ -1164,21 +1164,34 @@ kca get namespace "$NS" >/dev/null 2>&1 && fail "the $NS namespace still exists 
 [ "$(count_a)" = "0" ] || fail "$(count_a) object(s) still carry tofu-estate=$ESTATE after platform's destroy"
 [ -z "$(platform_field_owner "$KCA")" ] || fail "platform's default-Namespace label is still owned by '$(platform_field_owner "$KCA")'"
 # What is left of app, on each cluster: the node taint (the node outlives
-# platform) and blocks whose objects are gone. app's next plan on A must be
-# stock's next plan on B.
+# platform) and blocks whose objects are gone. Stock's next plan on B is
+# "No changes." from stale state: the provider's read answers a missing
+# object with a warning and keeps the state. choudoufu has no state, and a
+# create over a missing object cannot apply, so app's next plan on A is
+# refused by name, once per block whose object is gone (ruled 2026-10-04
+# on #1885, live/kubernetes/COMPATIBILITY.md).
 for _ in $(seq 1 30); do kcb get namespace "$NS" >/dev/null 2>&1 || break; sleep 2; done
 AP_PLAN="$(chdf "$APP" plan -input=false -no-color 2>&1)"; AP_RC=$?
 AO_PLAN="$(stock_ab plan -input=false -no-color 2>&1)"; AO_RC=$?
-AP_LINE="$(plan_line "$AP_PLAN")"; AO_LINE="$(plan_line "$AO_PLAN")"
-[ "$AP_RC" = "$AO_RC" ] && [ "$AP_LINE" = "$AO_LINE" ] \
-  || { printf '%s\n' "$AP_PLAN" | grep -E '^Plan:|will be|^Error' | head -10; printf '%s\n' "$AO_PLAN" | grep -E '^Plan:|will be|^Error' | head -10
-       fail "with platform gone and app's fields left behind, app's plan is '${AP_LINE:-none}' (exit $AP_RC) and stock's on the oracle cluster '${AO_LINE:-none}' (exit $AO_RC)"; }
+AO_LINE="$(plan_line "$AO_PLAN")"
+AP_FLAT="$(flat <<< "$AP_PLAN")"
+GONE_WANT="kubernetes_annotations.svc kubernetes_env.web kubernetes_labels.crash_first kubernetes_labels.crash_second kubernetes_labels.ns kubernetes_secret_v1_data.creds"
+GONE_MISSING=""
+for a in $GONE_WANT; do
+  grep -qF "The object this block patches does not exist: $a writes fields of" <<< "$AP_FLAT" || GONE_MISSING="$GONE_MISSING $a"
+done
+GONE_N="$(grep -c "Patched object does not exist" <<< "$AP_PLAN")"
+if [ "$AP_RC" != "1" ] || [ -n "$GONE_MISSING" ] || [ "$GONE_N" != "6" ] || [ "$AO_RC" != "0" ] || ! grep -q "No changes." <<< "$AO_PLAN"; then
+  printf '%s\n' "$AP_PLAN" | grep -E '^Plan:|will be|^Error|does not exist' | head -20
+  printf '%s\n' "$AO_PLAN" | grep -E '^Plan:|No changes|^Error|^Warning' | head -10
+  fail "with platform gone and app's fields left behind, app's plan exited $AP_RC with $GONE_N 'Patched object does not exist' refusal(s) (want exit 1 and six, one per block whose object is gone; not named:${GONE_MISSING:- none}), and stock's on the oracle cluster is '${AO_LINE:-none}' (exit $AO_RC, want No changes)"
+fi
 [ "$(owners_of "$KCA" node "$NODE_A" - f:spec f:taints)" = "$A_MANAGER" ] || fail "app's node taint is not $A_MANAGER's after platform's teardown"
 TF_OUT="$(chdf "$APP" apply -destroy -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$TF_OUT" | tail -20; fail "app's final apply -destroy failed"; }
 ( stock_ab apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's final teardown of app failed on B"
 [ "$(owned_objects "$KCA" "$A_MANAGER")" = "0" ] || fail "$A_MANAGER still owns fields after app's final teardown"
 [ -z "$(kca get node "$NODE_A" -o jsonpath='{.spec.taints[?(@.key=="shared-objects/app")].key}')" ] || fail "app's node taint survived app's final teardown"
-gauntlet_stage day2_teardown pass "app first: apply -destroy released exactly its $A_OWNED field-granular instances in one apply, $A_MANAGER owns no label, annotation or data key, env item or taint anywhere afterwards (a released block's manager entry is left owning only an empty map or env list, and is not counted), and platform's $P_COUNT objects still carry tofu-estate=$ESTATE with its plan empty - app's teardown left platform converged. Then, with app's fields written back, platform's apply -destroy removed exactly its $P_EXPECT instances (its labelled objects and the default-Namespace label) in one apply, the same count stock's destroy of the same estate removed on the oracle cluster with app's fields present there too; the namespace is gone, no object carries tofu-estate=$ESTATE and platform's label is released. What app had left behind planned the same on both: '${AP_LINE:-none}' here (exit $AP_RC), '${AO_LINE:-none}' from stock (exit $AO_RC); app's final destroy released the node taint"
+gauntlet_stage day2_teardown pass "app first: apply -destroy released exactly its $A_OWNED field-granular instances in one apply, $A_MANAGER owns no label, annotation or data key, env item or taint anywhere afterwards (a released block's manager entry is left owning only an empty map or env list, and is not counted), and platform's $P_COUNT objects still carry tofu-estate=$ESTATE with its plan empty - app's teardown left platform converged. Then, with app's fields written back, platform's apply -destroy removed exactly its $P_EXPECT instances (its labelled objects and the default-Namespace label) in one apply, the same count stock's destroy of the same estate removed on the oracle cluster with app's fields present there too; the namespace is gone, no object carries tofu-estate=$ESTATE and platform's label is released. With platform gone, app's next plan is refused by name ('Patched object does not exist', exit 1) once for each of its six blocks whose object platform's destroy deleted, while stock's plan on the oracle cluster reports '${AO_LINE:-none}' from its stale state - the provider's read keeps a missing object's state - which choudoufu, with no state, does not reproduce (ruled 2026-10-04 on #1885); app's final destroy released the node taint"
 
 # ── 12. greenfield: both estates fresh, with live blocks ─────────────────
 gauntlet_begin_stage greenfield

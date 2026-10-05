@@ -285,6 +285,12 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 			}
 			res.FieldGranularUnheld[a] = true
 		}
+		for a, obj := range p.Result.FieldGranularMissing {
+			if res.FieldGranularMissing == nil {
+				res.FieldGranularMissing = map[string]string{}
+			}
+			res.FieldGranularMissing[a] = obj
+		}
 		// GitHub issue #1780: a deposed object a pass settled (the AWS
 		// collision's #361 recovery, or the Kubernetes leg's #1683) is
 		// marked handled in that pass - neither bound nor an orphan - and

@@ -84,16 +84,17 @@ var liveTargetScopeClassification = map[string]struct {
 	why     string
 }{
 	// ---- scope-aware -----------------------------------------------
-	"liveTargetScope":             {scopeAware, "computes the scope; #352"},
-	"liveResolve":                 {scopeAware, "identity.Context.Scope; #352"},
-	"liveDataReads":               {scopeAware, "dataread.Options.Scope; #352"},
-	"liveRootOutputDataReads":     {scopeAware, "dataread.Options.Scope; #352"},
-	"liveDiscover":                {scopeAware, "discovery.Request.Scope; #1176"},
-	"projection.BuildWith":        {scopeAware, "projection.Options.Scope; #1176"},
-	"liveUnmarkedApplyGaps":       {scopeAware, "check.NodeStampUnmarkedApply's scope; #1203"},
-	"lint.CheckWith":              {scopeAware, "lint.Context.Scope; #1256. The twelve per-resource rules narrow; moved-block, the live-block settings, the module-call rules and undeclared-provider-alias stay whole-configuration, each with its reason at its own raising site"},
-	"lint.CheckResidueAttributes": {scopeAware, "lint.Context.Scope, same struct; #1256"},
-	"livePolicyReconcile":         {scopeAware, "discovery.ReconcileRequest.Scope; #1257. The roster is still listed and reported in full; what narrows is discovery.ReconcileResult.Proposable, which is both the set merged in as destroy proposals and the set the threshold guard counts"},
+	"liveTargetScope":                        {scopeAware, "computes the scope; #352"},
+	"liveResolve":                            {scopeAware, "identity.Context.Scope; #352"},
+	"liveDataReads":                          {scopeAware, "dataread.Options.Scope; #352"},
+	"liveRootOutputDataReads":                {scopeAware, "dataread.Options.Scope; #352"},
+	"liveDiscover":                           {scopeAware, "discovery.Request.Scope; #1176"},
+	"projection.BuildWith":                   {scopeAware, "projection.Options.Scope; #1176"},
+	"liveUnmarkedApplyGaps":                  {scopeAware, "check.NodeStampUnmarkedApply's scope; #1203"},
+	"lint.CheckWith":                         {scopeAware, "lint.Context.Scope; #1256. The twelve per-resource rules narrow; moved-block, the live-block settings, the module-call rules and undeclared-provider-alias stay whole-configuration, each with its reason at its own raising site"},
+	"lint.CheckResidueAttributes":            {scopeAware, "lint.Context.Scope, same struct; #1256"},
+	"discovery.FieldGranularMissingRefusals": {scopeAware, "the run's scope; an instance -target/-exclude leaves out is not refused over its missing object (#1885)"},
+	"livePolicyReconcile":                    {scopeAware, "discovery.ReconcileRequest.Scope; #1257. The roster is still listed and reported in full; what narrows is discovery.ReconcileResult.Proposable, which is both the set merged in as destroy proposals and the set the threshold guard counts"},
 
 	// ---- narrowed before they run ----------------------------------
 	"liveKubernetesDryRun":             {planDerived, "iterates plan.Changes.Resources, which targeting already pruned"},

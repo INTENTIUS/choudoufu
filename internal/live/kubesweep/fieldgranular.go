@@ -177,12 +177,14 @@ type FieldManagedObject struct {
 	Namespace  string
 	Name       string
 	// Fields is the manager's FieldsV1 document: the union of every Apply
-	// entry it has on the object outside a subresource.
+	// entry it has on the object outside a subresource. Nil when the
+	// manager owns no field of the object.
 	Fields []byte
 }
 
-// FieldManagedLister lists, for one kind, every object a field manager
-// owns any field of through server-side apply. [Client] implements it; it
+// FieldManagedLister lists, for one kind, every object, with the fields a
+// field manager owns of each through server-side apply (nil where it owns
+// none). [Client] implements it; it
 // is its own interface rather than a [Sweeper] method so that a test's
 // sweeper need not grow one, and a caller holding a sweeper asks for it
 // with a type assertion.
@@ -218,9 +220,13 @@ func (c *Client) ListFieldManaged(ctx context.Context, k Kind, manager string) (
 		if err != nil {
 			return fmt.Errorf("%s %s: %w", k.Kind, NaturalKey(namespace, name), err)
 		}
-		if ok {
-			out = append(out, FieldManagedObject{APIVersion: k.APIVersion, Kind: k.Kind, Namespace: namespace, Name: name, Fields: fields})
+		// Every listed object is returned, Fields nil where the manager
+		// owns nothing: the caller also needs to know which objects exist
+		// (#1885, a field-granular block whose object is gone).
+		if !ok {
+			fields = nil
 		}
+		out = append(out, FieldManagedObject{APIVersion: k.APIVersion, Kind: k.Kind, Namespace: namespace, Name: name, Fields: fields})
 		return nil
 	}
 	opts := metav1.ListOptions{}
