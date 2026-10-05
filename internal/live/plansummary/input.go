@@ -48,6 +48,10 @@ type Change struct {
 	After        json.RawMessage `json:"after,omitempty"`
 	AfterUnknown json.RawMessage `json:"after_unknown,omitempty"`
 	ReplacePaths json.RawMessage `json:"replace_paths,omitempty"`
+	// BeforeSensitive and AfterSensitive mark the attributes whose values the
+	// plan holds as sensitive.
+	BeforeSensitive json.RawMessage `json:"before_sensitive,omitempty"`
+	AfterSensitive  json.RawMessage `json:"after_sensitive,omitempty"`
 	// Importing is set when an import block brings the resource into state.
 	Importing json.RawMessage `json:"importing,omitempty"`
 }

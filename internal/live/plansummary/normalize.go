@@ -330,6 +330,9 @@ type attrChange struct {
 	Before  any  `json:"before,omitempty"`
 	After   any  `json:"after,omitempty"`
 	Unknown bool `json:"unknown,omitempty"`
+	// Sensitive marks an attribute the plan flags sensitive; it then carries
+	// no values, so it compares by its path alone (chant's rule).
+	Sensitive bool `json:"sensitive,omitempty"`
 }
 
 // normalizeChange is the rule for "identical": a change is its action, its
@@ -338,7 +341,7 @@ type attrChange struct {
 // part of the change, which is what drops server-assigned identifiers
 // (id, arn) from an update: they differ between roots and say nothing
 // about what is being done. A create carries every value it sets; a
-// delete or a forget carries only its address.
+// delete, a forget or a read carries only its address.
 func normalizeChange(rc ResourceChange, id identity) (normalized, bool) {
 	act := action(rc.Change.Actions)
 	importing := hasValue(rc.Change.Importing)
@@ -355,10 +358,14 @@ func normalizeChange(rc ResourceChange, id identity) (normalized, bool) {
 	}
 
 	attrs := map[string]attrChange{}
-	if act != ActionDelete && act != ActionForget {
+	// A read carries no attributes: a data source's result is what the
+	// provider returned, not a change anyone wrote (chant's rule).
+	if act != ActionDelete && act != ActionForget && act != ActionRead {
 		before, _ := decode(rc.Change.Before).(map[string]any)
 		after, _ := decode(rc.Change.After).(map[string]any)
 		unknown, _ := decode(rc.Change.AfterUnknown).(map[string]any)
+		beforeSensitive, _ := decode(rc.Change.BeforeSensitive).(map[string]any)
+		afterSensitive, _ := decode(rc.Change.AfterSensitive).(map[string]any)
 		names := map[string]bool{}
 		for k := range after {
 			names[k] = true
@@ -380,6 +387,10 @@ func normalizeChange(rc ResourceChange, id identity) (normalized, bool) {
 				}
 				b = nil
 			} else if !unk && reflect.DeepEqual(b, a) {
+				continue
+			}
+			if anyTrue(beforeSensitive[k]) || anyTrue(afterSensitive[k]) {
+				attrs[k] = attrChange{Sensitive: true}
 				continue
 			}
 			c := attrChange{
