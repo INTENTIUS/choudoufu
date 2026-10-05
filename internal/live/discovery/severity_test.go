@@ -112,6 +112,7 @@ func TestEveryRegisteredRefusalHasAStatedSeverity(t *testing.T) {
 		SummaryKubernetesKindNotServed:                     true,
 		SummaryKubernetesDryRunRejected:                    true,
 		SummaryFieldForceAcrossEstates:                     true,
+		SummaryFieldGranularTargetMissing:                  true,
 		SummaryFieldGranularSameObject:                     true,
 		"No configuration to discover against":             true,
 		"No provider access":                               true,

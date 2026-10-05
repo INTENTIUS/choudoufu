@@ -396,6 +396,7 @@ func (leg KubernetesSweep) sweepFieldGranular(ctx context.Context, req Request, 
 	seen := map[string]bool{}
 	listedKinds := map[string]bool{}
 	heldOn := map[string]map[string]bool{}
+	present := map[string]bool{}
 	for _, k := range kinds {
 		if seen[k.GVR.String()] || !wantKinds[k.GVR.Group+"|"+k.Kind] {
 			continue
@@ -420,7 +421,14 @@ func (leg KubernetesSweep) sweepFieldGranular(ctx context.Context, req Request, 
 		}
 		listedKinds[k.GVR.Group+"|"+k.Kind] = true
 		for _, o := range objs {
-			if key := fieldGranularObjectKey(o.APIVersion, o.Kind, o.Namespace, o.Name); declared[key] {
+			key := fieldGranularObjectKey(o.APIVersion, o.Kind, o.Namespace, o.Name)
+			present[key] = true
+			if len(o.Fields) == 0 {
+				// Listed so that its existence is known; the manager owns
+				// nothing on it.
+				continue
+			}
+			if declared[key] {
 				for _, m := range matchFieldGranular(leg.FieldGranular, o.APIVersion, o.Kind, o.Fields) {
 					if heldOn[key] == nil {
 						heldOn[key] = map[string]bool{}
@@ -457,14 +465,25 @@ func (leg KubernetesSweep) sweepFieldGranular(ctx context.Context, req Request, 
 	// (getResponseEnvs' unchecked container["env"].([]interface{})), which
 	// is exactly what a released env leaves, and the crash takes every
 	// other read on the same provider with it.
+	//
+	// An object the listing did not return at all does not exist, and that
+	// is Result.FieldGranularMissing too: the block's write has nothing to
+	// land on (ruled 2026-10-04, option (b): a non-destroy plan refuses,
+	// [FieldGranularMissingRefusals]).
 	for key, insts := range owned {
-		parts := strings.SplitN(key, "|", 3)
+		parts := strings.SplitN(key, "|", 4)
 		if !listedKinds[parts[0]+"|"+parts[1]] {
 			continue
 		}
 		for _, in := range insts {
 			if heldOn[key][in.typeName] {
 				continue
+			}
+			if !present[key] {
+				if res.FieldGranularMissing == nil {
+					res.FieldGranularMissing = map[string]string{}
+				}
+				res.FieldGranularMissing[in.addr] = parts[1] + " " + kubesweep.NaturalKey(parts[2], parts[3])
 			}
 			if res.FieldGranularUnheld == nil {
 				res.FieldGranularUnheld = map[string]bool{}

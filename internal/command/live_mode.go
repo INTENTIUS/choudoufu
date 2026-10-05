@@ -227,6 +227,7 @@ func liveBegin(
 		// changes it" requires. Keyed on the refresh flag, not on
 		// cacheServesReads (which also folds in the reads policy).
 		refreshFalse:  !opReq.PlanRefresh,
+		destroyMode:   opReq.PlanMode == plans.DestroyMode,
 		envelopeVouch: !opReq.PlanRefresh && readsSelective && opReq.Type == backend.OperationTypePlan,
 		lib:           local.ContextOpts.Plugins,
 		mgr:           mgr,
@@ -814,6 +815,11 @@ type liveRunner struct {
 	// uses it to keep the marker sweep unshrunk on that path.
 	refreshFalse bool
 
+	// destroyMode is true for a plan or apply in destroy mode. #1885's
+	// refusal of a field-granular block whose object is gone does not
+	// apply to one: the instance is absent and nothing is destroyed.
+	destroyMode bool
+
 	// targets and excludes are this operation's -target and -exclude
 	// addresses (GitHub issue #352), copied out of the backend operation at
 	// [liveBegin] because the runner never sees it again. Both empty
@@ -1299,6 +1305,17 @@ func (r *liveRunner) PriorState(ctx context.Context, config *configs.Config, cor
 		// each other, and acting on them would act on the wrong resource.
 		diags = diags.Append(provs.close(ctx))
 		return nil, diags
+	}
+	// #1885, ruled 2026-10-04: a field-granular block whose patched object
+	// does not exist plans a write the apply would refuse, so a plan that
+	// is not a destroy stops here, naming the object. A destroy finds the
+	// instance absent and destroys nothing for it.
+	if !r.destroyMode {
+		if missing := discovery.FieldGranularMissingRefusals(disco, scope); missing.HasErrors() {
+			diags = diags.Append(missing)
+			diags = diags.Append(provs.close(ctx))
+			return nil, diags
+		}
 	}
 	if disco != nil {
 		merged = disco.Resolutions

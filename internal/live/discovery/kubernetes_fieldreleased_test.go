@@ -8,9 +8,13 @@ package discovery
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/kubesweep"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // TestReleasedFieldGranularWriteIsNoOrphan is corpus-govuk-cluster-
@@ -94,5 +98,63 @@ func TestFieldGranularSweepNamesUnheldDeclaredInstances(t *testing.T) {
 	want := map[string]bool{released.String(): true, never.String(): true, goneEnv.String(): true}
 	if !reflect.DeepEqual(res.FieldGranularUnheld, want) {
 		t.Errorf("FieldGranularUnheld = %v, want %v", res.FieldGranularUnheld, want)
+	}
+}
+
+// TestFieldGranularSweepNamesMissingObjects (#1885, ruled 2026-10-04): a
+// declared field-granular instance whose object the listing did not
+// return does not exist; it is in FieldGranularMissing, named by its
+// object, and FieldGranularMissingRefusals refuses it by name. An object
+// listed with no field of the manager's exists: unheld, not missing, and
+// never an orphan.
+func TestFieldGranularSweepNamesMissingObjects(t *testing.T) {
+	s, kinds := fieldSweepFixture()
+	s.managed["Deployment"] = append(s.managed["Deployment"],
+		kubesweep.FieldManagedObject{APIVersion: "apps/v1", Kind: "Deployment", Namespace: "ns", Name: "bare"},
+		// Listed, undeclared, and the manager owns nothing of it.
+		kubesweep.FieldManagedObject{APIVersion: "apps/v1", Kind: "Deployment", Namespace: "ns", Name: "unrelated"})
+	leg := KubernetesSweep{Client: s, FieldGranular: testFieldGranularTypes}
+	gone := k8sInstance(t, "kubernetes_env", "gone")
+	bare := k8sInstance(t, "kubernetes_env", "bare")
+	req := Request{
+		Estate: "e",
+		Resolutions: []identity.Resolution{
+			{Addr: gone, Class: identity.ClassConcrete, ImportID: "apiVersion=apps/v1,kind=Deployment,namespace=shared-objs,name=web"},
+			{Addr: bare, Class: identity.ClassConcrete, ImportID: "apiVersion=apps/v1,kind=Deployment,namespace=ns,name=bare"},
+		},
+	}
+	res := &Result{}
+	sweepDiags := leg.sweepFieldGranular(context.Background(), req, kinds, res)
+	if sweepDiags.HasErrors() {
+		t.Fatal(sweepDiags.Err())
+	}
+	for _, d := range sweepDiags {
+		if strings.Contains(d.Description().Detail, "ns/unrelated") || strings.Contains(d.Description().Detail, "ns/bare") {
+			t.Errorf("an object the manager owns nothing of was reported: %s: %s", d.Description().Summary, d.Description().Detail)
+		}
+	}
+	if want := map[string]string{gone.String(): "Deployment shared-objs/web"}; !reflect.DeepEqual(res.FieldGranularMissing, want) {
+		t.Errorf("FieldGranularMissing = %v, want %v", res.FieldGranularMissing, want)
+	}
+	if !res.FieldGranularUnheld[gone.String()] || !res.FieldGranularUnheld[bare.String()] {
+		t.Errorf("FieldGranularUnheld = %v; both are absent without a read", res.FieldGranularUnheld)
+	}
+	for _, o := range res.Orphans {
+		if strings.Contains(o.ImportID, "name=bare") || strings.Contains(o.ImportID, "name=unrelated") {
+			t.Errorf("an object the manager owns nothing of was filed as an orphan: %+v", o)
+		}
+	}
+	diags := FieldGranularMissingRefusals(res, nil)
+	if len(diags) != 1 || diags[0].Severity() != tfdiags.Error || diags[0].Description().Summary != SummaryFieldGranularTargetMissing {
+		t.Fatalf("refusals = %v, want one %q error", diags, SummaryFieldGranularTargetMissing)
+	}
+	if scoped := FieldGranularMissingRefusals(res, func(r addrs.ConfigResource) bool { return r.String() != "kubernetes_env.gone" }); len(scoped) != 0 {
+		t.Errorf("a run whose -target leaves the block out refused over it: %v", scoped)
+	}
+	detail := diags[0].Description().Detail
+	for _, want := range []string{gone.String(), "Deployment shared-objs/web", "the object this block patches does not exist", "Recreate it, or remove the block"} {
+		if !strings.Contains(strings.ToLower(detail), strings.ToLower(want)) {
+			t.Errorf("refusal detail lacks %q:\n%s", want, detail)
+		}
 	}
 }

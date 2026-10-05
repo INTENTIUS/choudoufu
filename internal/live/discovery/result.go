@@ -334,6 +334,12 @@ type Result struct {
 	// address the sweep could not answer for is not in it.
 	FieldGranularUnheld map[string]bool
 
+	// FieldGranularMissing is the subset of FieldGranularUnheld whose
+	// patched object the listing did not return: it does not exist. The
+	// value names the object ("Deployment shared-objs/web"). A non-destroy
+	// plan refuses each ([FieldGranularMissingRefusals]).
+	FieldGranularMissing map[string]string
+
 	Verdicts
 	Report
 
