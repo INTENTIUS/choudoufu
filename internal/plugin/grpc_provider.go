@@ -24,6 +24,7 @@ import (
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	proto "github.com/intentius/choudoufu/internal/tfplugin5"
+	"github.com/intentius/choudoufu/internal/tracing"
 )
 
 var logger = logging.HCLogger()
@@ -60,6 +61,10 @@ func (p *GRPCProviderPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Serve
 // tofu providers types and the grpc proto types, directly converting
 // between the two.
 type GRPCProvider struct {
+	// Addr is the provider source address, set by whoever starts the plugin.
+	// It names the provider on provider call spans (#1898) and may be empty.
+	Addr string
+
 	// PluginClient provides a reference to the plugin.Client which controls the plugin process.
 	// This allows the GRPCProvider a way to shutdown the plugin process.
 	PluginClient *plugin.Client
@@ -203,7 +208,13 @@ func (p *GRPCProvider) getProtoProviderSchema(ctx context.Context) (*proto.GetPr
 	// size much higher on the server side, which is the supported method for
 	// determining payload size.
 	const maxRecvSize = 64 << 20
+	ctx, span := tracing.StartProviderCall(ctx, tracing.ProviderCall{Service: "tfplugin5.Provider", Method: "GetProviderSchema", Provider: p.Addr})
+	defer span.End()
 	resp, err := p.client.GetSchema(ctx, new(proto.GetProviderSchema_Request), grpc.MaxRecvMsgSizeCallOption{MaxRecvMsgSize: maxRecvSize})
+
+	if err != nil {
+		tracing.SetSpanError(span, err)
+	}
 
 	// Mark that we have handled the internal requirement for legacy providers (!GetProviderSchemaOptional)
 	p.hasFetchedSchema = true
@@ -493,6 +504,13 @@ func (p *GRPCProvider) UpgradeResourceIdentity(ctx context.Context, req provider
 func (p *GRPCProvider) ConfigureProvider(ctx context.Context, r providers.ConfigureProviderRequest) (resp providers.ConfigureProviderResponse) {
 	logger.Trace("GRPCProvider: ConfigureProvider")
 
+	// GitHub issue #1898: a span per call, its traceparent in the gRPC metadata.
+	ctx, span := tracing.StartProviderCall(ctx, tracing.ProviderCall{Service: "tfplugin5.Provider", Method: "ConfigureProvider", Provider: p.Addr, TypeName: "", Detail: false})
+	defer func() {
+		tracing.SetSpanError(span, resp.Diagnostics)
+		span.End()
+	}()
+
 	schema := p.GetProviderSchema(ctx)
 	if schema.Diagnostics.HasErrors() {
 		resp.Diagnostics = schema.Diagnostics
@@ -547,6 +565,13 @@ func (p *GRPCProvider) Stop(ctx context.Context) error {
 
 func (p *GRPCProvider) ReadResource(ctx context.Context, r providers.ReadResourceRequest) (resp providers.ReadResourceResponse) {
 	logger.Trace("GRPCProvider: ReadResource")
+
+	// GitHub issue #1898: a span per call, its traceparent in the gRPC metadata.
+	ctx, span := tracing.StartProviderCall(ctx, tracing.ProviderCall{Service: "tfplugin5.Provider", Method: "ReadResource", Provider: p.Addr, TypeName: r.TypeName, Detail: true})
+	defer func() {
+		tracing.SetSpanError(span, resp.Diagnostics)
+		span.End()
+	}()
 
 	schema := p.GetProviderSchema(ctx)
 	if schema.Diagnostics.HasErrors() {
@@ -628,6 +653,13 @@ func (p *GRPCProvider) ReadResource(ctx context.Context, r providers.ReadResourc
 
 func (p *GRPCProvider) PlanResourceChange(ctx context.Context, r providers.PlanResourceChangeRequest) (resp providers.PlanResourceChangeResponse) {
 	logger.Trace("GRPCProvider: PlanResourceChange")
+
+	// GitHub issue #1898: a span per call, its traceparent in the gRPC metadata.
+	ctx, span := tracing.StartProviderCall(ctx, tracing.ProviderCall{Service: "tfplugin5.Provider", Method: "PlanResourceChange", Provider: p.Addr, TypeName: r.TypeName, Detail: true})
+	defer func() {
+		tracing.SetSpanError(span, resp.Diagnostics)
+		span.End()
+	}()
 
 	schema := p.GetProviderSchema(ctx)
 	if schema.Diagnostics.HasErrors() {
@@ -738,6 +770,13 @@ func (p *GRPCProvider) PlanResourceChange(ctx context.Context, r providers.PlanR
 func (p *GRPCProvider) ApplyResourceChange(ctx context.Context, r providers.ApplyResourceChangeRequest) (resp providers.ApplyResourceChangeResponse) {
 	logger.Trace("GRPCProvider: ApplyResourceChange")
 
+	// GitHub issue #1898: a span per call, its traceparent in the gRPC metadata.
+	ctx, span := tracing.StartProviderCall(ctx, tracing.ProviderCall{Service: "tfplugin5.Provider", Method: "ApplyResourceChange", Provider: p.Addr, TypeName: r.TypeName, Detail: true})
+	defer func() {
+		tracing.SetSpanError(span, resp.Diagnostics)
+		span.End()
+	}()
+
 	schema := p.GetProviderSchema(ctx)
 	if schema.Diagnostics.HasErrors() {
 		resp.Diagnostics = schema.Diagnostics
@@ -838,6 +877,13 @@ func (p *GRPCProvider) ApplyResourceChange(ctx context.Context, r providers.Appl
 
 func (p *GRPCProvider) ImportResourceState(ctx context.Context, r providers.ImportResourceStateRequest) (resp providers.ImportResourceStateResponse) {
 	logger.Trace("GRPCProvider: ImportResourceState")
+
+	// GitHub issue #1898: a span per call, its traceparent in the gRPC metadata.
+	ctx, span := tracing.StartProviderCall(ctx, tracing.ProviderCall{Service: "tfplugin5.Provider", Method: "ImportResourceState", Provider: p.Addr, TypeName: r.TypeName, Detail: true})
+	defer func() {
+		tracing.SetSpanError(span, resp.Diagnostics)
+		span.End()
+	}()
 
 	schema := p.GetProviderSchema(ctx)
 	if schema.Diagnostics.HasErrors() {
@@ -968,6 +1014,13 @@ func (p *GRPCProvider) MoveResourceState(ctx context.Context, r providers.MoveRe
 
 func (p *GRPCProvider) ReadDataSource(ctx context.Context, r providers.ReadDataSourceRequest) (resp providers.ReadDataSourceResponse) {
 	logger.Trace("GRPCProvider: ReadDataSource")
+
+	// GitHub issue #1898: a span per call, its traceparent in the gRPC metadata.
+	ctx, span := tracing.StartProviderCall(ctx, tracing.ProviderCall{Service: "tfplugin5.Provider", Method: "ReadDataSource", Provider: p.Addr, TypeName: r.TypeName, Detail: true})
+	defer func() {
+		tracing.SetSpanError(span, resp.Diagnostics)
+		span.End()
+	}()
 
 	schema := p.GetProviderSchema(ctx)
 	if schema.Diagnostics.HasErrors() {

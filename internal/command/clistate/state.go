@@ -153,7 +153,7 @@ func (l *locker) Unlock() tfdiags.Diagnostics {
 		// cancellation, as that would risk the unlock never being attempted. (Ie, on SIGINT).
 		// For this reason, we specifically will use a non-cancelling context here to unlock the state.
 		nonCancellingContext := context.WithoutCancel(l.ctx)
-		return l.state.Unlock(nonCancellingContext, l.lockID)
+		return statemgr.Unlock(nonCancellingContext, l.state, l.lockID)
 	}, l.view.Unlocking)
 	if err != nil {
 		diags = diags.Append(tfdiags.Sourceless(

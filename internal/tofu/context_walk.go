@@ -17,6 +17,8 @@ import (
 	"github.com/intentius/choudoufu/internal/refactoring"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
 )
 
 // graphWalkOpts captures some transient values we use (and possibly mutate)
@@ -51,8 +53,26 @@ type graphWalkOpts struct {
 	BackupStateForPanic func(*states.State)
 }
 
+// traceNameGraphWalk is the span name for one graph walk (GitHub issue #1898).
+const traceNameGraphWalk = "Graph walk"
+
+// traceAttrWalkOperation is the walk's operation, as walkOperation.String
+// prints it ("walkPlan", "walkApply", ...).
+const traceAttrWalkOperation = "opentofu.walk.operation"
+
 func (c *Context) walk(ctx context.Context, graph *Graph, operation walkOperation, opts *graphWalkOpts) (*ContextGraphWalker, tfdiags.Diagnostics) {
 	log.Printf("[DEBUG] Starting graph walk: %s", operation.String())
+
+	// GitHub issue #1898. One span per walk, and the walk's detail recorder:
+	// the per-resource-instance and provider call spans under it are subject
+	// to the span budget, and the aggregate summaries are written under this
+	// span when the walk ends.
+	ctx, span := tracing.Tracer().Start(ctx, traceNameGraphWalk,
+		tracing.SpanAttributes(traceattrs.String(traceAttrWalkOperation, operation.String())),
+	)
+	defer span.End()
+	ctx, detail := tracing.WithDetailRecorder(ctx)
+	defer detail.Emit(ctx)
 
 	walker := c.graphWalker(operation, opts)
 
@@ -66,6 +86,7 @@ func (c *Context) walk(ctx context.Context, graph *Graph, operation walkOperatio
 	close(watchStop)
 	<-watchWait
 
+	tracing.SetSpanError(span, diags)
 	return walker, diags
 }
 

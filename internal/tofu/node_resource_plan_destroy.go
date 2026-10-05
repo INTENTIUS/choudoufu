@@ -59,8 +59,8 @@ func (n *NodePlanDestroyableResourceInstance) DestroyAddr() *addrs.AbsResourceIn
 func (n *NodePlanDestroyableResourceInstance) Execute(ctx context.Context, evalCtx EvalContext, op walkOperation) (diags tfdiags.Diagnostics) {
 	addr := n.ResourceInstanceAddr()
 
-	ctx, span := tracing.Tracer().Start(
-		ctx, traceNamePlanResourceInstance,
+	ctx, span := tracing.StartDetail(
+		ctx, resourceInstanceDetail(traceNamePlanResourceInstance, addr),
 		tracing.SpanAttributes(
 			traceattrs.String(traceAttrResourceInstanceAddr, addr.String()),
 			traceattrs.String(traceAttrResourceType, addr.Resource.Resource.Type),
@@ -68,6 +68,7 @@ func (n *NodePlanDestroyableResourceInstance) Execute(ctx context.Context, evalC
 		),
 	)
 	defer span.End()
+	defer traceResourceInstanceAction(span, evalCtx, addr, states.NotDeposed)
 
 	diags = diags.Append(n.resolveProvider(ctx, evalCtx, false, states.NotDeposed))
 	if diags.HasErrors() {

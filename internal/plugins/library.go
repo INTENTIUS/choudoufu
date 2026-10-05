@@ -26,8 +26,21 @@ type Library interface {
 }
 
 func NewLibrary(providerFactories ProviderFactories, provisionerFactories ProvisionerFactories) Library {
+	return NewLibraryWithLaunchers(providerFactories, nil, provisionerFactories)
+}
+
+// ProviderLaunchers are the context-taking forms of some of a library's
+// provider factories. See [providers.Launcher].
+type ProviderLaunchers map[addrs.Provider]providers.Launcher
+
+// NewLibraryWithLaunchers is [NewLibrary] with launchers for the providers
+// that have one. A provider started through a launcher gets the "Start
+// provider" span as its trace parent (GitHub issue #1898); a provider with
+// only a factory still gets the span, but its process is not handed it.
+func NewLibraryWithLaunchers(providerFactories ProviderFactories, providerLaunchers ProviderLaunchers, provisionerFactories ProvisionerFactories) Library {
 	return &library{
 		providerFactories: providerFactories,
+		providerLaunchers: providerLaunchers,
 		providerSchemas:   map[addrs.Provider]*providerSchemaEntry{},
 
 		provisionerFactories: provisionerFactories,
@@ -41,6 +54,7 @@ type library struct {
 	providerSchemasLock sync.Mutex
 	providerSchemas     map[addrs.Provider]*providerSchemaEntry
 	providerFactories   ProviderFactories
+	providerLaunchers   ProviderLaunchers
 
 	provisionerSchemasLock sync.Mutex
 	provisionerSchemas     map[string]*provisionerSchemaEntry

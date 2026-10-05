@@ -122,14 +122,15 @@ func (n *NodeApplyableResourceInstance) AttachDependencies(deps []addrs.ConfigRe
 func (n *NodeApplyableResourceInstance) Execute(ctx context.Context, evalCtx EvalContext, op walkOperation) (diags tfdiags.Diagnostics) {
 	addr := n.ResourceInstanceAddr()
 
-	ctx, span := tracing.Tracer().Start(
-		ctx, traceNameApplyResourceInstance,
+	ctx, span := tracing.StartDetail(
+		ctx, resourceInstanceDetail(traceNameApplyResourceInstance, addr),
 		tracing.SpanAttributes(
 			traceattrs.String(traceAttrResourceInstanceAddr, addr.String()),
 			traceattrs.String(traceAttrResourceType, addr.Resource.Resource.Type),
 		),
 	)
 	defer span.End()
+	defer traceResourceInstanceAction(span, evalCtx, addr, states.NotDeposed)
 
 	if n.Config == nil {
 		// If there is no config, and there is no change, then we have nothing

@@ -43,6 +43,68 @@ export OTEL_EXPORTER_OTLP_INSECURE=true
 
 For a complete list of configuration options, refer to the [OpenTelemetry Documentation](https://opentelemetry.io/docs/specs/otel/protocol/exporter/).
 
+## Joining a caller's trace
+
+When `TRACEPARENT` (and optionally `TRACESTATE`) is set, every span of the run
+nests under that parent, so a wrapper such as terragucci sees one trace per
+root. choudoufu hands its own spans on in turn:
+
+- each provider process is started with `TRACEPARENT` set to its
+  `Start provider` span, replacing any `TRACEPARENT` inherited from the caller;
+- each provider gRPC call carries its span as `traceparent` in the gRPC
+  metadata, which a provider instrumented with otelgrpc reads;
+- each child process of `live-plan-set` and `live-wave-apply` gets the span of
+  the stage that runs it.
+
+## Detail spans and the span budget
+
+Some spans come one per resource instance or one per provider resource call,
+so a large estate makes thousands of them. These detail spans are governed by
+`CHOUDOUFU_TRACE_DETAIL`:
+
+| Value | Detail spans | Summary spans |
+|---|---|---|
+| `auto` (default) | up to `CHOUDOUFU_TRACE_SPAN_BUDGET` per graph walk (default 2000), then counted only | written only when something was counted without its own span |
+| `full` | all of them | none |
+| `aggregate` | none | always |
+
+A summary span is named `Aggregate: <detail span name>` and sits under the
+`Graph walk` span. There is one per resource type and phase, or per provider
+and RPC method. Each carries `choudoufu.aggregate.kind`, `.count`,
+`.detailed_count`, `.duration_total_ms`, `.duration_max_ms` and `.slowest`
+(the slowest member's address or resource type), plus `opentofu.resource.type`
+or `opentofu.provider.address` and `rpc.method`. A walk writes at most 256
+summary spans; any further groups are folded into one `Aggregate: other` span.
+
+So the budget per graph walk is: in `auto`, at most the budget's detail spans
+plus at most 256 summaries; in `aggregate`, at most 256 summaries; `full` has
+no bound.
+
+## Span reference
+
+None of these spans carry resource attribute values. They hold addresses,
+actions, type names, method names and counts.
+
+| Span | Under | Attributes |
+|---|---|---|
+| `Graph walk` | `Plan phase`, `Apply phase`, ... | `opentofu.walk.operation` |
+| `Plan resource instance changes` (detail) | `Graph walk` | `opentofu.resource_instance.address`, `opentofu.resource.type`, `opentofu.resource_instance.action`, `opentofu.provider_instance.address` |
+| `Refresh resource instance` (detail) | `Plan resource instance changes` | |
+| `Apply resource instance changes` (detail) | `Graph walk` | as for plan |
+| `tfplugin5.Provider/<Method>`, `tfplugin6.Provider/<Method>` | the resource span, or `Graph walk` | `rpc.system`, `rpc.service`, `rpc.method`, `opentofu.provider.address`, `opentofu.resource.type` |
+| `Start provider` | whatever started it | `opentofu.provider.address` |
+| `State lock wait` | the operation | `opentofu.state.backend`, `opentofu.state.lock.operation`, `opentofu.state.lock.attempts`, `opentofu.state.lock.id` |
+| `State read`, `State write`, `State unlock` | the operation | `opentofu.state.backend` |
+| `live-plan-set` | `tofu` | `choudoufu.roots`, `choudoufu.exit_code` |
+| `Set plan root`, `Set plan stage`, `Set digest` | `live-plan-set` | `choudoufu.root`, `choudoufu.estate`, `choudoufu.stage`, `choudoufu.status`, `choudoufu.set.digest` |
+| `live-wave-apply` | `tofu` | `choudoufu.wave.number`, `choudoufu.exit_code` |
+| `Wave set digest`, `Wave resume check`, `Wave fresh plan`, `Wave apply root` | `live-wave-apply` | `choudoufu.refused`, `choudoufu.refused.step`, `choudoufu.refused.reason`, `choudoufu.root`, `choudoufu.wave.outcome` |
+
+Provider calls that go through the detail budget are `ReadResource`,
+`PlanResourceChange`, `ApplyResourceChange`, `ReadDataSource` and
+`ImportResourceState`. `GetProviderSchema` and `ConfigureProvider` always get
+a span.
+
 ## Quick Start with Jaeger
 
 To quickly spin up a local Jaeger instance with OTLP support:

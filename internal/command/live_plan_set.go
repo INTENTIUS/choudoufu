@@ -16,6 +16,8 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/setplan"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
 )
 
 // LivePlanSetCommand plans a set of estate roots in one invocation (GitHub
@@ -60,8 +62,19 @@ func (c *LivePlanSetCommand) Run(rawArgs []string) int {
 // build.
 var livePlanSetBin = os.Executable
 
-func (c *LivePlanSetCommand) Execute(args *arguments.LivePlanSet) int {
-	ctx := c.CommandContext()
+func (c *LivePlanSetCommand) Execute(args *arguments.LivePlanSet) (exitCode int) {
+	// GitHub issue #1898: the command's span. Each root's span, each
+	// stage's span and each stage's child process nest under it.
+	ctx, span := tracing.Tracer().Start(c.CommandContext(), TraceNameLivePlanSet,
+		tracing.SpanAttributes(traceattrs.Int64(traceattrs.AttrRoots, int64(len(args.Roots)))),
+	)
+	defer func() {
+		span.SetAttributes(traceattrs.Int64(traceattrs.AttrExitCode, int64(exitCode)))
+		if exitCode == setplan.ExitError || exitCode == setplan.ExitRootFailed {
+			tracing.SetSpanError(span, fmt.Sprintf("live-plan-set exited %d", exitCode))
+		}
+		span.End()
+	}()
 	var diags tfdiags.Diagnostics
 	c.Meta.input = false
 
@@ -135,6 +148,9 @@ func (c *LivePlanSetCommand) Execute(args *arguments.LivePlanSet) int {
 	views.NewLivePlanSet(args.View, c.View).Report(doc)
 	return doc.ExitCode
 }
+
+// TraceNameLivePlanSet is the live-plan-set command's span name (#1898).
+const TraceNameLivePlanSet = "live-plan-set"
 
 // liveBlockEstate reads dir's live block, from its .tf files or its
 // estate.chdf.hcl sidecar, the way liveSettings does for the working

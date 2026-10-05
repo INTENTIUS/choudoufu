@@ -5,9 +5,17 @@
 
 package providers
 
+import "context"
+
 // Factory is a function type that creates a new instance of a resource
 // provider, or returns an error if that is impossible.
 type Factory func() (Interface, error)
+
+// Launcher is a [Factory] that takes the caller's context. A provider started
+// by a launcher can be handed the caller's trace span (GitHub issue #1898),
+// so an instrumented provider process joins the caller's trace. Plugin
+// libraries prefer a provider's launcher over its factory when it has both.
+type Launcher func(ctx context.Context) (Interface, error)
 
 // FactoryFixed is a helper that creates a Factory that just returns some given
 // single provider.

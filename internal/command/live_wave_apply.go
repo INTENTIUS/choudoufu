@@ -17,6 +17,8 @@ import (
 	"github.com/intentius/choudoufu/internal/live/setplan"
 	"github.com/intentius/choudoufu/internal/live/waves"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
 )
 
 // LiveWaveApplyCommand applies one wave of an approved set (GitHub issue
@@ -145,7 +147,10 @@ func firstLineOf(s string) string {
 	return s
 }
 
-func (c *LiveWaveApplyCommand) Execute(args *arguments.LiveWaveApply) int {
+// TraceNameLiveWaveApply is the live-wave-apply command's span name (#1898).
+const TraceNameLiveWaveApply = "live-wave-apply"
+
+func (c *LiveWaveApplyCommand) Execute(args *arguments.LiveWaveApply) (exitCode int) {
 	var diags tfdiags.Diagnostics
 	fail := func(summary, detail string) int {
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, summary, detail))
@@ -159,6 +164,19 @@ func (c *LiveWaveApplyCommand) Execute(args *arguments.LiveWaveApply) int {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	// GitHub issue #1898: the command's span. The wave's gates (set digest,
+	// resume check, fresh plan) and each root's apply are its children, so
+	// a refusal shows at the gate that refused.
+	ctx, span := tracing.Tracer().Start(ctx, TraceNameLiveWaveApply,
+		tracing.SpanAttributes(traceattrs.Int64(traceattrs.AttrWave, int64(args.Wave))),
+	)
+	defer func() {
+		span.SetAttributes(traceattrs.Int64(traceattrs.AttrExitCode, int64(exitCode)))
+		if exitCode != waves.ExitApplied {
+			tracing.SetSpanError(span, fmt.Sprintf("live-wave-apply exited %d", exitCode))
+		}
+		span.End()
+	}()
 	base, err := filepath.Abs(".")
 	if err != nil {
 		return fail("Cannot read the working directory", err.Error())

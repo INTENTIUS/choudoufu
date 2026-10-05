@@ -27,6 +27,7 @@ import (
 	"github.com/intentius/choudoufu/internal/providercache"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tracing"
 )
 
 var errUnsupportedProtocolVersion = errors.New("unsupported protocol version")
@@ -234,9 +235,19 @@ func (m *Meta) providerFactories() (map[addrs.Provider]providers.Factory, error)
 // directory's cache, which is what every caller reached through -chdir
 // already got.
 func (m *Meta) providerFactoriesIn(rootDir string, cacheDirPath string) (map[addrs.Provider]providers.Factory, error) {
+	factories, _, err := m.providerPluginsIn(rootDir, cacheDirPath)
+	return factories, err
+}
+
+// providerPluginsIn is [Meta.providerFactoriesIn] that also returns the
+// launchers (GitHub issue #1898) for the providers it starts as processes:
+// a launcher takes the caller's context, so the provider process gets the
+// caller's span as its TRACEPARENT. Every launcher has a factory of the same
+// provider that is the launcher with a background context.
+func (m *Meta) providerPluginsIn(rootDir string, cacheDirPath string) (map[addrs.Provider]providers.Factory, map[addrs.Provider]providers.Launcher, error) {
 	locks, diags := m.lockedDependenciesIn(rootDir)
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("failed to read dependency lock file: %w", diags.Err())
+		return nil, nil, fmt.Errorf("failed to read dependency lock file: %w", diags.Err())
 	}
 
 	// We'll always run through all of our providers, even if one of them
@@ -277,6 +288,7 @@ func (m *Meta) providerFactoriesIn(rootDir string, cacheDirPath string) (map[add
 	unmanagedProviders := m.UnmanagedProviders
 
 	factories := make(map[addrs.Provider]providers.Factory, len(providerLocks)+len(internalFactories)+len(unmanagedProviders))
+	launchers := make(map[addrs.Provider]providers.Launcher, len(providerLocks)+len(devOverrideProviders))
 	for name, factory := range internalFactories {
 		factories[addrs.NewBuiltInProvider(name)] = factory
 	}
@@ -326,9 +338,9 @@ func (m *Meta) providerFactoriesIn(rootDir string, cacheDirPath string) (map[add
 		// This should only ever be called once per provider type.
 		// It creates the schema cache to be re-used in all of the subsequent
 		// provider instances.
-		factory := providerFactory(cached)
+		launch := providerLauncher(cached)
 
-		factories[provider] = func() (providers.Interface, error) {
+		checkedLaunch := func(ctx context.Context) (providers.Interface, error) {
 			checkLock.Lock()
 			if !checkedProvider {
 				checkedProvider = true
@@ -340,21 +352,38 @@ func (m *Meta) providerFactoriesIn(rootDir string, cacheDirPath string) (map[add
 				return nil, checkErr
 			}
 
-			return factory()
+			return launch(ctx)
 		}
+		launchers[provider] = checkedLaunch
+		factories[provider] = launcherFactory(checkedLaunch)
 	}
 	for provider, localDir := range devOverrideProviders {
-		factories[provider] = devOverrideProviderFactory(provider, localDir)
+		launch := devOverrideProviderLauncher(provider, localDir)
+		launchers[provider] = launch
+		factories[provider] = launcherFactory(launch)
 	}
 	for provider, reattach := range unmanagedProviders {
 		factories[provider] = unmanagedProviderFactory(provider, reattach)
+	}
+
+	// An unmanaged provider is already running, so there is no process to
+	// hand a trace parent to and it keeps only its factory.
+	for provider := range unmanagedProviders {
+		delete(launchers, provider)
 	}
 
 	var err error
 	if len(errs) > 0 {
 		err = providerPluginErrors(errs)
 	}
-	return factories, err
+	return factories, launchers, err
+}
+
+// launcherFactory is the [providers.Factory] form of a launcher.
+func launcherFactory(launch providers.Launcher) providers.Factory {
+	return func() (providers.Interface, error) {
+		return launch(context.Background())
+	}
 }
 
 func (m *Meta) internalProviders() map[string]providers.Factory {
@@ -373,12 +402,30 @@ func (m *Meta) internalProviders() map[string]providers.Factory {
 // file in the given cache package and uses go-plugin to implement
 // providers.Interface against it.
 func providerFactory(meta *providercache.CachedProvider) providers.Factory {
+	return launcherFactory(providerLauncher(meta))
+}
+
+// providerLauncher is [providerFactory] as a [providers.Launcher]. When ctx
+// carries a span, the provider process gets it as TRACEPARENT (and
+// TRACESTATE) in place of any this process inherited (GitHub issue #1898),
+// so an instrumented provider's spans nest under the "Start provider" span.
+func providerLauncher(meta *providercache.CachedProvider) providers.Launcher {
 	schemaCache := providers.NewSchemaCache()
 
-	return func() (providers.Interface, error) {
+	return func(ctx context.Context) (providers.Interface, error) {
 		execFile, err := meta.ExecutableFile()
 		if err != nil {
 			return nil, err
+		}
+
+		cmd := exec.Command(execFile)
+		skipHostEnv := false
+		if traceEnv := tracing.TraceEnv(ctx); len(traceEnv) != 0 {
+			// go-plugin appends os.Environ() after cmd.Env, and the last
+			// duplicate wins, so the inherited TRACEPARENT would beat ours.
+			// Hand it the whole environment ourselves instead.
+			cmd.Env = tracing.ChildProcessEnv(ctx, os.Environ())
+			skipHostEnv = true
 		}
 
 		config := &plugin.ClientConfig{
@@ -386,7 +433,8 @@ func providerFactory(meta *providercache.CachedProvider) providers.Factory {
 			Logger:           logging.NewProviderLogger(""),
 			AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
 			Managed:          true,
-			Cmd:              exec.Command(execFile),
+			Cmd:              cmd,
+			SkipHostEnv:      skipHostEnv,
 			AutoMTLS:         enableProviderAutoMTLS,
 			VersionedPlugins: tfplugin.VersionedPlugins,
 			SyncStdout:       logging.PluginOutputMonitor(fmt.Sprintf("%s:stdout", meta.Provider)),
@@ -405,7 +453,7 @@ func providerFactory(meta *providercache.CachedProvider) providers.Factory {
 		}
 
 		protoVer := client.NegotiatedVersion()
-		p, err := initializeProviderInstance(raw, protoVer, client, schemaCache)
+		p, err := initializeProviderInstance(raw, protoVer, client, schemaCache, meta.Provider.String())
 		if errors.Is(err, errUnsupportedProtocolVersion) {
 			panic(err)
 		}
@@ -416,18 +464,20 @@ func providerFactory(meta *providercache.CachedProvider) providers.Factory {
 
 // initializeProviderInstance uses the plugin dispensed by the RPC client, and initializes a plugin instance
 // per the protocol version
-func initializeProviderInstance(plugin any, protoVer int, pluginClient *plugin.Client, schemaCache providers.SchemaCache) (providers.Interface, error) {
+func initializeProviderInstance(plugin any, protoVer int, pluginClient *plugin.Client, schemaCache providers.SchemaCache, addr string) (providers.Interface, error) {
 	// store the client so that the plugin can kill the child process
 	switch protoVer {
 	case 5:
 		p := plugin.(*tfplugin.GRPCProvider)
 		p.PluginClient = pluginClient
 		p.SchemaCache = schemaCache
+		p.Addr = addr
 		return p, nil
 	case 6:
 		p := plugin.(*tfplugin6.GRPCProvider)
 		p.PluginClient = pluginClient
 		p.SchemaCache = schemaCache
+		p.Addr = addr
 		return p, nil
 	default:
 		return nil, errUnsupportedProtocolVersion
@@ -435,12 +485,17 @@ func initializeProviderInstance(plugin any, protoVer int, pluginClient *plugin.C
 }
 
 func devOverrideProviderFactory(provider addrs.Provider, localDir getproviders.PackageLocalDir) providers.Factory {
+	return launcherFactory(devOverrideProviderLauncher(provider, localDir))
+}
+
+// devOverrideProviderLauncher is [devOverrideProviderFactory] as a launcher.
+func devOverrideProviderLauncher(provider addrs.Provider, localDir getproviders.PackageLocalDir) providers.Launcher {
 	// A dev override is essentially a synthetic cache entry for our purposes
 	// here, so that's how we'll construct it. The providerFactory function
 	// doesn't actually care about the version, so we can leave it
 	// unspecified: overridden providers are not explicitly versioned.
 	log.Printf("[DEBUG] Provider %s is overridden to load from %s", provider, localDir)
-	return providerFactory(&providercache.CachedProvider{
+	return providerLauncher(&providercache.CachedProvider{
 		Provider:   provider,
 		Version:    getproviders.UnspecifiedVersion,
 		PackageDir: string(localDir),
@@ -502,7 +557,7 @@ func unmanagedProviderFactory(provider addrs.Provider, reattach *plugin.Reattach
 			protoVer = 5
 		}
 
-		return initializeProviderInstance(raw, protoVer, client, schemaCache)
+		return initializeProviderInstance(raw, protoVer, client, schemaCache, provider.String())
 	}
 }
 
