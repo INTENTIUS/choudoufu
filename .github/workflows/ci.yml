@@ -80,6 +80,19 @@ jobs:
             echo "$out"
             exit 1
           fi
+      # internal/live/plansummary runs chant's shared grouping vectors
+      # (issue #1855, INTENTIUS/chant#3188). The copy under testdata/ is
+      # vendored, and the Fast test tier below runs every row against the
+      # grouping here. This step fails when the copy has drifted from
+      # chant's main, so the table cannot fork quietly. Edit the file in
+      # chant, then copy it here.
+      - name: Shared plan-summary vectors match chant main
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/INTENTIUS/chant/main/packages/core/src/__fixtures__/plan-summary/normalization-vectors.json -o "$RUNNER_TEMP/normalization-vectors.json"
+          if ! cmp "$RUNNER_TEMP/normalization-vectors.json" internal/live/plansummary/testdata/normalization-vectors.json; then
+            echo "internal/live/plansummary/testdata/normalization-vectors.json differs from chant main; copy chant's file over it"
+            exit 1
+          fi
       - name: Build
         run: go build ./cmd/choudoufu
       # Every fork-owned package. The glob used to be

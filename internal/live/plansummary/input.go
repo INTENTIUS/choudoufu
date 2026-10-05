@@ -18,6 +18,20 @@ type Plan struct {
 	FormatVersion   string           `json:"format_version"`
 	Errored         bool             `json:"errored"`
 	ResourceChanges []ResourceChange `json:"resource_changes"`
+	// ActionInvocations are the triggered actions an apply runs.
+	ActionInvocations []ActionInvocation `json:"action_invocations,omitempty"`
+}
+
+// ActionInvocation is one element of a plan's action_invocations: a
+// provider-defined side effect, with the resource and event that trigger it
+// when a lifecycle trigger does.
+type ActionInvocation struct {
+	Address string `json:"address"`
+	Type    string `json:"type"`
+	Trigger *struct {
+		Resource string `json:"triggering_resource_address"`
+		Event    string `json:"action_trigger_event"`
+	} `json:"lifecycle_action_trigger,omitempty"`
 }
 
 // ResourceChange is one element of a plan's resource_changes.
@@ -34,6 +48,8 @@ type Change struct {
 	After        json.RawMessage `json:"after,omitempty"`
 	AfterUnknown json.RawMessage `json:"after_unknown,omitempty"`
 	ReplacePaths json.RawMessage `json:"replace_paths,omitempty"`
+	// Importing is set when an import block brings the resource into state.
+	Importing json.RawMessage `json:"importing,omitempty"`
 }
 
 // SetDocument is the set plan's -json document (GitHub issue #1752): one
