@@ -5,7 +5,8 @@
     "Each repo keeps its own grouping code and runs every row in CI.",
     "rootPairs: a and b are two roots of a choudoufu live-plan-set -json document; summarize a set holding exactly the two, and they must land in one group iff group is true.",
     "instancePairs: a and b are two resource_changes of one terraform show -json plan; summarize that plan, and the two instances must land in one group iff group is true.",
-    "Red first: a naive grouper (equal raw resource_changes) must fail every rootPairs row with group true, and a grouper that blanks every string value in before and after must falsely group exactly the rootPairs rows named in overEagerFalselyGroups."
+    "Red first: a naive grouper (equal raw resource_changes) must fail every rootPairs row with group true, and a grouper that blanks every string value in before and after must falsely group exactly the rootPairs rows named in overEagerFalselyGroups.",
+    "sensitive attribute: chant's change-set carries no value for an attribute marked in before_sensitive or after_sensitive, so two sensitive attributes group by path alone, and a sensitive attribute never groups with an unmarked one. read entry: a data source read carries no attributes, so reads of one address group whatever they returned."
   ],
   "rootPairs": [
     {
@@ -1377,6 +1378,277 @@
               }
             }
           ]
+        }
+      }
+    },
+    {
+      "name": "sensitive attribute with different values",
+      "group": true,
+      "a": {
+        "root": "roots/acme",
+        "estate": "acme",
+        "status": "planned",
+        "plan": {
+          "format_version": "1.2",
+          "resource_changes": [
+            {
+              "address": "aws_db_instance.main",
+              "change": {
+                "actions": [
+                  "update"
+                ],
+                "before": {
+                  "password": "old-a",
+                  "instance_class": "db.t3.small"
+                },
+                "after": {
+                  "password": "new-a",
+                  "instance_class": "db.t3.small"
+                },
+                "before_sensitive": {
+                  "password": true
+                },
+                "after_sensitive": {
+                  "password": true
+                }
+              }
+            }
+          ]
+        }
+      },
+      "b": {
+        "root": "roots/globex",
+        "estate": "globex",
+        "status": "planned",
+        "plan": {
+          "format_version": "1.2",
+          "resource_changes": [
+            {
+              "address": "aws_db_instance.main",
+              "change": {
+                "actions": [
+                  "update"
+                ],
+                "before": {
+                  "password": "old-b",
+                  "instance_class": "db.t3.small"
+                },
+                "after": {
+                  "password": "new-b",
+                  "instance_class": "db.t3.small"
+                },
+                "before_sensitive": {
+                  "password": true
+                },
+                "after_sensitive": {
+                  "password": true
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "sensitive against not sensitive on the same attribute",
+      "group": false,
+      "a": {
+        "root": "roots/acme",
+        "estate": "acme",
+        "status": "planned",
+        "plan": {
+          "format_version": "1.2",
+          "resource_changes": [
+            {
+              "address": "aws_db_instance.main",
+              "change": {
+                "actions": [
+                  "update"
+                ],
+                "before": {
+                  "password": "same-old",
+                  "instance_class": "db.t3.small"
+                },
+                "after": {
+                  "password": "same-new",
+                  "instance_class": "db.t3.small"
+                },
+                "before_sensitive": {
+                  "password": true
+                },
+                "after_sensitive": {
+                  "password": true
+                }
+              }
+            }
+          ]
+        }
+      },
+      "b": {
+        "root": "roots/globex",
+        "estate": "globex",
+        "status": "planned",
+        "plan": {
+          "format_version": "1.2",
+          "resource_changes": [
+            {
+              "address": "aws_db_instance.main",
+              "change": {
+                "actions": [
+                  "update"
+                ],
+                "before": {
+                  "password": "same-old",
+                  "instance_class": "db.t3.small"
+                },
+                "after": {
+                  "password": "same-new",
+                  "instance_class": "db.t3.small"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "read entries whose results differ",
+      "group": true,
+      "a": {
+        "root": "roots/acme",
+        "estate": "acme",
+        "status": "planned",
+        "plan": {
+          "format_version": "1.2",
+          "resource_changes": [
+            {
+              "address": "data.aws_ami.base",
+              "change": {
+                "actions": [
+                  "read"
+                ],
+                "after": {
+                  "id": "ami-0aaa111",
+                  "image_id": "ami-0aaa111",
+                  "owner": "amazon"
+                },
+                "after_unknown": {}
+              }
+            }
+          ]
+        }
+      },
+      "b": {
+        "root": "roots/globex",
+        "estate": "globex",
+        "status": "planned",
+        "plan": {
+          "format_version": "1.2",
+          "resource_changes": [
+            {
+              "address": "data.aws_ami.base",
+              "change": {
+                "actions": [
+                  "read"
+                ],
+                "after": {
+                  "id": "ami-0bbb222",
+                  "image_id": "ami-0bbb222",
+                  "owner": "amazon"
+                },
+                "after_unknown": {}
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "a read of a different data source",
+      "group": false,
+      "a": {
+        "root": "roots/acme",
+        "estate": "acme",
+        "status": "planned",
+        "plan": {
+          "format_version": "1.2",
+          "resource_changes": [
+            {
+              "address": "data.aws_ami.base",
+              "change": {
+                "actions": [
+                  "read"
+                ],
+                "after": {
+                  "id": "ami-0aaa111",
+                  "image_id": "ami-0aaa111",
+                  "owner": "amazon"
+                },
+                "after_unknown": {}
+              }
+            }
+          ]
+        }
+      },
+      "b": {
+        "root": "roots/globex",
+        "estate": "globex",
+        "status": "planned",
+        "plan": {
+          "format_version": "1.2",
+          "resource_changes": [
+            {
+              "address": "data.aws_ami.other",
+              "change": {
+                "actions": [
+                  "read"
+                ],
+                "after": {
+                  "id": "ami-0aaa111",
+                  "image_id": "ami-0aaa111",
+                  "owner": "amazon"
+                },
+                "after_unknown": {}
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "a read against a plan with no entry for it",
+      "group": false,
+      "a": {
+        "root": "roots/acme",
+        "estate": "acme",
+        "status": "planned",
+        "plan": {
+          "format_version": "1.2",
+          "resource_changes": [
+            {
+              "address": "data.aws_ami.base",
+              "change": {
+                "actions": [
+                  "read"
+                ],
+                "after": {
+                  "id": "ami-0aaa111",
+                  "image_id": "ami-0aaa111",
+                  "owner": "amazon"
+                },
+                "after_unknown": {}
+              }
+            }
+          ]
+        }
+      },
+      "b": {
+        "root": "roots/globex",
+        "estate": "globex",
+        "status": "planned",
+        "plan": {
+          "format_version": "1.2",
+          "resource_changes": []
         }
       }
     }
