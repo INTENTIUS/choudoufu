@@ -8,6 +8,7 @@ package plansummary
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"path"
 	"sort"
@@ -66,6 +67,10 @@ type Group struct {
 	// Destroys lists every destroy and replace any member makes, by its
 	// real (unnormalized) address. Never folded.
 	Destroys []Destroy `json:"destroys_and_replaces"`
+	// TriggeredActions lists every triggered action (action_invocations)
+	// any member runs. A triggered action is part of its unit's change: a
+	// unit that runs one never groups with the same change without it.
+	TriggeredActions []string `json:"triggered_actions,omitempty"`
 }
 
 // ChangeLine is one distinct normalized change.
@@ -95,6 +100,32 @@ type unit struct {
 	family   string
 	changes  []normalized
 	destroys []Destroy
+	// effects are the unit's normalized triggered actions, compared when
+	// grouping; effectLines are the same, as a reader sees them.
+	effects     []string
+	effectLines []string
+}
+
+// effectOf normalizes one triggered action for a unit. The trigger address
+// loses the unit's instance keys and tokens like any other address.
+func effectOf(ai ActionInvocation, id identity) (key, line string) {
+	trigger, event := "", ""
+	if ai.Trigger != nil {
+		trigger, event = normalizeAddress(ai.Trigger.Resource, id), ai.Trigger.Event
+	}
+	doc, _ := json.Marshal(struct {
+		Type    string `json:"type"`
+		Trigger string `json:"trigger"`
+		Event   string `json:"event"`
+	}{ai.Type, trigger, event})
+	line = ai.Address
+	if trigger != "" {
+		line += ", triggered by " + trigger
+		if event != "" {
+			line += " " + event
+		}
+	}
+	return string(doc), line
 }
 
 // Summarize groups an input's units by their normalized change sets.
@@ -136,6 +167,11 @@ func summarizeSet(doc *SetDocument) Summary {
 				u.destroys = append(u.destroys, Destroy{Unit: name, Address: realAddress(rc), Action: n.Action})
 			}
 		}
+		for _, ai := range r.Plan.ActionInvocations {
+			key, line := effectOf(ai, id)
+			u.effects = append(u.effects, key)
+			u.effectLines = append(u.effectLines, name+": "+line)
+		}
 		units = append(units, u)
 	}
 	s.Groups = group(units, false)
@@ -176,6 +212,14 @@ func summarizePlan(p *Plan) Summary {
 			continue
 		}
 		u := unit{name: realAddress(rc), family: configAddress(rc.Address), changes: []normalized{n}}
+		for _, ai := range p.ActionInvocations {
+			if ai.Trigger == nil || ai.Trigger.Resource != rc.Address {
+				continue
+			}
+			key, line := effectOf(ai, id)
+			u.effects = append(u.effects, key)
+			u.effectLines = append(u.effectLines, u.name+": "+line)
+		}
 		if Destructive(n.Action) {
 			u.destroys = []Destroy{{Address: realAddress(rc), Action: n.Action}}
 		}
@@ -217,16 +261,23 @@ func group(units []unit, perFamily bool) []Group {
 			keys[i] = c.Key
 		}
 		sort.Strings(keys)
-		sum := sha256.Sum256([]byte(u.family + "\x00" + strings.Join(keys, "\n")))
+		effects := append([]string(nil), u.effects...)
+		sort.Strings(effects)
+		in := u.family + "\x00" + strings.Join(keys, "\n")
+		if len(effects) > 0 {
+			in += "\x00" + strings.Join(effects, "\n")
+		}
+		sum := sha256.Sum256([]byte(in))
 		h := hex.EncodeToString(sum[:])[:12]
 		a, ok := byHash[h]
 		if !ok {
-			a = &acc{g: &Group{Resource: u.family, Hash: h, NoChanges: len(u.changes) == 0, Destroys: []Destroy{}}, lines: changeLines(u.changes)}
+			a = &acc{g: &Group{Resource: u.family, Hash: h, NoChanges: len(u.changes) == 0 && len(u.effects) == 0, Destroys: []Destroy{}}, lines: changeLines(u.changes)}
 			byHash[h] = a
 			order = append(order, h)
 		}
 		a.g.Members = append(a.g.Members, u.name)
 		a.g.Destroys = append(a.g.Destroys, u.destroys...)
+		a.g.TriggeredActions = append(a.g.TriggeredActions, u.effectLines...)
 	}
 
 	groups := make([]Group, 0, len(order))

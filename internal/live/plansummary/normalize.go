@@ -32,7 +32,15 @@ const (
 	ActionReplace = "replace"
 	ActionRead    = "read"
 	ActionForget  = "forget"
+	// ActionNoOp is only ever the action of an import that changes nothing.
+	ActionNoOp = "no-op"
 )
+
+// hasValue reports whether a raw JSON field is present and not null.
+func hasValue(raw json.RawMessage) bool {
+	s := strings.TrimSpace(string(raw))
+	return s != "" && s != "null"
+}
 
 // action folds a stock actions list into one word. "" means no-op: the
 // change is not a change and is skipped.
@@ -333,8 +341,13 @@ type attrChange struct {
 // delete or a forget carries only its address.
 func normalizeChange(rc ResourceChange, id identity) (normalized, bool) {
 	act := action(rc.Change.Actions)
+	importing := hasValue(rc.Change.Importing)
 	if act == "" {
-		return normalized{}, false
+		if !importing {
+			return normalized{}, false
+		}
+		// An import that changes nothing is still an import: it is kept.
+		act = ActionNoOp
 	}
 	addr := normalizeAddress(rc.Address, id)
 	if rc.Deposed != "" {
@@ -390,7 +403,8 @@ func normalizeChange(rc ResourceChange, id identity) (normalized, bool) {
 		Address      string                `json:"address"`
 		Attrs        map[string]attrChange `json:"attrs,omitempty"`
 		ReplacePaths any                   `json:"replace_paths,omitempty"`
-	}{act, addr, attrs, replacePaths}
+		Importing    bool                  `json:"importing,omitempty"`
+	}{act, addr, attrs, replacePaths, importing}
 	key, _ := json.Marshal(keyDoc)
 
 	names := make([]string, 0, len(attrs))
@@ -399,6 +413,9 @@ func normalizeChange(rc ResourceChange, id identity) (normalized, bool) {
 	}
 	sort.Strings(names)
 	line := symbol(act) + " " + addr
+	if importing && act != ActionNoOp {
+		line += " (import)"
+	}
 	if len(names) > 0 && act != ActionCreate && act != ActionRead {
 		line += ": " + strings.Join(names, ", ")
 	}
@@ -444,6 +461,8 @@ func symbol(action string) string {
 		return "<="
 	case ActionForget:
 		return "."
+	case ActionNoOp:
+		return "import"
 	}
 	return "?"
 }
