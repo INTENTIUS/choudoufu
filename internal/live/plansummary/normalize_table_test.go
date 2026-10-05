@@ -7,10 +7,9 @@ package plansummary
 
 import (
 	"encoding/json"
+	"os"
 	"reflect"
 	"testing"
-
-	"github.com/intentius/choudoufu/internal/live/markers"
 )
 
 func raw(t testing.TB, v any) json.RawMessage {
@@ -56,132 +55,53 @@ type tableRow struct {
 	group bool
 }
 
+// vectorFile is chant's shared table of grouping vectors, vendored
+// byte-for-byte (INTENTIUS/choudoufu#1855, INTENTIUS/chant#3188). CI checks
+// the copy against chant main; edit it in chant, never here.
+const vectorFile = "testdata/normalization-vectors.json"
+
+type vectorDoc struct {
+	Format    string `json:"format"`
+	RootPairs []struct {
+		Name  string  `json:"name"`
+		Group bool    `json:"group"`
+		A     SetRoot `json:"a"`
+		B     SetRoot `json:"b"`
+	} `json:"rootPairs"`
+	InstancePairs []struct {
+		Name  string         `json:"name"`
+		Group bool           `json:"group"`
+		A     ResourceChange `json:"a"`
+		B     ResourceChange `json:"b"`
+	} `json:"instancePairs"`
+	OverEagerFalselyGroups []string `json:"overEagerFalselyGroups"`
+}
+
+func loadVectors(t testing.TB) vectorDoc {
+	t.Helper()
+	data, err := os.ReadFile(vectorFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc vectorDoc
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("%s: %v", vectorFile, err)
+	}
+	if doc.Format != "plan-summary-normalization-vectors/1" {
+		t.Fatalf("%s: format %q, want plan-summary-normalization-vectors/1", vectorFile, doc.Format)
+	}
+	if len(doc.RootPairs) == 0 || len(doc.InstancePairs) == 0 {
+		t.Fatalf("%s: no rows (%d root pairs, %d instance pairs)", vectorFile, len(doc.RootPairs), len(doc.InstancePairs))
+	}
+	return doc
+}
+
 func normalizationTable(t testing.TB) []tableRow {
-	instance := func(estate, id, size string) ResourceChange {
-		return change(t, "aws_instance.web", update,
-			map[string]any{"id": id, "arn": "arn:aws:ec2:us-east-1:111:instance/" + id, "instance_type": "t3.small"},
-			map[string]any{"id": id, "arn": "arn:aws:ec2:us-east-1:111:instance/" + id, "instance_type": size})
+	var rows []tableRow
+	for _, r := range loadVectors(t).RootPairs {
+		rows = append(rows, tableRow{name: r.Name, a: r.A, b: r.B, group: r.Group})
 	}
-	bucket := func(addr string, attrs map[string]any) ResourceChange {
-		return change(t, addr, create, nil, attrs)
-	}
-	tagged := func(addr, estate string, extra map[string]any) map[string]any {
-		tags := map[string]any{markers.TagEstate: estate, markers.TagAddress: markers.EscapeAddress(addr)}
-		for k, v := range extra {
-			tags[k] = v
-		}
-		return map[string]any{"bucket": "central-logs", "tags": tags}
-	}
-	policy := func(action, estate string) ResourceChange {
-		doc := `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"` + action + `","Resource":"arn:aws:s3:::` + estate + `-data/*"}]}`
-		return change(t, "aws_iam_policy.read", create, nil, map[string]any{"name": estate + "-read", "policy": doc})
-	}
-
-	return []tableRow{
-		// Must group: the two roots differ only in what names them.
-		{
-			name:  "server-assigned identifier only",
-			a:     root("roots/acme", "acme", instance("acme", "i-0aaa111", "t3.medium")),
-			b:     root("roots/globex", "globex", instance("globex", "i-0bbb222", "t3.medium")),
-			group: true,
-		},
-		{
-			name:  "estate name in the tofu-estate marker",
-			a:     root("roots/acme", "acme", bucket("aws_s3_bucket.logs", tagged("aws_s3_bucket.logs", "acme", nil))),
-			b:     root("roots/globex", "globex", bucket("aws_s3_bucket.logs", tagged("aws_s3_bucket.logs", "globex", nil))),
-			group: true,
-		},
-		{
-			name:  "estate name in a value",
-			a:     root("roots/acme", "acme", bucket("aws_s3_bucket.logs", map[string]any{"bucket": "acme-logs"})),
-			b:     root("roots/globex", "globex", bucket("aws_s3_bucket.logs", map[string]any{"bucket": "globex-logs"})),
-			group: true,
-		},
-		{
-			name:  "resource name carries the estate",
-			a:     root("roots/acme", "acme", bucket("aws_s3_bucket.acme_logs", map[string]any{"bucket": "central-logs"})),
-			b:     root("roots/globex", "globex", bucket("aws_s3_bucket.globex_logs", map[string]any{"bucket": "central-logs"})),
-			group: true,
-		},
-		{
-			name:  "tag value carrying the estate",
-			a:     root("roots/acme", "acme", bucket("aws_s3_bucket.logs", map[string]any{"bucket": "central-logs", "tags": map[string]any{"Owner": "team-acme"}})),
-			b:     root("roots/globex", "globex", bucket("aws_s3_bucket.logs", map[string]any{"bucket": "central-logs", "tags": map[string]any{"Owner": "team-globex"}})),
-			group: true,
-		},
-		{
-			name:  "address index, with the tofu-address marker of each",
-			a:     root("roots/acme", "acme", bucket("aws_s3_bucket.logs[0]", tagged("aws_s3_bucket.logs[0]", "acme", nil))),
-			b:     root("roots/globex", "globex", bucket("aws_s3_bucket.logs[1]", tagged("aws_s3_bucket.logs[1]", "globex", nil))),
-			group: true,
-		},
-		{
-			name:  "address key, with the tofu-address marker of each",
-			a:     root("roots/acme", "acme", bucket(`aws_s3_bucket.logs["acme"]`, tagged(`aws_s3_bucket.logs["acme"]`, "acme", nil))),
-			b:     root("roots/globex", "globex", bucket(`aws_s3_bucket.logs["globex"]`, tagged(`aws_s3_bucket.logs["globex"]`, "globex", nil))),
-			group: true,
-		},
-		{
-			name:  "address module prefix",
-			a:     root("roots/acme", "acme", bucket("module.acme.aws_s3_bucket.logs", map[string]any{"bucket": "central-logs"})),
-			b:     root("roots/globex", "globex", bucket("module.globex.aws_s3_bucket.logs", map[string]any{"bucket": "central-logs"})),
-			group: true,
-		},
-		{
-			name:  "root directory name in a value",
-			a:     root("roots/eu-west", "acme", bucket("aws_s3_bucket.logs", map[string]any{"bucket": "eu-west-logs"})),
-			b:     root("roots/us-east", "globex", bucket("aws_s3_bucket.logs", map[string]any{"bucket": "us-east-logs"})),
-			group: true,
-		},
-
-		// Must not group: a real difference, however small.
-		{
-			name:  "different instance size",
-			a:     root("roots/acme", "acme", instance("acme", "i-0aaa111", "t3.medium")),
-			b:     root("roots/globex", "globex", instance("globex", "i-0bbb222", "t3.large")),
-			group: false,
-		},
-		{
-			name:  "different CIDR",
-			a:     root("roots/acme", "acme", bucket("aws_subnet.a", map[string]any{"cidr_block": "10.1.0.0/16"})),
-			b:     root("roots/globex", "globex", bucket("aws_subnet.a", map[string]any{"cidr_block": "10.2.0.0/16"})),
-			group: false,
-		},
-		{
-			name:  "different policy document",
-			a:     root("roots/acme", "acme", policy("s3:GetObject", "acme")),
-			b:     root("roots/globex", "globex", policy("s3:*", "globex")),
-			group: false,
-		},
-		{
-			name:  "different tag value that does not carry the estate",
-			a:     root("roots/acme", "acme", bucket("aws_s3_bucket.logs", map[string]any{"bucket": "central-logs", "tags": map[string]any{"Env": "prod"}})),
-			b:     root("roots/globex", "globex", bucket("aws_s3_bucket.logs", map[string]any{"bucket": "central-logs", "tags": map[string]any{"Env": "dev"}})),
-			group: false,
-		},
-		{
-			name:  "a tofu-estate marker naming some other estate",
-			a:     root("roots/acme", "acme", bucket("aws_s3_bucket.logs", tagged("aws_s3_bucket.logs", "acme", nil))),
-			b:     root("roots/globex", "globex", bucket("aws_s3_bucket.logs", tagged("aws_s3_bucket.logs", "acme", nil))),
-			group: false,
-		},
-		{
-			name: "update against replace of the same attribute",
-			a:    root("roots/acme", "acme", instance("acme", "i-0aaa111", "t3.medium")),
-			b: func() SetRoot {
-				r := root("roots/globex", "globex", instance("globex", "i-0bbb222", "t3.medium"))
-				r.Plan.ResourceChanges[0].Change.Actions = replace
-				return r
-			}(),
-			group: false,
-		},
-		{
-			name:  "the estate name inside a longer word is not the estate",
-			a:     root("roots/acme", "acme", bucket("aws_s3_bucket.logs", map[string]any{"bucket": "acmelogs"})),
-			b:     root("roots/globex", "globex", bucket("aws_s3_bucket.logs", map[string]any{"bucket": "globexlogs"})),
-			group: false,
-		},
-	}
+	return rows
 }
 
 // grouper says whether two roots land in one group.
@@ -274,13 +194,9 @@ func TestOverEagerNormalizerFailsMustNotRows(t *testing.T) {
 			falselyGrouped[row.name] = true
 		}
 	}
-	want := map[string]bool{
-		"different instance size":                                true,
-		"different CIDR":                                         true,
-		"different policy document":                              true,
-		"different tag value that does not carry the estate":     true,
-		"a tofu-estate marker naming some other estate":          true,
-		"the estate name inside a longer word is not the estate": true,
+	want := map[string]bool{}
+	for _, name := range loadVectors(t).OverEagerFalselyGroups {
+		want[name] = true
 	}
 	if !reflect.DeepEqual(falselyGrouped, want) {
 		t.Errorf("an over-eager normalizer falsely grouped %v, want %v", falselyGrouped, want)
@@ -288,47 +204,39 @@ func TestOverEagerNormalizerFailsMustNotRows(t *testing.T) {
 }
 
 // TestPlanInstanceTable is the same rule over one plan's for_each/count
-// expansion, where an instance's own key is its name.
+// expansion, where an instance's own key is its name. The pairs are the
+// shared file's instancePairs.
 func TestPlanInstanceTable(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		a, b  ResourceChange
-		group bool
-	}{
-		{
-			name:  "count index in a name",
-			a:     change(t, "aws_instance.web[0]", create, nil, map[string]any{"name": "web-0", "instance_type": "t3.small"}),
-			b:     change(t, "aws_instance.web[1]", create, nil, map[string]any{"name": "web-1", "instance_type": "t3.small"}),
-			group: true,
-		},
-		{
-			name:  "for_each key in a tag",
-			a:     change(t, `aws_instance.web["blue"]`, create, nil, map[string]any{"tags": map[string]any{"Name": "web-blue"}}),
-			b:     change(t, `aws_instance.web["green"]`, create, nil, map[string]any{"tags": map[string]any{"Name": "web-green"}}),
-			group: true,
-		},
-		{
-			name:  "count index inside a CIDR is not a name",
-			a:     change(t, "aws_subnet.a[0]", create, nil, map[string]any{"cidr_block": "10.0.0.0/24"}),
-			b:     change(t, "aws_subnet.a[1]", create, nil, map[string]any{"cidr_block": "10.1.0.0/24"}),
-			group: false,
-		},
-		{
-			name:  "different instance size",
-			a:     change(t, "aws_instance.web[0]", create, nil, map[string]any{"name": "web-0", "instance_type": "t3.small"}),
-			b:     change(t, "aws_instance.web[1]", create, nil, map[string]any{"name": "web-1", "instance_type": "t3.large"}),
-			group: false,
-		},
-		{
-			name:  "two different resources never share a group",
-			a:     change(t, "aws_instance.web[0]", create, nil, map[string]any{"instance_type": "t3.small"}),
-			b:     change(t, "aws_instance.api[0]", create, nil, map[string]any{"instance_type": "t3.small"}),
-			group: false,
-		},
-	} {
-		s := Summarize(Input{Plan: &Plan{ResourceChanges: []ResourceChange{tc.a, tc.b}}})
-		if got := len(s.Groups) == 1; got != tc.group {
-			t.Errorf("%s: grouped=%v, want %v (%d groups)", tc.name, got, tc.group, len(s.Groups))
+	for _, tc := range loadVectors(t).InstancePairs {
+		s := Summarize(Input{Plan: &Plan{ResourceChanges: []ResourceChange{tc.A, tc.B}}})
+		if got := len(s.Groups) == 1; got != tc.Group {
+			t.Errorf("%s: grouped=%v, want %v (%d groups)", tc.Name, got, tc.Group, len(s.Groups))
+		}
+	}
+}
+
+// TestSharedVectorFileIsWellFormed holds the vendored file to its own
+// contract: row names are unique, and every name in overEagerFalselyGroups
+// is a root pair.
+func TestSharedVectorFileIsWellFormed(t *testing.T) {
+	doc := loadVectors(t)
+	roots := map[string]bool{}
+	for _, r := range doc.RootPairs {
+		if roots[r.Name] {
+			t.Errorf("root pair %q appears twice", r.Name)
+		}
+		roots[r.Name] = true
+	}
+	inst := map[string]bool{}
+	for _, r := range doc.InstancePairs {
+		if inst[r.Name] {
+			t.Errorf("instance pair %q appears twice", r.Name)
+		}
+		inst[r.Name] = true
+	}
+	for _, name := range doc.OverEagerFalselyGroups {
+		if !roots[name] {
+			t.Errorf("overEagerFalselyGroups names %q, which is not a root pair", name)
 		}
 	}
 }

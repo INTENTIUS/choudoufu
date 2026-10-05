@@ -117,6 +117,12 @@ func (s Summary) Text() string {
 				fmt.Fprintf(&b, "    %s\n", d.text())
 			}
 		}
+		if len(g.TriggeredActions) > 0 {
+			fmt.Fprintf(&b, "  triggered actions (%d):\n", len(g.TriggeredActions))
+			for _, e := range g.TriggeredActions {
+				fmt.Fprintf(&b, "    %s\n", e)
+			}
+		}
 	}
 	return b.String()
 }
@@ -187,6 +193,12 @@ func (s Summary) Markdown(limit int) string {
 			fmt.Fprintf(&b, "\nDestroys and replaces (%d):\n\n", len(g.Destroys))
 			for _, d := range g.Destroys {
 				fmt.Fprintf(&b, "- `%s`\n", d.text())
+			}
+		}
+		if len(g.TriggeredActions) > 0 {
+			fmt.Fprintf(&b, "\nTriggered actions (%d):\n\n", len(g.TriggeredActions))
+			for _, e := range g.TriggeredActions {
+				fmt.Fprintf(&b, "- `%s`\n", e)
 			}
 		}
 		blocks = append(blocks, block{text: b.String(), units: len(g.Members), destroys: len(g.Destroys)})
