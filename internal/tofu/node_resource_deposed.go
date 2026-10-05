@@ -309,8 +309,10 @@ func (n *NodeDestroyDeposedResourceInstanceObject) Execute(ctx context.Context, 
 			traceattrs.String(traceAttrResourceType, n.Addr.Resource.Resource.Type),
 		),
 	)
+	// Read the action before applying: once applied, the change leaves the
+	// changeset and a deferred read would find nothing.
+	traceResourceInstanceAction(span, evalCtx, n.Addr, n.DeposedKey)
 	defer func() {
-		traceResourceInstanceAction(span, evalCtx, n.Addr, n.DeposedKey)
 		tracing.SetSpanError(span, diags)
 		span.End()
 	}()

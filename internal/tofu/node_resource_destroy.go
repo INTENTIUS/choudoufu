@@ -161,7 +161,9 @@ func (n *NodeDestroyResourceInstance) Execute(ctx context.Context, evalCtx EvalC
 		),
 	)
 	defer span.End()
-	defer traceResourceInstanceAction(span, evalCtx, addr, n.DeposedKey)
+	// Read the action before applying: once applied, the change leaves the
+	// changeset and a deferred read would find nothing.
+	traceResourceInstanceAction(span, evalCtx, addr, n.DeposedKey)
 
 	// Eval info is different depending on what kind of resource this is
 	switch addr.Resource.Resource.Mode {
