@@ -103,6 +103,7 @@ func OpenTelemetryInit(ctx context.Context) (context.Context, error) {
 	}
 
 	isTracingEnabled = true
+	configureDetailFromEnv()
 
 	// Wire OTel SDK internal logging through OpenTofu's global logger
 	// before initializing the tracer provider, so any SDK startup
