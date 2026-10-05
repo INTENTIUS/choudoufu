@@ -3457,7 +3457,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Patched object does not exist
 
-**What.** GitHub issue #1885, ruled 2026-10-04: a field-granular Kubernetes block (kubernetes_labels, kubernetes_annotations, kubernetes_env, the *_v1_data types, kubernetes_node_taint) patches an object that does not exist - deleted, typically by the estate that owned it. Stock keeps the block in its state and plans no change, because the provider's read answers a missing object with a warning and leaves state as it was; with no state the block would plan a create the apply refuses. The plan stops, naming the block and the object: recreate the object or remove the block. A destroy plan is not refused, and destroys nothing for the block.
+**What.** GitHub issue #1885, ruled 2026-10-04: a field-granular Kubernetes block (kubernetes_labels, kubernetes_annotations, kubernetes_env, the *_v1_data types, kubernetes_node_taint) patches an object that does not exist - deleted, typically by the estate that owned it. Stock keeps the block in its state and plans no change, because the provider's read answers a missing object with a warning and leaves state as it was; with no state the block would plan a create the apply refuses. The plan stops after it is made, naming the block and the object: recreate the object or remove the block. A block whose object the same plan creates (a whole-object resource of the same root, or one whose name is not known until apply) is an ordinary create and is not refused; a destroy plan is not refused, and destroys nothing for the block.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 

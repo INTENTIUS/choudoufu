@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -144,12 +143,21 @@ func TestFieldGranularSweepNamesMissingObjects(t *testing.T) {
 			t.Errorf("an object the manager owns nothing of was filed as an orphan: %+v", o)
 		}
 	}
-	diags := FieldGranularMissingRefusals(res, nil)
+	create := FieldGranularWrite{Addr: gone, Object: kubesweep.ObjectRef{APIVersion: "apps/v1", Kind: "Deployment", Namespace: "shared-objs", Name: "web"}, Create: true}
+	diags := FieldGranularMissingRefusals(res.FieldGranularMissing, []FieldGranularWrite{create}, nil)
 	if len(diags) != 1 || diags[0].Severity() != tfdiags.Error || diags[0].Description().Summary != SummaryFieldGranularTargetMissing {
 		t.Fatalf("refusals = %v, want one %q error", diags, SummaryFieldGranularTargetMissing)
 	}
-	if scoped := FieldGranularMissingRefusals(res, func(r addrs.ConfigResource) bool { return r.String() != "kubernetes_env.gone" }); len(scoped) != 0 {
-		t.Errorf("a run whose -target leaves the block out refused over it: %v", scoped)
+	for name, planned := range map[string][]PlannedObject{
+		"the plan creates it":          {{Kind: "Deployment", Namespace: "shared-objs", Name: "web", Known: true}},
+		"a Deployment of unknown name": {{Kind: "Deployment"}},
+	} {
+		if d := FieldGranularMissingRefusals(res.FieldGranularMissing, []FieldGranularWrite{create}, planned); len(d) != 0 {
+			t.Errorf("%s: refused anyway: %v", name, d)
+		}
+	}
+	if d := FieldGranularMissingRefusals(res.FieldGranularMissing, []FieldGranularWrite{create}, []PlannedObject{{Kind: "ConfigMap"}}); len(d) != 1 {
+		t.Errorf("an unknown object of another kind suppressed the refusal: %v", d)
 	}
 	detail := diags[0].Description().Detail
 	for _, want := range []string{gone.String(), "Deployment shared-objs/web", "the object this block patches does not exist", "Recreate it, or remove the block"} {
