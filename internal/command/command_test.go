@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	goplugin "github.com/hashicorp/go-plugin"
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/mitchellh/cli"
 	"github.com/opentofu/svchost"
@@ -99,7 +100,14 @@ func TestMain(m *testing.M) {
 	// this, and is where the wiring's behavior is actually proven.
 	os.Setenv("TOFU_LIVE_CLOUDCONTROL", "off")
 
-	os.Exit(m.Run())
+	code := m.Run()
+	// Tests that launch a real provider plugin (the simple provider
+	// installed by installSimpleProviderIn) go through the same go-plugin
+	// client registry the CLI does, and the CLI's main stops what is left
+	// with this call. Without it the plugin processes outlive the test
+	// binary, reparented to init.
+	goplugin.CleanupClients()
+	os.Exit(code)
 }
 
 // RunCommander handles simulating the arg handling that is typically available
