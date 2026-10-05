@@ -16,6 +16,8 @@ import (
 	"github.com/intentius/choudoufu/internal/live/check"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
 )
 
 // LiveCheckCommand answers "will my configuration work under live resource
@@ -126,9 +128,18 @@ func parseLiveCheckArgs(rawArgs []string) (dir string, jsonOutput bool, diags tf
 // false result at the top of the ranking. A directory that was never
 // initialized simply has no schemas, the run continues, and the report says
 // they were absent rather than presenting the worse answer as the answer.
+//
+// The run is one "live-check" span with the children "live-check.load",
+// "live-check.schemas" and "live-check.analyze", in that order.
 func (c *LiveCheckCommand) liveCheck(ctx context.Context, dir string) check.Report {
-	load := check.Load(ctx, dir)
+	ctx, span := tracing.Tracer().Start(ctx, "live-check")
+	defer span.End()
+
+	loadCtx, loadSpan := tracing.Tracer().Start(ctx, "live-check.load")
+	load := check.Load(loadCtx, dir)
+	loadSpan.End()
 	if load.Config == nil {
+		span.SetAttributes(traceattrs.Bool("live.readable", false))
 		return check.Report{Load: load}
 	}
 
@@ -150,20 +161,37 @@ func (c *LiveCheckCommand) liveCheck(ctx context.Context, dir string) check.Repo
 		// stdout, in front of the document a parser reads.
 		log.Printf("[WARN] live-check: reading the provider cache for %s: %s", dir, err)
 	}
+	schemaCtx, schemaSpan := tracing.Tracer().Start(ctx, "live-check.schemas")
 	provs := newProjectionProviders(load.Config, lib)
-	schemas := provs.resourceSchemas(ctx)
+	schemas := provs.resourceSchemas(schemaCtx)
 	// managedTypes is the same read, attributed per provider rather than
 	// merged: it is what lets this instrument draw the data-read phase's
 	// provider boundary where a real live-plan draws it. See
 	// [check.Context.ProviderManagedTypes].
-	managedTypes := provs.managedTypesByProvider(ctx)
+	managedTypes := provs.managedTypesByProvider(schemaCtx)
 	// A close failure is not this command's news: it read schemas and is
 	// done with the plugins. A provider that would not launch already shows
 	// up as absent schemas, which the report states.
-	_ = provs.close(ctx)
+	_ = provs.close(schemaCtx)
+	schemaSpan.End()
 
-	report := check.Analyze(ctx, load.Config, check.Context{Schemas: schemas, ProviderManagedTypes: managedTypes})
+	analyzeCtx, analyzeSpan := tracing.Tracer().Start(ctx, "live-check.analyze")
+	report := check.Analyze(analyzeCtx, load.Config, check.Context{Schemas: schemas, ProviderManagedTypes: managedTypes})
+	analyzeSpan.End()
 	report.Load = load
+	span.SetAttributes(
+		traceattrs.Bool("live.readable", true),
+		traceattrs.String("live.estate", report.Estate),
+		traceattrs.Int64("live.instances", int64(report.Instances)),
+		traceattrs.Int64("live.sites", int64(report.Sites())),
+		// A finding is a type this configuration cannot move; refusals
+		// counts them.
+		traceattrs.Int64("live.refusals", int64(len(report.Findings))),
+		traceattrs.Bool("live.schemas", report.Schemas),
+	)
+	if report.Blocked() {
+		tracing.MarkRefused(span, "live-check", "configuration cannot move")
+	}
 	// After Analyze, not inside it: the static evaluator is lazy, so most
 	// variables are first read during identity resolution and the unset set
 	// is not complete until now (issue #161).

@@ -23,6 +23,8 @@ import (
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
 )
 
 // LiveImportCommand is the bulk migration path from a state-backed estate to
@@ -64,7 +66,13 @@ func (c *LiveImportCommand) Run(rawArgs []string) int {
 }
 
 func (c *LiveImportCommand) Execute(args *arguments.LiveImport) int {
-	ctx := c.CommandContext()
+	// The adopt stage's root span: "live-adopt", whose children are the
+	// "live-adopt.ratify" and, under -approve, "live-adopt.approve" spans
+	// opened in internal/live/liveimport.
+	ctx, span := tracing.Tracer().Start(c.CommandContext(), "live-adopt",
+		tracing.SpanAttributes(traceattrs.Bool("live.approve", args.Approve)),
+	)
+	defer span.End()
 	var diags tfdiags.Diagnostics
 
 	var err error

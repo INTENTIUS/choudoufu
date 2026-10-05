@@ -22,6 +22,8 @@ import (
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
 )
 
 // Outcome is what Approve did, or did not do, about one resource instance.
@@ -239,7 +241,18 @@ type entryResult struct {
 	identities int
 }
 
+// Approve is the write half of adoption, traced as "live-adopt.approve" with
+// the children "live-adopt.approve.entries" (the concurrent per-entry writes)
+// and "live-adopt.approve.root-outputs".
 func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagnostics) {
+	ctx, span := tracing.Tracer().Start(ctx, "live-adopt.approve",
+		tracing.SpanAttributes(
+			traceattrs.String("live.estate", r.Estate),
+			traceattrs.Int64("live.entries", int64(len(r.Entries))),
+		),
+	)
+	defer span.End()
+
 	var diags tfdiags.Diagnostics
 
 	// GitHub issue #372: the third marker key, for the count sets where this
@@ -278,6 +291,7 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 		// No entries at all: nothing to size a semaphore for.
 		par = 1
 	}
+	entriesCtx, entriesSpan := tracing.Tracer().Start(ctx, "live-adopt.approve.entries")
 	sem := make(chan struct{}, par)
 	var wg sync.WaitGroup
 	for i, entry := range r.Entries {
@@ -286,10 +300,11 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 		go func(i int, entry Entry) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			results[i] = r.entryWork(ctx, entry, slotFor[entry.Addr.String()])
+			results[i] = r.entryWork(entriesCtx, entry, slotFor[entry.Addr.String()])
 		}(i, entry)
 	}
 	wg.Wait()
+	entriesSpan.End()
 
 	rep := &StampReport{Estate: r.Estate, Outcomes: make([]StampOutcome, 0, len(results))}
 	for _, res := range results {
@@ -305,7 +320,28 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 	// after the loop rather than in it, and nothing about it can fail a
 	// migration - see [projection.WriteRootOutputValues], which reports
 	// nothing and logs what it could not write.
-	projection.WriteRootOutputValues(ctx, r.rootOutputStore, r.rootOutputs)
+	outputsCtx, outputsSpan := tracing.Tracer().Start(ctx, "live-adopt.approve.root-outputs")
+	projection.WriteRootOutputValues(outputsCtx, r.rootOutputStore, r.rootOutputs)
+	outputsSpan.End()
+
+	var stamped, failed int
+	for _, o := range rep.Outcomes {
+		switch o.Outcome {
+		case OutcomeStamped, OutcomeRecorded:
+			stamped++
+		case OutcomeFailed:
+			failed++
+		}
+	}
+	span.SetAttributes(
+		traceattrs.Int64("live.written", int64(stamped)),
+		// A FAILED outcome is a write the run refused or could not make.
+		traceattrs.Int64("live.refusals", int64(failed)),
+		traceattrs.Int64("live.identities_recorded", int64(rep.IdentitiesRecorded)),
+	)
+	if diags.HasErrors() {
+		tracing.SetSpanError(span, diags)
+	}
 
 	return rep, diags
 }

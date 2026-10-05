@@ -16,6 +16,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
@@ -32,6 +33,8 @@ import (
 	"github.com/intentius/choudoufu/internal/live/servicetags"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
 )
 
 // Request is one discovery pass.
@@ -527,7 +530,46 @@ type ProgressEvent struct {
 // must not build a projection from a result whose diagnostics have errors,
 // because a marker problem means the estate's ownership records disagree
 // with each other and a plan built on them would act on the wrong resource.
+//
+// The run is one "live-discover" span with a child span per phase, joined to
+// the caller's trace (the process's TRACEPARENT, when set, is already the
+// parent of ctx's span). See [discoverPhase] for the phase names.
 func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
+	ctx, span := tracing.Tracer().Start(ctx, "live-discover",
+		tracing.SpanAttributes(
+			traceattrs.String("live.estate", req.Estate),
+			traceattrs.Bool("live.sweep", req.Sweep),
+		),
+	)
+	defer span.End()
+
+	res, diags := discover(ctx, req, span)
+	if res != nil {
+		span.SetAttributes(
+			traceattrs.Int64("live.bindings", int64(len(res.Bindings))),
+			traceattrs.Int64("live.orphans", int64(len(res.Orphans))),
+			traceattrs.Int64("live.unbound", int64(len(res.Unbound))),
+			traceattrs.Int64("live.unclaimed", int64(len(res.Unclaimed))),
+			// A problem is a named ambiguity discovery refused to resolve.
+			traceattrs.Int64("live.refusals", int64(len(res.Problems))),
+		)
+	}
+	if diags.HasErrors() {
+		tracing.SetSpanError(span, diags)
+	}
+	return res, diags
+}
+
+// discoverPhase opens the child span of one discovery phase. The names are
+// "live-discover.declared", ".schemas", ".scan", ".sweep", ".bind" and
+// ".removal-legs", in the order they run; a run that returns early has only
+// the phases it reached.
+func discoverPhase(ctx context.Context, name string) (context.Context, func()) {
+	ctx, span := tracing.Tracer().Start(ctx, "live-discover."+name)
+	return ctx, func() { span.End() }
+}
+
+func discover(ctx context.Context, req Request, span trace.Span) (*Result, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	res := &Result{Estate: req.Estate}
@@ -562,7 +604,9 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// also what TOFU_LIVE_CLOUDCONTROL=off buys.
 	req.markers = newMarkerIndex(req)
 
-	decl, declDiags := declaredInstances(ctx, req)
+	declCtx, endDeclared := discoverPhase(ctx, "declared")
+	decl, declDiags := declaredInstances(declCtx, req)
+	endDeclared()
 	diags = diags.Append(declDiags)
 	if declDiags.HasErrors() {
 		return res, diags
@@ -595,7 +639,9 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// resources: nothing was swept" the moment every declared type ended up
 	// entirely record-backed).
 
-	schemas, schemaDiags := listclient.ListSchemas(ctx, req.Provider)
+	schemaCtx, endSchemas := discoverPhase(ctx, "schemas")
+	schemas, schemaDiags := listclient.ListSchemas(schemaCtx, req.Provider)
+	endSchemas()
 	diags = diags.Append(schemaDiags)
 	if schemaDiags.HasErrors() {
 		return res, diags
@@ -606,8 +652,12 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// see scanTypeReporting.
 	var typesScanned, resourcesFound int
 
+	// The scan phase covers the config-driven scan and the cache-vouching
+	// pass; ctx is shadowed for both loops so every list call under them
+	// is a child of the phase.
+	scanCtx, endScan := discoverPhase(ctx, "scan")
 	for _, typeName := range decl.typeNames() {
-		diags = diags.Append(scanTypeReporting(ctx, req, schemas, decl, typeName, res, false, req.CollectUnclaimed, &typesScanned, &resourcesFound))
+		diags = diags.Append(scanTypeReporting(scanCtx, req, schemas, decl, typeName, res, false, req.CollectUnclaimed, &typesScanned, &resourcesFound))
 	}
 
 	// The cache-vouching pass (issue #692): list the concrete-declared
@@ -645,7 +695,7 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		// here must never abort a plan the cacheless run would complete.
 		vres := &Result{Estate: res.Estate}
 		unscannedBefore := decl.unscanned[typeName]
-		vdiags := scanTypeReporting(ctx, req, schemas, decl, typeName, vres, false, false, &typesScanned, &resourcesFound)
+		vdiags := scanTypeReporting(scanCtx, req, schemas, decl, typeName, vres, false, false, &typesScanned, &resourcesFound)
 		if !unscannedBefore && decl.unscanned[typeName] {
 			// A failed vouch scan must not mark the type unscanned for the
 			// rest of the run - a cacheless run never scanned it at all.
@@ -663,16 +713,27 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		}
 	}
 
+	endScan()
+
 	// The sweep legs run after the config-driven scan so that a type
 	// appearing in both is scanned once, on the terms the configuration
 	// set, and ahead of bind and classifyOrphans so their orphans take the
 	// same classification path (GitHub issue #1580; see sweeper.go).
+	sweepCtx, endSweep := discoverPhase(ctx, "sweep")
 	in := &SweepInput{Request: req, Result: res, schemas: schemas, decl: decl, typesScanned: &typesScanned, resourcesFound: &resourcesFound}
 	for _, leg := range sweepLegs(req) {
-		diags = diags.Append(leg.Sweep(ctx, in))
+		diags = diags.Append(leg.Sweep(sweepCtx, in))
 	}
+	endSweep()
+	span.SetAttributes(
+		traceattrs.Int64("live.types_scanned", int64(typesScanned)),
+		traceattrs.Int64("live.resources_found", int64(resourcesFound)),
+	)
 
-	diags = diags.Append(bind(ctx, req, decl, res))
+	// bind, the lookalike re-list and orphan classification are one phase:
+	// each reads what the one before settled.
+	bindCtx, endBind := discoverPhase(ctx, "bind")
+	diags = diags.Append(bind(bindCtx, req, decl, res))
 
 	// GitHub issue #1480, and it has to be here rather than in either scan
 	// loop above: what it needs to know is which declared instances nothing
@@ -682,14 +743,15 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// where the guard's one widened list call is worth making and the only
 	// place it can be decided. See [relistForLookalikes]: a steady-state
 	// plan makes no call at all here.
-	diags = diags.Append(relistForLookalikes(ctx, req, schemas, res))
+	diags = diags.Append(relistForLookalikes(bindCtx, req, schemas, res))
 
-	diags = diags.Append(classifyOrphans(ctx, req, schemas, res))
+	diags = diags.Append(classifyOrphans(bindCtx, req, schemas, res))
 
 	// Controller-held resources (GitHub issue #1606) leave the removal set
 	// and the unclaimed population here, before the parent-read legs below
 	// read res.Resolutions for removed parents.
 	applyControllerHeld(res)
+	endBind()
 
 	// The three removal legs that read res.Resolutions rather than the tag
 	// sweep, all of them after bind and classifyOrphans: each needs to know
@@ -735,14 +797,16 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// bind and classifyOrphans settle, and one neither parent-read leg adds
 	// to, since both legs' whole population is untaggable by construction.
 	if req.Sweep {
-		diags = diags.Append(recordOrphanReadSweep(ctx, req, schemas, res))
+		legsCtx, endLegs := discoverPhase(ctx, "removal-legs")
+		diags = diags.Append(recordOrphanReadSweep(legsCtx, req, schemas, res))
 		// The parent-read leg (issue #60).
-		diags = diags.Append(parentReadSweep(ctx, req, schemas, res))
+		diags = diags.Append(parentReadSweep(legsCtx, req, schemas, res))
 		// The fold-child leg (issue #68) runs right after: same
 		// res.Resolutions vantage point, generalized to a parent that may
 		// itself be untaggable and composite rather than concrete. See
 		// internal/live/discovery/fold_read.go's package doc comment.
-		diags = diags.Append(foldChildReadSweep(ctx, req, schemas, res))
+		diags = diags.Append(foldChildReadSweep(legsCtx, req, schemas, res))
+		endLegs()
 	}
 
 	// Policy narrows the undeclared_tagged quadrant last, once every removal
