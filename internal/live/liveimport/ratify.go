@@ -24,6 +24,8 @@ import (
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
 )
 
 // Providers supplies a configured provider instance for a provider
@@ -495,7 +497,37 @@ type Ratification struct {
 // req.Providers, producing one Entry per instance. It writes nothing: every
 // call it makes is GetProviderSchema or ReadResource, both read-only on the
 // provider protocol.
+//
+// It is the observe half of adoption, traced as "live-adopt.ratify" with the
+// children "live-adopt.ratify.resolve" and "live-adopt.ratify.entries".
 func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostics) {
+	ctx, span := tracing.Tracer().Start(ctx, "live-adopt.ratify",
+		tracing.SpanAttributes(traceattrs.String("live.estate", req.Estate)),
+	)
+	defer span.End()
+
+	rat, diags := ratify(ctx, req)
+	if rat != nil {
+		refusals := 0
+		for _, e := range rat.Entries {
+			// Every status but VERIFIED is a resource this pass would not
+			// adopt as it stands.
+			if e.Status != StatusVerified {
+				refusals++
+			}
+		}
+		span.SetAttributes(
+			traceattrs.Int64("live.entries", int64(len(rat.Entries))),
+			traceattrs.Int64("live.refusals", int64(refusals)),
+		)
+	}
+	if diags.HasErrors() {
+		tracing.SetSpanError(span, diags)
+	}
+	return rat, diags
+}
+
+func ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	switch {
@@ -542,7 +574,9 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 		// instance rather than aborting (see resolve.go's walkModule); the
 		// rest simply have no entry, and [migrationSlots] already treats
 		// "not found" as "stay blocked", its safe default.
-		resolved, _ := identity.ResolveWith(ctx, req.Config, identity.Context{})
+		resolveCtx, resolveSpan := tracing.Tracer().Start(ctx, "live-adopt.ratify.resolve")
+		resolved, _ := identity.ResolveWith(resolveCtx, req.Config, identity.Context{})
+		resolveSpan.End()
 		rat.resolved = resolved
 	}
 
@@ -560,6 +594,7 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 	// the loop for what it is for.
 	labelCarriers := 0
 
+	entriesCtx, entriesSpan := tracing.Tracer().Start(ctx, "live-adopt.ratify.entries")
 	for _, mod := range sortedModules(req.State) {
 		for _, res := range sortedResources(mod) {
 			if res.Addr.Resource.Mode != addrs.ManagedResourceMode {
@@ -567,7 +602,7 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 			}
 			for _, key := range sortedInstanceKeys(res) {
 				addr := res.Addr.Instance(key)
-				entry, car := ratifyOne(ctx, req, res, addr, res.Instances[key], selection)
+				entry, car := ratifyOne(entriesCtx, req, res, addr, res.Instances[key], selection)
 				rat.Entries = append(rat.Entries, entry)
 				if car.eligible != nil {
 					rat.eligible[addr.String()] = car.eligible
@@ -587,6 +622,8 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 			}
 		}
 	}
+
+	entriesSpan.End()
 
 	// GitHub issue #1396. An estate name may be 128 characters of [a-z0-9-]
 	// ([markers.ValidEstateName]); a Kubernetes label value may be 63 and
