@@ -768,13 +768,6 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		diags = diags.Append(provs.close(ctx))
 		return 1, false, diags
 	}
-	// #1885, ruled 2026-10-04: a field-granular block whose patched object
-	// does not exist. This surface only plans in the normal mode.
-	if missing := discovery.FieldGranularMissingRefusals(disco, scope); missing.HasErrors() {
-		diags = diags.Append(missing)
-		diags = diags.Append(provs.close(ctx))
-		return 1, false, diags
-	}
 	if disco != nil {
 		merged = disco.Resolutions
 	}
@@ -1121,7 +1114,11 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// manager owns is named here, and refused when it sets force = true;
 	// two blocks of this estate patching one object are refused. See
 	// live_plan_kubernetes_fieldowners.go.
-	fieldOwnerDiags := collectKubernetesFieldOwners(ctx, provs.kubernetesSweepers(), config, plan, schemas, resolver.Estate)
+	var fieldGranularMissing map[string]string
+	if disco != nil {
+		fieldGranularMissing = disco.FieldGranularMissing
+	}
+	fieldOwnerDiags := collectKubernetesFieldOwners(ctx, provs.kubernetesSweepers(), config, plan, schemas, resolver.Estate, fieldGranularMissing)
 	diags = diags.Append(fieldOwnerDiags)
 	if fieldOwnerDiags.HasErrors() {
 		return 1, false, diags

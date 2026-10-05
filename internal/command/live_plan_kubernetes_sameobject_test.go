@@ -72,7 +72,7 @@ func TestSameObjectRefusalCountsUnchangedBlocks(t *testing.T) {
 			sync := changes.SyncWrapper()
 			sync.AppendResourceInstanceChange(change("kubernetes_labels", "web", tc.existing, held, after))
 			sync.AppendResourceInstanceChange(change("kubernetes_annotations", "web_extra", plans.Create, null, fresh))
-			diags := collectKubernetesFieldOwners(context.Background(), nil, nil, &plans.Plan{Changes: changes}, schemas, "e")
+			diags := collectKubernetesFieldOwners(context.Background(), nil, nil, &plans.Plan{Changes: changes}, schemas, "e", nil)
 			refused := false
 			for _, d := range diags {
 				if d.Description().Summary == discovery.SummaryFieldGranularSameObject {
