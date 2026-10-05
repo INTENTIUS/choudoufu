@@ -1860,6 +1860,7 @@
     "different policy document",
     "different tag value that does not carry the estate",
     "a tofu-estate marker naming some other estate",
-    "the estate name inside a longer word is not the estate"
+    "the estate name inside a longer word is not the estate",
+    "sensitive against not sensitive on the same attribute"
   ]
 }

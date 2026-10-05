@@ -130,7 +130,9 @@ func (n *NodeApplyableResourceInstance) Execute(ctx context.Context, evalCtx Eva
 		),
 	)
 	defer span.End()
-	defer traceResourceInstanceAction(span, evalCtx, addr, states.NotDeposed)
+	// Read the action before applying: once applied, the change leaves the
+	// changeset and a deferred read would find nothing.
+	traceResourceInstanceAction(span, evalCtx, addr, states.NotDeposed)
 
 	if n.Config == nil {
 		// If there is no config, and there is no change, then we have nothing
