@@ -45,6 +45,20 @@ const (
 	AttrAggregateSlowest       = "choudoufu.aggregate.slowest"
 	AttrAggregateGroups        = "choudoufu.aggregate.groups"
 
+	// The live-plan-set and live-wave-apply spans. A root is the root
+	// module's directory relative to the set's base, an estate the name
+	// its live block declares.
+	AttrRoot      = "choudoufu.root"
+	AttrEstate    = "choudoufu.estate"
+	AttrStage     = "choudoufu.stage"
+	AttrStatus    = "choudoufu.status"
+	AttrRoots     = "choudoufu.roots"
+	AttrExitCode  = "choudoufu.exit_code"
+	AttrWave      = "choudoufu.wave.number"
+	AttrOutcome   = "choudoufu.wave.outcome"
+	AttrMoved     = "choudoufu.wave.moved"
+	AttrSetDigest = "choudoufu.set.digest"
+
 	AttrRefused       = "choudoufu.refused"
 	AttrRefusedStep   = "choudoufu.refused.step"
 	AttrRefusedReason = "choudoufu.refused.reason"

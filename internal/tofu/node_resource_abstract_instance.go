@@ -33,6 +33,7 @@ import (
 	"github.com/intentius/choudoufu/internal/shared"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tracing"
 )
 
 // traceNamePlanResourceInstance is a standardize trace span name we use for the
@@ -975,6 +976,9 @@ func (n *NodeAbstractResourceInstance) writeChange(ctx context.Context, evalCtx 
 
 // refresh does a refresh for a resource
 func (n *NodeAbstractResourceInstance) refresh(ctx context.Context, evalCtx EvalContext, deposedKey states.DeposedKey, state *states.ResourceInstanceObject) (*states.ResourceInstanceObject, tfdiags.Diagnostics) {
+	ctx, span := tracing.StartDetail(ctx, resourceInstanceDetail(traceNameRefreshResourceInstance, n.Addr))
+	defer span.End()
+
 	var diags tfdiags.Diagnostics
 	absAddr := n.Addr
 	if deposedKey == states.NotDeposed {

@@ -93,8 +93,8 @@ func (n *NodePlanDeposedResourceInstanceObject) References() []*addrs.Reference 
 func (n *NodePlanDeposedResourceInstanceObject) Execute(ctx context.Context, evalCtx EvalContext, op walkOperation) (diags tfdiags.Diagnostics) {
 	log.Printf("[TRACE] NodePlanDeposedResourceInstanceObject: planning %s deposed object %s", n.Addr, n.DeposedKey)
 
-	_, span := tracing.Tracer().Start(
-		ctx, traceNamePlanResourceInstance,
+	ctx, span := tracing.StartDetail(
+		ctx, resourceInstanceDetail(traceNamePlanResourceInstance, n.Addr),
 		tracing.SpanAttributes(
 			traceattrs.String(traceAttrResourceInstanceAddr, n.Addr.String()),
 			traceattrs.String(traceAttrResourceType, n.Addr.Resource.Resource.Type),
@@ -102,6 +102,7 @@ func (n *NodePlanDeposedResourceInstanceObject) Execute(ctx context.Context, eva
 		),
 	)
 	defer span.End()
+	defer traceResourceInstanceAction(span, evalCtx, n.Addr, n.DeposedKey)
 
 	diags = n.resolveProvider(ctx, evalCtx, false, n.DeposedKey)
 	if diags.HasErrors() {
@@ -299,6 +300,21 @@ func (n *NodeDestroyDeposedResourceInstanceObject) ModifyCreateBeforeDestroy(v b
 
 // GraphNodeExecutable impl.
 func (n *NodeDestroyDeposedResourceInstanceObject) Execute(ctx context.Context, evalCtx EvalContext, op walkOperation) (diags tfdiags.Diagnostics) {
+	// GitHub issue #1898: destroying a deposed object is an apply of one
+	// resource instance object like any other, and gets the same span.
+	ctx, span := tracing.StartDetail(
+		ctx, resourceInstanceDetail(traceNameApplyResourceInstance, n.Addr),
+		tracing.SpanAttributes(
+			traceattrs.String(traceAttrResourceInstanceAddr, n.Addr.String()),
+			traceattrs.String(traceAttrResourceType, n.Addr.Resource.Resource.Type),
+		),
+	)
+	defer func() {
+		traceResourceInstanceAction(span, evalCtx, n.Addr, n.DeposedKey)
+		tracing.SetSpanError(span, diags)
+		span.End()
+	}()
+
 	var change *plans.ResourceInstanceChange
 
 	diags = n.resolveProvider(ctx, evalCtx, false, n.DeposedKey)

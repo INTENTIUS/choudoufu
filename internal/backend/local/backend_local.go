@@ -41,7 +41,9 @@ func (b *Local) LocalRun(ctx context.Context, stopCtx context.Context, op *backe
 	// happens to do.
 	op.Type = backend.OperationTypeInvalid
 
-	op.StateLocker = op.StateLocker.WithContext(context.Background())
+	// WithoutCancel rather than Background keeps the caller's trace span
+	// (GitHub issue #1898) for the lock wait without its cancellation.
+	op.StateLocker = op.StateLocker.WithContext(context.WithoutCancel(ctx))
 
 	lr, _, stateMgr, diags := b.localRun(ctx, stopCtx, op)
 	return lr, stateMgr, diags
@@ -71,7 +73,7 @@ func (b *Local) localRun(ctx context.Context, stopCtx context.Context, op *backe
 	}()
 
 	log.Printf("[TRACE] backend/local: reading remote state for workspace %q", op.Workspace)
-	if err := s.RefreshState(context.TODO()); err != nil {
+	if err := statemgr.Refresh(ctx, s); err != nil {
 		diags = diags.Append(fmt.Errorf("error loading state: %w", err))
 		return nil, nil, nil, diags
 	}

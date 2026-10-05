@@ -99,8 +99,8 @@ var (
 func (n *NodePlannableResourceInstance) Execute(ctx context.Context, evalCtx EvalContext, op walkOperation) tfdiags.Diagnostics {
 	addr := n.ResourceInstanceAddr()
 
-	ctx, span := tracing.Tracer().Start(
-		ctx, traceNamePlanResourceInstance,
+	ctx, span := tracing.StartDetail(
+		ctx, resourceInstanceDetail(traceNamePlanResourceInstance, addr),
 		tracing.SpanAttributes(
 			traceattrs.String(traceAttrResourceInstanceAddr, addr.String()),
 			traceattrs.String(traceAttrResourceType, addr.Resource.Resource.Type),
@@ -109,6 +109,7 @@ func (n *NodePlannableResourceInstance) Execute(ctx context.Context, evalCtx Eva
 		),
 	)
 	defer span.End()
+	defer traceResourceInstanceAction(span, evalCtx, addr, states.NotDeposed)
 
 	diags := n.resolveProvider(ctx, evalCtx, true, states.NotDeposed)
 	if diags.HasErrors() {

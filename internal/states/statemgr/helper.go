@@ -33,7 +33,7 @@ func NewStateFile() *statefile.File {
 // This is a wrapper around calling RefreshState and then State on the given
 // manager.
 func RefreshAndRead(ctx context.Context, mgr Storage) (*states.State, error) {
-	err := mgr.RefreshState(ctx)
+	err := Refresh(ctx, mgr)
 	if err != nil {
 		return nil, err
 	}
@@ -57,5 +57,5 @@ func WriteAndPersist(ctx context.Context, mgr Storage, state *states.State, sche
 	if err != nil {
 		return err
 	}
-	return mgr.PersistState(ctx, schemas)
+	return Persist(ctx, mgr, schemas)
 }

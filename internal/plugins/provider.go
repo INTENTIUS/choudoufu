@@ -16,6 +16,8 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
 	"github.com/intentius/choudoufu/version"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -34,6 +36,33 @@ func (p ProviderFactories) NewInstance(addr addrs.Provider) (providers.Interface
 	}
 
 	return f()
+}
+
+// TraceNameStartProvider is the span name for starting a provider plugin
+// (GitHub issue #1898): launching its process, the go-plugin handshake and
+// dispensing the client.
+const TraceNameStartProvider = "Start provider"
+
+// startProvider starts a provider instance inside a "Start provider" span,
+// through the provider's launcher when it has one so that the process gets
+// the span as its trace parent.
+func (l *library) startProvider(ctx context.Context, addr addrs.Provider) (providers.Interface, error) {
+	ctx, span := tracing.Tracer().Start(ctx, TraceNameStartProvider,
+		tracing.SpanAttributes(traceattrs.OpenTofuProviderAddress(addr.String())),
+	)
+	defer span.End()
+
+	var provider providers.Interface
+	var err error
+	if launch, ok := l.providerLaunchers[addr]; ok && launch != nil {
+		provider, err = launch(ctx)
+	} else {
+		provider, err = l.providerFactories.NewInstance(addr)
+	}
+	if err != nil {
+		tracing.SetSpanError(span, err)
+	}
+	return provider, err
 }
 
 // ProviderManager allows for spawning, tracking and management of provider instances.
@@ -108,7 +137,7 @@ func (p *providerManager) GetProviderSchema(ctx context.Context, addr addrs.Prov
 	if !entry.populated {
 		log.Printf("[TRACE] plugins.providerManager Initializing provider %q to read its schema", addr)
 
-		provider, err := p.providerFactories.NewInstance(addr)
+		provider, err := p.startProvider(ctx, addr)
 		if err != nil {
 			// Might be a transient error. Don't memoize this result
 			return providers.ProviderSchema{}, tfdiags.Diagnostics{}.Append(fmt.Errorf("failed to instantiate provider %q to obtain schema: %w", addr, err))
@@ -140,7 +169,7 @@ func (p *providerManager) NewProvider(ctx context.Context, addr addrs.Provider) 
 		return nil, diags.Append(fmt.Errorf("bug: unable to start provider %s, manager is shutdown", addr))
 	}
 
-	provider, err := p.providerFactories.NewInstance(addr)
+	provider, err := p.startProvider(ctx, addr)
 	if err != nil {
 		return nil, diags.Append(err)
 	}
@@ -159,7 +188,7 @@ func (p *providerManager) NewConfiguredProvider(ctx context.Context, addr addrs.
 		return nil, diags.Append(fmt.Errorf("bug: unable to start provider %s, manager is shutdown", addr))
 	}
 
-	provider, err := p.providerFactories.NewInstance(addr)
+	provider, err := p.startProvider(ctx, addr)
 	if err != nil {
 		return nil, diags.Append(err)
 	}

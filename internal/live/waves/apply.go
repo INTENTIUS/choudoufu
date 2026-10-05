@@ -13,6 +13,9 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
 )
 
 // Wave apply's exit codes. 3 is "apply <planfile>"'s own code for an
@@ -173,6 +176,19 @@ type ApplyResult struct {
 
 // Apply applies one wave of an approved set. See the package
 // documentation's "Wave apply" for the rules.
+// GitHub issue #1898. Span names for the steps of a wave apply, and the
+// choudoufu.refused.step each gate records when it refuses.
+const (
+	TraceNameDigest    = "Wave set digest"
+	TraceNameResume    = "Wave resume check"
+	TraceNameFreshPlan = "Wave fresh plan"
+	TraceNameApplyRoot = "Wave apply root"
+
+	RefusedStepDigest    = "digest"
+	RefusedStepResume    = "resume"
+	RefusedStepFreshPlan = "fresh-plan"
+)
+
 func Apply(ctx context.Context, o ApplyOptions) (*ApplyResult, error) {
 	res := &ApplyResult{Wave: o.Wave, Outcomes: []ResumeEntry{}, Applied: []string{}}
 	refuse := func(code int, format string, args ...any) (*ApplyResult, error) {
@@ -184,16 +200,31 @@ func Apply(ctx context.Context, o ApplyOptions) (*ApplyResult, error) {
 		return refuse(ExitError, "wave %d does not exist: this set splits into %d waves", o.Wave, len(o.Waves.Waves))
 	}
 
+	// GitHub issue #1898: each gate is its own span, so a refused set shows
+	// in the trace at the step that refused it.
+	_, digestSpan := tracing.Tracer().Start(ctx, TraceNameDigest)
 	approvedRoots, setDigest, err := DocumentDigests(o.Set)
 	if err != nil {
+		tracing.SetSpanError(digestSpan, err)
+		digestSpan.End()
 		return refuse(ExitError, "%s", err)
 	}
+	digestSpan.SetAttributes(traceattrs.String(traceattrs.AttrSetDigest, setDigest))
 	if setDigest != o.Approved {
+		tracing.MarkRefused(digestSpan, RefusedStepDigest, "the set plan document does not hash to the approved digest")
+		digestSpan.End()
 		return refuse(ExitSetMoved, "the set plan document hashes to %s, not the approved %s: it is not the set that was approved, so nothing was applied", setDigest, o.Approved)
 	}
+	digestSpan.End()
+	_, resumeSpan := tracing.Tracer().Start(ctx, TraceNameResume,
+		tracing.SpanAttributes(traceattrs.Int64("choudoufu.wave.resume_entries", int64(len(o.Resume.Roots)))),
+	)
 	if o.Resume.SetDigest != "" && o.Resume.SetDigest != o.Approved {
+		tracing.MarkRefused(resumeSpan, RefusedStepResume, "the resume file belongs to another set digest")
+		resumeSpan.End()
 		return refuse(ExitError, "the resume file belongs to the set %s, not the approved %s; use a new resume file for a new approval", o.Resume.SetDigest, o.Approved)
 	}
+	resumeSpan.End()
 	o.Resume.SetDigest = o.Approved
 	o.Resume.FormatVersion = ResumeFormatVersion
 
@@ -270,10 +301,15 @@ func Apply(ctx context.Context, o ApplyOptions) (*ApplyResult, error) {
 
 	// Every root left is planned afresh, and nothing is applied unless
 	// every fresh plan that planned matches its approved plan.
+	planCtx, planSpan := tracing.Tracer().Start(ctx, TraceNameFreshPlan,
+		tracing.SpanAttributes(traceattrs.Int64(traceattrs.AttrRoots, int64(len(left)))),
+	)
+	defer planSpan.End() // ended earlier on every path below; End is idempotent
 	fresh := map[string]FreshPlan{}
 	if len(left) > 0 {
-		fresh, err = o.Runner.PlanRoots(ctx, left)
+		fresh, err = o.Runner.PlanRoots(planCtx, left)
 		if err != nil {
+			tracing.SetSpanError(planSpan, err)
 			return refuse(ExitError, "planning the wave afresh: %s", err)
 		}
 	}
@@ -298,12 +334,16 @@ func Apply(ctx context.Context, o ApplyOptions) (*ApplyResult, error) {
 		}
 	}
 	if len(res.Moved) > 0 {
+		planSpan.SetAttributes(traceattrs.Int64(traceattrs.AttrMoved, int64(len(res.Moved))))
+		tracing.MarkRefused(planSpan, RefusedStepFreshPlan, "a fresh plan no longer matches its approved plan")
 		names := make([]string, 0, len(res.Moved))
 		for _, m := range res.Moved {
 			names = append(names, m.Root)
 		}
 		return refuse(ExitSetMoved, "the fresh plan of %s no longer matches the approved plan, so nothing in wave %d was applied: plan the set again and approve the new digest", strings.Join(names, ", "), o.Wave)
 	}
+
+	planSpan.End()
 
 	for _, e := range append(preDecided, planFailed...) {
 		if err := decide(e); err != nil {
@@ -337,12 +377,24 @@ func Apply(ctx context.Context, o ApplyOptions) (*ApplyResult, error) {
 			continue
 		}
 		res.Applied = append(res.Applied, r)
-		if err := o.Runner.Apply(ctx, r, fresh[r].PlanFile); err != nil {
+		applyCtx, applySpan := tracing.Tracer().Start(ctx, TraceNameApplyRoot,
+			tracing.SpanAttributes(
+				traceattrs.String(traceattrs.AttrRoot, r),
+				traceattrs.String(traceattrs.AttrEstate, byRoot[r].Estate),
+			),
+		)
+		if err := o.Runner.Apply(applyCtx, r, fresh[r].PlanFile); err != nil {
+			applySpan.SetAttributes(traceattrs.String(traceattrs.AttrOutcome, string(OutcomeFailed)))
+			// The error carries the child's stderr; only the outcome goes on the span.
+			tracing.SetSpanError(applySpan, "apply failed")
+			applySpan.End()
 			if err := decide(ResumeEntry{Root: r, Outcome: OutcomeFailed, Reason: "its apply failed: " + firstLine(err.Error())}); err != nil {
 				return nil, err
 			}
 			continue
 		}
+		applySpan.SetAttributes(traceattrs.String(traceattrs.AttrOutcome, string(OutcomeLanded)))
+		applySpan.End()
 		if err := decide(ResumeEntry{Root: r, Outcome: OutcomeLanded}); err != nil {
 			return nil, err
 		}

@@ -309,7 +309,7 @@ func Run(ctx context.Context, opts Options) (*Document, error) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			doc.Roots[i] = runRoot(ctx, opts.Runner, base, p, now)
+			doc.Roots[i] = runRootTraced(ctx, opts.Runner, base, p, now)
 		}(i, p)
 	}
 	wg.Wait()
@@ -326,7 +326,7 @@ func Run(ctx context.Context, opts Options) (*Document, error) {
 			doc.Summary.Failed++
 		}
 	}
-	if err := digestDocument(doc); err != nil {
+	if err := digestDocumentTraced(ctx, doc); err != nil {
 		return nil, err
 	}
 	doc.ExitCode = ExitCode(doc)
@@ -398,7 +398,7 @@ func runRoot(ctx context.Context, runner Runner, base string, p rootPaths, now f
 	}
 	r.Estate = estate
 
-	if err := runner.Init(ctx, p.abs, logf); err != nil {
+	if err := traceStage(ctx, StageInit, func(ctx context.Context) error { return runner.Init(ctx, p.abs, logf) }); err != nil {
 		return fail(StageInit, err)
 	}
 	// A stale plan file from an earlier run must never be read back as this
@@ -407,12 +407,22 @@ func runRoot(ctx context.Context, runner Runner, base string, p rootPaths, now f
 	if err := os.Remove(p.planFile); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fail(StagePlan, fmt.Errorf("removing an earlier run's plan file: %w", err))
 	}
-	changes, err := runner.Plan(ctx, p.abs, p.planFile, logf)
+	var changes bool
+	err = traceStage(ctx, StagePlan, func(ctx context.Context) error {
+		var err error
+		changes, err = runner.Plan(ctx, p.abs, p.planFile, logf)
+		return err
+	})
 	if err != nil {
 		return fail(StagePlan, err)
 	}
 	r.PlanFile = relTo(base, p.planFile)
-	plan, err := runner.Show(ctx, p.abs, p.planFile, logf)
+	var plan json.RawMessage
+	err = traceStage(ctx, StageShow, func(ctx context.Context) error {
+		var err error
+		plan, err = runner.Show(ctx, p.abs, p.planFile, logf)
+		return err
+	})
 	if err != nil {
 		planFile := r.PlanFile
 		out := fail(StageShow, err)

@@ -49,8 +49,8 @@ func (m *Meta) pluginsForDir(dir string) (plugins.Library, error) {
 		), nil
 	}
 
-	factories, err := m.providerFactoriesIn(dir, m.providerLocalCacheDirFor(dir))
-	return plugins.NewLibrary(factories, m.provisionerFactories()), err
+	factories, launchers, err := m.providerPluginsIn(dir, m.providerLocalCacheDirFor(dir))
+	return plugins.NewLibraryWithLaunchers(factories, launchers, m.provisionerFactories()), err
 }
 
 // providerLocalCacheDirFor is dir's own provider cache: the ".terraform"

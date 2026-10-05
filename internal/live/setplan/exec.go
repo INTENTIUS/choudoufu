@@ -14,6 +14,8 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+
+	"github.com/intentius/choudoufu/internal/tracing"
 )
 
 // Environment variables the children are given. See the package
@@ -118,7 +120,13 @@ func (e Exec) exec(ctx context.Context, dir string, log, stdoutW io.Writer, stdo
 	argv := append([]string{"-chdir=" + dir}, args...)
 	fmt.Fprintf(log, "$ choudoufu %s\n", strings.Join(argv, " "))
 	cmd := exec.CommandContext(ctx, e.Bin, argv...)
+	// GitHub issue #1898: the child's TRACEPARENT is the stage's span, so
+	// the child's own trace nests under it. With no span in ctx (tracing
+	// off) Env is used as it is.
 	cmd.Env = e.Env
+	if e.Env != nil {
+		cmd.Env = tracing.ChildProcessEnv(ctx, e.Env)
+	}
 	cmd.Stdin = nil
 	cmd.Stdout = stdoutW
 	cmd.Stderr = io.MultiWriter(log, stderr)

@@ -153,14 +153,15 @@ func (n *NodeDestroyResourceInstance) References() []*addrs.Reference {
 func (n *NodeDestroyResourceInstance) Execute(ctx context.Context, evalCtx EvalContext, op walkOperation) (diags tfdiags.Diagnostics) {
 	addr := n.ResourceInstanceAddr()
 
-	ctx, span := tracing.Tracer().Start(
-		ctx, traceNameApplyResourceInstance,
+	ctx, span := tracing.StartDetail(
+		ctx, resourceInstanceDetail(traceNameApplyResourceInstance, addr),
 		tracing.SpanAttributes(
 			traceattrs.String(traceAttrResourceInstanceAddr, addr.String()),
 			traceattrs.String(traceAttrResourceType, addr.Resource.Resource.Type),
 		),
 	)
 	defer span.End()
+	defer traceResourceInstanceAction(span, evalCtx, addr, n.DeposedKey)
 
 	// Eval info is different depending on what kind of resource this is
 	switch addr.Resource.Resource.Mode {

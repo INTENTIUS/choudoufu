@@ -19,6 +19,9 @@ import (
 	"time"
 
 	uuid "github.com/hashicorp/go-uuid"
+
+	"github.com/intentius/choudoufu/internal/tracing"
+	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
 	"github.com/intentius/choudoufu/version"
 )
 
@@ -84,10 +87,30 @@ var postLockHook func()
 //
 // This method has a built-in retry/backoff behavior up to the context's
 // timeout.
-func LockWithContext(ctx context.Context, s Locker, info *LockInfo) (string, error) {
+func LockWithContext(ctx context.Context, s Locker, info *LockInfo) (id string, err error) {
+	// GitHub issue #1898: the whole wait, every attempt included, is one span.
+	ctx, span := tracing.Tracer().Start(ctx, TraceNameStateLockWait,
+		tracing.SpanAttributes(traceattrs.String(traceattrs.AttrStateBackend, stateManagerType(s))),
+	)
+	attempts := 0
+	defer func() {
+		span.SetAttributes(traceattrs.Int64(traceattrs.AttrStateLockAttempts, int64(attempts)))
+		if info != nil && info.Operation != "" {
+			span.SetAttributes(traceattrs.String(traceattrs.AttrStateLockOperation, info.Operation))
+		}
+		if id != "" {
+			span.SetAttributes(traceattrs.String(traceattrs.AttrStateLockID, id))
+		}
+		if err != nil {
+			tracing.SetSpanError(span, err)
+		}
+		span.End()
+	}()
+
 	delay := time.Second
 	maxDelay := 16 * time.Second
 	for {
+		attempts++
 		// We disable cancellation on the context passed to s.Lock
 		// because we want it to run to completion if possible and then
 		// we'll check context cancellation explicitly below.
