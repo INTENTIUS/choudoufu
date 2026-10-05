@@ -15,6 +15,7 @@ import (
 	"slices"
 	"testing"
 
+	goplugin "github.com/hashicorp/go-plugin"
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/getproviders"
 )
@@ -50,6 +51,12 @@ import (
 // what lets a locally-built binary stand in for a released package.
 func installSimpleProviderIn(t *testing.T, dir string) addrs.Provider {
 	t.Helper()
+
+	// Whatever launches the provider (validate, live-check, live-ls), stop
+	// every plugin process on the way out, including after a failed test or
+	// a panic. TestMain does the same at the end of the package, which a test
+	// timeout or a crash never reaches.
+	t.Cleanup(goplugin.CleanupClients)
 
 	provider := addrs.NewDefaultProvider("simple")
 	version := getproviders.MustParseVersion("1.0.0")
