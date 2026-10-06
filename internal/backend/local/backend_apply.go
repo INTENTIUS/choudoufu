@@ -177,6 +177,9 @@ func (b *Local) opApply(
 			runningOp.Result = backend.OperationFailure
 		}
 	}()
+	// This operation is the context's only user, so its providers go down
+	// when it returns, ahead of the unlock above.
+	defer closeCore(ctx, lr.Core)
 
 	// We'll start off with our result being the input state, and replace it
 	// with the result state only if we eventually complete the apply

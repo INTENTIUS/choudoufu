@@ -133,6 +133,7 @@ func (c StateShowCommand) Execute(args *arguments.StateShow, view views.State) i
 		view.Diagnostics(ctxDiags)
 		return 1
 	}
+	defer closeLocalRun(ctx, lr)
 
 	// Get the schemas from the context
 	schemas, diags := lr.Core.Schemas(ctx, lr.Config, lr.InputState)
