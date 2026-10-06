@@ -560,6 +560,7 @@ func TestLiveCheckDocument_topLevelShapeIsPinned(t *testing.T) {
       ]
     }
   ],
+  "refusals": [],
   "checked": [
     "lint",
     "identity"
