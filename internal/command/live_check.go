@@ -267,6 +267,7 @@ func liveCheckReport(dir string, report check.Report) views.LiveCheckReport {
 
 func liveCheckFinding(finding check.Finding) views.LiveCheckFinding {
 	out := views.LiveCheckFinding{
+		Rule:      finding.ID,
 		Title:     finding.Title,
 		Layer:     string(finding.Layer),
 		SiteCount: len(finding.Sites),
