@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: https://code.forgejo.org/actions/checkout@v4
       - run: npm ci --no-audit --no-fund
-      - run: curl -fsSL -o /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.21.0/choudoufu_v0.21.0_linux_amd64.tar.gz && echo "fd7577de72d737564fde3439dd77a5e85c662b985c386cc2ba17a2b20ec05abc  /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
+      - run: curl -fsSL -o /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.22.0/choudoufu_v0.22.0_linux_amd64.tar.gz && echo "91c36588bc30c9543cefa2f75055425a0a088bef52d288780e033873823c6083  /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
       - id: chant-run
         run: |
           set +e

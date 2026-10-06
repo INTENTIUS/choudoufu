@@ -34,7 +34,7 @@ live-check:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"'
   script:
     - npm ci --no-audit --no-fund
-    - curl -fsSL -o /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.21.0/choudoufu_v0.21.0_linux_amd64.tar.gz && echo "fd7577de72d737564fde3439dd77a5e85c662b985c386cc2ba17a2b20ec05abc  /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
+    - curl -fsSL -o /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.22.0/choudoufu_v0.22.0_linux_amd64.tar.gz && echo "91c36588bc30c9543cefa2f75055425a0a088bef52d288780e033873823c6083  /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
     - npx chant run live-check
 
 live-plan:
@@ -49,7 +49,7 @@ live-plan:
   script:
     - echo "$CHANT_ID_TOKEN" > "$CI_PROJECT_DIR/.chant-id-token.jwt" && export AWS_WEB_IDENTITY_TOKEN_FILE="$CI_PROJECT_DIR/.chant-id-token.jwt" && export AWS_ROLE_ARN="$CHOUDOUFU_PLAN_ROLE_ARN" && export AWS_ROLE_SESSION_NAME="gitlab-ci-$CI_PIPELINE_ID"
     - npm ci --no-audit --no-fund
-    - curl -fsSL -o /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.21.0/choudoufu_v0.21.0_linux_amd64.tar.gz && echo "fd7577de72d737564fde3439dd77a5e85c662b985c386cc2ba17a2b20ec05abc  /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
+    - curl -fsSL -o /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.22.0/choudoufu_v0.22.0_linux_amd64.tar.gz && echo "91c36588bc30c9543cefa2f75055425a0a088bef52d288780e033873823c6083  /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
     - npx chant run live-plan
 
 live-adopt:
@@ -66,7 +66,7 @@ live-adopt:
   script:
     - echo "$CHANT_ID_TOKEN" > "$CI_PROJECT_DIR/.chant-id-token.jwt" && export AWS_WEB_IDENTITY_TOKEN_FILE="$CI_PROJECT_DIR/.chant-id-token.jwt" && export AWS_ROLE_ARN="$CHOUDOUFU_ADOPT_ROLE_ARN" && export AWS_ROLE_SESSION_NAME="gitlab-ci-$CI_PIPELINE_ID"
     - npm ci --no-audit --no-fund
-    - curl -fsSL -o /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.21.0/choudoufu_v0.21.0_linux_amd64.tar.gz && echo "fd7577de72d737564fde3439dd77a5e85c662b985c386cc2ba17a2b20ec05abc  /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
+    - curl -fsSL -o /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.22.0/choudoufu_v0.22.0_linux_amd64.tar.gz && echo "91c36588bc30c9543cefa2f75055425a0a088bef52d288780e033873823c6083  /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
     - npx chant run live-adopt --gated-exit 0
   artifacts:
     when: always
@@ -90,7 +90,7 @@ live-apply:
   script:
     - echo "$CHANT_ID_TOKEN" > "$CI_PROJECT_DIR/.chant-id-token.jwt" && export AWS_WEB_IDENTITY_TOKEN_FILE="$CI_PROJECT_DIR/.chant-id-token.jwt" && export AWS_ROLE_ARN="$CHOUDOUFU_APPLY_ROLE_ARN" && export AWS_ROLE_SESSION_NAME="gitlab-ci-$CI_PIPELINE_ID"
     - npm ci --no-audit --no-fund
-    - curl -fsSL -o /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.21.0/choudoufu_v0.21.0_linux_amd64.tar.gz && echo "fd7577de72d737564fde3439dd77a5e85c662b985c386cc2ba17a2b20ec05abc  /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
+    - curl -fsSL -o /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.22.0/choudoufu_v0.22.0_linux_amd64.tar.gz && echo "91c36588bc30c9543cefa2f75055425a0a088bef52d288780e033873823c6083  /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
     - npx chant run live-apply --gated-exit 0
   artifacts:
     when: always
@@ -110,7 +110,7 @@ live-discover:
   script:
     - echo "$CHANT_ID_TOKEN" > "$CI_PROJECT_DIR/.chant-id-token.jwt" && export AWS_WEB_IDENTITY_TOKEN_FILE="$CI_PROJECT_DIR/.chant-id-token.jwt" && export AWS_ROLE_ARN="$CHOUDOUFU_PLAN_ROLE_ARN" && export AWS_ROLE_SESSION_NAME="gitlab-ci-$CI_PIPELINE_ID"
     - npm ci --no-audit --no-fund
-    - curl -fsSL -o /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.21.0/choudoufu_v0.21.0_linux_amd64.tar.gz && echo "fd7577de72d737564fde3439dd77a5e85c662b985c386cc2ba17a2b20ec05abc  /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
+    - curl -fsSL -o /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.22.0/choudoufu_v0.22.0_linux_amd64.tar.gz && echo "91c36588bc30c9543cefa2f75055425a0a088bef52d288780e033873823c6083  /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
     - npx chant run live-discover
 
 backend-prepare:
@@ -128,7 +128,7 @@ backend-prepare:
     - echo "$CHANT_ID_TOKEN" > "$CI_PROJECT_DIR/.chant-id-token.jwt" && export AWS_WEB_IDENTITY_TOKEN_FILE="$CI_PROJECT_DIR/.chant-id-token.jwt" && export AWS_ROLE_ARN="$CHOUDOUFU_BACKEND_ROLE_ARN" && export AWS_ROLE_SESSION_NAME="gitlab-ci-$CI_PIPELINE_ID"
     - apt-get update -qq && apt-get install -y -qq --no-install-recommends awscli jq > /dev/null && curl -fsSL -o /tmp/just-1.58.0-x86_64-unknown-linux-musl.tar.gz https://github.com/casey/just/releases/download/1.58.0/just-1.58.0-x86_64-unknown-linux-musl.tar.gz && echo "4a5cc2f53e6f0f8c59092a6cc38291eb729d46a7dd95d3ae582008881b84931d  /tmp/just-1.58.0-x86_64-unknown-linux-musl.tar.gz" | sha256sum -c - && tar -xzf /tmp/just-1.58.0-x86_64-unknown-linux-musl.tar.gz -C /usr/local/bin just && aws --version && jq --version && just --version
     - npm ci --no-audit --no-fund
-    - curl -fsSL -o /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.21.0/choudoufu_v0.21.0_linux_amd64.tar.gz && echo "fd7577de72d737564fde3439dd77a5e85c662b985c386cc2ba17a2b20ec05abc  /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.21.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
+    - curl -fsSL -o /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.22.0/choudoufu_v0.22.0_linux_amd64.tar.gz && echo "91c36588bc30c9543cefa2f75055425a0a088bef52d288780e033873823c6083  /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
     - npx chant run backend-prepare --gated-exit 0
   artifacts:
     when: always
