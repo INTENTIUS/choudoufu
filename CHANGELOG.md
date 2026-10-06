@@ -37,7 +37,18 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
    `generated-from.json` alongside the pin. Skipping this step for more than
    one release cycle is what `TestCIPipelinePinIsTiedToRelease` turns red for.
 
-## choudoufu v0.22.0 (Unreleased)
+## choudoufu v0.23.0 (Unreleased)
+
+## choudoufu v0.22.0 (2026-10-06)
+
+Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.22.0.json`](live/history/v0.22.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.21.0.json live/history/v0.22.0.json`):
+
+- Core estates: 26/26 clear -> 26/26 clear (0)
+- All estates: 27/27 clear -> 27/28 clear (0)
+- Newly cleared: none
+- Regressed: none
 
 - Fixed: `live-check -json` on a root that exits 1 with `"blocked": true` now
   says why. A new top-level `refusals` array carries every refusal behind the
