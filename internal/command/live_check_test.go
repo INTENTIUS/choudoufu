@@ -7,6 +7,8 @@ package command
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -104,6 +106,20 @@ type liveCheckJSONDoc struct {
 		Address string   `json:"address"`
 		ReadBy  []string `json:"read_by"`
 	} `json:"references"`
+
+	Refusals []struct {
+		Rule   string `json:"rule"`
+		Reason string `json:"reason"`
+		Count  int    `json:"count"`
+		Types  []struct {
+			Type  string `json:"type"`
+			Count int    `json:"count"`
+		} `json:"types"`
+		Sites []struct {
+			Address  string `json:"address"`
+			Location string `json:"location"`
+		} `json:"sites"`
+	} `json:"refusals"`
 
 	Checked   []string `json:"checked"`
 	Partial   []string `json:"partial"`
@@ -270,5 +286,51 @@ func TestLiveCheckJSON_UninitializedDirectorySaysBuiltin(t *testing.T) {
 	}
 	if declarationCarried == 0 {
 		t.Errorf("no instance read as declaration-carried, so this run does not exercise the ambiguity #966 is about")
+	}
+}
+
+// TestLiveCheckJSON_LogicalResourceRefusalIsInTheDocument: a root holding
+// only a terraform_data resource exits 1 with blocked true. The instance
+// resolves, so the refusal is not on it; the document must still say why,
+// in the top-level refusals array.
+func TestLiveCheckJSON_LogicalResourceRefusalIsInTheDocument(t *testing.T) {
+	dir := t.TempDir()
+	cfg := "resource \"terraform_data\" \"probe\" {\n  input = \"x\"\n}\n"
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(cfg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	c, done := newLiveCheckCommand(t)
+	code := c.Run([]string{"-json", dir})
+	out := done(t)
+
+	var doc liveCheckJSONDoc
+	if err := json.Unmarshal([]byte(out.Stdout()), &doc); err != nil {
+		t.Fatalf("stdout is not valid JSON: %s\nstdout:\n%s", err, out.Stdout())
+	}
+	if code != 1 || !doc.Blocked {
+		t.Fatalf("code = %d, blocked = %v, want 1 and true", code, doc.Blocked)
+	}
+	if len(doc.Refusals) == 0 {
+		t.Fatalf("blocked is true but refusals is empty:\n%s", out.Stdout())
+	}
+	var found bool
+	for _, r := range doc.Refusals {
+		if r.Rule == "" || r.Reason == "" || r.Count == 0 {
+			t.Errorf("refusal is missing rule, reason or count: %+v", r)
+		}
+		for _, tc := range r.Types {
+			if tc.Type == "terraform_data" {
+				found = true
+			}
+		}
+		for _, s := range r.Sites {
+			if s.Address == "terraform_data.probe" {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Errorf("no refusal names terraform_data:\n%s", out.Stdout())
 	}
 }

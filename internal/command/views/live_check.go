@@ -124,6 +124,11 @@ type LiveCheckReference struct {
 
 // LiveCheckFinding is one refusal and where it fired.
 type LiveCheckFinding struct {
+	// Rule is the refusal's stable identity (check.Refusal.ID): the lint
+	// rule id, or the Summary an identity or data-read diagnostic carries.
+	// Only -json prints it.
+	Rule string
+
 	// Title is the refusal's one-line summary, and Layer which pass
 	// produced it.
 	Title string
@@ -155,6 +160,35 @@ type LiveCheckFinding struct {
 	// read, and UnsetVarSites how many of its sites read one.
 	UnsetVarRefs  []string
 	UnsetVarSites int
+}
+
+// LiveCheckRefusal is one refusal in -json's top-level "refusals" array:
+// everything that makes "blocked" true, including the refusals that are not
+// tied to one roster instance (a logical resource resolves an identity and
+// is still refused by a lint rule). Fields are named for what a CI consumer
+// prints: rule, the one-line reason, and where it fired.
+type LiveCheckRefusal struct {
+	Rule      string               `json:"rule"`
+	Layer     string               `json:"layer,omitempty"`
+	Reason    string               `json:"reason"`
+	Remedy    string               `json:"remedy,omitempty"`
+	DocsRef   string               `json:"docs_ref,omitempty"`
+	Count     int                  `json:"count"`
+	Types     []LiveCheckTypeCount `json:"types,omitempty"`
+	Sites     []LiveCheckSiteJSON  `json:"sites,omitempty"`
+	MoreSites int                  `json:"more_sites,omitempty"`
+}
+
+// LiveCheckTypeCount is one resource type's share of a type-shaped refusal.
+type LiveCheckTypeCount struct {
+	Type  string `json:"type"`
+	Count int    `json:"count"`
+}
+
+// LiveCheckSiteJSON is one position a refusal fired at.
+type LiveCheckSiteJSON struct {
+	Address  string `json:"address,omitempty"`
+	Location string `json:"location,omitempty"`
 }
 
 // LiveCheckSite is one position.
@@ -408,6 +442,13 @@ type liveCheckDocument struct {
 	Instances  []LiveCheckInstance  `json:"instances"`
 	References []LiveCheckReference `json:"references"`
 
+	// Refusals lists every refusal that makes Blocked true, one entry per
+	// rule: the rule id, the reason (the one-line summary the text report
+	// heads the refusal with), the count and the sites. A refusal need not
+	// name a roster instance, so Instances alone cannot explain a blocked
+	// verdict. Never null; empty when nothing is refused.
+	Refusals []LiveCheckRefusal `json:"refusals"`
+
 	// Checked, Partial and Unchecked are #790's own "what was not checked
 	// (stamping, discovery, projection) ... so a consumer cannot read a
 	// clean roster as a promise" - the identical strings [LiveCheckHuman.
@@ -420,6 +461,29 @@ type liveCheckDocument struct {
 	Checked   []string `json:"checked"`
 	Partial   []string `json:"partial,omitempty"`
 	Unchecked []string `json:"unchecked,omitempty"`
+}
+
+func liveCheckRefusals(findings []LiveCheckFinding) []LiveCheckRefusal {
+	out := make([]LiveCheckRefusal, 0, len(findings))
+	for _, f := range findings {
+		r := LiveCheckRefusal{
+			Rule:      f.Rule,
+			Layer:     f.Layer,
+			Reason:    f.Title,
+			Remedy:    f.Remedy,
+			DocsRef:   f.DocsRef,
+			Count:     f.SiteCount,
+			MoreSites: f.MoreSites,
+		}
+		for _, tc := range f.Types {
+			r.Types = append(r.Types, LiveCheckTypeCount{Type: tc.Label, Count: tc.Count})
+		}
+		for _, site := range f.Examples {
+			r.Sites = append(r.Sites, LiveCheckSiteJSON{Address: site.Address, Location: site.Location})
+		}
+		out = append(out, r)
+	}
+	return out
 }
 
 // LiveCheckJSON is the machine-readable implementation GitHub issue #790
@@ -457,6 +521,7 @@ func (v *LiveCheckJSON) Report(rep LiveCheckReport) {
 		Schemas:    schemaSource(rep.Schemas),
 		Instances:  rep.InstanceRoster,
 		References: rep.References,
+		Refusals:   liveCheckRefusals(rep.Findings),
 		Checked:    rep.Checked,
 		Partial:    rep.Partial,
 		Unchecked:  rep.Unchecked,

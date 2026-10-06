@@ -39,6 +39,13 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.22.0 (Unreleased)
 
+- Fixed: `live-check -json` on a root that exits 1 with `"blocked": true` now
+  says why. A new top-level `refusals` array carries every refusal behind the
+  verdict (`rule`, `reason`, `count`, and `types` or `sites`), including the
+  ones no roster instance carries: a lone `terraform_data` resource resolves
+  an identity and is refused by the logical-resource lint rule, so its
+  instance had no `refused`/`rule`/`reason` and the JSON gave a CI consumer
+  nothing to print. Existing fields are unchanged.
 - Fixed: under `strict { secrets = "refuse" }` a resource whose schema holds
   any sensitive attribute had none of its arguments recorded, so an ordinary
   config-only one beside the secret was proposed on every plan
