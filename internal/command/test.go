@@ -577,6 +577,9 @@ func (runner *TestFileRunner) ExecuteTestRun(ctx context.Context, run *moduletes
 	}
 
 	planCtx, plan, planDiags := runner.plan(ctx, config, state, run, file)
+	// The plan's context is read again below, for the verbose schemas and
+	// the assertions, so its providers stay up until this run block ends.
+	defer closeTestContext(ctx, planCtx, "plan")
 	if run.Config.Command == configs.PlanTestCommand {
 		expectedFailures, sourceRanges := run.BuildExpectedFailuresAndSourceMaps()
 		// Then we want to assess our conditions and diagnostics differently.
@@ -652,6 +655,7 @@ func (runner *TestFileRunner) ExecuteTestRun(ctx context.Context, run *moduletes
 	run.Diagnostics = filteredDiags
 
 	applyCtx, updated, applyDiags := runner.apply(ctx, plan, state, config, run, file)
+	defer closeTestContext(ctx, applyCtx, "apply")
 
 	// Remove expected diagnostics, and add diagnostics in case anything that should have failed didn't.
 	applyDiags = run.ValidateExpectedFailures(expectedFailures, sourceRanges, applyDiags)
@@ -775,6 +779,7 @@ func (runner *TestFileRunner) destroy(ctx context.Context, config *configs.Confi
 	if ctxDiags.HasErrors() {
 		return state, diags
 	}
+	defer closeTestContext(ctx, tfCtx, "destroy plan")
 
 	runningCtx, done := context.WithCancel(context.WithoutCancel(ctx))
 
@@ -802,7 +807,8 @@ func (runner *TestFileRunner) destroy(ctx context.Context, config *configs.Confi
 		return state, diags
 	}
 
-	_, updated, applyDiags := runner.apply(ctx, plan, state, config, run, file)
+	applyCtx, updated, applyDiags := runner.apply(ctx, plan, state, config, run, file)
+	closeTestContext(ctx, applyCtx, "destroy apply")
 	diags = diags.Append(applyDiags)
 	return updated, diags
 }
@@ -931,6 +937,18 @@ func (runner *TestFileRunner) apply(ctx context.Context, plan *plans.Plan, state
 	diags = diags.Append(applyDiags)
 
 	return tfCtx, updated, diags
+}
+
+// closeTestContext shuts down the provider and provisioner processes a test
+// run's context started, once nothing reads that context any more. A nil
+// context (NewContext failed) is a no-op.
+func closeTestContext(ctx context.Context, tfCtx *tofu.Context, step string) {
+	if tfCtx == nil {
+		return
+	}
+	if err := tfCtx.Close(context.WithoutCancel(ctx)); err != nil {
+		log.Printf("[WARN] TestFileRunner: closing the provider plugins after %s: %s", step, err)
+	}
 }
 
 func (runner *TestFileRunner) wait(ctx *tofu.Context, runningCtx context.Context, run *moduletest.Run, file *moduletest.File, created []*plans.ResourceInstanceChangeSrc) (diags tfdiags.Diagnostics, cancelled bool) {

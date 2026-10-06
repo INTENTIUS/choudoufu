@@ -171,9 +171,9 @@ func NewContext(opts *ContextOpts) (*Context, tfdiags.Diagnostics) {
 }
 
 // Close shuts down every provider and provisioner process this context
-// started, and refuses any further use of its plugin managers. A caller that
-// builds a context for one operation and drops it calls Close itself rather
-// than leaving the processes to the plugin.CleanupClients in main.
+// started, and refuses any further use of its plugin managers. Whoever builds
+// a context closes it once nothing reads it any more, rather than leaving the
+// processes to the plugin.CleanupClients in main.
 func (c *Context) Close(ctx context.Context) error {
 	return errors.Join(
 		c.plugins.providers.Shutdown(ctx),

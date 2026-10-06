@@ -52,7 +52,10 @@ type ProvisionerManager interface {
 	StopAll() error
 	// CloseAll forcefully closes all tracked provisioners.
 	// See [provisioners.Interface.Close] for more information.
-	// See cmd/choudoufu/main.go:plugin.CleanupClients for the fallback.
+	// Every tofu.Context owns one manager of each kind and its owner calls
+	// (*tofu.Context).Close, which calls Shutdown. plugin.CleanupClients in
+	// cmd/choudoufu/main.go remains only as a backstop for a process that
+	// exits without reaching that Close (a forced interrupt, a panic).
 	CloseAll() error
 	// Shutdown locks the provisioner manager in a Shutdown state and calls CloseAll,
 	// preventing any further usage of this object.

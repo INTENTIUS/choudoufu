@@ -129,6 +129,7 @@ func (c ProvidersSchemaCommand) Execute(args *arguments.ProvidersSchema, view vi
 		view.Diagnostics(diags)
 		return 1
 	}
+	defer closeLocalRun(ctx, lr)
 
 	schemas, moreDiags := lr.Core.Schemas(ctx, lr.Config, lr.InputState)
 	diags = diags.Append(moreDiags)

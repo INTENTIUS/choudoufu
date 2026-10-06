@@ -138,6 +138,7 @@ func (c ConsoleCommand) Execute(args *arguments.Console, view views.Console) int
 		view.Diagnostics(diags)
 		return 1
 	}
+	defer closeLocalRun(ctx, lr)
 
 	// Successfully creating the context can result in a lock, so ensure we release it
 	defer func() {

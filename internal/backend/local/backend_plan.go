@@ -103,6 +103,9 @@ func (b *Local) opPlan(
 			runningOp.Result = backend.OperationFailure
 		}
 	}()
+	// This operation is the context's only user, so its providers go down
+	// when it returns, ahead of the unlock above.
+	defer closeCore(ctx, lr.Core)
 
 	// Since planning doesn't immediately change the persisted state, the
 	// resulting state is always just the input state.

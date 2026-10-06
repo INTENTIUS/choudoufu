@@ -64,11 +64,18 @@ func (b *Local) localRun(ctx context.Context, stopCtx context.Context, op *backe
 		return nil, nil, nil, diags
 	}
 
+	var ret *backend.LocalRun
 	defer func() {
 		// If we're returning with errors, and thus not producing a valid
 		// context, we'll want to avoid leaving the workspace locked.
 		if diags.HasErrors() {
 			diags = diags.Append(op.StateLocker.Unlock())
+			// Nor the providers the context started, since the caller
+			// never sees it. ret is the local, which still points at the
+			// run when the return value is nil.
+			if ret != nil && ret.Core != nil {
+				closeCore(ctx, ret.Core)
+			}
 		}
 	}()
 
@@ -78,7 +85,7 @@ func (b *Local) localRun(ctx context.Context, stopCtx context.Context, op *backe
 		return nil, nil, nil, diags
 	}
 
-	ret := &backend.LocalRun{}
+	ret = &backend.LocalRun{}
 
 	// Initialize our context options
 	var coreOpts tofu.ContextOpts
@@ -237,6 +244,15 @@ func (b *Local) localRunDirect(ctx context.Context, stopCtx context.Context, op 
 		return nil, nil, diags
 	}
 	run.Core = tfCtx
+	// The live prior-state read below starts providers through tfCtx, and
+	// its error returns hand back a nil run, so localRun's own close on
+	// error cannot reach this context. Close it here on those paths.
+	returned := false
+	defer func() {
+		if !returned {
+			closeCore(ctx, tfCtx)
+		}
+	}()
 
 	if b.LiveRun != nil {
 		// A live run has no stored snapshot to start from. The prior
@@ -301,7 +317,18 @@ func (b *Local) localRunDirect(ctx context.Context, stopCtx context.Context, op 
 	}
 	run.InputState = state
 
+	returned = true
 	return run, configSnap, diags
+}
+
+// closeCore shuts down the provider and provisioner processes a run's
+// context started. The operation that owns a [backend.LocalRun] calls it
+// once it is done with Core; localRun calls it when it fails after building
+// one.
+func closeCore(ctx context.Context, tfCtx *tofu.Context) {
+	if err := tfCtx.Close(context.WithoutCancel(ctx)); err != nil {
+		log.Printf("[WARN] backend/local: closing the provider plugins: %s", err)
+	}
 }
 
 func (b *Local) localRunForPlanFile(ctx context.Context, op *backend.Operation, pf *planfile.Reader, run *backend.LocalRun, coreOpts *tofu.ContextOpts, currentStateMeta *statemgr.SnapshotMeta) (*backend.LocalRun, *configload.Snapshot, tfdiags.Diagnostics) {

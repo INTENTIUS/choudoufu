@@ -75,6 +75,9 @@ func (b *Local) opRefresh(
 			runningOp.Result = backend.OperationFailure
 		}
 	}()
+	// This operation is the context's only user, so its providers go down
+	// when it returns, ahead of the unlock above.
+	defer closeCore(ctx, lr.Core)
 
 	// If we succeed then we'll overwrite this with the resulting state below,
 	// but otherwise the resulting state is just the input state.

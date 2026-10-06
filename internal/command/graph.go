@@ -186,6 +186,7 @@ func (c GraphCommand) Execute(args *arguments.Graph, view views.Graph) int {
 		view.Diagnostics(diags)
 		return 1
 	}
+	defer closeLocalRun(ctx, lr)
 
 	if args.GraphType == "" {
 		switch {

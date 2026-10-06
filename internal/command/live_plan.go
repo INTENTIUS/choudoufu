@@ -548,6 +548,14 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	if ctxDiags.HasErrors() {
 		return 1, false, diags
 	}
+	// Every later read of tfCtx (the scope, the schemas, the root outputs,
+	// the plan) happens inside this function, so its providers go down when
+	// it returns, on every path.
+	defer func() {
+		if err := tfCtx.Close(context.WithoutCancel(ctx)); err != nil {
+			log.Printf("[WARN] live-plan: closing the provider plugins: %s", err)
+		}
+	}()
 
 	// GitHub issue #352's targeting scope, and nil unless this run passed
 	// -target or -exclude. See [liveTargetScope].

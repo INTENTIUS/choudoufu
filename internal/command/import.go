@@ -267,6 +267,7 @@ func (c ImportCommand) Execute(args *arguments.Import, view views.Import) int {
 		view.Diagnostics(diags)
 		return 1
 	}
+	defer closeLocalRun(ctx, lr)
 
 	// Successfully creating the context can result in a lock, so ensure we release it
 	defer func() {

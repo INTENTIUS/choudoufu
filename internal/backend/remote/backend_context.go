@@ -151,6 +151,9 @@ func (b *Remote) LocalRun(ctx context.Context, stopCtx context.Context, op *back
 		}
 	}
 
+	// Built last, so no error return below leaves it running. The caller
+	// owns it from here and closes it when done (see closeLocalRun in
+	// internal/command).
 	tfCtx, ctxDiags := tofu.NewContext(&opts)
 	diags = diags.Append(ctxDiags)
 	ret.Core = tfCtx

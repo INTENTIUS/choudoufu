@@ -613,3 +613,17 @@ func (m *Meta) MaybeGetSchemas(ctx context.Context, state *states.State, config 
 	}
 	return nil, diags
 }
+
+// closeLocalRun shuts down the provider and provisioner processes the
+// context of a [backend.LocalRun] started. A command that asks its backend
+// for a LocalRun owns the context it gets back (the local, remote and cloud
+// backends all build a fresh one per call), so it defers this right after
+// the call succeeds.
+func closeLocalRun(ctx context.Context, lr *backend.LocalRun) {
+	if lr == nil || lr.Core == nil {
+		return
+	}
+	if err := lr.Core.Close(context.WithoutCancel(ctx)); err != nil {
+		log.Printf("[WARN] closing the provider plugins: %s", err)
+	}
+}
