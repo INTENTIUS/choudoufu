@@ -132,11 +132,15 @@ var forkOwnedMixedRoots = []string{
 	"internal/builtin/providers/tf",
 	"internal/command",
 	"internal/configs",
+	"internal/e2e",
 	"internal/engine/applying",
 	"internal/plans",
 	"internal/plugin",
 	"internal/plugin6",
+	"internal/plugins",
+	"internal/states/statemgr",
 	"internal/tofu",
+	"internal/tracing",
 }
 
 // upstreamBaseCommit is the commit that carries upstream OpenTofu's tree
