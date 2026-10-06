@@ -712,6 +712,11 @@ func (runner *TestFileRunner) validate(ctx context.Context, config *configs.Conf
 	if ctxDiags.HasErrors() {
 		return diags
 	}
+	defer func() {
+		if err := tfCtx.Close(context.WithoutCancel(ctx)); err != nil {
+			log.Printf("[WARN] TestFileRunner: closing the provider plugins after validate: %s", err)
+		}
+	}()
 
 	runningCtx, done := context.WithCancel(context.WithoutCancel(ctx))
 

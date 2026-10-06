@@ -7,6 +7,7 @@ package tofu
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sort"
@@ -167,6 +168,17 @@ func NewContext(opts *ContextOpts) (*Context, tfdiags.Diagnostics) {
 		resourceIdentityResolver: opts.ResourceIdentityResolver,
 		configValueAdjuster:      opts.ConfigValueAdjuster,
 	}, diags
+}
+
+// Close shuts down every provider and provisioner process this context
+// started, and refuses any further use of its plugin managers. A caller that
+// builds a context for one operation and drops it calls Close itself rather
+// than leaving the processes to the plugin.CleanupClients in main.
+func (c *Context) Close(ctx context.Context) error {
+	return errors.Join(
+		c.plugins.providers.Shutdown(ctx),
+		c.plugins.provisioners.Shutdown(),
+	)
 }
 
 func (c *Context) Schemas(ctx context.Context, config *configs.Config, state *states.State) (*Schemas, tfdiags.Diagnostics) {

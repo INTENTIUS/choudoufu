@@ -8,6 +8,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"log"
 	"path/filepath"
 	"strings"
 
@@ -127,6 +128,11 @@ func (c *ValidateCommand) validate(ctx context.Context, dir, testDir string, noT
 			return diags
 		}
 
+		defer func() {
+			if err := tfCtx.Close(context.WithoutCancel(ctx)); err != nil {
+				log.Printf("[WARN] validate: closing the provider plugins: %s", err)
+			}
+		}()
 		return diags.Append(tfCtx.Validate(ctx, cfg))
 	}
 

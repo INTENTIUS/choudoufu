@@ -597,6 +597,11 @@ func (m *Meta) MaybeGetSchemas(ctx context.Context, state *states.State, config 
 		if ctxDiags.HasErrors() {
 			return nil, diags
 		}
+		defer func() {
+			if err := tfCtx.Close(context.WithoutCancel(ctx)); err != nil {
+				log.Printf("[WARN] closing the provider plugins after reading schemas: %s", err)
+			}
+		}()
 		var schemaDiags tfdiags.Diagnostics
 		schemas, schemaDiags := tfCtx.Schemas(ctx, config, state)
 		diags = diags.Append(schemaDiags)
