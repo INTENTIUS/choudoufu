@@ -128,6 +128,9 @@ func (b *binary) Cmd(args ...string) *exec.Cmd {
 
 	cmd.Env = append(cmd.Env, b.env...)
 
+	// A run killed by go test's timeout must not leave provider processes.
+	joinTestProcessGroup(cmd)
+
 	return cmd
 }
 
