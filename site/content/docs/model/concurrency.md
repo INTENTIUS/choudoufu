@@ -37,6 +37,7 @@ comparing `resourceVersion`.
 | Two runs create the same record | One `PutObject` wins. The other is told the record now exists, by name, with both versions in the message |
 | Two runs update the same record | The first to arrive wins. The second's `If-Match` no longer matches, and it fails with a named write conflict and changes nothing |
 | An update racing a delete | The loser is told the version it read is not the version the store holds, whether S3 said `412` or, for a key that is gone, `404` |
+| Two runs change different resources | Both land: an apply writes only the records it changed |
 
 [Claim 2]({{< relref "/docs/claims/no-self-managed-locks" >}}) holds two
 writers at the wire so both arrive at one version; every round yields one

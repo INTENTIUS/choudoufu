@@ -39,6 +39,14 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.23.0 (Unreleased)
 
+- Fixed: an apply rewrote the record of every resource in the estate under
+  `If-Match`, including the ones its plan did not change, so two applies on
+  one estate that changed different resources collided and one failed with
+  "Record store write conflict". An apply now writes only the records whose
+  content changed; a record it would write back as it read it is not sent,
+  and its version is left alone. A changed record still writes conditionally
+  and a destroyed one still deletes conditionally (#1938).
+
 ## choudoufu v0.22.0 (2026-10-06)
 
 Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.22.0.json`](live/history/v0.22.0.json).
