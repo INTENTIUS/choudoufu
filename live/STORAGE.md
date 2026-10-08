@@ -139,7 +139,9 @@ Nothing is found by tag: objects are found by listing a known prefix.
 | An apply, per record that changed | A `GetObject`, then a conditional `PutObject` or `DeleteObject` |
 
 A create is `If-None-Match: *`, and an update or a delete carries `If-Match`
-with the version the writer read. Nothing is locked.
+with the version the writer read. Nothing is locked. A record the apply
+would write back exactly as it read it is not written at all, so two applies
+that change different resources of one estate both land (#1938).
 [Two runs at once](https://intentius.io/choudoufu/docs/model/concurrency/) has the races.
 Every read is scoped to one estate, so adding an estate to the bucket slows
 no other.

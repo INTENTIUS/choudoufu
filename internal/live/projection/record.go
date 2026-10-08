@@ -6,6 +6,7 @@
 package projection
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -892,6 +893,61 @@ type RecordStore struct {
 	// can ask it.
 	mu        sync.Mutex
 	unwritten map[string]error
+
+	// read is GitHub issue #1938's baseline: for every key this run has
+	// read or written, the version it saw and the bytes stored at that
+	// version. [RecordStore.mergeEnvelope] asks it whether a write would
+	// change anything relative to the version the caller expects, and
+	// writes nothing when it would not. Guarded by mu.
+	read map[string]readBaseline
+}
+
+// readBaseline is one entry of [RecordStore.read]: a version and the exact
+// payload the store held at that version.
+type readBaseline struct {
+	version string
+	payload []byte
+}
+
+// noteRead records that key held payload at version, as this run last saw
+// it. A version names one content in every backend (an ETag, a Secret's
+// resourceVersion, the local store's content hash), so the pair stays true
+// for as long as anyone asks about that version.
+func (s *RecordStore) noteRead(key, version string, payload []byte) {
+	if s == nil || version == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.read == nil {
+		s.read = map[string]readBaseline{}
+	}
+	s.read[key] = readBaseline{version: version, payload: payload}
+}
+
+// forgetRead drops key's baseline, after this run deleted the key.
+func (s *RecordStore) forgetRead(key string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.read, key)
+}
+
+// baselineAt returns the payload this run saw at key when the key was at
+// version, and false when this run never saw that version of the key.
+func (s *RecordStore) baselineAt(key, version string) ([]byte, bool) {
+	if s == nil || version == "" {
+		return nil, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	b, ok := s.read[key]
+	if !ok || b.version != version {
+		return nil, false
+	}
+	return b.payload, true
 }
 
 // noteWriteFailure records that a content write to key did not land, so that
@@ -1130,6 +1186,7 @@ func (s *RecordStore) getEnvelope(ctx context.Context, addr addrs.AbsResourceIns
 	if !exists {
 		return recordEnvelope{}, "", false, nil
 	}
+	s.noteRead(key, version, payload)
 	env, err = decodeEnvelope(payload)
 	if err != nil {
 		return recordEnvelope{}, "", false, fmt.Errorf("decoding the record for %s: %w", addr, err)
@@ -1158,13 +1215,14 @@ func (s *RecordStore) currentVersion(ctx context.Context, addr addrs.AbsResource
 	if err := s.refuseUnwritten(addr, key); err != nil {
 		return "", err
 	}
-	_, version, exists, err := staterecord.Fresh(s.store).Get(ctx, key)
+	payload, version, exists, err := staterecord.Fresh(s.store).Get(ctx, key)
 	if err != nil {
 		return "", fmt.Errorf("reading the record for %s: %w", addr, err)
 	}
 	if !exists {
 		return "", nil
 	}
+	s.noteRead(key, version, payload)
 	return version, nil
 }
 
@@ -1506,6 +1564,24 @@ func (s *RecordStore) mergeEnvelope(ctx context.Context, addr addrs.AbsResourceI
 	if s == nil {
 		return "", fmt.Errorf("no record store is configured, so %s's record cannot be written", addr)
 	}
+	key := RecordKey(s.prefix, addr)
+
+	// GitHub issue #1938: a record this run would write back exactly as it
+	// read it is not written at all. Without this, every apply rewrote the
+	// record of every instance in the estate under If-Match, so two applies
+	// changing different resources of one estate collided on a record
+	// neither of them changed. The question is asked of the version the
+	// caller expects - the one its plan read - and not of what the store
+	// holds now: when another run has since changed the record, this run
+	// still has nothing to say about it, and the other run's record stands.
+	// A record this run does change still goes through the conditional
+	// write below, and still conflicts if anyone wrote it in between.
+	if base, ok := s.baselineAt(key, expectedVersion); ok {
+		if unchanged, err := mergeLeavesUnchanged(base, addr, mutate); err == nil && unchanged {
+			return expectedVersion, nil
+		}
+	}
+
 	// Fresh, never from a snapshot: this read decides what is written
 	// back, and several concerns merging into one envelope in one write-back
 	// pass each have to see what the one before it just wrote.
@@ -1524,7 +1600,6 @@ func (s *RecordStore) mergeEnvelope(ctx context.Context, addr addrs.AbsResourceI
 		env.Kind = recordKindIdentity
 	}
 
-	key := RecordKey(s.prefix, addr)
 	if env.isEmpty() {
 		if !exists {
 			return "", nil
@@ -1532,11 +1607,12 @@ func (s *RecordStore) mergeEnvelope(ctx context.Context, addr addrs.AbsResourceI
 		if err := s.store.Delete(ctx, key, expectedVersion); err != nil {
 			return "", err
 		}
+		s.forgetRead(key)
 		return "", nil
 	}
-	payload, err := json.Marshal(env)
+	payload, err := marshalEnvelopeForWrite(env, addr)
 	if err != nil {
-		return "", fmt.Errorf("encoding the record for %s: %w", addr, err)
+		return "", err
 	}
 	// #1337: the record's object carries the address marker of the instance
 	// it records, from the same functions that stamp the instance itself.
@@ -1548,7 +1624,47 @@ func (s *RecordStore) mergeEnvelope(ctx context.Context, addr addrs.AbsResourceI
 		return "", putErr
 	}
 	s.noteWriteLanded(key)
+	// What this run just wrote is now the baseline for this key: a later
+	// merge in the same pass that expects newVersion compares against it.
+	s.noteRead(key, newVersion, payload)
 	return newVersion, nil
+}
+
+// marshalEnvelopeForWrite stamps env the way every write does and encodes
+// it, so [mergeLeavesUnchanged] compares exactly the bytes a write would
+// send.
+func marshalEnvelopeForWrite(env recordEnvelope, addr addrs.AbsResourceInstance) ([]byte, error) {
+	env.FormatVersion = envelopeFormatVersion
+	env.Address = addr.String()
+	if env.Kind == "" {
+		env.Kind = recordKindIdentity
+	}
+	payload, err := json.Marshal(env)
+	if err != nil {
+		return nil, fmt.Errorf("encoding the record for %s: %w", addr, err)
+	}
+	return payload, nil
+}
+
+// mergeLeavesUnchanged reports whether applying mutate to the record stored
+// as base would write back the very bytes base already holds. A mutate that
+// empties the envelope is a delete, never unchanged, and a payload this
+// package would upgrade on write (a v1 record, an older envelope) differs
+// byte for byte, so it is still written.
+func mergeLeavesUnchanged(base []byte, addr addrs.AbsResourceInstance, mutate func(*recordEnvelope)) (bool, error) {
+	env, err := decodeEnvelope(base)
+	if err != nil {
+		return false, err
+	}
+	mutate(&env)
+	if env.isEmpty() {
+		return false, nil
+	}
+	payload, err := marshalEnvelopeForWrite(env, addr)
+	if err != nil {
+		return false, err
+	}
+	return bytes.Equal(payload, base), nil
 }
 
 // MoveRecord relocates the whole record stored for from to the key for to -
