@@ -33,7 +33,7 @@ jobs:
           aws-region: '${{ vars.AWS_REGION }}'
       - run: curl -fsSL -o /tmp/gh_2.100.0_linux_amd64.tar.gz https://github.com/cli/cli/releases/download/v2.100.0/gh_2.100.0_linux_amd64.tar.gz && echo "e4d4bb4498e8d007abe545b6568926793ace1b6447da598294a610018cb164be  /tmp/gh_2.100.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/gh_2.100.0_linux_amd64.tar.gz -C /tmp && install /tmp/gh_2.100.0_linux_amd64/bin/gh /usr/local/bin/gh && gh --version
       - run: npm ci --no-audit --no-fund
-      - run: curl -fsSL -o /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.22.0/choudoufu_v0.22.0_linux_amd64.tar.gz && echo "91c36588bc30c9543cefa2f75055425a0a088bef52d288780e033873823c6083  /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.22.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
+      - run: curl -fsSL -o /tmp/choudoufu_v0.23.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.23.0/choudoufu_v0.23.0_linux_amd64.tar.gz && echo "a9da6e97a626f4db8b358aa718cb1acbbb3fe3f976527be39f9915595cf27f93  /tmp/choudoufu_v0.23.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.23.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
       - run: npx chant run live-plan
         env:
           GITHUB_TOKEN: '${{ github.token }}'
