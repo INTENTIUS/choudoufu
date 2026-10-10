@@ -62,7 +62,9 @@ func eachValuePathValue(expr hcl.Expression, path hcl.Traversal, scope instScope
 // reporting false when the key or index is not there rather than raising
 // the language's error.
 func valueStep(val cty.Value, step hcl.Traverser) (cty.Value, bool) {
-	if val.IsNull() {
+	// A marked step value refuses rather than unmarks: a marked value never
+	// becomes an identity component.
+	if val.IsMarked() || val.IsNull() {
 		return cty.NilVal, false
 	}
 	ty := val.Type()
@@ -75,7 +77,7 @@ func valueStep(val cty.Value, step hcl.Traverser) (cty.Value, bool) {
 			return val.GetAttr(key), true
 		case ty.IsMapType():
 			k := cty.StringVal(key)
-			if !val.HasIndex(k).True() {
+			if has := val.HasIndex(k); has.IsMarked() || !has.True() {
 				return cty.NilVal, false
 			}
 			return val.Index(k), true
