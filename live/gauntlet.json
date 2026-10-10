@@ -408,7 +408,7 @@
   "lanes": {
     "kubernetes": {
       "label": "kubernetes lane",
-      "estates": 20,
+      "estates": 21,
       "clear": 12,
       "verified": 0,
       "carried": 12,
@@ -416,77 +416,77 @@
         "cold_deploy": {
           "pass": 12,
           "fail": 0,
-          "not_run": 8
+          "not_run": 9
         },
         "day2_count": {
           "pass": 12,
           "fail": 0,
-          "not_run": 8
+          "not_run": 9
         },
         "day2_crash": {
           "pass": 12,
           "fail": 0,
-          "not_run": 8
+          "not_run": 9
         },
         "day2_remove": {
           "pass": 12,
           "fail": 0,
-          "not_run": 8
+          "not_run": 9
         },
         "day2_rename": {
           "pass": 12,
           "fail": 0,
-          "not_run": 8
+          "not_run": 9
         },
         "day2_replace": {
           "pass": 12,
           "fail": 0,
-          "not_run": 8
+          "not_run": 9
         },
         "day2_teardown": {
           "pass": 12,
           "fail": 0,
-          "not_run": 8
+          "not_run": 9
         },
         "drift_reconverge": {
           "pass": 12,
           "fail": 0,
-          "not_run": 8
+          "not_run": 9
         },
         "greenfield": {
           "pass": 12,
           "fail": 0,
-          "not_run": 8
+          "not_run": 9
         },
         "migrate": {
           "pass": 12,
           "fail": 0,
-          "not_run": 8
+          "not_run": 9
         },
         "no_local_state": {
           "pass": 2,
           "fail": 0,
-          "not_run": 18
+          "not_run": 19
         },
         "plan_approval": {
           "pass": 12,
           "fail": 0,
-          "not_run": 8
+          "not_run": 9
         },
         "strict": {
           "pass": 12,
           "fail": 0,
-          "not_run": 8
+          "not_run": 9
         },
         "test_apply": {
           "pass": 12,
           "fail": 0,
-          "not_run": 8
+          "not_run": 9
         },
         "test_plan": {
           "pass": 12,
           "fail": 0,
-          "not_run": 8
+          "not_run": 9
         }
       }
     },
@@ -4940,6 +4940,33 @@
       "set": "growing",
       "substrate": "kind",
       "script": "live/e2e/reference-k8s-helm-metallb/run.sh",
+      "stages": {
+        "cold_deploy": "not_run",
+        "day2_count": "not_run",
+        "day2_crash": "not_run",
+        "day2_remove": "not_run",
+        "day2_rename": "not_run",
+        "day2_replace": "not_run",
+        "day2_teardown": "not_run",
+        "drift_reconverge": "not_run",
+        "greenfield": "not_run",
+        "migrate": "not_run",
+        "no_local_state": "not_run",
+        "plan_approval": "not_run",
+        "strict": "not_run",
+        "test_apply": "not_run",
+        "test_plan": "not_run"
+      },
+      "clear": false,
+      "protocol": "legacy"
+    },
+    {
+      "name": "reference-k8s-helm-sealed-secrets",
+      "source": "the sealed-secrets project's own chart, sealed-secrets 2.20.0 (controller 0.40.0, Apache-2.0, chart archive sha256 6092d219c697f3c9ae3a386ba24bfdd86877c5e2fc8892e2af8a810145b990ef from github.com/bitnami/sealed-secrets' helm-v2.20.0 release, the project formerly bitnami-labs and not bitnami/charts; fetched and checked by run.sh) rendered client-side by hashicorp/helm's data \"helm_template\" - never helm_release - into three kubernetes_manifest blocks whose for_each splits and yamldecodes the render inside the for_each expression, keyed kind/namespace/name, with manifest = each.value (#1962): the chart's one CRD, its RBAC, Services and a SealedSecret, then the controller's Deployment, plus the Namespace - 13 objects over 10 kinds, one name across four kinds, and a controller that generates its own key Secret nothing declares, names or owns. Deltas in root/values.yaml: kubeseal's controller name, a fixture annotation and container limits so no rendered key is empty, and a SealedSecret through extraDeploy whose ciphertext is deliberately not sealed to the per-cluster key; root/main.tf drops the probes' initialDelaySeconds: 0 and the Services' nodePort: null. reference- because the root is ours (#1107's Helm surface)",
+      "lane": "kubernetes",
+      "set": "growing",
+      "substrate": "kind",
+      "script": "live/e2e/reference-k8s-helm-sealed-secrets/run.sh",
       "stages": {
         "cold_deploy": "not_run",
         "day2_count": "not_run",
