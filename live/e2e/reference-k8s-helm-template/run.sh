@@ -630,7 +630,11 @@ O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN
 grep -qE "^No changes|Plan: 0 to add, 0 to change, 0 to destroy" <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's moved-block plan on B is not zero churn"; }
 ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's moved-block apply failed on B"
 R_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$R_PLAN" | tail -20; fail "the moved-block plan failed"; }
-R_ANN="$(grep -cE '~ +"choudoufu\.intentius\.io/tofu-address" = ".*" -> ".*"' <<< "$R_PLAN")"
+# The renderer aligns a map's "=" across its keys, and every chart CRD
+# carries two annotations of its own (controller-gen.kubebuilder.io/version,
+# operator.prometheus.io/version), so the address line reads `"...address"   =`
+# with padding: one or more spaces before the "=".
+R_ANN="$(grep -cE '~ +"choudoufu\.intentius\.io/tofu-address" += ".*" -> ".*"' <<< "$R_PLAN")"
 if grep -qE 'will be (created|destroyed)|must be replaced' <<< "$R_PLAN"; then
   gauntlet_stage day2_rename fail "the moved-block plan over $CRD_N for_each CRD instances proposes a create, a destroy or a replace - not the marker rewritten in place: $(grep -E '^Plan:' <<< "$R_PLAN" | head -1)"
   printf '%s\n' "$R_PLAN" | tail -20
@@ -880,13 +884,26 @@ kca get namespace "$NS" >/dev/null 2>&1 && fail "the $NS namespace still exists 
 [ "$(count_a)" = "0" ] || fail "$(count_a) object(s) still carry tofu-estate=$ESTATE after the destroy"
 CRDS_LEFT="$(kca get crd -o name 2>/dev/null | grep -c 'monitoring.coreos.com')"
 [ "$CRDS_LEFT" = "0" ] || fail "$CRDS_LEFT monitoring.coreos.com CRD(s) survive the destroy"
-KS_LEFT="$(kca get services -n kube-system -o name 2>/dev/null | grep -c "$FULL-")"
-[ "$KS_LEFT" = "0" ] || fail "$KS_LEFT of the estate's Services survive in kube-system"
+# The operator creates $FULL-kubelet in kube-system itself (its
+# --kubelet-service flag; field manager PrometheusOperator, no owner
+# reference) and nothing declares it, so no destroy removes it: stock's
+# destroy on B leaves it too, checked below. The count is of the Services
+# the render declared, which are every $FULL- Service the operator did not
+# write.
+ks_services() { # $1 = kubectl fn: "name manager manager..." per kube-system Service
+  "$1" get services -n kube-system -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.metadata.managedFields[*].manager}{"\n"}{end}' 2>/dev/null
+}
+KS_ALL="$(ks_services kca)"
+KS_LEFT="$(grep "^$FULL-" <<< "$KS_ALL" | grep -vc ' .*PrometheusOperator')"
+[ "$KS_LEFT" = "0" ] || fail "$KS_LEFT of the estate's Services survive in kube-system: $(grep "^$FULL-" <<< "$KS_ALL" | grep -v ' .*PrometheusOperator' | cut -d' ' -f1 | tr '\n' ' ')"
+KS_OPERATOR="$(grep "^$FULL-" <<< "$KS_ALL" | grep ' .*PrometheusOperator' | cut -d' ' -f1 | tr '\n' ' ' | sed -E 's/ $//')"
 kca get namespace kube-system >/dev/null 2>&1 || fail "kube-system is gone"
 O_EXPECT="$(managed_n stock_b)"
 O_T="$(stock_b apply -destroy -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$O_T" | tail -10; fail "stock's destroy failed on B"; }
 grep -qF "Resources: 0 added, 0 changed, $O_EXPECT destroyed" <<< "$O_T" || fail "stock's destroy on B did not remove exactly the $O_EXPECT objects its state held"
-gauntlet_stage day2_teardown pass "apply -destroy removed exactly the $T_EXPECT remaining objects in one apply, the rendered objects before the CRDs and the Namespace by rest's depends_on; the $NS namespace is gone and with it everything the operator generated, all $CRD_N monitoring.coreos.com CRDs are gone, none of the estate's Services survive in kube-system while kube-system itself is untouched, and no object of the estate's kinds carries tofu-estate=$ESTATE (kubectl, every namespace); stock's destroy on the oracle cluster removed exactly the $O_EXPECT its state held"
+O_KS_OPERATOR="$(ks_services kcb | grep "^$FULL-" | grep ' .*PrometheusOperator' | cut -d' ' -f1 | tr '\n' ' ' | sed -E 's/ $//')"
+[ "$KS_OPERATOR" = "$O_KS_OPERATOR" ] || fail "the operator-written kube-system Services left after the destroy differ from stock's: A '$KS_OPERATOR', B '$O_KS_OPERATOR'"
+gauntlet_stage day2_teardown pass "apply -destroy removed exactly the $T_EXPECT remaining objects in one apply, the rendered objects before the CRDs and the Namespace by rest's depends_on; the $NS namespace is gone and with it everything the operator generated, all $CRD_N monitoring.coreos.com CRDs are gone, none of the estate's Services survive in kube-system while kube-system itself is untouched (the operator's own ${KS_OPERATOR:-none}, which nothing declares, is left exactly as stock's destroy leaves it on B), and no object of the estate's kinds carries tofu-estate=$ESTATE (kubectl, every namespace); stock's destroy on the oracle cluster removed exactly the $O_EXPECT its state held"
 
 # ── 12. greenfield: the same shape, fresh, with a live block ─────────────
 gauntlet_begin_stage greenfield
