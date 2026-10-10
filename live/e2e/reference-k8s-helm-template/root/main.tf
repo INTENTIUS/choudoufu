@@ -51,10 +51,15 @@ resource "kubernetes_manifest" "crds" {
   manifest = each.value
 }
 
+# A false plain-bool field (omitempty in the API's Go types, so the server
+# never stores it) comes back null and the provider reports an inconsistent
+# result after apply - stock fails on kube-state-metrics' hostNetwork: false.
+# Dropping those lines before yamldecode is the delta; every other field is
+# the chart's.
 resource "kubernetes_manifest" "rest" {
   for_each = {
     for o in [
-      for d in split("\n---\n", data.helm_template.kps.manifest) : yamldecode(d)
+      for d in split("\n---\n", data.helm_template.kps.manifest) : yamldecode(replace(d, "/(?m)^[ ]*(hostNetwork|hostIPC|hostPID|publishNotReadyAddresses): false[ ]*$/", ""))
       if length(regexall("(?m)^kind:", d)) > 0
     ] : "${o.kind}/${try(o.metadata.namespace, "")}/${o.metadata.name}" => o
     if o.kind != "CustomResourceDefinition"
