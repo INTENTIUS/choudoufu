@@ -336,4 +336,10 @@ var estateSpecs = []estateSpec{
 		ScanScript: true,
 		Note:       `The "kubernetes" lane's Helm estate (#1963): kube-prometheus-stack 92.3.0 rendered by hashicorp/helm's helm_template data source (never helm_release) into root/main.tf's two for_each kubernetes_manifest blocks (the chart's 10 CRDs and its other 114 objects, manifest = each.value) plus a kubernetes_namespace_v1 - 125 objects, no module, no AWS provider. helm_template is a data source and so is not counted here. run.sh's write_root() copies main.tf, values.yaml and the sha256-checked chart archive into each working root and appends only a versions.tf; its crash_block() heredoc adds day2_crash's two kubernetes_manifest PrometheusRules, and its strict_block() heredoc (the strict-stage scratch estate) adds random_password. day2_replace's and day2_crash's create_before_destroy kubernetes_config_map blocks are live/e2e/lib/gauntlet.sh's and not scanned, as for the other kind estates.`,
 	},
+	{
+		Name:       "reference-k8s-helm-traefik",
+		ConfigDirs: []string{"live/e2e/reference-k8s-helm-traefik/root"},
+		ScanScript: true,
+		Note:       `The "kubernetes" lane's second Helm estate: traefik 41.7.1 rendered by hashicorp/helm's helm_template data source (never helm_release) into root/main.tf's three for_each kubernetes_manifest blocks (the chart's 25 CRDs, its other eight objects, then the Deployment, manifest = each.value) plus a kubernetes_namespace_v1 - 35 objects, no module, no AWS provider. helm_template is a data source and so is not counted here. run.sh's write_root() copies main.tf, values.yaml and the sha256-checked chart archive into each working root and appends only a versions.tf; its crash_block() heredoc adds day2_crash's two kubernetes_manifest Middlewares, and its strict_block() heredoc (the strict-stage scratch estate) adds random_password. day2_replace's and day2_crash's create_before_destroy kubernetes_config_map blocks are live/e2e/lib/gauntlet.sh's and not scanned, as for the other kind estates.`,
+	},
 }

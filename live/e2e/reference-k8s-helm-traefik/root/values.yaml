@@ -1,0 +1,63 @@
+# reference-k8s-helm-traefik's deltas from traefik 41.7.1's defaults (#1974).
+# Every other value is the chart's own.
+#
+# run.sh's stages edit three places in this file by exact match - the
+# healthcheck IngressRoute's matchRule, podDisruptionBudget's enabled, and
+# tlsOptions (the last key) - so keep their spelling.
+
+deployment:
+  # The template always writes `annotations:` on the Deployment and nothing
+  # under it at the defaults, which decodes to null and kubernetes_manifest
+  # replans for ever; one fixture annotation keeps the map non-empty. The
+  # same holds for the Service and ServiceAccount annotations below.
+  annotations:
+    example.com/fixture: reference-k8s-helm-traefik
+  # `lifecycle: {}` survives the template's fromYaml/toYaml round trip as
+  # `lifecycle: null`. A one-second preStop sleep (the kubelet's built-in
+  # sleep action, no shell needed) gives it content.
+  lifecycle:
+    preStop:
+      sleep:
+        seconds: 1
+
+# Likewise `resources: null` at the defaults. Requests only: a CPU or memory
+# limit makes the chart add GOMAXPROCS/GOMEMLIMIT env entries.
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+serviceAccountAnnotations:
+  example.com/fixture: reference-k8s-helm-traefik
+
+service:
+  annotations:
+    example.com/fixture: reference-k8s-helm-traefik
+  # The chart's LoadBalancer stays <pending> on kind for ever, with no
+  # cloud controller to give it an address; ClusterIP makes "ready" mean
+  # the endpoints are there.
+  spec:
+    type: ClusterIP
+
+# A PodDisruptionBudget, a fifth kind under the name rel-traefik (with the
+# ServiceAccount, Service, Deployment and cluster-scoped IngressClass).
+# day2_remove turns it off and the other four must stay.
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+
+ingressRoute:
+  # Both IngressRoutes the chart can render, so the estate holds objects of
+  # its own CRDs at cold deploy. The dashboard's routes /api on the traefik
+  # entrypoint to api@internal, which is how run.sh asks the running
+  # Traefik which routers it loaded.
+  dashboard:
+    enabled: true
+  # plan_approval edits this matchRule.
+  healthcheck:
+    enabled: true
+    matchRule: PathPrefix(`/ping`)
+
+# day2_count scales this map: every entry renders one TLSOption named after
+# its key. Empty at rest; keep it the last key.
+tlsOptions: {}

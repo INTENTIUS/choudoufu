@@ -372,8 +372,8 @@ gauntlet_kubernetes_required_provider() {
 }
 
 # gauntlet_helm_required_provider [indent]: the same for hashicorp/helm, from
-# live/oracle-versions.json's helm_provider_version (#1963). Only
-# reference-k8s-helm-template declares it, for its helm_template data source.
+# live/oracle-versions.json's helm_provider_version (#1963). The kubernetes
+# lane's helm_template estates declare it, for that one data source.
 gauntlet_helm_required_provider() {
   gauntlet_required_provider helm hashicorp/helm helm_provider_version "${1:-    }"
 }
