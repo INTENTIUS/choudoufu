@@ -52,35 +52,40 @@ resource "kubernetes_manifest" "crds" {
 }
 
 # A false plain bool or a zero plain int (omitempty in the API's Go types,
-# so the server never stores it) comes back null and the provider reports an inconsistent
-# result after apply - stock fails on kube-state-metrics' hostNetwork: false
-# and node-exporter's initialDelaySeconds: 0. The render's full list of such
-# values in built-in kinds is these five fields; *bool fields survive.
-# Dropping those lines before yamldecode is the delta; every other field is
-# the chart's.
+# so the server never stores it) comes back null and the provider reports an
+# inconsistent result after apply - stock fails on kube-state-metrics'
+# hostNetwork: false and node-exporter's initialDelaySeconds: 0. The render's
+# full list of such values in built-in kinds is these five fields; *bool
+# fields survive. Dropping those lines before yamldecode is the delta; every
+# other field is the chart's.
 resource "kubernetes_manifest" "rest" {
   for_each = {
     for o in [
       for d in split("\n---\n", data.helm_template.kps.manifest) : yamldecode(replace(d, "/(?m)^[ ]*((hostNetwork|hostIPC|hostPID|publishNotReadyAddresses): false|initialDelaySeconds: 0)[ ]*$/", ""))
       if length(regexall("(?m)^kind:", d)) > 0
     ] : "${o.kind}/${try(o.metadata.namespace, "")}/${o.metadata.name}" => o
-    if o.kind != "CustomResourceDefinition" && !(o.kind == "Secret" && try(o.type, "") == "kubernetes.io/service-account-token")
+    if !contains(["CustomResourceDefinition", "Deployment", "DaemonSet"], o.kind) && !(o.kind == "Secret" && try(o.type, "") == "kubernetes.io/service-account-token")
   }
   manifest = each.value
 
   depends_on = [kubernetes_namespace_v1.monitoring, kubernetes_manifest.crds]
 }
 
-# The chart's ServiceAccount token Secret, after the ServiceAccount it names.
-# Applied in the same pass, the token controller can see the Secret before
-# its ServiceAccount exists and delete it, and the next plan proposes it
-# again. The control-plane ServiceMonitors authenticate with it, so it stays.
-resource "kubernetes_manifest" "tokens" {
+# What has to come after everything above, in the same apply:
+#
+# - the workloads. The operator checks its RBAC once at start-up and, finding
+#   its ClusterRoleBinding not there yet, disables its Prometheus and
+#   Alertmanager controllers for good; started after the RBAC, it runs them.
+# - the ServiceAccount token Secret. Applied before its ServiceAccount, the
+#   token controller deletes it and the next plan proposes it again. The
+#   control-plane ServiceMonitors authenticate with it, so it stays.
+resource "kubernetes_manifest" "late" {
   for_each = {
     for o in [
-      for d in split("\n---\n", data.helm_template.kps.manifest) : yamldecode(d)
-      if length(regexall("(?m)^type: kubernetes.io/service-account-token", d)) > 0
+      for d in split("\n---\n", data.helm_template.kps.manifest) : yamldecode(replace(d, "/(?m)^[ ]*((hostNetwork|hostIPC|hostPID|publishNotReadyAddresses): false|initialDelaySeconds: 0)[ ]*$/", ""))
+      if length(regexall("(?m)^kind:", d)) > 0
     ] : "${o.kind}/${try(o.metadata.namespace, "")}/${o.metadata.name}" => o
+    if contains(["Deployment", "DaemonSet"], o.kind) || (o.kind == "Secret" && try(o.type, "") == "kubernetes.io/service-account-token")
   }
   manifest = each.value
 

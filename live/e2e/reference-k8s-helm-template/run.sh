@@ -127,7 +127,7 @@ CHART_CACHE="${CHOUDOUFU_CHART_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/choudoufu/
 # and the operator's are counted separately (copies_a).
 KINDS="namespaces customresourcedefinitions serviceaccounts clusterroles clusterrolebindings configmaps secrets services deployments daemonsets prometheusrules servicemonitors prometheuses alertmanagers"
 CRD_N=10      # kubernetes_manifest.crds
-REST_N=114    # kubernetes_manifest.rest
+REST_N=114    # kubernetes_manifest.rest and .late, one apply
 PRE_N=$((1 + CRD_N))          # the Namespace and the CRDs: the pre-apply's population
 TOTAL_N=$((PRE_N + REST_N))   # 125 managed instances, 124 of them kubernetes_manifest
 MANIFEST_N=$((CRD_N + REST_N))
@@ -470,7 +470,7 @@ else
   [ "$STOCK_REPLAN_RC" -eq 0 ] || { printf '%s\n' "$STOCK_REPLAN" | tail -20; fail "stock's own replan after its cold deploy is not empty (exit $STOCK_REPLAN_RC) - a provider/controller fight in the shape, which would be blamed on choudoufu later"; }
   COPIES="$(copies_a | tr '\n' ';' | sed -E 's/;$//; s/;/; /g')"
   log "  $TOTAL_N objects on A ($PRE_N pre-applied + $REST_N), operator-created: $COPIES"
-  gauntlet_stage cold_deploy pass "$TOTAL_N objects from plain terraform against kind $K8S_VER: kube-prometheus-stack $CHART_VERSION (sha256 $CHART_SHA256) rendered by data.helm_template.kps into $MANIFEST_N kubernetes_manifest instances over 13 kinds under three for_each blocks keyed kind/namespace/name (the CRDs, the rest, and the ServiceAccount token Secret after its ServiceAccount), plus the Namespace; a real terraform.tfstate with $TOTAL_N managed instances, zero tofu-estate labels read back with kubectl, the three Deployments Available and the operator's Prometheus StatefulSet ready with its claim Bound, and stock's own replan empty. The identical shape cold-deployed by stock on a second cluster as every later stage's oracle. Two applies, and the first is declared: $PRE_NOTE. Control, run first on this same cluster: the un-targeted one-pass plan exits $CTRL_RC with $CTRL_N missing-CRD refusal(s) before creating anything, so the pre-apply is load-bearing. Operator-created objects the root never declared: $COPIES"
+  gauntlet_stage cold_deploy pass "$TOTAL_N objects from plain terraform against kind $K8S_VER: kube-prometheus-stack $CHART_VERSION (sha256 $CHART_SHA256) rendered by data.helm_template.kps into $MANIFEST_N kubernetes_manifest instances over 13 kinds under three for_each blocks keyed kind/namespace/name (the CRDs, the rest, then the workloads and the ServiceAccount token Secret after the RBAC they need), plus the Namespace; a real terraform.tfstate with $TOTAL_N managed instances, zero tofu-estate labels read back with kubectl, the three Deployments Available and the operator's Prometheus StatefulSet ready with its claim Bound, and stock's own replan empty. The identical shape cold-deployed by stock on a second cluster as every later stage's oracle. Two applies, and the first is declared: $PRE_NOTE. Control, run first on this same cluster: the un-targeted one-pass plan exits $CTRL_RC with $CTRL_N missing-CRD refusal(s) before creating anything, so the pre-apply is load-bearing. Operator-created objects the root never declared: $COPIES"
 fi
 
 # ── 2. migrate: live-import against stock's state ────────────────────────
