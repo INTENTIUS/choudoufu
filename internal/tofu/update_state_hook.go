@@ -13,7 +13,7 @@ import (
 // updateState calls the PostStateUpdate hook with the state modification function
 func updateStateHook(evalCtx EvalContext, addr addrs.AbsResourceInstance) error {
 	// Call the hook
-	return evalCtx.Hook(func(h Hook) (HookAction, error) {
+	if err := evalCtx.Hook(func(h Hook) (HookAction, error) {
 		return h.PostStateUpdate(func(s *states.SyncState) {
 			provider := evalCtx.State().ResourceProvider(addr.ContainingResource())
 			if provider == nil {
@@ -27,5 +27,25 @@ func updateStateHook(evalCtx EvalContext, addr addrs.AbsResourceInstance) error 
 				s.SetResourceInstance(addr, evalCtx.State().ResourceInstance(addr), *provider)
 			}
 		})
+	}); err != nil {
+		return err
+	}
+	// choudoufu fork addition, GitHub issue #1944: see [InstanceStateHook].
+	// The instance is copied once and shared by every hook that implements
+	// the method, which includes every hook embedding [NilHook].
+	var inst *states.ResourceInstance
+	var provider *addrs.AbsProviderConfig
+	read := false
+	return evalCtx.Hook(func(h Hook) (HookAction, error) {
+		ih, ok := h.(InstanceStateHook)
+		if !ok {
+			return HookActionContinue, nil
+		}
+		if !read {
+			inst = evalCtx.State().ResourceInstance(addr)
+			provider = evalCtx.State().ResourceProvider(addr.ContainingResource())
+			read = true
+		}
+		return ih.PostInstanceStateUpdate(addr, inst, provider)
 	})
 }

@@ -129,7 +129,11 @@ type LiveRun interface {
 	// through nothing.
 	//
 	// Called exactly once per apply, after the ordinary state write has
-	// already succeeded - never mid-apply, and never for a plan-only run.
+	// already succeeded, and never for a plan-only run. It is the final
+	// pass: since GitHub issue #1944 [LiveRun.WriteInstance] has already
+	// written each record-carried and record-backed instance's record, and
+	// each destroyed instance's, as its apply step returned, and since #1938
+	// a record whose bytes did not change is not sent again.
 	// A run with no record store configured (or no live block at all) does
 	// nothing and returns no diagnostics. Error diagnostics here are fatal
 	// to the run: a version conflict at write-back means this run's apply
@@ -152,6 +156,19 @@ type LiveRun interface {
 	// destroy is false, because the estate and its outputs remain. See
 	// [projection.WriteBackRequest.WholeDestroy].
 	WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy, wholeDestroy bool) tfdiags.Diagnostics
+
+	// WriteInstance is GitHub issue #1944: the record of one instance,
+	// written as soon as that instance's apply step returns, so that a run
+	// that dies before WriteBack still leaves the record of whatever it
+	// created or destroyed. state holds that one instance as the step left
+	// it (absent when the step destroyed it); schemas, replaced and
+	// deposedDestroys are WriteBack's own, from the same plan. Called from
+	// [liveRecordHook] during [Local.opApply]'s apply, concurrently for
+	// instances the graph applies in parallel. It writes with the same
+	// conditional writes WriteBack does, and WriteBack, which still runs at
+	// the end, expects the version it produced. Error diagnostics fail the
+	// apply at that instance. A run with no record store does nothing.
+	WriteInstance(ctx context.Context, state *states.State, addr addrs.AbsResourceInstance, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy) tfdiags.Diagnostics
 
 	// AfterPlan runs once the plan exists and before it is rendered, saved
 	// or approved, on a plan and on an apply alike: whatever evidence the

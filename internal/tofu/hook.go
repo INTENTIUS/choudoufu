@@ -256,3 +256,23 @@ func (*NilHook) Stopping() {
 func (*NilHook) PostStateUpdate(func(*states.SyncState)) (HookAction, error) {
 	return HookActionContinue, nil
 }
+
+// InstanceStateHook is a choudoufu fork addition (GitHub issue #1944), an
+// optional extension of [Hook]: PostInstanceStateUpdate is called right
+// after PostStateUpdate, from the same call site, with what that update
+// wrote spelled out - the instance's address, a copy of its whole state
+// (current and deposed objects; nil when the instance is gone) and its
+// resource's provider configuration (nil when the resource is gone). A
+// live run writes the instance's record from it as soon as its apply step
+// returns. The instance is shared between hooks and must not be modified.
+// An error fails the step that wrote the state, as one from PostStateUpdate
+// does.
+type InstanceStateHook interface {
+	PostInstanceStateUpdate(addr addrs.AbsResourceInstance, inst *states.ResourceInstance, provider *addrs.AbsProviderConfig) (HookAction, error)
+}
+
+var _ InstanceStateHook = (*NilHook)(nil)
+
+func (*NilHook) PostInstanceStateUpdate(addrs.AbsResourceInstance, *states.ResourceInstance, *addrs.AbsProviderConfig) (HookAction, error) {
+	return HookActionContinue, nil
+}

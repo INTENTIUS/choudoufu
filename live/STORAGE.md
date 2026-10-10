@@ -136,10 +136,13 @@ Nothing is found by tag: objects are found by listing a known prefix.
 | Opening the store, every run | A conditional `PutObject` of the sentinel, which writes only the first time and is skipped by a role that cannot write. After the first run it is answered `412`, and one `GetObject` of the sentinel follows. Then one `ListObjectsV2` |
 | Reading the estate, every run | `ceil(N/1000)` `ListObjectsV2`, then a `GetObject` per key including the sentinel, eight in flight unless `TOFU_LIVE_RECORD_READ_PARALLELISM` says otherwise. The read is complete or the run fails ([claim 29](smoke/claims/a-bulk-read-is-complete-or-it-fails.md)) |
 | The hint and the outputs, every run | One `GetObject` each |
-| An apply, per record that changed | A `GetObject`, then a conditional `PutObject` or `DeleteObject` |
+| An apply, per record that changed | A `GetObject`, then a conditional `PutObject` or `DeleteObject`. For a record-backed or record-carried instance, and for any destroyed one, it is sent when that instance's apply step returns (#1944); for every other record, after the whole apply |
+| The end of an apply, per record already written when its instance returned | Nothing, unless something that write leaves out changed: a record-carried instance whose residue the final pass classifies costs a second `GetObject` and conditional `PutObject` |
 
 A create is `If-None-Match: *`, and an update or a delete carries `If-Match`
-with the version the writer read. Nothing is locked. A record the apply
+with the version the writer read. The final pass of an apply that already
+wrote a record when its instance returned expects the version that write
+produced, not the plan's. Nothing is locked. A record the apply
 would write back exactly as it read it is not written at all, so two applies
 that change different resources of one estate both land (#1938).
 

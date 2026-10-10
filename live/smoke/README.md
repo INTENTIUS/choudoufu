@@ -750,10 +750,17 @@ showing its own checks would have caught it.
   markers land only when the provider's create step returns, measured
   15.0s after the zone appeared. The next plan proposes a second zone,
   the re-run builds it, and the orphan is deleted by hand - the only
-  surgery in the run. The record-carried `terraform_data` had already run
-  its provisioner with no record saying so, so the plan names it as a
-  create and the effect runs twice. The BREAK control strips every marker
-  and requires a duplicate VPC.
+  surgery in the run. A record-carried `aws_iam_group_policy` with a
+  provider-assigned name, a `random_password` and a `terraform_data` with
+  a provisioner had all returned before the kill, and since #1944 each
+  record is written the moment its instance returns: the next plan binds
+  the policy and proposes none of the three, and the re-run leaves one
+  inline policy, the same password and an effect that ran once. The BREAK
+  control strips every marker and requires a duplicate VPC.
+  `BREAK_EARLY_RECORD=1` rebuilds choudoufu with that mid-apply record
+  write switched off (go build -overlay, needs Go, refuses a release
+  binary) and passes only when the re-run is caught leaving two inline
+  policies on the group and the plan proposes the password again.
 - **an-estate-reads-another-by-declaring-it** - *Claim 44: an estate
   reads another estate's outputs only by declaring the read.* Estate
   `network` applies and records one root output. Estate `app` declares
@@ -777,6 +784,7 @@ showing its own checks would have caught it.
 | `SMOKE_INSTRUMENT=1` | capture every request (choudoufu's own clients included, per #682) and print request/retry counts with a top-operations table |
 | `BREAK=1` | corrupt one expected fact mid-scenario; the scenario passes only by CATCHING it - proof its assertions are load-bearing |
 | `BREAK_SLOT=1` | count-is-a-fungible-set's second control: the one corruption an absence assertion can be tested with, a tag that should not be there |
+| `BREAK_EARLY_RECORD=1` | a-killed-apply-hides-nothing's second control: choudoufu rebuilt with no record written until the apply's walk is over (#1944); passes only when the re-run is caught duplicating the record-carried inline policy |
 | `BREAK_CROSSCHECK=1` | a-bulk-read-is-complete-or-it-fails's second control: choudoufu rebuilt without the plan-time cross-check between the store's listing and a record read as absent; passes only when a destroy is caught reporting 1 destroyed of two (#1355's output) |
 | `SMOKE_TIMEOUT_SECS=600` | seconds before a k8s-* scenario with no verdict is killed (default max(600, 2 x claims.json minutes)) |
 | `CHDF_TIMEOUT_SECS=300` | one choudoufu call made behind a failing or rewriting admission chain |

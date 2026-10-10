@@ -39,6 +39,18 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.24.0 (Unreleased)
 
+- Fixed: a record was written only after the whole apply, so an apply killed
+  after a create lost the record of a record-carried resource (the next plan
+  created a second one and the first stayed live and unmanaged) or of a
+  record-backed one (a `random_password` regenerated). A record-backed or
+  record-carried instance's record is now written the moment its apply step
+  returns, and a destroyed instance's record is removed the same way, with
+  the same conditional write; the final pass expects the version that write
+  produced and sends nothing for a record it already left as it would write
+  it. A conflict on that write fails the apply at that instance and is
+  reported once. internal/tofu gains one fork hook,
+  `InstanceStateHook.PostInstanceStateUpdate`, for it (#1944).
+
 ## choudoufu v0.23.0 (2026-10-08)
 
 Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.23.0.json`](live/history/v0.23.0.json).

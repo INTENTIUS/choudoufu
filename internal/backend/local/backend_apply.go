@@ -160,6 +160,13 @@ func (b *Local) opApply(
 
 	stateHook := new(StateHook)
 	op.Hooks = append(op.Hooks, stateHook)
+	// GitHub issue #1944: after stateHook, so a record is written once the
+	// state update it is written from has been handed on. Inert until
+	// armed below, and for a run with no live block.
+	recordHook := new(liveRecordHook)
+	if b.LiveRun != nil {
+		op.Hooks = append(op.Hooks, recordHook)
+	}
 
 	// Get our context
 	lr, _, opState, contextDiags := b.localRun(ctx, stopCtx, op)
@@ -439,6 +446,9 @@ func (b *Local) opApply(
 
 	// Set up our hook for continuous state updates
 	stateHook.StateMgr = opState
+	if b.LiveRun != nil {
+		recordHook.arm(ctx, b.LiveRun, schemas, replacedAddrs, deposedDestroys)
+	}
 
 	// Start to apply in a goroutine so that we can be interrupted.
 	var applyState *states.State

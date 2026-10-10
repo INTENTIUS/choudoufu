@@ -125,6 +125,9 @@ func (s *replaceRecordingLiveRun) WriteBack(_ context.Context, finalState *state
 	return nil
 }
 
+func (s *replaceRecordingLiveRun) WriteInstance(context.Context, *states.State, addrs.AbsResourceInstance, *tofu.Schemas, []addrs.AbsResourceInstance, []projection.DeposedDestroy) tfdiags.Diagnostics {
+	return nil
+}
 func (s *replaceRecordingLiveRun) AfterApply(_ context.Context) tfdiags.Diagnostics { return nil }
 func (s *replaceRecordingLiveRun) BeforeApply(_ context.Context) tfdiags.Diagnostics {
 	return nil
