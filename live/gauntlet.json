@@ -408,7 +408,7 @@
   "lanes": {
     "kubernetes": {
       "label": "kubernetes lane",
-      "estates": 22,
+      "estates": 23,
       "clear": 12,
       "verified": 0,
       "carried": 12,
@@ -416,77 +416,77 @@
         "cold_deploy": {
           "pass": 12,
           "fail": 0,
-          "not_run": 10
+          "not_run": 11
         },
         "day2_count": {
           "pass": 12,
           "fail": 0,
-          "not_run": 10
+          "not_run": 11
         },
         "day2_crash": {
           "pass": 12,
           "fail": 0,
-          "not_run": 10
+          "not_run": 11
         },
         "day2_remove": {
           "pass": 12,
           "fail": 0,
-          "not_run": 10
+          "not_run": 11
         },
         "day2_rename": {
           "pass": 12,
           "fail": 0,
-          "not_run": 10
+          "not_run": 11
         },
         "day2_replace": {
           "pass": 12,
           "fail": 0,
-          "not_run": 10
+          "not_run": 11
         },
         "day2_teardown": {
           "pass": 12,
           "fail": 0,
-          "not_run": 10
+          "not_run": 11
         },
         "drift_reconverge": {
           "pass": 12,
           "fail": 0,
-          "not_run": 10
+          "not_run": 11
         },
         "greenfield": {
           "pass": 12,
           "fail": 0,
-          "not_run": 10
+          "not_run": 11
         },
         "migrate": {
           "pass": 12,
           "fail": 0,
-          "not_run": 10
+          "not_run": 11
         },
         "no_local_state": {
           "pass": 2,
           "fail": 0,
-          "not_run": 20
+          "not_run": 21
         },
         "plan_approval": {
           "pass": 12,
           "fail": 0,
-          "not_run": 10
+          "not_run": 11
         },
         "strict": {
           "pass": 12,
           "fail": 0,
-          "not_run": 10
+          "not_run": 11
         },
         "test_apply": {
           "pass": 12,
           "fail": 0,
-          "not_run": 10
+          "not_run": 11
         },
         "test_plan": {
           "pass": 12,
           "fail": 0,
-          "not_run": 10
+          "not_run": 11
         }
       }
     },
@@ -5702,6 +5702,33 @@
           "test_plan": 23
         }
       }
+    },
+    {
+      "name": "reference-k8s-yaml-rollouts",
+      "source": "Argo Rollouts v1.10.0's published install bundle (install.yaml, a release asset of github.com/argoproj/argo-rollouts, Apache-2.0, sha256 ca8a1785391026023627c8a12db5422e227d7a7a6ec7c01f99f7d5b1726ed53c, fetched and checked by run.sh) - a plain multi-document YAML, no Helm chart and no hashicorp/helm provider - read with file() and split(\"\\n---\\n\") and yamldecoded inside three for_each expressions keyed kind/namespace/name, with manifest = each.value (#1962): the bundle's 5 CRDs, its 9 other objects with metadata.namespace merged into the five namespaced ones (the bundle is written for kubectl apply -n and carries none), then its controller Deployment, plus the Namespace and the root's own AnalysisTemplates (a for_each over merge() of a literal and a local) - 17 objects over 10 kinds, one name across four kinds two of them cluster-scoped, and three aggregate-to-* ClusterRoles whose rules the aggregation controller copies into the built-in admin, edit and view roles nothing declares. No delta to the bundle's objects beyond the namespace; day-2 changes are exact-match edits of the working copy of the YAML. reference- because the root is ours",
+      "lane": "kubernetes",
+      "set": "growing",
+      "substrate": "kind",
+      "script": "live/e2e/reference-k8s-yaml-rollouts/run.sh",
+      "stages": {
+        "cold_deploy": "not_run",
+        "day2_count": "not_run",
+        "day2_crash": "not_run",
+        "day2_remove": "not_run",
+        "day2_rename": "not_run",
+        "day2_replace": "not_run",
+        "day2_teardown": "not_run",
+        "drift_reconverge": "not_run",
+        "greenfield": "not_run",
+        "migrate": "not_run",
+        "no_local_state": "not_run",
+        "plan_approval": "not_run",
+        "strict": "not_run",
+        "test_apply": "not_run",
+        "test_plan": "not_run"
+      },
+      "clear": false,
+      "protocol": "legacy"
     },
     {
       "name": "terralith-scale",
