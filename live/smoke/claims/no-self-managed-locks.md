@@ -51,7 +51,7 @@ re-plan. A writer killed mid-write strands nothing. `BREAK=1` rebuilds
 choudoufu with no `If-Match` (`go build -overlay`, so it needs Go), and
 both racing applies must be caught reporting success over one record.
 
-### two-saved-plans-one-attribute (claim 47, filed by #1504)
+### two-saved-plans-one-attribute (#1504)
 
     just smoke two-saved-plans-one-attribute
     BREAK=1 just smoke two-saved-plans-one-attribute

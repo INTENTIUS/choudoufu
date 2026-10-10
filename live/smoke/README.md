@@ -622,7 +622,7 @@ showing its own checks would have caught it.
   where a RoundTripper parks each writer's first request until both are
   parked (#1441).
 
-- **two-saved-plans-one-attribute** - *Claim 2 (claim 47, #1504): two
+- **two-saved-plans-one-attribute** - *Claim 2 (#1504): two
   saved plans, one attribute: the second is refused because the value it
   was planned from is gone.* Two checkouts of one estate save plans that
   change one SQS queue's `visibility_timeout_seconds` from 30, to 60 and
