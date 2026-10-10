@@ -436,6 +436,16 @@ showing its own checks would have caught it.
   cross-half refusal through choudoufu and the tool-less cross-half
   refusal must vanish.
 
+- **a-role-holds-an-address-pattern** - *Claim 13 (#1955): a role scoped
+  to an address pattern inside one estate.* One role holds one statement,
+  conditioned on `aws:ResourceTag/tofu-address` = `module.app.*` and on
+  nothing else. In one estate its apply changes `module.app`, and its
+  change on `module.db` is refused by AWS, as are a plain `aws ec2
+  create-tags` and `terminate-instances` on that instance. Runs with the
+  emulator's IAM enforcement on. The BREAK control rewrites the grant with
+  the same actions and no condition, and the change on `module.db` must
+  land.
+
 - **the-boundary-holds-across-regions** - *Claim 13 (claim 16 until #1817): the boundary holds
   across provider configurations.* One estate spans two aliased
   providers, a region each, under one `tofu-estate` marker and one

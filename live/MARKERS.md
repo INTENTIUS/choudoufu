@@ -1423,7 +1423,13 @@ is one substitution away: conditioning on `aws:ResourceTag/tofu-address`
 instead gives a principal rights over one declared address, and
 `aws:RequestTag/tofu-address` gives it the right to create that address and
 nothing else. Both keys are ordinary resource tags, which is the whole reason
-the substitution works.
+the substitution works. `just smoke a-role-holds-an-address-pattern` runs the
+`aws:ResourceTag` half with the emulator's IAM enforcement on: a role
+conditioned on `module.app.*` changes `module.app` and is refused on
+`module.db` in the same estate, and with the condition removed the change
+lands (#1955). A keyed module call's instances escape to `module.app:<key>.`,
+which `module.app.*` does not match; such a grant names `module.app:*` as
+well.
 
 <!-- survey-gen:begin marker-governable-gap -->
 345 of the 1027 admitted AWS resource types carry no `tags` argument at all (`live/survey-full.json`'s taggability signal, joined to the admission table). A resource of one of those types carries `tofu-estate` no more than it carries `tofu-address`, so both conditions above are unmatched on it and both statements convey nothing about it. If a principal can act on such a resource, the grant is wider than its condition, and keeping the two in step is a second permission model. The top of this section says there is not one. There is, for these 345 types.
