@@ -408,7 +408,7 @@
   "lanes": {
     "kubernetes": {
       "label": "kubernetes lane",
-      "estates": 17,
+      "estates": 18,
       "clear": 12,
       "verified": 0,
       "carried": 12,
@@ -416,77 +416,77 @@
         "cold_deploy": {
           "pass": 12,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "day2_count": {
           "pass": 12,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "day2_crash": {
           "pass": 12,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "day2_remove": {
           "pass": 12,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "day2_rename": {
           "pass": 12,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "day2_replace": {
           "pass": 12,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "day2_teardown": {
           "pass": 12,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "drift_reconverge": {
           "pass": 12,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "greenfield": {
           "pass": 12,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "migrate": {
           "pass": 12,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "no_local_state": {
           "pass": 2,
           "fail": 0,
-          "not_run": 15
+          "not_run": 16
         },
         "plan_approval": {
           "pass": 12,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "strict": {
           "pass": 12,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "test_apply": {
           "pass": 12,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         },
         "test_plan": {
           "pass": 12,
           "fail": 0,
-          "not_run": 5
+          "not_run": 6
         }
       }
     },
@@ -4770,6 +4770,33 @@
           "test_plan": 36
         }
       }
+    },
+    {
+      "name": "reference-k8s-helm-cert-manager",
+      "source": "jetstack cert-manager chart v1.21.2 from charts.jetstack.io (Apache-2.0, chart archive sha256 73a56e1728edd6c99f1f31082618c3259d279a76b7ebd3d4bdc5475c2442d34a, fetched and checked by run.sh) rendered client-side by hashicorp/helm's data \"helm_template\" - never helm_release - into four kubernetes_manifest blocks whose for_each splits and yamldecodes the render inside the for_each expression, keyed kind/namespace/name, with manifest = each.value (#1962): the chart's 6 CRDs, its 37 other installation objects, its 3 Deployments, and the 3 custom resources values.yaml declares through extraObjects (a ClusterIssuer and an Issuer both named selfsigned, and a Certificate), plus the Namespace - 50 objects over 14 kinds. The same software and version as reference-k8s-cert-manager: the render's 46 chart objects are that estate's bundle objects by kind, namespace and name, differing only by two Helm labels. Deltas in root/values.yaml: crds.enabled on, the startupapicheck hook Job off, the three custom resources. reference- because the root is ours (#1981, #1107's Helm surface)",
+      "lane": "kubernetes",
+      "set": "growing",
+      "substrate": "kind",
+      "script": "live/e2e/reference-k8s-helm-cert-manager/run.sh",
+      "stages": {
+        "cold_deploy": "not_run",
+        "day2_count": "not_run",
+        "day2_crash": "not_run",
+        "day2_remove": "not_run",
+        "day2_rename": "not_run",
+        "day2_replace": "not_run",
+        "day2_teardown": "not_run",
+        "drift_reconverge": "not_run",
+        "greenfield": "not_run",
+        "migrate": "not_run",
+        "no_local_state": "not_run",
+        "plan_approval": "not_run",
+        "strict": "not_run",
+        "test_apply": "not_run",
+        "test_plan": "not_run"
+      },
+      "clear": false,
+      "protocol": "legacy"
     },
     {
       "name": "reference-k8s-helm-cloudnative-pg",

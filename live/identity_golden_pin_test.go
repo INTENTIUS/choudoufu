@@ -3207,7 +3207,14 @@ const (
 	// golden's sweep does not read. It adds no row, so instances and
 	// body-sha256 are unchanged. fixture-dirs 666 -> 667 on the same row;
 	// the cohort pins are untouched.
-	identityGoldenPinDirs = 698
+	//
+	// 698 -> 699 for reference-k8s-helm-cert-manager: one directory,
+	// live/e2e/reference-k8s-helm-cert-manager/root, whose kubernetes_manifest
+	// instances are keyed by a for_each over a render the
+	// golden's sweep does not read. It adds no row, so instances and
+	// body-sha256 are unchanged. fixture-dirs 667 -> 668 on the same row;
+	// the cohort pins are untouched.
+	identityGoldenPinDirs = 699
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).
