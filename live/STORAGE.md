@@ -142,6 +142,23 @@ A create is `If-None-Match: *`, and an update or a delete carries `If-Match`
 with the version the writer read. Nothing is locked. A record the apply
 would write back exactly as it read it is not written at all, so two applies
 that change different resources of one estate both land (#1938).
+
+The conditional write referees only what is in a record, and an ordinary
+cloud resource's record holds its identity, the arguments the provider never
+reads back, taint, deposed objects and tombstones. An attribute the provider
+reads back, such as a queue's visibility timeout or an instance's type, is not
+in it. Two applies that change such an attribute leave the record's bytes as
+they were, so neither writes it and no condition is checked. Two plain
+`apply` runs are last-writer-wins at the cloud API: both succeed, and the
+cloud keeps whichever call came last. `apply <planfile>` re-reads the live
+system, plans again, and refuses with exit status 3 when one of the plan's own
+changes differs from the approved plan in its before- or after-values (#878).
+A plan approved against a value another apply has since replaced is refused by
+name, and the cloud keeps the other apply's value. Two saved-plan applies that
+both re-read before either reaches the cloud are not covered (#1504).
+[Claim 2's](smoke/claims/no-self-managed-locks.md#on-aws)
+`two-saved-plans-one-attribute` races two saved plans on one SQS queue's
+visibility timeout.
 [Two runs at once](https://intentius.io/choudoufu/docs/model/concurrency/) has the races.
 Every read is scoped to one estate, so adding an estate to the bucket slows
 no other.

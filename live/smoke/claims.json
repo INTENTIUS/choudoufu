@@ -5,7 +5,8 @@
     "providers.<name> cell carries a status, a note and a list of proofs. A proof is a scenario that runs on that provider - scenario,",
     "command, minutes, needs_go, needs_emulator, real_service, break_mode, evidence and an optional note - or, when it is some steps of",
     "another claim's scenario on the same provider, proven_by (that claim), command (that scenario's) and a note naming the steps. A",
-    "scenario is the proof of one (claim, provider) cell, which its header states: \"# CLAIM N (provider) - <title>. ~M min.\".",
+    "scenario is the proof of one (claim, provider) cell, which its header states: \"# CLAIM N (provider) - <title>. ~M min.\". The cell",
+    "that lists a scenario is its registration, so a cell may list several, and a scenario's file name need not be its claim's slug (#1504).",
     "demos lists the scenarios that prove no claim (import, greenfield, full, and the recommended secure configuration since #1817);",
     "they carry no CLAIM header and belong to no cell. live/smoke_claims_test.go holds this file to the scenario directory and to the",
     "per-claim pages, and site/data/claims.json is a byte-for-byte copy the site renders.",
@@ -337,6 +338,14 @@
               "minutes": 3,
               "needs_go": true,
               "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the record store's PutObject carries no If-Match (go build -overlay, so it needs Go and cannot break a release binary) and passes only when both racing applies are caught reporting success over one record"
+            },
+            {
+              "scenario": "live/smoke/scenarios/two-saved-plans-one-attribute.sh",
+              "command": "just smoke two-saved-plans-one-attribute",
+              "minutes": 4,
+              "needs_go": true,
+              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the saved-plan approval check compares no before-values (go build -overlay, so it needs Go and cannot break a release binary) and passes only when the second apply is caught reporting success with the cloud left on its value",
+              "note": "Two saved plans change one echoed attribute of one SQS queue (visibility_timeout_seconds, which the scenario first proves the provider reads back from the cloud). The record holds no such value, so no conditional write referees; #878's before-values do. Applied one after the other: two plain applies are last-writer-wins on such an attribute, and two saved-plan applies that both re-read before either writes are not covered (#1504)."
             },
             {
               "scenario": "live/smoke/scenarios/cas-holds-under-every-sse-flavour.sh",

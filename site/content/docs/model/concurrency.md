@@ -13,7 +13,7 @@ resolve one of four ways.
 |---|---|
 | Two creates of the same client-named resource | The cloud's uniqueness constraint rejects the second. The loser re-plans, binds to the winner's resource, and comes back clean. |
 | Two creates of the same server-assigned resource | Both are created. The next plan reports a marker collision naming both live IDs and refuses rather than guessing. A human deletes one. |
-| Divergent in-place updates | Last writer wins at the API. The next plan reads the live system and converges. |
+| Divergent in-place updates | Last writer wins at the API, unless a saved plan is refused ([below](#an-attribute-the-cloud-holds)). The next plan converges. |
 | An update racing a destroy | The loser gets not-found, re-plans, and converges. |
 
 No race orphans a resource silently. Each case is a clean re-plan or a named
@@ -25,30 +25,36 @@ so the resource is found again with nothing to unlock.
 
 ## The record store is not locked either
 
-The table above is about cloud resources. Records are the other thing two runs
-can both write, and nothing is held there either. Every record write is one
-conditional request: a create carries `If-None-Match: *`; an update or delete
-carries `If-Match` with the version read. The store decides in one atomic
-step and keeps nothing afterwards - a bucket's S3, a cluster's API server
-comparing `resourceVersion`.
+Records are the other thing two runs can both write. Every record write is one
+conditional request, `If-None-Match: *` to create and `If-Match` with the
+version read to update or delete, decided in one atomic step by S3 or a
+cluster's API server, which keeps nothing afterwards.
 
 | Race | Outcome |
 |---|---|
-| Two runs create the same record | One `PutObject` wins. The other is told the record now exists, by name, with both versions in the message |
-| Two runs update the same record | The first to arrive wins. The second's `If-Match` no longer matches, and it fails with a named write conflict and changes nothing |
-| An update racing a delete | The loser is told the version it read is not the version the store holds, whether S3 said `412` or, for a key that is gone, `404` |
+| Two runs create the same record | One `PutObject` wins. The other is told by name, with both versions |
+| Two runs update the same record | The first wins. The second fails with a named write conflict and changes nothing |
+| An update racing a delete | The loser is told its version is not the store's (`412`, or `404` for a gone key) |
 | Two runs change different resources | Both land: an apply writes only the records it changed |
 
-[Claim 2]({{< relref "/docs/claims/no-self-managed-locks" >}}) holds two
-writers at the wire so both arrive at one version; every round yields one
-winner and one named conflict.
-[Claim 2]({{< relref "/docs/claims/no-self-managed-locks" >}}) kills an apply
-with `SIGKILL` and the next run finishes the work.
+[Claim 2]({{< relref "/docs/claims/no-self-managed-locks" >}}) races two
+writers at the wire, one named conflict per round, and kills an apply with
+`SIGKILL` for the next run to finish.
 
-A conditional write succeeds or fails in one step and keeps nothing, so a dead
-run leaves nothing held. That is why `force-unlock` is refused: no lock
-exists to open. The local store is the one place a lock file appears, for one
-file write, and a stale one is broken by the next writer.
+A dead run leaves nothing held, so `force-unlock` is refused: there is no
+lock. The local store takes a lock file for one file write, and the next
+writer breaks a stale one.
+
+## An attribute the cloud holds
+
+An ordinary resource's record holds its identity and what the cloud cannot
+give back, and an unchanged record is not written. So two plain applies
+changing an attribute the provider reads back are last-writer-wins at the
+cloud API. `apply <planfile>` re-reads the live system and refuses, exit 3,
+when one of its changes' before- or after-values moved since approval, unless
+both runs re-read before either writes.
+[Storage](https://github.com/INTENTIUS/choudoufu/blob/main/live/STORAGE.md#requests)
+has the detail; claim 2 races two saved plans on one queue.
 
 Serialize applies against one estate in CI anyway, where the real mutex has
 always been - two estates need none

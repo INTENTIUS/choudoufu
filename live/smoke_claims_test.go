@@ -44,21 +44,6 @@ const (
 	siteClaimsStubs   = "../site/content/docs/claims"
 )
 
-// smokeSlugReadabilityPrefixes are the prefixes a slug may carry for
-// readability (the file's _comment: "k8s- for a Kubernetes proof").
-var smokeSlugReadabilityPrefixes = []string{"k8s-"}
-
-// unprefixedSlug is slug with its readability prefix removed, or slug
-// itself when it carries none.
-func unprefixedSlug(slug string) string {
-	for _, p := range smokeSlugReadabilityPrefixes {
-		if rest, ok := strings.CutPrefix(slug, p); ok {
-			return rest
-		}
-	}
-	return slug
-}
-
 // smokeProviderNames is how a page heads a provider's section: "## On AWS".
 var smokeProviderNames = map[string]string{"aws": "AWS", "kubernetes": "Kubernetes"}
 
@@ -307,7 +292,7 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 
 	cellByName := map[string]smokeScenarioCell{}
 	for _, s := range smokeScenarioCells(f) {
-		c, cell := s.Claim, s.Cell
+		cell := s.Cell
 		if prev, dup := cellByName[s.Name]; dup {
 			t.Errorf("%s.sh is the scenario of both %s and %s; a scenario proves one promise on one provider", s.Name, prev, s)
 		}
@@ -318,37 +303,19 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 		if want := filepath.ToSlash(filepath.Join("live", smokeScenariosDir, s.Name+".sh")); cell.Scenario != want {
 			t.Errorf("%s: scenario is %q, want %q", s, cell.Scenario, want)
 		}
-		// The scenario is named for the promise, or for the promise with
-		// its readability prefix taken off, or for a retired claim that
-		// moved into this claim, with or without that prefix.
+		// Which claim a scenario proves is its registration: the cell in
+		// claims.json whose proofs list it. Its file name need not be the
+		// claim's slug. Until #1504 it had to be the slug, a slug with or
+		// without its readability prefix, or a retired claim's slug, and a
+		// second proof of one promise on one provider could only be added by
+		// minting a retired number for something that was never a claim.
 		//
-		// The prefix forms are #1599's. A claim born on Kubernetes carries
-		// the k8s- prefix in its slug, and its Kubernetes proof already
-		// holds <slug>.sh; its proof on another provider cannot share that
-		// file, and the slug is a URL that must not move. So that proof is
-		// named for the slug without the prefix. This reads the prefix off
-		// the slug, never a provider off a file name: which provider a
-		// scenario proves is still the providers.<name> key of its cell.
-		//
-		// The third form is a readability prefix put ON the slug. A claim
-		// born on AWS already has its AWS proof at <slug>.sh, so its
-		// Kubernetes proof is k8s-<slug>.sh (the 2026-10-04 promotions of
-		// claims 3, 5, 6, 8, 9, 14 and 44). The prefix still says nothing
-		// about which provider the file proves; the cell's key does.
-		named := s.Name == c.Slug || s.Name == unprefixedSlug(c.Slug)
-		for _, p := range smokeSlugReadabilityPrefixes {
-			if s.Name == p+c.Slug {
-				named = true
-			}
-		}
-		for _, r := range f.Retired {
-			if r.Claim == c.ID && (s.Name == r.Slug || s.Name == unprefixedSlug(r.Slug)) {
-				named = true
-			}
-		}
-		if !named {
-			t.Errorf("%s: a proof's scenario is named for its claim's slug (%s.sh), for that slug without its readability prefix (%s.sh), for that slug with one (k8s-%s.sh), or for a retired claim that moved into this claim", s, c.Slug, unprefixedSlug(c.Slug), c.Slug)
-		}
+		// What the naming rule used to catch is still caught, by the checks
+		// that read the registration itself: a scenario on disk that no cell
+		// lists fails below ("the proof of no (claim, provider) cell"); a
+		// cell listing a scenario that is not on disk fails the count at the
+		// end; a scenario listed by two cells fails above; and the header's
+		// CLAIM N (provider) must name the cell that lists it.
 		if want := "just smoke " + s.Name; cell.Command != want {
 			t.Errorf("%s: command is %q, want %q", s, cell.Command, want)
 		}

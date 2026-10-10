@@ -93,8 +93,10 @@ func TestEveryBreakPatchStillMatchesItsSource(t *testing.T) {
 	}
 	// The scenarios that patch source today are the six
 	// bucket-store proofs of claims 2, 28 and 29 (claims 29, 31, 32, 33, 36
-	// and 38 until #1817). Fewer than that means the extraction above stopped seeing them.
-	if patched < 6 {
-		t.Errorf("only %d BREAK patch(es) were found and run; there were six when this line was last changed", patched)
+	// and 38 until #1817), and claim 2's saved-plan proof from #1504, which
+	// patches the approval check. Fewer than that means the extraction above
+	// stopped seeing them.
+	if patched < 7 {
+		t.Errorf("only %d BREAK patch(es) were found and run; there were seven when this line was last changed", patched)
 	}
 }
