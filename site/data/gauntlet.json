@@ -408,7 +408,7 @@
   "lanes": {
     "kubernetes": {
       "label": "kubernetes lane",
-      "estates": 21,
+      "estates": 22,
       "clear": 12,
       "verified": 0,
       "carried": 12,
@@ -416,77 +416,77 @@
         "cold_deploy": {
           "pass": 12,
           "fail": 0,
-          "not_run": 9
+          "not_run": 10
         },
         "day2_count": {
           "pass": 12,
           "fail": 0,
-          "not_run": 9
+          "not_run": 10
         },
         "day2_crash": {
           "pass": 12,
           "fail": 0,
-          "not_run": 9
+          "not_run": 10
         },
         "day2_remove": {
           "pass": 12,
           "fail": 0,
-          "not_run": 9
+          "not_run": 10
         },
         "day2_rename": {
           "pass": 12,
           "fail": 0,
-          "not_run": 9
+          "not_run": 10
         },
         "day2_replace": {
           "pass": 12,
           "fail": 0,
-          "not_run": 9
+          "not_run": 10
         },
         "day2_teardown": {
           "pass": 12,
           "fail": 0,
-          "not_run": 9
+          "not_run": 10
         },
         "drift_reconverge": {
           "pass": 12,
           "fail": 0,
-          "not_run": 9
+          "not_run": 10
         },
         "greenfield": {
           "pass": 12,
           "fail": 0,
-          "not_run": 9
+          "not_run": 10
         },
         "migrate": {
           "pass": 12,
           "fail": 0,
-          "not_run": 9
+          "not_run": 10
         },
         "no_local_state": {
           "pass": 2,
           "fail": 0,
-          "not_run": 19
+          "not_run": 20
         },
         "plan_approval": {
           "pass": 12,
           "fail": 0,
-          "not_run": 9
+          "not_run": 10
         },
         "strict": {
           "pass": 12,
           "fail": 0,
-          "not_run": 9
+          "not_run": 10
         },
         "test_apply": {
           "pass": 12,
           "fail": 0,
-          "not_run": 9
+          "not_run": 10
         },
         "test_plan": {
           "pass": 12,
           "fail": 0,
-          "not_run": 9
+          "not_run": 10
         }
       }
     },
@@ -4770,6 +4770,33 @@
           "test_plan": 36
         }
       }
+    },
+    {
+      "name": "reference-k8s-helm-argo-cd",
+      "source": "argoproj argo-helm argo-cd 10.10.2 (Argo CD v3.5.4, Apache-2.0, chart archive sha256 1f2bdb0e23b87fdac5222d99d1acf6964e670db9bf63912c58ab4677e505638b, fetched and checked by run.sh) rendered client-side by hashicorp/helm's data \"helm_template\" - never helm_release - into three kubernetes_manifest blocks whose for_each splits and yamldecodes the render inside the for_each expression, keyed kind/namespace/name, with manifest = each.value (#1962): the chart's 3 CRDs, its 43 other non-workload objects (an AppProject and an Application of those CRDs among them, through extraObjects), and its five Deployments and one StatefulSet, plus the Namespace - 53 objects over 15 kinds, rel-argocd-server shared by seven kinds. argocd-server writes keys into the declared argocd-secret and creates the default AppProject and argocd-initial-admin-secret with no owner reference; the application controller writes status into the declared Application. Deltas in root/values.yaml: dex off, the redis-secret-init helm hook off with argocd-redis declared at a fixed password, argocd-notifications-secret declared with data instead of stringData, one rule on the repo server's empty Role. reference- because the root is ours (#1963's shape, a second chart)",
+      "lane": "kubernetes",
+      "set": "growing",
+      "substrate": "kind",
+      "script": "live/e2e/reference-k8s-helm-argo-cd/run.sh",
+      "stages": {
+        "cold_deploy": "not_run",
+        "day2_count": "not_run",
+        "day2_crash": "not_run",
+        "day2_remove": "not_run",
+        "day2_rename": "not_run",
+        "day2_replace": "not_run",
+        "day2_teardown": "not_run",
+        "drift_reconverge": "not_run",
+        "greenfield": "not_run",
+        "migrate": "not_run",
+        "no_local_state": "not_run",
+        "plan_approval": "not_run",
+        "strict": "not_run",
+        "test_apply": "not_run",
+        "test_plan": "not_run"
+      },
+      "clear": false,
+      "protocol": "legacy"
     },
     {
       "name": "reference-k8s-helm-cert-manager",
