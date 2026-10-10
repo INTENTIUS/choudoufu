@@ -1,0 +1,42 @@
+# reference-k8s-helm-cloudnative-pg's deltas from cloudnative-pg 0.29.1's
+# defaults (#1977). Every other value is the chart's own.
+#
+# run.sh's stages edit two places in this file by exact match - the mutating
+# webhook's failurePolicy and grafanaDashboard's create - so keep their
+# spelling.
+#
+# Nothing here has to switch a webhook certificate off: the chart renders no
+# hook Job, no cert-gen and no caBundle. The operator generates its own CA
+# and serving certificate at start-up into two Secrets it owns
+# (cnpg-ca-secret, cnpg-webhook-cert, ownerReference on its Deployment), the
+# Deployment mounts the second with optional: true so the pod starts before
+# it exists, and the operator patches caBundle into both webhook
+# configurations itself.
+
+config:
+  # The chart writes `data: {}` here. ConfigMap.data is omitempty, so the
+  # server never stores the empty map, it reads back null, and
+  # kubernetes_manifest reports an inconsistent result after apply. One
+  # real entry keeps the map non-empty: the operator copies the tofu-estate
+  # label from a Cluster onto every object it generates for it (Pods, the
+  # PersistentVolumeClaim, Secrets, Services), so after migrate stamps the
+  # Cluster the operator's own objects carry the estate's label too - the
+  # objects day2_remove's sweep must leave alone even though they match it.
+  data:
+    INHERITED_LABELS: tofu-estate
+
+webhook:
+  # The chart's default, written out because plan_approval edits it
+  # (Fail -> Ignore): a scalar of one cluster-scoped object, the
+  # MutatingWebhookConfiguration, that no checksum annotation covers, so it
+  # plans as exactly one in-place update.
+  mutating:
+    failurePolicy: Fail
+
+monitoring:
+  # The dependency chart's one object, a ~250KB dashboard ConfigMap in the
+  # release namespace. On here so day2_remove has a values toggle that takes
+  # it out of the render (create: false) without touching the Deployment's
+  # checksum annotations.
+  grafanaDashboard:
+    create: true
