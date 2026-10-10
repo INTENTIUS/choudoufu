@@ -166,6 +166,15 @@ jobs:
         env:
           BREAK: "1"
         run: bash live/smoke/ci-run.sh ${{ matrix.scenario }} "$RUNNER_TEMP/smoke-logs/break.log"
+      # #1944's control: choudoufu rebuilt to write no record until the
+      # apply's walk is over. Held to its "caught" line by name, because a
+      # run that ignored the variable would print PASS and exit 0 as well.
+      - name: the BREAK_EARLY_RECORD=1 control
+        if: matrix.scenario == 'a-killed-apply-hides-nothing'
+        shell: bash
+        env:
+          BREAK_EARLY_RECORD: "1"
+        run: bash live/smoke/ci-run.sh ${{ matrix.scenario }} "$RUNNER_TEMP/smoke-logs/break-early-record.log" --caught 'caught - with the record written only at the end of the walk'
       # continue-on-error: the log has already streamed into the job log and
       # this artifact is the backup. A backup that cannot be stored must not
       # turn a passed scenario red (#1457, the 403 on run 35660111631).

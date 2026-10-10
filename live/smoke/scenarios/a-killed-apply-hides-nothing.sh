@@ -1,35 +1,76 @@
 # a-killed-apply-hides-nothing
 # CLAIM 5 (aws) - A crash is fixed by re-running. ~4 min.
 #
-# This proof: A killed apply hides nothing it marked: after a SIGKILL mid-
-# apply every marked object is named by the next plan and bound by the re-
-# run with no duplicate, and the two windows in which something can still be
-# hidden - the marker write that follows a tag_on_create=false create, and
-# the record written after the walk - are measured here rather than assumed.
+# This proof: A killed apply hides nothing it marked or recorded: after a
+# SIGKILL mid-apply every marked object, and every record-carried and
+# record-backed instance whose apply step returned, is bound by the re-run
+# with no duplicate and no regenerated value. The one window in which
+# something can still be hidden - the marker write that follows a
+# tag_on_create=false create - is measured here rather than assumed.
 
 SMOKE_WORK="$SMOKE_WORKROOT/killed"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
 ESTATE="smoke-killed-apply"
 ZONE="killed-apply.example."
 CIDR="10.91.0.0/16"
+GROUP_NAME="smoke-killed-apply-deploy"
 CACHE="$SMOKE_WORK/.terraform/choudoufu-cache.tfstate"
 RECORDS="$SMOKE_WORK/.tofu-records"
 EFFECTS="$SMOKE_WORK/effects.log"
+
+# BREAK_EARLY_RECORD=1 is #1944's control: choudoufu rebuilt with the
+# mid-apply record write switched off, so every record waits for the end of
+# the walk again. Built with go build -overlay, so the source tree is never
+# touched; it needs this checkout and Go.
+RUN_BIN=""
+if [ "${BREAK_EARLY_RECORD:-0}" = "1" ]; then
+  [ -z "${CHOUDOUFU_BIN:-}${CHOUDOUFU_VERSION:-}" ] \
+    || fail "killed" "BREAK_EARLY_RECORD=1 rebuilds choudoufu from this checkout; it cannot break CHOUDOUFU_BIN or CHOUDOUFU_VERSION. Unset them and run it again with Go installed."
+  command -v go >/dev/null 2>&1 || fail "killed" "BREAK_EARLY_RECORD=1 needs Go to build the broken binary"
+  SRC="$ROOT/internal/command/live_mode.go"
+  mkdir -p "$SMOKE_WORK/break"
+  python3 - "$SRC" "$SMOKE_WORK/break/live_mode.go" <<'PYEOF'
+import sys
+src = open(sys.argv[1]).read()
+old = "func (r *liveRunner) WriteInstance(ctx context.Context, state *states.State, addr addrs.AbsResourceInstance, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy) tfdiags.Diagnostics {\n"
+assert src.count(old) == 1, "the break patch no longer matches liveRunner.WriteInstance"
+open(sys.argv[2], "w").write(src.replace(old, old + "\treturn nil // BREAK_EARLY_RECORD: no record until the walk is over\n"))
+PYEOF
+  [ -s "$SMOKE_WORK/break/live_mode.go" ] || fail "killed" "the break patch did not apply to $SRC, so this arm would test the real binary"
+  printf '{"Replace":{"%s":"%s"}}\n' "$SRC" "$SMOKE_WORK/break/live_mode.go" > "$SMOKE_WORK/break/overlay.json"
+  ( cd "$ROOT" && go build -overlay "$SMOKE_WORK/break/overlay.json" -o "$SMOKE_WORK/break/choudoufu" ./cmd/choudoufu ) \
+    || fail "killed" "the broken binary did not build"
+  RUN_BIN="$SMOKE_WORK/break/choudoufu"
+fi
+# run_chdf is chdf, or the broken binary under BREAK_EARLY_RECORD.
+run_chdf() { if [ -n "$RUN_BIN" ]; then "$RUN_BIN" "$@"; else chdf "$@"; fi; }
 
 stack_up
 export AWS_ENDPOINT_URL="$SMOKE_ENDPOINT"
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
 
-# Four resources in one dependency chain, so a single kill lands inside all
-# three windows this claim is about:
+# Seven resources in one dependency chain, so a single kill lands after
+# every record-held instance has returned and inside the one marker window:
 #
-#   terraform_data.effect  record-carried. It has no cloud home, so its
-#                          record is the only trace that it ran, and
-#                          projection.WriteBack writes that once, after the
-#                          whole graph walk (internal/backend/local/
-#                          backend_apply.go). Its provisioner appends a line
-#                          to effects.log, so "it ran" is counted rather
-#                          than assumed.
+#   terraform_data.effect  record-backed. It has no cloud home, so its
+#                          record is the only trace that it ran. Since
+#                          #1944 that record is written the moment its
+#                          apply step returns (internal/backend/local/
+#                          hook_live_record.go), not after the whole walk.
+#                          Its provisioner appends a line to effects.log,
+#                          so "it ran" is counted rather than assumed.
+#   random_password.db     record-backed: the record IS the password. Lost,
+#                          the next plan regenerates it.
+#   aws_iam_group_policy.deploy
+#                          record-carried: its name is left for the provider
+#                          to assign and the type has no tags, so the record
+#                          is the only place its identity (group, name) is
+#                          held. Lost, the next plan creates a second inline
+#                          policy and the first stays on the group, owned by
+#                          nothing. (aws_iam_access_key is the issue's own
+#                          example, but the pinned emulator answers its
+#                          GetAccessKeyLastUsed read empty, so no plan can
+#                          bind one there.)
 #   aws_vpc.main           marker-carried the ordinary way: internal/live/
 #                          stamp puts the markers in the create request, so
 #                          the object is marked the instant it exists and
@@ -60,6 +101,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "= 6.58.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "= 3.7.2"
+    }
   }
 }
 
@@ -77,14 +122,32 @@ resource "terraform_data" "effect" {
   }
 }
 
+resource "random_password" "db" {
+  length     = 24
+  depends_on = [terraform_data.effect]
+}
+
 resource "aws_vpc" "main" {
   cidr_block = "$CIDR"
-  depends_on = [terraform_data.effect]
+  depends_on = [random_password.db]
+}
+
+resource "aws_iam_group" "deploy" {
+  name       = "$GROUP_NAME"
+  depends_on = [aws_vpc.main]
+}
+
+resource "aws_iam_group_policy" "deploy" {
+  group = aws_iam_group.deploy.name
+  policy = jsonencode({
+    Version   = "2012-10-17"
+    Statement = [{ Effect = "Allow", Action = ["s3:ListBucket"], Resource = "*" }]
+  })
 }
 
 resource "aws_route53_zone" "dns" {
   name       = "$ZONE"
-  depends_on = [aws_vpc.main]
+  depends_on = [aws_iam_group_policy.deploy]
 }
 
 resource "terraform_data" "tail" {
@@ -148,6 +211,39 @@ record_key() { python3 -c "import base64,sys;print(base64.urlsafe_b64encode(sys.
 records_for() {
   if [ -d "$RECORDS" ]; then find "$RECORDS" -type f -name "$(record_key "$1")" | wc -l | tr -d ' '; else echo 0; fi
 }
+# group_policies counts the IAM group's inline policies, read off the
+# account.
+group_policies() {
+  local out
+  out="$(awsl iam list-group-policies --group-name "$GROUP_NAME" --query 'length(PolicyNames)' --output text 2>/dev/null)" || out=""
+  printf '%s' "${out:-0}"
+}
+# password_in_record prints random_password.db's result as its record holds
+# it, or nothing when there is no record.
+password_in_record() {
+  local f
+  f="$(find "$RECORDS" -type f -name "$(record_key random_password.db)" 2>/dev/null | head -1)"
+  [ -n "$f" ] || return 0
+  python3 - "$f" <<'PYEOF'
+import json, sys
+def find(o):
+    if isinstance(o, dict):
+        if isinstance(o.get("result"), str):
+            return o["result"]
+        for v in o.values():
+            r = find(v)
+            if r: return r
+    elif isinstance(o, list):
+        for v in o:
+            r = find(v)
+            if r: return r
+    elif isinstance(o, str) and o[:1] in "{[":
+        try: return find(json.loads(o))
+        except ValueError: return None
+    return None
+print(find(json.load(open(sys.argv[1]))) or "")
+PYEOF
+}
 record_paths() {
   if [ -d "$RECORDS" ]; then ( cd "$SMOKE_WORK" && find .tofu-records -type f | sort | tr '\n' ' ' ); else printf 'nothing'; fi
 }
@@ -159,20 +255,24 @@ explain \
   "kills no real apply. This does, with" \
   "SIGKILL, mid-walk, at a point pinned by a count read off the account." \
   "" \
-  "Three things are created before the kill and each answers a different" \
-  "question. A VPC, whose markers ride its create call, so there is no" \
-  "window at all. A hosted zone, whose type reads tag_on_create false in" \
-  "live/registry.json - the create call cannot carry tags, so this fork" \
-  "writes them once the provider's create step returns (#1084, #1512)." \
-  "And a record-carried terraform_data, whose record is written after the" \
-  "whole walk. The claim is about what the next plan can name, and the" \
-  "answer is not the same for the three."
+  "Four kinds of thing are created before the kill and each answers a" \
+  "different question. A VPC, whose markers ride its create call, so" \
+  "there is no window at all. A hosted zone, whose type reads" \
+  "tag_on_create false in live/registry.json - the create call cannot" \
+  "carry tags, so this fork writes them once the provider's create step" \
+  "returns (#1084, #1512). An inline group policy whose name the provider" \
+  "assigns and which has nowhere to carry a marker. And a terraform_data" \
+  "and a random_password, whose" \
+  "record is the object. The last two kinds live in the record store, and" \
+  "since #1944 a record is written the moment its instance's apply step" \
+  "returns. The claim is about what the next plan can name, and the" \
+  "answer is not the same for the four."
 
 step "1. init, and start the apply that is going to be killed"
 cmd "choudoufu init && choudoufu apply -auto-approve   # to be killed"
 logged a-killed-apply-hides-nothing-init "killed" "init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
 [ "$(zones_named)" = "0" ] || fail "killed" "the account already holds a zone named $ZONE before anything ran"
-( cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color > "$SMOKE_WORK/apply-1.log" 2>&1 ) &
+( cd "$SMOKE_WORK" && run_chdf apply -auto-approve -input=false -no-color > "$SMOKE_WORK/apply-1.log" 2>&1 ) &
 APPLY_PID=$!
 note "started, pid $APPLY_PID"
 
@@ -211,28 +311,71 @@ proof "the apply is dead, killed the moment the account held one zone named $ZON
 
 step "3. what the cloud holds, and what the run kept"
 explain \
-  "Four reads, none of them through choudoufu. The VPC and whether it" \
-  "carries its markers. The zone and the same question. effects.log, which" \
-  "the record-carried instance's provisioner appends a line to. And what" \
-  "is on disk: the record store, and the state cache, which is written" \
-  "after the walk like the records and so is not there at all."
+  "Reads none of which go through choudoufu. The VPC and whether it" \
+  "carries its markers. The zone and the same question. The IAM group's" \
+  "inline policies. effects.log, which the terraform_data's provisioner" \
+  "appends a line to. And what is on disk: the record store, which holds" \
+  "a record for every record-held instance that returned before the kill," \
+  "and the state cache, which is written after the walk and so is not" \
+  "there at all."
 cmd "aws ec2 describe-vpcs ; aws route53 list-tags-for-resource ; ls .tofu-records ; ls .terraform"
 echo "vpcs with cidr $CIDR: $(vpcs_named)   marked as aws_vpc.main: ${KILLED_VPC:-none}" | evidence
 echo "hosted zones named $ZONE: $(zones_named) (id ${KILLED_ZONE:-none})   its markers: ${ZONE_MARKERS_AT_KILL:-none}" | evidence
 echo "the estate's tagged ARNs, as the sweep reads them: $(swept_arns | tr '\n' ' ')" | evidence
 EFFECT_RUNS="$(lines_in "$EFFECTS")"
-echo "effects.log lines (times the record-carried effect has run): $EFFECT_RUNS" | evidence
+echo "effects.log lines (times the record-backed effect has run): $EFFECT_RUNS" | evidence
+POLICIES_AT_KILL="$(group_policies)"
+PASSWORD_AT_KILL="$(password_in_record)"
+echo "inline policies on $GROUP_NAME: $POLICIES_AT_KILL   random_password.db in its record: $([ -n "$PASSWORD_AT_KILL" ] && echo "${#PASSWORD_AT_KILL} characters" || echo none)" | evidence
 echo "what the record store holds: $(record_paths)" | evidence
 echo "state cache written: $([ -f "$CACHE" ] && echo yes || echo no)" | evidence
 [ -n "$KILLED_VPC" ] || fail "killed" "the VPC the killed apply created carries no marker; internal/live/stamp puts them in the create request, so it is marked the instant it exists or this claim's first leg is gone"
-[ "$EFFECT_RUNS" = "1" ] || fail "killed" "the record-carried effect ran $EFFECT_RUNS times, not once, so the kill did not land where this claim says it did"
-[ "$(records_for terraform_data.effect)" = "0" ] \
-  || fail "killed" "the killed run wrote a record for terraform_data.effect; projection.WriteBack runs after the whole walk, so a killed walk writes none - if this has changed, the record window this claim measures has moved"
+[ "$EFFECT_RUNS" = "1" ] || fail "killed" "the record-backed effect ran $EFFECT_RUNS times, not once, so the kill did not land where this claim says it did"
+[ "$POLICIES_AT_KILL" = "1" ] || fail "killed" "the IAM group holds $POLICIES_AT_KILL inline policies at the kill, not 1, so the kill did not land where this claim says it did"
 [ ! -f "$CACHE" ] || fail "killed" "the killed run wrote a state cache, which is written after the walk"
+
+if [ "${BREAK_EARLY_RECORD:-0}" = "1" ]; then
+  step "BREAK_EARLY_RECORD control - no record until the walk is over"
+  explain \
+    "This binary writes no record until the whole walk is over, which is" \
+    "how every apply behaved before #1944. The kill landed after the inline" \
+    "policy, the password and the effect had all returned, so the record store" \
+    "must hold none of them, and the re-run must duplicate what it cannot" \
+    "see: a second inline policy on the group while the first stays, a" \
+    "regenerated password, the effect run again. If it duplicates nothing," \
+    "the main arm's 'no duplicate' proves nothing about the early record."
+  for a in terraform_data.effect random_password.db aws_iam_group_policy.deploy; do
+    [ "$(records_for "$a")" = "0" ] || fail "killed" "BREAK_EARLY_RECORD: the broken binary wrote a record for $a before the walk ended, so this control broke nothing"
+  done
+  BPLAN="$(cd "$SMOKE_WORK" && run_chdf plan -input=false -no-color 2>&1)" || fail "killed" "BREAK_EARLY_RECORD: the plan after the kill failed: $BPLAN"
+  { grep -E 'will be created|^Plan:' <<< "$BPLAN" || true; } | evidence
+  grep -q 'random_password.db will be created' <<< "$BPLAN" \
+    || fail "killed" "BREAK_EARLY_RECORD: with no record the plan still did not propose generating random_password.db again, so the main arm's 'same password' cannot tell a record from none: $BPLAN"
+  BAPPLY="$(cd "$SMOKE_WORK" && run_chdf apply -auto-approve -input=false -no-color 2>&1)" || fail "killed" "BREAK_EARLY_RECORD: the re-run failed: $BAPPLY"
+  BPOLICIES="$(group_policies)"
+  BRUNS="$(lines_in "$EFFECTS")"
+  echo "inline policies on $GROUP_NAME after the re-run: $BPOLICIES   effects.log lines: $BRUNS" | evidence
+  if [ "$BPOLICIES" = "1" ] && [ "$BRUNS" = "1" ]; then
+    fail "killed" "BREAK_EARLY_RECORD: with no early record the re-run still made no second inline policy and ran the effect once; the main arm's assertions cannot tell an early record from none"
+  fi
+  [ "$BPOLICIES" = "2" ] || fail "killed" "BREAK_EARLY_RECORD: the group holds $BPOLICIES inline policies after the re-run; the duplicate this control expects is exactly one"
+  proof "caught - with the record written only at the end of the walk, the killed run left none, and the re-run created a second inline policy ($BPOLICIES on the group, the first still there and owned by nothing) and ran the effect $BRUNS times. That is #1944's defect, and the main arm's single policy and single run are what the early record buys."
+  for k in $(awsl iam list-group-policies --group-name "$GROUP_NAME" --query 'PolicyNames[]' --output text 2>/dev/null); do
+    awsl iam delete-group-policy --group-name "$GROUP_NAME" --policy-name "$k" >/dev/null 2>&1 || true
+  done
+  ( cd "$SMOKE_WORK" && run_chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || true
+  exit 0
+fi
+
+for a in terraform_data.effect random_password.db aws_iam_group_policy.deploy; do
+  [ "$(records_for "$a")" = "1" ] \
+    || fail "killed" "the killed run left no record for $a, whose apply step returned before the kill; since #1944 its record is written the moment it returns (internal/backend/local/hook_live_record.go)"
+done
+[ -n "$PASSWORD_AT_KILL" ] || fail "killed" "random_password.db's record holds no result to compare the re-run against"
 if [ -n "$ZONE_MARKERS_AT_KILL" ]; then
-  proof "the VPC is marked and so is the zone: the kill landed after the tag write that follows a tag_on_create=false create, and everything in the account belongs to the estate. The record-carried effect HAS run and no record says so."
+  proof "the VPC is marked and so is the zone: the kill landed after the tag write that follows a tag_on_create=false create, and everything in the account belongs to the estate. The inline policy, the password and the effect each have a record: written when each returned, before the kill."
 else
-  proof "the VPC is marked, and the zone is NOT: the kill landed inside the window between CreateHostedZone and the marker write that follows the provider's create step. The sweep lists the VPC and cannot see the zone. The record-carried effect has run and no record says so."
+  proof "the VPC is marked, and the zone is NOT: the kill landed inside the window between CreateHostedZone and the marker write that follows the provider's create step. The sweep lists the VPC and cannot see the zone. The inline policy, the password and the effect each have a record: written when each returned, before the kill."
 fi
 
 if [ "${BREAK:-0}" = "1" ]; then
@@ -274,10 +417,10 @@ step "4. the next plan names what the killed apply marked"
 explain \
   "No import, no state surgery, no recovery mode: the next ordinary plan." \
   "The VPC is read back from its own markers and proposed for nothing. The" \
-  "record-carried instance is named as a create, because nothing recorded" \
-  "that it ran - the honest answer, said out loud rather than left to be" \
-  "discovered. What the plan says about the zone is the measurement this" \
-  "claim exists for, and it follows from whether the kill beat the marker."
+  "inline policy is bound from its record, and the password and the effect" \
+  "are read back from theirs, so none of the three is proposed. What the" \
+  "plan says about the zone is the measurement this claim exists for, and" \
+  "it follows from whether the kill beat the marker."
 cmd "choudoufu plan"
 PLAN="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" || fail "killed" "the plan after the kill failed: $PLAN"
 { grep -E 'will be created|^Plan:' <<< "$PLAN" || true; } | evidence
@@ -286,9 +429,12 @@ grep -q 'Plan: [0-9]* to add, 0 to change, 0 to destroy' <<< "$PLAN" \
 if grep -q 'aws_vpc.main will be created' <<< "$PLAN"; then
   fail "killed" "the plan proposes creating a VPC the account already holds under this estate's markers - the re-run would duplicate it: $PLAN"
 fi
-grep -q 'terraform_data.effect will be created' <<< "$PLAN" \
-  || fail "killed" "the record-carried instance is not named by the plan at all: $PLAN"
-proof "the marked VPC is not in the plan, because there is nothing to do to it: the dead apply's markers are the whole recovery. The record-carried instance is named as a create - its effect has already run once, and the run says what it can prove rather than what happened."
+for a in terraform_data.effect random_password.db aws_iam_group_policy.deploy; do
+  if grep -qE "$a will be (created|replaced)|$a must be replaced" <<< "$PLAN"; then
+    fail "killed" "the plan proposes building $a again although its record was written before the kill: $PLAN"
+  fi
+done
+proof "the marked VPC is not in the plan, because there is nothing to do to it: the dead apply's markers are the whole recovery. Nor are the inline policy, the password or the effect: each was recorded when its apply step returned, and the plan binds them from those records."
 if [ -n "$ZONE_MARKERS_AT_KILL" ]; then
   if grep -q 'aws_route53_zone.dns will be created' <<< "$PLAN"; then
     fail "killed" "the zone carries this estate's markers and the plan still proposes creating one: $PLAN"
@@ -307,8 +453,9 @@ explain \
   "because a duplicate is the only honest thing a tool can do with an" \
   "object nobody can prove is theirs - that is stock's behaviour for" \
   "EVERY resource in a crashed apply, and here it is the residue of one" \
-  "window on ten types. The record-carried effect runs a second time, for" \
-  "the same reason: at-least-once is the bound, not a footnote."
+  "window on ten types. The inline policy is not duplicated, the password" \
+  "is not regenerated and the effect does not run again, because each was" \
+  "recorded when it returned."
 cmd "choudoufu apply -auto-approve"
 A2_RC=0
 A2="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)" || A2_RC=$?
@@ -317,21 +464,26 @@ A2="$(cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color 2>&1)"
 VPCS_AFTER="$(vpcs_named)"
 ZONES_AFTER="$(zones_named)"
 EFFECT_RUNS_AFTER="$(lines_in "$EFFECTS")"
-echo "vpcs with cidr $CIDR: $VPCS_AFTER   hosted zones named $ZONE: $ZONES_AFTER   effects.log lines: $EFFECT_RUNS_AFTER" | evidence
+POLICIES_AFTER="$(group_policies)"
+PASSWORD_AFTER="$(password_in_record)"
+echo "vpcs with cidr $CIDR: $VPCS_AFTER   hosted zones named $ZONE: $ZONES_AFTER   effects.log lines: $EFFECT_RUNS_AFTER   inline policies: $POLICIES_AFTER" | evidence
+echo "random_password.db unchanged since the kill: $([ "$PASSWORD_AFTER" = "$PASSWORD_AT_KILL" ] && echo yes || echo no)" | evidence
 echo "what the record store holds now: $(record_paths)" | evidence
 [ "$VPCS_AFTER" = "1" ] \
   || fail "killed" "the account holds $VPCS_AFTER VPCs with this estate's cidr; the re-run duplicated the marked one the killed apply created"
-[ "$EFFECT_RUNS_AFTER" = "2" ] \
-  || fail "killed" "the record-carried effect ran $EFFECT_RUNS_AFTER times in total; this claim's bound is twice - once in the killed run and once in the re-run"
-[ "$(records_for terraform_data.effect)" = "1" ] \
-  || fail "killed" "the re-run finished and wrote no record for terraform_data.effect, so a third run would run the effect a third time"
+[ "$EFFECT_RUNS_AFTER" = "1" ] \
+  || fail "killed" "the effect ran $EFFECT_RUNS_AFTER times in total; it was recorded before the kill, so the re-run must not run it again"
+[ "$POLICIES_AFTER" = "1" ] \
+  || fail "killed" "the IAM group holds $POLICIES_AFTER inline policies after the re-run; the policy the killed apply created was recorded, so the re-run must bind it, not create a second"
+[ "$PASSWORD_AFTER" = "$PASSWORD_AT_KILL" ] \
+  || fail "killed" "random_password.db's value changed across the re-run; its record was written before the kill, so the re-run must keep it"
 if [ -n "$ZONE_MARKERS_AT_KILL" ]; then
   [ "$ZONES_AFTER" = "1" ] || fail "killed" "the zone was marked before the kill and the re-run still left $ZONES_AFTER of them"
-  proof "one VPC and one zone: everything the dead apply marked was bound, not rebuilt. The effect ran twice and is now recorded, so it will not run a third time."
+  proof "one VPC, one zone, one inline policy, the same password, and the effect run once: everything the dead apply marked or recorded was bound, not rebuilt."
 else
   [ "$ZONES_AFTER" = "2" ] \
     || fail "killed" "the zone the killed apply left is unmarked and the account holds $ZONES_AFTER of them after the re-run; the residue this claim reports is exactly one orphan and one owned zone"
-  proof "one VPC, because it was marked. TWO zones, because one of them was not: the re-run owns the zone it just made and the account still holds the unmarked one. That is the whole cost of the window, and the next step pays it."
+  proof "one VPC, because it was marked. One inline policy, the same password and the effect run once, because they were recorded. TWO zones, because one of them was neither: the re-run owns the zone it just made and the account still holds the unmarked one. That is the whole cost of the window, and the next step pays it."
 fi
 
 step "6. the orphan, and the only surgery in this scenario"
@@ -384,16 +536,17 @@ proof "a plan from the .tf files, the records and the cloud alone: nothing that 
 step "8. teardown"
 cmd "choudoufu apply -destroy -auto-approve"
 DOUT="$(cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" || fail "killed" "teardown failed: $DOUT"
-destroyed_exactly "killed" 4 "$DOUT"
-proof "four destroyed - the VPC the killed apply created was a full citizen of the estate from the moment it was bound."
+destroyed_exactly "killed" 7 "$DOUT"
+[ "$(group_policies)" = "0" ] || fail "killed" "the destroy left $(group_policies) inline policies on the group"
+proof "seven destroyed - the VPC and the inline policy the killed apply created were full citizens of the estate from the moment they were bound."
 
 echo "  What you watched: a real apply killed with SIGKILL at a point pinned"
 echo "  by the account's own resource count, and the three things it left"
 echo "  behind measured apart. The VPC was marked in its create call, so the"
-echo "  next plan asked nothing of it and the re-run bound it. The"
-echo "  record-carried instance had already run its effect with no record"
-echo "  saying so, so the plan named it as a create and it ran once more:"
-echo "  at-least-once, stated by the run. And the hosted zone - one of ten"
+echo "  next plan asked nothing of it and the re-run bound it. The inline"
+echo "  policy, the password and the effect were each recorded when they"
+echo "  returned, so the re-run bound the policy, kept the password and did not"
+echo "  run the effect again. And the hosted zone - one of ten"
 echo "  types whose create call cannot carry a tag - was killed before its"
 echo "  marker landed, so nothing could claim it and the re-run built a"
 echo "  second one. That window is the one thing here that a re-run does not"
