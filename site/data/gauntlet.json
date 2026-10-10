@@ -409,59 +409,59 @@
     "kubernetes": {
       "label": "kubernetes lane",
       "estates": 12,
-      "clear": 11,
+      "clear": 12,
       "verified": 0,
-      "carried": 11,
+      "carried": 12,
       "stages": {
         "cold_deploy": {
-          "pass": 11,
+          "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_count": {
-          "pass": 11,
+          "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_crash": {
-          "pass": 11,
+          "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_remove": {
-          "pass": 11,
+          "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_rename": {
-          "pass": 11,
+          "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_replace": {
-          "pass": 11,
+          "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_teardown": {
-          "pass": 11,
+          "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "drift_reconverge": {
-          "pass": 11,
+          "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "greenfield": {
-          "pass": 11,
+          "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "migrate": {
-          "pass": 11,
+          "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "no_local_state": {
           "pass": 2,
@@ -469,24 +469,24 @@
           "not_run": 10
         },
         "plan_approval": {
-          "pass": 11,
+          "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "strict": {
-          "pass": 11,
+          "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "test_apply": {
-          "pass": 11,
+          "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "test_plan": {
-          "pass": 11,
+          "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         }
       }
     },
@@ -4779,24 +4779,127 @@
       "substrate": "kind",
       "script": "live/e2e/reference-k8s-helm-template/run.sh",
       "stages": {
-        "cold_deploy": "not_run",
-        "day2_count": "not_run",
-        "day2_crash": "not_run",
-        "day2_remove": "not_run",
-        "day2_rename": "not_run",
-        "day2_replace": "not_run",
-        "day2_teardown": "not_run",
-        "drift_reconverge": "not_run",
-        "greenfield": "not_run",
-        "migrate": "not_run",
+        "cold_deploy": "pass",
+        "day2_count": "pass",
+        "day2_crash": "pass",
+        "day2_remove": "pass",
+        "day2_rename": "pass",
+        "day2_replace": "pass",
+        "day2_teardown": "pass",
+        "drift_reconverge": "pass",
+        "greenfield": "pass",
+        "migrate": "pass",
         "no_local_state": "not_run",
-        "plan_approval": "not_run",
-        "strict": "not_run",
-        "test_apply": "not_run",
-        "test_plan": "not_run"
+        "plan_approval": "pass",
+        "strict": "pass",
+        "test_apply": "pass",
+        "test_plan": "pass"
       },
-      "clear": false,
-      "protocol": "legacy"
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "75e4d346858364889f5724c6512f89153e48fe6a",
+          "date": "2026-10-10T13:28:44Z"
+        },
+        "day2_count": {
+          "commit": "75e4d346858364889f5724c6512f89153e48fe6a",
+          "date": "2026-10-10T13:28:44Z"
+        },
+        "day2_crash": {
+          "commit": "75e4d346858364889f5724c6512f89153e48fe6a",
+          "date": "2026-10-10T13:28:44Z"
+        },
+        "day2_remove": {
+          "commit": "75e4d346858364889f5724c6512f89153e48fe6a",
+          "date": "2026-10-10T13:28:44Z"
+        },
+        "day2_rename": {
+          "commit": "75e4d346858364889f5724c6512f89153e48fe6a",
+          "date": "2026-10-10T13:28:44Z"
+        },
+        "day2_replace": {
+          "commit": "75e4d346858364889f5724c6512f89153e48fe6a",
+          "date": "2026-10-10T13:28:44Z"
+        },
+        "day2_teardown": {
+          "commit": "75e4d346858364889f5724c6512f89153e48fe6a",
+          "date": "2026-10-10T13:28:44Z"
+        },
+        "drift_reconverge": {
+          "commit": "75e4d346858364889f5724c6512f89153e48fe6a",
+          "date": "2026-10-10T13:28:44Z"
+        },
+        "greenfield": {
+          "commit": "75e4d346858364889f5724c6512f89153e48fe6a",
+          "date": "2026-10-10T13:28:44Z"
+        },
+        "migrate": {
+          "commit": "75e4d346858364889f5724c6512f89153e48fe6a",
+          "date": "2026-10-10T13:28:44Z"
+        },
+        "plan_approval": {
+          "commit": "75e4d346858364889f5724c6512f89153e48fe6a",
+          "date": "2026-10-10T13:28:44Z"
+        },
+        "strict": {
+          "commit": "75e4d346858364889f5724c6512f89153e48fe6a",
+          "date": "2026-10-10T13:28:44Z"
+        },
+        "test_apply": {
+          "commit": "75e4d346858364889f5724c6512f89153e48fe6a",
+          "date": "2026-10-10T13:28:44Z"
+        },
+        "test_plan": {
+          "commit": "75e4d346858364889f5724c6512f89153e48fe6a",
+          "date": "2026-10-10T13:28:44Z"
+        }
+      },
+      "clear": true,
+      "protocol": "gauntlet",
+      "last_run": {
+        "commit": "75e4d346858364889f5724c6512f89153e48fe6a",
+        "date": "2026-10-10T13:28:44Z",
+        "substrate_image": "kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5",
+        "kubernetes_provider_version": "3.2.1",
+        "oracle": {
+          "terraform": "1.15.8",
+          "tofu": "1.12.5"
+        },
+        "upstream_version": "1.13.0",
+        "exit_code": 0,
+        "detail": {
+          "cold_deploy": "125 objects from plain terraform against kind v1.37.0: kube-prometheus-stack 92.3.0 (sha256 48399b911fa91b353e0c3d5e32c1cb7a67a168566549723553154ffd7be5d1fa) rendered by data.helm_template.kps into 124 kubernetes_manifest instances over 13 kinds under three for_each blocks keyed kind/namespace/name (the CRDs, the rest, then the workloads and the ServiceAccount token Secret after the RBAC they need), plus the Namespace; a real terraform.tfstate with 125 managed instances, zero tofu-estate labels read back with kubectl, the three Deployments Available and the operator's Prometheus StatefulSet ready with its claim Bound, and stock's own replan empty. The identical shape cold-deployed by stock on a second cluster as every later stage's oracle. Two applies, and the first is declared: declared pre-apply, #1173: 2 address(es) declared at pre_apply in live/gauntlet/estates.json, applied with -target on every side (estate,oracle) before the main apply - the full list is in that file and in the GAUNTLET pre_apply= line this run printed, which the runner checks address by address; forced by: kubernetes_manifest builds an object's schema at PLAN time, so a root whose render carries the chart's own CRDs and 50 objects of them cannot be planned against an empty cluster - the custom resources' kinds are not served until the CRDs exist, depends_on does not help, and re-running fails identically forever (#1173). The Namespace goes up with them because helm template renders none and the namespaced objects are dry-run into it at plan time. The main apply creates the other 114 rendered objects. Control, run first on this same cluster: the un-targeted one-pass plan exits 1 with 4 missing-CRD refusal(s) before creating anything, so the pre-apply is load-bearing. Operator-created objects the root never declared: ConfigMap/prometheus-rel-kube-prometheus-stack-prometheus-rulefiles-0; PersistentVolumeClaim/prometheus-rel-kube-prometheus-stack-prometheus-db-prometheus-rel-kube-prometheus-stack-prometheus-0 Bound; Secret/alertmanager-rel-kube-prometheus-stack-alertmanager-cluster-tls-config; Secret/alertmanager-rel-kube-prometheus-stack-alertmanager-generated; Secret/alertmanager-rel-kube-prometheus-stack-alertmanager-tls-assets-0; Secret/alertmanager-rel-kube-prometheus-stack-alertmanager-web-config; Secret/prometheus-rel-kube-prometheus-stack-prometheus; Secret/prometheus-rel-kube-prometheus-stack-prometheus-thanos-prometheus-http-client-file; Secret/prometheus-rel-kube-prometheus-stack-prometheus-tls-assets-0; Secret/prometheus-rel-kube-prometheus-stack-prometheus-web-config; Service/alertmanager-operated; Service/prometheus-operated; StatefulSet/alertmanager-rel-kube-prometheus-stack-alertmanager; StatefulSet/prometheus-rel-kube-prometheus-stack-prometheus",
+          "day2_count": "for_each over the render, scaled the way a chart user scales it: additionalPrometheusRulesMap at two entries rendered two PrometheusRules and choudoufu created both, then replanned empty; at one entry it destroyed exactly shard-1, planned at kubernetes_manifest.orphan_prometheusrule_monitoring_rel-kube-prometheus-stack-shard-1 (kubernetes_manifest.rest[\"PrometheusRule/monitoring/rel-kube-prometheus-stack-shard-0\"] untouched, both read with kubectl); back at two it created exactly kubernetes_manifest.rest[\"PrometheusRule/monitoring/rel-kube-prometheus-stack-shard-1\"]; stock's plans for the same three edits on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the remaining shard was destroyed and correctly fails",
+          "day2_crash": "an apply creating two PrometheusRules - a custom kind served by CRDs this estate's own render installed - was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 walker the instant kubernetes_manifest.crash_first's create committed; crash_second's manifest reads crash_first's name, so the walker cannot have reached it. kubectl confirms crash-first exists carrying tofu-estate=reference-k8s-helm-template and its address annotation, and crash-second does not; the interrupted apply recorded exactly the one object it created (records 141 -> 142, labels [tofu-estate], annotations [choudoufu.intentius.io/tofu-address], #1211). The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, crash_second created) and nothing for crash-first, matching stock from the same position on the oracle cluster; the recovery apply added one, the replan is empty and 123 objects carry the label, 121 plus the pair. BREAK_CRASH=1 and BREAK_CRASH_UNBOUND=1 both correctly fail The create_before_destroy rename window is interrupted too (#1768): a kubernetes_config_map renamed under create_before_destroy was killed by the engine's own hook the instant the new object's create committed, at -parallelism=1, leaving both objects carrying the block's address annotation and the record holding the old one as the address's deposed object. The verdict is the end state stock's replace leaves, not the plan's wording: after one more apply exactly the new object remains, the old one is gone, the record's deposed entry is cleared and the replan is empty. Both of the rerun's paths reached it - orphan leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at 'orphan_monitoring_crash-rename-a'; deposed leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at '(deposed object'; the same configuration through the orphan destroy, and the name read from another block's attribute (#1539's shape) through the deposed record (#1683), where stock's plan reads the same deposed-object destroy.",
+          "day2_remove": "kubeEtcd.enabled=false in values.yaml took 4 objects out of the render - a Service in kube-system, a ServiceMonitor, a PrometheusRule and a dashboard ConfigMap, across both namespaces and two custom kinds - and choudoufu proposed exactly 4 destroys (kubernetes_config_map_v1.orphan_monitoring_rel-kube-prometheus-stack-etcd; kubernetes_manifest.orphan_prometheusrule_monitoring_rel-kube-prometheus-stack-etcd; kubernetes_manifest.orphan_servicemonitor_monitoring_rel-kube-prometheus-stack-kube-etcd; kubernetes_service_v1.orphan_kube-system_rel-kube-prometheus-stack-kube-etcd), matching stock's 4 on the oracle cluster (kubernetes_manifest.rest[\"ConfigMap/monitoring/rel-kube-prometheus-stack-etcd\"]; kubernetes_manifest.rest[\"PrometheusRule/monitoring/rel-kube-prometheus-stack-etcd\"]; kubernetes_manifest.rest[\"Service/kube-system/rel-kube-prometheus-stack-kube-etcd\"]; kubernetes_manifest.rest[\"ServiceMonitor/monitoring/rel-kube-prometheus-stack-kube-etcd\"]); after the apply all four are gone (kubectl), the kube-system namespace and everything else in it untouched, the replan empty and 121 objects labelled. The controller-copy exclusion: the 14 objects prometheus-operator and the StatefulSet controller generated in monitoring (ConfigMap/prometheus-rel-kube-prometheus-stack-prometheus-rulefiles-0; PersistentVolumeClaim/prometheus-rel-kube-prometheus-stack-prometheus-db-prometheus-rel-kube-prometheus-stack-prometheus-0 Bound; Secret/alertmanager-rel-kube-prometheus-stack-alertmanager-cluster-tls-config; Secret/alertmanager-rel-kube-prometheus-stack-alertmanager-generated; Secret/alertmanager-rel-kube-prometheus-stack-alertmanager-tls-assets-0; Secret/alertmanager-rel-kube-prometheus-stack-alertmanager-web-config; Secret/prometheus-rel-kube-prometheus-stack-prometheus; Secret/prometheus-rel-kube-prometheus-stack-prometheus-thanos-prometheus-http-client-file; Secret/prometheus-rel-kube-prometheus-stack-prometheus-tls-assets-0; Secret/prometheus-rel-kube-prometheus-stack-prometheus-web-config; Service/alertmanager-operated; Service/prometheus-operated; StatefulSet/alertmanager-rel-kube-prometheus-stack-alertmanager; StatefulSet/prometheus-rel-kube-prometheus-stack-prometheus) were never proposed and read back identical, the claim still Bound. BREAK_REMOVE=1 keeps kubeEtcd and requires no destroy",
+          "day2_rename": "moved block over a for_each of 10 CRDs keyed by the render (kubernetes_manifest.crds -> .custom_resource_definitions, with the rest block's depends_on following it): no add and no destroy, 10 in-place changes each confined to the address annotation rewrite (10 annotation lines, 0 add, 10 change, 0 destroy) - the marker rewritten in place, as the AWS lanes assert for a rename; every CRD still there and labelled, the replan empty; stock's plan for the same moved block on the oracle cluster is zero churn, since stock never writes this annotation",
+          "day2_replace": "a create_before_destroy ConfigMap whose content-hashed name changes (cfg-a -> cfg-b) plans as stock's replace: 'kubernetes_config_map.hashed must be replaced', +/- create replacement and then destroy, 1 add and 1 destroy, with no orphan destroy beside it, because cfg-a carries the block's address annotation and the sweep binds it (#1640). At -parallelism=1 the apply log shows cfg-b's creation complete (line 66) before cfg-a's deposed destroy starts (line 67), the same order stock's apply shows on the oracle cluster; kubectl confirms cfg-b alone remains, carrying the annotation, and the next plan is empty (#1541). The block is removed from both roots afterwards. BREAK_REPLACE=1 recreates cfg-a carrying the block's annotation and the next plan correctly proposes destroying it",
+          "day2_teardown": "apply -destroy removed exactly the 123 remaining objects in one apply, the rendered objects before the CRDs and the Namespace by rest's depends_on; the monitoring namespace is gone and with it everything the operator generated, all 10 monitoring.coreos.com CRDs are gone, none of the estate's Services survive in kube-system while kube-system itself is untouched (the operator's own rel-kube-prometheus-stack-kubelet, which nothing declares, is left exactly as stock's destroy leaves it on B), and no object of the estate's kinds carries tofu-estate=reference-k8s-helm-template (kubectl, every namespace); stock's destroy on the oracle cluster removed exactly the 123 its state held",
+          "drift_reconverge": "a ServiceMonitor that shares its name (rel-kube-prometheus-stack-prometheus) with seven objects of other kinds was deleted out of band with kubectl; choudoufu proposed putting back exactly kubernetes_manifest.rest[\"ServiceMonitor/monitoring/rel-kube-prometheus-stack-prometheus\"] (1 add, 0 change, 0 destroy) and nothing for the seven same-named objects, matching stock's own plan on the oracle cluster; apply created 1 and the recreated object carries the estate label again (125 labelled). A delete rather than a patch because every object is server-side applied. BREAK=1 deletes the same-named PrometheusRule as well and the single-object assertion correctly fails",
+          "greenfield": "125 objects applied fresh with a live block and no terraform.tfstate - the render read by the data-read phase before the plan, the same declared pre-apply the cold deploy took (11 instances), then 114 - every one labelled tofu-estate=reference-k8s-helm-template (kubectl, 14 kinds) and the operator's Prometheus ready with its claim Bound; replanned empty with and without the cache; the record store held 125 envelope(s) for 125 instances, and with that whole store deleted the plan read \"No changes. Your infrastructure matches the configuration\", nothing created, destroyed or replaced and no kubernetes_manifest updated. BREAK=1 expects a deliberately wrong object count and the assertion correctly fails",
+          "migrate": "125 of 125 stamped, 0 skipped (125 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 0 skipped); every declared object carries tofu-estate=reference-k8s-helm-template, counted back with kubectl across all 14 kinds including the four custom ones and the five Services in kube-system. Operator-generated objects carrying the label after the stamp, by the operator's own copying from the custom resource it was stamped on: 2 (excluded from the count by their ownerReference). The eligibility line was: 125 of 125 resource instance(s) are eligible for stamping (VERIFIED or DRIFTED).",
+          "plan_approval": "a values.yaml edit (alertmanager.alertmanagerSpec.retention 120h -> 240h) re-rendered through helm_template planned as exactly one in-place update of kubernetes_manifest.rest[\"Alertmanager/monitoring/rel-kube-prometheus-stack-alertmanager\"], saved with plan -out; the world then moved out of band (kube-state-metrics' replicas to 2 with kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl still reads 120h); with the world put back the identical file applied, 0 added, 1 changed, 0 destroyed, and 240h reads back; stock's plan for the same edit on the oracle cluster is the same one update and its planfile applied. BREAK_APPROVAL=1 expects success after the move and correctly fails",
+          "strict": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_manifest) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears",
+          "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed) over 125 instances; declared objects carrying tofu-estate=reference-k8s-helm-template unchanged at 125 across the estate's 14 kinds, counted with kubectl",
+          "test_plan": "the plan with no state file is empty over 125 instances whose for_each keys and identities come from the helm_template render the data-read phase read; rel-kube-prometheus-stack-prometheus, one name across eight kinds (ServiceAccount, ConfigMap, ClusterRole, ClusterRoleBinding, Service, Prometheus, PrometheusRule, ServiceMonitor), confirmed present as eight objects with kubectl, with the five kube-system Services and a CRD"
+        },
+        "duration_s": 6201.9,
+        "stage_seconds": {
+          "cold_deploy": 306,
+          "day2_count": 817,
+          "day2_crash": 1926,
+          "day2_remove": 326,
+          "day2_rename": 333,
+          "day2_replace": 802,
+          "day2_teardown": 231,
+          "drift_reconverge": 250,
+          "greenfield": 431,
+          "migrate": 152,
+          "plan_approval": 308,
+          "strict": 124,
+          "test_apply": 121,
+          "test_plan": 72
+        }
+      }
     },
     {
       "name": "reference-k8s-platform-app",
