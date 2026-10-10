@@ -64,9 +64,25 @@ resource "kubernetes_manifest" "rest" {
       for d in split("\n---\n", data.helm_template.kps.manifest) : yamldecode(replace(d, "/(?m)^[ ]*((hostNetwork|hostIPC|hostPID|publishNotReadyAddresses): false|initialDelaySeconds: 0)[ ]*$/", ""))
       if length(regexall("(?m)^kind:", d)) > 0
     ] : "${o.kind}/${try(o.metadata.namespace, "")}/${o.metadata.name}" => o
-    if o.kind != "CustomResourceDefinition"
+    if o.kind != "CustomResourceDefinition" && !(o.kind == "Secret" && try(o.type, "") == "kubernetes.io/service-account-token")
   }
   manifest = each.value
 
   depends_on = [kubernetes_namespace_v1.monitoring, kubernetes_manifest.crds]
+}
+
+# The chart's ServiceAccount token Secret, after the ServiceAccount it names.
+# Applied in the same pass, the token controller can see the Secret before
+# its ServiceAccount exists and delete it, and the next plan proposes it
+# again. The control-plane ServiceMonitors authenticate with it, so it stays.
+resource "kubernetes_manifest" "tokens" {
+  for_each = {
+    for o in [
+      for d in split("\n---\n", data.helm_template.kps.manifest) : yamldecode(d)
+      if length(regexall("(?m)^type: kubernetes.io/service-account-token", d)) > 0
+    ] : "${o.kind}/${try(o.metadata.namespace, "")}/${o.metadata.name}" => o
+  }
+  manifest = each.value
+
+  depends_on = [kubernetes_manifest.rest]
 }

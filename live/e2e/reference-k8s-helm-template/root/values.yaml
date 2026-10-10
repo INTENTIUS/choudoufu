@@ -22,6 +22,33 @@ prometheusOperator:
   # ContainerCreating for ever, so the listener goes too.
   tls:
     enabled: false
+  # With TLS off the template still writes `volumes:` and `volumeMounts:`
+  # with nothing under them, which decodes to null and kubernetes_manifest
+  # replans for ever ("known after apply"). One scratch volume keeps both
+  # lists non-empty; the same holds for the two blocks below.
+  extraVolumes:
+    - name: scratch
+      emptyDir: {}
+  extraVolumeMounts:
+    - name: scratch
+      mountPath: /scratch
+
+kube-state-metrics:
+  service:
+    annotations:
+      example.com/fixture: reference-k8s-helm-template
+
+prometheus-node-exporter:
+  livenessProbe:
+    httpGet:
+      httpHeaders:
+        - name: Accept
+          value: text/plain
+  readinessProbe:
+    httpGet:
+      httpHeaders:
+        - name: Accept
+          value: text/plain
 
 alertmanager:
   alertmanagerSpec:
