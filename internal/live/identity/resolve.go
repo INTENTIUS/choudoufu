@@ -1623,7 +1623,29 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			// it is a manifest this package cannot read a key out of, and
 			// that is refused rather than evaluated whole.
 			trav := pathTraversal(comp.Path)
-			if narrowed, narrowOK := r.selectStaticExpr(expr, trav, scope, ident, 0); narrowOK {
+			if leaf, present, applicable := eachValuePathValue(expr, trav, scope); applicable {
+				// GitHub issue #1962: `manifest = each.value`, or a
+				// traversal into it, over a for_each element the expansion
+				// already bound as a wholly known, unmarked value. The
+				// for_each value was resolved to produce this instance's
+				// key, so reading the natural key out of the same value
+				// adds no guess. See [eachValuePathValue].
+				if !present {
+					if comp.OmitIfAbsent {
+						continue
+					}
+					r.errorf(attr.Range, "Identity not resolvable from configuration",
+						"%s reads %s.%s for its identity, but the for_each element %s is set to has no %q key.",
+						addr.String(), attr.Name, strings.Join(comp.Path, "."), attr.Name, strings.Join(comp.Path, "."))
+					fail(sibBefore, attr.Name)
+					continue
+				}
+				s, sOK := r.stringValueIn(leaf, attr.Expr, scope, ident)
+				if sOK {
+					got = []Part{{Literal: s}}
+				}
+				ok, resolvedHere = sOK, true
+			} else if narrowed, narrowOK := r.selectStaticExpr(expr, trav, scope, ident, 0); narrowOK {
 				expr = narrowed
 			} else if chased, chasedOK, applicable := r.selectStatic(expr, trav, scope, ident, 0); applicable && chasedOK {
 				got, ok, resolvedHere = chased, true, true
