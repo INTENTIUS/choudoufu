@@ -1,0 +1,51 @@
+# reference-k8s-helm-ingress-nginx's deltas from ingress-nginx 4.15.1's
+# defaults. Every other value is the chart's own.
+#
+# run.sh's stages edit three lines of this file in place - proxy-body-size,
+# ingressClassResource's enabled, and its aliases - by exact match, so keep
+# their spelling, their order and their indentation.
+
+controller:
+  # Removes the admission webhook entirely: the two certgen hook Jobs
+  # (admission-create, admission-patch) with their ServiceAccount, Roles and
+  # bindings, which a client-side render cannot express as plain objects,
+  # the ValidatingWebhookConfiguration whose caBundle the patch Job would
+  # fill, the -admission Service, and the controller's --validating-webhook
+  # flags and the volume that mounts the Secret the create Job would have
+  # made. With it on, the pod would wait in ContainerCreating for ever.
+  admissionWebhooks:
+    enabled: false
+
+  # ClusterIP rather than the chart's LoadBalancer: kind has no load
+  # balancer, so a LoadBalancer Service would sit pending, and a NodePort
+  # Service gets node ports the server allocates. With --publish-service the
+  # controller writes the Service's cluster IP into every Ingress it admits
+  # (status.loadBalancer), which run.sh reads back.
+  service:
+    type: ClusterIP
+    # The template writes `annotations:` whether or not there are any, and
+    # with none it decodes to null and kubernetes_manifest replans for ever
+    # ("known after apply"). One fixed annotation keeps the map non-empty.
+    annotations:
+      example.com/fixture: reference-k8s-helm-ingress-nginx
+
+  # The controller's ConfigMap renders `data:` with nothing under it at the
+  # defaults (null, the same replan as above). One real nginx setting fills
+  # it, and plan_approval edits it: 1m -> 8m is one in-place update of the
+  # ConfigMap and nothing else.
+  config:
+    proxy-body-size: 1m
+
+  # day2_remove turns enabled off: the IngressClass `nginx` (and any alias)
+  # leaves the render, and with it the Ingress root/main.tf declares per
+  # rendered IngressClass. The controller's own flags do not read it, so the
+  # Deployment is untouched. run.sh matches the key and enabled together,
+  # so keep enabled on the line right under ingressClassResource.
+  #
+  # aliases is day2_count's list: one more IngressClass per entry, a copy of
+  # `nginx` under the alias' name, and so one more Ingress in main.tf's
+  # ingresses block, whose for_each is keyed by the IngressClasses the
+  # render holds.
+  ingressClassResource:
+    enabled: true
+    aliases: []
