@@ -408,7 +408,7 @@
   "lanes": {
     "kubernetes": {
       "label": "kubernetes lane",
-      "estates": 15,
+      "estates": 16,
       "clear": 12,
       "verified": 0,
       "carried": 12,
@@ -416,77 +416,77 @@
         "cold_deploy": {
           "pass": 12,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "day2_count": {
           "pass": 12,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "day2_crash": {
           "pass": 12,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "day2_remove": {
           "pass": 12,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "day2_rename": {
           "pass": 12,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "day2_replace": {
           "pass": 12,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "day2_teardown": {
           "pass": 12,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "drift_reconverge": {
           "pass": 12,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "greenfield": {
           "pass": 12,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "migrate": {
           "pass": 12,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "no_local_state": {
           "pass": 2,
           "fail": 0,
-          "not_run": 13
+          "not_run": 14
         },
         "plan_approval": {
           "pass": 12,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "strict": {
           "pass": 12,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "test_apply": {
           "pass": 12,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         },
         "test_plan": {
           "pass": 12,
           "fail": 0,
-          "not_run": 3
+          "not_run": 4
         }
       }
     },
@@ -4770,6 +4770,33 @@
           "test_plan": 36
         }
       }
+    },
+    {
+      "name": "reference-k8s-helm-cloudnative-pg",
+      "source": "cloudnative-pg 0.29.1, the CloudNativePG operator chart (operator 1.30.1, Apache-2.0, chart archive sha256 b53d3991fe84bcf38767e7702cae78666265427a127a26fff168ab4207d2b1df, fetched and checked by run.sh) rendered client-side by hashicorp/helm's data \"helm_template\" - never helm_release - into three kubernetes_manifest blocks whose for_each splits and yamldecodes the render inside the for_each expression, keyed kind/namespace/name, with manifest = each.value (#1962): the chart's 11 CRDs, its other 11 objects, and the operator Deployment with wait { rollout = true }; plus two Namespaces, one hand-written Cluster (instances 1, 1Gi) the operator turns into a Pod, a PersistentVolumeClaim, Secrets and Services nothing declares, and an ImageCatalog for_each day2_count scales - 26 objects over 12 kinds. The webhook PKI is the operator's own at runtime (its CA and serving Secrets, caBundle patched into the two declared webhook configurations); INHERITED_LABELS has it copy tofu-estate onto what it generates. Deltas in root/values.yaml: config.data given an entry (INHERITED_LABELS) so it is not an empty map, the mutating webhook's failurePolicy written out, the grafana dashboard ConfigMap on. reference- because the root is ours",
+      "lane": "kubernetes",
+      "set": "growing",
+      "substrate": "kind",
+      "script": "live/e2e/reference-k8s-helm-cloudnative-pg/run.sh",
+      "stages": {
+        "cold_deploy": "not_run",
+        "day2_count": "not_run",
+        "day2_crash": "not_run",
+        "day2_remove": "not_run",
+        "day2_rename": "not_run",
+        "day2_replace": "not_run",
+        "day2_teardown": "not_run",
+        "drift_reconverge": "not_run",
+        "greenfield": "not_run",
+        "migrate": "not_run",
+        "no_local_state": "not_run",
+        "plan_approval": "not_run",
+        "strict": "not_run",
+        "test_apply": "not_run",
+        "test_plan": "not_run"
+      },
+      "clear": false,
+      "protocol": "legacy"
     },
     {
       "name": "reference-k8s-helm-external-secrets",
