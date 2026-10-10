@@ -780,7 +780,12 @@ func runOne(root string, e Estate, opts RunOptions, extraEnv []string) (*Protoco
 	attachCombinedOutput(cmd, &captured, logf)
 	fmt.Fprintf(opts.Stdout, "%s: running %s on %s (log: %s)\n", e.Name, e.ScriptPath(), flociPortEnvEntry(extraEnv), filepath.Join(LogDir, e.Name+".log"))
 	start := time.Now()
+	release, err := handConfirmation(cmd)
+	if err != nil {
+		return nil, 0, 0, err
+	}
 	runErr := cmd.Run()
+	release()
 	elapsed := time.Since(start).Seconds()
 	exit := 0
 	if runErr != nil {

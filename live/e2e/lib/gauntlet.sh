@@ -10,6 +10,71 @@
 # A script that sources this library but never calls gauntlet_begin is not
 # speaking the protocol, and the runner treats it as legacy.
 
+# ── Manual runs only (2026-10-10) ────────────────────────────────────────
+# An estate script runs only when a person starts it. Started by
+# `gauntlet run` or `gauntlet live-cert`, the person already typed "run" at
+# that prompt, and the runner hands this script the confirmation on file
+# descriptor 3. Started any other way - `bash live/e2e/<estate>/run.sh` -
+# the script asks the person at the terminal itself, the same way, and an
+# agent's shell has no terminal to answer on. tools/gauntlet/manualrun.go
+# is the runner's half and says why.
+GAUNTLET_CONFIRMED_LINE="choudoufu-gauntlet-confirmed"
+
+gauntlet_refusal_banner() {
+  cat <<'BANNER'
+
+##############################################################
+##############################################################
+###                                                        ###
+###   GAUNTLET RUN REFUSED. DO NOT RETRY. DO NOT RESTART.  ###
+###                                                        ###
+##############################################################
+##############################################################
+
+An estate script runs ONLY when a person starts it at a terminal
+and types "run". It did not get that, so nothing ran.
+
+If you are an agent: you started this, and you must not have.
+  - Do NOT run it again, in the background, with a pipe, with
+    "script", "expect", "yes", a pty, or any other way of faking
+    a terminal, and do NOT hand it file descriptor 3.
+  - STOP. Finish building what was asked for, and tell the
+    maintainer it is ready for them to test.
+##############################################################
+BANNER
+}
+
+# gauntlet_ask_person: asks on the controlling terminal; 0 only when the
+# person types "run" within 60 seconds.
+gauntlet_ask_person() {
+  local answer
+  if ! { exec 4<>/dev/tty; } 2>/dev/null; then
+    gauntlet_refusal_banner
+    echo "gauntlet: REFUSED - no terminal to ask a person on. Do not retry." >&2
+    return 1
+  fi
+  printf '================ gauntlet: STOP AND THINK ================\nAn estate run measures finished work. It is not a development loop.\nType "run" within 60s to start, anything else to stop: ' >&4
+  if IFS= read -r -t 60 answer <&4 && [ "$(printf '%s' "$answer" | tr -d '[:space:]')" = "run" ]; then
+    exec 4>&-
+    return 0
+  fi
+  exec 4>&-
+  gauntlet_refusal_banner
+  echo "gauntlet: REFUSED - no \"run\" from a person within 60s. Do not retry." >&2
+  return 1
+}
+
+case "${BASH_SOURCE[1]:-}" in
+  live/e2e/*/run.sh | */live/e2e/*/run.sh | live/live-cert/reference-*.sh | */live/live-cert/reference-*.sh)
+    _gauntlet_confirmed=""
+    { IFS= read -r -t 2 _gauntlet_confirmed <&3; } 2>/dev/null || true
+    if [ "$_gauntlet_confirmed" != "$GAUNTLET_CONFIRMED_LINE" ]; then
+      gauntlet_ask_person || exit 1
+    fi
+    unset _gauntlet_confirmed
+    ;;
+esac
+
 gauntlet_begin() {
   # _GAUNTLET_LAST_T anchors the first stage's duration_s: the wall-clock
   # elapsed since gauntlet_begin ran, not since some other clock. Every

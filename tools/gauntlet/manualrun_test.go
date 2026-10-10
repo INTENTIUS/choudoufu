@@ -8,6 +8,9 @@ package main
 import (
 	"bytes"
 	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -68,5 +71,53 @@ func TestRunTimesOutWhenNobodyAnswers(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "DO NOT RETRY. DO NOT RESTART.") {
 		t.Fatalf("refusal banner not printed on timeout:\n%s", out.String())
+	}
+}
+
+func TestEstateScriptRunsOnlyWithTheRunnersConfirmation(t *testing.T) {
+	if tty, err := openTTY(); err == nil {
+		tty.Close()
+		t.Skip("a terminal is attached; the script would ask it instead of refusing")
+	}
+	repo, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	lib, err := os.ReadFile(filepath.Join(repo, "live", "e2e", "lib", "gauntlet.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	writeFile := func(p, content string) {
+		full := filepath.Join(root, p)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeFile("live/e2e/lib/gauntlet.sh", string(lib))
+	writeFile("live/e2e/x/run.sh", "source \"$(dirname \"$0\")/../lib/gauntlet.sh\"\necho RAN\n")
+
+	run := func(confirm bool) (string, error) {
+		cmd := exec.Command("bash", "live/e2e/x/run.sh")
+		cmd.Dir = root
+		if confirm {
+			release, err := handConfirmation(cmd)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer release()
+		}
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	}
+	if out, err := run(true); err != nil || !strings.Contains(out, "RAN") {
+		t.Fatalf("with the runner's confirmation the script did not run: err=%v\n%s", err, out)
+	}
+	out, err := run(false)
+	if err == nil || strings.Contains(out, "RAN") || !strings.Contains(out, "DO NOT RETRY") {
+		t.Fatalf("started directly with no terminal, the script ran or did not refuse: err=%v\n%s", err, out)
 	}
 }

@@ -104,8 +104,18 @@ any `live/live-cert/*.sh` with `TARGET=aws`) or a whole-set run (`gauntlet
 run -set core`, `-set all`, or a bare `gauntlet run` with no names) unless
 the maintainer asked for that specific run in the current session.** Not
 inferred from a goal, not carried over from an earlier approval, not
-"needed to finish the unit". A single named estate against the emulator
-is the ordinary developer loop and needs nothing.
+"needed to finish the unit".
+
+## Only the maintainer runs the gauntlet
+
+Since 2026-10-10 every `gauntlet run`, `gauntlet live-cert` and estate
+`run.sh` asks the person at the terminal to type "run", times out after 60
+seconds, and refuses with a DO NOT RETRY banner otherwise. Agents have no
+terminal, so an agent never measures an estate, single named ones
+included, and never fakes a terminal or file descriptor 3 to get past it.
+Build what was asked for, merge it, and tell the maintainer it is ready to
+test. The night before, one estate was driven to clear one kind cycle at a
+time when the ask was to build many first and test after.
 
 **Three real-AWS certification cycles and two corpus runs went out
 overnight on 2026-09-11 on exactly that inferred authorization.** That is

@@ -526,6 +526,9 @@ func cmdLiveCert(root string, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := confirmManualRun(os.Stdout); err != nil {
+		return err
+	}
 	if fs.NArg() != 1 {
 		return fmt.Errorf("live-cert needs exactly one estate name, got %d", fs.NArg())
 	}

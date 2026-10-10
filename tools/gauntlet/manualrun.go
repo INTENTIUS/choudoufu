@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 )
@@ -99,3 +100,26 @@ func confirmFrom(out io.Writer, in io.Reader, timeout time.Duration) error {
 
 // openTTY opens the controlling terminal.
 func openTTY() (*os.File, error) { return os.Open("/dev/tty") }
+
+// confirmedLine is what the runner hands an estate script on file
+// descriptor 3 once the person has typed "run", so the script does not ask
+// them a second time. live/e2e/lib/gauntlet.sh reads it; anything else on
+// fd 3, or nothing, and the script asks the terminal itself.
+const confirmedLine = "choudoufu-gauntlet-confirmed"
+
+// handConfirmation gives cmd the confirmation on its file descriptor 3. The
+// returned close releases this process's end once the child has started.
+func handConfirmation(cmd *exec.Cmd) (func(), error) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := w.WriteString(confirmedLine + "\n"); err != nil {
+		r.Close()
+		w.Close()
+		return nil, err
+	}
+	w.Close()
+	cmd.ExtraFiles = append([]*os.File{r}, cmd.ExtraFiles...)
+	return func() { r.Close() }, nil
+}
