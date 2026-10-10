@@ -17,6 +17,11 @@ prometheusOperator:
   # a client-side render cannot express as plain objects.
   admissionWebhooks:
     enabled: false
+  # The operator's TLS listener mounts the Secret the webhook's hook Job
+  # would have created; with no hook Job the pod waits in
+  # ContainerCreating for ever, so the listener goes too.
+  tls:
+    enabled: false
 
 alertmanager:
   alertmanagerSpec:
