@@ -164,6 +164,40 @@ against ownership:
   Helm's lifecycle: no rollback, no release history, no hooks, and an
   upgrade is a re-render and a plan.
 
+Hazards of the `helm_template` route, each one measured on
+`reference-k8s-helm-template` ([#1965](https://github.com/INTENTIUS/choudoufu/pull/1965)).
+They are stock OpenTofu's too; none is specific to a live root.
+
+- `helm_template` never asks the cluster, so it renders against Helm's
+  default capabilities (Kubernetes v1.20.0) and a chart with a
+  `kubeVersion` constraint refuses. Set `kube_version`, pinned, so the
+  render is the same on every cluster.
+- A plain `false` bool or `0` int on a built-in kind (`hostNetwork: false`,
+  `hostIPC`, `hostPID`, `publishNotReadyAddresses: false`,
+  `initialDelaySeconds: 0`) is omitempty in the API's Go types, so the
+  server never stores it and the provider reports an inconsistent result
+  after apply. Drop those lines from the render before `yamldecode`.
+  Pointer fields (`*bool`) are stored and survive.
+- A key the template writes with nothing under it (`volumes:`,
+  `volumeMounts:`) decodes to null and `kubernetes_manifest` replans it
+  for ever as known after apply. Give it one entry through values.
+- A Secret that a Helm hook Job would have created (an admission webhook's
+  certificate, a TLS listener's key) is never created, because a render has
+  no hooks, and a pod mounting it waits in ContainerCreating. Switch the
+  webhook off, and whatever mounts its Secret with it.
+- A workload that checks its RBAC once at start-up (prometheus-operator
+  disables controllers for good) must apply after its ClusterRoleBinding:
+  put Deployments and DaemonSets in a block that `depends_on` the rest.
+- A ServiceAccount token Secret applied before its ServiceAccount is
+  deleted by the token controller and proposed again by the next plan.
+  Apply it in the same late block.
+- A chart that renders its own CRDs and objects of them cannot be planned
+  in one pass against an empty cluster: the CRDs go up first, with
+  `-target`.
+- Names a chart shares across kinds collide in a key made of the name
+  alone. Key the `for_each` by kind, namespace and name, and decode the
+  document inside the `for_each` expression so `manifest = each.value`.
+
 A chart's own objects are never the estate's by accident. An object
 carrying Helm's release annotation (`meta.helm.sh/release-name`) is
 controller-held (ruled on
