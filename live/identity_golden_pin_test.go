@@ -3228,7 +3228,14 @@ const (
 	// golden's sweep does not read. It adds no row, so instances and
 	// body-sha256 are unchanged. fixture-dirs 669 -> 670 on the same row;
 	// the cohort pins are untouched.
-	identityGoldenPinDirs = 701
+	//
+	// 701 -> 702 for reference-k8s-helm-sealed-secrets: one directory,
+	// live/e2e/reference-k8s-helm-sealed-secrets/root, whose kubernetes_manifest
+	// instances are keyed by a for_each over a render the
+	// golden's sweep does not read. It adds no row, so instances and
+	// body-sha256 are unchanged. fixture-dirs 670 -> 671 on the same row;
+	// the cohort pins are untouched.
+	identityGoldenPinDirs = 702
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).
