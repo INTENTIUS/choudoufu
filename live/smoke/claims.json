@@ -675,6 +675,13 @@
               ]
             },
             {
+              "scenario": "live/smoke/scenarios/a-role-holds-an-address-pattern.sh",
+              "command": "just smoke a-role-holds-an-address-pattern",
+              "minutes": 3,
+              "break_mode": "BREAK=1 rewrites the role's grant with the same actions and no condition on tofu-address, and passes only when the role's change on module.db lands",
+              "note": "One role, one StringLike on aws:ResourceTag/tofu-address (module.app.*) and no tofu-estate condition: in one estate it changes module.app and is refused on module.db, through choudoufu and through the plain AWS CLI (#1955)."
+            },
+            {
               "scenario": "live/smoke/scenarios/the-boundary-holds-across-regions.sh",
               "command": "just smoke the-boundary-holds-across-regions",
               "minutes": 2,

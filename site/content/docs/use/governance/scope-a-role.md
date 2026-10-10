@@ -70,16 +70,18 @@ instead, and the grant covers named addresses rather than the whole estate.
 
 ```json
 "Condition": {
-  "StringLike": {"aws:ResourceTag/tofu-address": "aws_subnet.*"}
+  "StringLike": {"aws:ResourceTag/tofu-address": ["module.app.*", "module.app:*"]}
 }
 ```
 
 `aws:RequestTag/tofu-address` is the matching create grant, giving
 a principal the right to create one declared address and nothing else.
 
-Both keys are ordinary resource tags, which is the whole reason the
-substitution works. Nothing new is configured, and there is no second
-permission model to keep in step with your IAM.
+[Claim 13]({{< relref "/docs/claims/the-tag-is-the-boundary" >}}) runs
+the change half: in one estate the role changes `module.app` and AWS
+refuses it on `module.db`. `module.app:*` covers a keyed module call;
+[live/MARKERS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md#what-this-grant-cannot-reach)
+has the limits.
 
 ## Across estates
 

@@ -127,6 +127,7 @@ jobs:
           - two-estates-at-once
           - an-ignored-tag-is-not-drift
           - the-tag-is-the-boundary
+          - a-role-holds-an-address-pattern
           - a-held-delete-is-not-gone
           - the-server-gets-the-last-word
           - record-only-survives-cache-loss

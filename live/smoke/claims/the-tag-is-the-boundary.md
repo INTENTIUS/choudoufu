@@ -34,6 +34,21 @@ The same carve ran on real AWS on 2026-09-03; its CloudTrail record is in
 gives Bob the same reach with no condition, and his write must go
 through.
 
+### a-role-holds-an-address-pattern
+
+    just smoke a-role-holds-an-address-pattern
+    BREAK=1 just smoke a-role-holds-an-address-pattern
+
+The within-estate grant on its own (#1955). One estate declares
+`module.app` and `module.db`, and one role holds a single statement:
+`ec2:CreateTags`, `ec2:DeleteTags` and `ec2:TerminateInstances` under
+`StringLike` on `aws:ResourceTag/tofu-address` = `module.app.*`, with no
+`tofu-estate` condition. The role's apply changes `module.app`, and the
+same change on `module.db` is refused by the emulator's IAM enforcement,
+as are a plain `aws ec2 create-tags` and `terminate-instances` on it.
+`BREAK=1` rewrites the grant with the same actions and the condition
+removed, and the role's change on `module.db` must land.
+
 ### the-boundary-holds-across-regions (claim 16 until #1817)
 
     just smoke the-boundary-holds-across-regions
