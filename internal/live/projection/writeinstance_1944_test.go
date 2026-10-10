@@ -45,6 +45,10 @@ func stores1944(t *testing.T) map[string]func(t *testing.T) staterecord.Store {
 			return s
 		},
 		"monotonic": func(t *testing.T) staterecord.Store { return &monotonicStore{} },
+		// GitHub issue #1949: the real KubernetesStore over a fake
+		// clientset that assigns resourceVersions and enforces conflicts
+		// (writeinstance_kubernetes_1949_test.go).
+		"kubernetes": func(t *testing.T) staterecord.Store { return newApiserverFake(t).store(t) },
 	}
 }
 
