@@ -13,7 +13,7 @@ resolve one of four ways.
 |---|---|
 | Two creates of the same client-named resource | The cloud's uniqueness constraint rejects the second. The loser re-plans, binds to the winner's resource, and comes back clean. |
 | Two creates of the same server-assigned resource | Both are created. The next plan reports a marker collision naming both live IDs and refuses rather than guessing. A human deletes one. |
-| Divergent in-place updates | Last writer wins at the API. The next plan reads the live system and converges. |
+| Divergent in-place updates | Last writer wins at the API for plain `apply` runs. A saved plan approved against a value the other run replaced is refused ([below](#an-attribute-the-cloud-holds)). The next plan reads the live system and converges. |
 | An update racing a destroy | The loser gets not-found, re-plans, and converges. |
 
 No race orphans a resource silently. Each case is a clean re-plan or a named
@@ -49,6 +49,32 @@ A conditional write succeeds or fails in one step and keeps nothing, so a dead
 run leaves nothing held. That is why `force-unlock` is refused: no lock
 exists to open. The local store is the one place a lock file appears, for one
 file write, and a stale one is broken by the next writer.
+
+## An attribute the cloud holds
+
+The conditional write referees what is in a record, and an ordinary cloud
+resource's record holds little: its identity, the arguments the provider
+never reads back, taint, deposed objects and tombstones. An attribute the
+provider reads back from the cloud, such as a queue's visibility timeout or an
+instance's type, is not in it. Two applies that change such an attribute leave
+the record's bytes as they were, and a record whose bytes did not change is not
+written, so no conditional write is checked.
+
+Two plain `apply` runs that change the same such attribute are last-writer-wins
+at the cloud API. Both succeed and the cloud keeps whichever call came last;
+neither run is told.
+
+`apply <planfile>` covers most of that. It re-reads the live system, plans
+again, and refuses with exit status 3 when one of the plan's own changes
+differs from the approved plan in its before- or after-values. A plan approved
+against a value another apply has since replaced is refused by name, and the
+cloud keeps the other apply's value. A plan whose changes the other apply did
+not touch still applies. Two saved-plan applies that both re-read the live
+system before either reaches the cloud are not covered.
+[Claim 2]({{< relref "/docs/claims/no-self-managed-locks" >}}) applies two
+plans saved against one SQS queue's visibility timeout, one after the other:
+the second is refused naming the before-value, and the queue keeps the first
+apply's value.
 
 Serialize applies against one estate in CI anyway, where the real mutex has
 always been - two estates need none

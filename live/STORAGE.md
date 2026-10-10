@@ -141,7 +141,12 @@ Nothing is found by tag: objects are found by listing a known prefix.
 A create is `If-None-Match: *`, and an update or a delete carries `If-Match`
 with the version the writer read. Nothing is locked. A record the apply
 would write back exactly as it read it is not written at all, so two applies
-that change different resources of one estate both land (#1938).
+that change different resources of one estate both land (#1938). The same
+rule means two applies that change one attribute the provider reads back
+from the cloud write no record and meet no condition: the record holds no such
+value, and two plain applies are last-writer-wins at the cloud API. A saved
+plan approved against the value the other apply replaced is refused when it is
+applied (#878).
 [Two runs at once](https://intentius.io/choudoufu/docs/model/concurrency/) has the races.
 Every read is scoped to one estate, so adding an estate to the bucket slows
 no other.
