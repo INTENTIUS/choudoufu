@@ -589,7 +589,7 @@ func TestVersionLiteralGuardIsRedOnAHandAuthoredRoot(t *testing.T) {
 	// pre-#1252 literal put back, checked against the real file.
 	const usesK8sHelper = "$K8S_REQUIRED_PROVIDER\n"
 	const k8sHandPinned = "    kubernetes = {\n      source  = \"hashicorp/kubernetes\"\n      version = \"= 3.2.1\"\n    }\n"
-	for _, k8s := range []string{"e2e/reference-k8s/run.sh", "e2e/reference-k8s-stateful/run.sh", "e2e/reference-k8s-cert-manager/run.sh", "e2e/reference-k8s-workloads/run.sh"} {
+	for _, k8s := range []string{"e2e/reference-k8s/run.sh", "e2e/reference-k8s-stateful/run.sh", "e2e/reference-k8s-cert-manager/run.sh", "e2e/reference-k8s-workloads/run.sh", "e2e/reference-k8s-helm-template/run.sh"} {
 		if !inScope[k8s] {
 			t.Errorf("live/%s is not in the version-literal rule's scope - #1252 put the hashicorp/kubernetes estates there", k8s)
 			continue

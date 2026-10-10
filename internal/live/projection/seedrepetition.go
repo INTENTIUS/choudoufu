@@ -13,6 +13,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/instances"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/staticeval"
 )
 
@@ -129,6 +130,21 @@ func (b *builder) forEachElements(ctx context.Context, modPath addrs.Module, mod
 	b.seedEachMu.Unlock()
 
 	elems, ok := staticeval.ForEachElements(ctx, mod, rc.ForEach)
+	if !ok && mod != nil && mod.StaticEvaluator != nil {
+		// GitHub issue #1963: a for_each over a data source this run has
+		// read - a Helm chart rendered by data.helm_template, split and
+		// yamldecoded inside the for_each expression - is evaluated with
+		// the same data-results evaluator [builder.prepareRead] seeds the
+		// block's own arguments with. Identity resolution derived these
+		// very instance keys from the same results (#1962); without this
+		// `manifest = each.value` was never seeded, the prior carried no
+		// manifest, and the provider planned every instance as an update
+		// ("Apply needed after 'import'"). A collection with an unknown or
+		// a mark anywhere in it still declines.
+		if lookup, _ := identity.DataLookupFor(b.opts.DataResults, modPath); lookup != nil {
+			elems, ok = staticeval.ForEachElementsWithData(ctx, mod.StaticEvaluator.WithDataResults(lookup), rc.ForEach)
+		}
+	}
 
 	b.seedEachMu.Lock()
 	if b.seedEach == nil {
