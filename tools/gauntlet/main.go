@@ -323,6 +323,9 @@ func cmdRun(root string, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := confirmManualRun(os.Stdout); err != nil {
+		return err
+	}
 
 	m, a, err := loadAll(root)
 	if err != nil {
