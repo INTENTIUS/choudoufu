@@ -1,0 +1,17 @@
+# reference-k8s-helm-metallb's values for metallb 0.16.1. The render needs no
+# delta from the chart's defaults to apply as plain objects (root/main.tf's
+# header has the measurements), so both lines below restate a default: they
+# are here because run.sh's stages edit them in place by exact match, the way
+# a chart user makes a day-2 change. Keep their spelling.
+
+controller:
+  # plan_approval: info -> debug re-renders the controller Deployment's
+  # --log-level argument, one in-place update.
+  logLevel: info
+
+speaker:
+  excludeInterfaces:
+    # day2_remove: false takes the metallb-excludel2 ConfigMap out of the
+    # render and its volume out of the speaker DaemonSet - one destroy and
+    # one in-place update.
+    enabled: true
