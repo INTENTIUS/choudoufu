@@ -622,6 +622,20 @@ showing its own checks would have caught it.
   where a RoundTripper parks each writer's first request until both are
   parked (#1441).
 
+- **two-saved-plans-one-attribute** - *Claim 2 (claim 47, #1504): two
+  saved plans, one attribute: the second is refused because the value it
+  was planned from is gone.* Two checkouts of one estate save plans that
+  change one SQS queue's `visibility_timeout_seconds` from 30, to 60 and
+  to 90. A step first changes the attribute behind both checkouts and
+  requires the next plan to read it back, so the race is about a value
+  the cloud holds and the record does not. The first plan applies; the
+  second re-reads the queue and is refused with exit 3, naming
+  `before.visibility_timeout_seconds` (#878), with the queue left on 60;
+  its re-plan applies. The BREAK control rebuilds choudoufu with the
+  before-values comparison removed (go build -overlay, needs Go, refuses
+  a release binary) and passes only when the second apply is caught
+  reporting success with the queue on 90. Needs python3.
+
 - **cas-holds-under-every-sse-flavour** - *Claim 2 (claim 33 until #1817): compare-and-swap
   holds under every SSE flavour.* **Real AWS, maintainer-run, not in
   CI**: it refuses to start without `SMOKE_REAL_AWS=1`, because an

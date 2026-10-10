@@ -5,7 +5,9 @@
 # a-bulk-read-is-complete-or-it-fails, 32 two-writers-one-record - runs
 # here with its BREAK=1 control, one job per scenario. So does claim 44,
 # an-estate-reads-another-by-declaring-it, the cross-estate output read of
-# #1371, which keeps its records in the same kind of bucket.
+# #1371, which keeps its records in the same kind of bucket, and
+# two-saved-plans-one-attribute (claim 2's proof from #1504), whose two
+# checkouts share one.
 #
 # Nothing ran them before this. That is how claim 28 stayed red from #1351
 # to #1369, across several merges: the scenario was written against a bare
@@ -65,6 +67,7 @@ jobs:
           - a-bulk-read-is-complete-or-it-fails
           - two-writers-one-record
           - an-estate-reads-another-by-declaring-it
+          - two-saved-plans-one-attribute
     steps:
       - uses: actions/checkout@v7
         with:
