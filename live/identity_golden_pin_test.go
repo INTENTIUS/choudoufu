@@ -3242,7 +3242,14 @@ const (
 	// golden's sweep does not read. It adds no row, so instances and
 	// body-sha256 are unchanged. fixture-dirs 671 -> 672 on the same row;
 	// the cohort pins are untouched.
-	identityGoldenPinDirs = 703
+	//
+	// 703 -> 704 for reference-k8s-yaml-rollouts: one directory,
+	// live/e2e/reference-k8s-yaml-rollouts/root, whose kubernetes_manifest
+	// instances are keyed by a for_each over a render the
+	// golden's sweep does not read. It adds no row, so instances and
+	// body-sha256 are unchanged. fixture-dirs 672 -> 673 on the same row;
+	// the cohort pins are untouched.
+	identityGoldenPinDirs = 704
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).

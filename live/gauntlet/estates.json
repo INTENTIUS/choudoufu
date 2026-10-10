@@ -513,6 +513,17 @@
       "set": "growing"
     },
     {
+      "name": "reference-k8s-yaml-rollouts",
+      "source": "Argo Rollouts v1.10.0's published install bundle (install.yaml, a release asset of github.com/argoproj/argo-rollouts, Apache-2.0, sha256 ca8a1785391026023627c8a12db5422e227d7a7a6ec7c01f99f7d5b1726ed53c, fetched and checked by run.sh) - a plain multi-document YAML, no Helm chart and no hashicorp/helm provider - read with file() and split(\"\\n---\\n\") and yamldecoded inside three for_each expressions keyed kind/namespace/name, with manifest = each.value (#1962): the bundle's 5 CRDs, its 9 other objects with metadata.namespace merged into the five namespaced ones (the bundle is written for kubectl apply -n and carries none), then its controller Deployment, plus the Namespace and the root's own AnalysisTemplates (a for_each over merge() of a literal and a local) - 17 objects over 10 kinds, one name across four kinds two of them cluster-scoped, and three aggregate-to-* ClusterRoles whose rules the aggregation controller copies into the built-in admin, edit and view roles nothing declares. No delta to the bundle's objects beyond the namespace; day-2 changes are exact-match edits of the working copy of the YAML. reference- because the root is ours",
+      "lane": "kubernetes",
+      "set": "growing",
+      "pre_apply": [
+        "kubernetes_namespace_v1.argo_rollouts",
+        "kubernetes_manifest.crds"
+      ],
+      "pre_apply_reason": "kubernetes_manifest builds an object's schema at PLAN time, so a root declaring the bundle's own CRDs and an AnalysisTemplate of one of them cannot be planned against an empty cluster - the kind is not served until the CRD exists, depends_on does not help, and re-running fails identically forever (#1173). The Namespace goes up with them because the bundle carries none and the namespaced objects are dry-run into it at plan time. The main apply creates the bundle's other 10 objects and the base AnalysisTemplate"
+    },
+    {
       "name": "terralith-scale",
       "source": "tools/terralith-gen, generated at -scale 1 by this estate's own crossing script: a synthetic single-state terralith of stock Terraform - IAM-dominated with deliberate copy-paste duplication, a small ECS layer and a Route53 fan-out, expanded with count, for_each and a module-nested pod (issues #564 and #574). No upstream repository: the artifact is the generator, and \"the same estate at 4x\" is -scale 4 rather than a second fixture.",
       "lane": "reference",
