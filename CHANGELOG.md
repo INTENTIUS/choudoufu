@@ -37,7 +37,43 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
    `generated-from.json` alongside the pin. Skipping this step for more than
    one release cycle is what `TestCIPipelinePinIsTiedToRelease` turns red for.
 
-## choudoufu v0.25.0 (Unreleased)
+## choudoufu v0.26.0 (Unreleased)
+
+## choudoufu v0.25.0 (2026-10-10)
+
+Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.25.0.json`](live/history/v0.25.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.24.0.json live/history/v0.25.0.json`):
+
+- Core estates: 26/26 clear -> 26/26 clear (0)
+- All estates: 27/28 clear -> 27/28 clear (0)
+- Newly cleared: none
+- Regressed: none
+
+- New: `choudoufu live-history <address>` lists a record's versions, newest
+  first, from the record store bucket's noncurrent versions: when each was
+  written, never what it held. A `local` or `kubernetes` record store keeps
+  none (#1954).
+
+- New: a role scoped by address pattern inside one estate. Under a role
+  limited to `module.app.*`, a change to `module.app` applies and the same
+  change to `module.db` is refused by IAM; proven on floci with IAM
+  enforcement, with its `BREAK` control. A module under `for_each` or `count`
+  needs the second pattern `module.app:*` (#1955).
+
+- New: `manifest = each.value` (or a traversal into it) on a
+  `kubernetes_manifest` resolves its identity when the `for_each` element is
+  wholly known and unmarked; a marked or partly unknown element is still
+  refused by name (#1962).
+
+- Fixed: with no live block, a provider's validation warnings print as stock
+  OpenTofu prints them (#1925).
+
+- Tests: the mid-apply record version chain on the Kubernetes record store
+  (#1949). Gauntlet: a new kubernetes-lane estate,
+  `reference-k8s-helm-template` (kube-prometheus-stack through `helm_template`
+  into `kubernetes_manifest`, #1963), and the kubernetes lane re-measured,
+  11 of 11 clear (#1967).
 
 - New: `choudoufu live-history ADDRESS` lists the versions of one resource
   instance's record, newest first, from the record store bucket's noncurrent
