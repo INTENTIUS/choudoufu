@@ -9,9 +9,15 @@ Stock takes a lock before it touches state, because two writers corrupting
 one file is fatal when the file is the record, and a run that dies holding
 the lock strands the next one until someone runs `force-unlock`. Nothing
 here takes a lock. Two applies racing on a resource are refereed by the
-platform's own uniqueness rules, and two racing on a record by one
-conditional write that lands or is refused. A run killed at any point
-leaves nothing behind for the next run to clear.
+platform's own uniqueness rules, two racing on a record by one
+conditional write that lands or is refused, and two saved plans racing on
+an attribute the provider reads back by the apply's re-read of the live
+system. A run killed at any point leaves nothing behind for the next run
+to clear.
+
+Two plain `apply` runs that change the same attribute of one cloud
+resource, one the provider reads back, are last-writer-wins at the cloud
+API, as they are under stock.
 
 Each scenario runs from the repository root and ends on a `PASS` line; its
 `BREAK=1` run breaks the thing the proof rests on and must print a
@@ -44,6 +50,25 @@ version it expected and the one it found, and its recovery is an ordinary
 re-plan. A writer killed mid-write strands nothing. `BREAK=1` rebuilds
 choudoufu with no `If-Match` (`go build -overlay`, so it needs Go), and
 both racing applies must be caught reporting success over one record.
+
+### two-saved-plans-one-attribute (#1504)
+
+    just smoke two-saved-plans-one-attribute
+    BREAK=1 just smoke two-saved-plans-one-attribute
+
+An ordinary cloud resource's record holds its identity and what the cloud
+cannot give back, so an attribute the provider reads back is not in it and
+no conditional write referees a race on it. Two checkouts of one estate
+save plans changing one SQS queue's `visibility_timeout_seconds` from 30,
+one to 60 and one to 90; the scenario first proves the provider reads that
+attribute back from the cloud. The first plan applies. The second re-reads
+the queue, finds 60 where its approval said 30, and is refused with exit 3
+naming `before.visibility_timeout_seconds` (#878); the queue keeps 60, and
+the second checkout's recovery is a re-plan. The two applies run one after
+the other: two that both re-read before either writes are not covered.
+`BREAK=1` rebuilds choudoufu with the before-values comparison removed
+(`go build -overlay`, so it needs Go), and the second apply must be caught
+reporting success with the queue on 90.
 
 ### backend-sets-itself-up (claim 4 until #1817; real AWS)
 
