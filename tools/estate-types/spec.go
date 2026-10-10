@@ -390,4 +390,10 @@ var estateSpecs = []estateSpec{
 		ScanScript: true,
 		Note:       `The "kubernetes" lane's sealed-secrets Helm estate, in reference-k8s-helm-template's shape (#1963): sealed-secrets 2.20.0 rendered by hashicorp/helm's helm_template data source (never helm_release) into root/main.tf's three for_each kubernetes_manifest blocks (the chart's one CRD, its other 10 objects including a SealedSecret from extraDeploy, then the controller's Deployment; manifest = each.value) plus a kubernetes_namespace_v1 - 13 objects, no module, no AWS provider. helm_template is a data source and so is not counted here. run.sh's write_root() copies main.tf, values.yaml and the sha256-checked chart archive into each working root and appends only a versions.tf; its crash_block() heredoc adds day2_crash's two kubernetes_manifest SealedSecrets, and its strict_block() heredoc (the strict-stage scratch estate) adds random_password. day2_replace's and day2_crash's create_before_destroy kubernetes_config_map blocks are live/e2e/lib/gauntlet.sh's and not scanned, as for the other kind estates.`,
 	},
+	{
+		Name:       "reference-k8s-helm-argo-cd",
+		ConfigDirs: []string{"live/e2e/reference-k8s-helm-argo-cd/root"},
+		ScanScript: true,
+		Note:       `The "kubernetes" lane's Argo CD Helm estate: argo-cd 10.10.2 rendered by hashicorp/helm's helm_template data source (never helm_release) into root/main.tf's three for_each kubernetes_manifest blocks (the chart's 3 CRDs, its 43 other non-workload objects, its five Deployments and one StatefulSet; manifest = each.value) plus a kubernetes_namespace_v1 - 53 objects, no module, no AWS provider. helm_template is a data source and so is not counted here. run.sh's write_root() copies main.tf, values.yaml and the sha256-checked chart archive into each working root and appends only a versions.tf; its crash_block() heredoc adds day2_crash's two kubernetes_manifest Applications, and its strict_block() heredoc (the strict-stage scratch estate) adds random_password. day2_replace's and day2_crash's create_before_destroy kubernetes_config_map blocks are live/e2e/lib/gauntlet.sh's and not scanned, as for the other kind estates.`,
+	},
 }
