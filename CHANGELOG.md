@@ -39,6 +39,14 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.25.0 (Unreleased)
 
+- New: `choudoufu live-history ADDRESS` lists the versions of one resource
+  instance's record, newest first, from the record store bucket's noncurrent
+  versions: when each was written, its version id, and which is current or a
+  delete marker, never what it held. `-json` gives the same as one document.
+  It takes `s3:ListBucketVersions`, which the estate's own role does not
+  carry. A `local` or `kubernetes` record store keeps no past versions and
+  the command says so (#1954).
+
 ## choudoufu v0.24.0 (2026-10-09)
 
 Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.24.0.json`](live/history/v0.24.0.json).

@@ -385,6 +385,15 @@ func initCommands(meta command.Meta) {
 			}, nil
 		},
 
+		// GitHub issue #1954: a record's past versions, from the record
+		// store bucket's noncurrent versions. It reads and prints; public
+		// from the start for live-check's reason above.
+		"live-history": func() (cli.Command, error) {
+			return &command.LiveHistoryCommand{
+				Meta: meta,
+			}, nil
+		},
+
 		"providers lock": func() (cli.Command, error) {
 			return &command.ProvidersLockCommand{
 				Meta: meta,
