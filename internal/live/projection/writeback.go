@@ -1551,6 +1551,9 @@ func priorVersion(versions []RecordVersion, addr addrs.AbsResourceInstance) stri
 // already uses. verb is "Writing" or "Deleting", matching the operation
 // that failed.
 func writeBackConflictDiag(addr addrs.AbsResourceInstance, verb string, err error, backend string, retryCfg retry.Config) tfdiags.Diagnostics {
+	if errors.Is(err, errConflictReported) {
+		return nil
+	}
 	var vErr *staterecord.VersionConflictError
 	if errors.As(err, &vErr) {
 		return tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(tfdiags.Error, "Record store write conflict", fmt.Sprintf(

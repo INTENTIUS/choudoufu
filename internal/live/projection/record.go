@@ -910,6 +910,44 @@ type RecordStore struct {
 	// the first produced, or it conflicts with this run's own write. See
 	// [RecordStore.ownVersion]. Guarded by mu.
 	wrote map[string][]string
+
+	// conflicted is every key whose conditional write or delete in this
+	// run lost to another writer. The conflict was reported where it
+	// happened - mid-apply, it failed the apply at that instance (#1944) -
+	// and any later write to the key would only lose again, so
+	// [RecordStore.mergeEnvelope] refuses it with [errConflictReported]
+	// and the final pass does not report it a second time. Guarded by mu.
+	conflicted map[string]bool
+}
+
+// errConflictReported is what [RecordStore.mergeEnvelope] returns for a key
+// whose earlier write in this run already lost a version conflict and was
+// reported. [writeBackConflictDiag] turns it into no diagnostic at all.
+var errConflictReported = errors.New("an earlier write of this record in this run already lost a version conflict, which was reported")
+
+// noteConflict records key in [RecordStore.conflicted] when err is a
+// version conflict.
+func (s *RecordStore) noteConflict(key string, err error) {
+	var conflict *staterecord.VersionConflictError
+	if s == nil || !errors.As(err, &conflict) {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.conflicted == nil {
+		s.conflicted = map[string]bool{}
+	}
+	s.conflicted[key] = true
+}
+
+// conflictReported reports whether key is in [RecordStore.conflicted].
+func (s *RecordStore) conflictReported(key string) bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.conflicted[key]
 }
 
 // ownVersion is the version a write to key expecting expected must really
@@ -1613,6 +1651,9 @@ func (s *RecordStore) mergeEnvelope(ctx context.Context, addr addrs.AbsResourceI
 		return "", fmt.Errorf("no record store is configured, so %s's record cannot be written", addr)
 	}
 	key := RecordKey(s.prefix, addr)
+	if s.conflictReported(key) {
+		return "", errConflictReported
+	}
 	// GitHub issue #1944: when this run already wrote the key mid-apply,
 	// "the version my plan read" means the version that write produced.
 	expectedVersion = s.ownVersion(key, expectedVersion)
@@ -1656,6 +1697,7 @@ func (s *RecordStore) mergeEnvelope(ctx context.Context, addr addrs.AbsResourceI
 			return "", nil
 		}
 		if err := s.store.Delete(ctx, key, expectedVersion); err != nil {
+			s.noteConflict(key, err)
 			return "", err
 		}
 		s.forgetRead(key)
@@ -1673,6 +1715,7 @@ func (s *RecordStore) mergeEnvelope(ctx context.Context, addr addrs.AbsResourceI
 		// Issue #1287: the write did not land, so nothing later in this run
 		// may read this key's absence as "no such resource".
 		s.noteWriteFailure(key, putErr)
+		s.noteConflict(key, putErr)
 		return "", putErr
 	}
 	s.noteWriteLanded(key)
