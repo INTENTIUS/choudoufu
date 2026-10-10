@@ -330,4 +330,10 @@ var estateSpecs = []estateSpec{
 		ScanScript: true,
 		Note:       `The "kubernetes" lane's CRD estate (#1174, under #1173's cold-deploy pre-apply ruling): cert-manager v1.21.2's own install bundle, converted mechanically by convert.sh (tfk8s, then order.py) into root/cert-manager.tf, plus root/custom-resources.tf's three hand-written custom resources (a cluster-scoped ClusterIssuer, a namespaced Issuer, a Certificate) - 50 objects over 13 kinds, every one a kubernetes_manifest, no module, no AWS provider. run.sh's write_root() copies both files verbatim into each working root and appends only a versions.tf (provider/live wiring, no resources); its append_shards() heredoc adds a fourth, counted kubernetes_manifest (issuer_shard) for day2_count's own duration, not in the committed root. Its strict_block() heredoc (the strict-stage scratch estate) adds random_password, outside kubernetes_manifest.`,
 	},
+	{
+		Name:       "reference-k8s-helm-template",
+		ConfigDirs: []string{"live/e2e/reference-k8s-helm-template/root"},
+		ScanScript: true,
+		Note:       `The "kubernetes" lane's Helm estate (#1963): kube-prometheus-stack 92.3.0 rendered by hashicorp/helm's helm_template data source (never helm_release) into root/main.tf's two for_each kubernetes_manifest blocks (the chart's 10 CRDs and its other 114 objects, manifest = each.value) plus a kubernetes_namespace_v1 - 125 objects, no module, no AWS provider. helm_template is a data source and so is not counted here. run.sh's write_root() copies main.tf, values.yaml and the sha256-checked chart archive into each working root and appends only a versions.tf; its crash_block() heredoc adds day2_crash's two kubernetes_manifest PrometheusRules, and its strict_block() heredoc (the strict-stage scratch estate) adds random_password. day2_replace's and day2_crash's create_before_destroy kubernetes_config_map blocks are live/e2e/lib/gauntlet.sh's and not scanned, as for the other kind estates.`,
+	},
 }

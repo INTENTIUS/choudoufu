@@ -58,10 +58,19 @@
     "by accident. There is no registry-lag argument here (kind needs no",
     "mirror), so the reason is the weaker one that the board presents the",
     "three rows as comparable: a bump re-measures all three by hand, since",
-    "no row records the value yet (the aws field's #1253 gap, one lane over)."
+    "no row records the value yet (the aws field's #1253 gap, one lane over).",
+    "",
+    "helm_provider_version (#1963) is the hashicorp/helm release",
+    "reference-k8s-helm-template requires exactly, printed by",
+    "gauntlet_helm_required_provider. That estate uses the provider for one",
+    "data source, helm_template, which renders the chart client-side; no",
+    "estate declares helm_release against a pinned provider. The render's",
+    "content depends on the Helm library this release vendors, so the pin is",
+    "part of what the estate's identities are."
   ],
   "terraform_version": "1.16.1",
   "tofu_version": "1.13.0",
   "aws_provider_version": "6.63.0",
-  "kubernetes_provider_version": "3.2.1"
+  "kubernetes_provider_version": "3.2.1",
+  "helm_provider_version": "3.1.1"
 }

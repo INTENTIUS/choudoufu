@@ -90,7 +90,55 @@ func ForEachElements(ctx context.Context, mod *configs.Module, expr hcl.Expressi
 	}
 
 	val, ok := EvaluateOK(ctx, mod.StaticEvaluator, expr, "for_each")
-	if !ok || val == cty.NilVal || val.IsNull() || !val.IsWhollyKnown() || val.IsMarked() {
+	if !ok {
+		return nil, false
+	}
+	return forEachElementsOf(val)
+}
+
+// ForEachElementsWithData is [ForEachElements] for a for_each whose
+// collection reads a data source this run has already read (GitHub issue
+// #1963): eval is a module evaluator that answers data.* references from
+// those results ([configs.StaticEvaluator.WithDataResults]), the same one
+// the configured seed already evaluates a resource's own arguments with.
+//
+// The shape is the one live/kubernetes/COMPATIBILITY.md recommends for a
+// rendered Helm chart - for_each over data.helm_template's render split and
+// yamldecoded inside the for_each expression, `manifest = each.value` -
+// whose instance keys identity resolution already derives from the same
+// data result (#1962). Without this, each.value for such a block was never
+// bound and a manifest written as each.value was never seeded.
+//
+// It is stricter than [ForEachElements] in one respect: the whole
+// collection must carry no mark ANYWHERE, not only at the top. A data
+// source can mark one leaf of what it returns, and a sensitive value
+// becomes neither an instance key nor a seeded value through this path;
+// such a for_each reports "not computable here", which is exactly the
+// answer it had before this function existed.
+func ForEachElementsWithData(ctx context.Context, eval *configs.StaticEvaluator, expr hcl.Expression) (map[string]cty.Value, bool) {
+	if eval == nil || expr == nil {
+		return nil, false
+	}
+	// The pre-filter is [Allowed] plus data, which eval answers from its
+	// lookup or refuses with a diagnostic; every other root still panics
+	// in a static scope and must not reach it.
+	for _, trav := range expr.Variables() {
+		if root := trav.RootName(); !Allowed(root) && root != "data" {
+			return nil, false
+		}
+	}
+	val, ok := EvaluateOK(ctx, eval, expr, "for_each")
+	if !ok || val == cty.NilVal || val.ContainsMarked() {
+		return nil, false
+	}
+	return forEachElementsOf(val)
+}
+
+// forEachElementsOf is the element half [ForEachElements] and
+// [ForEachElementsWithData] share: a wholly known, unmarked for_each value
+// taken apart into its (key, each.value) pairs.
+func forEachElementsOf(val cty.Value) (map[string]cty.Value, bool) {
+	if val == cty.NilVal || val.IsMarked() || val.IsNull() || !val.IsWhollyKnown() {
 		return nil, false
 	}
 

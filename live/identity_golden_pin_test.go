@@ -3165,7 +3165,14 @@ const (
 	// schema for. It adds no row, so instances and body-sha256 are
 	// unchanged. fixture-dirs 660 -> 661 on the same row; the cohort pins
 	// are untouched.
-	identityGoldenPinDirs = 692
+	//
+	// 692 -> 693 for #1963: one directory,
+	// live/e2e/reference-k8s-helm-template/root, whose kubernetes_manifest
+	// instances are keyed by a for_each over a data.helm_template render the
+	// golden's sweep does not read. It adds no row, so instances and
+	// body-sha256 are unchanged. fixture-dirs 661 -> 662 on the same row;
+	// the cohort pins are untouched.
+	identityGoldenPinDirs = 693
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).

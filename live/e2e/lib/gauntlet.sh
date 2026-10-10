@@ -306,10 +306,17 @@ gauntlet_kubernetes_required_provider() {
   gauntlet_required_provider kubernetes hashicorp/kubernetes kubernetes_provider_version "${1:-    }"
 }
 
+# gauntlet_helm_required_provider [indent]: the same for hashicorp/helm, from
+# live/oracle-versions.json's helm_provider_version (#1963). Only
+# reference-k8s-helm-template declares it, for its helm_template data source.
+gauntlet_helm_required_provider() {
+  gauntlet_required_provider helm hashicorp/helm helm_provider_version "${1:-    }"
+}
+
 # gauntlet_required_provider <local-name> <source> <field> [indent]: prints
 # one required_providers entry pinned exactly to live/oracle-versions.json's
-# <field>. The two functions above are the only callers; a third provider
-# pin would be a third field and a third one-line wrapper.
+# <field>. The three functions above are the only callers; a fourth provider
+# pin would be a fourth field and a fourth one-line wrapper.
 gauntlet_required_provider() {
   local name="$1" source="$2" field="$3" indent="${4:-    }" pin
   pin="$(gauntlet_oracle_pin "$field")"
