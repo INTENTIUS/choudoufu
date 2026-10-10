@@ -51,15 +51,17 @@ resource "kubernetes_manifest" "crds" {
   manifest = each.value
 }
 
-# A false plain-bool field (omitempty in the API's Go types, so the server
-# never stores it) comes back null and the provider reports an inconsistent
-# result after apply - stock fails on kube-state-metrics' hostNetwork: false.
+# A false plain bool or a zero plain int (omitempty in the API's Go types,
+# so the server never stores it) comes back null and the provider reports an inconsistent
+# result after apply - stock fails on kube-state-metrics' hostNetwork: false
+# and node-exporter's initialDelaySeconds: 0. The render's full list of such
+# values in built-in kinds is these five fields; *bool fields survive.
 # Dropping those lines before yamldecode is the delta; every other field is
 # the chart's.
 resource "kubernetes_manifest" "rest" {
   for_each = {
     for o in [
-      for d in split("\n---\n", data.helm_template.kps.manifest) : yamldecode(replace(d, "/(?m)^[ ]*(hostNetwork|hostIPC|hostPID|publishNotReadyAddresses): false[ ]*$/", ""))
+      for d in split("\n---\n", data.helm_template.kps.manifest) : yamldecode(replace(d, "/(?m)^[ ]*((hostNetwork|hostIPC|hostPID|publishNotReadyAddresses): false|initialDelaySeconds: 0)[ ]*$/", ""))
       if length(regexall("(?m)^kind:", d)) > 0
     ] : "${o.kind}/${try(o.metadata.namespace, "")}/${o.metadata.name}" => o
     if o.kind != "CustomResourceDefinition"
