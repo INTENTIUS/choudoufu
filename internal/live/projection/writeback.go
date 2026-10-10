@@ -236,6 +236,27 @@ type WriteBackRequest struct {
 	// destroy's final state carries no outputs, and neither does a scoped
 	// apply that never evaluated them. See [PruneRootOutputValues].
 	WholeDestroy bool
+
+	// Only narrows a pass to one instance: [WriteInstance]'s mid-apply
+	// write (GitHub issue #1944). Nil is the final pass over every
+	// instance. FinalState is then the state that one instance's apply
+	// step just left, and an instance absent from it was destroyed by that
+	// step.
+	Only *addrs.AbsResourceInstance
+}
+
+// covers reports whether this pass writes addr's record.
+func (req WriteBackRequest) covers(addr addrs.AbsResourceInstance) bool {
+	return req.Only == nil || req.Only.Equal(addr)
+}
+
+// replacedSet indexes ReplacedAddrs by address string.
+func (req WriteBackRequest) replacedSet() map[string]bool {
+	out := make(map[string]bool, len(req.ReplacedAddrs))
+	for _, a := range req.ReplacedAddrs {
+		out[a.String()] = true
+	}
+	return out
 }
 
 // WriteBack persists every managed instance's post-apply record to
@@ -258,6 +279,7 @@ type WriteBackRequest struct {
 // alphabetically.
 func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
+	req.Only = nil
 
 	diags = diags.Append(writeBackRecordEnvelopes(ctx, req))
 	// Issue #349's root output values. Deliberately outside the req.Store
@@ -270,6 +292,58 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 		return diags
 	}
 
+	objDiags, deleteFailed := writeBackObjects(ctx, req)
+	diags = diags.Append(objDiags)
+
+	// GitHub issue #1355: a whole destroy re-reads the store and fails if a
+	// record-backed instance's record outlived it.
+	if req.WholeDestroy {
+		diags = diags.Append(clearUnreadRecordsOnWholeDestroy(ctx, req))
+		diags = diags.Append(verifyWholeDestroyLeftNoObjectRecord(ctx, req, deleteFailed))
+	}
+
+	return diags
+}
+
+// WriteInstance is GitHub issue #1944: the record of the one instance
+// req.Only names, written as soon as that instance's apply step returns
+// rather than once the whole apply has. A run that dies after a create and
+// before [WriteBack] would otherwise leave the object in the cloud and no
+// record of it, and for two populations the record is all there is: a
+// record-backed instance (random_*, tls_*, terraform_data, time_*), whose
+// record IS the object, and a record-carried one (a LocatedType, a type
+// selected by `markers "record"`, an instance resolved through #1675's
+// record-fallback door or let through by #1637's exemption), whose identity
+// has no marker to ride on. Those are the instances this writes.
+//
+// A destroy is written here too, for every type: an instance absent from
+// req.FinalState was destroyed by the step that just returned, and its
+// record is tombstoned or deleted exactly as the final pass would.
+//
+// It is the final pass narrowed to one address, with the same conditional
+// writes, the same replace and deposed signals from the plan, and two
+// things left out: the residue half, which needs a configured provider and
+// says nothing about identity, and everything estate-wide (root outputs,
+// #1355's whole-destroy guard). [WriteBack] still runs at the end; it
+// expects the version this write produced ([RecordStore.ownVersion]) and,
+// since #1938, sends nothing for a record whose bytes this already wrote.
+func WriteInstance(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if req.Store == nil || req.Only == nil {
+		return diags
+	}
+	diags = diags.Append(writeBackRecordEnvelopes(ctx, req))
+	objDiags, _ := writeBackObjects(ctx, req)
+	return diags.Append(objDiags)
+}
+
+// writeBackObjects is [WriteBack]'s record-backed (kind=object) half: every
+// record-backed instance in the final state is written, and every one the
+// plan read and the final state no longer has is tombstoned. It returns the
+// addresses whose delete failed, for #1355's guard.
+func writeBackObjects(ctx context.Context, req WriteBackRequest) (tfdiags.Diagnostics, map[string]bool) {
+	var diags tfdiags.Diagnostics
+
 	seen := make(map[string]bool, len(req.PriorVersions))
 	// deleteFailed is every address whose delete below already raised its
 	// own diagnostic, so GitHub issue #1355's guard does not name it twice.
@@ -279,9 +353,13 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 	// pass the way issue #854's replace set is - see
 	// [WriteBackRequest.DestroyedDeposed].
 	deposedDestroyed := destroyedDeposedIndex(req.DestroyedDeposed)
+	replaced := req.replacedSet()
 
 	if req.FinalState != nil {
 		for _, entry := range req.FinalState.AllResourceInstanceObjectAddrs() {
+			if !req.covers(entry.Instance) {
+				continue
+			}
 			if entry.DeposedKey != states.NotDeposed {
 				// A deposed object is a mid-replace leftover the graph is
 				// about to discard; the record for this address is the
@@ -341,7 +419,7 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 				// Issue #938, before the diff below deletes the entries it
 				// reads: a deposed object this apply's own plan destroyed
 				// is recorded as destroyed by this estate.
-				tombstoneDestroyedDeposed(env, ri, deposedDestroyed[addr.String()])
+				tombstoneDestroyedDeposed(env, ri, destroyedDeposedFor(env, deposedDestroyed[addr.String()], replaced[addr.String()]))
 				diffDeposedForWrite(env, ri, schema, typeName, res.ProviderConfig)
 			}); err != nil {
 				diags = diags.Append(writeBackConflictDiag(addr, "Writing", err, req.Backend, req.Retry))
@@ -350,7 +428,7 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 	}
 
 	for _, rv := range req.PriorVersions {
-		if seen[rv.Addr.String()] {
+		if seen[rv.Addr.String()] || !req.covers(rv.Addr) {
 			continue
 		}
 		// tombstone, not delete: this address left the final state
@@ -369,14 +447,57 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 		}
 	}
 
-	// GitHub issue #1355: a whole destroy re-reads the store and fails if a
-	// record-backed instance's record outlived it.
-	if req.WholeDestroy {
-		diags = diags.Append(clearUnreadRecordsOnWholeDestroy(ctx, req))
-		diags = diags.Append(verifyWholeDestroyLeftNoObjectRecord(ctx, req, deleteFailed))
-	}
+	return diags, deleteFailed
+}
 
-	return diags
+// recordCarried reports whether addr's record is the only carrier of its
+// identity: its type is a LocatedType, or `markers "record"` selects it, or
+// this run's plan resolved it through #1675's record-fallback door or let it
+// through #1637's exemption - the same three doors whose failure to record
+// [writeBackRecordEnvelopes] already treats as a run-stopping error.
+func recordCarried(req WriteBackRequest, selects bool, viaRecordFallback map[string]bool, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig) bool {
+	if viaRecordFallback[addr.String()] {
+		return true
+	}
+	typeName := addr.Resource.Resource.Type
+	schemaPtr, _ := req.Schemas.ResourceTypeConfig(provider.Provider, addrs.ManagedResourceMode, typeName)
+	if schemaPtr == nil || schemaPtr.Block == nil {
+		return false
+	}
+	typeSchemas := map[string]providers.Schema{typeName: *schemaPtr}
+	return identity.LocatedType(typeName, typeSchemas) ||
+		(selects && identity.SelectedLocatedType(typeName, typeSchemas))
+}
+
+// destroyedDeposedFor is the deposed-destroy set one write tombstones
+// against: the plan's own (#938) and, for an address the plan scheduled a
+// replace of (#854), every deposed object the record holds. GitHub issue
+// #1944: once records are written mid-apply, a create_before_destroy
+// replace's create leg records the old object under its deposed key and
+// the new one as the identity, so by the time the destroy leg returns the
+// record no longer shows the identity moving and [supersedeIdentity] has
+// nothing to act on. The plan scheduled that destroy, and
+// [tombstoneDestroyedDeposed] still requires the key to have left the
+// state, so a destroy leg that failed records nothing (#901).
+func destroyedDeposedFor(env *recordEnvelope, planned map[states.DeposedKey]bool, replaced bool) map[states.DeposedKey]bool {
+	if !replaced || env == nil || len(env.Deposed) == 0 {
+		return planned
+	}
+	current := tombstoneKey(env.Identity)
+	out := make(map[states.DeposedKey]bool, len(planned)+len(env.Deposed))
+	for k := range planned {
+		out[k] = true
+	}
+	for k, df := range env.Deposed {
+		// A replace that re-creates the same nameable object (a
+		// client-named type) leaves the old one's identity on the new
+		// one, and that identity is alive.
+		if df != nil && current != "" && tombstoneKey(df.Identity) == current {
+			continue
+		}
+		out[states.DeposedKey(k)] = true
+	}
+	return out
 }
 
 // clearUnreadRecordsOnWholeDestroy is GitHub issue #1883: when the whole
@@ -872,10 +993,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 	providerCache := map[string]providers.Interface{}
 
 	// Issue #854's plan-derived replace signal, indexed once per pass.
-	replaced := make(map[string]bool, len(req.ReplacedAddrs))
-	for _, a := range req.ReplacedAddrs {
-		replaced[a.String()] = true
-	}
+	replaced := req.replacedSet()
 
 	// Issue #938's plan-derived deposed-destroy signal, indexed the same
 	// way - see [WriteBackRequest.DestroyedDeposed].
@@ -918,7 +1036,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 
 	if req.FinalState != nil {
 		for _, entry := range req.FinalState.AllResourceInstanceObjectAddrs() {
-			if entry.DeposedKey != states.NotDeposed {
+			if entry.DeposedKey != states.NotDeposed || !req.covers(entry.Instance) {
 				continue
 			}
 			addr := entry.Instance
@@ -935,6 +1053,13 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 			}
 			ri := res.Instance(addr.Resource.Key)
 			if ri == nil || ri.Current == nil {
+				continue
+			}
+
+			// GitHub issue #1944: the mid-apply write is for an instance
+			// whose record is its only identity carrier. Every other
+			// instance's record is bookkeeping the final pass writes.
+			if req.Only != nil && !recordCarried(req, selection.Selects(addr.ConfigResource()), viaRecordFallback, addr, res.ProviderConfig) {
 				continue
 			}
 
@@ -1132,7 +1257,12 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 					}
 					candidates := residueCandidates(schema, obj.Value, secrets)
 					pathCandidates := residueLeafPathCandidates(schema, obj.Value, secrets)
-					if len(candidates)+len(pathCandidates) > 0 && req.Providers == nil {
+					if req.Only != nil {
+						// GitHub issue #1944: a mid-apply write has no
+						// configured provider to classify with and residue
+						// is not identity. Left as it was; the final pass
+						// classifies it.
+					} else if len(candidates)+len(pathCandidates) > 0 && req.Providers == nil {
 						if !noProvidersWarned {
 							noProvidersWarned = true
 							diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryResidueNotClassified,
@@ -1366,7 +1496,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				// replace, where neither of [supersedeIdentity]'s two
 				// facts holds and the switch above therefore records
 				// nothing.
-				tombstoneDestroyedDeposed(env, ri, destroyedHere)
+				tombstoneDestroyedDeposed(env, ri, destroyedDeposedFor(env, destroyedHere, wasReplaced))
 				diffDeposedForWrite(env, ri, schemaPtr, typeName, res.ProviderConfig)
 				if fgRec != nil {
 					env.FieldGranular = fieldGranularMerged(env.FieldGranular, fgRec, fgEstateOwned)
@@ -1379,7 +1509,12 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 	}
 
 	for _, rv := range req.EnvelopeVersions {
-		if seen[rv.Addr.String()] {
+		if seen[rv.Addr.String()] || !req.covers(rv.Addr) {
+			continue
+		}
+		// A mid-apply write skips every instance whose record is not its
+		// identity carrier; one still in the state was not destroyed.
+		if req.Only != nil && stillCurrent(req.FinalState, rv.Addr) {
 			continue
 		}
 		// tombstone, not delete: see the identical comment on the

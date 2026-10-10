@@ -900,6 +900,54 @@ type RecordStore struct {
 	// change anything relative to the version the caller expects, and
 	// writes nothing when it would not. Guarded by mu.
 	read map[string]readBaseline
+
+	// wrote is GitHub issue #1944's version chain: for every key this run
+	// wrote or deleted, the version the first such write expected followed
+	// by every version this run's own writes left behind ("" for a
+	// delete). An apply writes a record twice - once when its instance's
+	// apply step returns, once in the final write-back pass - and both
+	// callers pass the version their plan read. The second must expect what
+	// the first produced, or it conflicts with this run's own write. See
+	// [RecordStore.ownVersion]. Guarded by mu.
+	wrote map[string][]string
+}
+
+// ownVersion is the version a write to key expecting expected must really
+// expect: the latest version this run's own writes left the key at, when
+// expected is one this run itself started from or produced, and expected
+// unchanged otherwise. A version this run never saw names another writer's
+// record, and the conditional write against it fails as it always did.
+func (s *RecordStore) ownVersion(key, expected string) string {
+	if s == nil {
+		return expected
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	chain := s.wrote[key]
+	for _, v := range chain {
+		if v == expected {
+			return chain[len(chain)-1]
+		}
+	}
+	return expected
+}
+
+// noteOwnWrite extends key's chain after a write or delete that landed,
+// from the version it expected to the one it left ("" after a delete).
+func (s *RecordStore) noteOwnWrite(key, from, to string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.wrote == nil {
+		s.wrote = map[string][]string{}
+	}
+	chain := s.wrote[key]
+	if len(chain) == 0 || chain[len(chain)-1] != from {
+		chain = []string{from}
+	}
+	s.wrote[key] = append(chain, to)
 }
 
 // readBaseline is one entry of [RecordStore.read]: a version and the exact
@@ -1565,6 +1613,9 @@ func (s *RecordStore) mergeEnvelope(ctx context.Context, addr addrs.AbsResourceI
 		return "", fmt.Errorf("no record store is configured, so %s's record cannot be written", addr)
 	}
 	key := RecordKey(s.prefix, addr)
+	// GitHub issue #1944: when this run already wrote the key mid-apply,
+	// "the version my plan read" means the version that write produced.
+	expectedVersion = s.ownVersion(key, expectedVersion)
 
 	// GitHub issue #1938: a record this run would write back exactly as it
 	// read it is not written at all. Without this, every apply rewrote the
@@ -1608,6 +1659,7 @@ func (s *RecordStore) mergeEnvelope(ctx context.Context, addr addrs.AbsResourceI
 			return "", err
 		}
 		s.forgetRead(key)
+		s.noteOwnWrite(key, expectedVersion, "")
 		return "", nil
 	}
 	payload, err := marshalEnvelopeForWrite(env, addr)
@@ -1624,6 +1676,7 @@ func (s *RecordStore) mergeEnvelope(ctx context.Context, addr addrs.AbsResourceI
 		return "", putErr
 	}
 	s.noteWriteLanded(key)
+	s.noteOwnWrite(key, expectedVersion, newVersion)
 	// What this run just wrote is now the baseline for this key: a later
 	// merge in the same pass that expects newVersion compares against it.
 	s.noteRead(key, newVersion, payload)

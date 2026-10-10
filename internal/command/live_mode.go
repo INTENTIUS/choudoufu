@@ -1662,6 +1662,31 @@ func (r *liveRunner) WriteBack(ctx context.Context, finalState *states.State, sc
 	return diags
 }
 
+// WriteInstance implements [backendLocal.LiveRun]: GitHub issue #1944's
+// mid-apply write of one instance's record, [projection.WriteInstance] with
+// the same store, versions and plan signals [liveRunner.WriteBack] passes.
+// No providers: the one half that needs them, residue, is the final pass's.
+func (r *liveRunner) WriteInstance(ctx context.Context, state *states.State, addr addrs.AbsResourceInstance, schemas *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy) tfdiags.Diagnostics {
+	if r.recordStore == nil {
+		return nil
+	}
+	return projection.WriteInstance(ctx, projection.WriteBackRequest{
+		Store:               r.recordStore,
+		Retry:               r.retryCfg,
+		Backend:             r.recordBackend,
+		PriorVersions:       r.recordVersions,
+		EnvelopeVersions:    r.envelopeVersions,
+		RecordFallbackAddrs: r.recordFallbackAddrs,
+		UnmarkedApplyAddrs:  r.unmarkedApplyAddrs,
+		FinalState:          state,
+		Schemas:             schemas,
+		ReplacedAddrs:       replaced,
+		DestroyedDeposed:    deposedDestroys,
+		Config:              r.liveConfig,
+		Only:                &addr,
+	})
+}
+
 // AfterApply implements [backendLocal.LiveRun]: the untag verb's
 // apply-time release, run once a real apply - never a plan - has finished
 // changing the live system. See this type's untagGroups field for why the
