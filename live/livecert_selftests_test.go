@@ -33,9 +33,10 @@ import (
 // drive them against stubs, with no AWS, no docker, no terraform and no go
 // build. Those run here, in the ordinary Go tier, on every push and pull
 // request. The fifth, selftest-kill.sh, launches the real harness against
-// the pinned emulator and needs docker, terraform and the AWS CLI, so it
-// runs as its own ci.yml job; TestCIRunsTheKillSelftest below is what keeps
-// that job from quietly going away.
+// the pinned emulator, which starts live/live-cert/reference-ec2-vpc.sh.
+// Since #1972 that script runs only when a person at a terminal types
+// "run", so selftest-kill.sh is the maintainer's to run by hand; its
+// ci.yml job was removed with that change.
 //
 // The roster is NOT the point of trust here - the disk is.
 // TestLiveCertSelftestRosterIsComplete compares this table against
@@ -59,9 +60,10 @@ const (
 	// it. The roster check reads that file and asserts the script's path
 	// is in it, so a rename on either side is caught.
 	runsInGoTestFile
-	// runsInCIJob: a ci.yml job execs it, because it needs docker,
-	// terraform and the AWS CLI.
-	runsInCIJob
+	// runsByMaintainer: the maintainer runs it by hand. It starts an estate
+	// script, and since #1972 those run only when a person at a terminal
+	// types "run", so neither this package nor CI can.
+	runsByMaintainer
 )
 
 type liveCertSelftest struct {
@@ -72,8 +74,7 @@ type liveCertSelftest struct {
 	// wants that issue, not this file.
 	proves string
 	runner selftestRunner
-	// where names the Go test file (runsInGoTestFile) or the ci.yml job
-	// (runsInCIJob) that runs it.
+	// where names the Go test file (runsInGoTestFile) that runs it.
 	where string
 	// bound is how long runsHere gives the script before killing it and
 	// failing. Not a performance budget: it is issue #1267's hazard 2 -
@@ -127,8 +128,7 @@ var liveCertSelftests = []liveCertSelftest{
 	{
 		script: "selftest-kill.sh",
 		proves: "#440 stage 1 - a real SIGTERM mid-apply still runs the harness's trap, tears the estate down and removes the emulator",
-		runner: runsInCIJob,
-		where:  killSelftestJobName,
+		runner: runsByMaintainer,
 		measured: "17.8s against the pinned emulator with TOFU_BIN prebuilt - 8s setup, 6s to the first resource; the first cold GitHub runner spent over 30s on " +
 			"setup alone. It is the one selftest that needs docker, terraform and the AWS CLI, so it cannot run in this package. Its three " +
 			"waits are bounded: setup by SELFTEST_KILL_SETUP_BOUND_S (600s), the apply by SELFTEST_KILL_APPLY_BOUND_S (180s), " +
@@ -197,8 +197,8 @@ func TestLiveCertSelftestRosterIsComplete(t *testing.T) {
 			t.Errorf("live/live-cert/%s is not in liveCertSelftests (live/livecert_selftests_test.go).\n"+
 				"That means nothing runs it, which is the whole of issue #1267: a script that looks like a guard "+
 				"and is one only if someone remembers to type its name.\n"+
-				"Add an entry saying what runs it - runsHere if it is hermetic and bounded, runsInCIJob if it needs "+
-				"docker/terraform/the AWS CLI - or, if it genuinely is a hand-run tool rather than a guard, add the "+
+				"Add an entry saying what runs it - runsHere if it is hermetic and bounded, runsByMaintainer if it starts "+
+				"an estate script - or, if it genuinely is a hand-run tool rather than a guard, add the "+
 				"entry anyway and say so, so the exemption is written down where the next reader will find it.", name)
 		}
 	}
@@ -651,91 +651,6 @@ func isIsolated(text string) bool {
 		}
 	}
 	return true
-}
-
-// killSelftestJobName is the ci.yml job that runs live/live-cert/selftest-kill.sh.
-const killSelftestJobName = "livecert-selftest-kill"
-
-// TestCIRunsTheKillSelftest is #1267's wiring for the one selftest that
-// cannot run in this package.
-//
-// selftest-kill.sh launches live/live-cert/reference-ec2-vpc.sh against the
-// pinned floci emulator, kills it mid-apply with a real SIGTERM, and checks
-// that the harness's trap still tore down. That needs docker, terraform and
-// the AWS CLI, which the fast job has and this package does not.
-//
-// It is a ci.yml job, on push and pull_request, rather than a step in
-// floci-tier.yml, and the reason is measured rather than stylistic: the
-// floci-tier nightly has failed on every run from 2026-09-12 to 2026-09-17,
-// every gated test failing at 0.00s with "terraform is required by this
-// test but is not on PATH" because that workflow never installs it. A new
-// guard added to an already-red job is a guard whose failure nobody would
-// see - #1267's own complaint, satisfied a different way. That tier's own
-// breakage is #1280; it is not this test's business.
-//
-// The job's emptiness half was hollow when it was wired: the "independent
-// verification" that lists the endpoint itself was unreachable on any
-// passing run, because the harness removed the emulator container as
-// teardown's last step and the driver then had nothing to list. That was
-// #1279, found while wiring this, and it is closed - the driver sets
-// LIVECERT_KEEP_FLOCI=1 so the endpoint survives long enough to be listed,
-// and removes the container afterwards. TestKillSelftestIndependentListing-
-// CanSeeALeak is the guard on that; this test is the guard on the job.
-func TestCIRunsTheKillSelftest(t *testing.T) {
-	data, err := os.ReadFile(ciWorkflowRel)
-	if err != nil {
-		t.Fatalf("reading %s: %v", ciWorkflowRel, err)
-	}
-	job, ok := workflowJob(string(data), killSelftestJobName)
-	if !ok {
-		t.Fatalf("%s has no `%s:` job.\n"+
-			"live/live-cert/selftest-kill.sh is then back to where issue #1267 found it: written, committed, "+
-			"and run only when someone remembers to type its name. It is the proof obligation for #440 stage 1 "+
-			"(a mid-apply SIGTERM still tears the estate down), which guards the paid real-AWS path.",
-			ciWorkflowRel, killSelftestJobName)
-	}
-
-	// Commands only. The job's steps carry comments that talk about the
-	// script, the binary and the bound in order to explain them, and a
-	// substring scan over the whole block would be satisfied by the
-	// explanation of a step that had been deleted.
-	var commands []string
-	for _, line := range strings.Split(job, "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "#") {
-			continue
-		}
-		commands = append(commands, line)
-	}
-	jobCommands := strings.Join(commands, "\n")
-
-	for _, want := range []struct {
-		substr string
-		why    string
-	}{
-		{"live/live-cert/selftest-kill.sh", "the job must run the script itself"},
-		{"hashicorp/setup-terraform", "the harness shells out to a literal `terraform` for cold_deploy's destroy; without the binary the run fails for a reason that says nothing about the product, which is exactly how floci-tier.yml has been red since 2026-09-12"},
-		{"TOFU_BIN", "the harness rebuilds choudoufu itself when this is unset, and the kill has to land inside a ~29s apply window rather than behind a cold `go build`"},
-		{"=== selftest-kill: PASS", "a zero exit is not the evidence: the job must require the script's own verdict line, the same discipline the validate-generated-terralith job holds to"},
-		{"timeout ", "the script is bounded internally, but the job bounds it again so a hang in docker or the image pull reddens rather than stalls"},
-	} {
-		if !strings.Contains(jobCommands, want.substr) {
-			t.Errorf("the %s job in %s does not run anything containing %q: %s", killSelftestJobName, ciWorkflowRel, want.substr, want.why)
-		}
-	}
-
-	// On the ordinary path, not dispatch-only. The same requirement
-	// TestCIValidationRunsOnOrdinaryEvents makes of #578's job: a check
-	// only a human can trigger is the same as no check.
-	triggers := string(data)
-	if i := strings.Index(triggers, "\njobs:"); i > 0 {
-		triggers = triggers[:i]
-	}
-	for _, event := range []string{"push:", "pull_request:"} {
-		if !strings.Contains(triggers, event) {
-			t.Errorf("%s no longer runs on %s, so the %s job does not run on an ordinary change",
-				ciWorkflowRel, strings.TrimSuffix(event, ":"), killSelftestJobName)
-		}
-	}
 }
 
 // TestKillSelftestPrintsWhatItRedirected is the guard on the defect that
