@@ -408,7 +408,7 @@
   "lanes": {
     "kubernetes": {
       "label": "kubernetes lane",
-      "estates": 19,
+      "estates": 20,
       "clear": 12,
       "verified": 0,
       "carried": 12,
@@ -416,77 +416,77 @@
         "cold_deploy": {
           "pass": 12,
           "fail": 0,
-          "not_run": 7
+          "not_run": 8
         },
         "day2_count": {
           "pass": 12,
           "fail": 0,
-          "not_run": 7
+          "not_run": 8
         },
         "day2_crash": {
           "pass": 12,
           "fail": 0,
-          "not_run": 7
+          "not_run": 8
         },
         "day2_remove": {
           "pass": 12,
           "fail": 0,
-          "not_run": 7
+          "not_run": 8
         },
         "day2_rename": {
           "pass": 12,
           "fail": 0,
-          "not_run": 7
+          "not_run": 8
         },
         "day2_replace": {
           "pass": 12,
           "fail": 0,
-          "not_run": 7
+          "not_run": 8
         },
         "day2_teardown": {
           "pass": 12,
           "fail": 0,
-          "not_run": 7
+          "not_run": 8
         },
         "drift_reconverge": {
           "pass": 12,
           "fail": 0,
-          "not_run": 7
+          "not_run": 8
         },
         "greenfield": {
           "pass": 12,
           "fail": 0,
-          "not_run": 7
+          "not_run": 8
         },
         "migrate": {
           "pass": 12,
           "fail": 0,
-          "not_run": 7
+          "not_run": 8
         },
         "no_local_state": {
           "pass": 2,
           "fail": 0,
-          "not_run": 17
+          "not_run": 18
         },
         "plan_approval": {
           "pass": 12,
           "fail": 0,
-          "not_run": 7
+          "not_run": 8
         },
         "strict": {
           "pass": 12,
           "fail": 0,
-          "not_run": 7
+          "not_run": 8
         },
         "test_apply": {
           "pass": 12,
           "fail": 0,
-          "not_run": 7
+          "not_run": 8
         },
         "test_plan": {
           "pass": 12,
           "fail": 0,
-          "not_run": 7
+          "not_run": 8
         }
       }
     },
@@ -4832,6 +4832,33 @@
       "set": "growing",
       "substrate": "kind",
       "script": "live/e2e/reference-k8s-helm-external-secrets/run.sh",
+      "stages": {
+        "cold_deploy": "not_run",
+        "day2_count": "not_run",
+        "day2_crash": "not_run",
+        "day2_remove": "not_run",
+        "day2_rename": "not_run",
+        "day2_replace": "not_run",
+        "day2_teardown": "not_run",
+        "drift_reconverge": "not_run",
+        "greenfield": "not_run",
+        "migrate": "not_run",
+        "no_local_state": "not_run",
+        "plan_approval": "not_run",
+        "strict": "not_run",
+        "test_apply": "not_run",
+        "test_plan": "not_run"
+      },
+      "clear": false,
+      "protocol": "legacy"
+    },
+    {
+      "name": "reference-k8s-helm-ingress-nginx",
+      "source": "kubernetes/ingress-nginx 4.15.1, controller v1.15.1 (Apache-2.0, chart archive sha256 3eff0bd18151d6e6b1c441463410571443dda1ac78292cb189346628de784f0c, fetched and checked by run.sh; the upstream project retired in March 2026 and its repository is archived, 4.15.1 its last chart, still published with a linux/arm64 controller image pinned by digest) rendered client-side by hashicorp/helm's data \"helm_template\" - never helm_release - into two kubernetes_manifest blocks whose for_each splits and yamldecodes the render inside the for_each expression, keyed kind/namespace/name, with manifest = each.value (#1962): the chart's 8 non-workload objects and its controller Deployment after them, plus the root's own block of one Ingress per rendered IngressClass and the Namespace - 11 objects over 11 kinds, no CRDs and so no pre-apply, one name across five kinds and one across three, and a controller that writes status.loadBalancer into the estate's Ingresses. Deltas in root/values.yaml: the admission webhook and its certgen hook Jobs off, a ClusterIP Service with one annotation, one controller config key. reference- because the root is ours (#1107's Helm surface)",
+      "lane": "kubernetes",
+      "set": "growing",
+      "substrate": "kind",
+      "script": "live/e2e/reference-k8s-helm-ingress-nginx/run.sh",
       "stages": {
         "cold_deploy": "not_run",
         "day2_count": "not_run",
