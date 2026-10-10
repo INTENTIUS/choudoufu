@@ -1,0 +1,42 @@
+# reference-k8s-helm-template's deltas from kube-prometheus-stack 92.3.0's
+# defaults (#1963). Every other value is the chart's own.
+#
+# run.sh's stages edit three lines of this file in place - retention,
+# kubeEtcd's enabled, and additionalPrometheusRulesMap - by exact match, so
+# keep their spelling.
+
+grafana:
+  # Fixed, because the chart otherwise generates a random admin password
+  # and the render is not deterministic from one plan to the next.
+  adminPassword: choudoufu-gauntlet
+  testFramework:
+    enabled: false
+
+prometheusOperator:
+  # Removes the admission webhook's hook Jobs and the caBundle patch, which
+  # a client-side render cannot express as plain objects.
+  admissionWebhooks:
+    enabled: false
+
+alertmanager:
+  alertmanagerSpec:
+    retention: 120h
+
+prometheus:
+  prometheusSpec:
+    # A claim template on kind's default class, so the operator's
+    # StatefulSet produces a PersistentVolumeClaim the estate never declares
+    # - one of the controller-created objects day2_remove's sweep must
+    # leave alone.
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 1Gi
+
+kubeEtcd:
+  enabled: true
+
+additionalPrometheusRulesMap: {}

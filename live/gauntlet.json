@@ -408,7 +408,7 @@
   "lanes": {
     "kubernetes": {
       "label": "kubernetes lane",
-      "estates": 11,
+      "estates": 12,
       "clear": 11,
       "verified": 0,
       "carried": 11,
@@ -416,77 +416,77 @@
         "cold_deploy": {
           "pass": 11,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_count": {
           "pass": 11,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_crash": {
           "pass": 11,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_remove": {
           "pass": 11,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_rename": {
           "pass": 11,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_replace": {
           "pass": 11,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "day2_teardown": {
           "pass": 11,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "drift_reconverge": {
           "pass": 11,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "greenfield": {
           "pass": 11,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "migrate": {
           "pass": 11,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "no_local_state": {
           "pass": 2,
           "fail": 0,
-          "not_run": 9
+          "not_run": 10
         },
         "plan_approval": {
           "pass": 11,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "strict": {
           "pass": 11,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "test_apply": {
           "pass": 11,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         },
         "test_plan": {
           "pass": 11,
           "fail": 0,
-          "not_run": 0
+          "not_run": 1
         }
       }
     },
@@ -4770,6 +4770,33 @@
           "test_plan": 31
         }
       }
+    },
+    {
+      "name": "reference-k8s-helm-template",
+      "source": "prometheus-community kube-prometheus-stack 92.3.0 (Apache-2.0, chart archive sha256 48399b911fa91b353e0c3d5e32c1cb7a67a168566549723553154ffd7be5d1fa, fetched and checked by run.sh) rendered client-side by hashicorp/helm's data \"helm_template\" - never helm_release - into two kubernetes_manifest blocks whose for_each splits and yamldecodes the render inside the for_each expression, keyed kind/namespace/name, with manifest = each.value (#1962): the chart's 10 CRDs and its other 114 objects, plus the Namespace - 125 objects over 14 kinds, 50 of them custom resources of the render's own CRDs, 14 names shared across up to eight kinds, five Services in kube-system, and an operator generating StatefulSets, Secrets and a PersistentVolumeClaim nothing declares. Deltas in root/values.yaml: a fixed grafana admin password, grafana's test framework off, the operator's admission webhooks off, a 1Gi claim template on Prometheus. reference- because the root is ours (#1963, #1107's Helm surface)",
+      "lane": "kubernetes",
+      "set": "growing",
+      "substrate": "kind",
+      "script": "live/e2e/reference-k8s-helm-template/run.sh",
+      "stages": {
+        "cold_deploy": "not_run",
+        "day2_count": "not_run",
+        "day2_crash": "not_run",
+        "day2_remove": "not_run",
+        "day2_rename": "not_run",
+        "day2_replace": "not_run",
+        "day2_teardown": "not_run",
+        "drift_reconverge": "not_run",
+        "greenfield": "not_run",
+        "migrate": "not_run",
+        "no_local_state": "not_run",
+        "plan_approval": "not_run",
+        "strict": "not_run",
+        "test_apply": "not_run",
+        "test_plan": "not_run"
+      },
+      "clear": false,
+      "protocol": "legacy"
     },
     {
       "name": "reference-k8s-platform-app",
