@@ -380,6 +380,17 @@
       "pre_apply_reason": "kubernetes_manifest builds an object's schema at PLAN time, so a root whose render carries the chart's own CRDs and 50 objects of them cannot be planned against an empty cluster - the custom resources' kinds are not served until the CRDs exist, depends_on does not help, and re-running fails identically forever (#1173). The Namespace goes up with them because helm template renders none and the namespaced objects are dry-run into it at plan time. The main apply creates the other 114 rendered objects"
     },
     {
+      "name": "reference-k8s-helm-traefik",
+      "source": "traefik/traefik 41.7.1 (Traefik Proxy v3.7.14, Apache-2.0, chart archive sha256 f9edd5ca699ff0f5eab14df6e4feefa15f7597a9b56f0b1c01f6089b1eecbaf1 from traefik.github.io/charts, fetched and checked by run.sh) rendered client-side by hashicorp/helm's data \"helm_template\" - never helm_release - into three kubernetes_manifest blocks whose for_each splits and yamldecodes the render inside the for_each expression, keyed kind/namespace/name, with manifest = each.value (#1962): the chart's 25 CRDs (10 traefik.io, 15 hub.traefik.io that nothing instantiates), its other eight objects, then the Deployment, plus the Namespace - 35 objects over 10 kinds, two of them IngressRoutes the running Traefik loads as routers, one name (rel-traefik) shared by four namespaced kinds and the cluster-scoped IngressClass. Deltas in root/values.yaml: the Service ClusterIP instead of LoadBalancer, both IngressRoutes and a PodDisruptionBudget on, fixture content for the keys the template writes empty (Deployment, Service and ServiceAccount annotations, lifecycle, resources). reference- because the root is ours",
+      "lane": "kubernetes",
+      "set": "growing",
+      "pre_apply": [
+        "kubernetes_namespace_v1.traefik",
+        "kubernetes_manifest.crds"
+      ],
+      "pre_apply_reason": "kubernetes_manifest builds an object's schema at PLAN time, so a root whose render carries the chart's own CRDs and two IngressRoutes of them cannot be planned against an empty cluster - IngressRoute is not served until the CRDs exist, depends_on does not help, and re-running fails identically forever (#1173). The Namespace goes up with them because helm template renders none and the namespaced objects are dry-run into it at plan time. The main apply creates the other nine rendered objects"
+    },
+    {
       "name": "reference-k8s-platform-app",
       "source": "hand-written reference shape kept in this repository, the kubernetes lane's two-estate pair (#1883, epic #1885): network (a Namespace, a NetworkPolicy, a Service, two ConfigMaps and two root outputs) and app (a Namespace, three ConfigMaps, a ServiceAccount, a Service, a Deployment, a HorizontalPodAutoscaler v2 and a kubernetes_manifest ConfigMap in network's namespace) - 14 objects over seven kinds, both estates on record_store \"kubernetes\", app reading network's outputs through reads_outputs_of and data terraform_estate_outputs where stock reads terraform_remote_state. Measures what only smoke scenarios covered: records in the cluster, a declared cross-estate read refused and then granted, live-mv -from-estate on a kubernetes_manifest killed between its two requests and re-run, the cache-served unchanged plan, and teardown app first. Under #1107's fallback rule: no published Kubernetes-only root splits one team's objects from another's and reads across the split",
       "lane": "kubernetes",
