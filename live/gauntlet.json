@@ -408,7 +408,7 @@
   "lanes": {
     "kubernetes": {
       "label": "kubernetes lane",
-      "estates": 16,
+      "estates": 17,
       "clear": 12,
       "verified": 0,
       "carried": 12,
@@ -416,77 +416,77 @@
         "cold_deploy": {
           "pass": 12,
           "fail": 0,
-          "not_run": 4
+          "not_run": 5
         },
         "day2_count": {
           "pass": 12,
           "fail": 0,
-          "not_run": 4
+          "not_run": 5
         },
         "day2_crash": {
           "pass": 12,
           "fail": 0,
-          "not_run": 4
+          "not_run": 5
         },
         "day2_remove": {
           "pass": 12,
           "fail": 0,
-          "not_run": 4
+          "not_run": 5
         },
         "day2_rename": {
           "pass": 12,
           "fail": 0,
-          "not_run": 4
+          "not_run": 5
         },
         "day2_replace": {
           "pass": 12,
           "fail": 0,
-          "not_run": 4
+          "not_run": 5
         },
         "day2_teardown": {
           "pass": 12,
           "fail": 0,
-          "not_run": 4
+          "not_run": 5
         },
         "drift_reconverge": {
           "pass": 12,
           "fail": 0,
-          "not_run": 4
+          "not_run": 5
         },
         "greenfield": {
           "pass": 12,
           "fail": 0,
-          "not_run": 4
+          "not_run": 5
         },
         "migrate": {
           "pass": 12,
           "fail": 0,
-          "not_run": 4
+          "not_run": 5
         },
         "no_local_state": {
           "pass": 2,
           "fail": 0,
-          "not_run": 14
+          "not_run": 15
         },
         "plan_approval": {
           "pass": 12,
           "fail": 0,
-          "not_run": 4
+          "not_run": 5
         },
         "strict": {
           "pass": 12,
           "fail": 0,
-          "not_run": 4
+          "not_run": 5
         },
         "test_apply": {
           "pass": 12,
           "fail": 0,
-          "not_run": 4
+          "not_run": 5
         },
         "test_plan": {
           "pass": 12,
           "fail": 0,
-          "not_run": 4
+          "not_run": 5
         }
       }
     },
@@ -4805,6 +4805,33 @@
       "set": "growing",
       "substrate": "kind",
       "script": "live/e2e/reference-k8s-helm-external-secrets/run.sh",
+      "stages": {
+        "cold_deploy": "not_run",
+        "day2_count": "not_run",
+        "day2_crash": "not_run",
+        "day2_remove": "not_run",
+        "day2_rename": "not_run",
+        "day2_replace": "not_run",
+        "day2_teardown": "not_run",
+        "drift_reconverge": "not_run",
+        "greenfield": "not_run",
+        "migrate": "not_run",
+        "no_local_state": "not_run",
+        "plan_approval": "not_run",
+        "strict": "not_run",
+        "test_apply": "not_run",
+        "test_plan": "not_run"
+      },
+      "clear": false,
+      "protocol": "legacy"
+    },
+    {
+      "name": "reference-k8s-helm-kyverno",
+      "source": "kyverno kyverno 3.9.1, app v1.19.1 (Apache-2.0, chart archive sha256 7b7fe51a431b5b133b0ce7eb9dcb222b6a37fb967c163223cf480054ad14d752, fetched and checked by run.sh) rendered client-side by hashicorp/helm's data \"helm_template\" with skip_tests - never helm_release - into three kubernetes_manifest blocks whose for_each splits and yamldecodes the render inside the for_each expression, keyed kind/namespace/name, with manifest = each.value (#1962): the chart's 22 CRDs, its 43 RBAC, ConfigMap, Service and ServiceAccount objects, and its four controller Deployments under wait { rollout = true }; plus the Namespace and a for_each of the estate's own ClusterPolicies - 71 objects over 11 kinds, four names shared across four kinds each, and an admission controller that generates its own TLS Secrets and registers its own webhook configurations, which nothing declares and whose policy webhook admits every ClusterPolicy the estate writes. Deltas in root/values.yaml: the CRD migration hook off, the pre-delete webhook-cleanup hooks off, each controller's replicas pinned to 1. reference- because the root is ours (#1107's Helm surface, after #1963)",
+      "lane": "kubernetes",
+      "set": "growing",
+      "substrate": "kind",
+      "script": "live/e2e/reference-k8s-helm-kyverno/run.sh",
       "stages": {
         "cold_deploy": "not_run",
         "day2_count": "not_run",
