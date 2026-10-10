@@ -26,6 +26,12 @@ data "helm_template" "kps" {
   chart        = "${path.module}/charts/kube-prometheus-stack-92.3.0.tgz"
   include_crds = true
   values       = [file("${path.module}/values.yaml")]
+
+  # helm_template never asks the cluster, so without this the render assumes
+  # Helm's default capabilities (Kubernetes v1.20.0) and the chart's own
+  # kubeVersion constraint (>=1.25.0-0) refuses it. Pinned rather than read
+  # from the cluster so the render is the same on every kind node image.
+  kube_version = "1.36.0"
 }
 
 resource "kubernetes_namespace_v1" "monitoring" {
