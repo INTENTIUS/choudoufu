@@ -1,0 +1,47 @@
+# reference-k8s-helm-kyverno's deltas from kyverno 3.9.1's defaults (#1978). Every
+# other value is the chart's own.
+#
+# run.sh's stages edit two places in this file by exact match - the
+# updateRequestThreshold line and cleanupController's enabled line - so keep
+# their spelling. day2_count edits root/main.tf, not this file: the chart
+# renders no policies of its own.
+
+crds:
+  # Removes the post-upgrade hook's ServiceAccount, ClusterRole,
+  # ClusterRoleBinding and Job, which migrate stored CRD versions on a helm
+  # upgrade. There is no helm upgrade here, and a hook is not a plain object.
+  migration:
+    enabled: false
+
+# Removes the two pre-delete hook Jobs (rm-webhooks, scale-to-zero). Kyverno
+# registers its webhook configurations at runtime and nothing in the render
+# declares them, so on a helm uninstall these Jobs are what deletes them;
+# with no Helm, run.sh does that job by hand after the teardown and says so.
+webhooksCleanup:
+  enabled: false
+
+config:
+  # The chart's own default, spelled out so plan_approval has one scalar
+  # whose change re-renders exactly one object (the rel-kyverno ConfigMap;
+  # no Deployment carries a checksum of it).
+  updateRequestThreshold: 1000
+
+# The chart writes `replicas:` with nothing after it for each controller,
+# which decodes to null; the API server defaults it to 1 and
+# kubernetes_manifest would see the declared null and the stored 1 disagree.
+# Pinned to the value the server would have chosen. The same holds for the
+# three controllers below.
+admissionController:
+  replicas: 1
+
+backgroundController:
+  replicas: 1
+
+reportsController:
+  replicas: 1
+
+# day2_remove turns this off: nine rendered objects over seven kinds, in the
+# namespace and cluster-scoped, and no other object of the render changes.
+cleanupController:
+  enabled: true
+  replicas: 1
