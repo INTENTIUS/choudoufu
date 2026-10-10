@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: https://code.forgejo.org/actions/checkout@v4
       - run: npm ci --no-audit --no-fund
-      - run: curl -fsSL -o /tmp/choudoufu_v0.24.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.24.0/choudoufu_v0.24.0_linux_amd64.tar.gz && echo "3dac839e4ae0333197c578000f062ff725c377b5abef5c267c57d1cba2bd4d8b  /tmp/choudoufu_v0.24.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.24.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
+      - run: curl -fsSL -o /tmp/choudoufu_v0.25.0_linux_amd64.tar.gz https://github.com/INTENTIUS/choudoufu/releases/download/v0.25.0/choudoufu_v0.25.0_linux_amd64.tar.gz && echo "d48ae9e370b11b6afcbaefcf3f42e2272e9d5fd3f134862391e77eb7d1571a4e  /tmp/choudoufu_v0.25.0_linux_amd64.tar.gz" | sha256sum -c - && tar -xzf /tmp/choudoufu_v0.25.0_linux_amd64.tar.gz -C /usr/local/bin choudoufu && choudoufu version
       - run: npx chant run live-check
         env:
           GITHUB_TOKEN: '${{ github.token }}'
