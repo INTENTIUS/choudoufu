@@ -1,0 +1,80 @@
+# reference-k8s-helm-external-secrets's deltas from external-secrets 2.12.0's
+# defaults (#1976). Every other value is the chart's own.
+#
+# run.sh's stages edit three places of this file by exact match - the
+# SecretStore's fake value, rbac.leaderElection's create, and everything
+# after the "day2_count shards" marker at the end - so keep their spelling.
+
+# The validating webhook and the cert-controller that feeds it go, together.
+# The webhook's Secret renders empty and only the cert-controller fills it,
+# at runtime, along with the caBundle it patches into both
+# ValidatingWebhookConfigurations; until then the webhook pod waits in
+# ContainerCreating on the Secret mount, and both configurations are
+# failurePolicy: Fail on CREATE, UPDATE and DELETE of SecretStores,
+# ClusterSecretStores and ExternalSecrets - the custom resources this
+# estate declares, created in the same apply as the webhook and deleted
+# after it at teardown. The CRDs stay (installCRDs is the chart's true), and
+# crds.conversion is already off at the chart's default, as the chart asks
+# when the webhook is off.
+webhook:
+  create: false
+certController:
+  create: false
+
+rbac:
+  # The leader-election Role and RoleBinding, unused with the chart's
+  # leaderElect: false. day2_remove sets this false to take both out of the
+  # render.
+  leaderElection:
+    create: true
+
+# The custom resources, through the chart's own extraObjects (each entry is
+# rendered with tpl, so a name can be the release's fullname). All of them
+# carry the name rel-external-secrets, which the chart also gives the
+# controller's ServiceAccount and Deployment: one name over five kinds, one
+# of them cluster-scoped. The fake provider holds its data in the store's
+# spec, so nothing outside the cluster is reached.
+extraObjects:
+  - apiVersion: external-secrets.io/v1
+    kind: SecretStore
+    metadata:
+      name: '{{ include "external-secrets.fullname" . }}'
+      namespace: external-secrets
+    spec:
+      provider:
+        fake:
+          data:
+            - key: greeting
+              value: plan-approval-before
+  - apiVersion: external-secrets.io/v1
+    kind: ClusterSecretStore
+    metadata:
+      name: '{{ include "external-secrets.fullname" . }}'
+    spec:
+      provider:
+        fake:
+          data:
+            - key: greeting
+              value: cluster-scoped
+  # The controller writes a Secret of the ExternalSecret's own name (no
+  # target.name), owned by it, and with no target.template it copies the
+  # ExternalSecret's labels AND annotations onto that Secret. It also puts
+  # a finalizer on the ExternalSecret, which only it removes - why
+  # root/main.tf orders the custom resources after the Deployment. 1m so the
+  # copy follows a label change within a minute rather than the default 1h.
+  - apiVersion: external-secrets.io/v1
+    kind: ExternalSecret
+    metadata:
+      name: '{{ include "external-secrets.fullname" . }}'
+      namespace: external-secrets
+    spec:
+      refreshInterval: 1m
+      secretStoreRef:
+        kind: SecretStore
+        name: '{{ include "external-secrets.fullname" . }}'
+      data:
+        - secretKey: greeting
+          remoteRef:
+            key: greeting
+  # day2_count shards: run.sh rewrites from this line to the end of the
+  # file, one SecretStore named shard-<i> per shard. Keep it last.
