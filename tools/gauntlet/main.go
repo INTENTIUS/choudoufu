@@ -323,6 +323,9 @@ func cmdRun(root string, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := confirmManualRun(os.Stdout); err != nil {
+		return err
+	}
 
 	m, a, err := loadAll(root)
 	if err != nil {
@@ -521,6 +524,9 @@ func cmdLiveCert(root string, args []string) error {
 	// passes -timeout-seconds 34000.
 	timeoutSeconds := fs.Int("timeout-seconds", 14400, "Go-side process ceiling, independent of live/live-cert/run.sh's own `timeout` wrapper; 0 disables")
 	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := confirmManualRun(os.Stdout); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {

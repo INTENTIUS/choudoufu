@@ -55,9 +55,11 @@ set -uo pipefail
 # expected to list one, which can no longer be read as evidence of an empty
 # account.
 #
-# Run automatically by ci.yml's livecert-selftest-kill job (issue #1267);
-# live/livecert_selftests_test.go's TestCIRunsTheKillSelftest is the guard
-# that keeps that job from going away.
+# Run by the maintainer, by hand: it starts reference-ec2-vpc.sh, which since
+# #1972 runs only when a person at a terminal types "run". ci.yml's
+# livecert-selftest-kill job was removed with that change, and
+# live/livecert_selftests_test.go's roster lists this script as
+# runsByMaintainer.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WORK="$(mktemp -d)"

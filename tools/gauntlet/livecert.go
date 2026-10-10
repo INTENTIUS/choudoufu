@@ -446,6 +446,11 @@ func RunLiveCert(root string, estate, target, region string, ceilingUSD float64,
 	}
 
 	start := time.Now()
+	release, err := handConfirmation(cmd)
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("estate %q: %w", estate, err)
+	}
+	defer release()
 	if err := cmd.Start(); err != nil {
 		return nil, nil, 0, fmt.Errorf("estate %q: %w", estate, err)
 	}
