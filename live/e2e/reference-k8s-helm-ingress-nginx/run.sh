@@ -373,6 +373,15 @@ tofu_a() { ( cd "$ADOPTED" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" "$TOFU" 
 stock_a() { ( cd "$STOCK"  && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" terraform "$@" ); }
 stock_b() { ( cd "$ORACLE" && KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB" terraform "$@" ); }
 exists_a() { kca get "$1" "$2" -n "$NS" >/dev/null 2>&1; }
+# quiet <command...>: runs it with its output captured and prints the last
+# 30 lines only when it fails, so every failure below is diagnosable from
+# the log alone (metallb's stock apply failure printed nothing).
+quiet() {
+  local out rc
+  out="$("$@" 2>&1)"; rc=$?
+  [ "$rc" -eq 0 ] || printf '%s\n' "$out" | tail -30
+  return "$rc"
+}
 # managed_n <stock fn>: managed instances in that side's state; the
 # helm_template data source sits in state too and is not an object.
 managed_n() { "$1" state list 2>/dev/null | grep -vc '^data\.'; }
@@ -405,6 +414,14 @@ copies_a() {
       | jq -r '.items[]? | select((.metadata.ownerReferences // []) | length > 0) | "\(.kind)/\(.metadata.name)"'
     kca get endpoints,leases -n "$NS" -o json 2>/dev/null | jq -r '.items[]? | "\(.kind)/\(.metadata.name)"'
   } 2>/dev/null | sort
+}
+# labelled_a: the objects count_a counts, as kind/namespace/name lines, for
+# a failure line.
+labelled_a() {
+  local k
+  for k in $KINDS; do
+    kca get "$k" -A -l "tofu-estate=$ESTATE" -o json 2>/dev/null | jq -r '.items[]? | select((.metadata.ownerReferences // []) | length == 0) | "\(.kind)/\(.metadata.namespace // "")/\(.metadata.name)"' 2>/dev/null
+  done | tr '\n' ' '
 }
 # copies_labelled_a: how many of those carry the estate's label (the
 # EndpointSlice and Endpoints copy the Service's labels).
@@ -439,6 +456,52 @@ block_addr() { printf 'kubernetes_manifest.%s["%s"]' "$1" "$2"; }
 rest_addr() { block_addr "$REST_BLOCK" "$1/$2/$3"; }
 # planned <plan>: the addresses a plan proposes something for, one per line.
 planned() { grep -E '^[[:space:]]*# .+ (will be|must be)' <<< "$1" | sed -E 's/^[[:space:]]*# //; s/ (will be|must be).*$//'; }
+# destroyed <plan>, created <plan>: the addresses a plan destroys or creates,
+# sorted, one per line; joined <lines>: the same on one line, "; "-separated.
+destroyed() { { grep -E '^[[:space:]]*# .+ will be destroyed' <<< "$1" || true; } | sed -E 's/^[[:space:]]*# //; s/ will be destroyed.*$//' | sort; }
+created() { { grep -E '^[[:space:]]*# .+ will be created' <<< "$1" || true; } | sed -E 's/^[[:space:]]*# //; s/ will be created.*$//' | sort; }
+joined() { tr '\n' ';' <<< "$1" | sed -E 's/;+$//; s/;/; /g'; }
+# plan_lines <plan>: the plan's summary and every action header, indented,
+# for the log - what a stage that compares addresses prints whatever it
+# decides, so a mismatch is readable from the log alone.
+plan_lines() { { grep -E '^Plan:|^No changes|^[[:space:]]*# .+ (will be|must be)' <<< "$1" || true; } | sed -E 's/^[[:space:]]*/    /'; }
+# objects_of: the addresses on stdin as the objects they name, one
+# "kind|orphan_<ns>_<name>" line each, sorted - independent of the address
+# a plan files the object under. A kubernetes_manifest instance keyed
+# kind/namespace/name, an instance of the root's ingresses block (keyed by
+# its IngressClass, the Ingress via-<key> in $NS), and the sweep's two orphan
+# spellings (#1996: <typed resource>.orphan_[<ns>_]<name>, and
+# kubernetes_manifest.orphan_<kind>_[<ns>_]<name>, kubesweep's
+# OrphanResourceName and ManifestOrphanResourceName) all come out the same
+# for the same object. Anything else is printed as "?|<address>", which
+# never matches.
+objects_of() {
+  python3 -c '
+import re, sys
+ns = sys.argv[1]
+def orphan(n, name):
+    return re.sub(r"[^A-Za-z0-9_-]", "_", "orphan_" + (n + "_" if n else "") + name)
+out = []
+for a in sys.stdin.read().splitlines():
+    a = a.strip()
+    if not a:
+        continue
+    m = re.match(r"^kubernetes_manifest\.ingresses\[\"([^\"]+)\"\]$", a)
+    if m:
+        out.append("ingress|" + orphan(ns, "via-" + m.group(1))); continue
+    m = re.match(r"^kubernetes_manifest\.[A-Za-z0-9_-]+\[\"([^/\"]+)/([^/\"]*)/([^\"]+)\"\]$", a)
+    if m:
+        out.append(m.group(1).lower() + "|" + orphan(m.group(2), m.group(3))); continue
+    m = re.match(r"^kubernetes_manifest\.orphan_([a-z0-9]+)_(.+)$", a)
+    if m:
+        out.append(m.group(1) + "|orphan_" + m.group(2)); continue
+    m = re.match(r"^kubernetes_([a-z0-9_]+?)(_v[0-9]+)?\.(orphan_.+)$", a)
+    if m:
+        out.append(m.group(1).replace("_", "") + "|" + m.group(3)); continue
+    out.append("?|" + a)
+print("\n".join(sorted(out)))
+' "$NS"
+}
 
 # ── 1. cold_deploy: one apply, no pre-apply ──────────────────────────────
 gauntlet_begin_stage cold_deploy
@@ -450,13 +513,13 @@ K8S_VER="$(kca version 2>/dev/null | gauntlet_k8s_server_version)"
 log "  cluster A: $CLUSTER_A (kubernetes $K8S_VER); cluster B: $CLUSTER_B"
 write_root "$STOCK" stock  || fail "could not write the stock root on A"
 write_root "$ORACLE" stock || fail "could not write the oracle root on B"
-( stock_a init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on A"
+quiet stock_a init -input=false -no-color || fail "stock init failed on A"
 gauntlet_report_lock "$STOCK"  # the versions stage 1 resolved, for the row (#1739)
-( stock_b init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on B"
+quiet stock_b init -input=false -no-color || fail "stock init failed on B"
 
 COLD_OUT="$(stock_a apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$COLD_OUT" | tail -20; fail "stock's apply failed on A"; }
 grep -qF "Apply complete! Resources: $TOTAL_N added, 0 changed, 0 destroyed" <<< "$COLD_OUT" || { printf '%s\n' "$COLD_OUT" | tail -5; fail "stock's apply on A did not add exactly the $TOTAL_N declared instances in one pass"; }
-( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's apply failed on B"
+quiet stock_b apply -auto-approve -input=false -no-color || fail "stock's apply failed on B"
 
 [ -f "$STOCK/terraform.tfstate" ] || fail "stock left no terraform.tfstate on A"
 STOCK_N="$(managed_n stock_a)"
@@ -476,7 +539,7 @@ gauntlet_stage cold_deploy pass "$TOTAL_N objects from ONE plain terraform apply
 gauntlet_begin_stage migrate
 log "=== 2. migrate: live-import against the stock state file, read-only then -approve ==="
 write_root "$ADOPTED" live || fail "could not write the adopted root"
-( tofu_a init -input=false -no-color >/dev/null 2>&1 ) || fail "adopted init failed"
+quiet tofu_a init -input=false -no-color || fail "adopted init failed"
 IMPORT_OUT="$(tofu_a live-import -state="$STOCK/terraform.tfstate" -estate="$ESTATE" -no-color 2>&1)" || { printf '%s\n' "$IMPORT_OUT" | tail -20; fail "live-import (dry run) failed"; }
 ELIGIBLE_LINE="$(grep -E 'resource instance\(s\) are eligible for stamping' <<< "$IMPORT_OUT" | head -1)"
 log "  dry run: ${ELIGIBLE_LINE:-no eligibility line}"
@@ -546,14 +609,14 @@ ORACLE_PLAN="$(stock_b plan -detailed-exitcode -input=false -no-color 2>&1)"; OR
 [ "$ORACLE_RC" -eq 2 ] || { printf '%s\n' "$ORACLE_PLAN" | tail -10; fail "stock's plan on B after the out-of-band delete exited $ORACLE_RC, want 2 (changes)"; }
 grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$ORACLE_PLAN" || { printf '%s\n' "$ORACLE_PLAN" | tail -10; fail "stock's plan on B does not propose exactly one create"; }
 grep -qF "$DRIFT_ADDR" <<< "$ORACLE_PLAN" || fail "stock's plan on B does not name $DRIFT_ADDR"
-( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock could not reconverge B"
+quiet stock_b apply -auto-approve -input=false -no-color || fail "stock could not reconverge B"
 DRIFT_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$DRIFT_PLAN" | tail -20; fail "the plan after the out-of-band delete failed"; }
 if [ "${BREAK:-}" = "1" ]; then
   if grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$DRIFT_PLAN"; then
     fail "BREAK=1: two objects were deleted but the plan still proposes exactly one create - the single-object assertion is not load-bearing"
   fi
   log "  BREAK=1: caught - with a second object deleted the plan is $(grep -E '^Plan:' <<< "$DRIFT_PLAN" | head -1)"
-  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK: could not reconverge A"
+  quiet tofu_a apply -auto-approve -input=false -no-color || fail "BREAK: could not reconverge A"
   gauntlet_stage drift_reconverge pass "BREAK=1 control: with the same-named Role deleted too the single-object assertion correctly fails to hold ($(grep -E '^Plan:' <<< "$DRIFT_PLAN" | head -1)); reconverged afterwards"
 else
   grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$DRIFT_PLAN" || { printf '%s\n' "$DRIFT_PLAN" | tail -20; fail "the plan after one out-of-band delete does not propose exactly one create"; }
@@ -578,8 +641,8 @@ P_PLAN_LINE="$(grep -E '^Plan:|^No changes' <<< "$P_PLAN" | head -1 | sed 's/\.$
 if [ "$P_PLAN_RC" -ne 0 ] || ! grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$P_PLAN" || ! grep -qF "$CM_ADDR will be updated in-place" <<< "$P_PLAN"; then
   gauntlet_stage plan_approval fail "controller.config.proxy-body-size 1m -> 8m in values.yaml did not plan as exactly one in-place update of $CM_ADDR: ${P_PLAN_LINE:-no summary line} (exit $P_PLAN_RC). What it proposed: $(planned "$P_PLAN" | head -10 | tr '\n' ';')"
   printf '%s\n' "$P_PLAN" | tail -30
-  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge A after plan_approval; nothing below would measure day-2 behaviour"
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge B after plan_approval; the oracle would be stale for every stage below"
+  quiet tofu_a apply -auto-approve -input=false -no-color || fail "could not converge A after plan_approval; nothing below would measure day-2 behaviour"
+  quiet stock_b apply -auto-approve -input=false -no-color || fail "could not converge B after plan_approval; the oracle would be stale for every stage below"
   PLAN_APPROVAL_SKIPPED=1
 fi
 if [ -z "${PLAN_APPROVAL_SKIPPED:-}" ]; then
@@ -592,16 +655,16 @@ if [ "${BREAK_APPROVAL:-}" = "1" ]; then
   [ "$P_RC" -eq 0 ] && fail "BREAK_APPROVAL=1: applying the saved plan after the world moved succeeded - the refusal is not load-bearing"
   log "  BREAK_APPROVAL=1: caught - the apply after the world moved exited $P_RC"
   kca patch deployment "$CTRL" -n "$NS" --type merge -p '{"spec":{"replicas":1}}' >/dev/null
-  ( tofu_a apply -input=false -no-color approved.tfplan >/dev/null 2>&1 ) || fail "BREAK_APPROVAL: the saved plan did not apply once the world was put back"
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_APPROVAL: stock could not apply the change on B"
+  quiet tofu_a apply -input=false -no-color approved.tfplan || fail "BREAK_APPROVAL: the saved plan did not apply once the world was put back"
+  quiet stock_b apply -auto-approve -input=false -no-color || fail "BREAK_APPROVAL: stock could not apply the change on B"
   gauntlet_stage plan_approval pass "BREAK_APPROVAL=1 control: applying the saved plan after the world moved exited $P_RC (refused), so the stage's own Break line correctly fails; applied once the world was put back"
 else
   if [ "$P_RC" -ne 3 ] || ! grep -qF "The approved plan no longer matches the live system" <<< "$P_APPLY"; then
     printf '%s\n' "$P_APPLY" | tail -20
     gauntlet_stage plan_approval fail "the saved plan was applied after the world had moved out of band (the controller Deployment's replicas 1 -> 2, kubectl) and choudoufu exited $P_RC rather than refusing at 3 with \"The approved plan no longer matches the live system\". The saved plan's own change was one in-place update of $CM_ADDR from a values edit"
     kca patch deployment "$CTRL" -n "$NS" --type merge -p '{"spec":{"replicas":1}}' >/dev/null
-    ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge A after plan_approval; nothing below would measure day-2 behaviour"
-    ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge B after plan_approval; the oracle would be stale for every stage below"
+    quiet tofu_a apply -auto-approve -input=false -no-color || fail "could not converge A after plan_approval; nothing below would measure day-2 behaviour"
+    quiet stock_b apply -auto-approve -input=false -no-color || fail "could not converge B after plan_approval; the oracle would be stale for every stage below"
     PLAN_APPROVAL_SKIPPED=1
   fi
   if [ -z "${PLAN_APPROVAL_SKIPPED:-}" ]; then
@@ -613,7 +676,7 @@ else
   [ "$(body_size_a)" = "8m" ] || fail "the controller ConfigMap does not read proxy-body-size 8m after the saved plan applied"
   O_PA="$(stock_b plan -out=approved.tfplan -input=false -no-color 2>&1)" || fail "stock's own planfile failed on B"
   grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$O_PA" || { printf '%s\n' "$O_PA" | tail -10; fail "stock's plan for the same values edit on B is not exactly one in-place update"; }
-  ( stock_b apply -input=false -no-color approved.tfplan >/dev/null 2>&1 ) || fail "stock's own planfile did not apply on B"
+  quiet stock_b apply -input=false -no-color approved.tfplan || fail "stock's own planfile did not apply on B"
   gauntlet_stage plan_approval pass "a values.yaml edit (controller.config.proxy-body-size 1m -> 8m) re-rendered through helm_template planned as exactly one in-place update of $CM_ADDR, saved with plan -out; the world then moved out of band (the controller Deployment's replicas to 2 with kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl still reads 1m); with the world put back the identical file applied, 0 added, 1 changed, 0 destroyed, and 8m reads back; stock's plan for the same edit on the oracle cluster is the same one update and its planfile applied. BREAK_APPROVAL=1 expects success after the move and correctly fails"
   fi
 fi
@@ -626,7 +689,7 @@ rename_rest "$ADOPTED" || fail "could not rename the rest block in the adopted r
 rename_rest "$ORACLE"  || fail "could not rename the rest block in the oracle root"
 O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's moved-block plan failed on B"; }
 grep -qE "^No changes|Plan: 0 to add, 0 to change, 0 to destroy" <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's moved-block plan on B is not zero churn"; }
-( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's moved-block apply failed on B"
+quiet stock_b apply -auto-approve -input=false -no-color || fail "stock's moved-block apply failed on B"
 R_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$R_PLAN" | tail -20; fail "the moved-block plan failed"; }
 # The renderer aligns a map's "=" across its keys, and the Service carries
 # a fixture annotation of its own, so the address line can read
@@ -635,7 +698,7 @@ R_ANN="$(grep -cE '~ +"choudoufu\.intentius\.io/tofu-address" += ".*" -> ".*"' <
 if grep -qE 'will be (created|destroyed)|must be replaced' <<< "$R_PLAN"; then
   gauntlet_stage day2_rename fail "the moved-block plan over $REST_N for_each instances keyed by the render proposes a create, a destroy or a replace - not the marker rewritten in place: $(grep -E '^Plan:' <<< "$R_PLAN" | head -1)"
   printf '%s\n' "$R_PLAN" | tail -20
-  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge after the rename; nothing below would measure day-2 behaviour"
+  quiet tofu_a apply -auto-approve -input=false -no-color || fail "could not converge after the rename; nothing below would measure day-2 behaviour"
 elif grep -qF "Plan: 0 to add, $REST_N to change, 0 to destroy." <<< "$R_PLAN" && [ "$R_ANN" = "$REST_N" ]; then
   R_APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$R_APPLY_OUT" | tail -20; fail "the moved-block apply failed"; }
   grep -qF "Apply complete! Resources: 0 added, $REST_N changed, 0 destroyed" <<< "$R_APPLY_OUT" || { printf '%s\n' "$R_APPLY_OUT" | tail -10; fail "the moved-block apply was not exactly $REST_N in-place changes"; }
@@ -646,7 +709,7 @@ elif grep -qF "Plan: 0 to add, $REST_N to change, 0 to destroy." <<< "$R_PLAN" &
 else
   gauntlet_stage day2_rename fail "the moved-block plan over $REST_N for_each instances is not exactly $REST_N in-place annotation changes: $(grep -E '^Plan:' <<< "$R_PLAN" | head -1), $R_ANN annotation line(s)"
   printf '%s\n' "$R_PLAN" | tail -20
-  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge after the rename; nothing below would measure day-2 behaviour"
+  quiet tofu_a apply -auto-approve -input=false -no-color || fail "could not converge after the rename; nothing below would measure day-2 behaviour"
 fi
 REST_BLOCK="chart_objects"
 
@@ -667,115 +730,244 @@ if [ "${BREAK_REMOVE:-}" = "1" ]; then
   log "  BREAK_REMOVE=1: caught - with the IngressClass kept the plan proposes no destroy"
   gauntlet_stage day2_remove pass "BREAK_REMOVE=1 control: with ingressClassResource kept enabled, no destroy is proposed; the real check is skipped"
 else
+  # Every way choudoufu can miss is recorded here and the stage carries on,
+  # so the world is put back and every later stage is measured: one fail
+  # verdict at the end with all of them. fail (which exits) is kept for what
+  # leaves nothing to measure - the oracle, a command that could not run.
+  REMOVE_FAILS=""
+  remove_fail() { REMOVE_FAILS="${REMOVE_FAILS:+$REMOVE_FAILS; }$*"; }
   set_value "$ADOPTED" "$CLASS_ON" "$CLASS_OFF" || fail "could not disable the IngressClass in the adopted root"
   set_value "$ORACLE"  "$CLASS_ON" "$CLASS_OFF" || fail "could not disable the IngressClass in the oracle root"
-  O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's remove plan failed on B"; }
-  grep -qF "Plan: 0 to add, 0 to change, $CLASS_N to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's remove plan on B is not exactly $CLASS_N destroys"; }
-  O_DESTROYED="$(planned "$O_PLAN" | tr '\n' ';' | sed -E 's/;$//; s/;/; /g')"
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's remove apply failed on B"
-  D_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$D_PLAN" | tail -20; fail "the remove plan failed"; }
-  D_DESTROYED="$(planned "$D_PLAN" | tr '\n' ';' | sed -E 's/;$//; s/;/; /g')"
-  grep -qF "Plan: 0 to add, 0 to change, $CLASS_N to destroy." <<< "$D_PLAN" || { printf '%s\n' "$D_PLAN" | grep -E 'will be|must be|^Plan:' | head -20; fail "the remove plan is not exactly $CLASS_N destroys: $(grep -E '^Plan:' <<< "$D_PLAN" | head -1). Proposed: $D_DESTROYED"; }
-  grep -qF "$CLASS_ADDR will be destroyed" <<< "$D_PLAN" || fail "the remove plan does not destroy $CLASS_ADDR"
-  grep -qF "$VIA_ADDR will be destroyed" <<< "$D_PLAN" || fail "the remove plan does not destroy $VIA_ADDR"
-  # The controller-copy half: nothing the cluster generated may be named.
+  O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -20; fail "stock's remove plan failed on B"; }
+  log "  stock's remove plan on B:"; plan_lines "$O_PLAN"
+  grep -qF "Plan: 0 to add, 0 to change, $CLASS_N to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -20; fail "stock's remove plan on B is not exactly $CLASS_N destroys"; }
+  O_DEST="$(destroyed "$O_PLAN")"
+  { grep -qxF "$CLASS_ADDR" <<< "$O_DEST" && grep -qxF "$VIA_ADDR" <<< "$O_DEST"; } || fail "stock's remove plan on B does not destroy $CLASS_ADDR and $VIA_ADDR: [$(joined "$O_DEST")]"
+  O_OBJS="$(objects_of <<< "$O_DEST")"
+  quiet stock_b apply -auto-approve -input=false -no-color || fail "stock's remove apply failed on B"
+
+  D_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$D_PLAN" | tail -30; fail "the remove plan failed"; }
+  log "  choudoufu's remove plan on A:"; plan_lines "$D_PLAN"
+  D_LINE="$(gauntlet_plan_line <<< "$D_PLAN")"
+  D_DEST="$(destroyed "$D_PLAN")"
+  D_OBJS="$(objects_of <<< "$D_DEST")"
+  grep -qF "Plan: 0 to add, 0 to change, $CLASS_N to destroy." <<< "$D_PLAN" \
+    || remove_fail "the remove plan is ${D_LINE:-no plan line}, not exactly $CLASS_N destroys; it proposes [$(joined "$(planned "$D_PLAN")")]"
+  # By address first, the way stock plans it. A difference is #1996 (the
+  # sweep files a for_each instance that left the render under
+  # <typed resource>.orphan_..., although the object carries the
+  # tofu-address annotation naming its instance) and is a fail; it is
+  # never accepted as a pass.
+  if [ "$D_DEST" != "$O_DEST" ]; then
+    remove_fail "choudoufu's remove plan destroys at addresses that differ from stock's: choudoufu [$(joined "$D_DEST")], stock [$(joined "$O_DEST")] (#1996)"
+  fi
+  # Then by object, whatever the address: the same kind/namespace/name set.
+  if [ "$D_OBJS" != "$O_OBJS" ]; then
+    remove_fail "choudoufu's remove plan does not destroy the same objects as stock's: choudoufu [$(joined "$D_OBJS")], stock [$(joined "$O_OBJS")]"
+  fi
+  # The controller-copy half: nothing the cluster generated may be named, by
+  # name in a destroy header or as an object.
+  D_HEADERS="$({ grep -E 'will be destroyed' <<< "$D_PLAN" || true; })"
   while IFS= read -r copy; do
     [ -n "$copy" ] || continue
-    cname="${copy#*/}"
-    grep -qF "$cname" <<< "$(grep -E 'will be destroyed' <<< "$D_PLAN")" && fail "the remove plan proposes destroying $copy, which the cluster generated and the root never declared"
+    cname="${copy#*/}"; ckind="${copy%%/*}"
+    if grep -qF "$cname" <<< "$D_HEADERS" || grep -qxF "$(printf '%s\n' "$ckind" | tr '[:upper:]' '[:lower:]')|orphan_${NS}_${cname}" <<< "$D_OBJS"; then
+      remove_fail "the remove plan proposes destroying $copy, which the cluster generated and the root never declared"
+    fi
   done <<< "$COPIES_BEFORE"
-  { APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "0 added, 0 changed, $CLASS_N destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the remove apply did not destroy exactly $CLASS_N objects"; }
-  kca get ingressclass nginx >/dev/null 2>&1 && fail "the IngressClass nginx still exists after the remove apply"
-  exists_a ingress via-nginx && fail "the Ingress via-nginx still exists after the remove apply"
-  exists_a deployment "$CTRL" || fail "the controller's Deployment is gone; the removal reached an object the values change kept"
+
+  # Apply the removal whatever the plan's addresses, so the world is where
+  # day2_count expects it; then read the objects back by kind/name.
+  APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)"; APPLY_RC=$?
+  if [ "$APPLY_RC" -ne 0 ] || ! grep -qF "0 added, 0 changed, $CLASS_N destroyed" <<< "$APPLY_OUT"; then
+    printf '%s\n' "$APPLY_OUT" | tail -30
+    remove_fail "the remove apply exited $APPLY_RC and did not report exactly $CLASS_N destroyed: $(grep -E '^Apply complete' <<< "$APPLY_OUT" | head -1) $(gauntlet_first_error_line <<< "$APPLY_OUT")"
+  fi
+  if kca get ingressclass nginx >/dev/null 2>&1; then
+    remove_fail "the IngressClass nginx still exists after the remove apply"
+    kca delete ingressclass nginx --ignore-not-found >/dev/null 2>&1
+  fi
+  if exists_a ingress via-nginx; then
+    remove_fail "the Ingress via-nginx still exists after the remove apply"
+    kca delete ingress via-nginx -n "$NS" --ignore-not-found >/dev/null 2>&1
+  fi
+  exists_a deployment "$CTRL" || remove_fail "the controller's Deployment is gone; the removal reached an object the values change kept"
   COPIES_AFTER="$(copies_a)"
-  [ "$COPIES_AFTER" = "$COPIES_BEFORE" ] || fail "the cluster-created objects changed across the removal: before [$(tr '\n' ';' <<< "$COPIES_BEFORE")], after [$(tr '\n' ';' <<< "$COPIES_AFTER")]"
-  D_REPLAN="$(tofu_a plan -input=false -no-color 2>&1)" || fail "the replan after the remove failed"
-  grep -q "No changes." <<< "$D_REPLAN" || { printf '%s\n' "$D_REPLAN" | tail -20; fail "the replan after the remove is not empty"; }
+  [ "$COPIES_AFTER" = "$COPIES_BEFORE" ] || remove_fail "the cluster-created objects changed across the removal: before [$(joined "$COPIES_BEFORE")], after [$(joined "$COPIES_AFTER")]"
+  D_REPLAN="$(tofu_a plan -input=false -no-color 2>&1)"; D_REPLAN_RC=$?
+  if [ "$D_REPLAN_RC" -ne 0 ] || ! grep -q "No changes." <<< "$D_REPLAN"; then
+    printf '%s\n' "$D_REPLAN" | tail -30
+    remove_fail "the replan after the remove is not empty (exit $D_REPLAN_RC, $(gauntlet_plan_line <<< "$D_REPLAN")): [$(joined "$(planned "$D_REPLAN")")] $(gauntlet_first_error_line <<< "$D_REPLAN")"
+  fi
   REMAIN=$((TOTAL_N - CLASS_N))
-  [ "$(count_a)" = "$REMAIN" ] || fail "$(count_a) labelled objects after the remove, want $REMAIN"
+  R_COUNT="$(count_a)"
+  [ "$R_COUNT" = "$REMAIN" ] || remove_fail "$R_COUNT labelled objects after the remove, want $REMAIN"
   N_COPIES="$(grep -c . <<< "$COPIES_AFTER")"
 
-  # Put back, so day2_count has an IngressClass whose aliases it can scale:
-  # the same toggle on is exactly the two creates.
+  # Put back, so day2_count has an IngressClass whose aliases it can scale
+  # and day2_crash a class its Ingresses name: the same toggle on is exactly
+  # the two creates, at the instances' own addresses on both sides. Creates
+  # are never orphan-named, so this holds whatever the destroy above was
+  # filed under - and it is what shows that an orphan-named destroy left no
+  # record behind that would stop the instance coming back.
   set_value "$ADOPTED" "$CLASS_OFF" "$CLASS_ON" || fail "could not re-enable the IngressClass in the adopted root"
   set_value "$ORACLE"  "$CLASS_OFF" "$CLASS_ON" || fail "could not re-enable the IngressClass in the oracle root"
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's put-back apply failed on B"
-  B_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$B_PLAN" | tail -20; fail "the put-back plan failed"; }
-  grep -qF "Plan: $CLASS_N to add, 0 to change, 0 to destroy." <<< "$B_PLAN" || { printf '%s\n' "$B_PLAN" | grep -E 'will be|must be|^Plan:' | head -20; fail "the put-back plan is not exactly $CLASS_N creates"; }
-  { APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "$CLASS_N added, 0 changed, 0 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the put-back apply did not create exactly $CLASS_N objects"; }
-  [ "$(count_a)" = "$TOTAL_N" ] || fail "$(count_a) labelled objects after the put-back, want $TOTAL_N"
+  OB_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$OB_PLAN" | tail -20; fail "stock's put-back plan failed on B"; }
+  grep -qF "Plan: $CLASS_N to add, 0 to change, 0 to destroy." <<< "$OB_PLAN" || { printf '%s\n' "$OB_PLAN" | tail -20; fail "stock's put-back plan on B is not exactly $CLASS_N creates"; }
+  OB_CREATED="$(created "$OB_PLAN")"
+  quiet stock_b apply -auto-approve -input=false -no-color || fail "stock's put-back apply failed on B"
+  B_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$B_PLAN" | tail -30; fail "the put-back plan failed"; }
+  log "  choudoufu's put-back plan on A:"; plan_lines "$B_PLAN"
+  B_CREATED="$(created "$B_PLAN")"
+  if ! grep -qF "Plan: $CLASS_N to add, 0 to change, 0 to destroy." <<< "$B_PLAN" || [ "$B_CREATED" != "$OB_CREATED" ]; then
+    remove_fail "the put-back plan is $(gauntlet_plan_line <<< "$B_PLAN") creating [$(joined "$B_CREATED")], where stock's creates [$(joined "$OB_CREATED")]; it proposes [$(joined "$(planned "$B_PLAN")")]"
+  fi
+  APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)"; APPLY_RC=$?
+  if [ "$APPLY_RC" -ne 0 ] || ! grep -qF "$CLASS_N added, 0 changed, 0 destroyed" <<< "$APPLY_OUT"; then
+    printf '%s\n' "$APPLY_OUT" | tail -30
+    remove_fail "the put-back apply exited $APPLY_RC and did not report exactly $CLASS_N added: $(grep -E '^Apply complete' <<< "$APPLY_OUT" | head -1) $(gauntlet_first_error_line <<< "$APPLY_OUT")"
+  fi
+  # Without these two nothing below measures what it says, so a miss here
+  # is the one product failure that ends the run.
+  { kca get ingressclass nginx >/dev/null 2>&1 && exists_a ingress via-nginx; } \
+    || fail "the IngressClass nginx and the Ingress via-nginx were not both put back on A, which day2_count and day2_crash need${REMOVE_FAILS:+ (this stage also found: $REMOVE_FAILS)}"
+  B_COUNT="$(count_a)"
+  [ "$B_COUNT" = "$TOTAL_N" ] || remove_fail "$B_COUNT labelled objects after the put-back, want $TOTAL_N"
+  B_REPLAN="$(tofu_a plan -input=false -no-color 2>&1)"; B_REPLAN_RC=$?
+  if [ "$B_REPLAN_RC" -ne 0 ] || ! grep -q "No changes." <<< "$B_REPLAN"; then
+    printf '%s\n' "$B_REPLAN" | tail -30
+    remove_fail "the replan after the put-back is not empty (exit $B_REPLAN_RC, $(gauntlet_plan_line <<< "$B_REPLAN")): [$(joined "$(planned "$B_REPLAN")")]"
+    quiet tofu_a apply -auto-approve -input=false -no-color || fail "could not converge A after the put-back; nothing below would measure day-2 behaviour"
+  fi
   gauntlet_wait_until 240 "the controller on cluster A to publish $CTRL's cluster IP into the recreated Ingress via-nginx's status" -- status_published "$KCA" via-nginx \
-    || fail "the controller never admitted the recreated Ingress via-nginx"
-  gauntlet_stage day2_remove pass "ingressClassResource.enabled=false in values.yaml took the cluster-scoped IngressClass nginx out of the render, and with it the key of the root's own Ingress block, and choudoufu proposed exactly $CLASS_N destroys across the two blocks ($D_DESTROYED), matching stock's $CLASS_N on the oracle cluster ($O_DESTROYED); after the apply both are gone (kubectl), the controller's Deployment untouched, the replan empty and $REMAIN objects labelled. The controller-copy exclusion: the $N_COPIES objects the cluster and the controller generated in $NS ($(tr '\n' ';' <<< "$COPIES_AFTER" | sed -E 's/;$//; s/;/; /g')), the leader-election Lease and the Endpoints among them with no owner reference, were never proposed and read back identical. Put back, the same toggle planned and applied exactly $CLASS_N creates, and the controller published the Service's cluster IP into the recreated Ingress' status. BREAK_REMOVE=1 keeps the IngressClass and requires no destroy"
+    || remove_fail "the controller never published the Service's cluster IP into the recreated Ingress via-nginx's status (it reads '$(status_ip "$KCA" via-nginx)', the Service '$(svc_ip "$KCA")')"
+
+  if [ -n "$REMOVE_FAILS" ]; then
+    gauntlet_stage day2_remove fail "ingressClassResource.enabled=false in values.yaml (the IngressClass nginx and the root's Ingress via-nginx out of the render; stock on the oracle destroys [$(joined "$O_DEST")]): $REMOVE_FAILS. The removal was applied on both sides regardless and read back with kubectl, then put back (choudoufu's put-back created [$(joined "$B_CREATED")]), so every later stage starts where it expects"
+  else
+    gauntlet_stage day2_remove pass "ingressClassResource.enabled=false in values.yaml took the cluster-scoped IngressClass nginx out of the render, and with it the key of the root's own Ingress block, and choudoufu proposed exactly $CLASS_N destroys across the two blocks at the instances' own addresses ($(joined "$D_DEST")), the same addresses and the same objects as stock's $CLASS_N on the oracle cluster; after the apply both are gone (kubectl), the controller's Deployment untouched, the replan empty and $REMAIN objects labelled. The controller-copy exclusion: the $N_COPIES objects the cluster and the controller generated in $NS ($(joined "$COPIES_AFTER")), the leader-election Lease and the Endpoints among them with no owner reference, were never proposed and read back identical. Put back, the same toggle planned and applied exactly $CLASS_N creates at the addresses stock creates ($(joined "$B_CREATED")), the replan was empty, and the controller published the Service's cluster IP into the recreated Ingress' status. BREAK_REMOVE=1 keeps the IngressClass and requires no destroy"
+  fi
 fi
 
 # ── 9. day2_count: for_each over the render, scaled through values ───────
 gauntlet_begin_stage day2_count
 log "=== 9. day2_count: ingressClassResource.aliases 0 -> 2 -> 1 -> 2, each entry one IngressClass and one Ingress ==="
+CLASS0="$(rest_addr IngressClass "" choudoufu-0)"
 CLASS1="$(rest_addr IngressClass "" choudoufu-1)"
 VIA0="$(block_addr ingresses choudoufu-0)"
 VIA1="$(block_addr ingresses choudoufu-1)"
-COUNT_VERDICT=""
+# As in day2_remove: a miss is recorded and the stage carries on to the
+# withdrawal, so day2_replace starts from a converged estate; one verdict at
+# the end.
+COUNT_FAILS=""
+count_fail() { COUNT_FAILS="${COUNT_FAILS:+$COUNT_FAILS; }$*"; }
+# aliases_a: the alias IngressClasses and Ingresses on A, for a failure line.
+aliases_a() { { kca get ingressclasses -o name; kca get ingresses -n "$NS" -o name; } 2>/dev/null | grep choudoufu | tr '\n' ' '; }
 set_aliases "$ADOPTED" 2 || fail "could not add two aliases to the adopted root"
 set_aliases "$ORACLE" 2  || fail "could not add two aliases to the oracle root"
-O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's plan for the two aliases failed on B"; }
-grep -qF "Plan: 4 to add, 0 to change, 0 to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's plan for the two aliases on B is not exactly four adds"; }
-( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock could not create the aliases on B"
+O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -20; fail "stock's plan for the two aliases failed on B"; }
+grep -qF "Plan: 4 to add, 0 to change, 0 to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -20; fail "stock's plan for the two aliases on B is not exactly four adds"; }
+O_UP_CREATED="$(created "$O_PLAN")"
+quiet stock_b apply -auto-approve -input=false -no-color || fail "stock could not create the aliases on B"
 set_aliases "$ORACLE" 1 || fail "could not scale the oracle root to 1"
-O_DOWN="$(stock_b plan -input=false -no-color 2>&1)" || fail "stock's scale-down plan failed on B"
-grep -qF "Plan: 0 to add, 0 to change, 2 to destroy." <<< "$O_DOWN" || { printf '%s\n' "$O_DOWN" | tail -10; fail "stock's scale-down plan on B is not exactly two destroys"; }
-{ grep -qF "$CLASS1" <<< "$O_DOWN" && grep -qF "$VIA1" <<< "$O_DOWN"; } || fail "stock's scale-down on B does not destroy $CLASS1 and $VIA1"
-( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's scale-down apply failed on B"
+O_DOWN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_DOWN" | tail -20; fail "stock's scale-down plan failed on B"; }
+grep -qF "Plan: 0 to add, 0 to change, 2 to destroy." <<< "$O_DOWN" || { printf '%s\n' "$O_DOWN" | tail -20; fail "stock's scale-down plan on B is not exactly two destroys"; }
+O_DOWN_DEST="$(destroyed "$O_DOWN")"
+{ grep -qxF "$CLASS1" <<< "$O_DOWN_DEST" && grep -qxF "$VIA1" <<< "$O_DOWN_DEST"; } || { plan_lines "$O_DOWN"; fail "stock's scale-down on B does not destroy $CLASS1 and $VIA1"; }
+O_DOWN_OBJS="$(objects_of <<< "$O_DOWN_DEST")"
+quiet stock_b apply -auto-approve -input=false -no-color || fail "stock's scale-down apply failed on B"
 
 A_UP="$(tofu_a plan -input=false -no-color 2>&1)"; A_UP_RC=$?
-if [ "$A_UP_RC" -ne 0 ] || ! grep -qF "Plan: 4 to add, 0 to change, 0 to destroy." <<< "$A_UP"; then
-  COUNT_VERDICT="choudoufu could not plan the two aliases' four objects: $(grep -E '^Plan:|^Error' <<< "$A_UP" | head -1)"
+log "  choudoufu's plan for two aliases on A:"; plan_lines "$A_UP"
+UP_OK=1
+if [ "$A_UP_RC" -ne 0 ] || ! grep -qF "Plan: 4 to add, 0 to change, 0 to destroy." <<< "$A_UP" || [ "$(created "$A_UP")" != "$O_UP_CREATED" ]; then
+  printf '%s\n' "$A_UP" | tail -30
+  count_fail "choudoufu could not plan the two aliases' four objects at stock's addresses: exit $A_UP_RC, $(gauntlet_plan_line <<< "$A_UP"), creating [$(joined "$(created "$A_UP")")] where stock creates [$(joined "$O_UP_CREATED")]; first error: $(gauntlet_first_error_line <<< "$A_UP")"
+  UP_OK=0
 else
-  { APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "4 added, 0 changed, 0 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the aliases' creating apply did not add exactly four objects"; }
-  { kca get ingressclass choudoufu-0 >/dev/null 2>&1 && kca get ingressclass choudoufu-1 >/dev/null 2>&1 && exists_a ingress via-choudoufu-0 && exists_a ingress via-choudoufu-1; } \
-    || fail "both aliases' IngressClasses and Ingresses do not exist after choudoufu created them"
-  A_RE="$(tofu_a plan -input=false -no-color 2>&1)"; A_RE_RC=$?
-  if [ "$A_RE_RC" -ne 0 ] || ! grep -q "No changes." <<< "$A_RE"; then
-    COUNT_VERDICT="replanning the root choudoufu itself had just applied with two aliases is not empty (exit $A_RE_RC, $(gauntlet_plan_line <<< "$A_RE")); proposed: $(planned "$A_RE" | head -10 | tr '\n' ';'); first error: $(gauntlet_first_error_line <<< "$A_RE")"
+  APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)"; APPLY_RC=$?
+  if [ "$APPLY_RC" -ne 0 ] || ! grep -qF "4 added, 0 changed, 0 destroyed" <<< "$APPLY_OUT"; then
+    printf '%s\n' "$APPLY_OUT" | tail -30
+    count_fail "the aliases' creating apply exited $APPLY_RC and did not report exactly four added: $(gauntlet_first_error_line <<< "$APPLY_OUT")"
+    UP_OK=0
+  elif ! { kca get ingressclass choudoufu-0 >/dev/null 2>&1 && kca get ingressclass choudoufu-1 >/dev/null 2>&1 && exists_a ingress via-choudoufu-0 && exists_a ingress via-choudoufu-1; }; then
+    count_fail "both aliases' IngressClasses and Ingresses do not exist after choudoufu created them: [$(aliases_a)]"
+    UP_OK=0
+  else
+    A_RE="$(tofu_a plan -input=false -no-color 2>&1)"; A_RE_RC=$?
+    if [ "$A_RE_RC" -ne 0 ] || ! grep -q "No changes." <<< "$A_RE"; then
+      printf '%s\n' "$A_RE" | tail -30
+      count_fail "replanning the root choudoufu itself had just applied with two aliases is not empty (exit $A_RE_RC, $(gauntlet_plan_line <<< "$A_RE")); proposed: $(planned "$A_RE" | head -10 | tr '\n' ';'); first error: $(gauntlet_first_error_line <<< "$A_RE")"
+      UP_OK=0
+    fi
   fi
 fi
 
-if [ -n "$COUNT_VERDICT" ]; then
-  gauntlet_stage day2_count fail "$COUNT_VERDICT"
-  { set_aliases "$ADOPTED" 0 && set_aliases "$ORACLE" 0; } || fail "could not withdraw the aliases"
-  kca delete ingress via-choudoufu-0 via-choudoufu-1 -n "$NS" --ignore-not-found >/dev/null 2>&1
-  kca delete ingressclass choudoufu-0 choudoufu-1 --ignore-not-found >/dev/null 2>&1
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "the oracle root would not converge after the aliases were withdrawn"
-  CLEAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$CLEAN" | tail -20; fail "the plan after withdrawing the aliases failed; nothing below would measure day-2 behaviour"; }
-  grep -q "No changes." <<< "$CLEAN" || { printf '%s\n' "$CLEAN" | tail -20; fail "the plan after withdrawing the aliases is not empty; nothing below would measure day-2 behaviour"; }
-else
+if [ "$UP_OK" = "1" ]; then
   set_aliases "$ADOPTED" 1 || fail "could not scale the adopted root to 1"
-  C_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$C_PLAN" | tail -20; fail "the scale-down plan failed"; }
-  grep -qF "Plan: 0 to add, 0 to change, 2 to destroy." <<< "$C_PLAN" || { printf '%s\n' "$C_PLAN" | tail -20; fail "the scale-down plan is not exactly two destroys"; }
-  C_ADDR="$(planned "$C_PLAN" | tr '\n' ';' | sed -E 's/;$//; s/;/; /g')"
-  { APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "0 added, 0 changed, 2 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the scale-down apply did not destroy exactly two objects"; }
+  C_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$C_PLAN" | tail -30; fail "the scale-down plan failed"; }
+  log "  choudoufu's scale-down plan on A:"; plan_lines "$C_PLAN"
+  C_DEST="$(destroyed "$C_PLAN")"
+  C_ADDR="$(joined "$C_DEST")"
+  C_OBJS="$(objects_of <<< "$C_DEST")"
+  grep -qF "Plan: 0 to add, 0 to change, 2 to destroy." <<< "$C_PLAN" \
+    || count_fail "the scale-down plan is $(gauntlet_plan_line <<< "$C_PLAN"), not exactly two destroys: [$(joined "$(planned "$C_PLAN")")]"
+  # The objects must be stock's (alias choudoufu-1's pair). The addresses
+  # are reported, not judged: a different address here is the same #1996
+  # day2_remove judges, and this stage measures which instance goes.
+  [ "$C_OBJS" = "$O_DOWN_OBJS" ] \
+    || count_fail "the scale-down plan does not destroy the objects stock's does: choudoufu [$(joined "$C_OBJS")], stock [$(joined "$O_DOWN_OBJS")]"
+  if [ "$C_DEST" = "$O_DOWN_DEST" ]; then
+    C_ADDR_NOTE="at stock's own addresses"
+  else
+    C_ADDR_NOTE="at addresses that differ from stock's [$(joined "$O_DOWN_DEST")] (#1996, judged in day2_remove)"
+  fi
+  APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)"; APPLY_RC=$?
+  if [ "$APPLY_RC" -ne 0 ] || ! grep -qF "0 added, 0 changed, 2 destroyed" <<< "$APPLY_OUT"; then
+    printf '%s\n' "$APPLY_OUT" | tail -30
+    count_fail "the scale-down apply exited $APPLY_RC and did not report exactly two destroyed: $(gauntlet_first_error_line <<< "$APPLY_OUT")"
+  fi
   if [ "${BREAK_COUNT:-}" = "1" ]; then
     kca get ingressclass choudoufu-0 >/dev/null 2>&1 || fail "BREAK_COUNT=1: choudoufu-0 was destroyed - the 'wrong instance' assertion would hold, so the check is not load-bearing"
     log "  BREAK_COUNT=1: caught - choudoufu-0 still exists, so asserting it was the one destroyed correctly fails"
-    gauntlet_stage day2_count pass "BREAK_COUNT=1 control: asserting the remaining alias (choudoufu-0) was destroyed correctly fails to hold; the real check is skipped"
+    COUNT_BREAK_DONE=1
   else
-    { kca get ingressclass choudoufu-0 >/dev/null 2>&1 && exists_a ingress via-choudoufu-0; } || fail "alias choudoufu-0's IngressClass or Ingress was destroyed on the scale-down"
-    kca get ingressclass choudoufu-1 >/dev/null 2>&1 && fail "the IngressClass choudoufu-1 still exists after the scale-down"
-    exists_a ingress via-choudoufu-1 && fail "the Ingress via-choudoufu-1 still exists after the scale-down"
+    { kca get ingressclass choudoufu-0 >/dev/null 2>&1 && exists_a ingress via-choudoufu-0; } || count_fail "alias choudoufu-0's IngressClass or Ingress was destroyed on the scale-down: [$(aliases_a)]"
+    kca get ingressclass choudoufu-1 >/dev/null 2>&1 && count_fail "the IngressClass choudoufu-1 still exists after the scale-down: [$(aliases_a)]"
+    exists_a ingress via-choudoufu-1 && count_fail "the Ingress via-choudoufu-1 still exists after the scale-down: [$(aliases_a)]"
     { set_aliases "$ADOPTED" 2 && set_aliases "$ORACLE" 2; } || fail "could not scale back to 2"
-    O_UP="$(stock_b plan -input=false -no-color 2>&1)" || fail "stock's scale-up plan failed on B"
-    grep -qF "Plan: 2 to add, 0 to change, 0 to destroy." <<< "$O_UP" || { printf '%s\n' "$O_UP" | tail -10; fail "stock's scale-up plan on B is not exactly two adds"; }
-    ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's scale-up apply failed on B"
-    U_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$U_PLAN" | tail -20; fail "the scale-up plan failed"; }
-    grep -qF "Plan: 2 to add, 0 to change, 0 to destroy." <<< "$U_PLAN" || { printf '%s\n' "$U_PLAN" | tail -20; fail "the scale-up plan is not exactly two adds"; }
-    { grep -qF "$CLASS1 will be created" <<< "$U_PLAN" && grep -qF "$VIA1 will be created" <<< "$U_PLAN"; } || fail "the scale-up plan does not create $CLASS1 and $VIA1"
-    { APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "2 added, 0 changed, 0 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the scale-up apply did not create exactly two objects"; }
-    gauntlet_stage day2_count pass "for_each over the render, scaled the way a chart user scales it, across two blocks: ingressClassResource.aliases at two entries rendered two more IngressClasses and the root's ingresses block, keyed by the rendered IngressClasses, two more Ingresses, and choudoufu created all four, then replanned empty; at one entry it destroyed exactly alias choudoufu-1's pair, planned at $C_ADDR ($VIA0 and its class untouched, all read with kubectl); back at two it created exactly $CLASS1 and $VIA1; stock's plans for the same three edits on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the remaining alias was destroyed and correctly fails"
-    { set_aliases "$ADOPTED" 0 && set_aliases "$ORACLE" 0; } || fail "could not withdraw the aliases"
-    ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not withdraw the aliases from A"
-    ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not withdraw the aliases from B"
+    O_UP="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_UP" | tail -20; fail "stock's scale-up plan failed on B"; }
+    grep -qF "Plan: 2 to add, 0 to change, 0 to destroy." <<< "$O_UP" || { printf '%s\n' "$O_UP" | tail -20; fail "stock's scale-up plan on B is not exactly two adds"; }
+    quiet stock_b apply -auto-approve -input=false -no-color || fail "stock's scale-up apply failed on B"
+    U_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$U_PLAN" | tail -30; fail "the scale-up plan failed"; }
+    log "  choudoufu's scale-up plan on A:"; plan_lines "$U_PLAN"
+    if ! grep -qF "Plan: 2 to add, 0 to change, 0 to destroy." <<< "$U_PLAN" || [ "$(created "$U_PLAN")" != "$(created "$O_UP")" ]; then
+      count_fail "the scale-up plan is $(gauntlet_plan_line <<< "$U_PLAN") creating [$(joined "$(created "$U_PLAN")")], not exactly $CLASS1 and $VIA1 as stock's [$(joined "$(created "$O_UP")")]"
+    fi
+    APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)"; APPLY_RC=$?
+    if [ "$APPLY_RC" -ne 0 ] || ! grep -qF "2 added, 0 changed, 0 destroyed" <<< "$APPLY_OUT"; then
+      printf '%s\n' "$APPLY_OUT" | tail -30
+      count_fail "the scale-up apply exited $APPLY_RC and did not report exactly two added: $(gauntlet_first_error_line <<< "$APPLY_OUT")"
+    fi
   fi
+fi
+
+# Withdraw the aliases on both sides whatever happened above, and prove A
+# converged: day2_replace asserts an exact plan shape on this root.
+{ set_aliases "$ADOPTED" 0 && set_aliases "$ORACLE" 0; } || fail "could not withdraw the aliases"
+W_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$W_OUT" | tail -30; count_fail "the apply withdrawing the aliases from A failed: $(gauntlet_first_error_line <<< "$W_OUT")"; }
+quiet stock_b apply -auto-approve -input=false -no-color || fail "could not withdraw the aliases from B"
+kca delete ingress via-choudoufu-0 via-choudoufu-1 -n "$NS" --ignore-not-found >/dev/null 2>&1
+kca delete ingressclass choudoufu-0 choudoufu-1 --ignore-not-found >/dev/null 2>&1
+CLEAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$CLEAN" | tail -30; fail "the plan after withdrawing the aliases failed; nothing below would measure day-2 behaviour"; }
+grep -q "No changes." <<< "$CLEAN" || { printf '%s\n' "$CLEAN" | tail -30; fail "the plan after withdrawing the aliases is not empty; nothing below would measure day-2 behaviour${COUNT_FAILS:+ (this stage also found: $COUNT_FAILS)}"; }
+
+if [ -n "$COUNT_FAILS" ]; then
+  gauntlet_stage day2_count fail "ingressClassResource.aliases 0 -> 2 -> 1 -> 2 (each entry one IngressClass and one Ingress across the chart_objects and ingresses blocks; stock's plans on the oracle are 4 adds, then 2 destroys [$(joined "$O_DOWN_DEST")], then 2 adds): $COUNT_FAILS. The aliases were withdrawn on both sides afterwards and A replans empty"
+elif [ -n "${COUNT_BREAK_DONE:-}" ]; then
+  gauntlet_stage day2_count pass "BREAK_COUNT=1 control: asserting the remaining alias (choudoufu-0) was destroyed correctly fails to hold; the real check is skipped"
+else
+  gauntlet_stage day2_count pass "for_each over the render, scaled the way a chart user scales it, across two blocks: ingressClassResource.aliases at two entries rendered two more IngressClasses and the root's ingresses block, keyed by the rendered IngressClasses, two more Ingresses, and choudoufu created all four at stock's addresses, then replanned empty; at one entry it destroyed exactly alias choudoufu-1's pair, the same two objects stock destroys, planned at $C_ADDR, $C_ADDR_NOTE ($CLASS0, $VIA0 untouched, all read with kubectl); back at two it created exactly $CLASS1 and $VIA1; stock's plans for the same three edits on the oracle cluster have the identical shape. Withdrawn afterwards, A replans empty. BREAK_COUNT=1 asserts the remaining alias was destroyed and correctly fails"
 fi
 
 # ── 9b. day2_replace: a create_before_destroy rename ─────────────────────
@@ -791,13 +983,13 @@ gauntlet_kind_day2_crash_rename "$ADOPTED" "$NS"
 crash_block first > "$ORACLE/crash.tf" || fail "could not write crash-first to the oracle root"
 O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's crash-first plan failed on B"; }
 grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's crash-first plan on B is not exactly one add"; }
-( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's crash-first apply failed on B"
+quiet stock_b apply -auto-approve -input=false -no-color || fail "stock's crash-first apply failed on B"
 crash_block second >> "$ORACLE/crash.tf" || fail "could not append crash-second to the oracle root"
 O_REMAINDER="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_REMAINDER" | tail -10; fail "stock's remainder plan failed on B"; }
 grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$O_REMAINDER" \
   || { printf '%s\n' "$O_REMAINDER" | tail -10; fail "stock's remainder plan on B is not exactly one add - the oracle for this stage is not what it should be"; }
-grep -q 'kubernetes_manifest.crash_second' <<< "$O_REMAINDER" || fail "stock's remainder plan on B does not name crash_second"
-( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's remainder apply failed on B"
+grep -q 'kubernetes_manifest.crash_second' <<< "$O_REMAINDER" || { plan_lines "$O_REMAINDER"; fail "stock's remainder plan on B does not name crash_second"; }
+quiet stock_b apply -auto-approve -input=false -no-color || fail "stock's remainder apply failed on B"
 log "  oracle: stock at crash-first alone plans exactly one add (crash_second) for the remainder, and applies it"
 
 C_BEFORE="$(count_a)"
@@ -854,7 +1046,7 @@ if [ "${BREAK_CRASH:-}" = "1" ]; then
   grep -qF "No changes." <<< "$R_PLAN" \
     && { printf '%s\n' "$R_PLAN" | tail -20; fail "BREAK_CRASH=1: the plan after a real interrupted two-object apply came back empty, so this stage's own check is not load-bearing"; }
   gauntlet_stage day2_crash pass "BREAK_CRASH=1 control: after the same real interrupt the plan proposes work ($R_LINE), so asserting nothing is proposed correctly fails to hold; the real check is skipped $CRASH_RENAME_DETAIL"
-  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_CRASH: the recovery apply failed afterwards"
+  quiet tofu_a apply -auto-approve -input=false -no-color || fail "BREAK_CRASH: the recovery apply failed afterwards"
 elif [ "${BREAK_CRASH_UNBOUND:-}" = "1" ]; then
   if recovered; then
     printf '%s\n' "$R_PLAN" | grep -E '^Plan:|will be'
@@ -862,7 +1054,7 @@ elif [ "${BREAK_CRASH_UNBOUND:-}" = "1" ]; then
   fi
   gauntlet_stage day2_crash pass "BREAK_CRASH_UNBOUND=1 control: with the tofu-estate label stripped off the Ingress the interrupted apply created, the recovery check correctly fails to hold ($R_LINE); the real check is skipped $CRASH_RENAME_DETAIL"
   kca delete ingress crash-first -n "$NS" >/dev/null 2>&1 || fail "BREAK_CRASH_UNBOUND: could not delete the unlabelled crash-first afterwards"
-  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_CRASH_UNBOUND: the apply after the cleanup failed"
+  quiet tofu_a apply -auto-approve -input=false -no-color || fail "BREAK_CRASH_UNBOUND: the apply after the cleanup failed"
 else
   if ! recovered; then
     printf '%s\n' "$R_PLAN" | grep -E '^Plan:|^No changes|will be' | head -20
@@ -878,7 +1070,7 @@ else
     [ "$R_REPLAN_RC" -eq 0 ] || { printf '%s\n' "$R_REPLAN" | tail -30; fail "the replan after the recovery exited $R_REPLAN_RC: $(grep -E '^Error' <<< "$R_REPLAN" | head -1)"; }
     grep -q "No changes." <<< "$R_REPLAN" || { printf '%s\n' "$R_REPLAN" | tail -30; fail "the replan after the recovery is not empty"; }
     C_AFTER="$(count_a)"
-    [ "$C_AFTER" = "$((C_BEFORE + 2))" ] || fail "$C_AFTER labelled objects after the recovery, want $((C_BEFORE + 2))"
+    [ "$C_AFTER" = "$((C_BEFORE + 2))" ] || fail "$C_AFTER labelled objects after the recovery, want $((C_BEFORE + 2)): $(labelled_a)"
     gauntlet_stage day2_crash pass "an apply creating two Ingresses of the class this estate's render installs was interrupted by a real SIGTERM (exit $X_RC), delivered by the engine itself inside the -parallelism=1 walker the instant kubernetes_manifest.crash_first's create committed; crash_second's manifest reads crash_first's name, so the walker cannot have reached it. kubectl confirms crash-first exists carrying tofu-estate=$ESTATE and its address annotation, and crash-second does not; the interrupted apply recorded exactly the one object it created (records $X_RECORDS_BEFORE -> $X_RECORDS_AFTER, labels [$X_KEYS_L], annotations [$X_KEYS_A], #1211). The next plan proposed exactly the remainder ($R_LINE, crash_second created) and nothing for crash-first, matching stock from the same position on the oracle cluster; the recovery apply added one, the replan is empty and $C_AFTER objects carry the label, $C_BEFORE plus the pair. BREAK_CRASH=1 and BREAK_CRASH_UNBOUND=1 both correctly fail $CRASH_RENAME_DETAIL"
   fi
 fi
@@ -893,8 +1085,12 @@ grep -qF "Resources: 0 added, 0 changed, $T_EXPECT destroyed" <<< "$T_OUT" || { 
 # The controller pod's terminationGracePeriodSeconds is the chart's 300, so
 # the namespace is given that long and a margin to finish going.
 for _ in $(seq 1 170); do kca get namespace "$NS" >/dev/null 2>&1 || break; sleep 2; done
-kca get namespace "$NS" >/dev/null 2>&1 && fail "the $NS namespace still exists after the destroy"
-[ "$(count_a)" = "0" ] || fail "$(count_a) object(s) still carry tofu-estate=$ESTATE after the destroy"
+if kca get namespace "$NS" >/dev/null 2>&1; then
+  kca get namespace "$NS" -o jsonpath='{.status}' 2>&1; printf '\n'
+  kca get all,ingresses,configmaps,leases -n "$NS" 2>&1 | head -30
+  fail "the $NS namespace still exists after the destroy"
+fi
+[ "$(count_a)" = "0" ] || fail "$(count_a) object(s) still carry tofu-estate=$ESTATE after the destroy: $(labelled_a)"
 CLUSTER_LEFT=""
 kca get clusterrole "$FULL" >/dev/null 2>&1 && CLUSTER_LEFT="$CLUSTER_LEFT clusterrole/$FULL"
 kca get clusterrolebinding "$FULL" >/dev/null 2>&1 && CLUSTER_LEFT="$CLUSTER_LEFT clusterrolebinding/$FULL"
@@ -904,21 +1100,21 @@ CLASSES_LEFT="$(kca get ingressclasses -o jsonpath='{range .items[?(@.spec.contr
 [ -z "$CLASSES_LEFT" ] || fail "IngressClasses for k8s.io/ingress-nginx survive the destroy: $CLASSES_LEFT"
 O_EXPECT="$(managed_n stock_b)"
 O_T="$(stock_b apply -destroy -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$O_T" | tail -10; fail "stock's destroy failed on B"; }
-grep -qF "Resources: 0 added, 0 changed, $O_EXPECT destroyed" <<< "$O_T" || fail "stock's destroy on B did not remove exactly the $O_EXPECT objects its state held"
+grep -qF "Resources: 0 added, 0 changed, $O_EXPECT destroyed" <<< "$O_T" || { printf '%s\n' "$O_T" | tail -10; fail "stock's destroy on B did not remove exactly the $O_EXPECT objects its state held"; }
 gauntlet_stage day2_teardown pass "apply -destroy removed exactly the $T_EXPECT remaining objects in one apply; the $NS namespace is gone and with it the controller's Lease, its ReplicaSet and the Service's EndpointSlice and Endpoints; the cluster-scoped ClusterRole, ClusterRoleBinding and IngressClass are gone and no IngressClass for k8s.io/ingress-nginx remains; no object of the estate's kinds carries tofu-estate=$ESTATE (kubectl, every namespace); stock's destroy on the oracle cluster removed exactly the $O_EXPECT its state held"
 
 # ── 12. greenfield: the same shape, fresh, with a live block ─────────────
 gauntlet_begin_stage greenfield
 log "=== 12. greenfield: choudoufu applies the shape fresh on the now-empty cluster A, in one apply ==="
 write_root "$GREEN" live || fail "could not write the greenfield root"
-( cd "$GREEN" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || fail "greenfield init failed"
 green() { ( cd "$GREEN" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" "$TOFU" "$@" ); }
+quiet green init -input=false -no-color || fail "greenfield init failed"
 
 G_OUT="$(green apply -auto-approve -input=false -no-color 2>&1)"; G_RC=$?
 if [ "$G_RC" -ne 0 ]; then
   printf '%s\n' "$G_OUT" | tail -40
   gauntlet_stage greenfield fail "choudoufu cannot apply the root fresh in one pass, which stock did at cold deploy against the same kind of empty cluster: exit $G_RC; the first error it printed was \"$(gauntlet_first_error_line <<< "$G_OUT")\""
-  ( green apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 )
+  quiet green apply -destroy -auto-approve -input=false -no-color
   GREENFIELD_SKIPPED=1
 fi
 if [ -z "${GREENFIELD_SKIPPED:-}" ]; then
@@ -927,10 +1123,10 @@ grep -qF "Apply complete! Resources: $TOTAL_N added, 0 changed, 0 destroyed" <<<
 nginx_ready "$KCA" "cluster A (greenfield)" || fail "ingress-nginx never became ready on A after the greenfield apply"
 G_LABELLED="$(count_a)"
 G_RECORDS="$(gauntlet_record_envelope_count "$GREEN/.tofu-records")"
-G_PLAN="$(green plan -input=false -no-color 2>&1)" || fail "the greenfield replan failed"
+G_PLAN="$(green plan -input=false -no-color 2>&1)" || { printf '%s\n' "$G_PLAN" | tail -30; fail "the greenfield replan failed"; }
 grep -q "No changes." <<< "$G_PLAN" || { printf '%s\n' "$G_PLAN" | tail -20; fail "the greenfield replan is not empty"; }
 rm -f "$GREEN/.terraform/choudoufu-cache.tfstate"
-G_PLAN2="$(green plan -input=false -no-color 2>&1)" || fail "the greenfield replan without the cache failed"
+G_PLAN2="$(green plan -input=false -no-color 2>&1)" || { printf '%s\n' "$G_PLAN2" | tail -30; fail "the greenfield replan without the cache failed"; }
 grep -q "No changes." <<< "$G_PLAN2" || { printf '%s\n' "$G_PLAN2" | tail -20; fail "the greenfield replan without the cache is not empty"; }
 
 # The lost-store control (#1235), read as reference-k8s-cert-manager reads
@@ -952,7 +1148,7 @@ L_MANIFEST_UPDATES="$(grep -cE '^[[:space:]]*# kubernetes_manifest\..* will be u
   fail "with the record store deleted the plan proposes $L_MANIFEST_UPDATES in-place update(s) of kubernetes_manifest instances, whose records hold declared metadata KEY SETS and no residue values (#1211) - a missing key set proposes removing nothing"; }
 L_OTHER="$(planned "$L_PLAN" | tr '\n' ';' | sed -E 's/;$//; s/;/; /g')"
 if [ -n "$L_OTHER" ]; then
-  ( green apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "the converging apply after the lost store failed"
+  quiet green apply -auto-approve -input=false -no-color || fail "the converging apply after the lost store failed"
 fi
 log "  lost store: $L_LINE${L_OTHER:+ ($L_OTHER, reconverged)}"
 G_WANT="$TOTAL_N"; [ "${BREAK:-}" = "1" ] && G_WANT=$((TOTAL_N + 1))
@@ -962,10 +1158,10 @@ if [ "${BREAK:-}" = "1" ]; then
   fi
   gauntlet_stage greenfield pass "BREAK=1 control: expecting $G_WANT labelled objects where the estate has $G_LABELLED makes the count assertion correctly fail; the estate applied ($TOTAL_N added in one pass, no terraform.tfstate) and replanned empty with and without the cache"
 else
-  [ "$G_LABELLED" = "$TOTAL_N" ] || fail "$G_LABELLED object(s) carry tofu-estate=$ESTATE after the greenfield apply, want $TOTAL_N"
+  [ "$G_LABELLED" = "$TOTAL_N" ] || fail "$G_LABELLED object(s) carry tofu-estate=$ESTATE after the greenfield apply, want $TOTAL_N: $(labelled_a)"
   gauntlet_stage greenfield pass "$TOTAL_N objects applied fresh with a live block and no terraform.tfstate, in ONE apply with no pre-apply - the render read by the data-read phase before the plan, the root's own Ingress keyed off it - every one labelled tofu-estate=$ESTATE (kubectl, 11 kinds), the controller Available and its write of the Service's cluster IP into Ingress via-nginx's status read back; replanned empty with and without the cache; the record store held $G_RECORDS envelope(s) for $TOTAL_N instances, and with that whole store deleted the plan read \"$L_LINE\", nothing created, destroyed or replaced and no kubernetes_manifest updated${L_OTHER:+ (proposed and reconverged: $L_OTHER)}. BREAK=1 expects a deliberately wrong object count and the assertion correctly fails"
 fi
-( green apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || log "  note: greenfield teardown did not exit clean; the cluster is deleted below regardless"
+quiet green apply -destroy -auto-approve -input=false -no-color || log "  note: greenfield teardown did not exit clean; the cluster is deleted below regardless"
 fi
 
 # ── 13. strict: every toggle on, one refusal ─────────────────────────────
@@ -1004,7 +1200,7 @@ EOF
 }
 log "=== 13. strict: every strict toggle on ==="
 strict_block "refuse" > "$STRICT/main.tf"
-( cd "$STRICT" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || fail "choudoufu init for the strict-stage scratch estate failed"
+S_INIT="$(cd "$STRICT" && "$TOFU" init -input=false -no-color 2>&1)" || { printf '%s\n' "$S_INIT" | tail -20; fail "choudoufu init for the strict-stage scratch estate failed"; }
 STRICT_ON="$(cd "$STRICT" && "$TOFU" plan -input=false -no-color 2>&1)"; STRICT_ON_RC=$?
 if [ "${BREAK_STRICT:-}" = "1" ]; then
   strict_block "store" > "$STRICT/main.tf"
