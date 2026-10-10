@@ -1,0 +1,105 @@
+# reference-k8s-helm-argo-cd's deltas from argo-cd 10.10.2's defaults (#1987).
+# Every other value is the chart's own.
+#
+# run.sh's stages edit three places in this file by exact match - the
+# policy.default line, notifications' enabled, and everything below the
+# day2_count marker at the end - so keep their spelling.
+
+# Dex adds nothing to this estate: no connector is configured, so it would
+# be one more Deployment, Service, Role, RoleBinding, ServiceAccount and
+# NetworkPolicy serving no login, and one more image (ghcr.io/dexidp/dex).
+dex:
+  enabled: false
+
+# The chart's redis-secret-init is a pre-install/pre-upgrade helm hook Job
+# (with its own ServiceAccount, Role and RoleBinding, all hooks too) that
+# generates a random Redis password into the Secret argocd-redis. A
+# client-side render has no hook phase and the password would not be
+# deterministic, so the hook is off and argocd-redis is declared below
+# with a fixed password. Every component reads it by that name.
+redisSecretInit:
+  enabled: false
+
+configs:
+  rbac:
+    # The scalar plan_approval edits (role:readonly -> role:admin): it lands
+    # in argocd-rbac-cm alone, which no pod template checksums, so the edit
+    # plans as exactly one in-place update.
+    policy.default: role:readonly
+
+notifications:
+  # day2_remove sets this false, which takes the notifications controller's
+  # Deployment, ServiceAccount, Role, RoleBinding, ClusterRole,
+  # ClusterRoleBinding, NetworkPolicy and ConfigMap out of the render and
+  # withdraws its ingress rule from the repo server's NetworkPolicy.
+  enabled: true
+  secret:
+    # The chart writes this Secret with `stringData:`, which is null with no
+    # items and which the API server never returns once it has folded it
+    # into data. It is declared below with data instead.
+    create: false
+
+repoServer:
+  # The repo server's Role renders `rules:` with nothing under it, which
+  # decodes to null and kubernetes_manifest replans for ever. One read rule
+  # (the chart's own commented example) keeps the list non-empty.
+  rbac:
+    - apiGroups:
+        - argoproj.io
+      resources:
+        - applications
+      verbs:
+        - get
+        - list
+        - watch
+
+# Rendered after everything else in the chart (templates/extra-manifests.yaml).
+# The two Secrets the deltas above stop the chart from writing, then the
+# estate's own Argo CD objects: an AppProject and an Application of the
+# chart's CRDs. The Application's repository does not exist and it has no
+# sync policy, so nothing is ever synced; the application controller still
+# reconciles it and writes its status (ComparisonError) into the object.
+extraObjects:
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: argocd-redis
+      namespace: argocd
+    type: Opaque
+    data:
+      auth: Y2hvdWRvdWZ1LWdhdW50bGV0
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: argocd-notifications-secret
+      namespace: argocd
+    type: Opaque
+    data:
+      gauntlet-token: Y2hvdWRvdWZ1LWdhdW50bGV0LW5vdGlmaWNhdGlvbnM=
+  - apiVersion: argoproj.io/v1alpha1
+    kind: AppProject
+    metadata:
+      name: gauntlet
+      namespace: argocd
+    spec:
+      description: reference-k8s-helm-argo-cd
+      sourceRepos:
+        - https://example.invalid/*
+      destinations:
+        - server: https://kubernetes.default.svc
+          namespace: gauntlet
+  - apiVersion: argoproj.io/v1alpha1
+    kind: Application
+    metadata:
+      name: gauntlet
+      namespace: argocd
+    spec:
+      project: gauntlet
+      source:
+        repoURL: https://example.invalid/gauntlet.git
+        path: guestbook
+        targetRevision: HEAD
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: gauntlet
+  # day2_count: Applications shard-<i> below this line, written by run.sh
