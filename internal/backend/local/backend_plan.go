@@ -138,9 +138,16 @@ func (b *Local) opPlan(
 	// Plan() re-validates every resource's final config, so a provider's
 	// validation warning (the kubernetes provider's "Deprecated Resource"
 	// is the measured case, epic #1885) comes back here a second time after
-	// localRun's validate walk already reported it. Stock terraform merges
-	// with the same deduplication.
-	diags = appendWithoutDuplicates(diags, planDiags)
+	// localRun's validate walk already reported it. Stock OpenTofu (1.13.0
+	// measured) prints both, so with no live block the fork does too: that
+	// run is stock, byte for byte (#1925, k8s-stock-when-you-need-it). A
+	// live run merges with stock terraform's deduplication instead, which
+	// is what reference-k8s-workloads' test_plan compares it against.
+	if b.LiveRun != nil {
+		diags = appendWithoutDuplicates(diags, planDiags)
+	} else {
+		diags = diags.Append(planDiags)
+	}
 
 	// Even if there are errors we need to handle anything that may be
 	// contained within the plan, so only exit if there is no data at all.
@@ -314,6 +321,8 @@ func maybeWriteGeneratedConfig(plan *plans.Plan, out string) (wroteConfig bool, 
 // backend_plan.go): a provider warning from ValidateResourceConfig, such as
 // the kubernetes provider's "Deprecated Resource", comes back from both
 // walks for the same block and would otherwise print twice per resource.
+// opPlan uses it for a live run only: stock OpenTofu does not merge, so a
+// run with no live block prints the warning twice, as stock does (#1925).
 //
 // Kept here, in the fork's own file in this package, rather than added to
 // upstream's tfdiags, so internal/tfdiags stays exactly OpenTofu's.
