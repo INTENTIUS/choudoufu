@@ -48,6 +48,12 @@ type fakeS3Server struct {
 	objects map[string]*fakeS3Object // key: "/bucket/key"
 	seq     int
 
+	// history is every version each path has had, oldest first, the way a
+	// versioned bucket keeps them: each put adds a version, each delete adds
+	// a delete marker. Only ListObjectVersions reads it. GitHub issue #1954.
+	history map[string][]fakeS3Version
+	vseq    int
+
 	// pageSize, when > 0, caps how many keys ListObjectsV2 returns per
 	// page, so pagination can be exercised deterministically without a
 	// thousand-object fixture.
@@ -92,7 +98,7 @@ func writeS3Error(w http.ResponseWriter, status int, code, message string) {
 
 func newFakeS3Server(t *testing.T) (*httptest.Server, *fakeS3Server) {
 	t.Helper()
-	f := &fakeS3Server{objects: map[string]*fakeS3Object{}}
+	f := &fakeS3Server{objects: map[string]*fakeS3Object{}, history: map[string][]fakeS3Version{}}
 	server := httptest.NewServer(http.HandlerFunc(f.handle))
 	t.Cleanup(server.Close)
 	return server, f
@@ -122,6 +128,10 @@ func (f *fakeS3Server) handle(w http.ResponseWriter, r *http.Request) {
 
 	if r.URL.Query().Get("list-type") == "2" {
 		f.listObjectsV2(w, r)
+		return
+	}
+	if r.URL.Query().Has("versions") {
+		f.listObjectVersions(w, r)
 		return
 	}
 
@@ -171,6 +181,7 @@ func (f *fakeS3Server) putObject(w http.ResponseWriter, r *http.Request) {
 	f.seq++
 	etag := fmt.Sprintf(`"etag-%d"`, f.seq)
 	f.objects[r.URL.Path] = &fakeS3Object{body: body, etag: etag, tagging: r.Header.Get("x-amz-tagging")}
+	f.recordVersion(r.URL.Path, false)
 	w.Header().Set("ETag", etag)
 	w.WriteHeader(http.StatusOK)
 }
@@ -207,6 +218,9 @@ func (f *fakeS3Server) deleteObject(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusPreconditionFailed)
 			return
 		}
+	}
+	if exists {
+		f.recordVersion(r.URL.Path, true)
 	}
 	delete(f.objects, r.URL.Path)
 	w.WriteHeader(http.StatusNoContent)

@@ -69,7 +69,9 @@ tag and delete grants, which a plan never uses.
 Recovering a deleted record removes a delete marker. That takes
 `s3:ListBucketVersions` and `s3:DeleteObjectVersion`, and reading an old
 version takes `s3:GetObjectVersion`. Give those to the person who recovers
-and leave them off the estate's role.
+and leave them off the estate's role. `choudoufu live-history <address>`
+lists a record's versions with `s3:ListBucketVersions` alone, so the version
+id to read or restore comes from there.
 [Recover an estate]({{< relref "/docs/use/recover-an-estate" >}}) has the
 steps.
 
