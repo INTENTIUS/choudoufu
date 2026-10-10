@@ -408,7 +408,7 @@
   "lanes": {
     "kubernetes": {
       "label": "kubernetes lane",
-      "estates": 13,
+      "estates": 14,
       "clear": 12,
       "verified": 0,
       "carried": 12,
@@ -416,77 +416,77 @@
         "cold_deploy": {
           "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "day2_count": {
           "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "day2_crash": {
           "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "day2_remove": {
           "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "day2_rename": {
           "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "day2_replace": {
           "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "day2_teardown": {
           "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "drift_reconverge": {
           "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "greenfield": {
           "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "migrate": {
           "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "no_local_state": {
           "pass": 2,
           "fail": 0,
-          "not_run": 11
+          "not_run": 12
         },
         "plan_approval": {
           "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "strict": {
           "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "test_apply": {
           "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "test_plan": {
           "pass": 12,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         }
       }
     },
@@ -4770,6 +4770,33 @@
           "test_plan": 36
         }
       }
+    },
+    {
+      "name": "reference-k8s-helm-metallb",
+      "source": "the MetalLB project's metallb chart 0.16.1 (Apache-2.0, the licence of github.com/metallb/metallb; chart archive sha256 fb06bb584fcb7856f15733b2a6a2aff5b61b5c350687e341c163ae24a5938adc, fetched and checked by run.sh) rendered client-side by hashicorp/helm's data \"helm_template\" - never helm_release - into three kubernetes_manifest blocks whose for_each splits and yamldecodes the render inside the for_each expression, keyed kind/namespace/name, with manifest = each.value (#1962): the chart's 13 CRDs (one with a conversion webhook), 25 other objects and its two Deployments and two hostNetwork DaemonSets, plus the Namespace and MetalLB's own configuration written in the root (an IPAddressPool for_each and an L2Advertisement) - 45 objects over 15 kinds, two failurePolicy: Fail ValidatingWebhookConfigurations whose TLS the controllers mint at runtime into Secrets the root declares empty, seven names shared across up to five kinds, and a memberlist Secret and per-node status objects nothing declares. No delta from the chart's defaults; root/values.yaml restates the two values run.sh's stages edit. reference- because the root is ours",
+      "lane": "kubernetes",
+      "set": "growing",
+      "substrate": "kind",
+      "script": "live/e2e/reference-k8s-helm-metallb/run.sh",
+      "stages": {
+        "cold_deploy": "not_run",
+        "day2_count": "not_run",
+        "day2_crash": "not_run",
+        "day2_remove": "not_run",
+        "day2_rename": "not_run",
+        "day2_replace": "not_run",
+        "day2_teardown": "not_run",
+        "drift_reconverge": "not_run",
+        "greenfield": "not_run",
+        "migrate": "not_run",
+        "no_local_state": "not_run",
+        "plan_approval": "not_run",
+        "strict": "not_run",
+        "test_apply": "not_run",
+        "test_plan": "not_run"
+      },
+      "clear": false,
+      "protocol": "legacy"
     },
     {
       "name": "reference-k8s-helm-template",
