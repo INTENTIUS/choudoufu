@@ -325,10 +325,9 @@ type whose derivation failed. It does not protect this slice.
 This page tells you to trust these behaviours in an emergency, so it should
 say who verified them.
 
-Of the 30 scenarios under `live/smoke/scenarios/`, seven run in CI - the
-Kubernetes matrix in `.github/workflows/k8s-smoke.yml`, on every change that
-touches them. The other 23, **including both recovery claims on this page**,
-are hand-run. Nothing schedules them. They passed when somebody last typed
+None of the scenarios under `live/smoke/scenarios/` run in CI, **including
+both recovery claims on this page**; they are hand-run. Nothing schedules
+them. They passed when somebody last typed
 `just smoke <name>`, and the claim pages record the result rather than a date.
 
 So: run them yourself. Both take about two minutes against the emulator, need

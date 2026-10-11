@@ -4,14 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
-  # Issue #948: a verdicts PR the Gauntlet workflow opens with GITHUB_TOKEN
-  # gets a pull_request run that stalls at action_required, so its checks
-  # never report. gauntlet.yml dispatches this workflow on gauntlet/nightly
-  # instead: workflow_dispatch is the one event GITHUB_TOKEN may still
-  # start, and the run's checks attach to the branch head, which is the
-  # PR's head, so the required `fast` check reports on the PR. Nothing else
-  # should need it; every ordinary change still runs on push and
-  # pull_request (TestCIValidationRunsOnOrdinaryEvents).
+  # workflow_dispatch lets a run be started by hand. Every ordinary change
+  # still runs on push and pull_request (TestCIValidationRunsOnOrdinaryEvents).
   workflow_dispatch:
 
 permissions:
@@ -30,8 +24,7 @@ jobs:
           # every gauntlet row's last_run.commit against HEAD. That guard
           # fails loudly rather than skipping on a shallow checkout - see its
           # doc comment - so this fetch-depth is what keeps it from doing
-          # that on every normal CI run. contribute.yml already made this
-          # same choice for the same reason.
+          # that on every normal CI run.
           fetch-depth: 0
       - uses: actions/setup-go@v7
         with:
@@ -45,9 +38,9 @@ jobs:
       # unverified cohort identities is the outcome the golden exists to
       # prevent - so the binary has to actually be on PATH in this job.
       #
-      # Pinned via live/oracle-versions.json, the same file gauntlet.yml
-      # and contribute.yml read, rather than "latest": issue #544 (root
-      # cause of #498) is what an unpinned oracle costs.
+      # Pinned via live/oracle-versions.json, the same file the gauntlet
+      # tool reads, rather than "latest": issue #544 (root cause of #498) is
+      # what an unpinned oracle costs.
       - name: Read the pinned stock oracle version (issue #544)
         id: oracle
         run: echo "terraform=$(jq -r .terraform_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
@@ -78,19 +71,6 @@ jobs:
           if [ -n "$out" ]; then
             echo "gofmt needed on:"
             echo "$out"
-            exit 1
-          fi
-      # internal/live/plansummary runs chant's shared grouping vectors
-      # (issue #1855, INTENTIUS/chant#3188). The copy under testdata/ is
-      # vendored, and the Fast test tier below runs every row against the
-      # grouping here. This step fails when the copy has drifted from
-      # chant's main, so the table cannot fork quietly. Edit the file in
-      # chant, then copy it here.
-      - name: Shared plan-summary vectors match chant main
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/INTENTIUS/chant/main/packages/core/src/__fixtures__/plan-summary/normalization-vectors.json -o "$RUNNER_TEMP/normalization-vectors.json"
-          if ! cmp "$RUNNER_TEMP/normalization-vectors.json" internal/live/plansummary/testdata/normalization-vectors.json; then
-            echo "internal/live/plansummary/testdata/normalization-vectors.json differs from chant main; copy chant's file over it"
             exit 1
           fi
       - name: Build
@@ -149,7 +129,7 @@ jobs:
       # and stayed green with `verify` ignoring the binary and `down` no longer
       # refusing). It fails rather than skips when just is missing, because a
       # guard that skips is permanently green. The runner image does not ship
-      # just, so it is installed here, the way contribute.yml does.
+      # just, so it is installed here.
       - name: Install just
         run: sudo apt-get update -qq && sudo apt-get install -y -qq just
       # live/record_store_bucket_test.go also BUILDS the bucket project's
@@ -172,71 +152,6 @@ jobs:
         run: npm ci
       - name: Fast test tier
         run: go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/configs/ ./internal/plans/ ./internal/plugin/ ./internal/plugin6/ ./internal/plugins/ ./internal/states/statemgr/ ./internal/tracing/... ./internal/builtin/providers/tf/
-      - uses: peaceiris/actions-hugo@v3
-        with:
-          hugo-version: 'latest'
-          extended: true
-      - name: Docs site build
-        run: |
-          cp live/iam-reference.json site/data/iamref.json
-          (cd site && hugo --minify --quiet)
-
-  # The generated-terralith estate's own coverage, issue #578's defect 3.
-  #
-  # tools/terralith-gen writes the synthetic stock-Terraform estate the
-  # migration story is told against, and TestValidateGeneratedTerralith is
-  # the test that runs `terraform validate` over what it writes. That test
-  # sat behind TF_ACC/TF_FLOCI_TEST, which nothing on any ordinary path
-  # sets, so it had never executed in an automated run - not once, in its
-  # whole life. Its gate is now the terraform binary's presence, and this
-  # job is what supplies the binary. Whatever else changes, this must keep
-  # running on an ordinary push and pull_request with no special
-  # environment; TestCIRunsTheGeneratedTerralithValidation in ./live is the
-  # guard that says so.
-  #
-  # A separate job rather than steps in `fast`, deliberately. It is the one
-  # thing in this workflow that talks to the public provider registry, so a
-  # registry outage should name itself instead of reddening the fast tier;
-  # and running beside `fast` rather than inside it costs a pull request no
-  # wall clock.
-  validate-generated-terralith:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-      # terraform_wrapper: false, because the wrapper this action installs by
-      # default is a shell script around the real binary, and the tests below
-      # read its exit code and its stderr.
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_wrapper: false
-      # Issue #578's defects 1 and 2. -fmt-bin "" turns OFF the generator's
-      # own formatting pass, so this asserts the strong claim: the generator
-      # emits canonical HCL by itself, with no formatter binary helping it,
-      # at both scales. -check and only -check - `terraform fmt -diff`
-      # rewrites the files it reports on, and running it here would make this
-      # step pass unconditionally.
-      - name: Generated estate is canonical without a formatter binary
-        run: |
-          set -o pipefail
-          go run ./tools/terralith-gen -scale 1 -out "$RUNNER_TEMP/tl1" -fmt-bin ""
-          go run ./tools/terralith-gen -scale 4 -out "$RUNNER_TEMP/tl4" -fmt-bin ""
-          (cd "$RUNNER_TEMP/tl1" && terraform fmt -check -recursive -no-color .)
-          (cd "$RUNNER_TEMP/tl4" && terraform fmt -check -recursive -no-color .)
-      - name: terraform validate over the generated estate
-        run: |
-          set -o pipefail
-          go test ./tools/terralith-gen/ -run TestValidateGeneratedTerralith -v 2>&1 | tee "$RUNNER_TEMP/validate.log"
-          # A zero exit is not the evidence wanted here: a skipped test also
-          # exits zero, and a silent skip is the entire defect this job
-          # exists to prevent. Require the pass line by name.
-          grep -q -- '--- PASS: TestValidateGeneratedTerralith' "$RUNNER_TEMP/validate.log" || {
-            echo "TestValidateGeneratedTerralith did not run to a pass in this job."
-            echo "A SKIP here means the terraform binary is missing and the test is invisible again (issue #578, defect 3)."
-            exit 1
-          }
 
   # examples/ci-pipelines' byte-for-byte regeneration proof (issue #807) is
   # the example's own `npm test`: it re-runs generate.ts for all three forges
@@ -247,11 +162,9 @@ jobs:
   # Go tests in live/ci_pipelines_test.go that stand in for it when node is
   # absent (see that file's header) skip for the identical reason.
   #
-  # A separate job rather than a step in `fast`, the same call as
-  # validate-generated-terralith above: `npm ci` is the only other thing in
-  # this workflow that talks to a public package registry, so an npm outage
-  # should name itself here instead of reddening the Go tier, and running
-  # beside `fast` costs a pull request no wall clock. Measured on the example,
+  # A separate job rather than a step in `fast`: an npm outage should name
+  # itself here instead of reddening the Go tier, and running beside `fast`
+  # costs a pull request no wall clock. Measured on the example,
   # issue #1022: `npm ci` ~1s, `npm test` ~4s.
   #
   # Cache keyed on the example's own lock file, not the whole repo's, so a

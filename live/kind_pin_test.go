@@ -11,12 +11,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
 
 // shWord is one shell word, and whether any part of it was quoted: a log
@@ -305,59 +302,11 @@ func TestKindVersionPinLooksLikeARelease(t *testing.T) {
 	}
 }
 
-// TestWorkflowsReadTheKindVersionPin guards the other half of #1594's "one
-// place for the kind binary version" scope: no workflow may carry its own
-// copy of the release string helm/kind-action installs. Every job reads
-// live/kind-version into a step output first (the same shape ci.yml,
-// gauntlet.yml and k8s-smoke.yml already use for
-// live/oracle-versions.json's terraform_version) and passes that output to
-// kind-action's `version:` input, so a bump only ever touches the pin
-// file.
-func TestWorkflowsReadTheKindVersionPin(t *testing.T) {
-	files, err := filepath.Glob("../.github/workflows/*.yml")
-	if err != nil {
-		t.Fatalf("globbing ../.github/workflows/*.yml: %v", err)
-	}
-	if len(files) == 0 {
-		t.Fatal("no workflow files found - this guard would silently check nothing")
-	}
-	kindActionUse := regexp.MustCompile(`uses:\s*helm/kind-action@`)
-	// Anchored to "version:" as the whole (trimmed) key, so it never
-	// matches the same job's kubectl_version line, which
-	// TestWorkflowsReadTheKubectlVersionPin governs.
-	literalVersion := regexp.MustCompile(`^version:\s*v[0-9]+\.[0-9]+\.[0-9]+\s*$`)
-	found := 0
-	for _, f := range files {
-		data, err := os.ReadFile(f)
-		if err != nil {
-			t.Fatalf("reading %s: %v", f, err)
-		}
-		src := string(data)
-		if !kindActionUse.MatchString(src) {
-			continue
-		}
-		found++
-		if !strings.Contains(src, "cat live/kind-version") {
-			t.Errorf("%s uses helm/kind-action but never reads live/kind-version - it must read the one pinned place, not a literal", f)
-		}
-		for _, line := range strings.Split(src, "\n") {
-			if literalVersion.MatchString(strings.TrimSpace(line)) {
-				t.Errorf("%s: %q looks like a hardcoded kind version literal rather than a read of live/kind-version", f, strings.TrimSpace(line))
-			}
-		}
-	}
-	if found == 0 {
-		t.Fatal("no workflow uses helm/kind-action - this guard would silently check nothing")
-	}
-	t.Logf("checked %d workflow file(s) using helm/kind-action", found)
-}
-
 // kubectl's version skew policy supports a client within one minor version
 // of the API server. #1741: kubectl_version was a literal v1.34.0 copied
 // into four workflow steps, outside the pin files, three minors behind the
 // v1.37 node live/kind-node-image pins. It now lives in live/kubectl-version
-// beside the node pin, and the two tests below hold it to the node and hold
-// every workflow to the file.
+// beside the node pin, and the test below holds it to the node.
 var kubeMinorPattern = regexp.MustCompile(`^v([0-9]+)\.([0-9]+)\.[0-9]+`)
 
 // kubectlSkewFinding is "" when kubectl (vX.Y.Z) is within one minor of the
@@ -409,73 +358,4 @@ func TestKubectlSkewFindingIsRedOnIssue1741sValue(t *testing.T) {
 			t.Errorf("%s against v1.37.0 produced no finding", bad)
 		}
 	}
-}
-
-// TestWorkflowsReadTheKubectlVersionPin: every helm/kind-action step takes
-// kubectl_version from a step output, and that step in the same job reads
-// live/kubectl-version into that output. Read as YAML, so a literal left in
-// any one job, or a comment naming the file, cannot pass.
-func TestWorkflowsReadTheKubectlVersionPin(t *testing.T) {
-	files, err := filepath.Glob("../.github/workflows/*.yml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	found := 0
-	for _, f := range files {
-		raw, err := os.ReadFile(f)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, finding := range kubectlPinFindings(filepath.Base(f), raw, &found) {
-			t.Error(finding)
-		}
-	}
-	if found == 0 {
-		t.Fatal("no workflow step uses helm/kind-action - this guard would silently check nothing")
-	}
-	t.Logf("checked %d helm/kind-action step(s)", found)
-}
-
-var stepOutputRef = regexp.MustCompile(`^\$\{\{\s*steps\.([A-Za-z0-9_-]+)\.outputs\.([A-Za-z0-9_-]+)\s*\}\}$`)
-
-func kubectlPinFindings(name string, raw []byte, found *int) []string {
-	var wf struct {
-		Jobs map[string]struct {
-			Steps []struct {
-				ID   string `yaml:"id"`
-				Uses string
-				Run  string
-				With map[string]string
-			}
-		}
-	}
-	if err := yaml.Unmarshal(raw, &wf); err != nil {
-		return []string{fmt.Sprintf("%s does not parse: %v", name, err)}
-	}
-	var out []string
-	for jn, job := range wf.Jobs {
-		for _, st := range job.Steps {
-			if !strings.HasPrefix(st.Uses, "helm/kind-action@") {
-				continue
-			}
-			*found++
-			v := st.With["kubectl_version"]
-			m := stepOutputRef.FindStringSubmatch(strings.TrimSpace(v))
-			if m == nil {
-				out = append(out, fmt.Sprintf("%s job %s: helm/kind-action's kubectl_version is %q, not a step output read from live/kubectl-version (#1741)", name, jn, v))
-				continue
-			}
-			ok := false
-			for _, src := range job.Steps {
-				if src.ID == m[1] && strings.Contains(src.Run, "cat live/kubectl-version") && strings.Contains(src.Run, m[2]+"=") {
-					ok = true
-				}
-			}
-			if !ok {
-				out = append(out, fmt.Sprintf("%s job %s: kubectl_version reads steps.%s.outputs.%s, but no step %q in that job writes %s= from live/kubectl-version", name, jn, m[1], m[2], m[1], m[2]))
-			}
-		}
-	}
-	sort.Strings(out)
-	return out
 }

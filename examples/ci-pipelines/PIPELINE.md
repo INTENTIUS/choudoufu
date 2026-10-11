@@ -153,8 +153,9 @@ Q2 stays open). Forgejo has no OIDC surface and ships static keys. Since
 #1028, each job holds only the key pair its own Op needs.
 
 [`examples/ci-pipelines/README.md`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/ci-pipelines/README.md#what-each-forge-gets-and-what-it-refuses)
-and its [smoke workflow](https://github.com/INTENTIUS/choudoufu/blob/main/.github/workflows/ci-pipelines-smoke.yml)
-header comment carry the full detail, and
+and the header comment of
+[`examples/ci-pipelines/scripts/smoke.sh`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/ci-pipelines/scripts/smoke.sh)
+carry the full detail, and
 [`examples/ci-pipelines/e2e/gitlab/README.md`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/ci-pipelines/e2e/gitlab/README.md#four-things-the-run-found)
 carries the GitLab run in full.
 
