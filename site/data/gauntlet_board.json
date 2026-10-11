@@ -1,12 +1,12 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144",
-  "banner": "Every estate below last ran against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, recorded between 2026-10-02T19:19:40Z and 2026-10-11T04:51:08Z. Each row below carries its own `last_run` date; they are not all the same run. The pin has since moved to `ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144`; every row below is stale evidence against the current image.",
-  "runtime_banner": "48 of 51 estates have a recorded run duration, totaling 13h23m3s, but not from one sweep: 3h22m31.5s across 11 estate(s) at commit `0a0cf09ad4`; 4h34m20.7s across 9 estate(s) at commit `4451843b11`; 12m18.9s across 2 estate(s) at commit `66a25ed700`; 1h43m21.9s across 1 estate(s) at commit `75e4d34685`; 16m58.5s across 2 estate(s) at commit `debf8ccd05`; 3h13m31.5s across 23 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 3 estate(s) with no recorded duration yet.",
-  "script_banner": "**39 of 51 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 12 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-cloud-platform-components, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-govuk-cluster-access, corpus-govuk-cluster-services, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-k8s-metrics-server, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-helm-template, reference-k8s-platform-app, reference-k8s-shared-objects, reference-k8s-stateful, reference-k8s-workloads, terralith-scale. 3 more cannot be checked from this checkout: reference-eks, reference-k8s-helm-external-secrets, reference-k8s-helm-keda.",
-  "provider_banner": "Estates were last measured against different hashicorp/aws versions: 22 against `6.63.0` (current pin), 1 against `5.100.0`, 1 against `6.59.0`. The current pin is `6.63.0`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work. Estates were last measured against different hashicorp/kubernetes versions: 18 against `3.2.1` (current pin), 3 against `3.3.0`. The current pin is `3.2.1`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
+  "banner": "Every estate below last ran against emulator image `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, recorded between 2026-10-02T19:19:40Z and 2026-10-11T17:18:54Z. Each row below carries its own `last_run` date; they are not all the same run. The pin has since moved to `ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144`; every row below is stale evidence against the current image.",
+  "runtime_banner": "50 of 51 estates have a recorded run duration, totaling 15h13m59.8s, but not from one sweep: 3h22m31.5s across 11 estate(s) at commit `0a0cf09ad4`; 3h8m52.4s across 6 estate(s) at commit `4451843b11`; 3h16m25.1s across 5 estate(s) at commit `64714fe0b9`; 12m18.9s across 2 estate(s) at commit `66a25ed700`; 1h43m21.9s across 1 estate(s) at commit `75e4d34685`; 16m58.5s across 2 estate(s) at commit `debf8ccd05`; 3h13m31.5s across 23 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 1 estate(s) with no recorded duration yet.",
+  "script_banner": "**39 of 51 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 12 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-cloud-platform-components, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-govuk-cluster-access, corpus-govuk-cluster-services, corpus-hongbomiao-harbor, corpus-hongbomiao-labelbox, corpus-hongbomiao-storage, corpus-iam-policy, corpus-iam-read-only-policy, corpus-k8s-metrics-server, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-helm-template, reference-k8s-platform-app, reference-k8s-shared-objects, reference-k8s-stateful, reference-k8s-workloads, terralith-scale. 1 more cannot be checked from this checkout: reference-eks.",
+  "provider_banner": "Estates were last measured against different hashicorp/aws versions: 22 against `6.63.0` (current pin), 1 against `5.100.0`, 1 against `6.59.0`. The current pin is `6.63.0`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work. Estates were last measured against different hashicorp/kubernetes versions: 20 against `3.2.1` (current pin), 3 against `3.3.0`. The current pin is `3.2.1`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
   "upstream_version": "1.13.0",
-  "engine_banner": "The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 48 estates measured so far, 48 recorded running on it.",
+  "engine_banner": "The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 50 estates measured so far, 50 recorded running on it.",
   "stage_count": 15,
   "stages": [
     {
@@ -5264,18 +5264,18 @@
         "pass",
         "pass",
         "FAIL",
-        "FAIL",
-        "not run",
-        "not run",
-        "not run",
         "pass",
-        "not run",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "FAIL",
         "not run",
         "not run"
       ],
-      "runtime_total": "11m34.9s",
-      "runtime_cells": "cold_deploy 2m24s, migrate 30s, test_plan 24s, test_apply 33s, drift_reconverge 1m7s, day2_rename 1m37s, day2_remove 1m29s, day2_count 2m2s, plan_approval 1m27s",
-      "last_run_note": "Last run at commit `4451843b11` on 2026-10-11T04:51:08Z, exit code 1, against substrate image `kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5`. Total run time 11m34.9s.",
+      "runtime_total": "28m52.7s",
+      "runtime_cells": "cold_deploy 2m34s, migrate 30s, test_plan 24s, test_apply 33s, drift_reconverge 1m7s, day2_rename 1m37s, day2_remove 1m28s, day2_count 3m43s, day2_replace 3m20s, day2_crash 8m36s, day2_teardown 58s, plan_approval 1m28s, greenfield 2m33s",
+      "last_run_note": "Last run at commit `64714fe0b9` on 2026-10-11T17:18:54Z, exit code 1, against substrate image `kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5`. Total run time 28m52.7s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
@@ -5284,7 +5284,7 @@
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "2m24s",
+          "duration": "2m34s",
           "detail": "26 objects from plain terraform against kind v1.37.0: cloudnative-pg 0.29.1 (sha256 b53d3991fe84bcf38767e7702cae78666265427a127a26fff168ab4207d2b1df) rendered by data.helm_template.cnpg into 23 kubernetes_manifest instances over 9 kinds under three for_each blocks keyed kind/namespace/name (the CRDs, the rest, then the operator's Deployment waited for its rollout), plus two Namespaces and the Cluster; a real terraform.tfstate with 26 managed instances, zero tofu-estate labels read back with kubectl, the operator Available with caBundle patched into 4 of the mutating webhooks by the operator itself, the Cluster healthy with one ready instance and its claim Bound, and stock's own replan empty. The identical shape cold-deployed by stock on a second cluster as every later stage's oracle. Two applies, and the first is declared: declared pre-apply, #1173: 2 address(es) declared at pre_apply in live/gauntlet/estates.json, applied with -target on every side (estate,oracle) before the main apply - the full list is in that file and in the GAUNTLET pre_apply= line this run printed, which the runner checks address by address; forced by: kubernetes_manifest builds an object's schema at PLAN time, so a root declaring the chart's CRDs and a Cluster of one of them cannot be planned against an empty cluster - the Cluster's kind is not served until the CRDs exist, depends_on does not help, and re-running fails identically forever (#1173). The operator's Namespace goes up with them because helm template renders none and the namespaced objects are dry-run into it at plan time. The main apply creates the other 11 rendered objects, the operator Deployment, the database's Namespace and the Cluster. Control, run first on this same cluster: the un-targeted one-pass plan exits 1 with 1 missing-CRD refusal(s) before creating anything, so the pre-apply is load-bearing. Operator-created objects the root never declared: ConfigMap/cnpg-default-monitoring; PersistentVolumeClaim/pg-1 Bound; Pod/pg-1; PodDisruptionBudget/pg-primary; Role/pg; RoleBinding/pg; Secret/cnpg-ca-secret; Secret/cnpg-webhook-cert; Secret/pg-app; Secret/pg-ca; Secret/pg-replication; Secret/pg-server; Service/pg-r; Service/pg-ro; Service/pg-rw; ServiceAccount/pg"
         },
         {
@@ -5326,42 +5326,50 @@
           "id": "day2_remove",
           "title": "Remove a block",
           "verdict": "FAIL",
-          "duration": "1m29s",
+          "duration": "1m28s",
           "detail": "monitoring.grafanaDashboard.create=false took the dashboard ConfigMap out of the render and choudoufu's remove plan destroys [kubernetes_config_map_v1.orphan_cnpg-system_cnpg-grafana-dashboard] where stock's on the oracle cluster destroys [kubernetes_manifest.rest[\"ConfigMap/cnpg-system/cnpg-grafana-dashboard\"]] - the same object (configmap/cnpg-system/cnpg-grafana-dashboard) at a different address (#1996). Everything else held and the removal was applied so the later stages are measured: after the apply (kubernetes_config_map_v1.orphan_cnpg-system_cnpg-grafana-dashboard: Destruction complete after 0s) kubectl finds the ~300KB dashboard ConfigMap gone, the replan is empty and 25 objects labelled. The address-independent checks hold: the same object as stock's destroy by kind/namespace/name (configmap/cnpg-system/cnpg-grafana-dashboard), and the controller-copy exclusion - the 16 objects the operator generated (ConfigMap/cnpg-default-monitoring; PersistentVolumeClaim/pg-1 Bound; Pod/pg-1; PodDisruptionBudget/pg-primary; Role/pg; RoleBinding/pg; Secret/cnpg-ca-secret; Secret/cnpg-webhook-cert; Secret/pg-app; Secret/pg-ca; Secret/pg-replication; Secret/pg-server; Service/pg-r; Service/pg-ro; Service/pg-rw; ServiceAccount/pg), 8 of those in pg carrying tofu-estate=reference-k8s-helm-cloudnative-pg by INHERITED_LABELS, and pg/cnpg-default-monitoring unowned and same-named with a declared ConfigMap - were never proposed (matched on kind, namespace and name) and read back identical, the claim still Bound and the Cluster healthy. BREAK_REMOVE=1 keeps the dashboard and requires no destroy"
         },
         {
           "id": "day2_count",
           "title": "Change count",
-          "verdict": "FAIL",
-          "duration": "2m2s",
-          "detail": "the scale-down plan destroys [imagecatalog/pg/catalog-shard-1;] at kubernetes_manifest.orphan_imagecatalog_pg_catalog-shard-1; stock's on B destroys [?kubernetes_manifest.catalog[\"shard-1\"];] at kubernetes_manifest.catalog[\"shard-1\"]; want both the one ImageCatalog pg/catalog-shard-1"
+          "verdict": "pass",
+          "duration": "3m43s",
+          "detail": "for_each over ImageCatalogs, a namespaced custom kind of the chart's own CRDs: at two shards choudoufu created both, then replanned empty; at one it destroyed exactly shard-1, planned at kubernetes_manifest.orphan_imagecatalog_pg_catalog-shard-1 where stock's plan names kubernetes_manifest.catalog[\"shard-1\"] - the same object, a different address (#1996) (kubernetes_manifest.catalog[\"shard-0\"] untouched, both read with kubectl); back at two it created exactly kubernetes_manifest.catalog[\"shard-1\"]; stock's plans for the same three edits on the oracle cluster have the identical shape. The knob is main.tf's local.catalog_shards, because the chart renders no list of objects a value could scale. BREAK_COUNT=1 asserts the remaining shard was destroyed and correctly fails"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "3m20s",
+          "detail": "a create_before_destroy ConfigMap whose content-hashed name changes (cfg-a -\u003e cfg-b) plans as stock's replace: 'kubernetes_config_map.hashed must be replaced', +/- create replacement and then destroy, 1 add and 1 destroy, with no orphan destroy beside it, because cfg-a carries the block's address annotation and the sweep binds it (#1640). At -parallelism=1 the apply log shows cfg-b's creation complete (line 66) before cfg-a's deposed destroy starts (line 67), the same order stock's apply shows on the oracle cluster; kubectl confirms cfg-b alone remains, carrying the annotation, and the next plan is empty (#1541). The block is removed from both roots afterwards. BREAK_REPLACE=1 recreates cfg-a carrying the block's annotation and the next plan correctly proposes destroying it"
         },
         {
           "id": "day2_crash",
           "title": "Crash mid-apply",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "8m36s",
+          "detail": "an apply creating two ImageCatalogs - a custom kind served by CRDs this estate's own render installed - was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 walker the instant kubernetes_manifest.crash_first's create committed; crash_second's manifest reads crash_first's name, so the walker cannot have reached it. kubectl confirms crash-first exists carrying tofu-estate=reference-k8s-helm-cloudnative-pg and its address annotation, and crash-second does not; the interrupted apply recorded exactly the one object it created (records 43 -\u003e 44, labels [tofu-estate], annotations [choudoufu.intentius.io/tofu-address], #1211). The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, crash_second created) and nothing for crash-first, matching stock from the same position on the oracle cluster; the recovery apply added one, the replan is empty and 27 objects carry the label, 25 plus the pair. BREAK_CRASH=1 and BREAK_CRASH_UNBOUND=1 both correctly fail The create_before_destroy rename window is interrupted too (#1768): a kubernetes_config_map renamed under create_before_destroy was killed by the engine's own hook the instant the new object's create committed, at -parallelism=1, leaving both objects carrying the block's address annotation and the record holding the old one as the address's deposed object. The verdict is the end state stock's replace leaves, not the plan's wording: after one more apply exactly the new object remains, the old one is gone, the record's deposed entry is cleared and the replan is empty. Both of the rerun's paths reached it - orphan leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at 'orphan_cnpg-system_crash-rename-a'; deposed leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at '(deposed object'; the same configuration through the orphan destroy, and the name read from another block's attribute (#1539's shape) through the deposed record (#1683), where stock's plan reads the same deposed-object destroy."
         },
         {
           "id": "day2_teardown",
           "title": "Teardown",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "58s",
+          "detail": "apply -destroy removed exactly the 27 remaining objects in one apply - the Cluster before the operator's Deployment by its depends_on (its destroy, run while the operator serving its webhooks was up, completed at log line 57695, before the Deployment's began at line 57697), the crash pair's ImageCatalogs before the CRDs (line 57693, before 57720), the rendered objects before the CRDs and the Namespace by rest's; both namespaces are gone and with them the Pod, the claim, the Secrets and Services and the unowned cnpg-default-monitoring the operator generated, all 11 postgresql.cnpg.io CRDs are gone, the three ClusterRoles, the ClusterRoleBinding and both webhook configurations are gone (kubectl, by name), and no object of the estate's kinds carries tofu-estate=reference-k8s-helm-cloudnative-pg in any namespace; stock's destroy on the oracle cluster removed exactly the 27 its state held"
         },
         {
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "1m27s",
+          "duration": "1m28s",
           "detail": "a values.yaml edit (webhook.mutating.failurePolicy Fail -\u003e Ignore) re-rendered through helm_template planned as exactly one in-place update of kubernetes_manifest.rest[\"MutatingWebhookConfiguration//cnpg-mutating-webhook-configuration\"], saved with plan -out; the world then moved out of band (the operator Deployment's replicas to 2 with kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl still reads Fail on every webhook); with the world put back the identical file applied, 0 added, 1 changed, 0 destroyed, every webhook reads Ignore, and the operator's caBundle is still on 4 of them; stock's plan for the same edit on the oracle cluster is the same one update and its planfile applied. BREAK_APPROVAL=1 expects success after the move and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
-          "verdict": "not run"
+          "verdict": "FAIL",
+          "duration": "2m33s",
+          "detail": "with the record store deleted the plan proposes 1 in-place update(s) of kubernetes_manifest instances, whose records hold declared metadata KEY SETS and no residue values (#1211) - a missing key set proposes removing nothing"
         },
         {
           "id": "strict",
@@ -5380,102 +5388,131 @@
       "set": "growing",
       "lane": "kubernetes",
       "substrate": "kind",
-      "clear": false,
+      "clear": true,
       "source": "external-secrets external-secrets 2.12.0 (app v2.12.0, Apache-2.0, chart archive sha256 4b584136b7311c0af8c8719d377cc5b1a7ef12c2de18f1fdb30614eab75bdeb3, fetched and checked by run.sh) rendered client-side by hashicorp/helm's data \"helm_template\" - never helm_release - into four kubernetes_manifest blocks whose for_each splits and yamldecodes the render inside the for_each expression, keyed kind/namespace/name, with manifest = each.value (#1962): the chart's 25 CRDs, its 8 RBAC and ServiceAccount objects, the controller's Deployment, and three custom resources on the fake provider (a SecretStore, a ClusterSecretStore and an ExternalSecret) added through the chart's own extraObjects, ordered after the Deployment so the controller is still running to remove the finalizer it puts on the ExternalSecret - plus the Namespace, 38 objects over 11 kinds. One name over five declared kinds, one of them cluster-scoped, and a Secret nothing declares that the controller writes under the same name, owned by the ExternalSecret and carrying copies of its labels and annotations, the tofu-estate label and the tofu-address annotation included. Deltas in root/values.yaml: the validating webhook and its cert-controller off (the webhook's TLS Secret is filled only at runtime, and both webhooks are failurePolicy Fail on the custom resources this estate declares), the three custom resources. reference- because the root is ours (#1107's Helm surface, second chart after #1963)",
       "script": "live/e2e/reference-k8s-helm-external-secrets/run.sh",
-      "protocol": "legacy",
+      "protocol": "gauntlet",
       "cells": [
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
         "not run"
       ],
-      "runtime_total": "-",
-      "runtime_cells": "none recorded yet",
-      "legacy_note": "Verdicts were recorded from this estate's crossing script by hand before the script spoke the gauntlet protocol; the next run that does will replace them.",
-      "script_stale": "unknown",
-      "script_note": "**Unverified**: whether `live/e2e/reference-k8s-helm-external-secrets` or `live/e2e/lib` has changed since the run recorded above cannot be told from this checkout - this row has recorded no run, so there is nothing to compare the script against. The verdicts above may describe an earlier version of the script (#1264, #1292).",
+      "runtime_total": "40m44.6s",
+      "runtime_cells": "cold_deploy 2m22s, migrate 46s, test_plan 33s, test_apply 48s, drift_reconverge 1m39s, day2_rename 2m31s, day2_remove 2m8s, day2_count 5m24s, day2_replace 4m58s, day2_crash 12m20s, day2_teardown 1m9s, plan_approval 2m7s, greenfield 3m13s, strict 45s",
+      "last_run_note": "Last run at commit `64714fe0b9` on 2026-10-11T17:18:54Z, exit code 0, against substrate image `kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5`. Total run time 40m44.6s.",
+      "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
+      "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
+      "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "2m22s",
+          "detail": "38 objects from plain terraform against kind v1.37.0: external-secrets 2.12.0 (sha256 4b584136b7311c0af8c8719d377cc5b1a7ef12c2de18f1fdb30614eab75bdeb3) rendered by data.helm_template.eso into 37 kubernetes_manifest instances over 10 kinds under four for_each blocks keyed kind/namespace/name (the CRDs, the RBAC and ServiceAccount, the controller's Deployment after them, then the three custom resources after the Deployment), plus the Namespace; a real terraform.tfstate with 38 managed instances, zero tofu-estate labels read back with kubectl, the controller's Deployment Available and the ExternalSecret Ready with the Secret it writes holding the fake provider's value, and stock's own replan empty. The identical shape cold-deployed by stock on a second cluster as every later stage's oracle. Two applies, and the first is declared: declared pre-apply, #1173: 2 address(es) declared at pre_apply in live/gauntlet/estates.json, applied with -target on every side (estate,oracle) before the main apply - the full list is in that file and in the GAUNTLET pre_apply= line this run printed, which the runner checks address by address; forced by: kubernetes_manifest builds an object's schema at PLAN time, so a root whose render carries the chart's own 25 CRDs and three objects of them cannot be planned against an empty cluster - the custom resources' kinds are not served until the CRDs exist, depends_on does not help, and re-running fails identically forever (#1173). The Namespace goes up with them because helm template renders none and the namespaced objects are dry-run into it at plan time. The main apply creates the other 12 rendered objects. Control, run first on this same cluster: the un-targeted one-pass plan exits 1 with 3 missing-CRD refusal(s) before creating anything, so the pre-apply is load-bearing. Controller-created objects the root never declared: Secret/rel-external-secrets; the ExternalSecret's finalizers as the controller left them: [\"externalsecrets.external-secrets.io/externalsecret-cleanup\"]"
         },
         {
           "id": "migrate",
           "title": "Migrate",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "46s",
+          "detail": "38 of 38 stamped, 0 skipped (38 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 0 skipped); every declared object carries tofu-estate=reference-k8s-helm-external-secrets, counted back with kubectl across the estate's 13 kinds including the three custom ones and the cluster-scoped ClusterSecretStore. Controller-created objects carrying the label after the stamp: 1 (excluded from the count by their ownerReference); the controller copied the stamp onto its Secret rel-external-secrets within 180s, which now carries tofu-estate=reference-k8s-helm-external-secrets and tofu-address \"kubernetes_manifest.custom:ExternalSecret/external-secrets/rel-external-secrets\". The eligibility line was: 38 of 38 resource instance(s) are eligible for stamping (VERIFIED or DRIFTED)."
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "33s",
+          "detail": "the plan with no state file is empty over 38 instances whose for_each keys and identities come from the helm_template render the data-read phase read; rel-external-secrets, one name across five declared kinds (ServiceAccount, Deployment, SecretStore, ExternalSecret and the cluster-scoped ClusterSecretStore) plus the Secret the controller wrote under it, confirmed present as six objects with kubectl, with the rel-external-secrets-controller ClusterRole and ClusterRoleBinding and a CRD; the controller's Secret's copied tofu-address read \"kubernetes_manifest.custom:ExternalSecret/external-secrets/rel-external-secrets\" and nothing was proposed for it"
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "48s",
+          "detail": "no-op apply (0 added, 0 changed, 0 destroyed) over 38 instances; declared objects carrying tofu-estate=reference-k8s-helm-external-secrets unchanged at 38 across the estate's 13 kinds, counted with kubectl, and the controller-created objects (Secret/rel-external-secrets) still there"
         },
         {
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "1m39s",
+          "detail": "a SecretStore that shares its name (rel-external-secrets) with four declared objects of other kinds and the controller's Secret was deleted out of band with kubectl; choudoufu proposed putting back exactly kubernetes_manifest.custom[\"SecretStore/external-secrets/rel-external-secrets\"] (1 add, 0 change, 0 destroy) and nothing for the same-named objects, matching stock's own plan on the oracle cluster; apply created 1 and the recreated object carries the estate label again (38 labelled). A delete rather than a patch because every object is server-side applied. BREAK=1 deletes the same-named ClusterSecretStore as well and the single-object assertion correctly fails"
         },
         {
           "id": "day2_rename",
           "title": "Rename",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "2m31s",
+          "detail": "moved block over a for_each of 25 CRDs keyed by the render (kubernetes_manifest.crds -\u003e .custom_resource_definitions, with the rest block's depends_on following it): no add and no destroy, 25 in-place changes each confined to the address annotation rewrite (25 annotation lines, 0 add, 25 change, 0 destroy) - the marker rewritten in place, as the AWS lanes assert for a rename; every CRD still there and labelled, the replan empty; stock's plan for the same moved block on the oracle cluster is zero churn, since stock never writes this annotation"
         },
         {
           "id": "day2_remove",
           "title": "Remove a block",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "2m8s",
+          "detail": "rbac.leaderElection.create=false in values.yaml took 2 objects out of the render - the Role and RoleBinding rel-external-secrets-leaderelection - and choudoufu proposed exactly 2 destroys (kubernetes_role_binding_v1.orphan_external-secrets_rel-external-secrets-leaderelection; kubernetes_role_v1.orphan_external-secrets_rel-external-secrets-leaderelection), matching stock's 2 on the oracle cluster (kubernetes_manifest.rest[\"Role/external-secrets/rel-external-secrets-leaderelection\"]; kubernetes_manifest.rest[\"RoleBinding/external-secrets/rel-external-secrets-leaderelection\"]); after the apply both are gone (kubectl), the ServiceAccount of the same release untouched, the replan empty and 36 objects labelled. The controller-copy exclusion: the objects the ExternalSecret controller wrote in external-secrets (Secret/rel-external-secrets; 1 of them carrying tofu-estate=reference-k8s-helm-external-secrets before the plan) were never proposed and read back identical, the ExternalSecret still Ready. BREAK_REMOVE=1 keeps leader election's RBAC and requires no destroy"
         },
         {
           "id": "day2_count",
           "title": "Change count",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "5m24s",
+          "detail": "for_each over the render, scaled the way a chart user scales it: two extraObjects entries rendered two SecretStores and choudoufu created both, then replanned empty; at one entry it destroyed exactly shard-1, planned at kubernetes_manifest.orphan_secretstore_external-secrets_shard-1 (kubernetes_manifest.custom[\"SecretStore/external-secrets/shard-0\"] untouched, both read with kubectl); back at two it created exactly kubernetes_manifest.custom[\"SecretStore/external-secrets/shard-1\"]; stock's plans for the same three edits on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the remaining shard was destroyed and correctly fails"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "4m58s",
+          "detail": "a create_before_destroy ConfigMap whose content-hashed name changes (cfg-a -\u003e cfg-b) plans as stock's replace: 'kubernetes_config_map.hashed must be replaced', +/- create replacement and then destroy, 1 add and 1 destroy, with no orphan destroy beside it, because cfg-a carries the block's address annotation and the sweep binds it (#1640). At -parallelism=1 the apply log shows cfg-b's creation complete (line 66) before cfg-a's deposed destroy starts (line 67), the same order stock's apply shows on the oracle cluster; kubectl confirms cfg-b alone remains, carrying the annotation, and the next plan is empty (#1541). The block is removed from both roots afterwards. BREAK_REPLACE=1 recreates cfg-a carrying the block's annotation and the next plan correctly proposes destroying it"
         },
         {
           "id": "day2_crash",
           "title": "Crash mid-apply",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "12m20s",
+          "detail": "an apply creating two SecretStores - a custom kind served by CRDs this estate's own render installed - was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 walker the instant kubernetes_manifest.crash_first's create committed; crash_second's manifest reads crash_first's name, so the walker cannot have reached it. kubectl confirms crash-first exists carrying tofu-estate=reference-k8s-helm-external-secrets and its address annotation, and crash-second does not; the interrupted apply recorded exactly the one object it created (records 69 -\u003e 70, labels [tofu-estate], annotations [choudoufu.intentius.io/tofu-address], #1211). The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, crash_second created) and nothing for crash-first, matching stock from the same position on the oracle cluster; the recovery apply added one, the replan is empty and 38 objects carry the label, 36 plus the pair. BREAK_CRASH=1 and BREAK_CRASH_UNBOUND=1 both correctly fail The create_before_destroy rename window is interrupted too (#1768): a kubernetes_config_map renamed under create_before_destroy was killed by the engine's own hook the instant the new object's create committed, at -parallelism=1, leaving both objects carrying the block's address annotation and the record holding the old one as the address's deposed object. The verdict is the end state stock's replace leaves, not the plan's wording: after one more apply exactly the new object remains, the old one is gone, the record's deposed entry is cleared and the replan is empty. Both of the rerun's paths reached it - orphan leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at 'orphan_external-secrets_crash-rename-a'; deposed leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at '(deposed object'; the same configuration through the orphan destroy, and the name read from another block's attribute (#1539's shape) through the deposed record (#1683), where stock's plan reads the same deposed-object destroy."
         },
         {
           "id": "day2_teardown",
           "title": "Teardown",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "1m9s",
+          "detail": "apply -destroy removed exactly the 38 remaining objects in one apply, the custom resources before the controller's Deployment by the custom block's depends_on (the ExternalSecret's destroy, with the finalizer only the running controller removes, completed at log line 98549, before the Deployment's began at line 98550), then the RBAC, the CRDs and the Namespace; the external-secrets namespace is gone and with it the Secret the controller wrote, all 25 external-secrets.io CRDs are gone and with them the cluster-scoped ClusterSecretStore, none of the estate's ClusterRoles or ClusterRoleBindings survive, and no object of the estate's kinds carries tofu-estate=reference-k8s-helm-external-secrets (kubectl, every namespace); stock's destroy on the oracle cluster removed exactly the 38 its state held"
         },
         {
           "id": "plan_approval",
           "title": "Plan, review, apply",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "2m7s",
+          "detail": "a values.yaml edit (the SecretStore's fake value, an extraObjects entry, plan-approval-before -\u003e plan-approval-after) re-rendered through helm_template planned as exactly one in-place update of kubernetes_manifest.custom[\"SecretStore/external-secrets/rel-external-secrets\"], saved with plan -out; the world then moved out of band (the controller Deployment's replicas to 2 with kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl still reads plan-approval-before); with the world put back the identical file applied, 0 added, 1 changed, 0 destroyed, and plan-approval-after reads back; stock's plan for the same edit on the oracle cluster is the same one update and its planfile applied. BREAK_APPROVAL=1 expects success after the move and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "3m13s",
+          "detail": "38 objects applied fresh with a live block and no terraform.tfstate - the render read by the data-read phase before the plan, the same declared pre-apply the cold deploy took (26 instances), then 12 - every one labelled tofu-estate=reference-k8s-helm-external-secrets (kubectl, 13 kinds) and the ExternalSecret Ready with its Secret written; replanned empty with and without the cache; the record store held 38 envelope(s) for 38 instances, and with that whole store deleted the plan read \"No changes. Your infrastructure matches the configuration\", nothing created, destroyed or replaced and no kubernetes_manifest updated. BREAK=1 expects a deliberately wrong object count and the assertion correctly fails"
         },
         {
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "45s",
+          "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_manifest) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
         },
         {
           "id": "no_local_state",
@@ -5627,102 +5664,131 @@
       "set": "growing",
       "lane": "kubernetes",
       "substrate": "kind",
-      "clear": false,
+      "clear": true,
       "source": "kedacore keda 2.21.0 (Apache-2.0, chart archive sha256 a7da56bf41a33dad9d2fc82a6fdecee552fff947d80bf1e1dbcf4db0f9e26dee, fetched and checked by run.sh) rendered client-side by hashicorp/helm's data \"helm_template\" - never helm_release - into four kubernetes_manifest blocks whose for_each splits and yamldecodes the render inside the for_each expression, keyed kind/namespace/name, with manifest = each.value (#1962): the chart's 6 CRDs, 20 other objects, the 4 Deployments, and the ScaledObject, plus the Namespace - 32 objects over 12 kinds, among them the cluster-wide APIService v1beta1.external.metrics.k8s.io whose caBundle the operator injects at runtime, a RoleBinding in kube-system, and a ScaledObject from which the operator generates an HPA nothing declares that then writes the replica count of a declared Deployment. Deltas in root/values.yaml: the integer cpu limits quoted, webhooks.timeoutSeconds and metricsServer.enabled spelled out at their defaults for day-2 stages, and a pause Deployment plus its ScaledObject through extraObjects; in root/main.tf, hostNetwork: false and empty env values dropped before yamldecode. reference- because the root is ours (#1963, #1107's Helm surface)",
       "script": "live/e2e/reference-k8s-helm-keda/run.sh",
-      "protocol": "legacy",
+      "protocol": "gauntlet",
       "cells": [
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
         "not run"
       ],
-      "runtime_total": "-",
-      "runtime_cells": "none recorded yet",
-      "legacy_note": "Verdicts were recorded from this estate's crossing script by hand before the script spoke the gauntlet protocol; the next run that does will replace them.",
-      "script_stale": "unknown",
-      "script_note": "**Unverified**: whether `live/e2e/reference-k8s-helm-keda` or `live/e2e/lib` has changed since the run recorded above cannot be told from this checkout - this row has recorded no run, so there is nothing to compare the script against. The verdicts above may describe an earlier version of the script (#1264, #1292).",
+      "runtime_total": "31m6s",
+      "runtime_cells": "cold_deploy 2m29s, migrate 2m40s, test_plan 25s, test_apply 37s, drift_reconverge 1m14s, day2_rename 1m40s, day2_remove 1m27s, day2_count 3m41s, day2_replace 3m10s, day2_crash 8m2s, day2_teardown 54s, plan_approval 1m35s, greenfield 2m30s, strict 41s",
+      "last_run_note": "Last run at commit `64714fe0b9` on 2026-10-11T17:18:54Z, exit code 0, against substrate image `kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5`. Total run time 31m6s.",
+      "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
+      "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
+      "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "2m29s",
+          "detail": "32 objects from plain terraform against kind v1.37.0: keda 2.21.0 (sha256 a7da56bf41a33dad9d2fc82a6fdecee552fff947d80bf1e1dbcf4db0f9e26dee) rendered by data.helm_template.keda into 31 kubernetes_manifest instances over 11 kinds under four for_each blocks keyed kind/namespace/name (the CRDs, the rest, the Deployments after the RBAC they need, then the ScaledObject), plus the Namespace; a real terraform.tfstate with 32 managed instances, zero tofu-estate labels read back with kubectl, the four Deployments Available, kedaorg-certs minted by the operator, v1beta1.external.metrics.k8s.io Available with a 1500-byte caBundle the operator injected, the ScaledObject choudoufu-base Ready and its HPA keda-hpa-choudoufu-base created, and stock's own replan empty. The identical shape cold-deployed by stock on a second cluster as every later stage's oracle. Two applies, and the first is declared: declared pre-apply, #1173: 2 address(es) declared at pre_apply in live/gauntlet/estates.json, applied with -target on every side (estate,oracle) before the main apply - the full list is in that file and in the GAUNTLET pre_apply= line this run printed, which the runner checks address by address; forced by: kubernetes_manifest builds an object's schema at PLAN time, so a root whose render carries the chart's own CRDs and a ScaledObject of them cannot be planned against an empty cluster - the custom resource's kind is not served until the CRDs exist, depends_on does not help, and re-running fails identically forever (#1173). The Namespace goes up with them because helm template renders none and the namespaced objects are dry-run into it at plan time. The main apply creates the other 25 rendered objects. Control, run first on this same cluster: the un-targeted one-pass plan exits 1 with 1 missing-CRD refusal(s) before creating anything, so the pre-apply is load-bearing. Operator-created objects the root never declared: HorizontalPodAutoscaler/keda-hpa-choudoufu-base; Secret/kedaorg-certs"
         },
         {
           "id": "migrate",
           "title": "Migrate",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "2m40s",
+          "detail": "32 of 32 stamped, 0 skipped (32 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 0 skipped); every declared object carries tofu-estate=reference-k8s-helm-keda, counted back with kubectl across all 12 kinds including the custom one, the four cluster-scoped kinds, the APIService and the RoleBinding in kube-system. Operator-generated objects carrying the label after the stamp, by KEDA's own copying from the ScaledObject it was stamped on: 0 (excluded from the count by their ownerReference). The eligibility line was: 32 of 32 resource instance(s) are eligible for stamping (VERIFIED or DRIFTED)."
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "25s",
+          "detail": "the plan with no state file is empty over 32 instances whose for_each keys and identities come from the helm_template render the data-read phase read; keda-operator, one name across five kinds (ServiceAccount, ClusterRole, ClusterRoleBinding, Service, Deployment), confirmed present as five objects with kubectl, with the Deployment and the ScaledObject that share choudoufu-base, the RoleBinding in kube-system, the APIService v1beta1.external.metrics.k8s.io, the ValidatingWebhookConfiguration and a CRD - the APIService and the webhook configuration carrying the caBundle the operator injected, which the root does not declare"
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "37s",
+          "detail": "no-op apply (0 added, 0 changed, 0 destroyed) over 32 instances; declared objects carrying tofu-estate=reference-k8s-helm-keda unchanged at 32 across the estate's 12 kinds, counted with kubectl"
         },
         {
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "1m14s",
+          "detail": "a Service that shares its name (keda-operator) with four objects of other kinds was deleted out of band with kubectl; choudoufu proposed putting back exactly kubernetes_manifest.rest[\"Service/keda/keda-operator\"] (1 add, 0 change, 0 destroy) and nothing for the four same-named objects, matching stock's own plan on the oracle cluster; apply created 1 and the recreated object carries the estate label again (32 labelled). A delete rather than a patch because every object is server-side applied. BREAK=1 deletes the same-named ClusterRoleBinding as well and the single-object assertion correctly fails"
         },
         {
           "id": "day2_rename",
           "title": "Rename",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "1m40s",
+          "detail": "moved block over a for_each of 6 CRDs keyed by the render (kubernetes_manifest.crds -\u003e .custom_resource_definitions, with the rest block's depends_on following it): no add and no destroy, 6 in-place changes each confined to the address annotation rewrite (6 annotation lines, 0 add, 6 change, 0 destroy) - the marker rewritten in place, as the AWS lanes assert for a rename; every CRD still there and labelled, the replan empty; stock's plan for the same moved block on the oracle cluster is zero churn, since stock never writes this annotation"
         },
         {
           "id": "day2_remove",
           "title": "Remove a block",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "1m27s",
+          "detail": "metricsServer.enabled=false in values.yaml took 8 objects out of the render - the metrics apiserver's Deployment, Service and ServiceAccount, a ClusterRole, two ClusterRoleBindings, a RoleBinding in kube-system and the cluster-wide APIService v1beta1.external.metrics.k8s.io, over seven kinds and three scopes - and choudoufu proposed exactly 8 destroys (kubernetes_api_service_v1.orphan_v1beta1_external_metrics_k8s_io; kubernetes_cluster_role_binding_v1.orphan_keda-operator-hpa-controller-external-metrics; kubernetes_cluster_role_binding_v1.orphan_keda-operator-system-auth-delegator; kubernetes_cluster_role_v1.orphan_keda-operator-external-metrics-reader; kubernetes_deployment_v1.orphan_keda_keda-operator-metrics-apiserver; kubernetes_role_binding_v1.orphan_kube-system_keda-operator-auth-reader; kubernetes_service_account_v1.orphan_keda_keda-metrics-server; kubernetes_service_v1.orphan_keda_keda-operator-metrics-apiserver), matching stock's 8 on the oracle cluster (kubernetes_manifest.late[\"Deployment/keda/keda-operator-metrics-apiserver\"]; kubernetes_manifest.rest[\"APIService//v1beta1.external.metrics.k8s.io\"]; kubernetes_manifest.rest[\"ClusterRole//keda-operator-external-metrics-reader\"]; kubernetes_manifest.rest[\"ClusterRoleBinding//keda-operator-hpa-controller-external-metrics\"]; kubernetes_manifest.rest[\"ClusterRoleBinding//keda-operator-system-auth-delegator\"]; kubernetes_manifest.rest[\"RoleBinding/kube-system/keda-operator-auth-reader\"]; kubernetes_manifest.rest[\"Service/keda/keda-operator-metrics-apiserver\"]; kubernetes_manifest.rest[\"ServiceAccount/keda/keda-metrics-server\"]); after the apply the APIService, the kube-system RoleBinding, the HPA controller's ClusterRoleBinding and the Deployment are gone (kubectl), kube-system itself and the keda-operator objects untouched, the replan empty and 24 objects labelled. The controller-copy exclusion: the 2 objects the operator generated in keda (HorizontalPodAutoscaler/keda-hpa-choudoufu-base; Secret/kedaorg-certs) were never proposed and read back identical. BREAK_REMOVE=1 keeps the metrics server and requires no destroy"
         },
         {
           "id": "day2_count",
           "title": "Change count",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "3m41s",
+          "detail": "for_each over the render, scaled the way a chart user scales it: two shards in extraObjects rendered two Deployments and two ScaledObjects, and choudoufu created all four across the late and scalers blocks, KEDA made an HPA for each, and the replan was empty; at one shard it destroyed exactly shard-1's pair (kubernetes_deployment_v1.orphan_keda_choudoufu-shard-1; kubernetes_manifest.orphan_scaledobject_keda_choudoufu-shard-1), the scaler before its target, while shard-0's pair (kubernetes_manifest.scalers[\"ScaledObject/keda/choudoufu-shard-0\"] and its Deployment) and its HPA stayed (kubectl), and the HPA KEDA had made for shard-1 - carrying the estate's label, never declared - was never proposed and went with its ScaledObject by garbage collection; back at two it created exactly kubernetes_manifest.scalers[\"ScaledObject/keda/choudoufu-shard-1\"] and kubernetes_manifest.late[\"Deployment/keda/choudoufu-shard-1\"] and KEDA made the HPA again; stock's plans for the same three edits on the oracle cluster have the identical shape (4 add, 2 destroy, 2 add). BREAK_COUNT=1 asserts the remaining shard was destroyed and correctly fails"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "3m10s",
+          "detail": "a create_before_destroy ConfigMap whose content-hashed name changes (cfg-a -\u003e cfg-b) plans as stock's replace: 'kubernetes_config_map.hashed must be replaced', +/- create replacement and then destroy, 1 add and 1 destroy, with no orphan destroy beside it, because cfg-a carries the block's address annotation and the sweep binds it (#1640). At -parallelism=1 the apply log shows cfg-b's creation complete (line 66) before cfg-a's deposed destroy starts (line 67), the same order stock's apply shows on the oracle cluster; kubectl confirms cfg-b alone remains, carrying the annotation, and the next plan is empty (#1541). The block is removed from both roots afterwards. BREAK_REPLACE=1 recreates cfg-a carrying the block's annotation and the next plan correctly proposes destroying it"
         },
         {
           "id": "day2_crash",
           "title": "Crash mid-apply",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "8m2s",
+          "detail": "an apply creating two ScaledObjects - a custom kind served by CRDs this estate's own render installed, each given the operator's finalizer - was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 walker the instant kubernetes_manifest.crash_first's create committed; crash_second's manifest reads crash_first's name, so the walker cannot have reached it. kubectl confirms crash-first exists carrying tofu-estate=reference-k8s-helm-keda and its address annotation, and crash-second does not; the interrupted apply recorded exactly the one object it created (records 46 -\u003e 47, labels [scaledobject.keda.sh/name tofu-estate], annotations [choudoufu.intentius.io/tofu-address], #1211). The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, crash_second created) and nothing for crash-first, matching stock from the same position on the oracle cluster; the recovery apply added one, the replan is empty and 26 objects carry the label, 24 plus the pair. BREAK_CRASH=1 and BREAK_CRASH_UNBOUND=1 both correctly fail The create_before_destroy rename window is interrupted too (#1768): a kubernetes_config_map renamed under create_before_destroy was killed by the engine's own hook the instant the new object's create committed, at -parallelism=1, leaving both objects carrying the block's address annotation and the record holding the old one as the address's deposed object. The verdict is the end state stock's replace leaves, not the plan's wording: after one more apply exactly the new object remains, the old one is gone, the record's deposed entry is cleared and the replan is empty. Both of the rerun's paths reached it - orphan leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at 'orphan_keda_crash-rename-a'; deposed leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at '(deposed object'; the same configuration through the orphan destroy, and the name read from another block's attribute (#1539's shape) through the deposed record (#1683), where stock's plan reads the same deposed-object destroy."
         },
         {
           "id": "day2_teardown",
           "title": "Teardown",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "54s",
+          "detail": "apply -destroy removed exactly the 26 remaining objects in one apply, in the blocks' reverse order - the ScaledObjects (the crash pair's depends_on and the scalers block's) while the operator that clears their finalizer was still running, then the Deployments, then the rest before the CRDs and the Namespace; the keda namespace is gone and with it the HPA and the certificate Secret the operator generated, all 6 keda.sh CRDs are gone, no ClusterRole, ClusterRoleBinding, APIService, ValidatingWebhookConfiguration or kube-system RoleBinding of the chart survives while kube-system itself is untouched, and no object of the estate's kinds carries tofu-estate=reference-k8s-helm-keda (kubectl, every namespace); stock's destroy on the oracle cluster removed exactly the 26 its state held"
         },
         {
           "id": "plan_approval",
           "title": "Plan, review, apply",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "1m35s",
+          "detail": "a values.yaml edit (webhooks.timeoutSeconds 10 -\u003e 15) re-rendered through helm_template planned as exactly one in-place update of kubernetes_manifest.rest[\"ValidatingWebhookConfiguration//keda-admission\"], saved with plan -out; the world then moved out of band (keda-admission-webhooks' replicas to 2 with kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl still reads 10 on all six webhooks); with the world put back the identical file applied, 0 added, 1 changed, 0 destroyed, 15 reads back on all six, and the caBundle the operator injected into the same object is still there; stock's plan for the same edit on the oracle cluster is the same one update and its planfile applied. BREAK_APPROVAL=1 expects success after the move and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "2m30s",
+          "detail": "32 objects applied fresh with a live block and no terraform.tfstate - the render read by the data-read phase before the plan, the same declared pre-apply the cold deploy took (7 instances), then 25 - every one labelled tofu-estate=reference-k8s-helm-keda (kubectl, 12 kinds), the operator's certificate Secret minted, v1beta1.external.metrics.k8s.io Available and the ScaledObject Ready with its HPA; replanned empty with and without the cache; the record store held 32 envelope(s) for 32 instances, and with that whole store deleted the plan read \"No changes. Your infrastructure matches the configuration\", nothing created, destroyed or replaced and no kubernetes_manifest updated. BREAK=1 expects a deliberately wrong object count and the assertion correctly fails"
         },
         {
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "41s",
+          "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_manifest) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
         },
         {
           "id": "no_local_state",
@@ -5750,16 +5816,16 @@
         "FAIL",
         "FAIL",
         "pass",
+        "pass",
         "FAIL",
-        "not run",
         "pass",
         "not run",
         "not run",
         "not run"
       ],
-      "runtime_total": "57m20.9s",
-      "runtime_cells": "cold_deploy 4m18s, migrate 1m28s, test_plan 51s, test_apply 1m21s, drift_reconverge 2m53s, day2_rename 3m58s, day2_remove 3m32s, day2_count 12m0s, day2_replace 6m43s, day2_crash 16m44s, plan_approval 3m32s",
-      "last_run_note": "Last run at commit `4451843b11` on 2026-10-11T04:51:08Z, exit code 1, against substrate image `kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5`. Total run time 57m20.9s.",
+      "runtime_total": "1h1m58.3s",
+      "runtime_cells": "cold_deploy 4m21s, migrate 1m28s, test_plan 52s, test_apply 1m21s, drift_reconverge 2m51s, day2_rename 3m58s, day2_remove 3m30s, day2_count 11m51s, day2_replace 6m45s, day2_crash 19m30s, day2_teardown 2m1s, plan_approval 3m29s",
+      "last_run_note": "Last run at commit `64714fe0b9` on 2026-10-11T17:18:54Z, exit code 1, against substrate image `kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5`. Total run time 1h1m58.3s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
@@ -5768,7 +5834,7 @@
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "4m18s",
+          "duration": "4m21s",
           "detail": "71 objects from plain terraform against kind v1.37.0: kyverno 3.9.1 (sha256 7b7fe51a431b5b133b0ce7eb9dcb222b6a37fb967c163223cf480054ad14d752) rendered by data.helm_template.kyverno into 69 kubernetes_manifest instances over 9 kinds under three for_each blocks keyed kind/namespace/name (the CRDs, the rest, then the four controller Deployments waited on until rolled out), plus the Namespace and 1 ClusterPolicy the root declares itself; a real terraform.tfstate with 71 managed instances, zero tofu-estate labels read back with kubectl, the four Deployments Available, kyverno's TLS Secret and policy webhook present and choudoufu-shard-0 Ready, and stock's own replan empty. The identical shape cold-deployed by stock on a second cluster as every later stage's oracle. Two applies, and the first is declared: declared pre-apply, #1173: 2 address(es) declared at pre_apply in live/gauntlet/estates.json, applied with -target on every side (estate,oracle) before the main apply - the full list is in that file and in the GAUNTLET pre_apply= line this run printed, which the runner checks address by address; forced by: kubernetes_manifest builds an object's schema at PLAN time, so a root whose render carries the chart's own 22 CRDs and which declares a ClusterPolicy of one of them cannot be planned against an empty cluster - the custom resource's kind is not served until the CRDs exist, depends_on does not help, and re-running fails identically forever (#1173). The Namespace goes up with them because helm template renders none and the namespaced objects are dry-run into it at plan time. The main apply creates the other 47 rendered objects and the ClusterPolicy. Control, run first on this same cluster: the un-targeted one-pass plan exits 1 with 1 missing-CRD refusal(s) before creating anything, so the pre-apply is load-bearing. Objects kyverno generated for itself that the root never declared: MutatingWebhookConfiguration/kyverno-policy-mutating-webhook-cfg; MutatingWebhookConfiguration/kyverno-resource-mutating-webhook-cfg; MutatingWebhookConfiguration/kyverno-verify-mutating-webhook-cfg; Secret/kyverno-cleanup-controller.kyverno.svc.kyverno-tls-ca; Secret/kyverno-cleanup-controller.kyverno.svc.kyverno-tls-pair; Secret/rel-kyverno-svc.kyverno.svc.kyverno-tls-ca; Secret/rel-kyverno-svc.kyverno.svc.kyverno-tls-pair; ValidatingWebhookConfiguration/kyverno-cel-exception-validating-webhook-cfg; ValidatingWebhookConfiguration/kyverno-cleanup-validating-webhook-cfg; ValidatingWebhookConfiguration/kyverno-exception-validating-webhook-cfg; ValidatingWebhookConfiguration/kyverno-global-context-validating-webhook-cfg; ValidatingWebhookConfiguration/kyverno-policy-validating-webhook-cfg; ValidatingWebhookConfiguration/kyverno-resource-validating-webhook-cfg; ValidatingWebhookConfiguration/kyverno-ttl-validating-webhook-cfg"
         },
         {
@@ -5782,7 +5848,7 @@
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "51s",
+          "duration": "52s",
           "detail": "the plan with no state file is empty over 71 instances whose for_each keys and identities come from the helm_template render the data-read phase read; rel-kyverno:admission-controller, one name across four kinds (ClusterRole and ClusterRoleBinding cluster-scoped, Role and RoleBinding in kyverno), and kyverno-cleanup-controller, one name across Deployment, Service and ServiceAccount, confirmed present as seven objects with kubectl, with the clusterpolicies CRD and the ClusterPolicy choudoufu-shard-0"
         },
         {
@@ -5796,7 +5862,7 @@
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
           "verdict": "pass",
-          "duration": "2m53s",
+          "duration": "2m51s",
           "detail": "a RoleBinding that shares its name (rel-kyverno:reports-controller) with a ClusterRole, a ClusterRoleBinding and a Role was deleted out of band with kubectl; choudoufu proposed putting back exactly kubernetes_manifest.rest[\"RoleBinding/kyverno/rel-kyverno:reports-controller\"] (1 add, 0 change, 0 destroy) and nothing for the three same-named objects, matching stock's own plan on the oracle cluster; apply created 1 and the recreated object carries the estate label again (71 labelled). A delete rather than a patch because every object is server-side applied. BREAK=1 deletes the same-named Role as well and the single-object assertion correctly fails"
         },
         {
@@ -5810,40 +5876,42 @@
           "id": "day2_remove",
           "title": "Remove a block",
           "verdict": "FAIL",
-          "duration": "3m32s",
+          "duration": "3m30s",
           "detail": "cleanupController.enabled=false in values.yaml (the cleanup controller's 9 objects out of the render; stock on the oracle destroys [kubernetes_manifest.late[\"Deployment/kyverno/kyverno-cleanup-controller\"]; kubernetes_manifest.rest[\"ClusterRole//rel-kyverno:cleanup-controller:core\"]; kubernetes_manifest.rest[\"ClusterRole//rel-kyverno:cleanup-controller\"]; kubernetes_manifest.rest[\"ClusterRoleBinding//rel-kyverno:cleanup-controller\"]; kubernetes_manifest.rest[\"Role/kyverno/rel-kyverno:cleanup-controller\"]; kubernetes_manifest.rest[\"RoleBinding/kyverno/rel-kyverno:cleanup-controller\"]; kubernetes_manifest.rest[\"Service/kyverno/kyverno-cleanup-controller-metrics\"]; kubernetes_manifest.rest[\"Service/kyverno/kyverno-cleanup-controller\"]; kubernetes_manifest.rest[\"ServiceAccount/kyverno/kyverno-cleanup-controller\"]], taking off [ClusterRole//rel-kyverno:cleanup-controller; ClusterRole//rel-kyverno:cleanup-controller:core; ClusterRoleBinding//rel-kyverno:cleanup-controller; Deployment/kyverno/kyverno-cleanup-controller; Role/kyverno/rel-kyverno:cleanup-controller; RoleBinding/kyverno/rel-kyverno:cleanup-controller; Service/kyverno/kyverno-cleanup-controller; Service/kyverno/kyverno-cleanup-controller-metrics; ServiceAccount/kyverno/kyverno-cleanup-controller] by kubectl): choudoufu's remove plan destroys at addresses that differ from stock's: choudoufu [kubernetes_cluster_role_binding_v1.orphan_rel-kyverno_cleanup-controller; kubernetes_cluster_role_v1.orphan_rel-kyverno_cleanup-controller; kubernetes_cluster_role_v1.orphan_rel-kyverno_cleanup-controller_core; kubernetes_deployment_v1.orphan_kyverno_kyverno-cleanup-controller; kubernetes_role_binding_v1.orphan_kyverno_rel-kyverno_cleanup-controller; kubernetes_role_v1.orphan_kyverno_rel-kyverno_cleanup-controller; kubernetes_service_account_v1.orphan_kyverno_kyverno-cleanup-controller; kubernetes_service_v1.orphan_kyverno_kyverno-cleanup-controller; kubernetes_service_v1.orphan_kyverno_kyverno-cleanup-controller-metrics], stock [kubernetes_manifest.late[\"Deployment/kyverno/kyverno-cleanup-controller\"]; kubernetes_manifest.rest[\"ClusterRole//rel-kyverno:cleanup-controller:core\"]; kubernetes_manifest.rest[\"ClusterRole//rel-kyverno:cleanup-controller\"]; kubernetes_manifest.rest[\"ClusterRoleBinding//rel-kyverno:cleanup-controller\"]; kubernetes_manifest.rest[\"Role/kyverno/rel-kyverno:cleanup-controller\"]; kubernetes_manifest.rest[\"RoleBinding/kyverno/rel-kyverno:cleanup-controller\"]; kubernetes_manifest.rest[\"Service/kyverno/kyverno-cleanup-controller-metrics\"]; kubernetes_manifest.rest[\"Service/kyverno/kyverno-cleanup-controller\"]; kubernetes_manifest.rest[\"ServiceAccount/kyverno/kyverno-cleanup-controller\"]] (#1996). Read by object rather than address, choudoufu's apply took off [ClusterRole//rel-kyverno:cleanup-controller; ClusterRole//rel-kyverno:cleanup-controller:core; ClusterRoleBinding//rel-kyverno:cleanup-controller; Deployment/kyverno/kyverno-cleanup-controller; Role/kyverno/rel-kyverno:cleanup-controller; RoleBinding/kyverno/rel-kyverno:cleanup-controller; Service/kyverno/kyverno-cleanup-controller; Service/kyverno/kyverno-cleanup-controller-metrics; ServiceAccount/kyverno/kyverno-cleanup-controller]. The removal was applied on both sides regardless and read back with kubectl, so every later stage starts where it expects"
         },
         {
           "id": "day2_count",
           "title": "Change count",
           "verdict": "FAIL",
-          "duration": "12m0s",
+          "duration": "11m51s",
           "detail": "local.policy_shards 1 -\u003e 3 -\u003e 2 -\u003e 3 (each shard one ClusterPolicy admitted through kyverno's policy webhook; stock's plans on the oracle are 2 adds, then 1 destroy [kubernetes_manifest.policies[\"shard-2\"]], then 1 add): the scale-down plan is No changes. Your infrastructure matches the configuration, not exactly one destroy: []; the scale-down apply exited 0 and did not report exactly one destroyed: ; the scale-down apply did not take off the object stock's did: gone from A [], from B [ClusterPolicy//choudoufu-shard-2]; shard-2 still exists after the scale-down. The shards were withdrawn on both sides afterwards and A replans empty"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
           "verdict": "pass",
-          "duration": "6m43s",
+          "duration": "6m45s",
           "detail": "a create_before_destroy ConfigMap whose content-hashed name changes (cfg-a -\u003e cfg-b) plans as stock's replace: 'kubernetes_config_map.hashed must be replaced', +/- create replacement and then destroy, 1 add and 1 destroy, with no orphan destroy beside it, because cfg-a carries the block's address annotation and the sweep binds it (#1640). At -parallelism=1 the apply log shows cfg-b's creation complete (line 66) before cfg-a's deposed destroy starts (line 67), the same order stock's apply shows on the oracle cluster; kubectl confirms cfg-b alone remains, carrying the annotation, and the next plan is empty (#1541). The block is removed from both roots afterwards. BREAK_REPLACE=1 recreates cfg-a carrying the block's annotation and the next plan correctly proposes destroying it"
         },
         {
           "id": "day2_crash",
           "title": "Crash mid-apply",
-          "verdict": "FAIL",
-          "duration": "16m44s",
-          "detail": "crash-first's choudoufu.intentius.io/tofu-address annotation reads 'Warning: kyverno.io/v1 ClusterPolicy is deprecated and will be removed in a future release; migrate to ValidatingPolicy, MutatingPolicy, GeneratingPolicy or ImageValidatingPolicy (policies.kyverno.io), see https://kyverno.io/docs/guides/migration-to-cel/ kubernetes_manifest.crash_first', want kubernetes_manifest.crash_first (#1639)"
+          "verdict": "pass",
+          "duration": "19m30s",
+          "detail": "an apply creating two ClusterPolicies - a cluster-scoped custom kind served by CRDs this estate's own render installed, admitted through kyverno's policy webhook - was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 walker the instant kubernetes_manifest.crash_first's create committed; crash_second's manifest reads crash_first's name, so the walker cannot have reached it. kubectl confirms crash-first exists carrying tofu-estate=reference-k8s-helm-kyverno and its address annotation, and crash-second does not; the interrupted apply recorded exactly the one object it created (records 99 -\u003e 100, labels [tofu-estate], annotations [choudoufu.intentius.io/tofu-address], #1211). The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, crash_second created) and nothing for crash-first, matching stock from the same position on the oracle cluster; the recovery apply added one, the replan is empty and 64 objects carry the label, 62 plus the pair. BREAK_CRASH=1 and BREAK_CRASH_UNBOUND=1 both correctly fail The create_before_destroy rename window is interrupted too (#1768): a kubernetes_config_map renamed under create_before_destroy was killed by the engine's own hook the instant the new object's create committed, at -parallelism=1, leaving both objects carrying the block's address annotation and the record holding the old one as the address's deposed object. The verdict is the end state stock's replace leaves, not the plan's wording: after one more apply exactly the new object remains, the old one is gone, the record's deposed entry is cleared and the replan is empty. Both of the rerun's paths reached it - orphan leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at 'orphan_kyverno_crash-rename-a'; deposed leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at '(deposed object'; the same configuration through the orphan destroy, and the name read from another block's attribute (#1539's shape) through the deposed record (#1683), where stock's plan reads the same deposed-object destroy."
         },
         {
           "id": "day2_teardown",
           "title": "Teardown",
-          "verdict": "not run"
+          "verdict": "FAIL",
+          "duration": "2m1s",
+          "detail": "no kyverno webhook configuration is left on B after stock's destroy, so the comparison with A would measure nothing"
         },
         {
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "3m32s",
+          "duration": "3m29s",
           "detail": "a values.yaml edit (config.updateRequestThreshold 1000 -\u003e 2000) re-rendered through helm_template planned as exactly one in-place update of kubernetes_manifest.rest[\"ConfigMap/kyverno/rel-kyverno\"], saved with plan -out; the world then moved out of band (the background controller's replicas to 2 with kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl still reads 1000); with the world put back the identical file applied, 0 added, 1 changed, 0 destroyed, and 2000 reads back; stock's plan for the same edit on the oracle cluster is the same one update and its planfile applied. BREAK_APPROVAL=1 expects success after the move and correctly fails"
         },
         {
@@ -5881,17 +5949,17 @@
         "pass",
         "FAIL",
         "FAIL",
-        "not run",
-        "not run",
-        "not run",
+        "pass",
+        "pass",
+        "FAIL",
         "pass",
         "not run",
         "not run",
         "not run"
       ],
-      "runtime_total": "16m32.5s",
-      "runtime_cells": "cold_deploy 2m49s, migrate 55s, test_plan 30s, test_apply 47s, drift_reconverge 1m30s, day2_rename 2m9s, day2_remove 2m52s, day2_count 2m44s, plan_approval 2m15s",
-      "last_run_note": "Last run at commit `4451843b11` on 2026-10-11T04:51:08Z, exit code 1, against substrate image `kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5`. Total run time 16m32.5s.",
+      "runtime_total": "33m43.5s",
+      "runtime_cells": "cold_deploy 2m50s, migrate 54s, test_plan 29s, test_apply 47s, drift_reconverge 1m31s, day2_rename 2m7s, day2_remove 2m51s, day2_count 2m45s, day2_replace 5m1s, day2_crash 11m25s, day2_teardown 47s, plan_approval 2m15s",
+      "last_run_note": "Last run at commit `64714fe0b9` on 2026-10-11T17:18:54Z, exit code 1, against substrate image `kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5`. Total run time 33m43.5s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
@@ -5900,21 +5968,21 @@
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "2m49s",
-          "detail": "45 objects from plain terraform against kind v1.37.0: metallb 0.16.1 (sha256 fb06bb584fcb7856f15733b2a6a2aff5b61b5c350687e341c163ae24a5938adc) rendered by data.helm_template.metallb into 42 kubernetes_manifest instances over 12 kinds under three for_each blocks keyed kind/namespace/name (the CRDs, the rest, then the two Deployments and two hostNetwork DaemonSets), plus the Namespace, then 2 custom resources the root declares (an IPAddressPool and an L2Advertisement); a real terraform.tfstate with 45 managed instances, zero tofu-estate labels read back with kubectl, both Deployments Available, both DaemonSets ready and the failurePolicy: Fail webhook admitting a dry-run IPAddressPool, the two webhook Secrets the root declares empty holding data keys the cert rotators wrote (metallb/frr-k8s: 4 4), and stock's own replan empty. The identical shape cold-deployed by stock on a second cluster as every later stage's oracle. Two applies, and the first is declared: declared pre-apply, #1173: 4 address(es) declared at pre_apply in live/gauntlet/estates.json, applied with -target on every side (estate,oracle) before the main apply - the full list is in that file and in the GAUNTLET pre_apply= line this run printed, which the runner checks address by address; forced by: kubernetes_manifest builds an object's schema at PLAN time, so a root declaring IPAddressPools and an L2Advertisement of the render's own CRDs cannot be planned against an empty cluster - the kinds are not served until the CRDs exist, depends_on does not help, and re-running fails identically forever (#1173). The rest of the render goes up with them because every IPAddressPool and L2Advertisement write, the plan-time server-side dry run included, goes through the MetalLB controller's failurePolicy: Fail webhook, which answers only once the controller runs and its cert rotator has minted the certificate; run.sh waits for that webhook to admit a dry-run IPAddressPool between the two applies, as reference-k8s-cert-manager does. The Namespace goes up with them because helm template renders none. The main apply creates the two custom resources. Control, run first on this same cluster: the un-targeted one-pass plan exits 1 with 1 missing-CRD refusal(s) before creating anything, so the pre-apply is load-bearing. Controller-created objects the root never declared: ConfigurationState/controller; ConfigurationState/speaker-chdf-refhml-a-72211-control-plane; FRRNodeState/chdf-refhml-a-72211-control-plane; Secret/rel-metallb-memberlist"
+          "duration": "2m50s",
+          "detail": "45 objects from plain terraform against kind v1.37.0: metallb 0.16.1 (sha256 fb06bb584fcb7856f15733b2a6a2aff5b61b5c350687e341c163ae24a5938adc) rendered by data.helm_template.metallb into 42 kubernetes_manifest instances over 12 kinds under three for_each blocks keyed kind/namespace/name (the CRDs, the rest, then the two Deployments and two hostNetwork DaemonSets), plus the Namespace, then 2 custom resources the root declares (an IPAddressPool and an L2Advertisement); a real terraform.tfstate with 45 managed instances, zero tofu-estate labels read back with kubectl, both Deployments Available, both DaemonSets ready and the failurePolicy: Fail webhook admitting a dry-run IPAddressPool, the two webhook Secrets the root declares empty holding data keys the cert rotators wrote (metallb/frr-k8s: 4 4), and stock's own replan empty. The identical shape cold-deployed by stock on a second cluster as every later stage's oracle. Two applies, and the first is declared: declared pre-apply, #1173: 4 address(es) declared at pre_apply in live/gauntlet/estates.json, applied with -target on every side (estate,oracle) before the main apply - the full list is in that file and in the GAUNTLET pre_apply= line this run printed, which the runner checks address by address; forced by: kubernetes_manifest builds an object's schema at PLAN time, so a root declaring IPAddressPools and an L2Advertisement of the render's own CRDs cannot be planned against an empty cluster - the kinds are not served until the CRDs exist, depends_on does not help, and re-running fails identically forever (#1173). The rest of the render goes up with them because every IPAddressPool and L2Advertisement write, the plan-time server-side dry run included, goes through the MetalLB controller's failurePolicy: Fail webhook, which answers only once the controller runs and its cert rotator has minted the certificate; run.sh waits for that webhook to admit a dry-run IPAddressPool between the two applies, as reference-k8s-cert-manager does. The Namespace goes up with them because helm template renders none. The main apply creates the two custom resources. Control, run first on this same cluster: the un-targeted one-pass plan exits 1 with 1 missing-CRD refusal(s) before creating anything, so the pre-apply is load-bearing. Controller-created objects the root never declared: ConfigurationState/controller; ConfigurationState/speaker-chdf-refhml-a-90151-control-plane; FRRNodeState/chdf-refhml-a-90151-control-plane; Secret/rel-metallb-memberlist"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "55s",
+          "duration": "54s",
           "detail": "45 of 45 stamped, 0 skipped (45 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 0 skipped); every declared object carries tofu-estate=reference-k8s-helm-metallb, counted back with kubectl across all 15 kinds including the two custom ones (IPAddressPool, L2Advertisement) and the cluster-scoped CRDs, ClusterRoles and ValidatingWebhookConfigurations; the two webhook Secrets still hold the data keys the cert rotators wrote after the stamp (metallb/frr-k8s: 4 4). The eligibility line was: 45 of 45 resource instance(s) are eligible for stamping (VERIFIED or DRIFTED)."
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "30s",
+          "duration": "29s",
           "detail": "the plan with no state file is empty over 45 instances, 42 of whose for_each keys and identities come from the helm_template render the data-read phase read; rel-frr-k8s-controller, one name across five kinds (ServiceAccount, Role and RoleBinding in metallb-system, ClusterRole and ClusterRoleBinding), confirmed present as five objects with kubectl, with both ValidatingWebhookConfigurations (every webhook) and the bgppeers CRD's conversion webhook carrying the caBundle the cert rotators injected and the root never declares, and the IPAddressPool and L2Advertisement named base"
         },
         {
@@ -5928,44 +5996,50 @@
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
           "verdict": "pass",
-          "duration": "1m30s",
+          "duration": "1m31s",
           "detail": "a Role that shares its name (rel-frr-k8s-controller) with four objects of other kinds, a ClusterRole of the same name among them, was deleted out of band with kubectl; choudoufu proposed putting back exactly kubernetes_manifest.rest[\"Role/metallb-system/rel-frr-k8s-controller\"] (1 add, 0 change, 0 destroy) and nothing for the four same-named objects, matching stock's own plan on the oracle cluster; apply created 1 and the recreated object carries the estate label again (45 labelled). A delete rather than a patch because every object is server-side applied. BREAK=1 deletes the same-named RoleBinding as well and the single-object assertion correctly fails"
         },
         {
           "id": "day2_rename",
           "title": "Rename",
           "verdict": "pass",
-          "duration": "2m9s",
+          "duration": "2m7s",
           "detail": "moved block over a for_each of 13 CRDs keyed by the render (kubernetes_manifest.crds -\u003e .custom_resource_definitions, with the rest block's depends_on following it): no add and no destroy, 13 in-place changes each confined to the address annotation rewrite (13 annotation lines, 0 add, 13 change, 0 destroy) - the marker rewritten in place, as the AWS lanes assert for a rename; every CRD still there and labelled, the conversion-webhook CRD bgppeers.metallb.io still carrying the caBundle its controller injected, the replan empty; stock's plan for the same moved block on the oracle cluster is zero churn, since stock never writes this annotation"
         },
         {
           "id": "day2_remove",
           "title": "Remove a block",
           "verdict": "FAIL",
-          "duration": "2m52s",
-          "detail": "speaker.excludeInterfaces.enabled=false in values.yaml, 1 destroy and 1 in-place update of the speaker DaemonSet in stock's plan [kubernetes_manifest.late[\"DaemonSet/metallb-system/rel-metallb-speaker\"]; kubernetes_manifest.rest[\"ConfigMap/metallb-system/metallb-excludel2\"]]: choudoufu's remove plan destroys [kubernetes_config_map_v1.orphan_metallb-system_metallb-excludel2] where stock's on the oracle cluster destroys [kubernetes_manifest.rest[\"ConfigMap/metallb-system/metallb-excludel2\"]]: the removed for_each instance is planned at a sweep orphan's address, not its own (#1996). What held: choudoufu proposed [kubernetes_config_map_v1.orphan_metallb-system_metallb-excludel2; kubernetes_manifest.late[\"DaemonSet/metallb-system/rel-metallb-speaker\"]]; after the apply the declared objects gone from cluster A by kind/namespace/name are [ConfigMap/metallb-system/metallb-excludel2] against stock's [ConfigMap/metallb-system/metallb-excludel2], the hostNetwork speaker DaemonSet rolled out ready on both clusters, and the 4 objects the controllers generated (ConfigurationState/controller; ConfigurationState/speaker-chdf-refhml-a-72211-control-plane; FRRNodeState/chdf-refhml-a-72211-control-plane; Secret/rel-metallb-memberlist) were never proposed, the ones that must survive a speaker rollout (FRRNodeState/chdf-refhml-a-72211-control-plane; Secret/rel-metallb-memberlist) reading back with the same uids. Stock's own remove apply on B failed once (Error: Provider produced inconsistent result after apply) and a second apply converged. choudoufu's first remove apply failed with the same error and a second converged, as stock's did."
+          "duration": "2m51s",
+          "detail": "speaker.excludeInterfaces.enabled=false in values.yaml, 1 destroy and 1 in-place update of the speaker DaemonSet in stock's plan [kubernetes_manifest.late[\"DaemonSet/metallb-system/rel-metallb-speaker\"]; kubernetes_manifest.rest[\"ConfigMap/metallb-system/metallb-excludel2\"]]: choudoufu's remove plan destroys [kubernetes_config_map_v1.orphan_metallb-system_metallb-excludel2] where stock's on the oracle cluster destroys [kubernetes_manifest.rest[\"ConfigMap/metallb-system/metallb-excludel2\"]]: the removed for_each instance is planned at a sweep orphan's address, not its own (#1996). What held: choudoufu proposed [kubernetes_config_map_v1.orphan_metallb-system_metallb-excludel2; kubernetes_manifest.late[\"DaemonSet/metallb-system/rel-metallb-speaker\"]]; after the apply the declared objects gone from cluster A by kind/namespace/name are [ConfigMap/metallb-system/metallb-excludel2] against stock's [ConfigMap/metallb-system/metallb-excludel2], the hostNetwork speaker DaemonSet rolled out ready on both clusters, and the 4 objects the controllers generated (ConfigurationState/controller; ConfigurationState/speaker-chdf-refhml-a-90151-control-plane; FRRNodeState/chdf-refhml-a-90151-control-plane; Secret/rel-metallb-memberlist) were never proposed, the ones that must survive a speaker rollout (FRRNodeState/chdf-refhml-a-90151-control-plane; Secret/rel-metallb-memberlist) reading back with the same uids. Stock's own remove apply on B failed once (Error: Provider produced inconsistent result after apply) and a second apply converged. choudoufu's first remove apply failed with the same error and a second converged, as stock's did."
         },
         {
           "id": "day2_count",
           "title": "Change count",
           "verdict": "FAIL",
-          "duration": "2m44s",
-          "detail": "the scale-down plan is not exactly one destroy"
+          "duration": "2m45s",
+          "detail": "the scale-down plan (shard_pools 2 -\u003e 1) is not exactly one destroy: No changes. Your infrastructure matches the configuration; proposed: ; planned imports: 44; stock's plan on B is one destroy of kubernetes_manifest.pool[\"shard-1\"] (#2006)"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "5m1s",
+          "detail": "a create_before_destroy ConfigMap whose content-hashed name changes (cfg-a -\u003e cfg-b) plans as stock's replace: 'kubernetes_config_map.hashed must be replaced', +/- create replacement and then destroy, 1 add and 1 destroy, with no orphan destroy beside it, because cfg-a carries the block's address annotation and the sweep binds it (#1640). At -parallelism=1 the apply log shows cfg-b's creation complete (line 66) before cfg-a's deposed destroy starts (line 67), the same order stock's apply shows on the oracle cluster; kubectl confirms cfg-b alone remains, carrying the annotation, and the next plan is empty (#1541). The block is removed from both roots afterwards. BREAK_REPLACE=1 recreates cfg-a carrying the block's annotation and the next plan correctly proposes destroying it"
         },
         {
           "id": "day2_crash",
           "title": "Crash mid-apply",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "11m25s",
+          "detail": "an apply creating two IPAddressPools - a custom kind served by CRDs this estate's own render installed, admitted by its failurePolicy: Fail webhook - was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 walker the instant kubernetes_manifest.crash_first's create committed; crash_second's manifest reads crash_first's name, so the walker cannot have reached it. kubectl confirms crash-first exists carrying tofu-estate=reference-k8s-helm-metallb and its address annotation, and crash-second does not; the interrupted apply recorded exactly the one object it created (records 64 -\u003e 65, labels [tofu-estate], annotations [choudoufu.intentius.io/tofu-address], #1211). The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, crash_second created) and nothing for crash-first, matching stock from the same position on the oracle cluster; the recovery apply added one, the replan is empty and 48 objects carry the label, 46 plus the pair. BREAK_CRASH=1 and BREAK_CRASH_UNBOUND=1 both correctly fail The create_before_destroy rename window is interrupted too (#1768): a kubernetes_config_map renamed under create_before_destroy was killed by the engine's own hook the instant the new object's create committed, at -parallelism=1, leaving both objects carrying the block's address annotation and the record holding the old one as the address's deposed object. The verdict is the end state stock's replace leaves, not the plan's wording: after one more apply exactly the new object remains, the old one is gone, the record's deposed entry is cleared and the replan is empty. Both of the rerun's paths reached it - orphan leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at 'orphan_metallb-system_crash-rename-a'; deposed leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at '(deposed object'; the same configuration through the orphan destroy, and the name read from another block's attribute (#1539's shape) through the deposed record (#1683), where stock's plan reads the same deposed-object destroy."
         },
         {
           "id": "day2_teardown",
           "title": "Teardown",
-          "verdict": "not run"
+          "verdict": "FAIL",
+          "duration": "47s",
+          "detail": "apply -destroy did not remove exactly the 48 remaining objects"
         },
         {
           "id": "plan_approval",
