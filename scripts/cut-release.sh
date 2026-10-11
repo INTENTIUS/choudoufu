@@ -50,8 +50,18 @@ cut() {
   # they belong one level down.
   movement="$(sed 's/^## /### /' <<< "$movement")"
 
-  local base today
-  base="$(tr -d '[:space:]' < version/VERSION)"
+  local today
+  # The "Built on" line names the fork point as well as the version, the
+  # shape live/upstream_base_label_test.go holds every CHANGELOG claim to
+  # (#1778), read from live/fork-surface.json as release.yml reads it.
+  local version fork ref base
+  version="$(jq -r '.base_opentofu_version // empty' live/fork-surface.json)"
+  fork="$(jq -r '.fork_point_short // empty' live/fork-surface.json)"
+  [ -n "$version" ] && [ -n "$fork" ] || die "live/fork-surface.json lacks base_opentofu_version or fork_point_short"
+  [ "$version" = "$(tr -d '[:space:]' < version/VERSION)" ] \
+    || die "live/fork-surface.json says base $version but version/VERSION disagrees; run go run ./tools/forkdiff-gen"
+  case "$version" in *-dev) ref="main" ;; *) ref="tag v$version" ;; esac
+  base="$version (upstream $ref \`$fork\`)"
   today="$(date +%Y-%m-%d)"
   python3 - "$V" "$prev" "$base" "$today" "$movement" <<'PY' || exit 1
 import re, sys
