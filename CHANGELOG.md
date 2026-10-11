@@ -39,6 +39,36 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.26.0 (Unreleased)
 
+- New: eleven kubernetes-lane estates, each a published chart or manifest
+  set rendered into `kubernetes_manifest`: traefik, metallb,
+  external-secrets, cloudnative-pg, kyverno, cert-manager, keda,
+  ingress-nginx, sealed-secrets and argo-cd through `helm_template`, and
+  argo-rollouts' install.yaml through `file()` and `yamldecode`
+  (#1974-#1989). Measured over three maintainer runs (#2008, #2010):
+  external-secrets and keda clear, the other nine do not.
+
+- Known: when a values change takes a rendered object out of a `for_each`,
+  choudoufu destroys it under a typed `orphan_` address rather than the
+  instance's own address, as stock does. The right object goes; the plan
+  names it differently. This fails `day2_remove` on nine of the new
+  estates (#1996).
+
+- Known: on kyverno and metallb, a `for_each` scale-down after that removal
+  plans "No changes" with planned imports and leaves the removed key's
+  object in the cluster (#2006). Not yet known whether a later plan ever
+  proposes it.
+
+- Known: `no_local_state` reads not_run on the new estates; their scripts
+  do not implement it yet (#1966).
+
+- Changed: `gauntlet run`, `gauntlet live-cert` and every estate script ask
+  the person at the terminal to type `run`, and refuse without one, so the
+  gauntlet no longer runs in Actions or from an agent (#1972).
+  `scripts/cut-release.sh` cuts and tags a release with no gauntlet run.
+
+- Docs: the `helm_template` hazards `reference-k8s-helm-template` hit, one
+  line each, in COMPATIBILITY (#1973).
+
 ## choudoufu v0.25.0 (2026-10-10)
 
 Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.25.0.json`](live/history/v0.25.0.json).
