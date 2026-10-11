@@ -1047,7 +1047,7 @@ cexists_a clusterpolicy crash-first || { printf '%s\n' "$X_OUT" | tail -20; fail
 cexists_a clusterpolicy crash-second && { printf '%s\n' "$X_OUT" | tail -20; fail "crash-second exists after the interrupted apply - the kill landed after both creates"; }
 { GET_OUT="$(kca get clusterpolicy -l "tofu-estate=$ESTATE" -o name 2>/dev/null)" && grep -qE '(^|/)crash-first$' <<< "$GET_OUT"; } \
   || { printf '%s\n' "$GET_OUT"; fail "crash-first was created by the interrupted apply but does not come back under tofu-estate=$ESTATE"; }
-X_ADDR_ANN="$(kca get clusterpolicy crash-first -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}' 2>&1)"
+X_ADDR_ANN="$(kca get clusterpolicy crash-first -o jsonpath='{.metadata.annotations.choudoufu\.intentius\.io/tofu-address}' 2>/dev/null)"  # kyverno.io/v1 prints a deprecation Warning on stderr
 [ "$X_ADDR_ANN" = "kubernetes_manifest.crash_first" ] \
   || fail "crash-first's choudoufu.intentius.io/tofu-address annotation reads '$X_ADDR_ANN', want kubernetes_manifest.crash_first (#1639)"
 X_RECORDS_AFTER="$(gauntlet_record_envelope_count "$ADOPTED/.tofu-records")"

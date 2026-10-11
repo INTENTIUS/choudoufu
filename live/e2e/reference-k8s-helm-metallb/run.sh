@@ -974,7 +974,19 @@ if [ -n "$COUNT_VERDICT" ]; then
 else
   set_shards "$ADOPTED" 1 || fail "could not scale the adopted root to 1"
   C_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$C_PLAN" | tail -20; fail "the scale-down plan failed"; }
-  grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$C_PLAN" || { printf '%s\n' "$C_PLAN" | tail -20; fail "the scale-down plan is not exactly one destroy"; }
+  if ! grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$C_PLAN"; then
+    # Measured 2026-10-11 (#2006): after day2_remove's orphan-path destroy,
+    # choudoufu's scale-down carried planned imports instead of the one
+    # destroy. Every action line is printed, the miss recorded, the shards
+    # withdrawn, and the run goes on to the later stages.
+    printf '%s\n' "$C_PLAN" | grep -E 'will be|must be|imported|import|^Plan:|^Warning:|^Error' | head -80
+    gauntlet_stage day2_count fail "the scale-down plan (shard_pools 2 -> 1) is not exactly one destroy: $(gauntlet_plan_line <<< "$C_PLAN"); proposed: $(planned "$C_PLAN" | head -10 | tr '\n' ';'); planned imports: $(grep -c "Apply needed after 'import'" <<< "$C_PLAN"); stock's plan on B is one destroy of $SHARD1 (#2006)"
+    { set_shards "$ADOPTED" 0 && set_shards "$ORACLE" 0; } || fail "could not withdraw the shards"
+    W_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" || { show "$W_OUT" 30; log "  note: the apply withdrawing the shards from A did not exit clean"; }
+    must "the oracle root would not converge after the shards were withdrawn" stock_b apply -auto-approve -input=false -no-color
+    CLEAN="$(tofu_a plan -input=false -no-color 2>&1)" || { show "$CLEAN" 30; fail "the plan after withdrawing the shards failed; nothing below would measure day-2 behaviour"; }
+    grep -q "No changes." <<< "$CLEAN" || { printf '%s\n' "$CLEAN" | grep -E 'will be|must be|import|^Plan:|^Warning:|^Error' | head -40; fail "the plan after withdrawing the shards is not empty; nothing below would measure day-2 behaviour"; }
+  else
   C_ADDR="$(destroys_in "$C_PLAN" | joined)"
   # By address, as day2_remove compares: a sweep orphan where stock plans
   # the instance itself is #1996, named in the verdict. Which pool went is
@@ -1005,6 +1017,7 @@ else
     { set_shards "$ADOPTED" 0 && set_shards "$ORACLE" 0; } || fail "could not withdraw the shards"
     must "could not withdraw the shards from A" tofu_a apply -auto-approve -input=false -no-color
     must "could not withdraw the shards from B" stock_b apply -auto-approve -input=false -no-color
+  fi
   fi
 fi
 

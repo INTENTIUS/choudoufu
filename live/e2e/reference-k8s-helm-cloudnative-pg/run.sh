@@ -487,6 +487,11 @@ for a in sys.stdin:
     if m:
         k, ns, n = m.groups()
         print("%s/%s/%s" % (k.lower(), ns, n)); continue
+    # The root'"'"'s own catalog block is keyed shard-N, not by the render:
+    # its object is the ImageCatalog catalog-shard-N in pg (root/main.tf).
+    m = re.match(r"^kubernetes_manifest\.catalog\[\"(shard-[0-9]+)\"\]$", a)
+    if m:
+        print("imagecatalog/pg/catalog-%s" % m.group(1)); continue
     m = re.match(r"^kubernetes_manifest\.orphan_([a-z0-9]+)_(.+)$", a)
     if m:
         ns, n = split(m.group(2))
