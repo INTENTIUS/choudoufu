@@ -64,7 +64,7 @@ resource "kubernetes_manifest" "crds" {
   manifest = each.value
 }
 
-# Two kinds of line the server never stores, dropped before yamldecode:
+# Three kinds of value the server never stores, dropped before yamldecode:
 #
 # - a zero plain int (omitempty in the API's Go types) comes back null and
 #   the provider reports an inconsistent result after apply. The render's
@@ -72,6 +72,16 @@ resource "kubernetes_manifest" "crds" {
 #   two probes' initialDelaySeconds: 0; its one false,
 #   allowPrivilegeEscalation, is a *bool and survives, and hostNetwork is
 #   written only when true.
+# - an empty string on an omitempty string field does the same. Both
+#   bindings to the controller's ServiceAccount (the ClusterRoleBinding and
+#   the key-admin RoleBinding) write `- apiGroup: ""` as their subject's
+#   first key; Subject.APIGroup is a plain string with omitempty, so the
+#   server drops it and stock's first main apply failed on exactly this
+#   ("subjects[0].apiGroup: was cty.StringVal(\"\"), but now null"). The
+#   key and the indentation of the line after it go, so the subject's
+#   next key starts the list item. They are the render's only empty-string
+#   fields: every other "" is an element of a Role's apiGroups list (the
+#   core group), which is a list entry, not an omitted field, and stays.
 # - both Services write `nodePort: null` into their one port whenever the
 #   type is ClusterIP, and no value removes it; a null leaf replans for ever
 #   ("known after apply"), the hazard values.yaml fills every empty key
@@ -81,7 +91,7 @@ resource "kubernetes_manifest" "crds" {
 resource "kubernetes_manifest" "rest" {
   for_each = {
     for o in [
-      for d in split("\n---\n", data.helm_template.ss.manifest) : yamldecode(replace(d, "/(?m)^[ ]*(initialDelaySeconds: 0|nodePort: null)[ ]*$/", ""))
+      for d in split("\n---\n", data.helm_template.ss.manifest) : yamldecode(replace(replace(d, "/(?m)^[ ]*(initialDelaySeconds: 0|nodePort: null)[ ]*$/", ""), "/apiGroup: \"\"\\n[ ]*/", ""))
       if length(regexall("(?m)^kind:", d)) > 0
     ] : "${o.kind}/${try(o.metadata.namespace, "")}/${o.metadata.name}" => o
     if !contains(["CustomResourceDefinition", "Deployment", "DaemonSet", "StatefulSet"], o.kind)
@@ -101,7 +111,7 @@ resource "kubernetes_manifest" "rest" {
 resource "kubernetes_manifest" "late" {
   for_each = {
     for o in [
-      for d in split("\n---\n", data.helm_template.ss.manifest) : yamldecode(replace(d, "/(?m)^[ ]*(initialDelaySeconds: 0|nodePort: null)[ ]*$/", ""))
+      for d in split("\n---\n", data.helm_template.ss.manifest) : yamldecode(replace(replace(d, "/(?m)^[ ]*(initialDelaySeconds: 0|nodePort: null)[ ]*$/", ""), "/apiGroup: \"\"\\n[ ]*/", ""))
       if length(regexall("(?m)^kind:", d)) > 0
     ] : "${o.kind}/${try(o.metadata.namespace, "")}/${o.metadata.name}" => o
     if contains(["Deployment", "DaemonSet", "StatefulSet"], o.kind)
