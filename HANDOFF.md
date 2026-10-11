@@ -289,46 +289,14 @@ Rules are tests. The ones that hold this document to the tree:
 | `internal/live/harness` | every ratchet pins its denominator |
 | `live/flociimage_test.go`, `live/pins_drift_test.go` | the emulator and provider pins are current |
 | `internal/live/lifecycle/marker_tag_merge_live_test.go` | markers survive an incremental tag update through a real emulator |
-| `live/smoke_trigger_rule_test.go` | k8s-smoke.yml, bucket-smoke.yml, claims-smoke.yml and kind-tier.yml each match the smoke trigger rule below |
 
-## CI: smoke workflow triggers
+## CI
 
-One rule, stated once here, that k8s-smoke.yml, bucket-smoke.yml,
-claims-smoke.yml and kind-tier.yml each carry a short pointer back to
-(issue #1592, part of #1579). Before this, k8s-smoke.yml had no nightly run
-at all, nightly-watch.yml watched bucket-smoke but not k8s-smoke, and
-bucket-smoke.yml's paths were narrow enough that a pull request touching
-only `cmd/` or the rest of `internal/` skipped it silently.
-
-Revised 2026-09-29 by the maintainer: **no smoke workflow runs on a pull
-request or a push.** Every pull request touching `internal/**` started about
-47 jobs (claims-smoke ~25, k8s-smoke 10, bucket-smoke 6, CI 4) against the
-organization's 20-job concurrency cap, so every check queued behind them;
-the push-to-`main` runs were nearly all cancelled by the next merge before
-finishing (k8s-smoke 50 of 55, claims-smoke 35 of 36, over 2026-09-27/29).
-The product has no users yet, so a smoke regression found the next morning
-costs little.
-
-So each smoke workflow (k8s-smoke, bucket-smoke, claims-smoke, kind-tier)
-triggers on a `schedule` cron and `workflow_dispatch`, and nothing else;
-`live/smoke_trigger_rule_test.go` reads the `on:` map as YAML and fails on
-any other trigger. The nightly catches a regression, and a repin of an
-emulator or toolchain image or a dependency bump, the night it lands. Its
-name is in `nightly-watch.yml`'s `workflows:` list, so a red scheduled run
-opens and extends a `nightly-red` issue instead of dying on the Actions run
-page (#1316); `live/nightly_watch_test.go` derives that list from every
-workflow file carrying a cron and fails if the two disagree.
-
-To prove a branch before merging, dispatch the smoke on it:
-`gh workflow run k8s-smoke.yml -R INTENTIUS/choudoufu --ref <branch>`.
-
-claims-smoke.yml keeps two jobs, `smoke` and `smoke-nightly` (a scenario
-over the workflow's stated minutes budget, 2026-09-26 ruling on #1590), and
-both run on every scheduled and dispatched run.
-
-The Gauntlet workflow has no schedule either (same date): the board is
-re-measured when the maintainer dispatches it, typically before a release,
-and every dispatch waits for the `corpus` environment approval.
+Ruled by the maintainer on 2026-10-11: CI (`.github/workflows/ci.yml`) is
+unit tests and linting only. It runs gofmt over the fork-owned files, the
+build, the Go fast test tier and `examples/ci-pipelines`' own tests. No
+smoke, claims or gauntlet workflow exists; the scripts under `live/smoke`,
+`live/e2e` and `live/live-cert` are run by hand.
 
 What the board is for was ruled in #522 and #643: the claims program is the
 proof surface a prospective user reads, and the gauntlet board is
@@ -345,8 +313,8 @@ estate-specific defects no scenario anticipates. The site says so on
   `git stash`; never prune a worktree by whether its branch merged.
 - GitHub CI green on the PR is the merge gate; no local gate per PR. Docs,
   data and refactor changes: build plus the touched packages' tests.
-  Behaviour changes: one proof, a test or one local scenario run, not both a
-  local run and a dispatched smoke. The full gate (`scripts/ci-gate.sh run`,
+  Behaviour changes: one proof, a test or one local scenario run, not two.
+  The full gate (`scripts/ci-gate.sh run`,
   then `check`) runs on main once per batch of merges. Red-first is for a
   new guard, not every table row.
 - Regenerate artifacts, never hand-edit them; a generator run twice and
@@ -395,8 +363,7 @@ the `-confirm` flag and `LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY` are
 all gone: two of the three constrained only the maintainer, who is the one
 developer, and the third was a file an agent could have written too. What
 bounds spend is the account's own AWS Budgets alarm (`-ceiling-usd` was
-always informational, enforced there), and what decides a dispatched run
-is the required reviewer on the `real-aws` and `corpus` environments.
+always informational, enforced there).
 
 The rule that stays is CLAUDE.md's: an agent never starts a paid run
 (`tools/gauntlet live-cert -target aws`, any `live/live-cert/*.sh` with
@@ -469,16 +436,10 @@ denying the store's own writes, `s3_prefix_count` returning 1 for an empty
 prefix, and both halves of #1324. Scale 136 confirms a harness already known
 to work; it is not where you find out that it does not. `-timeout-seconds` is still worth passing at
 this size, but no longer because the default would kill the run: it defaults
-to 14400 (four hours) rather than 900, and `live-cert.yml`'s job ceiling is
-a `timeout_minutes` input defaulting to 350 rather than a hard 60. That was
-#1102's open item, closed 2026-09-15. Four guards in
-`live/livecert_ceilings_test.go` hold both numbers, the seam between them
-(the workflow derives the tool's ceiling from its own) and GitHub's
-360-minute hosted-runner cap, which is the ceiling above the ceiling: a size
-needing more than six hours cannot be dispatched and has to be driven by
-hand.
+to 14400 (four hours) rather than 900. That was #1102's open item, closed
+2026-09-15, and `live/livecert_ceilings_test.go` holds the number.
 
-A dispatch also takes `index_wait_s` (LIVECERT_INDEX_WAIT_S, default 1800).
+A run also takes LIVECERT_INDEX_WAIT_S (default 1800).
 Raise it at scale - a 10k run writes six times the tag writes a scale-50 run
 does, which is what #1046 and #1049 were about. Note that every bound spent
 before #1143 was spent on an unreachable target: the wait asked for all
@@ -488,96 +449,8 @@ now polls to what the index can answer for from the run's own region, names
 what it is excluding, and records `index_converged`/`index_target` beside
 `index_lag_s` so a timed-out wait cannot be read as a converged one.
 
-`LIVECERT_HOLD`, `LIVECERT_RESUME` and `LIVECERT_TEARDOWN_ONLY` are local
-only, and deliberately not workflow inputs: each names a work dir by path,
-and a hosted runner's dies with the job, so a held dispatch would strand a
-live, billing estate no later dispatch could reach.
-
-### Heavy runs are dispatched, approved and never local
-
-A "heavy run" is `go run ./tools/gauntlet run -set core` or `-set all` (a
-full estate pass, minutes to hours - not a plain `run <name>` against the
-emulator) or `gauntlet live-cert -target aws` (spends real
-account money). The section above is the rule; this one is where a heavy
-run normally happens: GitHub Actions, dispatched by hand, and gated on the
-maintainer's own approval click, a repository-level required reviewer
-nothing this repository generates can set for itself. Two things enforce
-the "dispatched and approved" half:
-
-- **The command runs unattended only in CI.** A workflow run is the
-  maintainer's decision, made when it was scheduled or dispatched; nothing
-  on a runner needs unlocking, and since #1102 nothing on a laptop does
-  either. The rule that an agent does not start one is CLAUDE.md's.
-- **The workflow itself waits for a click.** `.github/workflows/live-cert.yml`
-  runs in the `real-aws` GitHub environment; `.github/workflows/gauntlet.yml`'s
-  `dispatch-approval` job (added 2026-09-11, gating only its own
-  `workflow_dispatch` path - the nightly `schedule` trigger is untouched)
-  runs in the `corpus` environment. Both environments have the maintainer as
-  a required reviewer, so a dispatch queues and does nothing until the
-  maintainer approves it by hand in the Actions UI - `gh workflow run`
-  starts the wait, not the run.
-
-`gauntlet-corpus.yml` was not created as a second file: `gauntlet.yml`'s own
-`workflow_dispatch` (inputs `set` core/all, `estates`) already ran the corpus
-the way a new file would have, so the approval gate extends that workflow -
-`dispatch-approval` gates the `plan` job, and every other job needs `plan` -
-instead of duplicating its steps. Since #1550 the run is one job per estate
-(`plan`, a matrix `estate` job, `acceptance`, `collect`), so a leg that runs
-long can no longer take the verdicts pull request with it. See that
-workflow's own header comment.
-
-Dispatching one:
-
-```bash
-# A real-AWS certification. estate is terralith-scale, reference-ec2-vpc or reference-eks.
-gh workflow run live-cert.yml -R INTENTIUS/choudoufu --ref <branch> \
-  -f estate=reference-ec2-vpc -f scale=1 -f ceiling_usd=15
-
-# The full corpus (gauntlet.yml's own dispatch path, now gated).
-gh workflow run gauntlet.yml -R INTENTIUS/choudoufu --ref <branch> -f set=all
-```
-
-Each queues in "Waiting" state against its environment until the maintainer
-opens the run in the Actions UI and clicks Approve and deploy - nothing
-executes before that click, no matter who or what ran the `gh workflow run`
-line above.
-
-**One-time setup** (repository settings/secrets/variables - a maintainer
-runs this by hand; no worker or agent changes these). `just heavy-runs-setup`
-prints the same block without running any of it:
-
-```bash
-REPO="INTENTIUS/choudoufu"
-MAINTAINER_LOGIN="lex00"                 # the required reviewer on both environments
-MAINTAINER_ID="$(gh api "users/$MAINTAINER_LOGIN" --jq .id)"
-
-# 1. Create (or update) the two protected environments, each gated on the
-#    maintainer approving every run, no branch restriction.
-for ENV in real-aws corpus; do
-  gh api --method PUT -H "Accept: application/vnd.github+json" \
-    "/repos/$REPO/environments/$ENV" \
-    --input - <<JSON
-{
-  "reviewers": [ { "type": "User", "id": $MAINTAINER_ID } ],
-  "deployment_branch_policy": null
-}
-JSON
-done
-
-# 2. The repository variables live-cert.yml reads. CHOUDOUFU_LIVECERT_ROLE_ARN
-#    needs its IAM role created first, same pattern as the three roles
-#    examples/ci-pipelines/scripts/oidc-bootstrap.sh creates (trust policy
-#    scoped to repo:INTENTIUS/choudoufu:* on the account's existing
-#    token.actions.githubusercontent.com provider) - least-privilege for
-#    LiveCertScopeStages (cold_deploy, migrate, test_plan, test_apply) on
-#    whichever estate(s) are dispatched. AWS_REGION may already be set from
-#    that same bootstrap; this is a plain overwrite either way.
-ACCOUNT=354867293429
-REGION=us-east-1
-gh variable set -R "$REPO" AWS_REGION --body "$REGION"
-gh variable set -R "$REPO" CHOUDOUFU_LIVECERT_ROLE_ARN \
-  --body "arn:aws:iam::$ACCOUNT:role/choudoufu-livecert"
-```
+`LIVECERT_HOLD`, `LIVECERT_RESUME` and `LIVECERT_TEARDOWN_ONLY` each name a
+work dir by path, so they only work on the machine that holds that dir.
 
 ## Retired
 

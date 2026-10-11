@@ -56,8 +56,8 @@ type tableRow struct {
 }
 
 // vectorFile is chant's shared table of grouping vectors, vendored
-// byte-for-byte (INTENTIUS/choudoufu#1855, INTENTIUS/chant#3188). CI checks
-// the copy against chant main; edit it in chant, never here.
+// byte-for-byte (INTENTIUS/choudoufu#1855, INTENTIUS/chant#3188). Edit it in
+// chant and copy it here, never the other way round.
 const vectorFile = "testdata/normalization-vectors.json"
 
 type vectorDoc struct {

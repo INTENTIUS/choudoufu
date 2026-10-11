@@ -56,11 +56,11 @@ gate on main: a gate run against an uncommitted tree records the parent's sha.
 GitHub CI green on the PR is the merge gate. There is no local
 `scripts/ci-gate.sh` run per PR. Docs, data and refactor changes need the
 build and the tests of the touched packages. A behaviour change needs one
-proof of the behaviour, a test or one local scenario run, never both a local
-run and a dispatched smoke for the same thing. The full gate (`ci-gate.sh
-run`, then `check`) runs on main once per batch of merges. Red-first is for
-a new guard, to show it can fail, not for every row of a table. The paid and
-whole-set rule below is unchanged.
+proof of the behaviour, a test or one local scenario run, never two proofs
+of the same thing. The full gate (`ci-gate.sh run`, then `check`) runs on
+main once per batch of merges. Red-first is for a new guard, to show it
+can fail, not for every row of a table. The paid and whole-set rule below
+is unchanged.
 
 ## Measured artifacts are never hand-merged
 
@@ -73,7 +73,7 @@ granularity and refuses rather than guessing. A refusal means re-run.
 
 Related: a rebase or squash orphans a row's `last_run.commit` even when git
 reports no conflict, because the branch's commit graph is discarded. That
-is why `automerge-artifact.yml` merges rather than squashes.
+is why an artifact PR is merged with a merge commit, never squashed.
 
 ## A check that cannot fail is not a check
 
@@ -92,9 +92,8 @@ once and passes on re-run is a finding, not a flake.
 There is no mechanical gate on a heavy or paid run any more (#1102,
 2026-09-14): the allow file, `-confirm`, and the
 `LIVECERT_I_UNDERSTAND_THIS_SPENDS_REAL_MONEY` variable are gone. Spend is
-bounded where it can be enforced, by the account's own AWS Budgets alarm,
-and a dispatched `live-cert.yml` run waits for the maintainer's reviewer
-click. A gate an agent can satisfy by exporting a variable constrains only
+bounded where it can be enforced, by the account's own AWS Budgets alarm.
+A gate an agent can satisfy by exporting a variable constrains only
 the maintainer, and a gate that is routinely routed around protects
 nothing.
 

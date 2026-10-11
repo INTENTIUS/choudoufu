@@ -290,19 +290,16 @@ func TestRecordValuesAreNotPreQuotedHasTeeth(t *testing.T) {
 // is issue #578's defect 3: traced through every caller, NOTHING set either
 // variable anywhere this package runs. ci.yml's fast tier runs ./tools/...
 // with neither; the justfile's `ci` recipe does the same; the only place CI
-// sets TF_FLOCI_TEST is gauntlet.yml, scoped to one step running a single
-// test in internal/live/acceptance. So the one test that would
+// set TF_FLOCI_TEST was the since-deleted gauntlet workflow, scoped to one
+// step running a single test in internal/live/acceptance. So the one test that would
 // `terraform validate` this generator's output had never executed in an
 // automated run, in its whole life. A test nothing runs is not a test.
 //
 // The gate is now the binary's presence, which is the actual prerequisite:
 // this test needs terraform and the registry, not Docker and not an
 // emulator, and pretending otherwise is what hid it. That leaves a skip
-// when terraform is absent, so the skip is closed from the other end -
-// .github/workflows/ci.yml's validate-generated-terralith job installs
-// terraform, runs this test with -v, and FAILS if the log does not show it
-// reaching a pass. TestCIRunsTheGeneratedTerralithValidation in
-// live/ci_coverage_test.go holds that job to this test by name.
+// when terraform is absent; .github/workflows/ci.yml's fast job installs
+// terraform, so the test runs there.
 func TestValidateGeneratedTerralith(t *testing.T) {
 	flocitest.SkipWithoutBinary(t, "terraform")
 	// Share one provider download between the two scales. Without this each

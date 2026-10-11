@@ -4,8 +4,8 @@
 # generated GitHub workflows already read (examples/ci-pipelines/README.md's
 # "AWS credentials" table), points their trust policy at the OIDC provider
 # this account already has, and sets the repository variables that name
-# them, so ci-pipelines-smoke.yml's `target: real-aws` job has something
-# real to assume.
+# them, so the generated workflows and a by-hand real-AWS smoke have
+# something real to assume.
 #
 # It never creates the OIDC provider itself - only its trust policy refers
 # to one, and this script fails loudly if the account does not already have
@@ -636,6 +636,6 @@ log "done"
 if [ "$DRY_RUN" = "1" ]; then
   echo "Nothing was created or changed (--dry-run). Re-run without it to apply."
 else
-  echo "Run the real-AWS smoke with:"
-  echo "  gh workflow run ci-pipelines-smoke.yml -R $REPO --ref <branch> -f target=real-aws"
+  echo "Run the real-AWS smoke by hand, with the apply role's credentials and AWS_REGION in the environment:"
+  echo "  SMOKE_TARGET=real-aws bash examples/ci-pipelines/scripts/smoke.sh"
 fi

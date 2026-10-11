@@ -1,6 +1,6 @@
 ---
 name: gauntlet-worker
-description: Does exactly one unit of gauntlet work, unattended, and opens a pull request. Used by `just contribute` and .github/workflows/contribute.yml; runs under whoever started it.
+description: Does exactly one unit of gauntlet work, unattended, and opens a pull request. Used by `just contribute`; runs under whoever started it.
 ---
 
 You are a gauntlet worker for choudoufu. You do one unit of work, open one
@@ -232,8 +232,7 @@ also asserted by value; an exit code is not a verdict.
    test runs do not check fmt. Then `env -u PWD go build ./...` and the tests
    of the packages your change touches, nothing more for a docs, data or
    refactor change. A behaviour change gets one proof of the behaviour (a
-   test, or one local scenario run), never both a local run and a dispatched
-   smoke for the same thing. A NEW guard is proven red once, to show it can
+   test, or one local scenario run), never two proofs of the same thing. A NEW guard is proven red once, to show it can
    fail; a table row does not need that. Do not run `scripts/ci-gate.sh` or
    `just ci` for the PR: GitHub CI green on the PR is the merge gate, and
    the full gate runs on main once per batch of merges. Anything that sweeps

@@ -146,19 +146,9 @@ else
   art_src="the working copy, byte-identical to HEAD"
 fi
 printf 'read from       %s\n' "$art_src"
-# Issue #496: the nightly workflow was disabled 2026-09-02 after its PR-open
-# step failed for nine straight nights (org policy blocks GITHUB_TOKEN from
-# opening PRs, and GAUNTLET_PR_TOKEN's own failure was buried at the bottom
-# of a log nobody opened). Surface both halves here, in the one place every
-# session already reads: the workflow's enabled/disabled state (via `gh
-# api`, since a disabled workflow is not reliably found by name through `gh
-# workflow view`) and how long ago the artifact actually landed on this
-# branch - the last commit that touched it, not the schedule, which says
-# nothing once the workflow stops running.
-wf_state=""
-if have gh; then
-  wf_state=$(gh api "repos/$REPO/actions/workflows" -q '.workflows[] | select(.name=="Gauntlet") | .state' 2>/dev/null)
-fi
+# How long ago the artifact actually landed on this branch: the last commit
+# that touched it. No workflow measures estates since 2026-10-11; the
+# gauntlet is run by hand.
 # #1142: "no output" from git log has two causes - the path genuinely has no
 # history here, and git could not run at all - and the old code printed the
 # first explanation for both.
@@ -174,29 +164,7 @@ elif [ -n "$art_epoch_out" ]; then
 else
   when="unknown (live/gauntlet.json has no history on this branch)"
 fi
-case "$wf_state" in
-  active) wf_display="active" ;;
-  disabled_manually|disabled_inactivity) wf_display="DISABLED" ;;
-  "") wf_display="UNKNOWN (gh unavailable or the workflow-state query failed)" ;;
-  *) wf_display="$wf_state" ;;
-esac
-printf 'gauntlet: workflow %s (dispatch only since 2026-09-29); artifact last measured %s\n' "$wf_display" "$when"
-# #1316: the line above said "active" through twenty consecutive red nights,
-# because enabled/disabled is not red/green. Read each nightly's last
-# SCHEDULED conclusion, and the nightly-red issues nightly-watch.yml keeps
-# open while one is failing. A workflow with no scheduled run in the API's
-# retention window prints UNKNOWN rather than a stale green.
-if have gh; then
-  for wf in floci-tier.yml bucket-smoke.yml claims-smoke.yml k8s-smoke.yml kind-tier.yml; do
-    last=$(gh run list -R "$REPO" --workflow "$wf" --event schedule --limit 1 \
-      --json conclusion,createdAt,url -q '.[0] | "\(.conclusion // "in progress") \(.createdAt[:10]) \(.url)"' 2>/dev/null)
-    printf 'nightly %-16s last scheduled run: %s\n' "$wf" "${last:-UNKNOWN (no run in the retention window, or the query failed)}"
-  done
-  red=$(gh issue list -R "$REPO" --state open --label nightly-red --json number,title -q '.[] | "  #\(.number) \(.title)"' 2>/dev/null)
-  if [ -n "$red" ]; then
-    printf 'nightly-red issues open (nightly-watch.yml, #1316):\n%s\n' "$red"
-  fi
-fi
+printf 'gauntlet: run by hand, no workflow; artifact last measured %s\n' "$when"
 if have python3 && [ -f live/gauntlet.json ]; then
   python3 - <<'EOF'
 import json

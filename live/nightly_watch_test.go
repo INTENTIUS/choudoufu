@@ -9,77 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
-	"sort"
 	"strings"
 	"testing"
 )
-
-// Issue #1316: a nightly whose failures nobody sees is not better than no
-// nightly. nightly-watch.yml is the one workflow that reacts to another
-// finishing, and a workflow_run trigger that names a workflow which was
-// renamed or never existed is silent - so the list it watches is derived
-// here from every workflow file that carries a cron, and the two have to
-// agree exactly.
-func TestNightlyWatchNamesEveryScheduledWorkflow(t *testing.T) {
-	root := repoRoot(t)
-	wfDir := filepath.Join(root, ".github", "workflows")
-	entries, err := os.ReadDir(wfDir)
-	if err != nil {
-		t.Fatalf("reading %s: %v", wfDir, err)
-	}
-	nameLine := regexp.MustCompile(`(?m)^name:\s*(.+?)\s*$`)
-	var scheduled []string
-	var watch string
-	for _, e := range entries {
-		b, rerr := os.ReadFile(filepath.Join(wfDir, e.Name()))
-		if rerr != nil {
-			t.Fatalf("reading workflow %s: %v", e.Name(), rerr)
-		}
-		s := string(b)
-		if e.Name() == "nightly-watch.yml" {
-			watch = s
-			continue
-		}
-		if !strings.Contains(s, "cron:") {
-			continue
-		}
-		m := nameLine.FindStringSubmatch(s)
-		if m == nil {
-			t.Fatalf("%s has a cron but no top-level name:, so nothing can watch it by name", e.Name())
-		}
-		scheduled = append(scheduled, strings.Trim(m[1], `"'`))
-	}
-	if len(scheduled) < 2 {
-		t.Fatalf("found only %d scheduled workflows (%v); the derivation is broken rather than the repository having one nightly", len(scheduled), scheduled)
-	}
-	if watch == "" {
-		t.Fatal(".github/workflows/nightly-watch.yml is missing; a red nightly is once again a thing only the Actions page knows (#1316)")
-	}
-
-	listLine := regexp.MustCompile(`(?m)^\s*workflows:\s*\[([^\]]*)\]`)
-	m := listLine.FindStringSubmatch(watch)
-	if m == nil {
-		t.Fatal("nightly-watch.yml has no `workflows: [...]` list under workflow_run")
-	}
-	var watched []string
-	for _, f := range strings.Split(m[1], ",") {
-		if f = strings.Trim(strings.TrimSpace(f), `"'`); f != "" {
-			watched = append(watched, f)
-		}
-	}
-	sort.Strings(scheduled)
-	sort.Strings(watched)
-	if strings.Join(scheduled, "|") != strings.Join(watched, "|") {
-		t.Errorf("nightly-watch.yml watches %v but the workflows with a cron are named %v; a nightly that is not on the list fails in silence", watched, scheduled)
-	}
-	if !strings.Contains(watch, "issues: write") {
-		t.Error("nightly-watch.yml does not request issues: write, so it cannot open or close the nightly-red issue")
-	}
-	if !strings.Contains(watch, "scripts/nightly-watch.sh") {
-		t.Error("nightly-watch.yml does not run scripts/nightly-watch.sh, the behaviour the test below proves")
-	}
-}
 
 // TestNightlyWatchScriptOpensExtendsAndCloses drives scripts/nightly-watch.sh
 // against a stubbed gh and checks which GitHub calls each conclusion

@@ -126,13 +126,12 @@ in place.
 
 Any cluster. The manifests are plain RBAC and need nothing newer than the
 `admissionregistration.k8s.io/v1` the boundary policy needs (Kubernetes
-1.30 or later). In CI, `selftest.sh` applies the shipped recipes to a kind
+1.30 or later). `selftest.sh` applies the shipped recipes to a kind
 cluster and reads the authorizer back with `kubectl auth can-i --as` for
 every identity and verb above, then runs `just down` against a held record
 and against an empty namespace; its `BREAK=1` control removes `update` from
-the apply Role and must be caught by name. That job is
-`.github/workflows/k8s-smoke.yml`, beside the Kubernetes claims, because it
-needs a cluster and the ordinary gate has none. `live/record_store_cluster_test.go`
+the apply Role and must be caught by name. It runs by hand, because it
+needs a cluster and CI has none. `live/record_store_cluster_test.go`
 holds the Roles' verbs to the store's own lists and runs `just verify` and
 `just down` with stubs in the ordinary gate, so a recipe that swallowed the
 binary's verdict or read a failed count as zero fails there.

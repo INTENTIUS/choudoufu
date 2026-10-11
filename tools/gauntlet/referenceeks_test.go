@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"testing"
 )
@@ -54,47 +53,6 @@ func TestReferenceEKSIsDeclaredOnFlociEKS(t *testing.T) {
 		if !strings.Contains(string(b), "live/e2e/reference-eks/estate.sh") {
 			t.Errorf("%s does not source live/e2e/reference-eks/estate.sh", rel)
 		}
-	}
-}
-
-// TestLiveCertWorkflowOffersEveryLiveCertScript: the dispatch choice in
-// live-cert.yml is exactly the set of live/live-cert/<estate>.sh scripts, so
-// an estate added for certification can be dispatched and an option cannot
-// name a script that does not exist.
-func TestLiveCertWorkflowOffersEveryLiveCertScript(t *testing.T) {
-	root := testRoot(t)
-	scripts, err := filepath.Glob(filepath.Join(root, "live", "live-cert", "*.sh"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var want []string
-	for _, s := range scripts {
-		name := strings.TrimSuffix(filepath.Base(s), ".sh")
-		if name == "run" || strings.HasPrefix(name, "selftest-") {
-			continue
-		}
-		want = append(want, name)
-	}
-	sort.Strings(want)
-
-	b, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "live-cert.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	block := regexp.MustCompile(`(?s)estate:\s*\n\s*description:[^\n]*\n\s*type: choice\s*\n\s*options:\s*\n((?:\s*- [^\n]+\n)+)`).FindStringSubmatch(string(b))
-	if block == nil {
-		t.Fatal("could not find the estate choice's options in live-cert.yml")
-	}
-	var got []string
-	for _, line := range strings.Split(block[1], "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "- ") {
-			got = append(got, strings.TrimSpace(strings.TrimPrefix(line, "- ")))
-		}
-	}
-	sort.Strings(got)
-	if strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Errorf("live-cert.yml offers %v, but live/live-cert has scripts for %v", got, want)
 	}
 }
 

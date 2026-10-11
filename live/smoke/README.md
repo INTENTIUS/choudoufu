@@ -90,8 +90,7 @@ the admission chain failing or rewriting goes through `chdf_bounded`, which
 fails the scenario by name the same way. The three variables are under
 Knobs. `bash live/smoke/selftest-bounds.sh` (or `just smoke-selftest`)
 proves each bound against a `kubectl` and a `choudoufu` that never return,
-with no cluster and no Docker, and reads the scenarios for a bare kubectl;
-`.github/workflows/k8s-smoke.yml` runs it nightly.
+with no cluster and no Docker, and reads the scenarios for a bare kubectl.
 
 It is claim 7 on Kubernetes (#1061): the ConfigMap and the namespace it
 creates carry one `tofu-estate` label, written on the create and read back
@@ -115,12 +114,8 @@ requires the replan to leave the object alone. The Deployment's container
 is `registry.k8s.io/pause`, which kind's node image already carries, and
 `wait_for_rollout` is off, so the scenario needs no image pull.
 
-Every Kubernetes scenario runs in CI nightly (and on dispatch), each
-followed by its `BREAK=1` control, on a kind
-cluster the runner creates (`.github/workflows/k8s-smoke.yml`, #1080;
-`live/k8s_ci_test.go` holds that matrix to this directory, so a new `k8s-*`
-scenario has to be added there too). The Gauntlet workflow, when
-dispatched, runs the kubernetes lane's estates the same way.
+The Kubernetes scenarios run by hand on a kind cluster, each followed by
+its `BREAK=1` control; no workflow runs them.
 
 `k8s-custom-resource` is claim 7 (#1079's first unit): a CRD installed
 with kubectl, one `kubernetes_manifest` block declaring a CronTab, applied
@@ -203,8 +198,7 @@ deletes the object underneath it and requires the refusal (#1344's case,
 which the emulator answers 404 exactly as real S3 does). One `BREAK=1`
 control covers both: the same two directories on `record_store "local"`,
 where the second must propose nothing. Step 9 refuses rather than skips
-when Docker or the AWS CLI is missing, and
-`.github/workflows/k8s-smoke.yml` checks for both before the matrix runs.
+when Docker or the AWS CLI is missing.
 
 `k8s-the-server-gets-the-last-word` is claim 15 (#1110's second fault):
 three things admission can do to a write the plan already approved. A real
