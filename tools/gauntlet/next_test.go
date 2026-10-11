@@ -187,9 +187,7 @@ func checkBriefCitations(t *testing.T, root, brief string) {
 			t.Errorf("%s no longer says %q", brief, must)
 		}
 	}
-	for _, p := range []string{"scripts/contribute.sh", ".github/workflows/contribute.yml", ".github/workflows/automerge-artifact.yml"} {
-		if _, err := os.Stat(filepath.Join(root, p)); err != nil {
-			t.Errorf("%s missing", p)
-		}
+	if _, err := os.Stat(filepath.Join(root, "scripts/contribute.sh")); err != nil {
+		t.Errorf("scripts/contribute.sh missing")
 	}
 }

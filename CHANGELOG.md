@@ -39,6 +39,9 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.27.0 (Unreleased)
 
+- Changed: CI now runs only gofmt, the Go unit tier and the ci-pipelines
+  example's tests. The smoke, claims and gauntlet workflows are deleted; the
+  scripts remain for running by hand.
 - Docs: live/RECOVERY.md says what a killed apply costs in residue: the re-run proposes one update for an instance whose step had returned, and records the residue then (#1953, ruled B: residue stays a final-pass write).
 
 ## choudoufu v0.26.0 (2026-10-11)

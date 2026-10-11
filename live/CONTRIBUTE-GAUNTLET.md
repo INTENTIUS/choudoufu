@@ -12,19 +12,12 @@ just contribute [max-usd]           # one worker run on that unit, in a fresh wo
 `.claude/agents/gauntlet-worker.md`, which does exactly one unit: run the estate, classify every
 difference from stock with the five-row table in HANDOFF.md, fix it generically,
 re-run, render, and open a pull request whose title carries the unit ID. It
-never merges. The same thing runs on GitHub Actions from your fork:
-`.github/workflows/contribute.yml` is `workflow_dispatch`, reads your fork's
-`ANTHROPIC_API_KEY` secret, and opens the pull request against this repository when
-a `CONTRIBUTE_TOKEN` with pull-request scope is present, or prints the compare URL
-when it is not. There is no hosted path; every worker runs under the key of
+never merges. There is no hosted path; every worker runs under the key of
 whoever started it.
 
 Two contributors picking the same unit is expected. The worker checks for an
 open pull request carrying the unit ID before starting and takes the next unit
-if one exists. A pull request that changes only the artifact and the board
-data (a re-run that moved verdicts) is merged automatically once CI passes
-(`.github/workflows/automerge-artifact.yml`); anything that changes code waits for a
-maintainer.
+if one exists. Every pull request waits for a maintainer to merge it.
 
 Providers are lanes. A Kubernetes, GCP or Azure estate enters the same manifest with its
 own lane, runs the same stages against its own substrate, and `next` picks it up

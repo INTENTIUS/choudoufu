@@ -275,64 +275,6 @@ func TestStaleFilesCatchesAStaleSiteScaleCopy(t *testing.T) {
 	}
 }
 
-// TestLiveCertWorkflowCarriesEveryFileTheCommandWrites is #1187 one layer
-// out, and the reason the fix inside `gauntlet live-cert` was not enough on
-// its own.
-//
-// live-cert.yml opens the pull request that lands a real-AWS certification,
-// and it does so with an explicit add-paths list. A file the command writes
-// and the list does not name never reaches main, which discards it exactly
-// as thoroughly as never writing it - and the list named neither scale file
-// while the command wrote both.
-//
-// The wanted set is taken from Render's own output rather than retyped, so
-// adding a generated file cannot silently leave the publication behind.
-func TestLiveCertWorkflowCarriesEveryFileTheCommandWrites(t *testing.T) {
-	root := testRoot(t)
-	b, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "live-cert.yml"))
-	if err != nil {
-		t.Skipf("live-cert.yml is not readable in this checkout: %v", err)
-	}
-	workflow := string(b)
-
-	_, written := renderedScratchCheckout(t)
-	// ScaleRecordsPath is the one file live-cert writes that Render does
-	// not: Render publishes the copy, SaveScaleArtifact writes the source.
-	for _, rel := range append(written, ScaleRecordsPath) {
-		if !strings.Contains(workflow, "\n            "+rel+"\n") {
-			t.Errorf("`gauntlet live-cert` writes %s and live-cert.yml's add-paths does not name it, so a run that produces it opens a pull request without it", rel)
-		}
-	}
-}
-
-// TestGauntletWorkflowCarriesEveryFileTheCommandWrites is the same guard
-// for the nightly (#1310). gauntlet.yml's add-paths named neither
-// site/data/gauntlet_board.json nor site/data/gauntlet_scale.json, both of
-// which `gauntlet render` has written since #1055, so a night that moved a
-// verdict opened a pull request whose artifact had moved and whose board
-// had not - red on TestRenderedDocsAreCurrent for a file it deliberately
-// left out, and therefore never auto-merged. live-cert.yml's list was
-// already held to Render's output by the test above; the nightly's was
-// not, and the two disagreed about what a rendered set is.
-//
-// The wanted set is Render's own output plus the cohort acceptance
-// artifact the same job writes (live/cohort-acceptance.json, #433).
-func TestGauntletWorkflowCarriesEveryFileTheCommandWrites(t *testing.T) {
-	root := testRoot(t)
-	b, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "gauntlet.yml"))
-	if err != nil {
-		t.Skipf("gauntlet.yml is not readable in this checkout: %v", err)
-	}
-	workflow := string(b)
-
-	_, written := renderedScratchCheckout(t)
-	for _, rel := range append(written, "live/cohort-acceptance.json") {
-		if !strings.Contains(workflow, "\n            "+rel+"\n") {
-			t.Errorf("the nightly writes %s and gauntlet.yml's add-paths does not name it, so a night that changes it opens a pull request without it", rel)
-		}
-	}
-}
-
 // greenfieldVerdictFn lifts greenfield_pre_apply_verdict out of
 // reference-k8s-cert-manager's run.sh, from the committed file and not a
 // copy of it, so a test that drives the function drives the one the estate

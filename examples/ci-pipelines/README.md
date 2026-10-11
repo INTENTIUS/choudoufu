@@ -707,9 +707,8 @@ self-test in `scripts/selftest-oidc-bootstrap.sh`. GitLab's own OIDC exchange to
 is still unexercised and Forgejo issues no OIDC token at all - both remain open as
 Q2 of issue #807.
 
-`.github/workflows/ci-pipelines-smoke.yml`
-has a `target: real-aws` mode (`workflow_dispatch`, choices `emulator` default and
-`real-aws`) that does: it needs the three roles the table above already names to
+`scripts/smoke.sh` has a real-aws mode (`SMOKE_TARGET=real-aws`, run by hand) that
+does: it needs the three roles the table above already names to
 exist, and two repository variables, on `INTENTIUS/choudoufu`, in account
 `354867293429`, which already carries the `token.actions.githubusercontent.com`
 OIDC provider - this bootstrap never creates that provider, only a trust policy
@@ -809,15 +808,15 @@ aws iam create-role --role-name choudoufu-ci-pipelines-apply \
 aws iam put-role-policy --role-name choudoufu-ci-pipelines-apply \
   --policy-name apply-the-estate --policy-document file:///tmp/choudoufu-ci-pipelines-apply-policy.json
 
-# 4. The repository variables the generated workflows and ci-pipelines-smoke.yml's
-#    real-aws job both read.
+# 4. The repository variables the generated workflows read.
 gh variable set -R INTENTIUS/choudoufu AWS_REGION --body "$REGION"
 gh variable set -R INTENTIUS/choudoufu CHOUDOUFU_PLAN_ROLE_ARN  --body "arn:aws:iam::$ACCOUNT:role/choudoufu-ci-pipelines-plan"
 gh variable set -R INTENTIUS/choudoufu CHOUDOUFU_ADOPT_ROLE_ARN --body "arn:aws:iam::$ACCOUNT:role/choudoufu-ci-pipelines-adopt"
 gh variable set -R INTENTIUS/choudoufu CHOUDOUFU_APPLY_ROLE_ARN --body "arn:aws:iam::$ACCOUNT:role/choudoufu-ci-pipelines-apply"
 
-# 5. Run the smoke against the real account.
-gh workflow run ci-pipelines-smoke.yml -R INTENTIUS/choudoufu --ref <branch> -f target=real-aws
+# 5. Run the smoke against the real account, by hand, with the apply role's
+#    credentials and AWS_REGION in the environment.
+SMOKE_TARGET=real-aws bash examples/ci-pipelines/scripts/smoke.sh
 ```
 
 `scripts/oidc-bootstrap.sh` is the same five steps as one idempotent script - it reads
@@ -838,13 +837,12 @@ scripts/oidc-bootstrap.sh --dry-run   # prints every aws/gh command it would run
 scripts/oidc-bootstrap.sh             # does it for real
 ```
 
-Once the variables are set, `gh workflow run ci-pipelines-smoke.yml --ref <branch> -f
-target=real-aws` runs the same five Ops as the emulator path, against the real
-account, through `aws-actions/configure-aws-credentials` assuming
-`CHOUDOUFU_APPLY_ROLE_ARN` (the widest of the three, since this smoke's own
-`live-apply` needs it) in `AWS_REGION`. This is what run 34644390301 (main at
+With the apply role's credentials in the environment, `SMOKE_TARGET=real-aws` runs
+the same five Ops as the emulator path against the real account
+(`CHOUDOUFU_APPLY_ROLE_ARN` is the widest of the three roles, and this smoke's own
+`live-apply` needs it). This is what run 34644390301 (main at
 `172bf2a390`, 2026-09-11) actually printed, minus the emulator-specific verdict
-(`floci-pin` does not run in the real-aws job at all - there is no service container to
+(`floci-pin` does not run in real-aws mode at all - there is no service container to
 check the pin of):
 
 ```
@@ -951,9 +949,7 @@ SMOKE op=apply-refusal verdict=pass status=exit3
 ```
 
 It runs in a throwaway repository rather than in this checkout, because chant pushes
-its gate ledger to the first configured remote after every gate write. On a forge,
-`.github/workflows/ci-pipelines-smoke.yml` (`workflow_dispatch` only) runs the same
-script against floci as a service container.
+its gate ledger to the first configured remote after every gate write.
 
 By hand, it is: point the SDK at the emulator, put a `choudoufu` on PATH, and pick
 the forge whose finding modes do not need a forge:

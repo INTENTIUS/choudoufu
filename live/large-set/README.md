@@ -29,4 +29,4 @@ repeats, and the seconds are whatever the machine was doing.
 N=5 is the developer loop. N=20 runs only on the maintainer's go
 (`LARGESET_MAINTAINER_GO=1`), and nothing larger. None of this is a gauntlet
 estate: it writes nothing to `live/gauntlet.json` or the cohort artifacts.
-On CI it runs only when `.github/workflows/large-set.yml` is dispatched.
+It does not run in CI.

@@ -148,30 +148,6 @@ func TestTheWarmerInstallsWhatTheMirrorConsumerAsserts(t *testing.T) {
 	}
 }
 
-// TestTheEstateJobWarmsBeforeItRuns: the workflow has to call the warmer,
-// before the estate, and key its cache on the pin rather than on a literal.
-//
-// Proving it red (run 2026-09-23): delete the warm step, move it after
-// "Run the estate", or replace the cache key's ${{ steps.oracle.outputs.aws }}
-// with a version literal.
-func TestTheEstateJobWarmsBeforeItRuns(t *testing.T) {
-	wf := readFileT(t, filepath.Join("..", ".github", "workflows", "gauntlet.yml"))
-	warm := strings.Index(wf, "bash scripts/warm-plugin-cache.sh")
-	run := strings.Index(wf, "go run ./tools/gauntlet run \"${{ matrix.estate }}\"")
-	if warm < 0 {
-		t.Fatal("gauntlet.yml never runs scripts/warm-plugin-cache.sh; corpus-simpleinfra-dns's shard starts on an empty runner and fails at its own stage-0 mirror assertion")
-	}
-	if run < 0 {
-		t.Fatal("gauntlet.yml has no per-estate run step; this guard is reading the wrong workflow")
-	}
-	if warm > run {
-		t.Error("gauntlet.yml warms the provider mirror after it runs the estate")
-	}
-	if !strings.Contains(wf, "key: plugin-mirror-${{ runner.os }}-aws-${{ steps.oracle.outputs.aws }}") {
-		t.Error("gauntlet.yml's provider-mirror cache is not keyed on the aws_provider_version the oracle step reads; a key that does not move with the pin restores the wrong release and the warm step then adds the right one to an entry nobody re-saves")
-	}
-}
-
 func keysOf(m map[string]bool) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {

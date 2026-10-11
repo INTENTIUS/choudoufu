@@ -40,9 +40,8 @@ var reachConfirmedCountRe = regexp.MustCompile(
 //
 // This is a second implementation of that filter, not a call into the
 // template, because nothing in this repository's fast test tier can execute
-// a Hugo template (hugo is installed by CI only after the Go test step -
-// see .github/workflows/ci.yml). Keep it in step with iamref.html's range
-// block if that ever changes.
+// a Hugo template (CI does not install hugo). Keep it in step with
+// iamref.html's range block if that ever changes.
 func checkedNamedUnnamed(rows []Row) (checked, named, unnamed int) {
 	seen := make(map[string]bool)
 	for _, r := range rows {

@@ -135,7 +135,7 @@ your context alone.
    writing the report, not the other way round.
 
 A full re-measure (`just gauntlet`, the core set, a few hours) is the
-nightly's job. Run one yourself only after a change to a shared layer
+maintainer's to run by hand. Run one yourself only after a change to a shared layer
 (`internal/live/stamp`, `discovery`, `projection`, `identity`) or a repin of
 `live/floci-image`, and then only the estates that were clear, so a
 regression shows before it is pushed as progress.
