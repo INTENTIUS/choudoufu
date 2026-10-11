@@ -745,7 +745,7 @@ else
   fi
   D_LINE="$(grep -E '^[[:space:]]*# .* will be destroyed' <<< "$D_PLAN" | head -1)"
   D_ADDR="$(sed -E 's/^[[:space:]#]*//; s/ will be destroyed.*$//' <<< "$D_LINE")"
-  grep -qE '^kubernetes_priority_class(_v1)?\.orphan_.*node-critical$' <<< "$D_ADDR" || { printf '%s\n' "$D_PLAN" | grep -E 'destroyed|^Plan:'; fail "the one destroy is ${D_ADDR:-unnamed}, not the node-critical PriorityClass at its orphan address"; }
+  [ "$D_ADDR" = "$(gauntlet_destroyed_addr "$O_PLAN")" ] || { printf '%s\n' "$D_PLAN" | grep -E 'destroyed|^Plan:'; fail "the one destroy is ${D_ADDR:-unnamed}, not stock's $(gauntlet_destroyed_addr "$O_PLAN") (#1996: an object carrying its address annotation is destroyed at that address)"; }
   D_APPLY="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$D_APPLY" | tail -20; fail "the remove apply failed"; }
   grep -qF "Apply complete! Resources: 0 added, 0 changed, 1 destroyed" <<< "$D_APPLY" || fail "the remove apply did not destroy exactly one object"
   kca get priorityclass node-critical >/dev/null 2>&1 && fail "the node-critical PriorityClass still exists after the remove apply"
@@ -806,7 +806,7 @@ C_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$C_PLAN"
 grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$C_PLAN" || { printf '%s\n' "$C_PLAN" | tail -20; fail "the scale-down plan is not exactly one destroy"; }
 C_LINE="$(grep -E '^[[:space:]]*# .* will be destroyed' <<< "$C_PLAN" | head -1)"
 C_ADDR="$(sed -E 's/^[[:space:]#]*//; s/ will be destroyed.*$//' <<< "$C_LINE")"
-grep -qE '^kubernetes_manifest\.orphan_[a-z]+_monitoring_vpa-shard-1$' <<< "$C_ADDR" || { printf '%s\n' "$C_PLAN" | grep -E 'destroyed|^Plan:'; fail "the scale-down destroys ${C_ADDR:-nothing named}, not vpa-shard-1 at its orphan address"; }
+[ "$C_ADDR" = "$(gauntlet_destroyed_addr "$O_PLAN")" ] || { printf '%s\n' "$C_PLAN" | grep -E 'destroyed|^Plan:'; fail "the scale-down destroy is ${C_ADDR:-unnamed}, not stock's $(gauntlet_destroyed_addr "$O_PLAN") (#1996: an object carrying its address annotation is destroyed at that address)"; }
 APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)"
 grep -qF "0 added, 0 changed, 1 destroyed" <<< "$APPLY_OUT" || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the scale-down apply did not destroy exactly one object"; }
 if [ "${BREAK_COUNT:-}" = "1" ]; then

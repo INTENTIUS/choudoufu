@@ -1537,6 +1537,16 @@ gauntlet_replan_actions_verdict() {
   printf '%s' " $context; the objects named above are the gap."
 }
 
+# gauntlet_destroyed_addr <plan>: the address of the plan's first "will be
+# destroyed" header, empty when it has none. An estate whose one destroy is
+# a sweep orphan compares it with stock's (#1996): an object carrying its
+# tofu-address annotation is destroyed at that address, as stock destroys
+# the state orphan, and only an object with no usable annotation is
+# planned at the sweep's synthetic <type>.orphan_... address.
+gauntlet_destroyed_addr() {
+  { grep -E '^[[:space:]]*# .* will be destroyed' <<< "$1" || true; } | head -1 | sed -E 's/^[[:space:]#]*//; s/ will be destroyed.*$//'
+}
+
 # gauntlet_destroy_gap_verdict <address-ERE> <scope> <oracle-plan> [suspect-type] [suspect-reason] < <choudoufu plan>
 #
 # The verdict for a remove plan whose destroys fall short of (or exceed)

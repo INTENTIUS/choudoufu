@@ -37,15 +37,20 @@ import (
 // unit) is listed under [KubernetesSweep.ManifestType] and its orphan
 // imports by the manifest id ([kubesweep.ManifestImportID]).
 //
-// The one thing an AWS orphan has that a Kubernetes orphan does not is an
-// address: the AWS marker carries tofu-address, and classifyOrphans plans
-// the removal at that address. The Kubernetes marker is the estate alone
-// (live/MARKERS.md, "Kubernetes: one label"), so the removal is planned at
-// a synthetic address, <type>.orphan_<namespace>_<name>
-// ([kubesweep.OrphanResourceName]): a resource instance with no
-// configuration, which is exactly what stock plans a destroy for. The
-// plan names the object by its kind, namespace and name, which is what a
-// reader needs; the address is bookkeeping and says so in its name.
+// An AWS orphan's marker carries tofu-address, and classifyOrphans plans
+// the removal at that address. A Kubernetes object carries its address in
+// an annotation (GitHub issue #1639), and an orphan whose annotation names
+// an instance the configuration no longer declares is planned at that
+// address, as the AWS orphan is and as stock plans the state orphan
+// (GitHub issue #1996; [annotatedOrphanAddresses]). An object with no
+// usable annotation - none, one naming a type that cannot manage its
+// kind, one naming an instance the configuration still declares, or one
+// another orphan also carries - is planned at a synthetic address,
+// <type>.orphan_<namespace>_<name> ([kubesweep.OrphanResourceName]): a
+// resource instance with no configuration, which is exactly what stock
+// plans a destroy for. The plan names the object by its kind, namespace
+// and name, which is what a reader needs; that address is bookkeeping and
+// says so in its name.
 
 // SourceKubernetes marks a [TypeScan] the Kubernetes leg made.
 const SourceKubernetes EnumerationSource = "KUBERNETES_API"
@@ -264,25 +269,36 @@ func (leg KubernetesSweep) sweep(ctx context.Context, req Request, res *Result) 
 	// What is left unbound may still be a refused instance's object from
 	// before the annotation existed (GitHub issue #1641).
 	accountUnaddressed(req, leg, unlisted, undeclared, settled, res)
+	annotated := annotatedOrphanAddresses(req, leg.ManifestType, undeclared, settled)
 	for i, u := range undeclared {
 		if settled[i] {
 			continue
 		}
 		k, typeName, o := u.Kind, u.TypeName, u.Object
-		name := kubesweep.OrphanResourceName(o.Namespace, o.Name)
-		if k.Manifest {
-			name = kubesweep.ManifestOrphanResourceName(k.Kind, o.Namespace, o.Name)
+		importID, normalized := o.ImportID, ""
+		if a, ok := annotated[i]; ok {
+			// GitHub issue #1996: the object's annotation names the
+			// instance that made it, an instance the configuration no
+			// longer declares - stock's state orphan, destroyed at its
+			// own address.
+			typeName, importID, normalized = a.typeName, a.importID, o.Address
+		} else {
+			name := kubesweep.OrphanResourceName(o.Namespace, o.Name)
+			if k.Manifest {
+				name = kubesweep.ManifestOrphanResourceName(k.Kind, o.Namespace, o.Name)
+			}
+			addr := addrs.Resource{
+				Mode: addrs.ManagedResourceMode,
+				Type: typeName,
+				Name: name,
+			}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance)
+			normalized = markers.EscapeAddress(addr.String())
 		}
-		addr := addrs.Resource{
-			Mode: addrs.ManagedResourceMode,
-			Type: typeName,
-			Name: name,
-		}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance)
 		res.Orphans = append(res.Orphans, OwnedResource{
 			TypeName:    typeName,
-			ImportID:    o.ImportID,
+			ImportID:    importID,
 			Marker:      req.Estate,
-			Normalized:  markers.EscapeAddress(addr.String()),
+			Normalized:  normalized,
 			DisplayName: k.Kind + " " + kubesweep.NaturalKey(o.Namespace, o.Name),
 			Tags:        o.Labels,
 			// The annotation rides along even though it named nothing

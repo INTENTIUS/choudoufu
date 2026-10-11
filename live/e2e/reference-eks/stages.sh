@@ -302,11 +302,11 @@ reference_eks_stage_day2_remove() {
   d_plan="$(ref_tofu "$ADOPTED" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$d_plan" | tail -30; fail "the remove plan failed"; }
   grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$d_plan" || { printf '%s\n' "$d_plan" | tail -30; fail "the remove plan is not exactly one destroy: $(_ref_plan_line "$d_plan")"; }
   d_addr="$(_ref_addrs "$d_plan" destroyed)"
-  # With no address bearing on the object's identity, the sweep finds it by
-  # its label and plans it at its orphan address; kubectl below says it is
-  # the object stock destroys.
-  grep -qE "^kubernetes_config_map(_v1)?\\.orphan_${REF_NS}_app-config\$" <<< "$d_addr" \
-    || { printf '%s\n' "$d_plan" | grep -E 'destroyed|^Plan:'; fail "the one destroy is '${d_addr:-unnamed}', not app-config at the orphan address the sweep plans a label-found object at"; }
+  # The sweep finds the object by its label and plans it at the address its
+  # tofu-address annotation names, stock's address (#1996); kubectl below
+  # says it is the object stock destroys.
+  [ "$d_addr" = "kubernetes_config_map_v1.app" ] \
+    || { printf '%s\n' "$d_plan" | grep -E 'destroyed|^Plan:'; fail "the one destroy is '${d_addr:-unnamed}', not stock's kubernetes_config_map_v1.app (#1996: an object carrying its address annotation is destroyed at that address)"; }
   grep -q "Owned and undeclared: 1 live resource will be destroyed" <<< "$d_plan" || fail "the plan does not say the destroy is an owned, undeclared object"
   d_apply="$(ref_tofu "$ADOPTED" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$d_apply" | tail -30; fail "the remove apply failed"; }
   grep -qF "Apply complete! Resources: 0 added, 0 changed, 1 destroyed" <<< "$d_apply" || fail "the remove apply did not destroy exactly one object"
@@ -336,8 +336,8 @@ reference_eks_stage_day2_count() {
   c_plan="$(ref_tofu "$ADOPTED" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$c_plan" | tail -30; fail "the scale-down plan failed"; }
   grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$c_plan" || { printf '%s\n' "$c_plan" | tail -30; fail "the scale-down plan is not exactly one destroy: $(_ref_plan_line "$c_plan")"; }
   c_addr="$(_ref_addrs "$c_plan" destroyed)"
-  grep -qE "^kubernetes_config_map(_v1)?\\.orphan_${REF_NS}_shard-1\$" <<< "$c_addr" \
-    || { printf '%s\n' "$c_plan" | grep -E 'destroyed|^Plan:'; fail "the scale-down destroys '${c_addr:-nothing named}', not shard-1 at its orphan address"; }
+  [ "$c_addr" = "kubernetes_config_map_v1.shard[1]" ] \
+    || { printf '%s\n' "$c_plan" | grep -E 'destroyed|^Plan:'; fail "the scale-down destroys '${c_addr:-nothing named}', not stock's kubernetes_config_map_v1.shard[1] (#1996: an object carrying its address annotation is destroyed at that address)"; }
   c_apply="$(ref_tofu "$ADOPTED" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$c_apply" | tail -30; fail "the scale-down apply failed"; }
   grep -qF "0 added, 0 changed, 1 destroyed" <<< "$c_apply" || fail "the scale-down apply did not destroy exactly one object"
   if [ "${BREAK_COUNT:-}" = "1" ]; then

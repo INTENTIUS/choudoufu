@@ -301,10 +301,16 @@ group check (#1111) is what keeps a CRD whose `spec.names.kind` is
 spelled like a built-in's, in its own group, from being filed under that
 built-in's type with a `NAMESPACE/NAME` import id the provider cannot
 resolve. An object it lists that no block declares is an
-orphan and is proposed for removal, planned at the synthetic address
-`<type>.orphan_<namespace>_<name>`, or
+orphan and is proposed for removal. When its `tofu-address` annotation
+names an instance the configuration no longer declares, of a type that
+manages its kind, the removal is planned at that address, as stock plans
+the state orphan (#1996): a key that left a `for_each` is destroyed at
+`kubernetes_manifest.rest["ConfigMap/ns/x"]`, not under the kind's typed
+resource. Otherwise - no annotation, one naming an instance still
+declared, or one another orphan also carries - it is planned at the
+synthetic address `<type>.orphan_<namespace>_<name>`, or
 `kubernetes_manifest.orphan_<kind>_<namespace>_<name>` for a manifest
-kind, since the label carries no address. A block and a listed object
+kind. A block and a listed object
 meet on the kind and the natural key whichever type either is filed
 under, so a ConfigMap declared through `kubernetes_manifest` is not an
 orphan of `kubernetes_config_map_v1`.

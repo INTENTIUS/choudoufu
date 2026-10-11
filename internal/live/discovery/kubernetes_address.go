@@ -603,3 +603,90 @@ func (j *addressJoin) match(annotation string) (addrs.AbsResourceInstance, bool)
 	})
 	return hit, n == 1
 }
+
+// annotatedOrphan is the address an unbound object's annotation plans its
+// removal at, and the type and import id that address's type reads it by.
+type annotatedOrphan struct {
+	typeName string
+	importID string
+}
+
+// annotatedOrphanAddresses reports, by index into undeclared, the orphans
+// whose address annotation is their own address to be destroyed at
+// (GitHub issue #1996). A values change that takes an object out of a
+// for_each over a rendered chart leaves the object carrying the address
+// of an instance the configuration no longer declares,
+// kubernetes_manifest.rest["ConfigMap/ns/x"]. Stock destroys it there, as
+// a state orphan. Filing it as <kind's type>.orphan_ns_x instead planned
+// the destroy at another address, through another provider type, which
+// is the divergence #1996 measured on seven estates.
+//
+// It is the AWS orphan's rule (the marker is the address) held to the
+// conditions under which the annotation can only mean that instance:
+//
+//   - the object is not settled by [bindByAddress] and is not terminating;
+//   - the annotation unescapes to a managed resource instance, and names
+//     no instance the configuration declares - neither by
+//     [addressJoin.match], which is what bindByAddress itself asks, nor
+//     by the decoded address. An annotation naming a declared instance
+//     that did not bind (its address already has its object, or its
+//     block is another pass's) is not a free address: a destroy there
+//     would be planned at a live block's own instance;
+//   - the annotated type manages the object's kind: the manifest type,
+//     which imports it by [kubesweep.ManifestImportID], or one of the
+//     kind's own types, which import it by NAMESPACE/NAME;
+//   - no other unbound object carries the same annotation. Two would be
+//     two removals at one address, which [classifyOrphans] refuses as a
+//     collision; on the synthetic addresses each is the removal it was
+//     before this.
+//
+// Every other orphan keeps its synthetic address. The rule reads nothing
+// a pass's provider scope changes, so two passes listing one object file
+// it at one address and [Merge] sees one object.
+func annotatedOrphanAddresses(req Request, manifestType string, undeclared []UndeclaredObject, settled map[int]bool) map[int]annotatedOrphan {
+	carriers := map[string]int{}
+	for i, u := range undeclared {
+		if !settled[i] && u.Object.Address != "" {
+			carriers[u.Object.Address]++
+		}
+	}
+	declaredAddrs := map[string]bool{}
+	for _, r := range req.Resolutions {
+		if !r.Undeclared {
+			declaredAddrs[r.Addr.String()] = true
+		}
+	}
+	for key, refused := range req.NodeRefused {
+		if refused {
+			declaredAddrs[key] = true
+		}
+	}
+	join := newAddressJoin(req, manifestType, undeclared)
+
+	out := map[int]annotatedOrphan{}
+	for i, u := range undeclared {
+		o, k := u.Object, u.Kind
+		if settled[i] || o.Address == "" || o.DeletionTimestamp != "" || carriers[o.Address] != 1 {
+			continue
+		}
+		if _, named := join.match(o.Address); named {
+			continue
+		}
+		addr, ok := UnescapeAddress(o.Address)
+		if !ok || addr.Resource.Resource.Mode != addrs.ManagedResourceMode || declaredAddrs[addr.String()] {
+			continue
+		}
+		typeName := addr.Resource.Resource.Type
+		switch {
+		case manifestType != "" && typeName == manifestType:
+			importID := o.ImportID
+			if !k.Manifest {
+				importID = kubesweep.ManifestImportID(k.APIVersion, k.Kind, o.Namespace, o.Name)
+			}
+			out[i] = annotatedOrphan{typeName: typeName, importID: importID}
+		case !k.Manifest && slices.Contains(k.TypeNames, typeName):
+			out[i] = annotatedOrphan{typeName: typeName, importID: o.ImportID}
+		}
+	}
+	return out
+}

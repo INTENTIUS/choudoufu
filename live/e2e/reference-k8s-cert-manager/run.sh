@@ -767,7 +767,7 @@ else
   grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$D_PLAN" || { printf '%s\n' "$D_PLAN" | tail -20; fail "the remove plan is not exactly one destroy"; }
   D_LINE="$(grep -E '^[[:space:]]*# .* will be destroyed' <<< "$D_PLAN" | head -1)"
   D_ADDR="$(sed -E 's/^[[:space:]#]*//; s/ will be destroyed.*$//' <<< "$D_LINE")"
-  [ "$D_ADDR" = "kubernetes_manifest.orphan_issuer_${NS}_selfsigned" ] || { printf '%s\n' "$D_PLAN" | grep -E 'destroyed|^Plan:'; fail "the one destroy is ${D_ADDR:-unnamed}, not the orphan address kubernetes_manifest.orphan_issuer_${NS}_selfsigned the sweep plans a label-found custom-kind object at"; }
+  [ "$D_ADDR" = "$(gauntlet_destroyed_addr "$O_PLAN")" ] || { printf '%s\n' "$D_PLAN" | grep -E 'destroyed|^Plan:'; fail "the one destroy is ${D_ADDR:-unnamed}, not stock's $(gauntlet_destroyed_addr "$O_PLAN") (#1996: an object carrying its address annotation is destroyed at that address)"; }
   grep -q "Owned and undeclared: 1 live resource will be destroyed" <<< "$D_PLAN" || fail "the plan does not say the destroy is an owned, undeclared object"
   { APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "0 added, 0 changed, 1 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the remove apply did not destroy exactly one object"; }
   exists_a issuer selfsigned && fail "the Issuer still exists after the remove apply"
