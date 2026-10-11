@@ -462,6 +462,66 @@ cnpg_ready() {
 rest_addr() { printf 'kubernetes_manifest.rest["%s/%s/%s"]' "$1" "$2" "$3"; }
 # planned <plan>: the addresses a plan proposes something for, one per line.
 planned() { grep -E '^[[:space:]]*# .+ (will be|must be)' <<< "$1" | sed -E 's/^[[:space:]]*# //; s/ (will be|must be).*$//'; }
+# updated_blocks <plan>: every in-place update's full block, from its
+# "# <address> will be updated in-place" line through the closing brace of
+# its resource (the brace two columns right of the "#"), or up to the next
+# address line or "Plan:" if no such brace comes first. Output only (#2014).
+updated_blocks() {
+  awk '
+    function indent(s) { match(s, /^[ \t]*/); return RLENGTH }
+    /^[ \t]*# .* (will be|must be)/ { inb = 0 }
+    /^Plan:/ { inb = 0 }
+    /^[ \t]*# .* will be updated in-place/ { inb = 1; close_at = indent($0) + 2 }
+    inb { print; if ($0 ~ /^[ \t]*}[ \t]*$/ && indent($0) == close_at) { inb = 0; print "" } }
+  ' <<< "$1"
+}
+# update_object <address>: the live object behind one address as
+# "<kubectl resource> <namespace> <name>" (namespace "-" when cluster-scoped),
+# or nothing when the address is not one this root declares.
+update_object() {
+  local a="$1" key kind ns name
+  case "$a" in
+    kubernetes_manifest.*\[\"*/*/*\"\])
+      key="${a#*\[\"}"; key="${key%\"\]}"
+      kind="${key%%/*}"; key="${key#*/}"; ns="${key%%/*}"; name="${key#*/}"
+      printf '%s %s %s\n' "$kind" "${ns:--}" "$name" ;;
+    kubernetes_manifest.cluster) printf 'clusters.postgresql.cnpg.io %s %s\n' "$DB_NS" "$PG" ;;
+    kubernetes_manifest.catalog\[\"*\"\])
+      key="${a#*\[\"}"; key="${key%\"\]}"
+      printf 'imagecatalogs.postgresql.cnpg.io %s catalog-%s\n' "$DB_NS" "$key" ;;
+    kubernetes_namespace_v1.pg) printf 'namespace - %s\n' "$DB_NS" ;;
+    kubernetes_namespace_v1.cnpg_system) printf 'namespace - %s\n' "$NS" ;;
+  esac
+}
+# print_update_diagnostics <plan> <kubeconfig>: when the plan proposes any
+# in-place update, print each update's block, the Plan: line, and the live
+# object of each with its managed fields, so the changed field can be
+# matched to the manager that wrote it (#2014). Each kubectl is bounded.
+# Prints only; returns 0 whatever it finds.
+print_update_diagnostics() {
+  local plan="$1" cfg="$2" a obj res ns nsarg name to=()
+  grep -qE '^[[:space:]]*# .* will be updated in-place' <<< "$plan" || return 0
+  if command -v timeout >/dev/null 2>&1; then to=(timeout 45)
+  elif command -v gtimeout >/dev/null 2>&1; then to=(gtimeout 45); fi
+  log "  --- in-place update(s) proposed, full blocks (#2014) ---"
+  updated_blocks "$plan"
+  log "  --- $(grep -E '^Plan:' <<< "$plan" | head -1) ---"
+  while IFS= read -r a; do
+    [ -n "$a" ] || continue
+    obj="$(update_object "$a")"
+    if [ -z "$obj" ]; then log "  --- $a: no live object mapped for this address ---"; continue; fi
+    read -r res ns name <<< "$obj"
+    if [ "$ns" = "-" ]; then nsarg=""; else nsarg=" -n $ns"; fi
+    log "  --- $a: kubectl get $res$nsarg $name -o yaml --show-managed-fields ---"
+    if [ "$ns" = "-" ]; then
+      ${to[@]+"${to[@]}"} kubectl --kubeconfig "$cfg" --request-timeout=30s get "$res" "$name" -o yaml --show-managed-fields 2>&1 || log "  (kubectl exited $?)"
+    else
+      ${to[@]+"${to[@]}"} kubectl --kubeconfig "$cfg" --request-timeout=30s get "$res" -n "$ns" "$name" -o yaml --show-managed-fields 2>&1 || log "  (kubectl exited $?)"
+    fi
+  done < <(grep -E '^[[:space:]]*# .* will be updated in-place' <<< "$plan" | sed -E 's/^[[:space:]]*# //; s/ will be updated in-place.*$//')
+  log "  --- end of in-place update diagnostics ---"
+  return 0
+}
 # destroyed_objects <plan>: the OBJECTS a plan destroys, one
 # kind/namespace/name per line (kind lower-cased, underscores dropped,
 # namespace empty for a cluster-scoped kind), whatever address each is filed
@@ -1116,6 +1176,7 @@ rm -rf "$GREEN/.tofu-records" "$GREEN/.terraform/choudoufu-cache.tfstate"
 L_PLAN="$(green plan -input=false -no-color 2>&1)"; L_RC=$?
 L_LINE="$(grep -E '^Plan:|^No changes' <<< "$L_PLAN" | head -1 | sed 's/\.$//')"
 [ "$L_RC" -eq 0 ] || { printf '%s\n' "$L_PLAN" | tail -20; fail "the plan with no record store at all exited $L_RC"; }
+print_update_diagnostics "$L_PLAN" "$KCA"
 L_GONE="$(grep -cE '^[[:space:]]*# .* will be (created|destroyed|replaced)|must be replaced' <<< "$L_PLAN")"
 [ "$L_GONE" = "0" ] || { printf '%s\n' "$L_PLAN" | grep -E 'will be|must be' | head -20
   fail "with the whole record store deleted the plan proposes $L_GONE create/destroy/replace(s) ($L_LINE) - the objects are not being found by their label and their namespace and name alone"; }
