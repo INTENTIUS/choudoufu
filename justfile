@@ -83,11 +83,11 @@ smoke-selftest:
 # It is not a live/smoke scenario because those are shell against choudoufu
 # and the aws CLI, and this one needs node and the example's own
 # node_modules to have a `chant` to run at all. Without docker it stops and
-# says why rather than passing; the CI half is
-# .github/workflows/ci-pipelines-smoke.yml, which has an emulator by
-# construction. BREAK=1 proves three of its assertions can fail.
+# says why rather than passing. There is no CI half any more (#2018
+# deleted ci-pipelines-smoke.yml): this is run by hand, on a machine with
+# Docker. BREAK=1 proves three of its assertions can fail.
 smoke-ci-pipelines:
-    @docker info >/dev/null 2>&1 || { echo "SMOKE skipped: the docker daemon is not running, and this smoke needs the pinned floci emulator. Start Docker and re-run, or dispatch .github/workflows/ci-pipelines-smoke.yml." >&2; exit 1; }
+    @docker info >/dev/null 2>&1 || { echo "SMOKE skipped: the docker daemon is not running, and this smoke needs the pinned floci emulator. Start Docker and re-run." >&2; exit 1; }
     bash examples/ci-pipelines/scripts/smoke.sh
 
 # Prints (never runs) the maintainer's one-time setup for the two
@@ -504,8 +504,8 @@ gauntlet-notes old new:
 # Issue #544: the stock terraform/tofu binaries every stage compares
 # choudoufu's plan against are the ORACLE - an unpinned oracle silently
 # changes what "matches stock" means (#498's root cause). Both are pinned at
-# live/oracle-versions.json, the single place .github/workflows/gauntlet.yml
-# and .github/workflows/contribute.yml both read.
+# live/oracle-versions.json, the single place tools/gauntlet and
+# .github/workflows/ci.yml both read.
 #
 # Bumping the pin is a reviewed event, the same shape #441 built for a
 # provider bump (re-measure, emit a movement report, land the report with
