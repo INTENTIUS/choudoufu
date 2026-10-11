@@ -1188,7 +1188,7 @@ else
   grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$D_PLAN" || { printf '%s\n' "$D_PLAN" | tail -30; fail "the remove plan is not exactly one destroy"; }
   D_LINE="$(grep -E '^[[:space:]]*# .* will be destroyed' <<< "$D_PLAN" | head -1)"
   D_ADDR="$(sed -E 's/^[[:space:]#]*//; s/ will be destroyed.*$//' <<< "$D_LINE")"
-  [ "$D_ADDR" = "kubernetes_cron_job_v1.orphan_${NSB}_nightly" ] || { printf '%s\n' "$D_PLAN" | grep -E 'destroyed|^Plan:'; fail "the one destroy is ${D_ADDR:-unnamed} (line: ${D_LINE:-none}), not the orphan address kubernetes_cron_job_v1.orphan_${NSB}_nightly the sweep plans a label-found CronJob at once no block declares the kind"; }
+  [ "$D_ADDR" = "$(gauntlet_destroyed_addr "$O_PLAN")" ] || { printf '%s\n' "$D_PLAN" | grep -E 'destroyed|^Plan:'; fail "the one destroy is ${D_ADDR:-unnamed}, not stock's $(gauntlet_destroyed_addr "$O_PLAN") (#1996: an object carrying its address annotation is destroyed at that address)"; }
   grep -q "Owned and undeclared: 1 live resource will be destroyed" <<< "$D_PLAN" || fail "the plan does not say the destroy is an owned, undeclared object"
   D_APPLY="$(chdf apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$D_APPLY" | tail -30; fail "the remove apply failed"; }
   grep -qF "Apply complete! Resources: 0 added, 0 changed, 1 destroyed" <<< "$D_APPLY" || fail "the remove apply did not destroy exactly one object"
@@ -1263,7 +1263,7 @@ C_PLAN="$(chdf plan -input=false -no-color 2>&1)" || { printf '%s\n' "$C_PLAN" |
 grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$C_PLAN" || { printf '%s\n' "$C_PLAN" | tail -30; fail "the scale-down plan is not exactly one destroy"; }
 C_LINE="$(grep -E '^[[:space:]]*# .* will be destroyed' <<< "$C_PLAN" | head -1)"
 C_ADDR="$(sed -E 's/^[[:space:]#]*//; s/ will be destroyed.*$//' <<< "$C_LINE")"
-grep -qE "^kubernetes_config_map(_v1)?\.orphan_${NS}_shard-1$" <<< "$C_ADDR" || { printf '%s\n' "$C_PLAN" | grep -E 'destroyed|^Plan:'; fail "the scale-down destroys ${C_ADDR:-nothing named}, not shard-1 at its orphan address"; }
+[ "$C_ADDR" = "$(gauntlet_destroyed_addr "$O_PLAN")" ] || { printf '%s\n' "$C_PLAN" | grep -E 'destroyed|^Plan:'; fail "the scale-down destroy is ${C_ADDR:-unnamed}, not stock's $(gauntlet_destroyed_addr "$O_PLAN") (#1996: an object carrying its address annotation is destroyed at that address)"; }
 { APPLY_OUT="$(chdf apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "0 added, 0 changed, 1 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the scale-down apply did not destroy exactly one object"; }
 if [ "${BREAK_COUNT:-}" = "1" ]; then
   obj_a configmap "$NS" shard-0 || fail "BREAK_COUNT=1: shard-0 was destroyed - the 'wrong instance' assertion would hold, so the check is not load-bearing"
