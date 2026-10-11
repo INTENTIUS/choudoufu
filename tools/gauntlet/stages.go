@@ -146,7 +146,7 @@ func registeredStages() []Stage {
 			Proves:     "Deleting a resource block destroys the object under the default policy, in an order the cloud accepts, including blocks for untaggable children whose parents stay.",
 			Oracle:     "Stock with the same block removed plans the same destroys in a working order.",
 			Break:      "Keep the block; no destroy may be proposed.",
-			Substrates: map[string]string{SubstrateKind: "kubectl confirms the object is gone. With no address on the object, the sweep plans it at `<type>.orphan_<namespace>_<name>`, under the versioned type once no block declares the kind; a controller's copies, which the sweep excludes, are never proposed."},
+			Substrates: map[string]string{SubstrateKind: "kubectl confirms the object is gone. When the object's address annotation names an instance the configuration no longer declares, of a type that manages its kind, the sweep destroys it at that address, as stock destroys the state orphan (#1996). With no annotation, one naming an instance still declared, or one another orphan also carries, it plans the removal at `<type>.orphan_<namespace>_<name>` (`kubernetes_manifest.orphan_<kind>_<namespace>_<name>` for a manifest kind), under the versioned type once no block declares the kind; a controller's copies, which the sweep excludes, are never proposed."},
 		},
 		{
 			ID: "day2_count", Order: 8, Title: "Change count", Status: StatusActive, Headline: true,
