@@ -169,6 +169,22 @@ cleanup() {
 trap cleanup EXIT
 gauntlet_begin
 
+# must <what> <command...>: an init, plan or apply whose output nothing else
+# reads. Silent on success; on failure it prints the command's last 30 lines
+# and then fails naming the first Error: line, so the log alone says why.
+# The first run of this estate stopped on "stock's remove apply failed on B"
+# with terraform's output thrown away, and the cause could not be read.
+must() {
+  local what="$1" out err; shift
+  out="$("$@" 2>&1)" && return 0
+  printf '%s\n' "$out" | tail -30
+  err="$(gauntlet_first_error_line <<< "$out")"
+  fail "$what${err:+ ($err)}"
+}
+# show <captured output> [lines]: the tail of a captured plan or apply,
+# printed before the verdict or the fail that quotes it.
+show() { printf '%s\n' "$1" | tail -"${2:-40}"; }
+
 # ── 0. tools ─────────────────────────────────────────────────────────────
 log "=== 0. tools ==="
 command -v docker >/dev/null 2>&1 || fail "docker is not on PATH"
@@ -327,7 +343,10 @@ PY
 # address no other pool holds, and crash_second's manifest reads
 # crash_first's name, a real edge in the graph, so nothing can create
 # crash-second until crash-first has committed (#490's discipline;
-# reference-k8s-cert-manager's crash pair, #1262).
+# reference-k8s-cert-manager's crash pair, #1262). crash_first depends on the
+# workloads block, as the root's own pools do and as keda's crash pair does:
+# at teardown the pair then goes before the controller and long before the
+# CRDs, so neither is ever deleted after its kind stopped being served.
 crash_block() {
   if [ "$1" = "first" ]; then
     cat <<EOF
@@ -346,7 +365,7 @@ resource "kubernetes_manifest" "crash_first" {
     }
   }
 
-  depends_on = [kubernetes_namespace_v1.metallb_system]
+  depends_on = [kubernetes_manifest.late]
 }
 EOF
   else
@@ -473,6 +492,25 @@ late_addr() { printf 'kubernetes_manifest.late["%s/%s/%s"]' "$1" "$2" "$3"; }
 pool_addr() { printf 'kubernetes_manifest.pool["%s"]' "$1"; }
 # planned <plan>: the addresses a plan proposes something for, one per line.
 planned() { grep -E '^[[:space:]]*# .+ (will be|must be)' <<< "$1" | sed -E 's/^[[:space:]]*# //; s/ (will be|must be).*$//'; }
+# destroys_in <plan>: the addresses a plan destroys, sorted, one per line.
+destroys_in() { { grep -E '^[[:space:]]*# .+ will be destroyed' <<< "$1" || true; } | sed -E 's/^[[:space:]]*# //; s/ will be destroyed.*$//' | sort; }
+# joined: stdin's non-empty lines as one "a; b; c" string.
+joined() { sed '/^$/d' | tr '\n' ';' | sed -E 's/;$//; s/;/; /g'; }
+# objects_of <addresses>: the kind/namespace/name keys of the
+# kubernetes_manifest addresses among them, sorted - what the render's
+# for_each keys every instance by.
+objects_of() { sed -nE 's/^kubernetes_manifest\.[a-z_]+\["([^"]+)"\]$/\1/p' <<< "$1" | sort; }
+# declared_a: kind/namespace/name of every object on A that carries the
+# estate's label and has no owner, in the same spelling as the for_each
+# keys, sorted. day2_remove compares what an apply took away by these
+# names, which do not depend on the address the plan filed it under.
+declared_a() {
+  local k
+  for k in $KINDS; do
+    kca get "$k" -A -l "tofu-estate=$ESTATE" -o json 2>/dev/null \
+      | jq -r '.items[]? | select((.metadata.ownerReferences // []) | length == 0) | "\(.kind)/\(.metadata.namespace // "")/\(.metadata.name)"' 2>/dev/null
+  done | sort
+}
 
 # ── 1. cold_deploy: the control, the declared pre-apply, then the rest ───
 gauntlet_begin_stage cold_deploy
@@ -484,9 +522,9 @@ K8S_VER="$(kca version 2>/dev/null | gauntlet_k8s_server_version)"
 log "  cluster A: $CLUSTER_A (kubernetes $K8S_VER); cluster B: $CLUSTER_B"
 write_root "$STOCK" stock  || fail "could not write the stock root on A"
 write_root "$ORACLE" stock || fail "could not write the oracle root on B"
-( stock_a init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on A"
+must "stock init failed on A" stock_a init -input=false -no-color
 gauntlet_report_lock "$STOCK"  # the versions stage 1 resolved, for the row (#1739)
-( stock_b init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on B"
+must "stock init failed on B" stock_b init -input=false -no-color
 
 CTRL="$(stock_a plan -input=false -no-color 2>&1)"; CTRL_RC=$?
 if [ "${BREAK_PREAPPLY:-}" = "1" ]; then
@@ -513,7 +551,7 @@ else
 
   COLD_OUT="$(stock_a apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$COLD_OUT" | tail -20; fail "stock's main apply failed on A"; }
   grep -qF "Apply complete! Resources: $CUSTOM_N added, 0 changed, 0 destroyed" <<< "$COLD_OUT" || { printf '%s\n' "$COLD_OUT" | tail -5; fail "stock's main apply on A did not add exactly the $CUSTOM_N custom resources (the base IPAddressPool and the L2Advertisement)"; }
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's main apply failed on B"
+  must "stock's main apply failed on B" stock_b apply -auto-approve -input=false -no-color
 
   [ -f "$STOCK/terraform.tfstate" ] || fail "stock left no terraform.tfstate on A"
   STOCK_N="$(managed_n stock_a)"
@@ -533,7 +571,7 @@ fi
 gauntlet_begin_stage migrate
 log "=== 2. migrate: live-import against the stock state file, read-only then -approve ==="
 write_root "$ADOPTED" live || fail "could not write the adopted root"
-( tofu_a init -input=false -no-color >/dev/null 2>&1 ) || fail "adopted init failed"
+must "adopted init failed" tofu_a init -input=false -no-color
 IMPORT_OUT="$(tofu_a live-import -state="$STOCK/terraform.tfstate" -estate="$ESTATE" -no-color 2>&1)" || { printf '%s\n' "$IMPORT_OUT" | tail -20; fail "live-import (dry run) failed"; }
 ELIGIBLE_LINE="$(grep -E 'resource instance\(s\) are eligible for stamping' <<< "$IMPORT_OUT" | head -1)"
 log "  dry run: ${ELIGIBLE_LINE:-no eligibility line}"
@@ -619,15 +657,15 @@ fi
 ORACLE_PLAN="$(stock_b plan -detailed-exitcode -input=false -no-color 2>&1)"; ORACLE_RC=$?
 [ "$ORACLE_RC" -eq 2 ] || { printf '%s\n' "$ORACLE_PLAN" | tail -10; fail "stock's plan on B after the out-of-band delete exited $ORACLE_RC, want 2 (changes)"; }
 grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$ORACLE_PLAN" || { printf '%s\n' "$ORACLE_PLAN" | tail -10; fail "stock's plan on B does not propose exactly one create"; }
-grep -qF "$DRIFT_ADDR" <<< "$ORACLE_PLAN" || fail "stock's plan on B does not name $DRIFT_ADDR"
-( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock could not reconverge B"
+grep -qF "$DRIFT_ADDR" <<< "$ORACLE_PLAN" || { show "$ORACLE_PLAN" 20; fail "stock's plan on B does not name $DRIFT_ADDR"; }
+must "stock could not reconverge B" stock_b apply -auto-approve -input=false -no-color
 DRIFT_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$DRIFT_PLAN" | tail -20; fail "the plan after the out-of-band delete failed"; }
 if [ "${BREAK:-}" = "1" ]; then
   if grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$DRIFT_PLAN"; then
     fail "BREAK=1: two objects were deleted but the plan still proposes exactly one create - the single-object assertion is not load-bearing"
   fi
   log "  BREAK=1: caught - with a second object deleted the plan is $(grep -E '^Plan:' <<< "$DRIFT_PLAN" | head -1)"
-  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK: could not reconverge A"
+  must "BREAK: could not reconverge A" tofu_a apply -auto-approve -input=false -no-color
   gauntlet_stage drift_reconverge pass "BREAK=1 control: with the same-named RoleBinding deleted too the single-object assertion correctly fails to hold ($(grep -E '^Plan:' <<< "$DRIFT_PLAN" | head -1)); reconverged afterwards"
 else
   grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$DRIFT_PLAN" || { printf '%s\n' "$DRIFT_PLAN" | tail -20; fail "the plan after one out-of-band delete does not propose exactly one create"; }
@@ -659,8 +697,8 @@ P_PLAN_LINE="$(grep -E '^Plan:|^No changes' <<< "$P_PLAN" | head -1 | sed 's/\.$
 if [ "$P_PLAN_RC" -ne 0 ] || ! grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$P_PLAN" || ! grep -qF "$CTL_ADDR will be updated in-place" <<< "$P_PLAN"; then
   gauntlet_stage plan_approval fail "controller.logLevel info -> debug in values.yaml did not plan as exactly one in-place update of $CTL_ADDR: ${P_PLAN_LINE:-no summary line} (exit $P_PLAN_RC). What it proposed: $(planned "$P_PLAN" | head -10 | tr '\n' ';')"
   printf '%s\n' "$P_PLAN" | tail -30
-  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge A after plan_approval; nothing below would measure day-2 behaviour"
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge B after plan_approval; the oracle would be stale for every stage below"
+  must "could not converge A after plan_approval; nothing below would measure day-2 behaviour" tofu_a apply -auto-approve -input=false -no-color
+  must "could not converge B after plan_approval; the oracle would be stale for every stage below" stock_b apply -auto-approve -input=false -no-color
   converge_after_rollout
   PLAN_APPROVAL_SKIPPED=1
 fi
@@ -677,8 +715,8 @@ if [ "${BREAK_APPROVAL:-}" = "1" ]; then
   [ "$P_RC" -eq 0 ] && fail "BREAK_APPROVAL=1: applying the saved plan after the world moved succeeded - the refusal is not load-bearing"
   log "  BREAK_APPROVAL=1: caught - the apply after the world moved exited $P_RC"
   put_back
-  ( tofu_a apply -input=false -no-color approved.tfplan >/dev/null 2>&1 ) || fail "BREAK_APPROVAL: the saved plan did not apply once the world was put back"
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_APPROVAL: stock could not apply the change on B"
+  must "BREAK_APPROVAL: the saved plan did not apply once the world was put back" tofu_a apply -input=false -no-color approved.tfplan
+  must "BREAK_APPROVAL: stock could not apply the change on B" stock_b apply -auto-approve -input=false -no-color
   converge_after_rollout
   gauntlet_stage plan_approval pass "BREAK_APPROVAL=1 control: applying the saved plan after the world moved exited $P_RC (refused), so the stage's own Break line correctly fails; applied once the world was put back"
 else
@@ -686,8 +724,8 @@ else
     printf '%s\n' "$P_APPLY" | tail -20
     gauntlet_stage plan_approval fail "the saved plan was applied after the world had moved out of band (the base IPAddressPool's autoAssign false -> true, kubectl) and choudoufu exited $P_RC rather than refusing at 3 with \"The approved plan no longer matches the live system\". The saved plan's own change was one in-place update of $CTL_ADDR from a values edit"
     put_back
-    ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge A after plan_approval; nothing below would measure day-2 behaviour"
-    ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge B after plan_approval; the oracle would be stale for every stage below"
+    must "could not converge A after plan_approval; nothing below would measure day-2 behaviour" tofu_a apply -auto-approve -input=false -no-color
+    must "could not converge B after plan_approval; the oracle would be stale for every stage below" stock_b apply -auto-approve -input=false -no-color
     converge_after_rollout
     PLAN_APPROVAL_SKIPPED=1
   fi
@@ -695,11 +733,11 @@ else
   grep -qF -- "--log-level=info" <<< "$(ctl_args)" || fail "the controller's args read $(ctl_args) despite the refusal, want --log-level=info"
   put_back || fail "could not put the world back"
   P_APPLY2="$(tofu_a apply -input=false -no-color approved.tfplan 2>&1)" || { printf '%s\n' "$P_APPLY2" | tail -20; fail "the saved plan did not apply once the world was put back"; }
-  grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$P_APPLY2" || fail "the saved plan's apply did not change exactly one object"
+  grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$P_APPLY2" || { show "$P_APPLY2" 20; fail "the saved plan's apply did not change exactly one object"; }
   grep -qF -- "--log-level=debug" <<< "$(ctl_args)" || fail "the controller does not read --log-level=debug after the saved plan applied: $(ctl_args)"
-  O_PA="$(stock_b plan -out=approved.tfplan -input=false -no-color 2>&1)" || fail "stock's own planfile failed on B"
+  O_PA="$(stock_b plan -out=approved.tfplan -input=false -no-color 2>&1)" || { show "$O_PA"; fail "stock's own planfile failed on B"; }
   grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$O_PA" || { printf '%s\n' "$O_PA" | tail -10; fail "stock's plan for the same values edit on B is not exactly one in-place update"; }
-  ( stock_b apply -input=false -no-color approved.tfplan >/dev/null 2>&1 ) || fail "stock's own planfile did not apply on B"
+  must "stock's own planfile did not apply on B" stock_b apply -input=false -no-color approved.tfplan
   converge_after_rollout
   gauntlet_stage plan_approval pass "a values.yaml edit (controller.logLevel info -> debug) re-rendered through helm_template planned as exactly one in-place update of $CTL_ADDR, saved with plan -out; the world then moved out of band (the base IPAddressPool's autoAssign to true with kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied (kubectl still reads --log-level=info); with the world put back the identical file applied, 0 added, 1 changed, 0 destroyed, --log-level=debug reads back and the rolled controller's webhook admits again; stock's plan for the same edit on the oracle cluster is the same one update and its planfile applied. BREAK_APPROVAL=1 expects success after the move and correctly fails"
   fi
@@ -713,7 +751,7 @@ rename_crds "$ADOPTED" || fail "could not rename the CRD block in the adopted ro
 rename_crds "$ORACLE"  || fail "could not rename the CRD block in the oracle root"
 O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's moved-block plan failed on B"; }
 grep -qE "^No changes|Plan: 0 to add, 0 to change, 0 to destroy" <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's moved-block plan on B is not zero churn"; }
-( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's moved-block apply failed on B"
+must "stock's moved-block apply failed on B" stock_b apply -auto-approve -input=false -no-color
 R_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$R_PLAN" | tail -20; fail "the moved-block plan failed"; }
 # The renderer aligns a map's "=" across its keys, and every chart CRD
 # carries an annotation of its own (controller-gen.kubebuilder.io/version),
@@ -723,7 +761,7 @@ R_ANN="$(grep -cE '~ +"choudoufu\.intentius\.io/tofu-address" += ".*" -> ".*"' <
 if grep -qE 'will be (created|destroyed)|must be replaced' <<< "$R_PLAN"; then
   gauntlet_stage day2_rename fail "the moved-block plan over $CRD_N for_each CRD instances proposes a create, a destroy or a replace - not the marker rewritten in place: $(grep -E '^Plan:' <<< "$R_PLAN" | head -1)"
   printf '%s\n' "$R_PLAN" | tail -20
-  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge after the rename; nothing below would measure day-2 behaviour"
+  must "could not converge after the rename; nothing below would measure day-2 behaviour" tofu_a apply -auto-approve -input=false -no-color
 elif grep -qF "Plan: 0 to add, $CRD_N to change, 0 to destroy." <<< "$R_PLAN" && [ "$R_ANN" = "$CRD_N" ]; then
   R_APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$R_APPLY_OUT" | tail -20; fail "the moved-block apply failed"; }
   grep -qF "Apply complete! Resources: 0 added, $CRD_N changed, 0 destroyed" <<< "$R_APPLY_OUT" || { printf '%s\n' "$R_APPLY_OUT" | tail -10; fail "the moved-block apply was not exactly $CRD_N in-place changes"; }
@@ -731,16 +769,44 @@ elif grep -qF "Plan: 0 to add, $CRD_N to change, 0 to destroy." <<< "$R_PLAN" &&
   [ "$(count_a)" = "$TOTAL_N" ] || fail "$(count_a) labelled objects after the rename, want $TOTAL_N"
   CA_AFTER="$(kca get crd bgppeers.metallb.io -o jsonpath='{.spec.conversion.webhook.clientConfig.caBundle}' 2>/dev/null)"
   [ -n "$CA_AFTER" ] || fail "the bgppeers CRD lost the caBundle the controller injected across the rename's in-place update"
-  R_REPLAN="$(tofu_a plan -input=false -no-color 2>&1)" || fail "the replan after the rename failed"
+  R_REPLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { show "$R_REPLAN"; fail "the replan after the rename failed"; }
   grep -q "No changes." <<< "$R_REPLAN" || { printf '%s\n' "$R_REPLAN" | tail -20; fail "the replan after the rename is not empty"; }
   gauntlet_stage day2_rename pass "moved block over a for_each of $CRD_N CRDs keyed by the render (kubernetes_manifest.crds -> .custom_resource_definitions, with the rest block's depends_on following it): no add and no destroy, $CRD_N in-place changes each confined to the address annotation rewrite ($R_ANN annotation lines, 0 add, $CRD_N change, 0 destroy) - the marker rewritten in place, as the AWS lanes assert for a rename; every CRD still there and labelled, the conversion-webhook CRD bgppeers.metallb.io still carrying the caBundle its controller injected, the replan empty; stock's plan for the same moved block on the oracle cluster is zero churn, since stock never writes this annotation"
 else
   gauntlet_stage day2_rename fail "the moved-block plan over $CRD_N for_each CRD instances is not exactly $CRD_N in-place annotation changes: $(grep -E '^Plan:' <<< "$R_PLAN" | head -1), $R_ANN annotation line(s)"
   printf '%s\n' "$R_PLAN" | tail -20
-  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not converge after the rename; nothing below would measure day-2 behaviour"
+  must "could not converge after the rename; nothing below would measure day-2 behaviour" tofu_a apply -auto-approve -input=false -no-color
 fi
 
 # ── 8. day2_remove: a values change takes one object out of the render ───
+#
+# speaker.excludeInterfaces.enabled=false drops the metallb-excludel2
+# ConfigMap from the render and its volume and volumeMount from the speaker
+# DaemonSet: one destroy and one in-place update in the same plan. The chart
+# has no toggle that only removes objects without either touching a
+# workload (memberlist, the frr-k8s mode, the service accounts) or stripping
+# RBAC from controllers that keep running (rbac.create) - and the MetalLB
+# controller has to keep serving the failurePolicy: Fail webhook every
+# IPAddressPool below goes through - so this stays the stage's change.
+#
+# Two things the stage reports rather than stops on:
+#
+#   - #1996: choudoufu plans the removed for_each instance's destroy as a
+#     sweep orphan, kubernetes_config_map_v1.orphan_<ns>_<name>, where stock
+#     plans kubernetes_manifest.rest["ConfigMap/<ns>/<name>"]. The destroys
+#     are still compared by address and a difference is this stage's fail;
+#     the stage then applies the removal on both clusters and checks it by
+#     kind/namespace/name, so day2_count starts where it expects.
+#   - the first run's stock apply on B failed here with its output thrown
+#     away. The update is the run's first in-place update of a DaemonSet,
+#     and its volumes list loses its MIDDLE entry. hashicorp/kubernetes
+#     3.2.1 sends the PLANNED object as the server-side-apply body and fills
+#     every attribute the manifest does not set from prior state by list
+#     index (manifest/provider/plan.go, PlanResourceChange's update branch),
+#     so memberlist-config slides into excludel2's slot. Reading that code
+#     found no attribute that would come back different, so the cause is
+#     not settled; the apply now prints its output, and a failure is retried
+#     once and named in the verdict.
 gauntlet_begin_stage day2_remove
 EXCL_ON="    enabled: true"
 EXCL_OFF="    enabled: false"
@@ -753,44 +819,114 @@ STABLE_BEFORE="$(copies_stable_a)"
 grep -q "^Secret/$RELEASE-metallb-memberlist " <<< "$COPIES_BEFORE" || fail "the controller's memberlist Secret does not exist before the removal: $(tr '\n' ';' <<< "$COPIES_BEFORE")"
 spk_mounts_excl() { local vols; vols="$(kca get daemonset "$SPK" -n "$NS" -o jsonpath='{.spec.template.spec.volumes[*].name}' | tr ' ' '\n')"; grep -qx metallb-excludel2 <<< "$vols"; }
 if [ "${BREAK_REMOVE:-}" = "1" ]; then
-  K_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || fail "BREAK_REMOVE: the plan with excludeInterfaces kept failed"
-  grep -qE "will be destroyed|[1-9][0-9]* to destroy" <<< "$K_PLAN" && fail "BREAK_REMOVE=1: with excludeInterfaces kept a destroy was still proposed - the destroy below would not be the values change's doing"
+  K_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { show "$K_PLAN"; fail "BREAK_REMOVE: the plan with excludeInterfaces kept failed"; }
+  grep -qE "will be destroyed|[1-9][0-9]* to destroy" <<< "$K_PLAN" && { show "$K_PLAN" 20; fail "BREAK_REMOVE=1: with excludeInterfaces kept a destroy was still proposed - the destroy below would not be the values change's doing"; }
   log "  BREAK_REMOVE=1: caught - with excludeInterfaces kept the plan proposes no destroy"
   gauntlet_stage day2_remove pass "BREAK_REMOVE=1 control: with speaker.excludeInterfaces kept enabled, no destroy is proposed; the real check is skipped"
-  set_value "$ADOPTED" "$EXCL_ON" "$EXCL_OFF" && set_value "$ORACLE" "$EXCL_ON" "$EXCL_OFF" || fail "BREAK_REMOVE: could not disable excludeInterfaces afterwards"
-  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_REMOVE: the removal apply failed afterwards"
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_REMOVE: stock's removal apply failed on B afterwards"
+  { set_value "$ADOPTED" "$EXCL_ON" "$EXCL_OFF" && set_value "$ORACLE" "$EXCL_ON" "$EXCL_OFF"; } || fail "BREAK_REMOVE: could not disable excludeInterfaces afterwards"
+  must "BREAK_REMOVE: the removal apply failed afterwards" tofu_a apply -auto-approve -input=false -no-color
+  must "BREAK_REMOVE: stock's removal apply failed on B afterwards" stock_b apply -auto-approve -input=false -no-color
 else
   set_value "$ADOPTED" "$EXCL_ON" "$EXCL_OFF" || fail "could not disable excludeInterfaces in the adopted root"
   set_value "$ORACLE"  "$EXCL_ON" "$EXCL_OFF" || fail "could not disable excludeInterfaces in the oracle root"
-  O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's remove plan failed on B"; }
-  grep -qF "Plan: 0 to add, 1 to change, $EXCL_N to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's remove plan on B is not exactly $EXCL_N destroy and one update"; }
-  O_PROPOSED="$(planned "$O_PLAN" | tr '\n' ';' | sed -E 's/;$//; s/;/; /g')"
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's remove apply failed on B"
-  D_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$D_PLAN" | tail -20; fail "the remove plan failed"; }
-  D_PROPOSED="$(planned "$D_PLAN" | tr '\n' ';' | sed -E 's/;$//; s/;/; /g')"
-  grep -qF "Plan: 0 to add, 1 to change, $EXCL_N to destroy." <<< "$D_PLAN" || { printf '%s\n' "$D_PLAN" | grep -E 'will be|must be|^Plan:' | head -20; fail "the remove plan is not exactly $EXCL_N destroy and one update: $(grep -E '^Plan:' <<< "$D_PLAN" | head -1). Proposed: $D_PROPOSED"; }
-  grep -qF "$EXCL_ADDR will be destroyed" <<< "$D_PLAN" || fail "the remove plan does not destroy $EXCL_ADDR: $D_PROPOSED"
-  grep -qF "$SPK_ADDR will be updated in-place" <<< "$D_PLAN" || fail "the remove plan does not update $SPK_ADDR in place: $D_PROPOSED"
-  # The controller-copy half: nothing the controllers generated may be named.
+  O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { show "$O_PLAN"; fail "stock's remove plan failed on B"; }
+  grep -qF "Plan: 0 to add, 1 to change, $EXCL_N to destroy." <<< "$O_PLAN" || { show "$O_PLAN"; fail "stock's remove plan on B is not exactly $EXCL_N destroy and one update"; }
+  O_DESTROYS="$(destroys_in "$O_PLAN")"
+  [ "$O_DESTROYS" = "$EXCL_ADDR" ] || { show "$O_PLAN"; fail "stock's remove plan on B destroys [$(joined <<< "$O_DESTROYS")], want exactly $EXCL_ADDR"; }
+  grep -qF "$SPK_ADDR will be updated in-place" <<< "$O_PLAN" || { show "$O_PLAN"; fail "stock's remove plan on B does not update $SPK_ADDR in place"; }
+  O_PROPOSED="$(planned "$O_PLAN" | joined)"
+  O_OBJECTS="$(objects_of "$O_DESTROYS")"
+
+  # Stock first. A failed apply is printed, then retried once: the first
+  # run lost exactly this apply's output. Two failures mean the oracle
+  # cannot make the change at all; the removal is then rolled back on both
+  # roots, choudoufu's plan is still compared, and day2_count starts from
+  # the estate as it was.
+  O_NOTE=""; O_ERR=""; O_BROKEN=""
+  O_APPLY="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" || {
+    show "$O_APPLY" 60
+    O_ERR="$(gauntlet_first_error_line <<< "$O_APPLY")"
+    if O_APPLY="$(stock_b apply -auto-approve -input=false -no-color 2>&1)"; then
+      O_NOTE=" Stock's own remove apply on B failed once (${O_ERR:-no Error: line}) and a second apply converged."
+    else
+      show "$O_APPLY" 60
+      O_BROKEN="stock's own remove apply on B failed twice (${O_ERR:-no Error: line}; then $(gauntlet_first_error_line <<< "$O_APPLY")), so the oracle cannot make this change and choudoufu's apply was not attempted; the removal was rolled back on both roots"
+    fi
+  }
+
+  D_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { show "$D_PLAN"; fail "the remove plan failed"; }
+  D_DESTROYS="$(destroys_in "$D_PLAN")"
+  D_PROPOSED="$(planned "$D_PLAN" | joined)"
+  REMOVE_FAILS=""
+  remove_fail() { REMOVE_FAILS="${REMOVE_FAILS:+$REMOVE_FAILS; }$*"; }
+  grep -qF "Plan: 0 to add, 1 to change, $EXCL_N to destroy." <<< "$D_PLAN" \
+    || { show "$D_PLAN" 30; remove_fail "the remove plan is not exactly $EXCL_N destroy and one update: $(gauntlet_plan_line <<< "$D_PLAN"), proposing [$D_PROPOSED]"; }
+  # By address, as stock names it. #1996: choudoufu files the removed
+  # for_each instance as a sweep orphan. Recorded, never accepted as a pass.
+  [ "$D_DESTROYS" = "$O_DESTROYS" ] \
+    || remove_fail "choudoufu's remove plan destroys [$(joined <<< "$D_DESTROYS")] where stock's on the oracle cluster destroys [$(joined <<< "$O_DESTROYS")]: the removed for_each instance is planned at a sweep orphan's address, not its own (#1996)"
+  grep -qF "$SPK_ADDR will be updated in-place" <<< "$D_PLAN" || remove_fail "the remove plan does not update $SPK_ADDR in place: [$D_PROPOSED]"
+  # The controller-copy half: nothing the controllers generated may be
+  # named, at a declared address or an orphan's. Applying such a plan would
+  # delete it, so this one stops the run.
   while IFS= read -r copy; do
     [ -n "$copy" ] || continue
     cname="${copy#*/}"; cname="${cname%% *}"
-    grep -qF "$cname" <<< "$(grep -E 'will be destroyed' <<< "$D_PLAN")" && fail "the remove plan proposes destroying $copy, which a controller generated and the root never declared"
+    while IFS= read -r addr; do
+      case "$addr" in
+        *"/$cname\"]"|*"_$cname") show "$D_PLAN" 30; fail "the remove plan proposes destroying $copy, which a controller generated and the root never declared ($addr)" ;;
+      esac
+    done <<< "$D_DESTROYS"
   done <<< "$COPIES_BEFORE"
-  { APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "0 added, 1 changed, $EXCL_N destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the remove apply did not destroy exactly $EXCL_N object and update one"; }
-  exists_a configmap metallb-excludel2 && fail "the ConfigMap metallb-excludel2 still exists after the remove apply"
-  spk_mounts_excl && fail "the speaker DaemonSet still mounts metallb-excludel2 after the remove apply"
-  gauntlet_wait_until 300 "the speaker DaemonSet $SPK on cluster A to roll out without the excludel2 volume" -- ds_ready "$KCA" "$SPK" || fail "the speaker DaemonSet did not roll out on A after the remove apply"
-  gauntlet_wait_until 300 "the speaker DaemonSet $SPK on cluster B to roll out without the excludel2 volume" -- ds_ready "$KCB" "$SPK" || fail "the speaker DaemonSet did not roll out on B after the remove apply"
-  STABLE_AFTER="$(copies_stable_a)"
-  [ "$STABLE_AFTER" = "$STABLE_BEFORE" ] || fail "the controller-created objects changed across the removal: before [$(tr '\n' ';' <<< "$STABLE_BEFORE")], after [$(tr '\n' ';' <<< "$STABLE_AFTER")]"
-  D_REPLAN="$(tofu_a plan -input=false -no-color 2>&1)" || fail "the replan after the remove failed"
-  grep -q "No changes." <<< "$D_REPLAN" || { printf '%s\n' "$D_REPLAN" | tail -20; fail "the replan after the remove is not empty"; }
-  REMAIN=$((TOTAL_N - EXCL_N))
-  [ "$(count_a)" = "$REMAIN" ] || fail "$(count_a) labelled objects after the remove, want $REMAIN"
-  N_COPIES="$(grep -c . <<< "$COPIES_BEFORE")"
-  gauntlet_stage day2_remove pass "speaker.excludeInterfaces.enabled=false in values.yaml took $EXCL_N object out of the render and its volume out of the speaker DaemonSet, and choudoufu proposed exactly that ($D_PROPOSED: $EXCL_N destroy, 1 in-place update, 0 add), matching stock's plan on the oracle cluster ($O_PROPOSED); after the apply the ConfigMap is gone, the hostNetwork speaker DaemonSet no longer mounts it and rolled out ready on both clusters, the replan is empty and $REMAIN objects are labelled. The controller-copy exclusion: the $N_COPIES objects the controllers generated ($(cut -d' ' -f1 <<< "$COPIES_BEFORE" | tr '\n' ';' | sed -E 's/;$//; s/;/; /g')) were never proposed, and the ones that must survive a speaker rollout - the memberlist Secret the speaker mounts and any per-node FRRNodeState ($(cut -d' ' -f1 <<< "$STABLE_AFTER" | tr '\n' ';' | sed -E 's/;$//; s/;/; /g')) - read back with the same uids. BREAK_REMOVE=1 keeps excludeInterfaces and requires no destroy"
+
+  if [ -n "$O_BROKEN" ]; then
+    remove_fail "$O_BROKEN"
+    set_value "$ADOPTED" "$EXCL_OFF" "$EXCL_ON" || fail "could not put excludeInterfaces back in the adopted root"
+    set_value "$ORACLE"  "$EXCL_OFF" "$EXCL_ON" || fail "could not put excludeInterfaces back in the oracle root"
+    must "stock could not roll the removal back on B; the oracle would be stale for every stage below" stock_b apply -auto-approve -input=false -no-color
+    BACK="$(tofu_a plan -input=false -no-color 2>&1)" || { show "$BACK"; fail "the plan after rolling the removal back failed"; }
+    grep -q "No changes." <<< "$BACK" || { show "$BACK"; fail "the plan after rolling the removal back is not empty; nothing below would measure day-2 behaviour"; }
+    gauntlet_stage day2_remove fail "speaker.excludeInterfaces.enabled=false in values.yaml (stock plans [$O_PROPOSED], 1 destroy and 1 in-place update of the hostNetwork speaker DaemonSet): $REMOVE_FAILS"
+  else
+    DECL_BEFORE="$(declared_a)"
+    D_ERR=""
+    D_APPLY="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" || {
+      show "$D_APPLY" 60
+      D_ERR="$(gauntlet_first_error_line <<< "$D_APPLY")"
+      if [ -n "$O_ERR" ] && [ "$D_ERR" = "$O_ERR" ]; then
+        O_NOTE="$O_NOTE choudoufu's first remove apply failed with the same error and a second converged, as stock's did."
+      else
+        remove_fail "choudoufu's remove apply failed (${D_ERR:-no Error: line}) where stock's ${O_ERR:+also failed once, with ${O_ERR}, and then }applied"
+      fi
+      D_APPLY="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" || { show "$D_APPLY" 60; fail "choudoufu's remove apply failed twice (${D_ERR:-no Error: line}; then $(gauntlet_first_error_line <<< "$D_APPLY")); the estate is between two shapes and nothing below would measure day-2 behaviour"; }
+    }
+    [ -n "$D_ERR" ] || grep -qF "0 added, 1 changed, $EXCL_N destroyed" <<< "$D_APPLY" \
+      || { show "$D_APPLY" 20; remove_fail "the remove apply did not destroy exactly $EXCL_N object and update one: $(grep -m1 -E 'Apply complete!' <<< "$D_APPLY")"; }
+    # Without the address: the same objects gone as stock destroys, by
+    # kind/namespace/name, among everything declared on A.
+    DECL_AFTER="$(declared_a)"
+    D_GONE="$(comm -23 <(printf '%s\n' "$DECL_BEFORE") <(printf '%s\n' "$DECL_AFTER") | sed '/^$/d')"
+    [ "$D_GONE" = "$O_OBJECTS" ] \
+      || remove_fail "the declared objects the apply took off cluster A are [$(joined <<< "$D_GONE")], where stock's plan destroys [$(joined <<< "$O_OBJECTS")]"
+    exists_a configmap metallb-excludel2 && remove_fail "the ConfigMap metallb-excludel2 still exists after the remove apply"
+    spk_mounts_excl && remove_fail "the speaker DaemonSet still mounts metallb-excludel2 after the remove apply"
+    gauntlet_wait_until 300 "the speaker DaemonSet $SPK on cluster A to roll out without the excludel2 volume" -- ds_ready "$KCA" "$SPK" || fail "the speaker DaemonSet did not roll out on A after the remove apply"
+    gauntlet_wait_until 300 "the speaker DaemonSet $SPK on cluster B to roll out without the excludel2 volume" -- ds_ready "$KCB" "$SPK" || fail "the speaker DaemonSet did not roll out on B after the remove apply"
+    STABLE_AFTER="$(copies_stable_a)"
+    [ "$STABLE_AFTER" = "$STABLE_BEFORE" ] || remove_fail "the controller-created objects changed across the removal: before [$(joined <<< "$STABLE_BEFORE")], after [$(joined <<< "$STABLE_AFTER")]"
+    D_REPLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { show "$D_REPLAN"; fail "the replan after the remove failed"; }
+    grep -q "No changes." <<< "$D_REPLAN" || { show "$D_REPLAN" 30; remove_fail "the replan after the remove is not empty: $(gauntlet_plan_line <<< "$D_REPLAN"), proposing [$(planned "$D_REPLAN" | joined)]"; }
+    REMAIN=$((TOTAL_N - EXCL_N))
+    R_N="$(count_a)"
+    [ "$R_N" = "$REMAIN" ] || remove_fail "$R_N labelled objects after the remove, want $REMAIN"
+    N_COPIES="$(grep -c . <<< "$COPIES_BEFORE")"
+    HELD="after the apply the declared objects gone from cluster A by kind/namespace/name are [$(joined <<< "$D_GONE")] against stock's [$(joined <<< "$O_OBJECTS")], the hostNetwork speaker DaemonSet rolled out ready on both clusters, and the $N_COPIES objects the controllers generated ($(cut -d' ' -f1 <<< "$COPIES_BEFORE" | joined)) were never proposed, the ones that must survive a speaker rollout ($(cut -d' ' -f1 <<< "$STABLE_AFTER" | joined)) reading back with the same uids.$O_NOTE"
+    if [ -n "$REMOVE_FAILS" ]; then
+      gauntlet_stage day2_remove fail "speaker.excludeInterfaces.enabled=false in values.yaml, 1 destroy and 1 in-place update of the speaker DaemonSet in stock's plan [$O_PROPOSED]: $REMOVE_FAILS. What held: choudoufu proposed [$D_PROPOSED]; $HELD"
+    else
+      gauntlet_stage day2_remove pass "speaker.excludeInterfaces.enabled=false in values.yaml took $EXCL_N object out of the render and its volume out of the speaker DaemonSet, and choudoufu proposed exactly that at stock's addresses ($D_PROPOSED: $EXCL_N destroy, 1 in-place update, 0 add), matching stock's plan on the oracle cluster ($O_PROPOSED); $HELD The replan is empty and $REMAIN objects are labelled. BREAK_REMOVE=1 keeps excludeInterfaces and requires no destroy"
+    fi
+  fi
 fi
 
 # ── 9. day2_count: for_each over the root's pools, 2 -> 1 -> 2 ───────────
@@ -803,58 +939,72 @@ set_shards "$ADOPTED" 2 || fail "could not add two pool shards to the adopted ro
 set_shards "$ORACLE" 2  || fail "could not add two pool shards to the oracle root"
 O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's plan for the two shards failed on B"; }
 grep -qF "Plan: 2 to add, 0 to change, 0 to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's plan for the two shards on B is not exactly two adds"; }
-( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock could not create the shards on B"
+must "stock could not create the shards on B" stock_b apply -auto-approve -input=false -no-color
 set_shards "$ORACLE" 1 || fail "could not scale the oracle root to 1"
-O_DOWN="$(stock_b plan -input=false -no-color 2>&1)" || fail "stock's scale-down plan failed on B"
+O_DOWN="$(stock_b plan -input=false -no-color 2>&1)" || { show "$O_DOWN"; fail "stock's scale-down plan failed on B"; }
 grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$O_DOWN" || { printf '%s\n' "$O_DOWN" | tail -10; fail "stock's scale-down plan on B is not exactly one destroy"; }
-grep -qF "$SHARD1" <<< "$O_DOWN" || fail "stock's scale-down on B does not destroy $SHARD1"
-( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's scale-down apply failed on B"
+[ "$(destroys_in "$O_DOWN")" = "$SHARD1" ] || { show "$O_DOWN"; fail "stock's scale-down on B does not destroy exactly $SHARD1"; }
+# The object stock's destroy names: pool's for_each key is the pool's name.
+O_DOWN_OBJ="IPAddressPool/$NS/shard-1"
+must "stock's scale-down apply failed on B" stock_b apply -auto-approve -input=false -no-color
 
 A_UP="$(tofu_a plan -input=false -no-color 2>&1)"; A_UP_RC=$?
 if [ "$A_UP_RC" -ne 0 ] || ! grep -qF "Plan: 2 to add, 0 to change, 0 to destroy." <<< "$A_UP"; then
-  COUNT_VERDICT="choudoufu could not plan the two pool shards' creation: $(grep -E '^Plan:|^Error' <<< "$A_UP" | head -1)"
+  show "$A_UP"
+  COUNT_VERDICT="choudoufu could not plan the two pool shards' creation (exit $A_UP_RC, $(gauntlet_plan_line <<< "$A_UP")); first error: $(gauntlet_first_error_line <<< "$A_UP")"
 else
   { APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "2 added, 0 changed, 0 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the shards' creating apply did not add exactly two objects"; }
-  exists_a ipaddresspool shard-0 && exists_a ipaddresspool shard-1 || fail "both shards do not exist after choudoufu created them"
+  { exists_a ipaddresspool shard-0 && exists_a ipaddresspool shard-1; } || fail "both shards do not exist after choudoufu created them"
   A_RE="$(tofu_a plan -input=false -no-color 2>&1)"; A_RE_RC=$?
   if [ "$A_RE_RC" -ne 0 ] || ! grep -q "No changes." <<< "$A_RE"; then
+    show "$A_RE"
     COUNT_VERDICT="replanning the root choudoufu itself had just applied with two shards is not empty (exit $A_RE_RC, $(gauntlet_plan_line <<< "$A_RE")); proposed: $(planned "$A_RE" | head -10 | tr '\n' ';'); first error: $(gauntlet_first_error_line <<< "$A_RE")"
   fi
 fi
 
 if [ -n "$COUNT_VERDICT" ]; then
   gauntlet_stage day2_count fail "$COUNT_VERDICT"
-  set_shards "$ADOPTED" 0 && set_shards "$ORACLE" 0 || fail "could not withdraw the shards"
-  kca delete ipaddresspool shard-0 shard-1 -n "$NS" --ignore-not-found >/dev/null 2>&1
-  kcb delete ipaddresspool shard-0 shard-1 -n "$NS" --ignore-not-found >/dev/null 2>&1
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "the oracle root would not converge after the shards were withdrawn"
+  { set_shards "$ADOPTED" 0 && set_shards "$ORACLE" 0; } || fail "could not withdraw the shards"
+  # Withdrawn the way keda's and external-secrets' day2_count withdraw them:
+  # by applying the root, not by deleting behind choudoufu's back.
+  W_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" || { show "$W_OUT" 20; log "  note: the apply withdrawing the shards from A did not exit clean"; }
+  must "the oracle root would not converge after the shards were withdrawn" stock_b apply -auto-approve -input=false -no-color
   CLEAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$CLEAN" | tail -20; fail "the plan after withdrawing the shards failed; nothing below would measure day-2 behaviour"; }
   grep -q "No changes." <<< "$CLEAN" || { printf '%s\n' "$CLEAN" | tail -20; fail "the plan after withdrawing the shards is not empty; nothing below would measure day-2 behaviour"; }
 else
   set_shards "$ADOPTED" 1 || fail "could not scale the adopted root to 1"
   C_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$C_PLAN" | tail -20; fail "the scale-down plan failed"; }
   grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$C_PLAN" || { printf '%s\n' "$C_PLAN" | tail -20; fail "the scale-down plan is not exactly one destroy"; }
-  C_ADDR="$(planned "$C_PLAN" | head -1)"
+  C_ADDR="$(destroys_in "$C_PLAN" | joined)"
+  # By address, as day2_remove compares: a sweep orphan where stock plans
+  # the instance itself is #1996, named in the verdict. Which pool went is
+  # read with kubectl below either way.
+  if [ "$C_ADDR" = "$SHARD1" ]; then C_NOTE="at stock's own address"; else C_NOTE="where stock plans $SHARD1 (#1996)"; fi
+  C_DECL_BEFORE="$(declared_a)"
   { APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "0 added, 0 changed, 1 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the scale-down apply did not destroy exactly one object"; }
   if [ "${BREAK_COUNT:-}" = "1" ]; then
     exists_a ipaddresspool shard-0 || fail "BREAK_COUNT=1: shard-0 was destroyed - the 'wrong instance' assertion would hold, so the check is not load-bearing"
     log "  BREAK_COUNT=1: caught - shard-0 still exists, so asserting it was the one destroyed correctly fails"
     gauntlet_stage day2_count pass "BREAK_COUNT=1 control: asserting the remaining shard (shard-0) was destroyed correctly fails to hold; the real check is skipped"
   else
+    # The decided rule while #1996 is open: the address may differ (named in
+    # the verdict, judged by day2_remove), the OBJECTS destroyed may not.
+    C_GONE="$(comm -23 <(printf '%s\n' "$C_DECL_BEFORE") <(declared_a) | sed '/^$/d')"
+    [ "$C_GONE" = "$O_DOWN_OBJ" ] || { show "$APPLY_OUT" 20; fail "the scale-down took [$(joined <<< "$C_GONE")] off cluster A by kind/namespace/name, where stock's plan destroys [$O_DOWN_OBJ] (planned at $C_ADDR)"; }
     exists_a ipaddresspool shard-0 || fail "shard-0 was destroyed on the scale-down"
     exists_a ipaddresspool shard-1 && fail "shard-1 still exists after the scale-down"
-    set_shards "$ADOPTED" 2 && set_shards "$ORACLE" 2 || fail "could not scale back to 2"
-    O_UP="$(stock_b plan -input=false -no-color 2>&1)" || fail "stock's scale-up plan failed on B"
+    { set_shards "$ADOPTED" 2 && set_shards "$ORACLE" 2; } || fail "could not scale back to 2"
+    O_UP="$(stock_b plan -input=false -no-color 2>&1)" || { show "$O_UP"; fail "stock's scale-up plan failed on B"; }
     grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$O_UP" || { printf '%s\n' "$O_UP" | tail -10; fail "stock's scale-up plan on B is not exactly one add"; }
-    ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's scale-up apply failed on B"
+    must "stock's scale-up apply failed on B" stock_b apply -auto-approve -input=false -no-color
     U_PLAN="$(tofu_a plan -input=false -no-color 2>&1)" || { printf '%s\n' "$U_PLAN" | tail -20; fail "the scale-up plan failed"; }
     grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$U_PLAN" || { printf '%s\n' "$U_PLAN" | tail -20; fail "the scale-up plan is not exactly one add"; }
-    grep -qF "$SHARD1 will be created" <<< "$U_PLAN" || fail "the scale-up plan does not create $SHARD1"
+    grep -qF "$SHARD1 will be created" <<< "$U_PLAN" || { show "$U_PLAN" 20; fail "the scale-up plan does not create $SHARD1"; }
     { APPLY_OUT="$(tofu_a apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "1 added, 0 changed, 0 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the scale-up apply did not create exactly one object"; }
-    gauntlet_stage day2_count pass "for_each over IPAddressPools the root declares, custom resources of the render's own CRDs admitted by its failurePolicy: Fail webhook: shard_pools at two entries planned two pools and choudoufu created both, then replanned empty; at one entry it destroyed exactly shard-1, planned at $C_ADDR ($SHARD0 untouched, both read with kubectl); back at two it created exactly $SHARD1; stock's plans for the same three edits on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the remaining shard was destroyed and correctly fails"
-    set_shards "$ADOPTED" 0 && set_shards "$ORACLE" 0 || fail "could not withdraw the shards"
-    ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not withdraw the shards from A"
-    ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not withdraw the shards from B"
+    gauntlet_stage day2_count pass "for_each over IPAddressPools the root declares, custom resources of the render's own CRDs admitted by its failurePolicy: Fail webhook: shard_pools at two entries planned two pools and choudoufu created both, then replanned empty; at one entry it destroyed exactly shard-1 - the objects gone from cluster A by kind/namespace/name, [$C_GONE], are the ones stock's plan destroys - planned at $C_ADDR $C_NOTE ($SHARD0 untouched, both read with kubectl); back at two it created exactly $SHARD1; stock's plans for the same three edits on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the remaining shard was destroyed and correctly fails"
+    { set_shards "$ADOPTED" 0 && set_shards "$ORACLE" 0; } || fail "could not withdraw the shards"
+    must "could not withdraw the shards from A" tofu_a apply -auto-approve -input=false -no-color
+    must "could not withdraw the shards from B" stock_b apply -auto-approve -input=false -no-color
   fi
 fi
 
@@ -871,13 +1021,13 @@ gauntlet_kind_day2_crash_rename "$ADOPTED" "$NS"
 crash_block first > "$ORACLE/crash.tf" || fail "could not write crash-first to the oracle root"
 O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's crash-first plan failed on B"; }
 grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's crash-first plan on B is not exactly one add"; }
-( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's crash-first apply failed on B"
+must "stock's crash-first apply failed on B" stock_b apply -auto-approve -input=false -no-color
 crash_block second >> "$ORACLE/crash.tf" || fail "could not append crash-second to the oracle root"
 O_REMAINDER="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$O_REMAINDER" | tail -10; fail "stock's remainder plan failed on B"; }
 grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$O_REMAINDER" \
   || { printf '%s\n' "$O_REMAINDER" | tail -10; fail "stock's remainder plan on B is not exactly one add - the oracle for this stage is not what it should be"; }
-grep -q 'kubernetes_manifest.crash_second' <<< "$O_REMAINDER" || fail "stock's remainder plan on B does not name crash_second"
-( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's remainder apply failed on B"
+grep -q 'kubernetes_manifest.crash_second' <<< "$O_REMAINDER" || { show "$O_REMAINDER" 20; fail "stock's remainder plan on B does not name crash_second"; }
+must "stock's remainder apply failed on B" stock_b apply -auto-approve -input=false -no-color
 log "  oracle: stock at crash-first alone plans exactly one add (crash_second) for the remainder, and applies it"
 
 C_BEFORE="$(count_a)"
@@ -934,7 +1084,7 @@ if [ "${BREAK_CRASH:-}" = "1" ]; then
   grep -qF "No changes." <<< "$R_PLAN" \
     && { printf '%s\n' "$R_PLAN" | tail -20; fail "BREAK_CRASH=1: the plan after a real interrupted two-object apply came back empty, so this stage's own check is not load-bearing"; }
   gauntlet_stage day2_crash pass "BREAK_CRASH=1 control: after the same real interrupt the plan proposes work ($R_LINE), so asserting nothing is proposed correctly fails to hold; the real check is skipped $CRASH_RENAME_DETAIL"
-  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_CRASH: the recovery apply failed afterwards"
+  must "BREAK_CRASH: the recovery apply failed afterwards" tofu_a apply -auto-approve -input=false -no-color
 elif [ "${BREAK_CRASH_UNBOUND:-}" = "1" ]; then
   if recovered; then
     printf '%s\n' "$R_PLAN" | grep -E '^Plan:|will be'
@@ -942,7 +1092,7 @@ elif [ "${BREAK_CRASH_UNBOUND:-}" = "1" ]; then
   fi
   gauntlet_stage day2_crash pass "BREAK_CRASH_UNBOUND=1 control: with the tofu-estate label stripped off the IPAddressPool the interrupted apply created, the recovery check correctly fails to hold ($R_LINE); the real check is skipped $CRASH_RENAME_DETAIL"
   kca delete ipaddresspool crash-first -n "$NS" >/dev/null 2>&1 || fail "BREAK_CRASH_UNBOUND: could not delete the unlabelled crash-first afterwards"
-  ( tofu_a apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_CRASH_UNBOUND: the apply after the cleanup failed"
+  must "BREAK_CRASH_UNBOUND: the apply after the cleanup failed" tofu_a apply -auto-approve -input=false -no-color
 else
   if ! recovered; then
     printf '%s\n' "$R_PLAN" | grep -E '^Plan:|^No changes|will be' | head -20
@@ -990,7 +1140,7 @@ C_LEFT="$(cluster_left kca)"
 kca get namespace kube-system >/dev/null 2>&1 || fail "kube-system is gone"
 O_EXPECT="$(managed_n stock_b)"
 O_T="$(stock_b apply -destroy -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$O_T" | tail -10; fail "stock's destroy failed on B"; }
-grep -qF "Resources: 0 added, 0 changed, $O_EXPECT destroyed" <<< "$O_T" || fail "stock's destroy on B did not remove exactly the $O_EXPECT objects its state held"
+grep -qF "Resources: 0 added, 0 changed, $O_EXPECT destroyed" <<< "$O_T" || { show "$O_T" 20; fail "stock's destroy on B did not remove exactly the $O_EXPECT objects its state held"; }
 O_C_LEFT="$(cluster_left kcb)"
 [ "$O_C_LEFT" = "0" ] || fail "$O_C_LEFT cluster-scoped object(s) of the render survive stock's destroy on B"
 gauntlet_stage day2_teardown pass "apply -destroy removed exactly the $T_EXPECT remaining objects in one apply, the custom resources before the workloads and the workloads before the rest of the render by the blocks' depends_on; the $NS namespace is gone and with it everything the controllers generated in it, all $CRD_N metallb.io and frrk8s.metallb.io CRDs are gone, both ValidatingWebhookConfigurations and the three ClusterRoles and ClusterRoleBindings are gone while kube-system is untouched, and no object of the estate's kinds carries tofu-estate=$ESTATE (kubectl, every namespace); stock's destroy on the oracle cluster removed exactly the $O_EXPECT its state held and leaves no cluster-scoped object of the render either"
@@ -999,8 +1149,8 @@ gauntlet_stage day2_teardown pass "apply -destroy removed exactly the $T_EXPECT 
 gauntlet_begin_stage greenfield
 log "=== 12. greenfield: choudoufu applies the shape fresh on the now-empty cluster A ==="
 write_root "$GREEN" live || fail "could not write the greenfield root"
-( cd "$GREEN" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || fail "greenfield init failed"
 green() { ( cd "$GREEN" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" "$TOFU" "$@" ); }
+must "greenfield init failed" green init -input=false -no-color
 
 G_TARGETS=()
 while IFS= read -r a; do [ -n "$a" ] && G_TARGETS+=("-target=$a"); done < <(gauntlet_pre_apply_targets "$ESTATE")
@@ -1009,7 +1159,7 @@ G_PRE="$(green apply -auto-approve -input=false -no-color "${G_TARGETS[@]}" 2>&1
 if [ "$G_PRE_RC" -ne 0 ]; then
   printf '%s\n' "$G_PRE" | tail -40
   gauntlet_stage greenfield fail "choudoufu cannot perform the pre-apply its own estate declares: the same ${#G_TARGETS[@]} -target arguments stock accepted at cold deploy, against the same empty cluster, exited $G_PRE_RC; the first error it printed was \"$(gauntlet_first_error_line <<< "$G_PRE")\""
-  ( green apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 )
+  G_DOWN="$(green apply -destroy -auto-approve -input=false -no-color 2>&1)" || { show "$G_DOWN" 20; log "  note: the greenfield destroy after the failed pre-apply did not exit clean"; }
   GREENFIELD_SKIPPED=1
 fi
 if [ -z "${GREENFIELD_SKIPPED:-}" ]; then
@@ -1021,10 +1171,10 @@ grep -qF "Apply complete! Resources: $CUSTOM_N added, 0 changed, 0 destroyed" <<
 certs_filled kca || fail "the cert rotators have not written the declared webhook Secrets on A after the greenfield apply (data keys metallb/frr-k8s: $(cert_keys kca))"
 G_LABELLED="$(count_a)"
 G_RECORDS="$(gauntlet_record_envelope_count "$GREEN/.tofu-records")"
-G_PLAN="$(green plan -input=false -no-color 2>&1)" || fail "the greenfield replan failed"
+G_PLAN="$(green plan -input=false -no-color 2>&1)" || { show "$G_PLAN"; fail "the greenfield replan failed"; }
 grep -q "No changes." <<< "$G_PLAN" || { printf '%s\n' "$G_PLAN" | tail -20; fail "the greenfield replan is not empty"; }
 rm -f "$GREEN/.terraform/choudoufu-cache.tfstate"
-G_PLAN2="$(green plan -input=false -no-color 2>&1)" || fail "the greenfield replan without the cache failed"
+G_PLAN2="$(green plan -input=false -no-color 2>&1)" || { show "$G_PLAN2"; fail "the greenfield replan without the cache failed"; }
 grep -q "No changes." <<< "$G_PLAN2" || { printf '%s\n' "$G_PLAN2" | tail -20; fail "the greenfield replan without the cache is not empty"; }
 
 # The lost-store control (#1235), read as reference-k8s-cert-manager reads
@@ -1046,7 +1196,7 @@ L_MANIFEST_UPDATES="$(grep -cE '^[[:space:]]*# kubernetes_manifest\..* will be u
   fail "with the record store deleted the plan proposes $L_MANIFEST_UPDATES in-place update(s) of kubernetes_manifest instances, whose records hold declared metadata KEY SETS and no residue values (#1211) - a missing key set proposes removing nothing"; }
 L_OTHER="$(planned "$L_PLAN" | tr '\n' ';' | sed -E 's/;$//; s/;/; /g')"
 if [ -n "$L_OTHER" ]; then
-  ( green apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "the converging apply after the lost store failed"
+  must "the converging apply after the lost store failed" green apply -auto-approve -input=false -no-color
 fi
 log "  lost store: $L_LINE${L_OTHER:+ ($L_OTHER, reconverged)}"
 G_WANT="$TOTAL_N"; [ "${BREAK:-}" = "1" ] && G_WANT=$((TOTAL_N + 1))
@@ -1059,7 +1209,7 @@ else
   [ "$G_LABELLED" = "$TOTAL_N" ] || fail "$G_LABELLED object(s) carry tofu-estate=$ESTATE after the greenfield apply, want $TOTAL_N"
   gauntlet_stage greenfield pass "$TOTAL_N objects applied fresh with a live block and no terraform.tfstate - the render read by the data-read phase before the plan, the same declared pre-apply the cold deploy took ($PRE_N instances), the webhook admitting a dry-run IPAddressPool, then $CUSTOM_N - every one labelled tofu-estate=$ESTATE (kubectl, $KINDS_N kinds) and the two declared webhook Secrets filled by the cert rotators; replanned empty with and without the cache; the record store held $G_RECORDS envelope(s) for $TOTAL_N instances, and with that whole store deleted the plan read \"$L_LINE\", nothing created, destroyed or replaced and no kubernetes_manifest updated${L_OTHER:+ (proposed and reconverged: $L_OTHER)}. BREAK=1 expects a deliberately wrong object count and the assertion correctly fails"
 fi
-( green apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || log "  note: greenfield teardown did not exit clean; the cluster is deleted below regardless"
+G_DOWN="$(green apply -destroy -auto-approve -input=false -no-color 2>&1)" || { show "$G_DOWN" 20; log "  note: greenfield teardown did not exit clean; the cluster is deleted below regardless"; }
 fi
 
 # ── 13. strict: every toggle on, one refusal ─────────────────────────────
@@ -1098,7 +1248,8 @@ EOF
 }
 log "=== 13. strict: every strict toggle on ==="
 strict_block "refuse" > "$STRICT/main.tf"
-( cd "$STRICT" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || fail "choudoufu init for the strict-stage scratch estate failed"
+strict_tofu() { ( cd "$STRICT" && "$TOFU" "$@" ); }
+must "choudoufu init for the strict-stage scratch estate failed" strict_tofu init -input=false -no-color
 STRICT_ON="$(cd "$STRICT" && "$TOFU" plan -input=false -no-color 2>&1)"; STRICT_ON_RC=$?
 if [ "${BREAK_STRICT:-}" = "1" ]; then
   strict_block "store" > "$STRICT/main.tf"
