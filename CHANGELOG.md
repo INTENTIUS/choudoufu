@@ -39,6 +39,8 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.27.0 (Unreleased)
 
+- Docs: live/RECOVERY.md says what a killed apply costs in residue: the re-run proposes one update for an instance whose step had returned, and records the residue then (#1953, ruled B: residue stays a final-pass write).
+
 ## choudoufu v0.26.0 (2026-10-11)
 
 Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.26.0.json`](live/history/v0.26.0.json).

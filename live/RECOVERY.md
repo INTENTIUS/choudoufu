@@ -46,17 +46,22 @@ still there as a noncurrent version until the lifecycle rule expires it.
 record is written the moment that instance's apply step returns, and a
 destroyed instance's record is removed the same way (#1944). Every other
 record, and anything the instance's own write leaves out (the residue a
-provider has to be asked about), is written once the whole apply is over.
-So an apply killed partway leaves a record for every record-held instance
-that had returned: the next plan binds the access key or attachment it
-created and keeps the password it generated, and the re-run neither
-duplicates nor regenerates them. What a kill can still lose is an instance
-in flight when it lands, whose create reached the cloud and whose step had
-not returned. [Claim 5](smoke/claims/recovery-is-a-rerun.md) measures both
-sides: `a-killed-apply-hides-nothing` kills an apply after a record-carried
-inline policy, a `random_password` and a `terraform_data` have returned,
-and its `BREAK_EARLY_RECORD=1` arm, a binary that writes no record until
-the walk is over, duplicates the policy and regenerates the password.
+provider has to be asked about), is written once the whole apply is over. So
+an apply killed partway leaves a record for every record-held instance that
+had returned: the next plan binds the access key or attachment it created
+and keeps the password it generated, and the re-run neither duplicates nor
+regenerates them. What a kill can still lose is an instance in flight when
+it lands, whose create reached the cloud and whose step had not returned. A
+kill also loses the residue of every instance whose step had returned, since
+finding residue takes two provider Reads that only the final pass makes. The
+re-run's plan then cannot compare those arguments: it reads them as unknown
+or proposes one update to the instance, and that apply's final pass writes
+the residue (#1953). [Claim 5](smoke/claims/recovery-is-a-rerun.md) measures
+both sides: `a-killed-apply-hides-nothing` kills an apply after a
+record-carried inline policy, a `random_password` and a `terraform_data`
+have returned, and its `BREAK_EARLY_RECORD=1` arm, a binary that writes no
+record until the walk is over, duplicates the policy and regenerates the
+password.
 
 ## "Cannot carry a marker" is not the same as "needs a record"
 
