@@ -167,6 +167,7 @@ fail() {
   exit 1
 }
 cleanup() {
+  gauntlet_sides_stop
   gauntlet_kind_down "$CLUSTER_A"
   gauntlet_kind_down "$CLUSTER_B"
   rm -rf "$WORK"
@@ -523,8 +524,9 @@ planned() { grep -E '^[[:space:]]*# .+ (will be|must be)' <<< "$1" | sed -E 's/^
 # ── 1. cold_deploy: the control, the declared pre-apply, then the rest ───
 gauntlet_begin_stage cold_deploy
 log "=== 1. cold_deploy: two kind clusters; the un-targeted plan must fail, then the declared pre-apply on both sides ==="
+gauntlet_side_start kind_b gauntlet_kind_up "$CLUSTER_B" "$KCB"  # B comes up while A does (#2037)
 gauntlet_kind_up "$CLUSTER_A" "$KCA" || fail "kind cluster A ($CLUSTER_A) did not come up"
-gauntlet_kind_up "$CLUSTER_B" "$KCB" || fail "kind cluster B ($CLUSTER_B) did not come up"
+gauntlet_side_wait kind_b || fail "kind cluster B ($CLUSTER_B) did not come up"
 export KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA"
 K8S_VER="$(kca version 2>/dev/null | gauntlet_k8s_server_version)"
 log "  cluster A: $CLUSTER_A (kubernetes $K8S_VER); cluster B: $CLUSTER_B"
@@ -554,15 +556,22 @@ else
   PRE_NOTE="$(gauntlet_pre_apply_note)" || fail "the pre-apply ran but produced no note to put in the verdict"
   [ "$(managed_n stock_a)" = "$PRE_N" ] || fail "the pre-apply on A left $(managed_n stock_a) managed instances in state, want $PRE_N (the Namespace and $CRD_N CRDs)"
 
+  # Stock's main apply and rollout on B, the oracle, run while A's do
+  # (#2037): its own root and kubeconfig, joined where B's wait used to run.
+  oracle_cold_deploy() {
+    export KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB"
+    ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's main apply failed on B"
+    keda_ready "$KCB" "cluster B" || fail "KEDA never became ready on B"
+  }
+  gauntlet_side_start oracle_cold oracle_cold_deploy
   COLD_OUT="$(stock_a apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$COLD_OUT" | tail -20; fail "stock's main apply failed on A"; }
   grep -qF "Apply complete! Resources: $REST_N added, 0 changed, 0 destroyed" <<< "$COLD_OUT" || { printf '%s\n' "$COLD_OUT" | tail -5; fail "stock's main apply on A did not add exactly the $REST_N rendered non-CRD objects"; }
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's main apply failed on B"
 
   [ -f "$STOCK/terraform.tfstate" ] || fail "stock left no terraform.tfstate on A"
   STOCK_N="$(managed_n stock_a)"
   [ "$STOCK_N" = "$TOTAL_N" ] || fail "stock's state holds $STOCK_N managed instances, want $TOTAL_N"
   keda_ready "$KCA" "cluster A" || fail "KEDA never became ready on A"
-  keda_ready "$KCB" "cluster B" || fail "KEDA never became ready on B"
+  gauntlet_side_wait oracle_cold || fail "$GAUNTLET_SIDE_FAIL"
   UNMARKED="$(count_a)"
   [ "$UNMARKED" = "0" ] || fail "$UNMARKED object(s) already carry tofu-estate=$ESTATE after a plain stock apply - this proves nothing"
   STOCK_REPLAN="$(stock_a plan -detailed-exitcode -input=false -no-color 2>&1)"; STOCK_REPLAN_RC=$?

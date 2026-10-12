@@ -150,6 +150,7 @@ fail() {
   exit 1
 }
 cleanup() {
+  gauntlet_sides_stop
   gauntlet_kind_down "$CLUSTER_A"
   gauntlet_kind_down "$CLUSTER_B"
   rm -rf "$WORK"
@@ -510,8 +511,9 @@ print("\n".join(sorted(out)))
 # ── 1. cold_deploy: one apply, no pre-apply ──────────────────────────────
 gauntlet_begin_stage cold_deploy
 log "=== 1. cold_deploy: two kind clusters; the whole root in one plain apply on each ==="
+gauntlet_side_start kind_b gauntlet_kind_up "$CLUSTER_B" "$KCB"  # B comes up while A does (#2037)
 gauntlet_kind_up "$CLUSTER_A" "$KCA" || fail "kind cluster A ($CLUSTER_A) did not come up"
-gauntlet_kind_up "$CLUSTER_B" "$KCB" || fail "kind cluster B ($CLUSTER_B) did not come up"
+gauntlet_side_wait kind_b || fail "kind cluster B ($CLUSTER_B) did not come up"
 export KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA"
 K8S_VER="$(kca version 2>/dev/null | gauntlet_k8s_server_version)"
 log "  cluster A: $CLUSTER_A (kubernetes $K8S_VER); cluster B: $CLUSTER_B"
@@ -521,15 +523,22 @@ quiet stock_a init -input=false -no-color || fail "stock init failed on A"
 gauntlet_report_lock "$STOCK"  # the versions stage 1 resolved, for the row (#1739)
 quiet stock_b init -input=false -no-color || fail "stock init failed on B"
 
+# Stock's apply and rollout on B, the oracle, run while A's do (#2037): its
+# own root and kubeconfig, joined where B's wait used to run.
+oracle_cold_deploy() {
+  export KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB"
+  quiet stock_b apply -auto-approve -input=false -no-color || fail "stock's apply failed on B"
+  nginx_ready "$KCB" "cluster B" || fail "ingress-nginx never became ready on B"
+}
+gauntlet_side_start oracle_cold oracle_cold_deploy
 COLD_OUT="$(stock_a apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$COLD_OUT" | tail -20; fail "stock's apply failed on A"; }
 grep -qF "Apply complete! Resources: $TOTAL_N added, 0 changed, 0 destroyed" <<< "$COLD_OUT" || { printf '%s\n' "$COLD_OUT" | tail -5; fail "stock's apply on A did not add exactly the $TOTAL_N declared instances in one pass"; }
-quiet stock_b apply -auto-approve -input=false -no-color || fail "stock's apply failed on B"
 
 [ -f "$STOCK/terraform.tfstate" ] || fail "stock left no terraform.tfstate on A"
 STOCK_N="$(managed_n stock_a)"
 [ "$STOCK_N" = "$TOTAL_N" ] || fail "stock's state holds $STOCK_N managed instances, want $TOTAL_N"
 nginx_ready "$KCA" "cluster A" || fail "ingress-nginx never became ready on A"
-nginx_ready "$KCB" "cluster B" || fail "ingress-nginx never became ready on B"
+gauntlet_side_wait oracle_cold || fail "$GAUNTLET_SIDE_FAIL"
 UNMARKED="$(count_a)"
 [ "$UNMARKED" = "0" ] || fail "$UNMARKED object(s) already carry tofu-estate=$ESTATE after a plain stock apply - this proves nothing"
 STOCK_REPLAN="$(stock_a plan -detailed-exitcode -input=false -no-color 2>&1)"; STOCK_REPLAN_RC=$?

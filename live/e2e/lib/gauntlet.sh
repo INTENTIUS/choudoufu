@@ -449,6 +449,178 @@ gauntlet_kind_down() {
   kind delete cluster --name "$1" >/dev/null 2>&1 || true
 }
 
+# ── the oracle's side, alongside (#2037) ─────────────────────────────────
+#
+# A kubernetes-lane script holds two clusters, A for the estate and B for
+# stock's oracle, and used to do every piece of B's work after A's: two
+# kind creates one after the other, then a cold deploy's applies and
+# rollout waits on A, then the same again on B. Where the two sides share
+# nothing until a comparison reads both, B's part can run while A's does.
+#
+#   gauntlet_side_start oracle_cold oracle_cold_deploy   # B, in the background
+#   ... A's own work, in the foreground, exactly as before ...
+#   gauntlet_side_wait oracle_cold || fail "$GAUNTLET_SIDE_FAIL"
+#
+# What a side may run: commands that name cluster B's kubeconfig and the
+# oracle's own root, and nothing A's foreground work also writes. Every
+# kind script keeps its roots in separate directories (each with its own
+# .terraform), its kubeconfigs in separate files, and runs real terraform
+# on the oracle side, so no record store is involved; the shared provider
+# plugin cache is written only by init, so a side never inits (#1300) -
+# the inits stay in the foreground, one after the other, before the side
+# starts. The pull request for #2037 lists every hazard checked.
+#
+# Inside the side, the script's own fail() is replaced for the side's
+# subshell: it writes its message where gauntlet_side_wait reads it and
+# exits the side, and it never reports a verdict, because a verdict printed
+# from the background would land in the side's log at an arbitrary point.
+# The foreground's `|| fail "$GAUNTLET_SIDE_FAIL"` then records the stage
+# with the very sentence the line in the side was written with, so the
+# verdict text for a failure on either side is the one it was before.
+# When BOTH sides fail, the foreground's failure is the one recorded (it
+# exits the script, and the cleanup stops the side), where before whichever
+# came first in the script's order was.
+#
+# The side's stdout and stderr go to a log beside the script's work, and
+# gauntlet_side_wait prints it whole, at the join, every line indented
+# under one header - so the evidence reads in the same order on every run,
+# A's work as it happened and then B's, and no line of B's can begin with
+# "GAUNTLET " and be parsed by the runner. A side that prints a protocol
+# line anyway is refused at the join rather than swallowed.
+#
+# An interrupt: a script's EXIT trap calls gauntlet_sides_stop before it
+# deletes the clusters, which stops every side still running and every
+# process under it. A non-interactive bash starts a background job with
+# SIGINT ignored, so the forwarded group signal alone would not stop one;
+# the EXIT trap does.
+
+# _gauntlet_sides_dir: where side logs live - beside the script's own work
+# ($WORK, which every kind script removes on exit) when there is one.
+_gauntlet_sides_dir() {
+  if [ -z "${_GAUNTLET_SIDES_DIR:-}" ]; then
+    if [ -n "${WORK:-}" ] && [ -d "$WORK" ]; then
+      _GAUNTLET_SIDES_DIR="$WORK/.gauntlet-sides"
+    else
+      _GAUNTLET_SIDES_DIR="$(mktemp -d "${TMPDIR:-/tmp}/gauntlet-sides.XXXXXX")" || return 1
+    fi
+  fi
+  mkdir -p "$_GAUNTLET_SIDES_DIR" || return 1
+  printf '%s\n' "$_GAUNTLET_SIDES_DIR"
+}
+
+# gauntlet_side_start <name> <command...>: runs <command...> in the
+# background as side <name> ([A-Za-z0-9_]+). Returns at once.
+gauntlet_side_start() {
+  local name="$1" dir pidvar
+  shift
+  case "$name" in
+    '' | *[!A-Za-z0-9_]*) printf 'gauntlet_side_start: side name %q must be letters, digits and underscores\n' "$name" >&2; return 2 ;;
+  esac
+  pidvar="_GAUNTLET_SIDE_PID_$name"
+  if [ -n "${!pidvar:-}" ]; then
+    printf 'gauntlet_side_start: side %s is already running\n' "$name" >&2
+    return 2
+  fi
+  [ "$#" -gt 0 ] || { printf 'gauntlet_side_start: side %s names no command\n' "$name" >&2; return 2; }
+  dir="$(_gauntlet_sides_dir)" || { printf 'gauntlet_side_start: no directory for side logs\n' >&2; return 1; }
+  : > "$dir/$name.fail"
+  (
+    trap - EXIT
+    # shellcheck disable=SC2034  # read by the script's own code in the side
+    CURRENT_STAGE=""
+    # shellcheck disable=SC2329  # called by the side's own `|| fail` lines
+    fail() {
+      printf '%s\n' "$*" > "$dir/$name.fail"
+      printf 'FAIL: %s\n' "$*" >&2
+      exit 1
+    }
+    "$@"
+  ) > "$dir/$name.log" 2>&1 < /dev/null &
+  printf -v "$pidvar" '%s' "$!"
+  _GAUNTLET_SIDES="${_GAUNTLET_SIDES:+$_GAUNTLET_SIDES }$name"
+  printf '  started alongside: %s (pid %s): %s\n' "$name" "$!" "$*"
+}
+
+# gauntlet_side_wait <name>: waits for side <name>, prints its log, and
+# returns its exit code. On a failure GAUNTLET_SIDE_FAIL holds the message
+# the side's fail() was given, or says how the side ended when it never
+# called fail().
+gauntlet_side_wait() {
+  local name="$1" dir pidvar pid rc=0 s rest=""
+  pidvar="_GAUNTLET_SIDE_PID_$name"
+  pid="${!pidvar:-}"
+  GAUNTLET_SIDE_FAIL=""
+  if [ -z "$pid" ]; then
+    GAUNTLET_SIDE_FAIL="side $name was never started, so what it was to do was never done"
+    return 2
+  fi
+  wait "$pid" || rc=$?
+  unset "$pidvar"
+  for s in ${_GAUNTLET_SIDES:-}; do [ "$s" = "$name" ] || rest="${rest:+$rest }$s"; done
+  _GAUNTLET_SIDES="$rest"
+  dir="$(_gauntlet_sides_dir)"
+  printf '  --- %s, run alongside, exit %s ---\n' "$name" "$rc"
+  sed 's/^/  | /' "$dir/$name.log" 2>/dev/null
+  if grep -q '^GAUNTLET ' "$dir/$name.log" 2>/dev/null; then
+    GAUNTLET_SIDE_FAIL="side $name printed a GAUNTLET protocol line from the background; a side never reports a verdict (#2037)"
+    return 1
+  fi
+  if [ "$rc" -ne 0 ]; then
+    GAUNTLET_SIDE_FAIL="$(cat "$dir/$name.fail" 2>/dev/null)"
+    [ -n "$GAUNTLET_SIDE_FAIL" ] || GAUNTLET_SIDE_FAIL="side $name exited $rc without saying why; its log is above"
+  fi
+  return "$rc"
+}
+
+# _gauntlet_tree <pid>: <pid> and every process under it, from one ps
+# snapshot, parents first. Collected before anything is signalled, because a
+# killed parent's children are re-parented and could no longer be found.
+_gauntlet_tree() {
+  ps -A -o pid= -o ppid= 2>/dev/null | awk -v root="$1" '
+    { kids[$2] = kids[$2] " " $1 }
+    END {
+      n = 1; q[1] = root
+      for (i = 1; i <= n; i++) {
+        print q[i]
+        c = split(kids[q[i]], k, " ")
+        for (j = 1; j <= c; j++) q[++n] = k[j]
+      }
+    }'
+}
+
+# gauntlet_sides_stop: stops every side still running and everything under
+# it, TERM first and KILL after ten seconds, and waits for them. Idempotent
+# and quiet, for an EXIT trap; call it before gauntlet_kind_down, so no
+# side is still creating or applying against a cluster being deleted.
+gauntlet_sides_stop() {
+  local s pidvar pid pids="" tops="" p alive=""
+  for s in ${_GAUNTLET_SIDES:-}; do
+    pidvar="_GAUNTLET_SIDE_PID_$s"
+    pid="${!pidvar:-}"
+    unset "$pidvar"
+    [ -n "$pid" ] || continue
+    tops="$tops $pid"
+    pids="$pids $(_gauntlet_tree "$pid" | tr '\n' ' ')"
+  done
+  _GAUNTLET_SIDES=""
+  [ -n "${pids// /}" ] || return 0
+  # shellcheck disable=SC2086  # a list of pids
+  kill -TERM $pids 2>/dev/null || true
+  for _ in $(seq 1 20); do
+    alive=""
+    for p in $pids; do kill -0 "$p" 2>/dev/null && alive="$alive $p"; done
+    [ -n "$alive" ] || break
+    sleep 0.5
+  done
+  # shellcheck disable=SC2086
+  [ -z "$alive" ] || kill -KILL $alive 2>/dev/null || true
+  # Only the sides' own pids: a bare `wait` would also wait on any other
+  # background job the script holds (a port-forward), which never ends.
+  # shellcheck disable=SC2086
+  wait $tops 2>/dev/null || true
+  return 0
+}
+
 # gauntlet_kind_count <estate> <kind>...: how many objects of each named
 # kind carry tofu-estate=<estate>, summed across every namespace - the
 # kind substrate's answer to the tagging index's "objects carrying the

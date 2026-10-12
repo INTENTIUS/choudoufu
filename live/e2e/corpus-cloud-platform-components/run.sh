@@ -165,6 +165,7 @@ fail() {
   exit 1
 }
 cleanup() {
+  gauntlet_sides_stop
   gauntlet_kind_down "$CLUSTER_A"
   gauntlet_kind_down "$CLUSTER_B"
   rm -rf "$WORK"
@@ -430,8 +431,9 @@ for want in "$DRIFT_KEY" "$BREAK_KEY"; do
   grep -qxF "$want" <<< "$KEYS_OUT" || { printf '%s\n' "$KEYS_OUT"; fail "$want is not one of manager-vpas.tf's for_each keys - the corpus pin has moved"; }
 done
 log "  kubernetes_manifest.vpa's for_each keys, from terraform console: ${VPA_KEYS[*]}"
+gauntlet_side_start kind_b gauntlet_kind_up "$CLUSTER_B" "$KCB"  # B comes up while A does (#2037)
 gauntlet_kind_up "$CLUSTER_A" "$KCA" || fail "kind cluster A ($CLUSTER_A) did not come up"
-gauntlet_kind_up "$CLUSTER_B" "$KCB" || fail "kind cluster B ($CLUSTER_B) did not come up"
+gauntlet_side_wait kind_b || fail "kind cluster B ($CLUSTER_B) did not come up"
 export KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA"
 K8S_VER="$(kca version 2>/dev/null | gauntlet_k8s_server_version)"
 log "  cluster A: $CLUSTER_A (kubernetes $K8S_VER); cluster B: $CLUSTER_B"
@@ -462,13 +464,20 @@ PRE_NOTE="$(gauntlet_pre_apply_note)" || fail "the pre-apply ran but produced no
 # terraform has written its last line, which a loaded host makes likely.
 PRE_STATE="$(stock_a state list 2>"$WORK/state-list.err")" || { cat "$WORK/state-list.err"; fail "stock state list failed on A after the pre-apply"; }
 [ "$(grep -c . <<< "$PRE_STATE")" = "$PRE_N" ] || { printf '%s\n' "$PRE_STATE"; fail "the pre-apply on A left $(grep -c . <<< "$PRE_STATE") instances in state, want $PRE_N"; }
+# B's wait and main apply, the oracle's, run while A's do (#2037): its own
+# root and kubeconfig, joined where B's main apply used to run.
+oracle_cold_deploy() {
+  export KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB"
+  gauntlet_wait_until 120 "cluster B to serve verticalpodautoscalers at autoscaling.k8s.io/v1" -- vpa_served "$KCB" || fail "cluster B never served the VPA kind after the pre-apply"
+  O_COLD="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$O_COLD" | tail -20; fail "stock's main apply failed on B"; }
+  grep -qF "Apply complete! Resources: $MAIN_N added, 0 changed, 0 destroyed" <<< "$O_COLD" || { printf '%s\n' "$O_COLD" | tail -5; fail "stock's main apply on B did not add exactly $MAIN_N objects"; }
+}
+gauntlet_side_start oracle_cold oracle_cold_deploy
 gauntlet_wait_until 120 "cluster A to serve verticalpodautoscalers at autoscaling.k8s.io/v1" -- vpa_served "$KCA" || fail "cluster A never served the VPA kind after the pre-apply"
-gauntlet_wait_until 120 "cluster B to serve verticalpodautoscalers at autoscaling.k8s.io/v1" -- vpa_served "$KCB" || fail "cluster B never served the VPA kind after the pre-apply"
 
 COLD_OUT="$(stock_a apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$COLD_OUT" | tail -20; fail "stock's main apply failed on A"; }
 grep -qF "Apply complete! Resources: $MAIN_N added, 0 changed, 0 destroyed" <<< "$COLD_OUT" || { printf '%s\n' "$COLD_OUT" | tail -5; fail "stock's main apply on A did not add exactly $MAIN_N objects"; }
-O_COLD="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$O_COLD" | tail -20; fail "stock's main apply failed on B"; }
-grep -qF "Apply complete! Resources: $MAIN_N added, 0 changed, 0 destroyed" <<< "$O_COLD" || { printf '%s\n' "$O_COLD" | tail -5; fail "stock's main apply on B did not add exactly $MAIN_N objects"; }
+gauntlet_side_wait oracle_cold || fail "$GAUNTLET_SIDE_FAIL"
 [ -f "$STOCK/terraform.tfstate" ] || fail "stock left no terraform.tfstate on A"
 STOCK_STATE="$(stock_a state list 2>"$WORK/state-list.err")" || { cat "$WORK/state-list.err"; fail "stock state list failed on A after the main apply"; }
 STOCK_N="$(grep -c . <<< "$STOCK_STATE")"

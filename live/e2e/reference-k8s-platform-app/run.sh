@@ -113,6 +113,7 @@ fail() {
 }
 cleanup() {
   if [ -n "$PROXY_PID" ]; then kill "$PROXY_PID" 2>/dev/null || true; fi
+  gauntlet_sides_stop
   gauntlet_kind_down "$CLUSTER_A"
   gauntlet_kind_down "$CLUSTER_B"
   rm -rf "$WORK"
@@ -680,8 +681,9 @@ PY
 # ── 1. cold_deploy: stock stands both estates up on A, and on B ──────────
 gauntlet_begin_stage cold_deploy
 log "=== 1. cold_deploy: two kind clusters, stock terraform applies network then app on each ==="
+gauntlet_side_start kind_b gauntlet_kind_up "$CLUSTER_B" "$KCB"  # B comes up while A does (#2037)
 gauntlet_kind_up "$CLUSTER_A" "$KCA" || fail "kind cluster A ($CLUSTER_A) did not come up"
-gauntlet_kind_up "$CLUSTER_B" "$KCB" || fail "kind cluster B ($CLUSTER_B) did not come up"
+gauntlet_side_wait kind_b || fail "kind cluster B ($CLUSTER_B) did not come up"
 export KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA"
 mkdir -p "$STOCK_NET" "$STOCK_APP" "$ORACLE_NET" "$ORACLE_APP"
 for d in "$STOCK_NET" "$ORACLE_NET"; do versions_tf "$d" stock "$NET"; write_net "$d"; done
@@ -690,6 +692,16 @@ ran in_dir "$STOCK_NET" gauntlet_locked_init terraform init -input=false -no-col
 ran in_dir "$STOCK_APP" gauntlet_locked_init terraform init -input=false -no-color || { shown; fail "stock init failed in app's root on A"; }
 ran in_dir "$ORACLE_NET" gauntlet_locked_init terraform init -input=false -no-color || { shown; fail "stock init failed in network's root on B"; }
 ran in_dir "$ORACLE_APP" gauntlet_locked_init terraform init -input=false -no-color || { shown; fail "stock init failed in app's root on B"; }
+# Stock's cold deploy on B, the oracle, runs while A's does (#2037): its own
+# two roots and kubeconfig, their inits done above, joined where it used to
+# run. RAN_OUT and RAN_RC inside it are the side's own; the foreground's next
+# reader of them, migrate, runs its own `ran` first.
+oracle_cold_deploy() {
+  export KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB"
+  ran_has "Apply complete! Resources: 5 added" stock_bn apply -auto-approve -input=false -no-color || { shown; fail "stock's cold deploy of network failed on B"; }
+  ran_has "Apply complete! Resources: 9 added" stock_b apply -auto-approve -input=false -no-color || { shown; fail "stock's cold deploy of app failed on B"; }
+}
+gauntlet_side_start oracle_cold oracle_cold_deploy
 C_NET="$(stock_a "$STOCK_NET" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$C_NET" | tail -20; fail "stock's cold deploy of network failed on A"; }
 grep -qF "Apply complete! Resources: 5 added, 0 changed, 0 destroyed" <<< "$C_NET" || { printf '%s\n' "$C_NET" | tail -5; fail "stock's cold deploy of network did not add exactly 5 objects on A"; }
 C_APP="$(stock_a "$STOCK_APP" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$C_APP" | tail -20; fail "stock's cold deploy of app failed on A"; }
@@ -697,8 +709,7 @@ grep -qF "Apply complete! Resources: 9 added, 0 changed, 0 destroyed" <<< "$C_AP
 [ -f "$STOCK_NET/terraform.tfstate" ] && [ -f "$STOCK_APP/terraform.tfstate" ] || fail "stock left no terraform.tfstate in one of the two roots on A"
 [ "$(count_net)" = "0" ] && [ "$(count_app)" = "0" ] || fail "objects already carry tofu-estate after a plain stock apply (network $(count_net), app $(count_app)) - this proves nothing"
 inventory "$KCA" > "$WORK/inventory.stock.json" || fail "could not read the cold-deployed inventory on A"
-ran_has "Apply complete! Resources: 5 added" stock_bn apply -auto-approve -input=false -no-color || { shown; fail "stock's cold deploy of network failed on B"; }
-ran_has "Apply complete! Resources: 9 added" stock_b apply -auto-approve -input=false -no-color || { shown; fail "stock's cold deploy of app failed on B"; }
+gauntlet_side_wait oracle_cold || fail "$GAUNTLET_SIDE_FAIL"
 gauntlet_stage cold_deploy pass "plain terraform against kind $(kca version 2>/dev/null | gauntlet_k8s_server_version): network's 5 objects (Namespace, NetworkPolicy, Service, 2 ConfigMaps) and two root outputs, then app's 9 (Namespace, 3 ConfigMaps, Service, Deployment, HorizontalPodAutoscaler v2, ServiceAccount, and a kubernetes_manifest ConfigMap in network's namespace) reading network's outputs through data terraform_remote_state; two terraform.tfstate files, zero tofu-estate labels read back with kubectl; the same two estates cold-deployed by stock on a second cluster as every later stage's oracle"
 
 # ── 2. migrate: live-import both estates, records in the cluster ─────────

@@ -192,6 +192,7 @@ fail() {
   exit 1
 }
 cleanup() {
+  gauntlet_sides_stop
   gauntlet_kind_down "$CLUSTER_A"
   gauntlet_kind_down "$CLUSTER_B"
   rm -rf "$WORK"
@@ -1072,8 +1073,9 @@ PY
 # ── 1. cold_deploy: stock stands the estate up on A (and B, the oracle) ──
 gauntlet_begin_stage cold_deploy
 log "=== 1. cold_deploy: two kind clusters, stock terraform applies the shape on each ==="
+gauntlet_side_start kind_b gauntlet_kind_up "$CLUSTER_B" "$KCB"  # B comes up while A does (#2037)
 gauntlet_kind_up "$CLUSTER_A" "$KCA" || fail "kind cluster A ($CLUSTER_A) did not come up"
-gauntlet_kind_up "$CLUSTER_B" "$KCB" || fail "kind cluster B ($CLUSTER_B) did not come up"
+gauntlet_side_wait kind_b || fail "kind cluster B ($CLUSTER_B) did not come up"
 export KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA"
 K8S_VERSION="$(kca version 2>/dev/null | gauntlet_k8s_server_version)"
 log "  cluster A: ${K8S_VERSION:-unknown server version}; cluster B: $CLUSTER_B"
@@ -1081,6 +1083,15 @@ mkdir -p "$STOCK" "$ORACLE" "$ADOPTED"
 write_config "$STOCK" stock
 write_config "$ORACLE" stock
 ( cd "$STOCK" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "the stock init failed on A"
+( cd "$ORACLE" && KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB" gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "the stock init failed on B"
+# Stock's cold deploy on B, the oracle, runs while A's does (#2037): its own
+# root and kubeconfig, its init done above, joined where it used to run.
+oracle_cold_deploy() {
+  export KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB"
+  O_COLD="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$O_COLD" | tail -20; fail "stock cold deploy failed on B"; }
+  grep -qF "Apply complete! Resources: $N_OBJECTS added" <<< "$O_COLD" || fail "stock cold deploy did not add exactly $N_OBJECTS objects on B"
+}
+gauntlet_side_start oracle_cold oracle_cold_deploy
 COLD_OUT="$(cd "$STOCK" && terraform apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$COLD_OUT" | tail -40; fail "stock cold deploy failed on A"; }
 grep -qF "Apply complete! Resources: $N_OBJECTS added, 0 changed, 0 destroyed" <<< "$COLD_OUT" || { printf '%s\n' "$COLD_OUT" | tail -5; fail "stock cold deploy did not add exactly $N_OBJECTS objects on A"; }
 [ -f "$STOCK/terraform.tfstate" ] || fail "stock left no terraform.tfstate on A"
@@ -1127,9 +1138,7 @@ log "  claim-template PVCs:"; printf '%s\n' "$PVC_FACTS_COLD" | sed 's/^/    /'
 DS_READY="$(kca get daemonset agent -n "$NS" -o jsonpath='{.status.numberReady}')/$(kca get daemonset legacy-agent -n "$NSB" -o jsonpath='{.status.numberReady}')"
 NODES="$(kca get nodes -o name | wc -l | tr -d ' ')"
 inventory "$KCA" > "$WORK/inventory.stock.json" || fail "could not read the cold-deployed inventory on A"
-( cd "$ORACLE" && KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB" gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "the stock init failed on B"
-O_COLD="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$O_COLD" | tail -20; fail "stock cold deploy failed on B"; }
-grep -qF "Apply complete! Resources: $N_OBJECTS added" <<< "$O_COLD" || fail "stock cold deploy did not add exactly $N_OBJECTS objects on B"
+gauntlet_side_wait oracle_cold || fail "$GAUNTLET_SIDE_FAIL"
 gauntlet_stage cold_deploy pass "$N_OBJECTS objects in two namespaces from plain terraform against kind $K8S_VERSION: Job, CronJob (suspended), two DaemonSets, Ingress, two NetworkPolicies, HPA v2 over a two-replica Deployment, a directly declared PVC, two Roles and a RoleBinding, a LimitRange and a count ResourceQuota, plus a Namespace pair, a ServiceAccount, a Service and three ConfigMaps, and (folded from reference-k8s-stateful) a headless Service, a 2-replica StatefulSet with a claim template and a PodDisruptionBudget - 22 on the _v1/_v2 types and 3 on the deprecated aliases kubernetes_daemonset, kubernetes_role and kubernetes_network_policy. The StatefulSet's claim-template PVCs data-redis-0/1 are Bound and read app=redis (the selector's, merged over the template's app=redis-data) and role=cache-volume, with no ownerReferences. A real terraform.tfstate with $N_OBJECTS instances, stock's own replan empty, zero tofu-estate labels read back with kubectl over $N_KINDS kinds. The Job completed (succeeded=1, its Pod $JOB_POD), the suspended CronJob owns 0 Jobs, the declared PVC is Bound by its first consumer on kind's standard class, the DaemonSets read $DS_READY ready on $NODES node(s). Stock's deprecation warnings: $(printf '%s' "${STOCK_DEPRECATIONS:-none}" | tr '\n' ';'). The identical shape cold-deployed by stock on a second cluster as every later stage's oracle"
 
 # ── 2. migrate: choudoufu live-import against stock's state ──────────────

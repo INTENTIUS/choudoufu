@@ -155,6 +155,7 @@ fail() {
   exit 1
 }
 cleanup() {
+  gauntlet_sides_stop
   gauntlet_kind_down "$CLUSTER_A"
   gauntlet_kind_down "$CLUSTER_B"
   rm -rf "$WORK"
@@ -416,12 +417,23 @@ namespaces_gone_a() {
 # ── 1. cold_deploy: stock stands the root up on A (and B, the oracle) ────
 gauntlet_begin_stage cold_deploy
 log "=== 1. cold_deploy: two kind clusters, stock terraform applies the published root on each ==="
+gauntlet_side_start kind_b gauntlet_kind_up "$CLUSTER_B" "$KCB"  # B comes up while A does (#2037)
 gauntlet_kind_up "$CLUSTER_A" "$KCA" || fail "kind cluster A ($CLUSTER_A) did not come up"
-gauntlet_kind_up "$CLUSTER_B" "$KCB" || fail "kind cluster B ($CLUSTER_B) did not come up"
+gauntlet_side_wait kind_b || fail "kind cluster B ($CLUSTER_B) did not come up"
 write_root "$STOCK" stock
 write_root "$ORACLE" stock
 ( cd "$STOCK/root" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" gauntlet_locked_init terraform init -input=false -no-color > "$WORK/init.stock-a.log" 2>&1 ) \
   || { tail -20 "$WORK/init.stock-a.log"; fail "stock init failed on A"; }
+( cd "$ORACLE/root" && KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB" gauntlet_locked_init terraform init -input=false -no-color > "$WORK/init.stock-b.log" 2>&1 ) \
+  || { tail -20 "$WORK/init.stock-b.log"; fail "stock init failed on B"; }
+# Stock's cold deploy on B, the oracle, runs while A's does (#2037): its own
+# root and kubeconfig, its init done above, joined where it used to run.
+oracle_cold_deploy() {
+  export KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB"
+  COLD_B="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$COLD_B" | tail -20; fail "stock cold deploy failed on B"; }
+  grep -qF "Apply complete! Resources: $INSTANCES added" <<< "$COLD_B" || fail "stock cold deploy did not add exactly $INSTANCES objects on B"
+}
+gauntlet_side_start oracle_cold oracle_cold_deploy
 COLD_OUT="$(cd "$STOCK/root" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" terraform apply -auto-approve -input=false -no-color 2>&1)" \
   || { printf '%s\n' "$COLD_OUT" | tail -20; fail "stock cold deploy failed on A"; }
 grep -qF "Apply complete! Resources: $INSTANCES added, 0 changed, 0 destroyed" <<< "$COLD_OUT" \
@@ -435,10 +447,7 @@ UNMARKED="$(count_a)"
 inventory "$KCA" > "$WORK/inventory.stock.json" || fail "could not read the cold-deployed inventory on A"
 INV_N="$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))))' "$WORK/inventory.stock.json")"
 [ "$INV_N" = "$INSTANCES" ] || fail "the cold-deployed inventory on A holds $INV_N objects carrying app.kubernetes.io/managed-by=Terraform, want $INSTANCES"
-( cd "$ORACLE/root" && KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB" gauntlet_locked_init terraform init -input=false -no-color > "$WORK/init.stock-b.log" 2>&1 ) \
-  || { tail -20 "$WORK/init.stock-b.log"; fail "stock init failed on B"; }
-COLD_B="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$COLD_B" | tail -20; fail "stock cold deploy failed on B"; }
-grep -qF "Apply complete! Resources: $INSTANCES added" <<< "$COLD_B" || fail "stock cold deploy did not add exactly $INSTANCES objects on B"
+gauntlet_side_wait oracle_cold || fail "$GAUNTLET_SIDE_FAIL"
 gauntlet_stage cold_deploy pass "$INSTANCES objects (3 Namespaces, then module \"access-entry\" called eight times: 8 ClusterRoles with dynamic rule blocks, 8 ClusterRoleBindings, 6 Roles and 6 RoleBindings through for_each over namespaces) from plain terraform on the published root plus its deltas (Terraform Cloud block, EKS access entries and the AWS and tfe data sources dropped, provider pointed at the run's cluster, GOV.UK's own integration var files), against kind $(kca version 2>/dev/null | gauntlet_k8s_server_version); a real terraform.tfstate with $INSTANCES instances, 28 of them under module calls, zero tofu-estate labels, $INV_N objects inventoried with kubectl; the identical root cold-deployed by stock on a second cluster as every later stage's oracle"
 
 # ── 2. migrate ────────────────────────────────────────────────────────────

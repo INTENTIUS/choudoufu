@@ -152,6 +152,7 @@ fail() {
   exit 1
 }
 cleanup() {
+  gauntlet_sides_stop
   gauntlet_kind_down "$CLUSTER_A"
   gauntlet_kind_down "$CLUSTER_B"
   rm -rf "$WORK"
@@ -626,8 +627,9 @@ PY
 # ── 1. cold_deploy: stock stands both estates up on A and on B ───────────
 gauntlet_begin_stage cold_deploy
 log "=== 1. cold_deploy: two kind clusters, stock terraform applies platform then app on each ==="
+gauntlet_side_start kind_b gauntlet_kind_up "$CLUSTER_B" "$KCB"  # B comes up while A does (#2037)
 gauntlet_kind_up "$CLUSTER_A" "$KCA" || fail "kind cluster A ($CLUSTER_A) did not come up"
-gauntlet_kind_up "$CLUSTER_B" "$KCB" || fail "kind cluster B ($CLUSTER_B) did not come up"
+gauntlet_side_wait kind_b || fail "kind cluster B ($CLUSTER_B) did not come up"
 export KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA"
 kca get node "$NODE_A" >/dev/null 2>&1 || fail "cluster A has no node named $NODE_A: $(kca get nodes -o name 2>&1 | tr '\n' ' ')"
 kcb get node "$NODE_B" >/dev/null 2>&1 || fail "cluster B has no node named $NODE_B: $(kcb get nodes -o name 2>&1 | tr '\n' ' ')"
@@ -637,6 +639,17 @@ write_platform "$STOCK_P" stock; write_platform "$ORACLE" stock
 write_app "$STOCK_A" stock "$NODE_A"; write_app "$ORACLE_A" stock "$NODE_B"
 ( cd "$STOCK_P" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed in platform's root on A"
 ( cd "$STOCK_A" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed in app's root on A"
+( cd "$ORACLE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed in platform's oracle root"
+( cd "$ORACLE_A" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed in app's oracle root"
+# Stock's cold deploy on B, the oracle, runs while A's does (#2037): its own
+# two roots and kubeconfig, their inits done above, joined where it used to
+# run.
+oracle_cold_deploy() {
+  export KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB"
+  { APPLY_OUT="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "Apply complete! Resources: 8 added" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "stock cold deploy of platform failed on B"; }
+  { APPLY_OUT="$(stock_ab apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "Apply complete! Resources: 6 added" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "stock cold deploy of app failed on B"; }
+}
+gauntlet_side_start oracle_cold oracle_cold_deploy
 COLD_P="$(cd "$STOCK_P" && terraform apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$COLD_P" | tail -20; fail "stock cold deploy of platform failed on A"; }
 grep -qF "Apply complete! Resources: 8 added, 0 changed, 0 destroyed" <<< "$COLD_P" || { printf '%s\n' "$COLD_P" | tail -5; fail "stock cold deploy of platform did not add exactly 8 instances on A"; }
 COLD_A="$(cd "$STOCK_A" && terraform apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$COLD_A" | tail -20; fail "stock cold deploy of app failed on A"; }
@@ -648,10 +661,7 @@ STOCK_OWNED="$(app_fields_owned "$KCA" "$NODE_A" Terraform)"
 [ "$(platform_field_owner "$KCA")" = "Terraform" ] || fail "platform's default-Namespace label is owned by '$(platform_field_owner "$KCA")' after stock's apply, want Terraform"
 [ "$(owned_objects "$KCA" "$A_MANAGER")" = "0" ] || fail "choudoufu's app manager owns fields before choudoufu ran"
 inventory "$KCA" "$NODE_A" > "$WORK/inventory.stock.json" || fail "could not read the cold-deployed inventory on A"
-( cd "$ORACLE" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed in platform's oracle root"
-( cd "$ORACLE_A" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed in app's oracle root"
-{ APPLY_OUT="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "Apply complete! Resources: 8 added" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "stock cold deploy of platform failed on B"; }
-{ APPLY_OUT="$(stock_ab apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "Apply complete! Resources: 6 added" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "stock cold deploy of app failed on B"; }
+gauntlet_side_wait oracle_cold || fail "$GAUNTLET_SIDE_FAIL"
 log "  platform (8 instances) then app (6 field-granular instances) from plain terraform on A and on B; zero labels, app's fields owned by Terraform"
 gauntlet_stage cold_deploy pass "two roots from plain terraform against kind $K8S_VERSION: platform's 8 instances (Namespace, 2 ConfigMaps plus a 2-instance count ConfigMap, Secret, Service, Deployment, and a kubernetes_labels on the cluster's default Namespace) and then app's 6 field-granular instances writing into them and into the node (kubernetes_labels, kubernetes_annotations, kubernetes_config_map_v1_data, kubernetes_secret_v1_data, kubernetes_env, kubernetes_node_taint), each root with a real terraform.tfstate; zero tofu-estate labels, and every field app writes owned by stock's default manager Terraform, read from metadata.managedFields with kubectl; the same two roots cold-deployed by stock on a second cluster as every later stage's oracle"
 

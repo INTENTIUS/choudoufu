@@ -107,6 +107,7 @@ fail() {
   exit 1
 }
 cleanup() {
+  gauntlet_sides_stop
   gauntlet_kind_down "$CLUSTER_A"
   gauntlet_kind_down "$CLUSTER_B"
   rm -rf "$WORK"
@@ -240,13 +241,22 @@ PY
 # ── 1. cold_deploy: stock stands the root up on A (and B, the oracle) ────
 gauntlet_begin_stage cold_deploy
 log "=== 1. cold_deploy: two kind clusters, stock terraform applies the published root on each ==="
+gauntlet_side_start kind_b gauntlet_kind_up "$CLUSTER_B" "$KCB"  # B comes up while A does (#2037)
 gauntlet_kind_up "$CLUSTER_A" "$KCA" || fail "kind cluster A ($CLUSTER_A) did not come up"
-gauntlet_kind_up "$CLUSTER_B" "$KCB" || fail "kind cluster B ($CLUSTER_B) did not come up"
+gauntlet_side_wait kind_b || fail "kind cluster B ($CLUSTER_B) did not come up"
 export KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA"
 log "  cluster A: $(kca version 2>/dev/null | grep -i server | head -1); cluster B: $CLUSTER_B"
 write_root "$STOCK" stock
 write_root "$ORACLE" stock
 ( cd "$STOCK/terraform" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on A"
+( stock_b init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on B"
+# Stock's cold deploy on B, the oracle, runs while A's does (#2037): its own
+# root and kubeconfig, its init done above, joined where it used to run.
+oracle_cold_deploy() {
+  export KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB"
+  { APPLY_OUT="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "Apply complete! Resources: 26 added" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "stock cold deploy failed on B"; }
+}
+gauntlet_side_start oracle_cold oracle_cold_deploy
 COLD_OUT="$(cd "$STOCK/terraform" && terraform apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$COLD_OUT" | tail -20; fail "stock cold deploy failed on A"; }
 grep -qF "Apply complete! Resources: 26 added, 0 changed, 0 destroyed" <<< "$COLD_OUT" || { printf '%s\n' "$COLD_OUT" | tail -5; fail "stock cold deploy did not add exactly 26 objects on A"; }
 STOCK_N="$(cd "$STOCK/terraform" && terraform state list | wc -l | tr -d ' ')"
@@ -255,8 +265,7 @@ UNMARKED="$(count_a)"
 [ "$UNMARKED" = "0" ] || fail "$UNMARKED object(s) already carry tofu-estate=$ESTATE after a plain stock apply"
 inventory "$KCA" > "$WORK/inventory.stock.json" || fail "could not read the cold-deployed inventory on A"
 RUNNING="$(kca get pods -n "$NS" --no-headers 2>/dev/null | grep -c Running)"
-( stock_b init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on B"
-{ APPLY_OUT="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "Apply complete! Resources: 26 added" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "stock cold deploy failed on B"; }
+gauntlet_side_wait oracle_cold || fail "$GAUNTLET_SIDE_FAIL"
 gauntlet_stage cold_deploy pass "26 objects (namespace, 7 Deployments, 8 Services, a StatefulSet, 2 ConfigMaps, 3 Secrets, a ServiceAccount, a ClusterRoleBinding) from plain terraform on the unmodified published root plus its deltas (kubeconfig lines dropped, placeholder Grafana Cloud values, Alloy's rollout not awaited), against kind $(kca version 2>/dev/null | gauntlet_k8s_server_version); a real terraform.tfstate with 26 instances, zero tofu-estate labels, $RUNNING pod(s) Running (Alloy errors on the placeholder Grafana Cloud token, by design); the identical root cold-deployed by stock on a second cluster as every later stage's oracle"
 
 # ── 2. migrate ────────────────────────────────────────────────────────────

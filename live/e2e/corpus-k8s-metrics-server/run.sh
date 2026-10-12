@@ -115,6 +115,7 @@ fail() {
   exit 1
 }
 cleanup() {
+  gauntlet_sides_stop
   gauntlet_kind_down "$CLUSTER_A"
   gauntlet_kind_down "$CLUSTER_B"
   rm -rf "$WORK"
@@ -294,8 +295,9 @@ PY
 # ── 1. cold_deploy: stock stands the root up on A (and B, the oracle) ────
 gauntlet_begin_stage cold_deploy
 log "=== 1. cold_deploy: two kind clusters, stock terraform applies the cut-out root on each ==="
+gauntlet_side_start kind_b gauntlet_kind_up "$CLUSTER_B" "$KCB"  # B comes up while A does (#2037)
 gauntlet_kind_up "$CLUSTER_A" "$KCA" || fail "kind cluster A ($CLUSTER_A) did not come up"
-gauntlet_kind_up "$CLUSTER_B" "$KCB" || fail "kind cluster B ($CLUSTER_B) did not come up"
+gauntlet_side_wait kind_b || fail "kind cluster B ($CLUSTER_B) did not come up"
 export KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA"
 K8S_SERVER="$(kca version 2>/dev/null | gauntlet_k8s_server_version)"
 log "  cluster A: $K8S_SERVER; cluster B: $CLUSTER_B"
@@ -307,6 +309,18 @@ log "  kube-system baseline on A: $(wc -l < "$WORK/baseline.a" | tr -d ' ') obje
 write_root "$STOCK" stock
 write_root "$ORACLE" stock
 ( cd "$STOCK" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on A"
+( cd "$ORACLE" && export KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on B"
+# Stock's cold deploy and wait on B, the oracle, run while A's do (#2037):
+# its own root and kubeconfig, its init done above, joined where it used to
+# run.
+oracle_cold_deploy() {
+  export KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB"
+  B_COLD="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$B_COLD" | tail -20; fail "stock cold deploy failed on B"; }
+  grep -qF "Apply complete! Resources: 9 added, 0 changed, 0 destroyed" <<< "$B_COLD" || fail "stock cold deploy did not add exactly 9 objects on B"
+  gauntlet_wait_until 240 "$APISVC Available=True on B" -- apisvc_is "$KCB" True \
+    || fail "the aggregated API $APISVC never reported Available on B after stock's apply"
+}
+gauntlet_side_start oracle_cold oracle_cold_deploy
 COLD_OUT="$(stock_a apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$COLD_OUT" | tail -20; fail "stock cold deploy failed on A"; }
 grep -qF "Apply complete! Resources: 9 added, 0 changed, 0 destroyed" <<< "$COLD_OUT" || { printf '%s\n' "$COLD_OUT" | tail -5; fail "stock cold deploy did not add exactly 9 objects on A"; }
 STOCK_N="$(stock_a state list | wc -l | tr -d ' ')"
@@ -317,11 +331,7 @@ gauntlet_wait_until 240 "$APISVC Available=True on A" -- apisvc_is "$KCA" True \
   || fail "the aggregated API $APISVC never reported Available on A after stock's apply"
 metrics_served "$KCA" || fail "$APISVC reports Available but /apis/metrics.k8s.io/v1beta1 does not answer on A"
 inventory "$KCA" > "$WORK/inventory.stock.json" || fail "could not read the cold-deployed inventory on A"
-( cd "$ORACLE" && export KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on B"
-B_COLD="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$B_COLD" | tail -20; fail "stock cold deploy failed on B"; }
-grep -qF "Apply complete! Resources: 9 added, 0 changed, 0 destroyed" <<< "$B_COLD" || fail "stock cold deploy did not add exactly 9 objects on B"
-gauntlet_wait_until 240 "$APISVC Available=True on B" -- apisvc_is "$KCB" True \
-  || fail "the aggregated API $APISVC never reported Available on B after stock's apply"
+gauntlet_side_wait oracle_cold || fail "$GAUNTLET_SIDE_FAIL"
 gauntlet_stage cold_deploy pass "9 objects (two ClusterRoles, two ClusterRoleBindings, a RoleBinding, a ServiceAccount, a Deployment and a Service in kube-system, and the APIService $APISVC) from plain terraform on k8s.io's own metrics-server.tf at $PIN_COMMIT plus its deltas (cut out of kops-infra-ci with a kind-pointed provider block, --kubelet-insecure-tls), against kind $K8S_SERVER; a real terraform.tfstate with 9 instances, zero tofu-estate labels; the APIService reports Available=True and /apis/metrics.k8s.io/v1beta1 answers through the API server; kube-system's own objects read beforehand as the teardown's baseline; the identical root cold-deployed by stock on a second cluster as every later stage's oracle"
 
 # ── 2. migrate ────────────────────────────────────────────────────────────
