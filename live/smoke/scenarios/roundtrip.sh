@@ -1,5 +1,5 @@
 # roundtrip
-# CLAIM 6 (aws) - One command in, one file out. ~3 min.
+# CLAIM 6 (aws) - Stock in, stock out, whenever you need it. ~3 min.
 #
 # This proof: The roundtrip: one command in, one file out. A stock estate is
 # adopted with live-import and handed back as a stock state file.

@@ -296,7 +296,7 @@ the record store attests while the run's own listing proves it exists);
 everything else still reads. The state cache supplies attributes for what is
 vouched, the plan launcher never plans those wire reads, and `reads = "full"`
 turns the whole pass off. The
-[unchanged-is-free claim](../smoke/claims/unchanged-is-free.md)
+[unchanged-is-free proof](../smoke/claims/staleness-costs-reads.md#on-aws) of claim 3
 measures it; default plans are untouched, since the read is drift detection.
 
 ### The native leg is flat across slices but not across scale

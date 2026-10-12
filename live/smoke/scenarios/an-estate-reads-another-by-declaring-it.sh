@@ -1,5 +1,5 @@
 # an-estate-reads-another-by-declaring-it
-# CLAIM 44 (aws) - Reading another estate is declared. ~3 min.
+# CLAIM 28 (aws) - An estate reaches only its own records, and what it declares. ~3 min.
 #
 # This proof: An estate reads another estate's outputs only by declaring the
 # read: the plan says how old the value is, a destroyed producer's values

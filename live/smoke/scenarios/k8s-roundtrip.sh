@@ -1,5 +1,5 @@
 # k8s-roundtrip
-# CLAIM 6 (kubernetes) - One command in, one file out. ~2 min.
+# CLAIM 6 (kubernetes) - Stock in, stock out, whenever you need it. ~2 min.
 #
 # This proof: an estate stock Terraform stood up on a real cluster is adopted
 # with one live-import, runs with its state file deleted, and is handed back

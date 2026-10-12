@@ -26,8 +26,9 @@ import (
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
-// These are claim 44's Kubernetes cell at unit scale (live/smoke/claims.json,
-// "Reading another estate is declared"): a read of another estate's outputs
+// These are claim 28's Kubernetes cell at unit scale (live/smoke/claims.json,
+// "An estate reaches only its own records, and what it declares", which
+// claim 44 "Reading another estate is declared" merged into): a read of another estate's outputs
 // through record_store "kubernetes" happens only when the record_store block
 // declares it, goes to the other estate's namespace and nowhere else, can
 // only read, and a refusal by the cluster's RBAC names the Role that grants

@@ -1,5 +1,5 @@
 # a-read-only-role-can-plan
-# CLAIM 28 (aws) - An estate reaches only its own records (REAL AWS, maintainer-run). ~6 min.
+# CLAIM 28 (aws) - An estate reaches only its own records, and what it declares (REAL AWS, maintainer-run). ~6 min.
 #
 # This proof: A role with the read-only policy plans an established estate
 # and writes nothing, and a store with no sentinel is still refused by name.

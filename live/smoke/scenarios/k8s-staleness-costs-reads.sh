@@ -1,5 +1,5 @@
 # k8s-staleness-costs-reads
-# CLAIM 3 (kubernetes) - The cache never changes an answer. ~3 min.
+# CLAIM 3 (kubernetes) - The cache changes the cost, never the answer. ~3 min.
 #
 # This proof: a cache that remembers a dead world, a cache that remembers an
 # object that exists nowhere, and no cache at all each give the plan a fresh
@@ -13,8 +13,8 @@
 #
 # What is not here, and why. The AWS proof's step 4 measures the one path
 # that serves a result from the cache, plan -refresh=false, and counts the
-# reads it saves. On Kubernetes that path is claim 9's proof
-# (k8s-unchanged-is-free), which counts the hits and the requests saved
+# reads it saves. On Kubernetes that path is the claim's other proof
+# (k8s-unchanged-is-free, claim 9 until it merged into claim 3), which counts the hits and the requests saved
 # since the sweep began vouching for declared objects (#1860). What this
 # claim promises, that no cache state changes the answer, does not depend
 # on it.

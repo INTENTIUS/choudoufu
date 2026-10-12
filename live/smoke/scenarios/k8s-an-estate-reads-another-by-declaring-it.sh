@@ -1,5 +1,5 @@
 # k8s-an-estate-reads-another-by-declaring-it
-# CLAIM 44 (kubernetes) - Reading another estate is declared. ~1 min.
+# CLAIM 28 (kubernetes) - An estate reaches only its own records, and what it declares. ~1 min.
 #
 # This proof: on record_store "kubernetes", an estate reads another estate's
 # outputs only by declaring the read in its record_store block

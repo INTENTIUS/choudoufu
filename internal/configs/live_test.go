@@ -614,7 +614,7 @@ func TestModule_liveRecordStore(t *testing.T) {
 		}
 	})
 
-	// Claim 44 on Kubernetes: reads_outputs_of declares another estate's
+	// Claim 28 on Kubernetes (claim 44 until it merged there): reads_outputs_of declares another estate's
 	// outputs as read, defaulting to that estate's own records namespace.
 	t.Run("kubernetes with reads_outputs_of", func(t *testing.T) {
 		mod, diags := testModuleFromDir("testdata/valid-modules/live-record-store-kubernetes-reads-outputs-of")
@@ -898,7 +898,7 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 		{"testdata/invalid-files/live-record-store-kubernetes-control-plane-wrong-provider-arg.tf", `The "resource_group" argument has no meaning for control_plane "eks"`},
 		{"testdata/invalid-files/live-record-store-kubernetes-control-plane-twice.tf", "Duplicate control_plane block"},
 		{"testdata/invalid-files/live-record-store-control-plane-on-local.tf", `has no meaning for record_store "local"`},
-		// Claim 44 on Kubernetes. reads_outputs_of is the kubernetes store's
+		// Claim 28 on Kubernetes (claim 44 until it merged there). reads_outputs_of is the kubernetes store's
 		// declaration; on s3 the same read is the bucket policy's, and the
 		// refusal says so. One block per estate, a real namespace, and an
 		// estate name that can be a label value.

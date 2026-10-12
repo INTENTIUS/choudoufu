@@ -621,8 +621,8 @@ func helmNotInManifestDiag(objs []kubesweep.HeldObject) tfdiags.Diagnostics {
 //
 // Before this the join recorded nothing for a declared object - it was
 // skipped as "not an orphan" - so no Kubernetes instance was ever vouched
-// and an unchanged estate's second plan paid every read (claim 9,
-// live/smoke/drafts/k8s-unchanged-is-free.sh).
+// and an unchanged estate's second plan paid every read (claim 9 then,
+// part of claim 3 now: live/smoke/scenarios/k8s-unchanged-is-free.sh).
 //
 // The evidence is the same grade the AWS legs vouch on. The list that
 // returned the object was label-selected on this estate's tofu-estate

@@ -1,5 +1,5 @@
 # unchanged-is-free
-# CLAIM 9 (aws) - Unchanged is free. ~3 min.
+# CLAIM 3 (aws) - The cache changes the cost, never the answer. ~3 min.
 #
 # This proof: Unchanged is free: re-planning what did not change costs no
 # reads where a vouch stands in, the estate can refuse with one argument,

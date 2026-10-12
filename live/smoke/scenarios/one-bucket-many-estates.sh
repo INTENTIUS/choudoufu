@@ -1,5 +1,5 @@
 # one-bucket-many-estates
-# CLAIM 28 (aws) - An estate reaches only its own records (REAL AWS, maintainer-run). ~6 min.
+# CLAIM 28 (aws) - An estate reaches only its own records, and what it declares (REAL AWS, maintainer-run). ~6 min.
 #
 # This proof: One bucket, many estates: reading a neighbour's records takes
 # two mistakes, not one.
@@ -179,7 +179,7 @@ DEP_MISSCOPED="$("$POLICY_RENDERER" smoke-a "$BUCKET" --reads-outputs-of smoke-b
 role_with_policy "$ROLE_A" "$DEP_MISSCOPED" "$BUCKET" || fail "manyestates" "could not install the mis-scoped dependency policy"
 must_allow "a reads b's outputs, dependency declared, prefix mis-scoped" "$ROLE_A" get-object --bucket "$BUCKET" --key "$B_OUTPUT" "$SMOKE_WORK/o"
 must_deny "a reads b's RECORDS, dependency declared, prefix mis-scoped" "$ROLE_A" get-object --bucket "$BUCKET" --key "$B_RECORD" "$SMOKE_WORK/o"
-proof "outputs and nothing else. What is there to read is what the other estate wrote: its root output values, never one marked sensitive. The read that uses this grant is a consumer's data \"terraform_estate_outputs\" block naming the other estate; claim 44 runs it."
+proof "outputs and nothing else. What is there to read is what the other estate wrote: its root output values, never one marked sensitive. The read that uses this grant is a consumer's data \"terraform_estate_outputs\" block naming the other estate; an-estate-reads-another-by-declaring-it runs it."
 
 step "6. teardown"
 role_with_policy "$ROLE_A" "$("$POLICY_RENDERER" smoke-a "$BUCKET")" "$BUCKET" || true

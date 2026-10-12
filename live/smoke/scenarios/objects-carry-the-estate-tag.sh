@@ -1,5 +1,5 @@
 # objects-carry-the-estate-tag
-# CLAIM 28 (aws) - An estate reaches only its own records (REAL AWS, maintainer-run). ~5 min.
+# CLAIM 28 (aws) - An estate reaches only its own records, and what it declares (REAL AWS, maintainer-run). ~5 min.
 #
 # This proof: Every record store object carries its estate's tag, and the
 # tag is load-bearing.

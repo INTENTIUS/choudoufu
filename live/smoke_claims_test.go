@@ -65,13 +65,27 @@ type smokeClaimsFile struct {
 // scenario registered in some cell ("a-killed-apply-hides-nothing") or a
 // gauntlet stage ("<estate>:<stage id>"). Claim and Provider still say
 // where the number's URL lands.
+//
+// MergedInto is for a whole claim folded into another live claim: its
+// statement nested inside the survivor's, its proofs moved into the
+// survivor's cells, and its page became a stub pointing at the survivor's
+// page. It names no provider, because every cell moved.
 type smokeRetired struct {
-	ID        int    `json:"id"`
-	Slug      string `json:"slug"`
-	Claim     int    `json:"claim"`
-	Provider  string `json:"provider"`
-	Demo      bool   `json:"demo"`
-	CoveredBy string `json:"covered_by"`
+	ID         int    `json:"id"`
+	Slug       string `json:"slug"`
+	Claim      int    `json:"claim"`
+	Provider   string `json:"provider"`
+	Demo       bool   `json:"demo"`
+	CoveredBy  string `json:"covered_by"`
+	MergedInto int    `json:"merged_into"`
+}
+
+// target is the live claim a retired number's URL lands on.
+func (r smokeRetired) target() int {
+	if r.MergedInto != 0 {
+		return r.MergedInto
+	}
+	return r.Claim
 }
 
 type smokeClaim struct {
@@ -281,6 +295,15 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 			}
 			if !demos[r.Slug] {
 				t.Errorf("retired claim %d says it became a demo, and %s lists no demo %s.sh", r.ID, smokeClaimsPath, r.Slug)
+			}
+			continue
+		}
+		if r.MergedInto != 0 {
+			if r.Claim != 0 || r.Provider != "" || r.CoveredBy != "" {
+				t.Errorf("retired claim %d is merged_into %d and also names claim %d, provider %q or covered_by %q; a merged claim moved whole, so it names only the claim it moved into", r.ID, r.MergedInto, r.Claim, r.Provider, r.CoveredBy)
+			}
+			if _, ok := byID[r.MergedInto]; !ok {
+				t.Errorf("retired claim %d says it was merged into claim %d, which is not a claim", r.ID, r.MergedInto)
 			}
 			continue
 		}
@@ -980,6 +1003,9 @@ func TestSmokeClaimsSiteCopyAndPages(t *testing.T) {
 			continue
 		}
 		want := bySlugID[r.Claim] + ".md#on-" + strings.ToLower(smokeProviderNames[r.Provider])
+		if r.MergedInto != 0 {
+			want = bySlugID[r.MergedInto] + ".md"
+		}
 		if !strings.Contains(string(raw), "("+want+")") {
 			t.Errorf("%s/%s.md is not a stub for retired claim %d linking to %s", siteClaimsPages, r.Slug, r.ID, want)
 		}
@@ -1029,12 +1055,12 @@ func TestSmokeClaimsSiteRedirects(t *testing.T) {
 			continue
 		}
 		if _, err := os.Stat(filepath.Join(siteClaimsStubs, r.Slug+".md")); err == nil {
-			t.Errorf("retired claim %d still has its own stub at %s/%s.md; its URL is an alias on claim %d's stub", r.ID, siteClaimsStubs, r.Slug, r.Claim)
+			t.Errorf("retired claim %d still has its own stub at %s/%s.md; its URL is an alias on claim %d's stub", r.ID, siteClaimsStubs, r.Slug, r.target())
 		}
-		stub := filepath.Join(siteClaimsStubs, bySlugID[r.Claim]+".md")
+		stub := filepath.Join(siteClaimsStubs, bySlugID[r.target()]+".md")
 		raw, err := os.ReadFile(stub)
 		if err != nil {
-			t.Errorf("retired claim %d: claim %d has no stub at %s to carry its alias: %v", r.ID, r.Claim, stub, err)
+			t.Errorf("retired claim %d: claim %d has no stub at %s to carry its alias: %v", r.ID, r.target(), stub, err)
 			continue
 		}
 		front, _, _ := strings.Cut(strings.TrimPrefix(string(raw), "---\n"), "\n---\n")
