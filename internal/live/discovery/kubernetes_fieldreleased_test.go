@@ -40,16 +40,19 @@ func TestReleasedFieldGranularWriteIsNoOrphan(t *testing.T) {
 	for _, c := range []struct {
 		name, apiVersion, kind, fields string
 		want                           string
+		taintsReleased                 bool
 	}{
-		{"released annotations", "storage.k8s.io/v1", "StorageClass", `{"f:metadata":{"f:annotations":{}}}`, ""},
-		{"held annotation", "storage.k8s.io/v1", "StorageClass", `{"f:metadata":{"f:annotations":{"f:storageclass.kubernetes.io/is-default-class":{}}}}`, "kubernetes_annotations"},
-		{"released data", "v1", "ConfigMap", `{"f:data":{}}`, ""},
-		{"held data", "v1", "ConfigMap", `{"f:data":{"f:k":{}}}`, "kubernetes_config_map_v1_data"},
-		{"released env", "apps/v1", "Deployment", `{"f:spec":{"f:template":{"f:spec":{"f:containers":{"k:{\"name\":\"web\"}":{".":{},"f:name":{},"f:env":{}}}}}}}`, ""},
-		{"held env", "apps/v1", "Deployment", `{"f:spec":{"f:template":{"f:spec":{"f:containers":{"k:{\"name\":\"web\"}":{".":{},"f:name":{},"f:env":{"k:{\"name\":\"A\"}":{".":{},"f:name":{},"f:value":{}}}}}}}}}`, "kubernetes_env"},
-		{"atomic taints", "v1", "Node", `{"f:spec":{"f:taints":{}}}`, "kubernetes_node_taint"},
+		{"released annotations", "storage.k8s.io/v1", "StorageClass", `{"f:metadata":{"f:annotations":{}}}`, "", false},
+		{"held annotation", "storage.k8s.io/v1", "StorageClass", `{"f:metadata":{"f:annotations":{"f:storageclass.kubernetes.io/is-default-class":{}}}}`, "kubernetes_annotations", false},
+		{"released data", "v1", "ConfigMap", `{"f:data":{}}`, "", false},
+		{"held data", "v1", "ConfigMap", `{"f:data":{"f:k":{}}}`, "kubernetes_config_map_v1_data", false},
+		{"released env", "apps/v1", "Deployment", `{"f:spec":{"f:template":{"f:spec":{"f:containers":{"k:{\"name\":\"web\"}":{".":{},"f:name":{},"f:env":{}}}}}}}`, "", false},
+		{"held env", "apps/v1", "Deployment", `{"f:spec":{"f:template":{"f:spec":{"f:containers":{"k:{\"name\":\"web\"}":{".":{},"f:name":{},"f:env":{"k:{\"name\":\"A\"}":{".":{},"f:name":{},"f:value":{}}}}}}}}}`, "kubernetes_env", false},
+		{"atomic taints", "v1", "Node", `{"f:spec":{"f:taints":{}}}`, "kubernetes_node_taint", false},
+		// #1917: the same leaf over a Node whose taints read back empty.
+		{"released atomic taints", "v1", "Node", `{"f:spec":{"f:taints":{}}}`, "", true},
 	} {
-		got := matchFieldGranular(types, c.apiVersion, c.kind, []byte(c.fields))
+		got := matchFieldGranular(types, c.apiVersion, c.kind, []byte(c.fields), c.taintsReleased)
 		switch {
 		case c.want == "" && len(got) != 0:
 			t.Errorf("%s: matched %s; a manager owning only an empty container owns no field", c.name, got[0].t.TypeName)

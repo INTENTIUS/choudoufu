@@ -42,6 +42,7 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 - Changed: CI now runs only gofmt, the Go unit tier and the ci-pipelines
   example's tests. The smoke, claims and gauntlet workflows are deleted; the
   scripts remain for running by hand.
+- Fixed: a released `kubernetes_node_taint` no longer reads as held. A Node's `spec.taints` is an atomic list, so its manager's managedFields entry is the same leaf before and after a release; the sweep and the plan-time field-owner check now read the Node's taints back and treat that leaf over an empty list as owning nothing, so a removed block files no `orphan_<node>` and its estate is not named as the owner of another estate's taint (#1917).
 - Docs: live/RECOVERY.md says what a killed apply costs in residue: the re-run proposes one update for an instance whose step had returned, and records the residue then (#1953, ruled B: residue stays a final-pass write).
 
 ## choudoufu v0.26.0 (2026-10-11)
