@@ -243,9 +243,9 @@ func NewWithMetadata(disc discovery.DiscoveryInterface, dyn dynamic.Interface, m
 // filed under that built-in's type with the wrong import id -
 // [servesBuiltinKind] is the group half of the join). A kind served by
 // more than one group (Event in the core group and in events.k8s.io) is
-// listed once per group, since those are distinct resources; a kind
-// served at more than one version within a group is listed at the
-// group's preferred version only, since those are one resource.
+// listed once per group, since those are distinct resources; a resource
+// served at more than one version within a group is listed once, since
+// those are one resource, at the version [preferredVersions] picks.
 func (c *Client) Kinds(ctx context.Context, typeNames []string, manifestType string) ([]Kind, []string, error) {
 	memoKey := manifestType + "\x00" + strings.Join(typeNames, "\x00")
 	c.kindsMu.Lock()
@@ -280,12 +280,7 @@ func (c *Client) kinds(_ context.Context, typeNames []string, manifestType strin
 		// is fatal here.
 		return nil, nil, fmt.Errorf("API discovery: %w", c.creds.explain(err))
 	}
-	preferred := map[string]string{} // group -> its preferred GroupVersion
-	for _, g := range groups {
-		if g != nil {
-			preferred[g.Name] = g.PreferredVersion.GroupVersion
-		}
-	}
+	chosen := preferredVersions(groups, lists)
 	served := map[string]bool{}
 	var kinds []Kind
 	for _, list := range lists {
@@ -296,12 +291,12 @@ func (c *Client) kinds(_ context.Context, typeNames []string, manifestType strin
 		if gvErr != nil {
 			continue
 		}
-		if want, ok := preferred[gv.Group]; ok && want != list.GroupVersion {
-			continue
-		}
 		for _, r := range list.APIResources {
 			if strings.Contains(r.Name, "/") {
 				continue // a subresource: pods/status, deployments/scale
+			}
+			if chosen[schema.GroupResource{Group: gv.Group, Resource: r.Name}] != list.GroupVersion {
+				continue // the same resource, listed at another version
 			}
 			if !hasVerb(r.Verbs, "list") || !hasVerb(r.Verbs, "delete") {
 				continue
@@ -355,6 +350,77 @@ func (c *Client) kinds(_ context.Context, typeNames []string, manifestType strin
 	}
 	sort.Strings(unserved)
 	return kinds, unserved, nil
+}
+
+// preferredVersions picks, for every resource the cluster serves, the one
+// GroupVersion it is listed at: its group's preferred version when that
+// version serves it, and otherwise the first version the server ranks for
+// the group that does. client-go's ServerPreferredResources and kubectl
+// make the same choice.
+//
+// GitHub issue #2006: the group's preferred version alone is not enough,
+// because a CRD group's versions are per resource. kyverno.io prefers v2
+// and serves ClusterPolicy at v1 only; metallb.io prefers v1beta2 and
+// serves IPAddressPool at v1beta1 only. Listing each group at its preferred
+// version skipped those kinds entirely, so a removed for_each key's object
+// of one was never listed, never an orphan, and never destroyed.
+//
+// A group missing from groups (its discovery failed in part) has no rank;
+// its versions are compared as strings, so the choice is still one
+// version per resource and the same on every run.
+func preferredVersions(groups []*metav1.APIGroup, lists []*metav1.APIResourceList) map[schema.GroupResource]string {
+	preferred := map[string]string{}    // group -> its preferred GroupVersion
+	rank := map[string]map[string]int{} // group -> GroupVersion -> server order
+	for _, g := range groups {
+		if g == nil {
+			continue
+		}
+		preferred[g.Name] = g.PreferredVersion.GroupVersion
+		rank[g.Name] = map[string]int{}
+		for i, v := range g.Versions {
+			if _, seen := rank[g.Name][v.GroupVersion]; !seen {
+				rank[g.Name][v.GroupVersion] = i
+			}
+		}
+	}
+	better := func(group, candidate, current string) bool {
+		switch {
+		case current == preferred[group]:
+			return false
+		case candidate == preferred[group]:
+			return true
+		}
+		rc, okc := rank[group][candidate]
+		ru, oku := rank[group][current]
+		switch {
+		case okc && oku:
+			return rc < ru
+		case okc != oku:
+			return okc
+		default:
+			return candidate < current
+		}
+	}
+	chosen := map[schema.GroupResource]string{}
+	for _, list := range lists {
+		if list == nil {
+			continue
+		}
+		gv, err := schema.ParseGroupVersion(list.GroupVersion)
+		if err != nil {
+			continue
+		}
+		for _, r := range list.APIResources {
+			if strings.Contains(r.Name, "/") {
+				continue
+			}
+			gr := schema.GroupResource{Group: gv.Group, Resource: r.Name}
+			if current, ok := chosen[gr]; !ok || better(gv.Group, list.GroupVersion, current) {
+				chosen[gr] = list.GroupVersion
+			}
+		}
+	}
+	return chosen
 }
 
 // List implements [Sweeper]: one cluster-wide, label-selected list.
