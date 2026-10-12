@@ -59,9 +59,13 @@ func TestFieldOwnersNamesWhoOwnsWhat(t *testing.T) {
 
 // TestFieldOwnersReadsAnAtomicListAsOwnedWhole: a Node's spec.taints is
 // atomic, which managedFields records as one leaf; every manager holding
-// it owns the whole list, whatever members the write names.
+// it owns the whole list, whatever members the write names, while the
+// list holds anything.
 func TestFieldOwnersReadsAnAtomicListAsOwnedWhole(t *testing.T) {
 	obj := fmObject(fmEntry("choudoufu:a", "", `{"f:spec":{"f:taints":{}}}`))
+	if err := unstructured.SetNestedSlice(obj.Object, []any{map[string]any{"key": "k", "effect": "NoSchedule"}}, "spec", "taints"); err != nil {
+		t.Fatal(err)
+	}
 	write := FieldWrite{Root: []string{"f:spec", "f:taints"}, Members: []string{ListItemMember(map[string]string{"key": "k", "effect": "NoSchedule"})}, Atomic: true}
 	got := FieldOwners(obj, write, "choudoufu:me")
 	if len(got) != 1 || got[0].Manager != "choudoufu:a" || !got[0].Atomic {
@@ -112,5 +116,25 @@ func TestFieldOwnersSkipsAReleasedEntry(t *testing.T) {
 	want := []FieldOwner{{Manager: "choudoufu:holder", Members: []string{"f:k"}}}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("FieldOwners =\n %+v\nwant\n %+v: a released entry owns no key", got, want)
+	}
+}
+
+// TestFieldOwnersSkipsAReleasedAtomicList (#1917): releasing a
+// kubernetes_node_taint block applies the empty list under its manager,
+// which leaves the same memberless spec.taints leaf a held list does. Over
+// a Node whose taints are empty that leaf owns nothing, so the released
+// estate is not named as the owner of a taint another estate writes next.
+func TestFieldOwnersSkipsAReleasedAtomicList(t *testing.T) {
+	write := FieldWrite{Root: TaintsRoot, Members: []string{ListItemMember(map[string]string{"key": "k", "effect": "NoSchedule"})}, Atomic: true}
+	for name, taints := range map[string]any{"absent": nil, "empty": []any{}} {
+		obj := fmObject(fmEntry("choudoufu:released", "", `{"f:spec":{"f:taints":{}}}`))
+		if taints != nil {
+			if err := unstructured.SetNestedField(obj.Object, taints, "spec", "taints"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := FieldOwners(obj, write, "choudoufu:me"); len(got) != 0 {
+			t.Errorf("%s taints: FieldOwners = %+v, want none: a released atomic leaf owns nothing", name, got)
+		}
 	}
 }

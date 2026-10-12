@@ -270,8 +270,10 @@ type fieldGranularMatch struct {
 
 // matchFieldGranular is every type in types that explains part of what
 // fields - one manager's FieldsV1 on an object of kind at apiVersion -
-// owns.
-func matchFieldGranular(types []FieldGranularType, apiVersion, kind string, fields []byte) []fieldGranularMatch {
+// owns. taintsReleased is true when the live object's taints were read
+// back empty, so a memberless taints leaf is a release's and owns nothing
+// ([taintsReleased]).
+func matchFieldGranular(types []FieldGranularType, apiVersion, kind string, fields []byte, taintsReleased bool) []fieldGranularMatch {
 	var out []fieldGranularMatch
 	for _, t := range types {
 		if !t.NamesKind && (t.FixedKind != kind || t.FixedAPIVersion != apiVersion) {
@@ -289,7 +291,9 @@ func matchFieldGranular(types []FieldGranularType, apiVersion, kind string, fiel
 			}
 		}
 		if t.Taint {
-			if members, atomic, found := kubesweep.OwnedAt(fields, kubesweep.TaintsRoot); found && (len(members) > 0 || atomic) {
+			// spec.taints is atomic: held and released leave the same
+			// memberless leaf, told apart by the live list (#1917).
+			if members, atomic, found := kubesweep.OwnedAt(fields, kubesweep.TaintsRoot); found && (len(members) > 0 || (atomic && !taintsReleased)) {
 				owns = true
 			}
 		}
@@ -312,6 +316,39 @@ func matchFieldGranular(types []FieldGranularType, apiVersion, kind string, fiel
 		}
 	}
 	return out
+}
+
+// taintsReleased reports whether o is an object on which the manager owns
+// spec.taints only as the memberless leaf an atomic list records, and
+// whose taints read back empty. managedFields cannot tell a held atomic
+// list from a released one (#1917): the release applies the empty list and
+// leaves the same leaf. The live list can, so the object is read back -
+// one GET, paid only for an object the manager holds that leaf on, and
+// only when a declared type writes taints. A client that cannot read an
+// object, or a read that fails, leaves the leaf read as held, which is
+// what the sweep did before: the orphan's own read then reports it absent.
+func (leg KubernetesSweep) taintsReleased(ctx context.Context, o kubesweep.FieldManagedObject) bool {
+	taint := false
+	for _, t := range leg.FieldGranular {
+		if t.Taint && (t.NamesKind || (t.FixedKind == o.Kind && t.FixedAPIVersion == o.APIVersion)) {
+			taint = true
+		}
+	}
+	if !taint {
+		return false
+	}
+	if members, atomic, found := kubesweep.OwnedAt(o.Fields, kubesweep.TaintsRoot); !found || !atomic || len(members) > 0 {
+		return false
+	}
+	reader, ok := leg.Client.(kubesweep.ObjectReader)
+	if !ok {
+		return false
+	}
+	obj, found, err := reader.ReadObject(ctx, kubesweep.ObjectRef{APIVersion: o.APIVersion, Kind: o.Kind, Namespace: o.Namespace, Name: o.Name})
+	if err != nil || !found {
+		return false
+	}
+	return kubesweep.AtomicReleased(obj, kubesweep.TaintsRoot)
 }
 
 // sweepFieldGranular is the leg; see this file's doc comment. kinds is the
@@ -428,8 +465,9 @@ func (leg KubernetesSweep) sweepFieldGranular(ctx context.Context, req Request, 
 				// nothing on it.
 				continue
 			}
+			released := leg.taintsReleased(ctx, o)
 			if declared[key] {
-				for _, m := range matchFieldGranular(leg.FieldGranular, o.APIVersion, o.Kind, o.Fields) {
+				for _, m := range matchFieldGranular(leg.FieldGranular, o.APIVersion, o.Kind, o.Fields, released) {
 					if heldOn[key] == nil {
 						heldOn[key] = map[string]bool{}
 					}
@@ -437,7 +475,7 @@ func (leg KubernetesSweep) sweepFieldGranular(ctx context.Context, req Request, 
 				}
 				continue
 			}
-			matches := matchFieldGranular(leg.FieldGranular, o.APIVersion, o.Kind, o.Fields)
+			matches := matchFieldGranular(leg.FieldGranular, o.APIVersion, o.Kind, o.Fields, released)
 			what := o.Kind + " " + kubesweep.NaturalKey(o.Namespace, o.Name)
 			switch {
 			case len(matches) == 0:

@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"sort"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -41,7 +42,10 @@ import (
 //
 // Atomic is true when Root may be an atomic list - a Node's spec.taints -
 // which managedFields records as one leaf with no members, so a manager
-// holding that leaf owns the write whole. Every other root is granular: a
+// holding that leaf owns the write whole while the list holds anything.
+// A release (an apply of the empty list) leaves the same leaf behind, so a
+// leaf over an empty live value owns nothing (#1917): [AtomicReleased].
+// Every other root is granular: a
 // leaf with no members there is what a release leaves behind (an apply of
 // the empty map or env list, #1885) and owns nothing.
 type FieldWrite struct {
@@ -79,6 +83,11 @@ func FieldOwners(obj *unstructured.Unstructured, write FieldWrite, exclude strin
 		}
 		members, atomic, found := fieldsAt(entry.FieldsV1.Raw, write.Root)
 		if !found || (atomic && !write.Atomic) {
+			continue
+		}
+		if atomic && AtomicReleased(obj, write.Root) {
+			// The leaf a release leaves behind, or one over a list
+			// nothing has written since: owns no member (#1917).
 			continue
 		}
 		var owned []string
@@ -139,6 +148,40 @@ func fieldsAt(raw []byte, path []string) (members map[string]bool, atomic bool, 
 		members[k] = true
 	}
 	return members, len(members) == 0, true
+}
+
+// AtomicReleased reports whether obj's value at root - a FieldsV1 path of
+// "f:" steps - is absent or empty. For an atomic list that is how a
+// released manager's leaf is told from a held one (#1917): managedFields
+// records both as the same memberless leaf, but an apply of the empty list
+// leaves the list empty, and any later write of a member by another
+// manager - an Update, or a forced Apply - takes the leaf away from it.
+// So a manager still holding the leaf over a non-empty list wrote that
+// list, and one holding it over an empty one owns nothing. False for a
+// path with any other kind of step, which this cannot read.
+func AtomicReleased(obj *unstructured.Unstructured, root []string) bool {
+	if obj == nil || len(root) == 0 {
+		return false
+	}
+	fields := make([]string, len(root))
+	for i, step := range root {
+		name, ok := strings.CutPrefix(step, "f:")
+		if !ok {
+			return false
+		}
+		fields[i] = name
+	}
+	v, found, err := unstructured.NestedFieldNoCopy(obj.Object, fields...)
+	if err != nil || !found || v == nil {
+		return err == nil
+	}
+	switch v := v.(type) {
+	case []any:
+		return len(v) == 0
+	case map[string]any:
+		return len(v) == 0
+	}
+	return false
 }
 
 // MapMember is the FieldsV1 spelling of a map key.
