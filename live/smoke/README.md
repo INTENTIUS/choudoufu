@@ -641,8 +641,7 @@ showing its own checks would have caught it.
   reporting success with the queue on 90. Needs python3.
 
 - **cas-holds-under-every-sse-flavour** - *Claim 2 (claim 33 until #1817): compare-and-swap
-  holds under every SSE flavour.* **Real AWS, maintainer-run, not in
-  CI**: it refuses to start without `SMOKE_REAL_AWS=1`, because an
+  holds under every SSE flavour.* **Real AWS, maintainer-run**: it refuses to start without `SMOKE_REAL_AWS=1`, because an
   emulator does not reproduce the ETag semantics it measures. It creates
   a bucket per flavour (SSE-S3, SSE-KMS with the AWS-managed key, SSE-KMS
   with a customer managed key, DSSE-KMS) and one KMS key, or reuses
@@ -820,7 +819,16 @@ or any `BREAK_<NAME>=1`) in which no control printed a `-> caught` proof
 line ends on `FAIL [<name>]: no '-> caught' line ...`. The convention
 every scenario follows: a control arm ends with `proof "caught ..."`, and
 then either exits 0 or runs on into the steps it shares with the main
-arm. CI reads the run's log for those lines rather than the exit code,
-through `live/smoke/ci-run.sh`, and `bash live/smoke/selftest-verdict.sh`
-proves each shape against stubs in a few seconds; `go test ./live/` runs
-it.
+arm. `live/smoke/ci-run.sh --check <scenario> <log>` reads a saved log for
+those lines rather than the exit code, and `bash
+live/smoke/selftest-verdict.sh` proves each shape against stubs in a few
+seconds; `go test ./live/` runs it.
+
+No workflow runs a claim scenario: #2018 deleted the three that did. A
+proof counts toward its cell only through a dated run, which is a
+`live/smoke/evidence/<name>.lastrun.json` written from the two logs of a
+hand run (the main arm and `BREAK=1`) with a `date` field, or a gauntlet
+stage the cell cites as `<estate>:<stage id>` while that stage reads pass
+in `live/gauntlet.json`. A cell with any proof lacking both reads
+`unproven` in `claims.json`, and `live/proven_cell_ci_test.go` fails the
+day a cell says otherwise.

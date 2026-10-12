@@ -22,8 +22,9 @@ against and passes only by catching it.
 
 {{< claims-table >}}
 
-Every AWS cell is proven. The Kubernetes column is what the [Kubernetes
-proof page]({{< relref "/kubernetes/proof" >}}) explains.
+A cell reads proven on a dated run of every proof in it, and unproven
+until then. The Kubernetes column is what the [Kubernetes proof
+page]({{< relref "/kubernetes/proof" >}}) explains.
 
 ## Real estates through fixed stages
 

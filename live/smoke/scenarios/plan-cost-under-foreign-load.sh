@@ -15,9 +15,9 @@
 #   FOREIGN_SCALE=50             3,705 of them; a long run, not a smoke run
 #   OWNED_SCALE=1     (default)  the estate itself, 74N + 5 resources
 #
-# The foreign estate is MARKED, not unmarked. plan-cost-tracks-the-estate.sh
-# makes its eight foreign resources foreign by applying them under a second
-# `live { estate = ... }`, and this scenario matches it: an absent marker is
+# The foreign estate is MARKED, not unmarked: it is applied under a second
+# `live { estate = ... }`, as plan-cost-tracks-the-estate.sh did before #1817
+# folded it into this scenario. An absent marker is
 # excluded by the tag sweep's server-side filter for free, while a marker
 # naming another estate has to be fetched and rejected, which is the harder
 # case and the one an operator actually has.
@@ -73,8 +73,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
 LOGS="$SMOKE_WORKROOT/foreignload-logs"; mkdir -p "$LOGS"
 
 # planplan runs one plan with the debug log captured and prints the number of
-# requests it put on the wire. Same counter plan-cost-tracks-the-estate.sh
-# uses, for the same reason: cost is measured in API calls, the work that
+# requests it put on the wire. Cost is measured in API calls, the work that
 # actually scales, and "HTTP Request Sent" is the one line both the AWS
 # provider's own logger and choudoufu's Cloud Control and Tagging clients
 # emit per request (internal/live/cloudcontrol/client.go).
