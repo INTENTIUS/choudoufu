@@ -13,9 +13,12 @@ import (
 	"testing"
 )
 
-// iamReadOnlyScript is the estate whose test_apply passed on
-// "genuine no-op: 0 objects before, 0 after" (#1275).
-const iamReadOnlyScript = "live/e2e/corpus-iam-read-only-policy/run.sh"
+// iamPolicyScript carries test_apply_count_verdict. The function was
+// written for corpus-iam-read-only-policy, whose test_apply passed on
+// "genuine no-op: 0 objects before, 0 after" (#1275); that estate was
+// deleted in the estate audit of 2026-10-11 and the verdict moved here,
+// where #1271 was the same defect over two policies.
+const iamPolicyScript = "live/e2e/corpus-iam-policy/run.sh"
 
 // testApplyCountVerdictFn lifts test_apply_count_verdict out of the
 // committed script, the way greenfieldVerdictFn does for #1204, so the arms
@@ -24,13 +27,13 @@ const iamReadOnlyScript = "live/e2e/corpus-iam-read-only-policy/run.sh"
 // through the function: either would leave this test driving dead code.
 func testApplyCountVerdictFn(t *testing.T) string {
 	t.Helper()
-	path := filepath.Join(testRoot(t), filepath.FromSlash(iamReadOnlyScript))
+	path := filepath.Join(testRoot(t), filepath.FromSlash(iamPolicyScript))
 	b, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("reading %s: %v", path, err)
 	}
 	script := string(b)
-	if !strings.Contains(script, `TA_VERDICT="$(test_apply_count_verdict "$BEFORE_N" "$AFTER_N" 1)" \`) {
+	if !strings.Contains(script, `TA_VERDICT="$(test_apply_count_verdict "$BEFORE_N" "$AFTER_N" 2)" \`) {
 		t.Fatalf("%s no longer composes test_apply's verdict through test_apply_count_verdict; this test would be driving dead code", path)
 	}
 	if !strings.Contains(script, `gauntlet_stage test_apply pass "$TA_VERDICT`) {
@@ -79,56 +82,56 @@ func driveTestApplyCountVerdict(t *testing.T, before, after, want string) (strin
 // stage promises - that a no-op apply was observed over the objects migrate
 // stamped - and not from the function's implementation.
 func TestTestApplyVerdictRefusesAZeroCount(t *testing.T) {
-	t.Run("the real case: one object on both sides passes and says so", func(t *testing.T) {
-		got, ok := driveTestApplyCountVerdict(t, "1", "1", "1")
+	t.Run("the real case: both policies on both sides passes and says so", func(t *testing.T) {
+		got, ok := driveTestApplyCountVerdict(t, "2", "2", "2")
 		if !ok {
-			t.Fatalf("one stamped object seen before and after is a no-op and the verdict failed it:\n%s", got)
+			t.Fatalf("two stamped objects seen before and after is a no-op and the verdict failed it:\n%s", got)
 		}
-		if got != "genuine no-op: 1 objects before, 1 after" {
+		if got != "genuine no-op: 2 objects before, 2 after" {
 			t.Errorf("unexpected pass sentence: %q", got)
 		}
 	})
 
 	t.Run("zero on both sides is the defect, not a no-op", func(t *testing.T) {
-		got, ok := driveTestApplyCountVerdict(t, "0", "0", "1")
+		got, ok := driveTestApplyCountVerdict(t, "0", "0", "2")
 		if ok {
-			t.Fatalf("0 = 0 passed - this is #1275, the committed row's own sentence:\n%s", got)
+			t.Fatalf("0 = 0 passed - this is #1275, the deleted read-only row's own sentence:\n%s", got)
 		}
 		if strings.Contains(got, "genuine no-op") {
 			t.Errorf("a zero count is spoken as a no-op observation:\n%s", got)
 		}
-		if !strings.Contains(got, "counted 0") || !strings.Contains(got, "migrate stamped 1") {
+		if !strings.Contains(got, "counted 0") || !strings.Contains(got, "migrate stamped 2") {
 			t.Errorf("the verdict does not say what it failed to see:\n%s", got)
 		}
 	})
 
-	t.Run("the BREAK_BEFORE shape: 0 before, 1 after", func(t *testing.T) {
-		got, ok := driveTestApplyCountVerdict(t, "0", "1", "1")
+	t.Run("a zero before count: 0 before, 2 after", func(t *testing.T) {
+		got, ok := driveTestApplyCountVerdict(t, "0", "2", "2")
 		if ok || !strings.Contains(got, "counted 0") {
 			t.Errorf("a zero BEFORE count did not fail on the zero:\n%s", got)
 		}
 	})
 
-	t.Run("the BREAK_NOOP shape: 1 before, 0 after", func(t *testing.T) {
-		got, ok := driveTestApplyCountVerdict(t, "1", "0", "1")
+	t.Run("the BREAK_NOOP shape: 2 before, 1 after", func(t *testing.T) {
+		got, ok := driveTestApplyCountVerdict(t, "2", "1", "2")
 		if ok {
 			t.Fatalf("a marker lost across the apply passed:\n%s", got)
 		}
-		if !strings.Contains(got, "changed across a no-op apply: 1 -> 0") {
+		if !strings.Contains(got, "changed across a no-op apply: 2 -> 1") {
 			t.Errorf("the verdict does not name the change:\n%s", got)
 		}
 	})
 
 	t.Run("a count that is not what migrate stamped fails even when equal", func(t *testing.T) {
-		got, ok := driveTestApplyCountVerdict(t, "2", "2", "1")
-		if ok || !strings.Contains(got, "expected 1") {
-			t.Errorf("2 = 2 against 1 stamped passed or did not say why:\n%s", got)
+		got, ok := driveTestApplyCountVerdict(t, "3", "3", "2")
+		if ok || !strings.Contains(got, "expected 2") {
+			t.Errorf("3 = 3 against 2 stamped passed or did not say why:\n%s", got)
 		}
 	})
 
 	t.Run("an empty or non-numeric count is a read that never ran", func(t *testing.T) {
-		for _, c := range [][2]string{{"", "1"}, {"1", ""}, {"unknown", "unknown"}} {
-			got, ok := driveTestApplyCountVerdict(t, c[0], c[1], "1")
+		for _, c := range [][2]string{{"", "2"}, {"2", ""}, {"unknown", "unknown"}} {
+			got, ok := driveTestApplyCountVerdict(t, c[0], c[1], "2")
 			if ok || !strings.Contains(got, "not a number") {
 				t.Errorf("before=%q after=%q passed or did not say the read never ran:\n%s", c[0], c[1], got)
 			}

@@ -145,11 +145,6 @@ var estateSpecs = []estateSpec{
 		Note:       `run.sh SRC_EXAMPLE="$ROOT/.corpus/iam/examples/iam-policy".`,
 	},
 	{
-		Name:       "corpus-iam-read-only-policy",
-		ConfigDirs: []string{".corpus/iam/examples/iam-read-only-policy"},
-		Note:       `run.sh SRC_EXAMPLE="$CORPUS_DIR/iam/examples/iam-read-only-policy".`,
-	},
-	{
 		Name:       "corpus-lambda-simple",
 		ConfigDirs: []string{".corpus/lambda/examples/simple"},
 		Note:       `run.sh SRC_EXAMPLE="$ROOT/.corpus/lambda/examples/simple" (SRC_FIXTURES holds only a zip fixture, no .tf).`,

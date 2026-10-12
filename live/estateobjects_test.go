@@ -471,6 +471,11 @@ func TestGauntletEstateObjectsIsDocumentedWhereItLives(t *testing.T) {
 // each has to keep a control that can make its own count fail - not just
 // the comparison wrapped around it, which is how BREAK_GREEN went red for
 // years while the number it compared was structurally 0.
+//
+// corpus-iam-read-only-policy carried the same guard for #1275 until the
+// estate audit of 2026-10-11 deleted it; this test is the one left, and
+// tools/gauntlet/iampolicy_counts_test.go drives the #1275 verdict that
+// moved into this script.
 func TestCorpusIAMPolicyCountsThroughTheIAMRoute(t *testing.T) {
 	full := readScript(t, "e2e/corpus-iam-policy/run.sh")
 	// Comments are stripped before the code checks below: the fix's own
@@ -499,37 +504,5 @@ func TestCorpusIAMPolicyCountsThroughTheIAMRoute(t *testing.T) {
 	// The `|| echo 0` tail turned an unreachable endpoint into a pass.
 	if strings.Contains(src, "|| echo 0") {
 		t.Errorf("live/e2e/corpus-iam-policy/run.sh still swallows a failed inventory read into a literal 0 (#1271)")
-	}
-}
-
-// TestCorpusIAMReadOnlyPolicyCountsThroughTheIAMRoute is #1275, the same
-// guard as TestCorpusIAMPolicyCountsThroughTheIAMRoute for the estate the
-// #1271 survey found with the identical defect: one aws_iam_policy in
-// eu-west-1, where GetResources returns nothing for it on this pin, counted
-// three times through GetResources alone with a `|| echo 0` tail.
-func TestCorpusIAMReadOnlyPolicyCountsThroughTheIAMRoute(t *testing.T) {
-	full := readScript(t, "e2e/corpus-iam-read-only-policy/run.sh")
-	var code []string
-	for _, line := range strings.Split(full, "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "#") {
-			continue
-		}
-		code = append(code, line)
-	}
-	src := strings.Join(code, "\n")
-	if strings.Contains(src, "gauntlet_tagged_count") {
-		t.Errorf("live/e2e/corpus-iam-read-only-policy/run.sh still counts through gauntlet_tagged_count (resourcegroupstaggingapi get-resources), which returns 0 for this estate's eu-west-1 aws_iam_policy (#1275)")
-	}
-	// Three call sites plus one re-read per count-moving control.
-	if n := strings.Count(src, "gauntlet_estate_objects "); n < 3 {
-		t.Errorf("the script calls gauntlet_estate_objects %d times; #1275 names three call sites (cold_deploy, test_apply before, test_apply after)", n)
-	}
-	for _, control := range []string{"BREAK_UNMARKED", "BREAK_BEFORE", "BREAK_NOOP"} {
-		if strings.Count(full, control) < 2 || !strings.Contains(src, control) {
-			t.Errorf("the %s control is not both documented and implemented in live/e2e/corpus-iam-read-only-policy/run.sh", control)
-		}
-	}
-	if strings.Contains(src, "|| echo 0") {
-		t.Errorf("live/e2e/corpus-iam-read-only-policy/run.sh still swallows a failed inventory read into a literal 0 (#1275)")
 	}
 }
