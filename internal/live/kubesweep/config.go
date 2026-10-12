@@ -163,6 +163,34 @@ func overlay(cfg *restclient.Config, a Attrs) *restclient.Config {
 	if a.Exec != nil && a.Exec.Command != "" {
 		cfg.ExecProvider = execProvider(a.Exec)
 	}
+	return withRateLimits(cfg)
+}
+
+// SweepQPS and SweepBurst are the client-side rate limits every client
+// built from [RestConfig] or [New] runs under, kubectl's own for discovery
+// (its ConfigFlags set QPS 50, burst 300).
+//
+// Left at zero, client-go gives each client its own 5 QPS, burst 10 token
+// bucket. A sweep is a List per kind the cluster serves, about 60 on a
+// bare kind cluster and a hundred once a chart's CRDs are in, all against
+// one API server in one burst, so under those defaults it spent 18 of its
+// 18 seconds waiting on its own limiter, every plan and every apply. The
+// server's own API Priority and Fairness is what protects it from load;
+// these bound a runaway loop, not a sweep.
+const (
+	SweepQPS   = 50
+	SweepBurst = 300
+)
+
+// withRateLimits sets [SweepQPS] and [SweepBurst] where cfg leaves them
+// unset, and keeps whatever a caller chose.
+func withRateLimits(cfg *restclient.Config) *restclient.Config {
+	if cfg.QPS == 0 {
+		cfg.QPS = SweepQPS
+	}
+	if cfg.Burst == 0 {
+		cfg.Burst = SweepBurst
+	}
 	return cfg
 }
 

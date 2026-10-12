@@ -208,8 +208,11 @@ type Client struct {
 // stderr, timestamped, in the middle of a plan the user did not ask about
 // those kinds in. Stock surfaces no such line: the provider's own client
 // logs them, and only under TF_LOG.
+//
+// A config with QPS or Burst unset gets [SweepQPS] and [SweepBurst], since
+// the one sweep is a List per kind the cluster serves.
 func New(cfg *restclient.Config) (*Client, error) {
-	cfg = restclient.CopyConfig(cfg)
+	cfg = withRateLimits(restclient.CopyConfig(cfg))
 	cfg.WarningHandler = restclient.NoWarnings{}
 	creds := CredentialsOf(cfg)
 	disc, err := discovery.NewDiscoveryClientForConfig(cfg)
