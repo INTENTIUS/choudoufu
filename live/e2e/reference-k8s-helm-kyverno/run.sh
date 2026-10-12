@@ -453,6 +453,35 @@ late_addr() { printf 'kubernetes_manifest.late["Deployment/%s/%s"]' "$NS" "$1"; 
 policy_addr() { printf 'kubernetes_manifest.policies["%s"]' "$1"; }
 # planned <plan>: the addresses a plan proposes something for, one per line.
 planned() { grep -E '^[[:space:]]*# .+ (will be|must be)' <<< "$1" | sed -E 's/^[[:space:]]*# //; s/ (will be|must be).*$//'; }
+# recorded_only_updates <plan>: one line per in-place update of a
+# kubernetes_manifest, "<address>: <member>[, <member>]", naming the
+# top-level attributes and blocks its diff touches. wait, timeouts and
+# field_manager are config-only: the record holds them as residue, and with
+# the record lost the plan proposes writing them back once (#2014, ruled A;
+# #1953). Returns 1 when any update touches anything else - manifest and
+# object included - or names no member it can read.
+recorded_only_updates() {
+  awk '
+    function indent(s) { match(s, /^[ \t]*/); return RLENGTH }
+    function flush() {
+      if (addr == "") return
+      if (members == "") { members = "?"; bad = 1 }
+      print addr ": " members
+      addr = ""; members = ""
+    }
+    /^[ \t]*# .* (will be|must be)/ || /^Plan:/ { flush(); inb = 0 }
+    /^[ \t]*# kubernetes_manifest\..* will be updated in-place/ {
+      addr = $0; sub(/^[ \t]*# /, "", addr); sub(/ will be updated in-place.*$/, "", addr)
+      inb = 1; at = indent($0) + 4; next
+    }
+    inb && indent($0) == at && /^[ \t]*[-+~] +[A-Za-z_]/ {
+      m = $0; sub(/^[ \t]*[-+~] +/, "", m); sub(/[^A-Za-z0-9_].*$/, "", m)
+      members = members (members == "" ? "" : ", ") m
+      if (m != "wait" && m != "timeouts" && m != "field_manager") bad = 1
+    }
+    END { flush(); exit bad }
+  ' <<< "$1"
+}
 # destroyed <plan>, created <plan>: the addresses a plan destroys or creates,
 # sorted, one per line; joined <lines>: the same on one line, "; "-separated.
 destroyed() { { grep -E '^[[:space:]]*# .+ will be destroyed' <<< "$1" || true; } | sed -E 's/^[[:space:]]*# //; s/ will be destroyed.*$//' | sort; }
@@ -1195,6 +1224,11 @@ grep -q "No changes." <<< "$G_PLAN2" || { printf '%s\n' "$G_PLAN2" | tail -20; f
 # removing nothing. The one typed resource here, the Namespace, may record
 # residue of its own; an in-place update is reported against it by name and
 # reconverged, never a create or a destroy.
+# A kubernetes_manifest whose record held a config-only block (wait,
+# timeouts, field_manager) has that residue proposed again as an in-place
+# update; it is reported by address and block, reconverged the same way,
+# and the replan after must be empty (#2014, ruled A). Any change to
+# manifest or object still fails.
 [ "$G_RECORDS" -ge "$MANIFEST_N" ] || fail "the greenfield record store holds $G_RECORDS record envelope(s); every one of the $MANIFEST_N applied kubernetes_manifest instances owes one (#1211), so the lost-store control below would delete a store that is not full"
 rm -rf "$GREEN/.tofu-records" "$GREEN/.terraform/choudoufu-cache.tfstate"
 L_PLAN="$(green plan -input=false -no-color 2>&1)"; L_RC=$?
@@ -1203,12 +1237,15 @@ L_LINE="$(grep -E '^Plan:|^No changes' <<< "$L_PLAN" | head -1 | sed 's/\.$//')"
 L_GONE="$(grep -cE '^[[:space:]]*# .* will be (created|destroyed|replaced)|must be replaced' <<< "$L_PLAN")"
 [ "$L_GONE" = "0" ] || { printf '%s\n' "$L_PLAN" | grep -E 'will be|must be' | head -20
   fail "with the whole record store deleted the plan proposes $L_GONE create/destroy/replace(s) ($L_LINE) - the objects are not being found by their label and their namespace and name alone"; }
-L_MANIFEST_UPDATES="$(grep -cE '^[[:space:]]*# kubernetes_manifest\..* will be updated in-place' <<< "$L_PLAN")"
-[ "$L_MANIFEST_UPDATES" = "0" ] || { printf '%s\n' "$L_PLAN" | grep -E 'will be' | head -20
-  fail "with the record store deleted the plan proposes $L_MANIFEST_UPDATES in-place update(s) of kubernetes_manifest instances, whose records hold declared metadata KEY SETS and no residue values (#1211) - a missing key set proposes removing nothing"; }
+L_RECORDED="$(recorded_only_updates "$L_PLAN")" || { printf '%s\n' "$L_PLAN" | grep -E 'will be' | head -20
+  fail "with the record store deleted the plan proposes in-place update(s) of kubernetes_manifest instances that touch more than the recorded-only blocks wait, timeouts and field_manager ($(tr '\n' ';' <<< "$L_RECORDED" | sed -E 's/;$//; s/;/; /g')) - their records hold declared metadata KEY SETS (#1211), and a missing key set proposes removing nothing; only config-only residue is written back (#2014)"; }
+L_RECORDED="$(tr '\n' ';' <<< "$L_RECORDED" | sed -E 's/;$//; s/;/; /g')"
+[ -z "$L_RECORDED" ] || log "  lost store: recorded-only block(s) proposed again, to be reconverged (#2014): $L_RECORDED"
 L_OTHER="$(planned "$L_PLAN" | tr '\n' ';' | sed -E 's/;$//; s/;/; /g')"
 if [ -n "$L_OTHER" ]; then
   quiet green apply -auto-approve -input=false -no-color || fail "the converging apply after the lost store failed"
+  L_REPLAN="$(green plan -input=false -no-color 2>&1)" || { printf '%s\n' "$L_REPLAN" | tail -30; fail "the replan after the converging apply failed"; }
+  grep -q "No changes." <<< "$L_REPLAN" || { printf '%s\n' "$L_REPLAN" | grep -E 'will be|must be|^Plan:' | head -20; fail "the converging apply after the lost store did not converge: its replan is not empty ($(grep -E '^Plan:' <<< "$L_REPLAN" | head -1))"; }
 fi
 log "  lost store: $L_LINE${L_OTHER:+ ($L_OTHER, reconverged)}"
 G_WANT="$TOTAL_N"; [ "${BREAK:-}" = "1" ] && G_WANT=$((TOTAL_N + 1))
@@ -1219,7 +1256,7 @@ if [ "${BREAK:-}" = "1" ]; then
   gauntlet_stage greenfield pass "BREAK=1 control: expecting $G_WANT labelled objects where the estate has $G_LABELLED makes the count assertion correctly fail; the estate applied ($REST_N added after the pre-apply, no terraform.tfstate) and replanned empty with and without the cache"
 else
   [ "$G_LABELLED" = "$TOTAL_N" ] || fail "$G_LABELLED object(s) carry tofu-estate=$ESTATE after the greenfield apply, want $TOTAL_N: $(for k in $KINDS; do kca get "$k" -A -l "tofu-estate=$ESTATE" -o name 2>/dev/null; done | tr '\n' ' ')"
-  gauntlet_stage greenfield pass "$TOTAL_N objects applied fresh with a live block and no terraform.tfstate - the render read by the data-read phase before the plan, the same declared pre-apply the cold deploy took ($PRE_N instances), then $REST_N, the ClusterPolicy after the controllers' rollout - every one labelled tofu-estate=$ESTATE (kubectl, $N_KINDS kinds), the four Deployments Available, kyverno's TLS Secret and policy webhook present and choudoufu-shard-0 Ready; replanned empty with and without the cache; the record store held $G_RECORDS envelope(s) for $TOTAL_N instances, and with that whole store deleted the plan read \"$L_LINE\", nothing created, destroyed or replaced and no kubernetes_manifest updated${L_OTHER:+ (proposed and reconverged: $L_OTHER)}. BREAK=1 expects a deliberately wrong object count and the assertion correctly fails"
+  gauntlet_stage greenfield pass "$TOTAL_N objects applied fresh with a live block and no terraform.tfstate - the render read by the data-read phase before the plan, the same declared pre-apply the cold deploy took ($PRE_N instances), then $REST_N, the ClusterPolicy after the controllers' rollout - every one labelled tofu-estate=$ESTATE (kubectl, $N_KINDS kinds), the four Deployments Available, kyverno's TLS Secret and policy webhook present and choudoufu-shard-0 Ready; replanned empty with and without the cache; the record store held $G_RECORDS envelope(s) for $TOTAL_N instances, and with that whole store deleted the plan read \"$L_LINE\", nothing created, destroyed or replaced and no kubernetes_manifest's manifest or object updated${L_RECORDED:+, recorded-only blocks written back ($L_RECORDED)}${L_OTHER:+ (proposed, reconverged and replanned empty: $L_OTHER)}. BREAK=1 expects a deliberately wrong object count and the assertion correctly fails"
 fi
 # ── no_local_state (#1966): the record store and the cache both gone ────
 # live/e2e/lib/gauntlet.sh's gauntlet_kind_no_local_state; its Break line
