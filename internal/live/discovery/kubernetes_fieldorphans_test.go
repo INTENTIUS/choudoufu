@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/intentius/choudoufu/internal/addrs"
@@ -320,5 +321,56 @@ func TestFieldGranularSweepRunsForARecordedInstanceOnlyOverItsKinds(t *testing.T
 	}
 	if len(res.Orphans) == 0 {
 		t.Error("the dropped block's fields were not found")
+	}
+}
+
+// readingFieldStubSweeper is a [fieldStubSweeper] that also reads objects
+// back, as [kubesweep.Client] does.
+type readingFieldStubSweeper struct {
+	*fieldStubSweeper
+	objects map[string]*unstructured.Unstructured // by name
+	reads   []string
+}
+
+func (s *readingFieldStubSweeper) ReadObject(_ context.Context, ref kubesweep.ObjectRef) (*unstructured.Unstructured, bool, error) {
+	s.reads = append(s.reads, ref.Kind+" "+ref.Name)
+	obj, ok := s.objects[ref.Name]
+	return obj, ok, nil
+}
+
+// TestFieldGranularSweepSkipsAReleasedNodeTaint (#1917): spec.taints is an
+// atomic list, so a removed kubernetes_node_taint block's release - an
+// apply of the empty list - leaves its manager the same memberless leaf a
+// held block has. The Node's own taints tell them apart: read back empty,
+// the leaf owns nothing and files no orphan; read back holding a taint,
+// the block's taint is still there and is an orphan as before.
+func TestFieldGranularSweepSkipsAReleasedNodeTaint(t *testing.T) {
+	base, kinds := fieldSweepFixture()
+	base.managed["Node"] = append(base.managed["Node"], managedObj("v1", "Node", "", "worker-2", `{"f:spec":{"f:taints":{}}}`))
+	released := &unstructured.Unstructured{Object: map[string]any{"apiVersion": "v1", "kind": "Node", "metadata": map[string]any{"name": "worker-1"}}}
+	held := &unstructured.Unstructured{Object: map[string]any{"apiVersion": "v1", "kind": "Node", "metadata": map[string]any{"name": "worker-2"},
+		"spec": map[string]any{"taints": []any{map[string]any{"key": "dedicated", "value": "db", "effect": "NoSchedule"}}}}}
+	s := &readingFieldStubSweeper{fieldStubSweeper: base, objects: map[string]*unstructured.Unstructured{"worker-1": released, "worker-2": held}}
+	leg := KubernetesSweep{Client: s, FieldGranular: testFieldGranularTypes}
+	// One declared field-granular block, so the estate pays for the scan.
+	req := Request{Estate: "e", Resolutions: []identity.Resolution{
+		{Addr: k8sInstance(t, "kubernetes_annotations", "kept"), Class: identity.ClassConcrete, ImportID: "apiVersion=v1,kind=ConfigMap,namespace=ns,name=kept"},
+	}}
+	res := &Result{}
+	if diags := leg.sweepFieldGranular(context.Background(), req, kinds, res); diags.HasErrors() {
+		t.Fatalf("unexpected errors: %s", diags.Err())
+	}
+	var taints []string
+	for _, o := range res.Orphans {
+		if o.TypeName == "kubernetes_node_taint" {
+			addr, _ := UnescapeAddress(o.Normalized)
+			taints = append(taints, addr.String())
+		}
+	}
+	if want := []string{"kubernetes_node_taint.orphan_worker-2"}; !reflect.DeepEqual(taints, want) {
+		t.Errorf("node taint orphans = %v, want %v: worker-1's taints are empty, so its leaf is a release's", taints, want)
+	}
+	if want := []string{"Node worker-1", "Node worker-2"}; !reflect.DeepEqual(s.reads, want) {
+		t.Errorf("objects read back = %v, want only the two Nodes the manager holds a taints leaf on", s.reads)
 	}
 }
