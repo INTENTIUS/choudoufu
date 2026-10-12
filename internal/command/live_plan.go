@@ -1094,7 +1094,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// create beside a genuine lookalike is still a create, and this only
 	// makes sure the warning sits right above it.
 	if classified != nil {
-		liveView.Lookalikes(liveLookalikeReport(foreign.Lookalikes(foreignReq, classified, livePlannedCreates(plan))))
+		liveView.Lookalikes(liveLookalikeReport(foreign.Lookalikes(foreignReq, classified, livePlannedCreates(plan)), livePostCreateMarker(config, resourceSchemas, markerFacts())))
 	}
 
 	// GitHub issue #1002: which instances declared_tagged = "untag" really
@@ -2825,8 +2825,9 @@ func livePlannedCreates(plan *plans.Plan) []addrs.AbsResourceInstance {
 // liveLookalikeReport converts the lookalike guard's findings into the
 // view's wire format, the same split [liveForeignReport] and
 // [liveUnownedReport] keep: data across the package boundary, never
-// rendered text.
-func liveLookalikeReport(warnings []foreign.Lookalike) []views.LiveLookalike {
+// rendered text. postCreate answers [views.LiveLookalike.PostCreateMarker]
+// per create; nil answers false for every one.
+func liveLookalikeReport(warnings []foreign.Lookalike, postCreate func(addrs.AbsResourceInstance) bool) []views.LiveLookalike {
 	if len(warnings) == 0 {
 		return nil
 	}
@@ -2837,18 +2838,43 @@ func liveLookalikeReport(warnings []foreign.Lookalike) []views.LiveLookalike {
 			matched = append(matched, views.LiveTag{Key: m.Attr, Value: m.Value})
 		}
 		out = append(out, views.LiveLookalike{
-			Addr:          w.Addr.String(),
-			TypeName:      w.TypeName,
-			LiveID:        w.LiveID,
-			DisplayName:   w.DisplayName,
-			Matched:       matched,
-			MarkerEstate:  w.MarkerEstate,
-			MarkerAddress: w.MarkerAddress,
-			Hint:          w.Hint,
-			HeldBy:        w.HeldBy,
+			Addr:             w.Addr.String(),
+			TypeName:         w.TypeName,
+			LiveID:           w.LiveID,
+			DisplayName:      w.DisplayName,
+			Matched:          matched,
+			MarkerEstate:     w.MarkerEstate,
+			MarkerAddress:    w.MarkerAddress,
+			Hint:             w.Hint,
+			HeldBy:           w.HeldBy,
+			PostCreateMarker: postCreate != nil && postCreate(w.Addr),
 		})
 	}
 	return out
+}
+
+// livePostCreateMarker answers, per planned create, whether its type's
+// create call withholds the marker so that it is written only after the
+// create returns (GitHub issue #1084): the same [substrate.PostCreateWrite]
+// question the create and write sides of the apply ask, with only the
+// address set as the create side asks it, so the lookalike warning cannot
+// disagree with what the apply will do. It names no type: at provider
+// 6.59.0 the AWS family answers true for aws_route53_zone and
+// aws_route53_health_check, the two declarable types whose CloudFormation
+// counterparts are tag_on_create false (GitHub issue #2009).
+func livePostCreateMarker(config *configs.Config, schemas map[string]providers.Schema, facts substrate.Facts) func(addrs.AbsResourceInstance) bool {
+	return func(addr addrs.AbsResourceInstance) bool {
+		schema, ok := schemas[addr.Resource.Resource.Type]
+		if !ok || schema.Block == nil {
+			return false
+		}
+		surface, ok := substrate.SurfaceOf(identity.ProviderTypeOf(config, addr), schema.Block)
+		if !ok {
+			return false
+		}
+		_, _, needed, _ := substrate.PostCreateWrite(surface, substrate.Created{Addr: addr}, facts)
+		return needed
+	}
 }
 
 func liveTags(tags []foreign.Tag) []views.LiveTag {

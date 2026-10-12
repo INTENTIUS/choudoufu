@@ -228,6 +228,15 @@ type LiveLookalike struct {
 	// controller-held resource is never offered for adoption, so this
 	// warning names it and stops there.
 	HeldBy string
+
+	// PostCreateMarker is set when the create's type cannot carry its
+	// markers in its create call, so they are written only once the create
+	// returns (GitHub issue #1084; the family's
+	// [substrate.PostCreateWrite]). An apply killed between the two leaves
+	// an object with no markers, and the warning says so (GitHub issue
+	// #2009): this guard cannot tell that object apart from any other
+	// unowned one.
+	PostCreateMarker bool
 }
 
 // LiveRemoval is one live resource this estate owns and no longer
@@ -1878,15 +1887,21 @@ func (v *LivePlanHuman) Lookalikes(items []LiveLookalike) {
 				l.Addr, liveIDOrNone(l.LiveID), l.HeldBy), 6)
 			continue
 		}
+		var found string
 		if len(l.Matched) > 0 {
 			out("      matched on: " + tagSummary(l.Matched, 0) + "\n")
-			wrapped(fmt.Sprintf(
-				"a live %s this estate does not own matches this create exactly (%s); if this create duplicates it, adopt instead:",
-				l.TypeName, liveIDOrNone(l.LiveID)), 6)
+			found = fmt.Sprintf("a live %s this estate does not own matches this create exactly (%s)", l.TypeName, liveIDOrNone(l.LiveID))
 		} else {
+			found = fmt.Sprintf("a live %s this estate does not own exists (%s)", l.TypeName, liveIDOrNone(l.LiveID))
+		}
+		if l.PostCreateMarker {
+			// GitHub issue #2009 (option D): no mechanism, only the
+			// plain statement of the window #1084 leaves open.
 			wrapped(fmt.Sprintf(
-				"a live %s this estate does not own exists (%s); if this create duplicates it, adopt instead:",
-				l.TypeName, liveIDOrNone(l.LiveID)), 6)
+				"%s. %s cannot take its tofu-estate and tofu-address tags in its create call; they are written only after the create returns, so an apply killed between the create and that write leaves an unmarked %s, which this check cannot tell apart from any other unowned one. If this create duplicates it, adopt instead:",
+				found, l.TypeName, l.TypeName), 6)
+		} else {
+			wrapped(found+"; if this create duplicates it, adopt instead:", 6)
 		}
 		if l.Hint != "" {
 			// Deliberately not word-wrapped, like every other adoption

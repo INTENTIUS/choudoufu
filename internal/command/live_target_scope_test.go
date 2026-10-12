@@ -136,6 +136,7 @@ var liveTargetScopeClassification = map[string]struct {
 	"liveOmissions":                       {notAPass, "renders"},
 	"liveOwnershipWith":                   {notAPass, "builds the ownership rule"},
 	"livePlannedCreates":                  {notAPass, "reads the plan"},
+	"livePostCreateMarker":                {notAPass, "answers per create the lookalike guard already found, from the schema and the registry; it reasons over nothing the run did not plan (#2009)"},
 	"livePolicyReport":                    {notAPass, "renders"},
 	"livePolicyTagKey":                    {notAPass, "reads a field"},
 	"livePolicyTagValue":                  {notAPass, "reads a field"},

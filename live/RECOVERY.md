@@ -63,6 +63,26 @@ have returned, and its `BREAK_EARLY_RECORD=1` arm, a binary that writes no
 record until the walk is over, duplicates the policy and regenerates the
 password.
 
+**The marker window.** Two declarable types, `aws_route53_zone` and
+`aws_route53_health_check`, cannot take tags in their create call: their
+CloudFormation counterparts read `tag_on_create: false` in
+`live/registry.json`, so the markers are written through the Tagging API
+only once the create returns (#1084). For a zone that return comes after the
+provider has waited for Route 53 to report the change `INSYNC`, 15.0s on
+floci; for a health check it is a few round trips. An apply killed in that
+window leaves a zone or health check with no markers and no record. The next
+plan proposes creating it again, and the re-run creates a second one beside
+the orphan. When the orphan is the only unowned object of its type, the
+plan's `[POSSIBLE DUPLICATE]` warning names it and says that a killed apply
+can leave exactly this object, though the check cannot tell it apart from
+any other unowned one. Recover by running the adopt command the warning
+prints, which writes the two tags, then plan again; the plan binds it and
+proposes no create. If the re-run has already applied, delete the unmarked
+one by hand, as Claim 5's step 6 does. With two or more unowned objects of
+the type the warning stays silent, and `choudoufu plan -filter unowned`
+lists them for you to choose from. Attributing the orphan to the killed run
+(an intent record plus CloudTrail) is deferred to #1119 (#2009).
+
 ## "Cannot carry a marker" is not the same as "needs a record"
 
 Worth separating before the numbers, because conflating the two badly
