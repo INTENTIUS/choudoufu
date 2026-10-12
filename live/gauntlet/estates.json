@@ -353,19 +353,6 @@
       "pre_apply_reason": "kubernetes_manifest builds an object's schema at PLAN time, so a root whose render carries the chart's own three CRDs and an AppProject and an Application of them cannot be planned against an empty cluster - the custom resources' kinds are not served until the CRDs exist, depends_on does not help, and re-running fails identically forever (#1173). The Namespace goes up with them because helm template renders none and the namespaced objects are dry-run into it at plan time. The main apply creates the other 49 rendered objects"
     },
     {
-      "name": "reference-k8s-helm-cert-manager",
-      "source": "jetstack cert-manager chart v1.21.2 from charts.jetstack.io (Apache-2.0, chart archive sha256 73a56e1728edd6c99f1f31082618c3259d279a76b7ebd3d4bdc5475c2442d34a, fetched and checked by run.sh) rendered client-side by hashicorp/helm's data \"helm_template\" - never helm_release - into four kubernetes_manifest blocks whose for_each splits and yamldecodes the render inside the for_each expression, keyed kind/namespace/name, with manifest = each.value (#1962): the chart's 6 CRDs, its 37 other installation objects, its 3 Deployments, and the 3 custom resources values.yaml declares through extraObjects (a ClusterIssuer and an Issuer both named selfsigned, and a Certificate), plus the Namespace - 50 objects over 14 kinds. The same software and version as reference-k8s-cert-manager: the render's 46 chart objects are that estate's bundle objects by kind, namespace and name, differing only by two Helm labels. Deltas in root/values.yaml: crds.enabled on, the startupapicheck hook Job off, the three custom resources. reference- because the root is ours (#1981, #1107's Helm surface)",
-      "lane": "kubernetes",
-      "set": "growing",
-      "pre_apply": [
-        "kubernetes_namespace_v1.cert_manager",
-        "kubernetes_manifest.crds",
-        "kubernetes_manifest.rest",
-        "kubernetes_manifest.late"
-      ],
-      "pre_apply_reason": "kubernetes_manifest builds an object's schema at PLAN time, so a root whose render carries the chart's own CRDs and custom resources of them cannot be planned against an empty cluster - depends_on does not help and re-running fails identically forever (#1173). On top of that both cert-manager webhooks are failurePolicy: Fail, so the validating webhook has to be SERVING, with the CA cainjector injects at runtime, before a custom resource can be admitted - including through the server-side dry run kubernetes_manifest does at plan time. The whole installation (the Namespace and the crds, rest and late blocks, 47 instances) therefore goes up first, with -target, on every side, as reference-k8s-cert-manager's 47 bundle addresses do; the three rendered custom resources are what the main apply creates"
-    },
-    {
       "name": "reference-k8s-helm-cloudnative-pg",
       "source": "cloudnative-pg 0.29.1, the CloudNativePG operator chart (operator 1.30.1, Apache-2.0, chart archive sha256 b53d3991fe84bcf38767e7702cae78666265427a127a26fff168ab4207d2b1df, fetched and checked by run.sh) rendered client-side by hashicorp/helm's data \"helm_template\" - never helm_release - into three kubernetes_manifest blocks whose for_each splits and yamldecodes the render inside the for_each expression, keyed kind/namespace/name, with manifest = each.value (#1962): the chart's 11 CRDs, its other 11 objects, and the operator Deployment with wait { rollout = true }; plus two Namespaces, one hand-written Cluster (instances 1, 1Gi) the operator turns into a Pod, a PersistentVolumeClaim, Secrets and Services nothing declares, and an ImageCatalog for_each day2_count scales - 26 objects over 12 kinds. The webhook PKI is the operator's own at runtime (its CA and serving Secrets, caBundle patched into the two declared webhook configurations); INHERITED_LABELS has it copy tofu-estate onto what it generates. Deltas in root/values.yaml: config.data given an entry (INHERITED_LABELS) so it is not an empty map, the mutating webhook's failurePolicy written out, the grafana dashboard ConfigMap on. reference- because the root is ours",
       "lane": "kubernetes",
@@ -429,17 +416,6 @@
       "pre_apply_reason": "kubernetes_manifest builds an object's schema at PLAN time, so a root declaring IPAddressPools and an L2Advertisement of the render's own CRDs cannot be planned against an empty cluster - the kinds are not served until the CRDs exist, depends_on does not help, and re-running fails identically forever (#1173). The rest of the render goes up with them because every IPAddressPool and L2Advertisement write, the plan-time server-side dry run included, goes through the MetalLB controller's failurePolicy: Fail webhook, which answers only once the controller runs and its cert rotator has minted the certificate; run.sh waits for that webhook to admit a dry-run IPAddressPool between the two applies, as reference-k8s-cert-manager does. The Namespace goes up with them because helm template renders none. The main apply creates the two custom resources"
     },
     {
-      "name": "reference-k8s-helm-sealed-secrets",
-      "source": "the sealed-secrets project's own chart, sealed-secrets 2.20.0 (controller 0.40.0, Apache-2.0, chart archive sha256 6092d219c697f3c9ae3a386ba24bfdd86877c5e2fc8892e2af8a810145b990ef from github.com/bitnami/sealed-secrets' helm-v2.20.0 release, the project formerly bitnami-labs and not bitnami/charts; fetched and checked by run.sh) rendered client-side by hashicorp/helm's data \"helm_template\" - never helm_release - into three kubernetes_manifest blocks whose for_each splits and yamldecodes the render inside the for_each expression, keyed kind/namespace/name, with manifest = each.value (#1962): the chart's one CRD, its RBAC, Services and a SealedSecret, then the controller's Deployment, plus the Namespace - 13 objects over 10 kinds, one name across four kinds, and a controller that generates its own key Secret nothing declares, names or owns. Deltas in root/values.yaml: kubeseal's controller name, a fixture annotation and container limits so no rendered key is empty, and a SealedSecret through extraDeploy whose ciphertext is deliberately not sealed to the per-cluster key; root/main.tf drops the probes' initialDelaySeconds: 0 and the Services' nodePort: null. reference- because the root is ours (#1107's Helm surface)",
-      "lane": "kubernetes",
-      "set": "growing",
-      "pre_apply": [
-        "kubernetes_namespace_v1.sealed_secrets",
-        "kubernetes_manifest.crds"
-      ],
-      "pre_apply_reason": "kubernetes_manifest builds an object's schema at PLAN time, so a root whose render carries the chart's own CRD and a SealedSecret of it cannot be planned against an empty cluster - the SealedSecret's kind is not served until the CRD exists, depends_on does not help, and re-running fails identically forever (#1173). The Namespace goes up with it because helm template renders none and the namespaced objects are dry-run into it at plan time. The main apply creates the other 11 rendered objects"
-    },
-    {
       "name": "reference-k8s-helm-template",
       "source": "prometheus-community kube-prometheus-stack 92.3.0 (Apache-2.0, chart archive sha256 48399b911fa91b353e0c3d5e32c1cb7a67a168566549723553154ffd7be5d1fa, fetched and checked by run.sh) rendered client-side by hashicorp/helm's data \"helm_template\" - never helm_release - into two kubernetes_manifest blocks whose for_each splits and yamldecodes the render inside the for_each expression, keyed kind/namespace/name, with manifest = each.value (#1962): the chart's 10 CRDs and its other 114 objects, plus the Namespace - 125 objects over 14 kinds, 50 of them custom resources of the render's own CRDs, 14 names shared across up to eight kinds, five Services in kube-system, and an operator generating StatefulSets, Secrets and a PersistentVolumeClaim nothing declares. Deltas in root/values.yaml: a fixed grafana admin password, grafana's test framework off, the operator's admission webhooks off, a 1Gi claim template on Prometheus. reference- because the root is ours (#1963, #1107's Helm surface)",
       "lane": "kubernetes",
@@ -449,17 +425,6 @@
         "kubernetes_manifest.crds"
       ],
       "pre_apply_reason": "kubernetes_manifest builds an object's schema at PLAN time, so a root whose render carries the chart's own CRDs and 50 objects of them cannot be planned against an empty cluster - the custom resources' kinds are not served until the CRDs exist, depends_on does not help, and re-running fails identically forever (#1173). The Namespace goes up with them because helm template renders none and the namespaced objects are dry-run into it at plan time. The main apply creates the other 114 rendered objects"
-    },
-    {
-      "name": "reference-k8s-helm-traefik",
-      "source": "traefik/traefik 41.7.1 (Traefik Proxy v3.7.14, Apache-2.0, chart archive sha256 f9edd5ca699ff0f5eab14df6e4feefa15f7597a9b56f0b1c01f6089b1eecbaf1 from traefik.github.io/charts, fetched and checked by run.sh) rendered client-side by hashicorp/helm's data \"helm_template\" - never helm_release - into three kubernetes_manifest blocks whose for_each splits and yamldecodes the render inside the for_each expression, keyed kind/namespace/name, with manifest = each.value (#1962): the chart's 25 CRDs (10 traefik.io, 15 hub.traefik.io that nothing instantiates), its other eight objects, then the Deployment, plus the Namespace - 35 objects over 10 kinds, two of them IngressRoutes the running Traefik loads as routers, one name (rel-traefik) shared by four namespaced kinds and the cluster-scoped IngressClass. Deltas in root/values.yaml: the Service ClusterIP instead of LoadBalancer, both IngressRoutes and a PodDisruptionBudget on, fixture content for the keys the template writes empty (Deployment, Service and ServiceAccount annotations, lifecycle, resources). reference- because the root is ours",
-      "lane": "kubernetes",
-      "set": "growing",
-      "pre_apply": [
-        "kubernetes_namespace_v1.traefik",
-        "kubernetes_manifest.crds"
-      ],
-      "pre_apply_reason": "kubernetes_manifest builds an object's schema at PLAN time, so a root whose render carries the chart's own CRDs and two IngressRoutes of them cannot be planned against an empty cluster - IngressRoute is not served until the CRDs exist, depends_on does not help, and re-running fails identically forever (#1173). The Namespace goes up with them because helm template renders none and the namespaced objects are dry-run into it at plan time. The main apply creates the other nine rendered objects"
     },
     {
       "name": "reference-k8s-platform-app",

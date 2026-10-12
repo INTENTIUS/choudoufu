@@ -180,9 +180,10 @@ They are stock OpenTofu's too; none is specific to a live root.
   Pointer fields (`*bool`) are stored and survive.
 - An empty string on an omitempty string field has the same effect: a
   binding's `subjects[].apiGroup: ""` comes back null and fails the apply
-  the same way, measured on `reference-k8s-helm-sealed-secrets`. Drop the
-  key; an empty string that is a list element (a Role's `apiGroups: [""]`)
-  is stored and stays.
+  the same way. It was measured on sealed-secrets 2.20.0's two
+  RoleBindings, in an estate retired in the 2026-10-11 audit; no chart a
+  remaining estate renders writes the field. Drop the key; an empty string
+  that is a list element (a Role's `apiGroups: [""]`) is stored and stays.
 - A key the template writes with nothing under it (`volumes:`,
   `volumeMounts:`) decodes to null and `kubernetes_manifest` replans it
   for ever as known after apply. Give it one entry through values.
