@@ -113,6 +113,10 @@
 #                  interrupted apply did create, and the recovery check
 #                  must fail.
 #   BREAK_STRICT   turn secrets back to "store"; the refusal must vanish.
+#   BREAK_NO_LOCAL_STATE
+#                  strip one declared object's tofu-estate label before
+#                  no_local_state's plan with no local state; that plan must
+#                  then propose a create, so the check fails.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -1057,6 +1061,10 @@ else
   fi
   gauntlet_stage greenfield pass "the published root applied fresh with a live block and no terraform.tfstate: $INSTANCES objects, every one labelled tofu-estate=$ESTATE and every identity, module instance and for_each key included, matching by value (kubectl, five kinds); the record store held $G_RECORDS record envelope(s), counted by their own address field (#1291); replanned empty with and without the cache. Deleting the whole record store and the cache and replanning proposed $L_LINE: nothing created, destroyed or swept, every object still bound by its label and its namespace and name, and $L_CHANGES in-place update(s) putting back the residue the store held (${L_RESIDUE:-none}); one apply reconverged and the plan after it is empty (#1188, #1235). The cluster's inventory (each Namespace's labels and annotations, every ClusterRole's and Role's rules as the dynamic blocks rendered them, every binding's role reference and subjects) matches stock's cold deploy on the same cluster object by object, the marker label and this fork's annotations normalised out. BREAK=1 drops the ithctester ClusterRole from the expected inventory and the match correctly fails"
 fi
+# ── no_local_state (#1966): the record store and the cache both gone ────
+# live/e2e/lib/gauntlet.sh's gauntlet_kind_no_local_state; its Break line
+# strips the tofu-estate label off drift_reconverge's ClusterRole.
+gauntlet_kind_no_local_state "$GREEN/root" clusterrole ithctester
 ( chdf_a "$GREEN" apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "greenfield teardown failed"
 
 # ── 13. strict ────────────────────────────────────────────────────────────

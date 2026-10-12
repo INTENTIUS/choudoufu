@@ -100,6 +100,10 @@
 #                  check must then fail to hold.
 #   BREAK_STRICT   turn secrets back to "store" and require the refusal to
 #                  vanish.
+#   BREAK_NO_LOCAL_STATE
+#                  strip one declared object's tofu-estate label before
+#                  no_local_state's plan with no local state; that plan must
+#                  then propose a create, so the check fails.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -1087,8 +1091,13 @@ else
   [ "$G_LABELLED" = "$TOTAL_N" ] || fail "$G_LABELLED object(s) carry tofu-estate=$ESTATE after the greenfield apply, want $TOTAL_N"
   gauntlet_stage greenfield pass "$TOTAL_N objects applied fresh with a live block and no terraform.tfstate - the render read by the data-read phase before the plan, the same declared pre-apply the cold deploy took ($PRE_N instances), then $REST_N - every one labelled tofu-estate=$ESTATE (kubectl, $KIND_N kinds) and Traefik's own API reporting both IngressRoutes as kubernetescrd routers; replanned empty with and without the cache; the record store held $G_RECORDS envelope(s) for $TOTAL_N instances, and with that whole store deleted the plan read \"$L_LINE\", nothing created, destroyed or replaced and no kubernetes_manifest updated${L_OTHER:+ (proposed and reconverged: $L_OTHER)}. BREAK=1 expects a deliberately wrong object count and the assertion correctly fails"
 fi
+# ── no_local_state (#1966): the record store and the cache both gone ────
+# live/e2e/lib/gauntlet.sh's gauntlet_kind_no_local_state; its Break line
+# strips the tofu-estate label off drift_reconverge's IngressClass.
+gauntlet_kind_no_local_state "$GREEN" ingressclass "$FULL"
 G_DOWN="$(green apply -destroy -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$G_DOWN" | tail -30; log "  note: greenfield teardown did not exit clean; the cluster is deleted below regardless"; }
 fi
+[ -n "${GREENFIELD_SKIPPED:-}" ] && gauntlet_stage no_local_state not_run "greenfield did not stand the estate up, so there is no applied root to delete the local state of"
 
 # ── 13. strict: every toggle on, one refusal ─────────────────────────────
 gauntlet_begin_stage strict

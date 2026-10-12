@@ -1030,6 +1030,14 @@ else
   fi
   gauntlet_stage greenfield pass "the split root applied fresh with a live block and no terraform.tfstate: $STATE_N instances, the $LABELLED_N namespaces and Secrets labelled tofu-estate=$ESTATE (kubectl), the record store holding $G_RECORDS record envelope(s); force = true took $DEFAULT_ANN on kind's $SC StorageClass from the platform's own manager [$G_SC_OWNER_BEFORE] with no refusal, since that manager is not an estate's; $FIELD_NOTE; replanned empty with and without the cache. The cluster's inventory (both namespaces and the gatekeeper labels, every dex-client Secret's keys and type in all three namespaces, $PART_OF on the three argocd Secrets, the StorageClass's default-class annotation) matches stock's cold deploy on the same cluster object by object, the estate label never compared. BREAK=1 drops the StorageClass from the expected inventory and the match correctly fails"
 fi
+# ── no_local_state (#1966): not run, and why ─────────────────────────────
+# The stage deletes the local record store and requires the next plan to
+# find everything in the cluster. Here it cannot: 17 random_* values live
+# only in that store (RANDOM_N above), so losing it regenerates them and
+# rewrites the 15 dex-client Secrets built from them. That is what a lost
+# record_store "local" costs this root, not a fault the stage can measure;
+# the estate takes the stage once its records live in the cluster.
+gauntlet_stage no_local_state not_run "the published root keeps $RANDOM_N random_* values that live only in the local record store, so a plan with that store deleted regenerates them and rewrites the dex-client Secrets built from them; a lost record_store \"local\" is not survivable for this root by construction, and the stage waits for a cluster record store"
 ( chdf_a "$GREEN" apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "greenfield teardown failed"
 
 # ── 13. strict ────────────────────────────────────────────────────────────

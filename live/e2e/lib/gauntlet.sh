@@ -865,6 +865,162 @@ gauntlet_k8s_wait_all() {
   return 1
 }
 
+# gauntlet_kind_no_local_state <root> <kind> <name> [namespace]
+#
+# no_local_state on the kind substrate (#1098, #1966), for an estate whose
+# greenfield root has just replanned empty with record_store "local". Call
+# it after greenfield's verdict and before greenfield's teardown; it reports
+# the stage itself and never exits the script.
+#
+#   1. A no-op apply in <root> writes the state cache (a plan never persists
+#      it, internal/command/live_mode.go), so the next plan has one to serve
+#      from.
+#   2. The cache-serving plan, which must be empty.
+#   3. Both pieces of local state deleted: <root>/.tofu-records and the
+#      cache, at the path internal/command's stateCachePathFor gives.
+#   4. The plan again, which must create, destroy and replace nothing.
+#      In-place updates are allowed and counted: a lost local store puts
+#      the residue it held back as updates, which greenfield's lost-store
+#      reading in the same scripts measures (#1235).
+#
+# Both plans are counted on the wire, through live/smoke/k8sproxy.py in
+# front of cluster A's API server, as reference-k8s-platform-app does. A
+# TF_LOG=DEBUG count, the way reference-k8s-shared-objects counts, would
+# miss most of these estates: hashicorp/kubernetes logs kubernetes_manifest's
+# requests only at TRACE (manifest/provider/configure.go), and every Helm
+# and YAML estate in the lane is kubernetes_manifest.
+#
+# The record store and cache are put back afterwards, byte for byte, so
+# greenfield's teardown and every later stage start from where they would
+# have without this stage.
+#
+# <kind> <name> [namespace] name one object the greenfield root declares
+# and labels. BREAK_NO_LOCAL_STATE=1 is the stage's Break line: that
+# object's tofu-estate label is stripped before the second plan, which must
+# then propose something, and the label is put back.
+#
+# The caller supplies TOFU, KCA (cluster A's kubeconfig), ROOT, WORK and
+# log. GAUNTLET_K8SPROXY overrides the proxy script's path, for a test.
+gauntlet_kind_no_local_state() {
+  local root="$1" bkind="$2" bname="$3" bns="${4:-}"
+  local dir="$WORK/no-local-state" cache records="$1/.tofu-records" server cname
+  local proxy="${GAUNTLET_K8SPROXY:-$ROOT/live/smoke/k8sproxy.py}" pid="" pkc
+  local warm hits_c req_c rc_c req_n rc_n bad="" upd ratio label="" had_records=0
+  local nsargs=(); [ -n "$bns" ] && nsargs=(-n "$bns")
+  local what="$bkind/$bname"; [ -n "$bns" ] && what="$bkind $bns/$bname"
+  gauntlet_begin_stage no_local_state
+  log "=== no_local_state: the cache-serving plan, then no record store and no cache at all ==="
+
+  # Every way out below goes through here, so the proxy never outlives the
+  # stage and the local state is back in place whatever the verdict.
+  _nls_restore() {
+    if [ -n "$pid" ]; then kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; pid=""; fi
+    if [ -n "$label" ]; then
+      kubectl --kubeconfig "$KCA" label "$bkind" "$bname" ${nsargs[@]+"${nsargs[@]}"} "tofu-estate=$label" --overwrite >/dev/null 2>&1 || true
+    fi
+    if [ -e "$dir/cache.keep" ]; then cp "$dir/cache.keep" "$cache"; fi
+    if [ "$had_records" = "1" ]; then rm -rf "$records"; cp -R "$dir/records.keep" "$records"; fi
+  }
+  _nls_fail() { _nls_restore; gauntlet_stage no_local_state fail "$*"; }
+  # _nls_plan <label>: plan in the root through the counter, with a debug
+  # log; prints "<cache hits> <requests> <rc>".
+  _nls_plan() {
+    local rc hits reqs
+    : > "$dir/proxy.log"
+    ( cd "$root" && KUBECONFIG="$pkc" KUBE_CONFIG_PATH="$pkc" TF_LOG=debug TF_LOG_PATH="$dir/$1.log" \
+        "$TOFU" plan -input=false -no-color > "$dir/$1.plan" 2>&1 ); rc=$?
+    hits="$(grep -c 'state cache hit' "$dir/$1.log" 2>/dev/null || true)"
+    reqs="$(grep -c . "$dir/proxy.log" 2>/dev/null || true)"
+    printf '%s %s %s\n' "${hits:-0}" "${reqs:-0}" "$rc"
+  }
+
+  mkdir -p "$dir" || { _nls_fail "could not make $dir"; return 1; }
+  command -v openssl >/dev/null 2>&1 || { _nls_fail "openssl is not on PATH, and the request counter needs a certificate"; return 1; }
+  case "${CHOUDOUFU_STATE_CACHE:-}" in
+    off) _nls_fail "CHOUDOUFU_STATE_CACHE=off is set, so there is no cache for no_local_state to measure"; return 1 ;;
+    "") cache="$root/${TF_DATA_DIR:-.terraform}/choudoufu-cache.tfstate"
+        case "${TF_DATA_DIR:-}" in /*) cache="$TF_DATA_DIR/choudoufu-cache.tfstate" ;; esac ;;
+    /*) cache="$CHOUDOUFU_STATE_CACHE" ;;
+    *) cache="$root/$CHOUDOUFU_STATE_CACHE" ;;
+  esac
+
+  # The request counter.
+  server="$(kubectl --kubeconfig "$KCA" config view --raw --minify -o jsonpath='{.clusters[0].cluster.server}')"
+  cname="$(kubectl --kubeconfig "$KCA" config view --raw --minify -o jsonpath='{.clusters[0].name}')"
+  [ -n "$server" ] && [ -n "$cname" ] || { _nls_fail "cluster A's kubeconfig names no server or cluster"; return 1; }
+  kubectl --kubeconfig "$KCA" config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 -d > "$dir/upstream-ca.crt"
+  kubectl --kubeconfig "$KCA" config view --raw --minify -o jsonpath='{.users[0].user.client-certificate-data}' | base64 -d > "$dir/upstream-client.crt"
+  kubectl --kubeconfig "$KCA" config view --raw --minify -o jsonpath='{.users[0].user.client-key-data}' | base64 -d > "$dir/upstream-client.key"
+  local f
+  for f in upstream-ca.crt upstream-client.crt upstream-client.key; do
+    [ -s "$dir/$f" ] || { _nls_fail "cluster A's kubeconfig yielded no $f for the request counter"; return 1; }
+  done
+  openssl req -x509 -newkey rsa:2048 -nodes -keyout "$dir/proxy.key" -out "$dir/proxy.crt" -days 1 \
+    -subj /CN=gauntlet-proxy -addext subjectAltName=IP:127.0.0.1 >/dev/null 2>&1 \
+    || { _nls_fail "openssl could not write the request counter's certificate"; return 1; }
+  python3 "$proxy" "$server" "$dir" >"$dir/proxy.out" 2>"$dir/proxy.err" &
+  pid=$!
+  for _ in $(seq 1 50); do [ -s "$dir/proxy.port" ] && break; sleep 0.1; done
+  [ -s "$dir/proxy.port" ] || { _nls_fail "the request counter never started: $(cat "$dir/proxy.err")"; return 1; }
+  pkc="$dir/proxy.kubeconfig"; cp "$KCA" "$pkc"
+  kubectl --kubeconfig "$pkc" config set-cluster "$cname" --server="https://127.0.0.1:$(cat "$dir/proxy.port")" --insecure-skip-tls-verify=true >/dev/null \
+    || { _nls_fail "could not point a kubeconfig at the request counter"; return 1; }
+  [ -z "$(kubectl --kubeconfig "$pkc" config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')" ] \
+    || { _nls_fail "the counter's kubeconfig still carries the kind CA beside insecure-skip-tls-verify, which clientcmd refuses"; return 1; }
+  kubectl --kubeconfig "$pkc" --request-timeout=30s get namespace kube-system >/dev/null 2>&1 \
+    || { _nls_fail "a read through the request counter failed: $(cat "$dir/proxy.err")"; return 1; }
+
+  # 1-2. Warm the cache, keep a copy of both pieces of local state, and
+  # take the cache-serving plan.
+  warm="$(cd "$root" && KUBECONFIG="$KCA" KUBE_CONFIG_PATH="$KCA" "$TOFU" apply -auto-approve -input=false -no-color 2>&1)"
+  grep -qF "Apply complete! Resources: 0 added, 0 changed, 0 destroyed" <<< "$warm" \
+    || { printf '%s\n' "$warm" | tail -20; _nls_fail "the no-op apply that writes the state cache did not apply cleanly"; return 1; }
+  [ -s "$cache" ] || { _nls_fail "no state cache at $cache after a no-op apply, so there is nothing to serve from or delete"; return 1; }
+  cp "$cache" "$dir/cache.keep" || { _nls_fail "could not keep a copy of the state cache"; return 1; }
+  if [ -d "$records" ]; then
+    cp -R "$records" "$dir/records.keep" || { _nls_fail "could not keep a copy of the record store"; return 1; }
+    had_records=1
+  fi
+  read -r hits_c req_c rc_c <<< "$(_nls_plan cache-serving)"
+  [ "$rc_c" = "0" ] && grep -q "No changes." "$dir/cache-serving.plan" \
+    || { tail -20 "$dir/cache-serving.plan"; _nls_fail "the cache-serving plan (exit $rc_c) is not empty, so it is no baseline"; return 1; }
+  [ "$req_c" -gt 0 ] || { _nls_fail "the cache-serving plan sent no request through the counter, so the counter is not on the plan's path"; return 1; }
+
+  # 3. A fresh clone: no record store, no cache.
+  rm -rf "$records" "$cache"
+  [ ! -e "$records" ] && [ ! -e "$cache" ] || { _nls_fail "the local record store or the state cache survived deletion"; return 1; }
+  if [ "${BREAK_NO_LOCAL_STATE:-}" = "1" ]; then
+    label="$(kubectl --kubeconfig "$KCA" get "$bkind" "$bname" ${nsargs[@]+"${nsargs[@]}"} -o jsonpath='{.metadata.labels.tofu-estate}' 2>/dev/null)"
+    [ -n "$label" ] || { _nls_fail "BREAK_NO_LOCAL_STATE: $what carries no tofu-estate label to strip"; return 1; }
+    kubectl --kubeconfig "$KCA" label "$bkind" "$bname" ${nsargs[@]+"${nsargs[@]}"} tofu-estate- >/dev/null \
+      || { _nls_fail "BREAK_NO_LOCAL_STATE: could not strip $what's label"; return 1; }
+  fi
+
+  # 4. The plan with no local state.
+  read -r _ req_n rc_n <<< "$(_nls_plan no-local-state)"
+  if [ "$rc_n" != "0" ]; then
+    bad="the plan with no local state exited $rc_n: $(gauntlet_first_error_line < "$dir/no-local-state.plan")"
+  elif grep -qE '# .+ (will be (created|destroyed)|must be replaced)' "$dir/no-local-state.plan"; then
+    bad="with no local state the plan proposes: $(grep -E '# .+ (will be (created|destroyed)|must be replaced)' "$dir/no-local-state.plan" | sed -E 's/^[[:space:]#]*//' | tr '\n' ';')"
+  fi
+  upd="$(grep -cE '# .+ will be updated in-place' "$dir/no-local-state.plan" || true)"
+
+  if [ "${BREAK_NO_LOCAL_STATE:-}" = "1" ]; then
+    _nls_restore
+    [ -n "$bad" ] || { gauntlet_stage no_local_state fail "BREAK_NO_LOCAL_STATE=1: with $what's tofu-estate label stripped and no local state, the plan still found everything, so the check is not load-bearing"; return 1; }
+    gauntlet_stage no_local_state pass "BREAK_NO_LOCAL_STATE=1 control: with $what's tofu-estate label stripped and the record store and state cache deleted, the check correctly failed ($bad); the label, the store and the cache were put back"
+    return 0
+  fi
+  _nls_restore
+  if [ -n "$bad" ]; then
+    gauntlet_stage no_local_state fail "with the local record store and the state cache deleted: $bad"
+    return 1
+  fi
+  [ "$req_n" -gt 0 ] || { gauntlet_stage no_local_state fail "the plan with no local state sent no request through the counter"; return 1; }
+  ratio="$(awk -v a="$req_n" -v b="$req_c" 'BEGIN { printf "%.2f", a / b }')"
+  gauntlet_stage no_local_state pass "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, $upd in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply ($hits_c instance(s) answered by a cache hit). plan_calls_no_local_state=$req_n plan_calls_cache_serving=$req_c ratio=${ratio}x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips $what's label and the check correctly fails"
+}
+
 # gauntlet_record_count <dir>: counts a record store's on-disk record files
 # gauntlet_record_count <dir>: counts a record store's on-disk FILES
 # under <dir> the way every crossing script already counted them by hand -

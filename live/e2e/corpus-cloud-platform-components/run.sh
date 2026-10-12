@@ -106,6 +106,10 @@
 #                  interrupted apply did create; the recovery check must
 #                  fail.
 #   BREAK_STRICT   turn secrets back to "store"; the refusal must vanish.
+#   BREAK_NO_LOCAL_STATE
+#                  strip one declared object's tofu-estate label before
+#                  no_local_state's plan with no local state; that plan must
+#                  then propose a create, so the check fails.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -1111,6 +1115,10 @@ elif ! diff -u "$WORK/inventory.stock.json" "$WORK/inventory.green.json"; then
 else
   gauntlet_stage greenfield pass "the root applied fresh with a live block and no terraform.tfstate, in the same two applies the cold deploy took. Before the pre-apply, against the empty cluster, the un-targeted plan exits $N_RC with exactly one refusal, \"Kubernetes kind not served by the cluster\", naming kubernetes_manifest.vpa, VerticalPodAutoscaler and autoscaling.k8s.io/v1 - one for the block, not one per for_each instance - and nothing else; choudoufu then performs the declared pre-apply itself ($PRE_N addresses, read from live/gauntlet/estates.json), and once the kind is served the same plan is clean, $MAIN_N to add. $TOTAL_N objects, every one labelled tofu-estate=$ESTATE (kubectl, seven kinds); the record store held $G_RECORDS record envelope(s); replanned empty with and without the cache. With the whole record store and the cache deleted the plan proposed $L_LINE: nothing created, destroyed or replaced, $L_CHANGES in-place update(s) putting back the residue the store held (${L_RESIDUE:-none}); one apply reconverged and the plan after it is empty (#1235). The inventory - every StorageClass's provisioner, parameters, reclaim policy, expansion and default-class annotation, every PriorityClass's value, default flag and description, both ClusterRoleBindings' role and subjects, the ServiceAccount, the three namespaces, both CRDs' group, kind, scope and versions, and all five VPAs' targetRef and updatePolicy - matches stock's cold deploy on the same cluster object by object, labels never compared. BREAK=1 drops io1-expand from the expected inventory and the match correctly fails"
 fi
+# ── no_local_state (#1966): the record store and the cache both gone ────
+# live/e2e/lib/gauntlet.sh's gauntlet_kind_no_local_state; its Break line
+# strips the tofu-estate label off drift_reconverge's VPA.
+gauntlet_kind_no_local_state "$GREEN" verticalpodautoscaler "$DRIFT_NAME" "$DRIFT_NS"
 ( green apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || log "  note: greenfield teardown did not exit clean; the cluster is deleted below regardless"
 
 # ── 13. strict ────────────────────────────────────────────────────────────

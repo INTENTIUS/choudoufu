@@ -76,6 +76,10 @@
 #                  interrupted apply did create - the unrecovered run this
 #                  stage exists to catch - and the recovery check must fail.
 #   BREAK_STRICT   turn secrets back to "store"; the refusal must vanish.
+#   BREAK_NO_LOCAL_STATE
+#                  strip one declared object's tofu-estate label before
+#                  no_local_state's plan with no local state; that plan must
+#                  then propose a create, so the check fails.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -755,6 +759,10 @@ else
   fi
   gauntlet_stage greenfield pass "the published root applied fresh with a live block and no terraform.tfstate: 26 objects, every one labelled tofu-estate=$ESTATE (kubectl, eight kinds); the record store held $G_RECORDS record envelope(s) - envelopes counted by their own address field, not files, so guided discovery's hint at tofu-hints/$ESTATE and any root output in the same store are not mistaken for records (#1291); replanned empty with and without the cache. Deleting the whole record store and the cache and replanning - the reading six AWS estates take here and no Kubernetes estate took - proposed $L_LINE: nothing created, nothing destroyed, nothing swept as an orphan, every object still bound by its label and its namespace and name, and $L_CHANGES in-place update(s) putting back the residue the store held (${L_RESIDUE:-none}); one apply reconverged and the plan after it is empty, so a lost store costs an apply here and not an object (#1188, #1235). The cluster's inventory (ConfigMap and Secret keys, every Service's ports and selector, every Deployment's replicas, containers and service account, the StatefulSet's containers and claim, the ClusterRoleBinding's role and subjects, the namespace) matches stock's cold deploy on the same cluster object by object, labels never compared. BREAK=1 drops the StatefulSet from the expected inventory and the match correctly fails"
 fi
+# ── no_local_state (#1966): the record store and the cache both gone ────
+# live/e2e/lib/gauntlet.sh's gauntlet_kind_no_local_state; its Break line
+# strips the tofu-estate label off drift_reconverge's ConfigMap.
+gauntlet_kind_no_local_state "$GREEN/terraform" configmap alloy-config "$NS"
 ( chdf_a "$GREEN" apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "greenfield teardown failed"
 
 # ── 13. strict ────────────────────────────────────────────────────────────
