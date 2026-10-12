@@ -725,7 +725,9 @@ func superviseLiveCert(s *liveCertSupervisor, o superviseOpts) {
 	//
 	// Nothing is lost by the substitution: the script traps INT and TERM
 	// with the same handler, so its teardown path is identical either way.
-	const forwarded = syscall.SIGTERM
+	// `gauntlet run` forwards the same constant to its groups (#2037,
+	// runsignal.go).
+	const forwarded = stopSignal
 
 	stop := func(name string, why string) {
 		if !s.stopRequested(name) {

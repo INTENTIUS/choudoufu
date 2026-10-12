@@ -81,10 +81,7 @@ func confirmManualRun(out io.Writer) error {
 func confirmFrom(out io.Writer, in io.Reader, timeout time.Duration) error {
 	fmt.Fprintf(out, "Type \"run\" within %s to start, anything else to stop: ", timeout)
 	answer := make(chan string, 1)
-	go func() {
-		line, _ := bufio.NewReader(in).ReadString('\n')
-		answer <- line
-	}()
+	go func() { answer <- readAnswer(in) }()
 	select {
 	case line := <-answer:
 		if strings.TrimSpace(line) == "run" {
@@ -95,6 +92,23 @@ func confirmFrom(out io.Writer, in io.Reader, timeout time.Duration) error {
 	case <-time.After(timeout):
 		fmt.Fprint(out, refusalBanner)
 		return fmt.Errorf("gauntlet run: REFUSED - no answer within %s, so no person is at this terminal. Do not retry", timeout)
+	}
+}
+
+// readAnswer reads one typed line from in, ending at "\r" or "\n" (#2037).
+// A terminal with icrnl off sends "\r" for Enter and nothing after it, so a
+// reader that waits for "\n" sits there until the timeout and refuses a
+// person who did type run - which is how a 21-estate run's first attempt
+// ended on 2026-10-12.
+func readAnswer(in io.Reader) string {
+	br := bufio.NewReader(in)
+	var line []byte
+	for {
+		c, err := br.ReadByte()
+		if err != nil || c == '\r' || c == '\n' {
+			return string(line)
+		}
+		line = append(line, c)
 	}
 }
 

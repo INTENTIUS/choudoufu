@@ -352,11 +352,23 @@ func cmdRun(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	failures, err := RunEstates(root, m, a, RunOptions{Names: fs.Args(), Set: *set, Env: envs, Parallel: *parallel, Stdout: os.Stdout}, commit, emulatorPin(root))
+	bi, err := LoadBehaviorIndex(root)
 	if err != nil {
 		return err
 	}
-	bi, err := LoadBehaviorIndex(root)
+	// #2037: every finished estate is saved as it finishes, aggregates
+	// re-derived by the same Rebuild the end of the run does, so the file on
+	// disk is self-consistent at every checkpoint and an interrupted run
+	// keeps everything that finished.
+	checkpoint := func() error { return saveRunCheckpoint(root, m, bi, a) }
+	failures, err := RunEstates(root, m, a, RunOptions{Names: fs.Args(), Set: *set, Env: envs, Parallel: *parallel, Stdout: os.Stdout, Checkpoint: checkpoint}, commit, emulatorPin(root))
+	// A stopped run is rendered like a finished one - its finished rows are
+	// already in the artifact, and the board should say so - and then exits
+	// non-zero below.
+	var stopped *RunInterrupted
+	if errors.As(err, &stopped) {
+		err = nil
+	}
 	if err != nil {
 		return err
 	}
@@ -392,10 +404,24 @@ func cmdRun(root string, args []string) error {
 	for _, v := range violations {
 		fmt.Fprintln(os.Stderr, "REGRESSION: "+v.Error())
 	}
-	if failures > 0 || len(violations) > 0 {
+	if stopped != nil {
+		fmt.Fprintln(os.Stderr, stopped.Error())
+	}
+	if failures > 0 || len(violations) > 0 || stopped != nil {
 		os.Exit(1)
 	}
 	return nil
+}
+
+// saveRunCheckpoint re-derives a's aggregates from its rows and writes
+// live/gauntlet.json (#2037). It is RunOptions.Checkpoint for `gauntlet
+// run`, called after each estate's row is merged; the Rebuild is the same
+// one cmdRun does at the end, so the headline can never disagree with the
+// rows the way a hand-merged artifact once did (3/25 against four rows
+// reading clear). The rendered pages are not written here, only at the end.
+func saveRunCheckpoint(root string, m *Manifest, bi *BehaviorIndex, a *Artifact) error {
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), kindNodeImagePin(root))
+	return SaveArtifact(root, a)
 }
 
 // cmdBehaviors is `gauntlet behaviors` (#522): the tier-1 behavior-matrix

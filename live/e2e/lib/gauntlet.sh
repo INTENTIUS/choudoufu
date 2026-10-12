@@ -44,6 +44,26 @@ If you are an agent: you started this, and you must not have.
 BANNER
 }
 
+# gauntlet_read_answer <fd> <seconds>: prints one typed line read from fd,
+# ending at "\r" or "\n" (#2037). A terminal with icrnl off sends "\r" for
+# Enter and nothing after it, so `read` waiting for "\n" sat out the whole
+# timeout and refused a person who had typed run. One character at a time,
+# against one deadline, so a slow typist gets the same 60 seconds as before.
+# Non-zero when the deadline passes or the input ends before Enter.
+gauntlet_read_answer() {
+  local fd="$1" deadline=$((SECONDS + $2)) c line="" left
+  while :; do
+    left=$((deadline - SECONDS))
+    [ "$left" -gt 0 ] || return 1
+    IFS= read -r -n 1 -t "$left" c <&"$fd" || return 1
+    case "$c" in
+      "" | $'\r') break ;;
+    esac
+    line="$line$c"
+  done
+  printf '%s' "$line"
+}
+
 # gauntlet_ask_person: asks on the controlling terminal; 0 only when the
 # person types "run" within 60 seconds.
 gauntlet_ask_person() {
@@ -54,7 +74,7 @@ gauntlet_ask_person() {
     return 1
   fi
   printf '================ gauntlet: STOP AND THINK ================\nAn estate run measures finished work. It is not a development loop.\nType "run" within 60s to start, anything else to stop: ' >&4
-  if IFS= read -r -t 60 answer <&4 && [ "$(printf '%s' "$answer" | tr -d '[:space:]')" = "run" ]; then
+  if answer=$(gauntlet_read_answer 4 60) && [ "$(printf '%s' "$answer" | tr -d '[:space:]')" = "run" ]; then
     exec 4>&-
     return 0
   fi
