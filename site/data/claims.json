@@ -455,8 +455,8 @@
           "note": "An apply SIGKILLed between one ConfigMap's create and the next leaves one labelled object and no record of either; the next plan binds the created object by its label, namespace and name, proposes only what was never reached, and the re-run keeps that object's uid and replans empty. The property is also measured by live/GAUNTLET.md stage 10 (day2_crash) on every kind-lane estate.",
           "proofs": [
             {
-              "stage": "reference-k8s-workloads:day2_crash",
-              "note": "The gauntlet's day2_crash stage on a kind estate: an apply creating two objects is interrupted by a real SIGTERM the instant the first create commits; the next plan proposes exactly the remainder and binds the created object by its tofu-estate label, namespace and name, matching stock's own plan from the same position; one recovery apply finishes and the replan is empty. Its BREAK asserts nothing is proposed and must fail. This replaced k8s-recovery-is-a-rerun.sh, whose label-strip control is not repeated here."
+              "stage": "reference-k8s:day2_crash",
+              "note": "The gauntlet's day2_crash stage on a kind estate: an apply creating two ConfigMaps is interrupted by a real SIGTERM the instant the first create commits; the next plan proposes exactly the remainder and binds the created object by its tofu-estate label, namespace and name, matching stock's own plan from the same position; one recovery apply finishes and the replan is empty. Its BREAK asserts nothing is proposed and must fail. This replaced k8s-recovery-is-a-rerun.sh, whose label-strip control is not repeated here."
             }
           ]
         }

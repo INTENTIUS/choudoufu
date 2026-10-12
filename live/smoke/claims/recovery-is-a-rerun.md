@@ -63,10 +63,10 @@ procedure this implies.
 
 ## On Kubernetes
 
-### gauntlet stage reference-k8s-workloads:day2_crash
+### gauntlet stage reference-k8s:day2_crash
 
 Cited, not run here: the gauntlet's `day2_crash` stage on the
-`reference-k8s-workloads` estate, read from that row of
+`reference-k8s` estate, read from that row of
 `live/gauntlet.json`, and this cell is proven only while it reads pass.
 An apply creating two objects is interrupted by a real SIGTERM the instant
 the first create commits. The next plan proposes exactly the remainder and
