@@ -22,7 +22,7 @@ import (
 
 // This file is the Kubernetes half of GitHub issue #1371's cross-estate
 // output read (estateoutputs.go), found missing by claim 44's Kubernetes
-// cell (live/smoke/claims.json).
+// cell (live/smoke/claims.json; claim 44 has since merged into claim 28).
 //
 // On "s3" every estate sharing a bucket reads through one store, and the
 // declaration that one estate reads another's outputs is the bucket policy

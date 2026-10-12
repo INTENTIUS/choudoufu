@@ -56,7 +56,7 @@ out on the one opt-in path, `-refresh=false`, where a vouched-for instance is
 served from the cache with no wire read. Vouching means the marker was
 verified by this run's sweep, or the record store attests ownership while
 this run's own listing proves the instance exists. The
-[unchanged-is-free claim]({{< relref "/docs/claims/unchanged-is-free" >}})
+[cache claim]({{< relref "/docs/claims/staleness-costs-reads" >}})
 measures the saving, and the live block's `reads = "full"` argument
 turns the whole pass off
 ([reference]({{< relref "/docs/use/reference" >}})).

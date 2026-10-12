@@ -1,5 +1,5 @@
 # k8s-unchanged-is-free
-# CLAIM 9 (kubernetes) - Unchanged is free. ~2 min.
+# CLAIM 3 (kubernetes) - The cache changes the cost, never the answer. ~2 min.
 #
 # This proof: re-planning an unchanged Kubernetes estate with -refresh=false
 # serves the objects the sweep vouched for from the cache and skips their

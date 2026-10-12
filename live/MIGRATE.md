@@ -282,7 +282,7 @@ the same plan carries a warning headline instead of the refusal.
 
 That is the entire boundary. An unmigrated estate never meets the
 guard, which is what keeps the
-[stock-when-you-need-it claim](smoke/claims/stock-when-you-need-it.md)'s
+[stock-when-you-need-it proof](smoke/claims/roundtrip.md#stock-when-you-need-it-claim-8-until-it-merged-here)'s
 measured parity intact: no live block means stock behavior, and the one
 divergence is this refusal, on a migrated estate, guarding the
 migration you already performed.

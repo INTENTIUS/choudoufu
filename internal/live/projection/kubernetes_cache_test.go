@@ -21,9 +21,9 @@ import (
 	"github.com/intentius/choudoufu/internal/tofu"
 )
 
-// GitHub issue #1860: claim 9, "unchanged is free", on Kubernetes - the
-// projection half, counting the requests the draft
-// live/smoke/drafts/k8s-unchanged-is-free.sh counts on the wire.
+// GitHub issue #1860: claim 9, "unchanged is free", on Kubernetes (part of
+// claim 3 since claim 9 merged into it) - the projection half, counting the
+// requests live/smoke/scenarios/k8s-unchanged-is-free.sh counts on the wire.
 //
 // The hit rule itself is provider-agnostic ([builder.cacheHit]); what was
 // missing on Kubernetes was the vouch, which the sweep now records

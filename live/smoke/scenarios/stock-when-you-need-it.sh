@@ -1,5 +1,5 @@
 # stock-when-you-need-it
-# CLAIM 8 (aws) - Stock when you need it. ~3 min.
+# CLAIM 6 (aws) - Stock in, stock out, whenever you need it. ~3 min.
 #
 # This proof: Stock when you need it: stock behavior is the fallback, whole
 # and exact - measured, not promised - and the live backend prices by your

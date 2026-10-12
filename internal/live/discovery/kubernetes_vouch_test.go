@@ -16,7 +16,8 @@ import (
 	"github.com/intentius/choudoufu/internal/live/markers"
 )
 
-// GitHub issue #1860: claim 9, "unchanged is free", on Kubernetes. A
+// GitHub issue #1860: claim 9, "unchanged is free", on Kubernetes, which
+// is part of claim 3 since claim 9 merged into it. A
 // -refresh=false plan serves an instance from the state cache only when
 // [Result.MarkerVerified] holds it, and the Kubernetes leg joined every
 // declared object by its kind and natural key and recorded nothing, so an

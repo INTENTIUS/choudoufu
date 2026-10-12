@@ -31,6 +31,8 @@ Without Go, set `CHOUDOUFU_VERSION` to a release tag; a proof whose
 Numbers are never reused. Claims 21 to 23 and, since #1817, 27 more were
 folded into the 16 promises left; their pages here are stubs pointing at
 the section that carries their proof now. Claim 37 became a demo and keeps
-its page.
+its page. Claims 8, 9 and 44 later merged whole into claims 6, 3 and 28,
+whose statements already held theirs; their pages are stubs pointing at
+the claim they joined.
 
 These pages were on the docs site until #1414. Each old URL redirects here.

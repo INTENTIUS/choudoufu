@@ -1,9 +1,9 @@
 ---
-title: "Claim 3: The cache never changes an answer"
+title: "Claim 3: The cache changes the cost, never the answer"
 claim: staleness-costs-reads
 ---
 
-# Claim 3: The cache never changes an answer
+# Claim 3: The cache changes the cost, never the answer
 
 A stale state file is the classic failure: the file is the record, so its
 lies become your plans. Here the state file is a cache, never consulted
@@ -12,6 +12,14 @@ ancient one and none at all give the same plan; what differs is how much
 reading the run does. Where a record is the only copy of an identity,
 losing the cache costs nothing and losing the record is named, never
 guessed.
+
+The cost half was claim 9, "Unchanged is free", until it merged here.
+Re-planning what did not change should not cost a full re-read. On
+`-refresh=false` an instance the run can vouch for is served from the
+cache and its reads are never made, for the whole estate, server-assigned
+resources included. A default plan still refreshes, because that read is
+drift detection, and `reads = "full"` turns the saving off without
+changing any plan.
 
 Each scenario runs from the repository root and ends on a `PASS` line; its
 `BREAK=1` run breaks the thing the proof rests on and must print a
@@ -62,6 +70,27 @@ reads the present and proposes the one update that moves it back. This is
 the estate's own resources, not account-wide gap analysis. `BREAK=1`
 skips the out-of-band move, and the two answers must then agree.
 
+### unchanged-is-free (claim 9 until it merged here)
+
+    just smoke unchanged-is-free
+    BREAK=1 just smoke unchanged-is-free
+
+The bill is counted live, in the run's own debug stream; for record-backed
+resources the record is the attestation on every default plan. `BREAK=1`
+overwrites the record with garbage, and the run must refuse naming the
+address.
+
+### cache-serves-the-whole-estate (claim 10 until #1817, then claim 9)
+
+    just smoke cache-serves-the-whole-estate
+    BREAK=1 just smoke cache-serves-the-whole-estate
+
+A converged estate's VPCs, subnets and security groups are served from
+cache on `-refresh=false`, vouched by the estate sweep, so one estate of a
+terralith plans at the speed of reading a file. `BREAK=1` deletes a
+resource out of band; the sweep no longer vouches it and the plan must
+surface it.
+
 ## On Kubernetes
 
 ### k8s-staleness-costs-reads
@@ -77,5 +106,18 @@ one and no cache are byte-identical and the phantom is in none of them. A
 ConfigMap edited with kubectl then shows through a fresh cache as one
 in-place update, and one apply puts it back. `BREAK=1` makes that edit
 before the comparison is read back, and the plan must move. The
-`-refresh=false` path, the one that serves from the cache, is claim 9's
-Kubernetes proof.
+`-refresh=false` path, the one that serves from the cache, is the next
+proof.
+
+### k8s-unchanged-is-free (claim 9 until it merged here)
+
+    just smoke k8s-unchanged-is-free
+    BREAK=1 just smoke k8s-unchanged-is-free
+
+Needs `kind` and `kubectl`. An unchanged estate is planned with
+`-refresh=false` through `live/smoke/k8sproxy.py`, under the default and
+under `CHOUDOUFU_READS=full`. The default serves the objects the label
+sweep vouched for from the cache and skips their reads (65 requests
+against 74 on the first run), and the two plans print the same answer.
+`BREAK=1` deletes the cache first, and the plan must serve nothing and pay
+the full price.

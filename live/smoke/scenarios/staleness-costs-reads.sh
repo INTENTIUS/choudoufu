@@ -1,5 +1,5 @@
 # staleness-costs-reads
-# CLAIM 3 (aws) - The cache never changes an answer. ~3 min.
+# CLAIM 3 (aws) - The cache changes the cost, never the answer. ~3 min.
 #
 # This proof: Staleness costs reads, never results: any cache state yields
 # the same plan; only the work differs.

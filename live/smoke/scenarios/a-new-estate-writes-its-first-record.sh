@@ -1,5 +1,5 @@
 # a-new-estate-writes-its-first-record
-# CLAIM 28 (aws) - An estate reaches only its own records (REAL AWS, maintainer-run). ~4 min.
+# CLAIM 28 (aws) - An estate reaches only its own records, and what it declares (REAL AWS, maintainer-run). ~4 min.
 #
 # This proof: Under the published IAM policy a new estate's first write
 # succeeds, and so does every write after it.

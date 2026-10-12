@@ -15,7 +15,7 @@
     "substrate lists the providers the promise applies to: every cell that is not n/a.",
     "retired lists numbers that are no longer claims of their own. Most were a second proof of an existing promise, filed as a claim; each",
     "now lives in the named claim's cell for that provider, its slug is still its scenario's name, and its number is never reused. #1817",
-    "folded 27 of them into the 16 promises left; a retired entry with demo: true is a scenario that is now a demo instead, and one with covered_by had its scenario deleted because the named proof (a scenario registered in some cell, or \"<estate>:<stage id>\") shows the same thing.",
+    "folded 27 of them into the 16 promises left; a retired entry with demo: true is a scenario that is now a demo instead, and one with covered_by had its scenario deleted because the named proof (a scenario registered in some cell, or \"<estate>:<stage id>\") shows the same thing. One with merged_into is a whole claim whose statement nested in the named claim's: its proofs moved into that claim's cells, and it names no provider.",
     "real_service: true marks a proof whose scenario cannot run against the emulator honestly and runs against that provider's real account instead. It is maintainer-run (SMOKE_REAL_AWS=1 for aws, the only provider this is proven true for today). Since #2018 no workflow runs any claim scenario, so every proof, real_service or not, is proven by a dated evidence file from a hand run (live/proven_cell_ci_test.go). live/smoke_claims_test.go holds the flag to the scenario's own refusal. The field is per-proof rather than per-provider (#1598), so a second real-account provider sets real_service on its own proof instead of the schema growing a provider-named field.",
     "needs_emulator: true marks a proof whose scenario runs on one substrate and keeps its records on another - today a Kubernetes proof that also brings up the pinned floci emulator for an S3-backed record store, on top of kind and kubectl. An aws proof is never asked to carry it: there the emulator IS the substrate, which the column already says.",
     "Scenario file names may carry a provider-specific prefix for readability (k8s- for a Kubernetes proof); it is a naming convention only, kept because renaming the files would be noisy for no gain. No code may read a scenario's provider, or whether it needs_emulator or is real_service, off that prefix - the provider a scenario proves is always the providers.<name> key that names its cell, never its file name (#1598, #1593)."
@@ -39,9 +39,19 @@
       "provider": "aws"
     },
     {
+      "id": 8,
+      "slug": "stock-when-you-need-it",
+      "merged_into": 6
+    },
+    {
+      "id": 9,
+      "slug": "unchanged-is-free",
+      "merged_into": 3
+    },
+    {
       "id": 10,
       "slug": "cache-serves-the-whole-estate",
-      "claim": 9,
+      "claim": 3,
       "provider": "aws"
     },
     {
@@ -204,6 +214,11 @@
       "slug": "two-estates-at-once",
       "claim": 13,
       "provider": "aws"
+    },
+    {
+      "id": 44,
+      "slug": "an-estate-reads-another-by-declaring-it",
+      "merged_into": 28
     },
     {
       "id": 46,
@@ -378,7 +393,7 @@
     {
       "id": 3,
       "slug": "staleness-costs-reads",
-      "title": "The cache never changes an answer",
+      "title": "The cache changes the cost, never the answer",
       "theme": "cache",
       "substrate": [
         "aws",
@@ -406,13 +421,25 @@
               "minutes": 2,
               "break_mode": "BREAK=1 leaves the world unmoved and asks both ways again; the live answer and the cache's must agree, and the run fails if it still reports a divergence",
               "note": "The estate's own resources only. This is not account-wide gap analysis, which is outside the promise."
+            },
+            {
+              "scenario": "live/smoke/scenarios/unchanged-is-free.sh",
+              "command": "just smoke unchanged-is-free",
+              "minutes": 3,
+              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
+            },
+            {
+              "scenario": "live/smoke/scenarios/cache-serves-the-whole-estate.sh",
+              "command": "just smoke cache-serves-the-whole-estate",
+              "minutes": 2,
+              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
             }
           ],
-          "note": "Unproven until a dated run: staleness-costs-reads.sh, record-only-survives-cache-loss.sh, the-estate-answers-in-the-present-tense.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": "Unproven until a dated run: staleness-costs-reads.sh, record-only-survives-cache-loss.sh, the-estate-answers-in-the-present-tense.sh, unchanged-is-free.sh, cache-serves-the-whole-estate.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
           "status": "proven",
-          "note": "A fresh cache, a cache from a destroyed and rebuilt world (every uid dead, plus a ConfigMap that exists nowhere) and no cache give one byte-identical plan on a kind cluster, the phantom appears in none of them, and a field edited with kubectl shows through a fresh cache. The -refresh=false path that serves from the cache is claim 9's Kubernetes proof. First run 2026-10-04: it found the sweep printing the API server's v1 Endpoints deprecation warning as a timestamped klog line in every plan, so two identical plans differed; the sweep now drops server warnings.",
+          "note": "A fresh cache, a cache from a destroyed and rebuilt world (every uid dead, plus a ConfigMap that exists nowhere) and no cache give one byte-identical plan on a kind cluster, the phantom appears in none of them, and a field edited with kubectl shows through a fresh cache. First run 2026-10-04: it found the sweep printing the API server's v1 Endpoints deprecation warning as a timestamped klog line in every plan, so two identical plans differed; the sweep now drops server warnings. An unchanged estate planned with -refresh=false serves the objects the sweep vouched for from the cache (#1860's vouchesDeclared) and skips their reads, measured through live/smoke/k8sproxy.py: 65 requests against 74 under CHOUDOUFU_READS=full on the first run, with an identical answer. The AWS unchanged-is-free proof's record-backed half touches no cluster and is not repeated.",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/k8s-staleness-costs-reads.sh",
@@ -421,6 +448,15 @@
               "break_mode": "BREAK=1 edits the ConfigMap's data with kubectl after the three-way comparison and requires the plan to differ from the fresh-cache plan by that in-place update, so the byte equality is shown able to fail",
               "evidence": [
                 "live/smoke/evidence/k8s-staleness-costs-reads.lastrun.json"
+              ]
+            },
+            {
+              "scenario": "live/smoke/scenarios/k8s-unchanged-is-free.sh",
+              "command": "just smoke k8s-unchanged-is-free",
+              "minutes": 2,
+              "break_mode": "BREAK=1 deletes the cache before the -refresh=false plan and requires no cache hits and the full request count, so the saving is the cache's",
+              "evidence": [
+                "live/smoke/evidence/k8s-unchanged-is-free.lastrun.json"
               ]
             }
           ]
@@ -471,7 +507,7 @@
     {
       "id": 6,
       "slug": "roundtrip",
-      "title": "One command in, one file out",
+      "title": "Stock in, stock out, whenever you need it",
       "theme": "cache",
       "substrate": [
         "aws",
@@ -486,13 +522,19 @@
               "command": "just smoke roundtrip",
               "minutes": 3,
               "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
+            },
+            {
+              "scenario": "live/smoke/scenarios/stock-when-you-need-it.sh",
+              "command": "just smoke stock-when-you-need-it",
+              "minutes": 3,
+              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
             }
           ],
-          "note": "Unproven until a dated run: roundtrip.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": "Unproven until a dated run: roundtrip.sh, stock-when-you-need-it.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
           "status": "proven",
-          "note": "Stock Terraform stands an estate up on kind; one live-import labels every object and leaves stock's state file byte for byte; the state file is deleted and the estate plans from labels; the cache handed back to stock Terraform (through `terraform state replace-provider`, since Terraform resolves hashicorp/kubernetes against its own registry) plans only the removal of the label and the annotation, converges, and destroys all four objects. First run 2026-10-04: the scenario's own diff filter read the plan's symbol legend as a change and was fixed.",
+          "note": "Stock Terraform stands an estate up on kind; one live-import labels every object and leaves stock's state file byte for byte; the state file is deleted and the estate plans from labels; the cache handed back to stock Terraform (through `terraform state replace-provider`, since Terraform resolves hashicorp/kubernetes against its own registry) plans only the removal of the label and the annotation, converges, and destroys all four objects. First run 2026-10-04: the scenario's own diff filter read the plan's symbol legend as a change and was fixed. With no live block, choudoufu plans a state-backed estate on kind with the same plan text and the same request count as stock OpenTofu at the pinned tofu_version, both counted through live/smoke/k8sproxy.py (8 requests each on the first run). The oracle was stock Terraform in the draft, and its first run differed only by a Terraform-only \"Deprecated value used\" warning, a property of Terraform rather than of the fork, so it is OpenTofu now. The AWS stock-when-you-need-it proof's second half, foreign objects and a plan's cost, is claim 14's Kubernetes proof.",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/k8s-roundtrip.sh",
@@ -501,6 +543,15 @@
               "break_mode": "BREAK=1 skips live-import and requires the live plan to refuse the stock-made, unlabelled objects by name",
               "evidence": [
                 "live/smoke/evidence/k8s-roundtrip.lastrun.json"
+              ]
+            },
+            {
+              "scenario": "live/smoke/scenarios/k8s-stock-when-you-need-it.sh",
+              "command": "just smoke k8s-stock-when-you-need-it",
+              "minutes": 1,
+              "break_mode": "BREAK=1 turns the live block on for choudoufu's leg and requires the request count or the plan text to move, so the equality is a comparison that can fail",
+              "evidence": [
+                "live/smoke/evidence/k8s-stock-when-you-need-it.lastrun.json"
               ]
             }
           ]
@@ -565,90 +616,6 @@
             }
           ],
           "note": "Unproven until a dated run: k8s-greenfield.sh, k8s-custom-resource.sh, claim 13's k8s-the-label-is-the-boundary.sh have no evidence file with a date (no workflow has run a claim scenario since #2018). The ownership marker is one label, tofu-estate, because an address is often not a legal label value (#1016); the block address rides beside it in the annotation choudoufu.intentius.io/tofu-address (#1639, #1605's ruling). Any kubectl reads both. The sweep binds an object no natural key declares to the block its annotation names (#1640), so a block whose name is read at plan time applies and replans empty, and a create_before_destroy rename plans as the replace stock plans (#1541, #1641). A rename rewrites the annotation (a moved block plans it, live-mv writes it); a move between estates is the one label write live-mv -from-estate makes under the caller's credential, judged by the admission policy (claim 13 on Kubernetes). A count pool's fungible set, the AWS proof count-is-a-fungible-set, does not arise here: the API server keeps names unique per kind and namespace, so a count-expanded set carries distinct names and no slot is written."
-        }
-      }
-    },
-    {
-      "id": 8,
-      "slug": "stock-when-you-need-it",
-      "title": "Stock when you need it",
-      "theme": "operate",
-      "substrate": [
-        "aws",
-        "kubernetes"
-      ],
-      "providers": {
-        "aws": {
-          "status": "unproven",
-          "proofs": [
-            {
-              "scenario": "live/smoke/scenarios/stock-when-you-need-it.sh",
-              "command": "just smoke stock-when-you-need-it",
-              "minutes": 3,
-              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
-            }
-          ],
-          "note": "Unproven until a dated run: stock-when-you-need-it.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
-        },
-        "kubernetes": {
-          "status": "proven",
-          "note": "With no live block, choudoufu plans a state-backed estate on kind with the same plan text and the same request count as stock OpenTofu at the pinned tofu_version, both counted through live/smoke/k8sproxy.py (8 requests each on the first run). The oracle was stock Terraform in the draft, and its first run differed only by a Terraform-only \"Deprecated value used\" warning, a property of Terraform rather than of the fork, so it is OpenTofu now. The AWS proof's second half, foreign objects and a plan's cost, is claim 14's Kubernetes proof.",
-          "proofs": [
-            {
-              "scenario": "live/smoke/scenarios/k8s-stock-when-you-need-it.sh",
-              "command": "just smoke k8s-stock-when-you-need-it",
-              "minutes": 1,
-              "break_mode": "BREAK=1 turns the live block on for choudoufu's leg and requires the request count or the plan text to move, so the equality is a comparison that can fail",
-              "evidence": [
-                "live/smoke/evidence/k8s-stock-when-you-need-it.lastrun.json"
-              ]
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": 9,
-      "slug": "unchanged-is-free",
-      "title": "Unchanged is free",
-      "theme": "cache",
-      "substrate": [
-        "aws",
-        "kubernetes"
-      ],
-      "providers": {
-        "aws": {
-          "status": "unproven",
-          "proofs": [
-            {
-              "scenario": "live/smoke/scenarios/unchanged-is-free.sh",
-              "command": "just smoke unchanged-is-free",
-              "minutes": 3,
-              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
-            },
-            {
-              "scenario": "live/smoke/scenarios/cache-serves-the-whole-estate.sh",
-              "command": "just smoke cache-serves-the-whole-estate",
-              "minutes": 2,
-              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
-            }
-          ],
-          "note": "Unproven until a dated run: unchanged-is-free.sh, cache-serves-the-whole-estate.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
-        },
-        "kubernetes": {
-          "status": "proven",
-          "note": "An unchanged estate planned with -refresh=false serves the objects the sweep vouched for from the cache (#1860's vouchesDeclared) and skips their reads, measured through live/smoke/k8sproxy.py: 65 requests against 74 under CHOUDOUFU_READS=full on the first run, with an identical answer. The AWS proof's record-backed half touches no cluster and is not repeated.",
-          "proofs": [
-            {
-              "scenario": "live/smoke/scenarios/k8s-unchanged-is-free.sh",
-              "command": "just smoke k8s-unchanged-is-free",
-              "minutes": 2,
-              "break_mode": "BREAK=1 deletes the cache before the -refresh=false plan and requires no cache hits and the full request count, so the saving is the cache's",
-              "evidence": [
-                "live/smoke/evidence/k8s-unchanged-is-free.lastrun.json"
-              ]
-            }
-          ]
         }
       }
     },
@@ -807,7 +774,7 @@
     {
       "id": 28,
       "slug": "a-name-prefix-shares-no-keys",
-      "title": "An estate reaches only its own records",
+      "title": "An estate reaches only its own records, and what it declares",
       "theme": "operate",
       "substrate": [
         "aws",
@@ -869,9 +836,16 @@
                 "live/smoke/evidence/a-read-only-role-can-plan.lastrun.json"
               ],
               "note": "Real AWS and maintainer-run, not CI: the claim is about what one IAM policy permits and another refuses, and the pinned emulator evaluates neither the policy nor its conditions. Run with SMOKE_REAL_AWS=1; it creates a bucket and two IAM roles and removes them."
+            },
+            {
+              "scenario": "live/smoke/scenarios/an-estate-reads-another-by-declaring-it.sh",
+              "command": "just smoke an-estate-reads-another-by-declaring-it",
+              "minutes": 3,
+              "break_mode": "BREAK=1 renders the consumer's role without --reads-outputs-of network and leaves its configuration declaring the read; the plan must then refuse with \"This estate may not read another estate's outputs\", naming estate network and the flag, and a plan that shows network's value fails the control",
+              "note": "On the pinned emulator with its IAM filter on. The emulator does not evaluate s3:prefix, s3:RequestObjectTag or s3:ExistingObjectTag, so the Allow statements run without their conditions and the tag Denies do not fire; the refusal here comes from the resource scope of the one statement --reads-outputs-of adds. Claim 28's one-bucket-many-estates proof measures the tag-conditioned half on real AWS. Only non-sensitive, wholly known root outputs are recorded, so only those cross."
             }
           ],
-          "note": "Unproven until a dated run: a-name-prefix-shares-no-keys.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": "Unproven until a dated run: a-name-prefix-shares-no-keys.sh, an-estate-reads-another-by-declaring-it.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
           "status": "proven",
@@ -880,9 +854,18 @@
               "proven_by": 29,
               "command": "just smoke k8s-records-in-the-cluster",
               "note": "Steps 2, 4, 5 and 9 of claim 29's Kubernetes scenario (#1392). Step 2: a Kubernetes-only estate's first apply writes its first record as a Secret, with no AWS credentials in the environment, and the replan reads it back. Step 4: a role scoped to one records namespace cannot read another estate's records, and a role given list and get on a shared namespace reads every estate in it, which is the bargain: the namespace is the boundary, all or nothing. Step 5: every record Secret carries tofu-estate, so the estate-boundary admission policy refuses a write by another estate's identity with no policy added for the store. Step 9: an identity holding get and list on the record Secrets plans and writes nothing, and is refused the apply naming create, update and delete. BREAK=1 widens the plan role to cluster-wide secret reads and removes the admission policy, and requires the other estate's records to be read and the cross-estate write to land."
+            },
+            {
+              "scenario": "live/smoke/scenarios/k8s-an-estate-reads-another-by-declaring-it.sh",
+              "command": "just smoke k8s-an-estate-reads-another-by-declaring-it",
+              "minutes": 1,
+              "break_mode": "BREAK=1 declares the read and withholds the Role granting get on the producer's output Secret, and requires the plan to refuse naming estate network, its namespace and the Role",
+              "evidence": [
+                "live/smoke/evidence/k8s-an-estate-reads-another-by-declaring-it.lastrun.json"
+              ]
             }
           ],
-          "note": "Two estates whose key_prefix values prefix one another, the hazard the AWS name-prefix proof measures, are not measured here: KubernetesStore names each record Secret by a SHA-256 of its whole key and refuses a key-annotation mismatch with KeyCollisionError, so a broken delimiter would produce a collision or a refusal rather than a silent read, and no scenario pins which."
+          "note": "Two estates whose key_prefix values prefix one another, the hazard the AWS name-prefix proof measures, are not measured here: KubernetesStore names each record Secret by a SHA-256 of its whole key and refuses a key-annotation mismatch with KeyCollisionError, so a broken delimiter would produce a collision or a refusal rather than a silent read, and no scenario pins which. On Kubernetes the declaration is the reader's record_store block: reads_outputs_of \"<estate>\" {} opens that estate's records namespace through a store that can only get. An undeclared read is refused before anything is sent, under an identity RBAC would have let through; a declared read plans with the producer's value through a grant of one get and says how old it is; after the producer's destroy deletes its recorded output, the consumer is told so by name."
         }
       }
     },
@@ -981,46 +964,6 @@
               "break_mode": "BREAK=1 applies the identical estate under secrets = \"store\" and runs the identical scan, which must find the value (it finds it in the state cache); a scan that finds nothing there fails the run, because its zero under refuse would prove nothing",
               "evidence": [
                 "live/smoke/evidence/k8s-no-secret-survives-in-what-the-tool-keeps.lastrun.json"
-              ]
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": 44,
-      "slug": "an-estate-reads-another-by-declaring-it",
-      "title": "Reading another estate is declared",
-      "theme": "operate",
-      "substrate": [
-        "aws",
-        "kubernetes"
-      ],
-      "providers": {
-        "aws": {
-          "status": "unproven",
-          "proofs": [
-            {
-              "scenario": "live/smoke/scenarios/an-estate-reads-another-by-declaring-it.sh",
-              "command": "just smoke an-estate-reads-another-by-declaring-it",
-              "minutes": 3,
-              "break_mode": "BREAK=1 renders the consumer's role without --reads-outputs-of network and leaves its configuration declaring the read; the plan must then refuse with \"This estate may not read another estate's outputs\", naming estate network and the flag, and a plan that shows network's value fails the control",
-              "note": "On the pinned emulator with its IAM filter on. The emulator does not evaluate s3:prefix, s3:RequestObjectTag or s3:ExistingObjectTag, so the Allow statements run without their conditions and the tag Denies do not fire; the refusal here comes from the resource scope of the one statement --reads-outputs-of adds. Claim 28's one-bucket-many-estates proof measures the tag-conditioned half on real AWS. Only non-sensitive, wholly known root outputs are recorded, so only those cross."
-            }
-          ],
-          "note": "Unproven until a dated run: an-estate-reads-another-by-declaring-it.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
-        },
-        "kubernetes": {
-          "status": "proven",
-          "note": "On Kubernetes the declaration is the reader's record_store block: reads_outputs_of \"<estate>\" {} opens that estate's records namespace through a store that can only get. An undeclared read is refused before anything is sent, under an identity RBAC would have let through; a declared read plans with the producer's value through a grant of one get and says how old it is; after the producer's destroy deletes its recorded output, the consumer is told so by name.",
-          "proofs": [
-            {
-              "scenario": "live/smoke/scenarios/k8s-an-estate-reads-another-by-declaring-it.sh",
-              "command": "just smoke k8s-an-estate-reads-another-by-declaring-it",
-              "minutes": 1,
-              "break_mode": "BREAK=1 declares the read and withholds the Role granting get on the producer's output Secret, and requires the plan to refuse naming estate network, its namespace and the Role",
-              "evidence": [
-                "live/smoke/evidence/k8s-an-estate-reads-another-by-declaring-it.lastrun.json"
               ]
             }
           ]

@@ -1,5 +1,5 @@
 # record-only-survives-cache-loss
-# CLAIM 3 (aws) - The cache never changes an answer. ~2 min.
+# CLAIM 3 (aws) - The cache changes the cost, never the answer. ~2 min.
 #
 # This proof: A record-only composite identity survives cache loss without a
 # duplicate create.

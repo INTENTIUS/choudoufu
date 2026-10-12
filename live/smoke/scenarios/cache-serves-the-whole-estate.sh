@@ -1,5 +1,5 @@
 # cache-serves-the-whole-estate
-# CLAIM 9 (aws) - Unchanged is free. ~2 min.
+# CLAIM 3 (aws) - The cache changes the cost, never the answer. ~2 min.
 #
 # This proof: The cache serves the whole estate: on -refresh=false every
 # converged instance is served from cache, needs-discovery resources

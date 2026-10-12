@@ -1,5 +1,5 @@
 # a-name-prefix-shares-no-keys
-# CLAIM 28 (aws) - An estate reaches only its own records. ~1 min.
+# CLAIM 28 (aws) - An estate reaches only its own records, and what it declares. ~1 min.
 #
 # This proof: Two estates whose names prefix one another share a bucket and
 # none of each other's keys.

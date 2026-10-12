@@ -1,5 +1,5 @@
 # k8s-stock-when-you-need-it
-# CLAIM 8 (kubernetes) - Stock when you need it. ~1 min.
+# CLAIM 6 (kubernetes) - Stock in, stock out, whenever you need it. ~1 min.
 #
 # This proof: with no live block, choudoufu plans a state-backed estate on a
 # real cluster with stock OpenTofu's answer and stock OpenTofu's exact
