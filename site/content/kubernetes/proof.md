@@ -11,10 +11,9 @@ deeper:
 
 ## Claims you can run
 
-Eight scenarios run on a real API server, a kind cluster in Docker, each with
-a `BREAK=1` run that corrupts what the claim guards and is caught. Three are
-the Kubernetes proofs of claims 1, 7 and 13. They run in CI on every pull
-request that touches the Kubernetes code. An open cell is a missing proof.
+Each scenario runs by hand on a kind cluster, with a `BREAK=1` run that
+corrupts what the claim guards and is caught. A cell reads proven on a
+dated run of every proof in it, and open when it has none.
 
 {{< claims-table provider="kubernetes" >}}
 

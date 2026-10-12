@@ -59,12 +59,19 @@ type smokeClaimsFile struct {
 // Most were a second proof of an existing promise and now live in that
 // promise's cell for one provider; their slug is still the scenario's name
 // and still an old URL. One (#1817's 37) became a demo, and says so.
+//
+// CoveredBy is for a retired number whose own scenario was deleted because
+// another proof shows the same thing: it names that proof, either a
+// scenario registered in some cell ("a-killed-apply-hides-nothing") or a
+// gauntlet stage ("<estate>:<stage id>"). Claim and Provider still say
+// where the number's URL lands.
 type smokeRetired struct {
-	ID       int    `json:"id"`
-	Slug     string `json:"slug"`
-	Claim    int    `json:"claim"`
-	Provider string `json:"provider"`
-	Demo     bool   `json:"demo"`
+	ID        int    `json:"id"`
+	Slug      string `json:"slug"`
+	Claim     int    `json:"claim"`
+	Provider  string `json:"provider"`
+	Demo      bool   `json:"demo"`
+	CoveredBy string `json:"covered_by"`
 }
 
 type smokeClaim struct {
@@ -103,6 +110,11 @@ type smokeProof struct {
 	// claim's scenario rather than a scenario of its own. Command is then
 	// that scenario's command, and Note names the steps.
 	ProvenBy int `json:"proven_by"`
+	// Stage cites a gauntlet stage as the proof: "<estate>:<stage id>",
+	// resolved against that estate's row in live/gauntlet.json. It counts
+	// only while that row's stage reads pass (proven_cell_ci_test.go). Note
+	// says what the stage asserts that the claim needs.
+	Stage string `json:"stage"`
 }
 
 // scenarios returns the proofs in the cell that are scenarios of its own.
@@ -166,7 +178,9 @@ func smokeDemoNames(f smokeClaimsFile) map[string]bool {
 	return out
 }
 
-var smokeClaimStatuses = map[string]bool{"proven": true, "restated": true, "n/a": true, "open": true}
+// unproven is a cell whose proofs exist and at least one of them names no
+// dated run and no passing gauntlet stage (proven_cell_ci_test.go).
+var smokeClaimStatuses = map[string]bool{"proven": true, "restated": true, "unproven": true, "n/a": true, "open": true}
 
 // scenarioHeader is the second line of every claim scenario:
 // "# CLAIM 13 (aws) - The tag is the boundary: ... ~4 min." The number, the
@@ -252,6 +266,7 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 		}
 	}
 	retiredBySlug := map[string]smokeRetired{}
+	var coveredBy []smokeRetired
 	for _, r := range f.Retired {
 		if prev, dup := ids[r.ID]; dup {
 			t.Errorf("retired claim %d (%s) reuses a number that is also %s; a claim's number is stable forever", r.ID, r.Slug, prev)
@@ -273,6 +288,10 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 		into, ok := byID[r.Claim]
 		if !ok {
 			t.Errorf("retired claim %d says it moved into claim %d, which is not a claim", r.ID, r.Claim)
+			continue
+		}
+		if r.CoveredBy != "" {
+			coveredBy = append(coveredBy, r)
 			continue
 		}
 		want := filepath.ToSlash(filepath.Join("live", smokeScenariosDir, r.Slug+".sh"))
@@ -338,14 +357,47 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 		for p, cell := range c.Providers {
 			for _, pr := range cell.Proofs {
 				if pr.Scenario != "" {
+					if pr.Stage != "" {
+						t.Errorf("claim %d (%s): %s is a scenario and also cites stage %s; say one", c.ID, p, pr.Scenario, pr.Stage)
+					}
 					continue
 				}
-				if pr.ProvenBy == 0 {
-					t.Errorf("claim %d (%s): a proof with no scenario and no proven_by proves nothing", c.ID, p)
+				switch {
+				case pr.ProvenBy == 0 && pr.Stage == "":
+					t.Errorf("claim %d (%s): a proof with no scenario, no proven_by and no stage proves nothing", c.ID, p)
+				case pr.ProvenBy != 0 && pr.Stage != "":
+					t.Errorf("claim %d (%s): a proof is proven_by %d and also cites stage %s; say one", c.ID, p, pr.ProvenBy, pr.Stage)
+				}
+				if pr.Stage != "" && pr.Command != "" {
+					t.Errorf("claim %d (%s): stage proof %s carries command %q; a stage runs only inside its estate's gauntlet run, which is the maintainer's", c.ID, p, pr.Stage, pr.Command)
+				}
+				if pr.Stage != "" && strings.TrimSpace(pr.Note) == "" {
+					t.Errorf("claim %d (%s): stage proof %s with no note; say what the stage asserts that the claim needs", c.ID, p, pr.Stage)
 				}
 				if pr.Minutes != 0 || pr.BreakMode != "" || pr.NeedsGo || pr.NeedsEmulator || pr.RealService || len(pr.Evidence) > 0 {
-					t.Errorf("claim %d (%s): a proven_by proof carries minutes, a break mode, a flag or evidence; those describe a scenario, and the scenario's own proof carries them", c.ID, p)
+					t.Errorf("claim %d (%s): a proven_by or stage proof carries minutes, a break mode, a flag or evidence; those describe a scenario, and the scenario's own proof carries them", c.ID, p)
 				}
+			}
+		}
+	}
+	// A retired number covered by another proof: its own scenario is gone,
+	// and what it showed is shown by a registered scenario or a gauntlet
+	// stage. A stage citation must name a row and stage that exist; whether
+	// it passes is the cell's business, not the pointer's.
+	if len(coveredBy) > 0 {
+		rows := readGauntletStageRows(t)
+		for _, r := range coveredBy {
+			if _, err := os.Stat(filepath.Join(smokeScenariosDir, r.Slug+".sh")); err == nil {
+				t.Errorf("retired claim %d (%s) is covered_by %s, and its own scenario is still on disk; delete it or drop covered_by", r.ID, r.Slug, r.CoveredBy)
+			}
+			if strings.Contains(r.CoveredBy, ":") {
+				if problem, exists := stageCitationProblem(rows, r.CoveredBy); !exists {
+					t.Errorf("retired claim %d (%s): covered_by %s", r.ID, r.Slug, problem)
+				}
+				continue
+			}
+			if _, ok := cellByName[r.CoveredBy]; !ok {
+				t.Errorf("retired claim %d (%s) is covered_by %q, which is the scenario of no cell in %s", r.ID, r.Slug, r.CoveredBy, smokeClaimsPath)
 			}
 		}
 	}
@@ -728,10 +780,12 @@ func TestSmokeClaimsRealServiceSaysSo(t *testing.T) {
 // provider_order with a status from the fixed vocabulary, and the vocabulary
 // means what #1112 ruled. proven is a proof that runs on that provider and
 // catches its BREAK control, so a proven cell carries at least one proof: a
-// scenario of its own, or steps of another claim's scenario on the same
-// provider (proven_by). restated holds in a weaker form the note states,
-// n/a is a substrate with no such concept, and open is a missing proof, so
-// neither carries one. The row's substrate is the providers the promise
+// scenario of its own, steps of another claim's scenario on the same
+// provider (proven_by), or a gauntlet stage. restated holds in a weaker form
+// the note states. unproven carries proofs and at least one of them names
+// no dated run (proven_cell_ci_test.go holds which). n/a is a substrate
+// with no such concept, and open is a missing proof, so neither carries
+// one. The row's substrate is the providers the promise
 // applies to: every cell that is not n/a.
 func TestSmokeClaimsProviderCells(t *testing.T) {
 	f := readSmokeClaims(t)
@@ -758,12 +812,12 @@ func TestSmokeClaimsProviderCells(t *testing.T) {
 				applies = append(applies, p)
 			}
 			scenarios += len(cell.scenarios())
-			proves := cell.Status == "proven" || cell.Status == "restated"
+			proves := cell.Status == "proven" || cell.Status == "restated" || cell.Status == "unproven"
 			if len(cell.Proofs) > 0 && !proves {
-				t.Errorf("claim %d, %s: the cell carries %d proof(s) and reads %q; a proof that runs and catches its control makes the cell proven or restated", c.ID, p, len(cell.Proofs), cell.Status)
+				t.Errorf("claim %d, %s: the cell carries %d proof(s) and reads %q; a cell with proofs reads proven, restated or unproven", c.ID, p, len(cell.Proofs), cell.Status)
 			}
-			if cell.Status == "proven" && len(cell.Proofs) == 0 {
-				t.Errorf("claim %d, %s: proven with no proof; proven means a proof on that provider runs and its BREAK control catches, so name it", c.ID, p)
+			if proves && len(cell.Proofs) == 0 {
+				t.Errorf("claim %d, %s: %s with no proof; name it, or the cell reads open", c.ID, p, cell.Status)
 			}
 			if cell.Status != "proven" && strings.TrimSpace(cell.Note) == "" {
 				t.Errorf("claim %d, %s: status %q with no note; say what is true instead", c.ID, p, cell.Status)
@@ -822,8 +876,8 @@ func smokeProviderSection(page, provider string) (string, bool) {
 // TestSmokeClaimsSiteCopyAndPages: the site renders a byte-for-byte copy of
 // the file, and every promise has exactly one page under live/smoke/claims
 // whose front matter names its slug, with a "## On <Provider>" section for
-// every cell that is proven or restated, and in that section the command of
-// every proof in the cell (#1112, #1817). A retired claim's page is a stub
+// every cell that carries proofs, and in that section the command of every
+// proof in the cell (#1112, #1817), or the estate:stage a stage proof cites. A retired claim's page is a stub
 // pointing at the section it moved into, so a link to it from an issue
 // still lands; a retired claim that became a demo keeps its page, which
 // says so and gives the demo's command.
@@ -877,7 +931,7 @@ func TestSmokeClaimsSiteCopyAndPages(t *testing.T) {
 		}
 		for _, p := range f.ProviderOrder {
 			cell := c.Providers[p]
-			if cell.Status != "proven" && cell.Status != "restated" {
+			if len(cell.Proofs) == 0 {
 				continue
 			}
 			if _, ok := smokeProviderNames[p]; !ok {
@@ -886,11 +940,17 @@ func TestSmokeClaimsSiteCopyAndPages(t *testing.T) {
 			}
 			body, ok := smokeProviderSection(page, p)
 			if !ok {
-				t.Errorf("%s/%s.md: claim %d is %s on %s and the page has no \"## On %s\" section; one page per promise, one section per proven cell", siteClaimsPages, c.Slug, c.ID, cell.Status, p, smokeProviderNames[p])
+				t.Errorf("%s/%s.md: claim %d is %s on %s and the page has no \"## On %s\" section; one page per promise, one section per cell with proofs", siteClaimsPages, c.Slug, c.ID, cell.Status, p, smokeProviderNames[p])
 				continue
 			}
 			sections++
 			for _, pr := range cell.Proofs {
+				if pr.Stage != "" {
+					if !strings.Contains(body, pr.Stage) {
+						t.Errorf("%s/%s.md: the \"## On %s\" section never names the gauntlet stage `%s` its cell cites", siteClaimsPages, c.Slug, smokeProviderNames[p], pr.Stage)
+					}
+					continue
+				}
 				if !strings.Contains(body, pr.Command) {
 					t.Errorf("%s/%s.md: the \"## On %s\" section never tells the reader to run `%s`", siteClaimsPages, c.Slug, smokeProviderNames[p], pr.Command)
 				}

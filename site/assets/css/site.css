@@ -209,7 +209,7 @@ th { background: var(--surface-2); font-weight: 600; }
 .claims td.status { font-size: 0.85rem; }
 .claims td.status-proven, .claims td.status-restated { font-weight: 600; }
 .claims td.status-proven { color: var(--pass); }
-.claims td.status-restated { color: var(--warn-line); }
+.claims td.status-restated, .claims td.status-unproven { color: var(--warn-line); }
 .claims td.status-n-a, .claims td.status-open { color: var(--muted); }
 .needs-go { font-size: 0.75rem; color: var(--muted); }
 .status-dot { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--notrun); vertical-align: middle; margin-left: 0.3rem; }

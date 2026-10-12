@@ -4,19 +4,19 @@
     "ten words (#1817) and everything with a step in it is on its page under live/smoke/claims/. Proof is per provider (#1112): each",
     "providers.<name> cell carries a status, a note and a list of proofs. A proof is a scenario that runs on that provider - scenario,",
     "command, minutes, needs_go, needs_emulator, real_service, break_mode, evidence and an optional note - or, when it is some steps of",
-    "another claim's scenario on the same provider, proven_by (that claim), command (that scenario's) and a note naming the steps. A",
+    "another claim's scenario on the same provider, proven_by (that claim), command (that scenario's) and a note naming the steps - or a gauntlet stage, stage (\"<estate>:<stage id>\", resolved against live/gauntlet.json) and a note saying what it asserts. A",
     "scenario is the proof of one (claim, provider) cell, which its header states: \"# CLAIM N (provider) - <title>. ~M min.\". The cell",
     "that lists a scenario is its registration, so a cell may list several, and a scenario's file name need not be its claim's slug (#1504).",
     "demos lists the scenarios that prove no claim (import, greenfield, full, and the recommended secure configuration since #1817);",
     "they carry no CLAIM header and belong to no cell. live/smoke_claims_test.go holds this file to the scenario directory and to the",
     "per-claim pages, and site/data/claims.json is a byte-for-byte copy the site renders.",
-    "status is one of: proven (a proof runs on that provider and its BREAK control catches), restated (the promise holds in a weaker",
+    "status is one of: proven (every proof names a dated run: a scenario with an evidence file carrying a YYYY-MM-DD date, steps of such a scenario, or a gauntlet stage that reads pass), unproven (the proofs exist and at least one names no dated run; the note says which), restated (the promise holds in a weaker",
     "form, said in note), n/a (the substrate has no such concept), open (no proof yet: a gap, not a shrug).",
     "substrate lists the providers the promise applies to: every cell that is not n/a.",
     "retired lists numbers that are no longer claims of their own. Most were a second proof of an existing promise, filed as a claim; each",
     "now lives in the named claim's cell for that provider, its slug is still its scenario's name, and its number is never reused. #1817",
-    "folded 27 of them into the 16 promises left; a retired entry with demo: true is a scenario that is now a demo instead.",
-    "real_service: true marks a proof whose scenario cannot run against the emulator honestly and runs against that provider's real account instead. It is maintainer-run (SMOKE_REAL_AWS=1 for aws, the only provider this is proven true for today), never CI-gated, and its cell reads proven from a maintainer's run recorded in the note, not from CI. live/smoke_claims_test.go holds the flag to the scenario's own refusal. The field is per-proof rather than per-provider (#1598), so a second real-account provider sets real_service on its own proof instead of the schema growing a provider-named field.",
+    "folded 27 of them into the 16 promises left; a retired entry with demo: true is a scenario that is now a demo instead, and one with covered_by had its scenario deleted because the named proof (a scenario registered in some cell, or \"<estate>:<stage id>\") shows the same thing.",
+    "real_service: true marks a proof whose scenario cannot run against the emulator honestly and runs against that provider's real account instead. It is maintainer-run (SMOKE_REAL_AWS=1 for aws, the only provider this is proven true for today). Since #2018 no workflow runs any claim scenario, so every proof, real_service or not, is proven by a dated evidence file from a hand run (live/proven_cell_ci_test.go). live/smoke_claims_test.go holds the flag to the scenario's own refusal. The field is per-proof rather than per-provider (#1598), so a second real-account provider sets real_service on its own proof instead of the schema growing a provider-named field.",
     "needs_emulator: true marks a proof whose scenario runs on one substrate and keeps its records on another - today a Kubernetes proof that also brings up the pinned floci emulator for an S3-backed record store, on top of kind and kubectl. An aws proof is never asked to carry it: there the emulator IS the substrate, which the column already says.",
     "Scenario file names may carry a provider-specific prefix for readability (k8s- for a Kubernetes proof); it is a naming convention only, kept because renaming the files would be noisy for no gain. No code may read a scenario's provider, or whether it needs_emulator or is real_service, off that prefix - the provider a scenario proves is always the providers.<name> key that names its cell, never its file name (#1598, #1593)."
   ],
@@ -248,7 +248,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/no-silent-orphans.sh",
@@ -273,10 +273,10 @@
               "note": "The AWS form of an accepted, unfinished delete is a scheduled one (#1599): Secrets Manager's DeleteSecret with a recovery window, like KMS's ScheduleKeyDeletion, answers success and leaves the resource in the account, tags included, until the window ends. hashicorp/aws 6.58.0 reads it as gone - findSecretByID returns NotFound once DeletedDate is set, findKeyByID once KeyState is PendingDeletion, and each delete waits on exactly that - so the half of this promise that holds on AWS is the second: the plan after the delete is empty, as stock's is, with no second destroy (which AWS would refuse for the whole window) and no refusal of the swept, still-marked object. The first half, an object the provider still reads as present after its own delete returned, needs an eventually consistent delete; the pinned emulator does not model that lag (lex00/floci#216), and most hashicorp/aws deletes wait it out. This proof was claim 25 on AWS, which read restated: it measures the second half of a held delete, the plan after it, and not the first."
             }
           ],
-          "note": ""
+          "note": "Unproven until a dated run: a-shadow-is-not-a-claimant.sh, a-held-delete-is-not-gone.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/k8s-no-silent-orphans.sh",
@@ -298,7 +298,7 @@
               "note": "A namespace deleted under a converged estate takes its objects with it, and the plan reads them as gone: nothing in it is listed or swept as an orphan, and the plan is the one stock's plan makes from the same position, measured on the same cluster rather than quoted. Step 7, a deleted record-store namespace, is claim 29's (#1765)."
             }
           ],
-          "note": "The sweep is one cluster-wide, label-selected list per kind rather than one account-wide call, and controller-made objects (owner references, or written only by the control plane) are excluded before anything reaches a delete. An object no natural key declares is joined a second way, by the block its address annotation names (#1640): bound when that block is declared, an orphan otherwise. The label is what makes an object this estate's, so an orphan whose annotation was stripped is still proposed for removal; two objects whose annotations claim one block that holds neither are refused as a collision rather than both destroyed (#1641)."
+          "note": "Unproven until a dated run: k8s-no-silent-orphans.sh, k8s-a-held-delete-is-not-gone.sh, k8s-a-deleted-namespace-is-gone.sh have no evidence file with a date (no workflow has run a claim scenario since #2018). The sweep is one cluster-wide, label-selected list per kind rather than one account-wide call, and controller-made objects (owner references, or written only by the control plane) are excluded before anything reaches a delete. An object no natural key declares is joined a second way, by the block its address annotation names (#1640): bound when that block is declared, an orphan otherwise. The label is what makes an object this estate's, so an orphan whose annotation was stripped is still proposed for removal; two objects whose annotations claim one block that holds neither are refused as a collision rather than both destroyed (#1641)."
         }
       }
     },
@@ -313,7 +313,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/no-self-managed-locks.sh",
@@ -360,7 +360,7 @@
               "note": "Real AWS and maintainer-run, not CI: an emulator does not reproduce the ETag semantics that are the subject. Run with SMOKE_REAL_AWS=1; it creates four buckets and a KMS key and removes them. Last run 2026-09-18, us-east-2, all four flavours."
             }
           ],
-          "note": ""
+          "note": "Unproven until a dated run: no-self-managed-locks.sh, two-writers-one-record.sh, two-saved-plans-one-attribute.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
           "status": "proven",
@@ -386,7 +386,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/staleness-costs-reads.sh",
@@ -408,7 +408,7 @@
               "note": "The estate's own resources only. This is not account-wide gap analysis, which is outside the promise."
             }
           ],
-          "note": ""
+          "note": "Unproven until a dated run: staleness-costs-reads.sh, record-only-survives-cache-loss.sh, the-estate-answers-in-the-present-tense.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
           "status": "proven",
@@ -438,7 +438,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/a-killed-apply-hides-nothing.sh",
@@ -449,7 +449,7 @@
               "note": "Scoped to what the dead apply MARKED. An object killed between its create call and the marker write that follows it is not named by the next plan, and for a tag_on_create=false type that window is the whole of the provider's create step: 15.0s for a hosted zone against the pinned emulator. The re-run then duplicates it and the orphan is removed by hand. Ten types read tag_on_create false in live/registry.json (#1084); for every other type the markers ride the create call and the window does not exist. Since #1944 a record-backed or record-carried instance's record is written the moment its apply step returns: the killed run here leaves records for a record-carried aws_iam_group_policy whose name the provider assigned, a random_password and a terraform_data with a provisioner, and the re-run keeps one inline policy, the same password and an effect that ran once. aws_iam_access_key, the issue's own example, is not used because the pinned emulator answers its GetAccessKeyLastUsed read empty. An instance still in flight at the kill has no record yet. Step 7 then deletes every local file - the cache, the lock file, the whole .terraform directory - and the next plan from a fresh init is still empty (claim 5's original proof, moved here by #1817)."
             }
           ],
-          "note": ""
+          "note": "Unproven until a dated run: a-killed-apply-hides-nothing.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
           "status": "proven",
@@ -479,7 +479,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/roundtrip.sh",
@@ -488,7 +488,7 @@
               "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
             }
           ],
-          "note": ""
+          "note": "Unproven until a dated run: roundtrip.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
           "status": "proven",
@@ -518,7 +518,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/identity-is-a-tag.sh",
@@ -540,10 +540,10 @@
               "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
             }
           ],
-          "note": ""
+          "note": "Unproven until a dated run: identity-is-a-tag.sh, carve-by-retag.sh, count-is-a-fungible-set.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/k8s-greenfield.sh",
@@ -564,7 +564,7 @@
               "note": "A carve is one label write, tofu-estate=<new> on the object, through live-mv -from-estate or kubectl label; with the admission policy installed the caller must hold both estates, and claim 13's Kubernetes scenario (k8s-the-label-is-the-boundary) measures the refusal without the grant and the carve with it (#1081, item 5)."
             }
           ],
-          "note": "The ownership marker is one label, tofu-estate, because an address is often not a legal label value (#1016); the block address rides beside it in the annotation choudoufu.intentius.io/tofu-address (#1639, #1605's ruling). Any kubectl reads both. The sweep binds an object no natural key declares to the block its annotation names (#1640), so a block whose name is read at plan time applies and replans empty, and a create_before_destroy rename plans as the replace stock plans (#1541, #1641). A rename rewrites the annotation (a moved block plans it, live-mv writes it); a move between estates is the one label write live-mv -from-estate makes under the caller's credential, judged by the admission policy (claim 13 on Kubernetes). A count pool's fungible set, the AWS proof count-is-a-fungible-set, does not arise here: the API server keeps names unique per kind and namespace, so a count-expanded set carries distinct names and no slot is written."
+          "note": "Unproven until a dated run: k8s-greenfield.sh, k8s-custom-resource.sh, claim 13's k8s-the-label-is-the-boundary.sh have no evidence file with a date (no workflow has run a claim scenario since #2018). The ownership marker is one label, tofu-estate, because an address is often not a legal label value (#1016); the block address rides beside it in the annotation choudoufu.intentius.io/tofu-address (#1639, #1605's ruling). Any kubectl reads both. The sweep binds an object no natural key declares to the block its annotation names (#1640), so a block whose name is read at plan time applies and replans empty, and a create_before_destroy rename plans as the replace stock plans (#1541, #1641). A rename rewrites the annotation (a moved block plans it, live-mv writes it); a move between estates is the one label write live-mv -from-estate makes under the caller's credential, judged by the admission policy (claim 13 on Kubernetes). A count pool's fungible set, the AWS proof count-is-a-fungible-set, does not arise here: the API server keeps names unique per kind and namespace, so a count-expanded set carries distinct names and no slot is written."
         }
       }
     },
@@ -579,7 +579,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/stock-when-you-need-it.sh",
@@ -588,7 +588,7 @@
               "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
             }
           ],
-          "note": ""
+          "note": "Unproven until a dated run: stock-when-you-need-it.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
           "status": "proven",
@@ -618,7 +618,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/unchanged-is-free.sh",
@@ -633,7 +633,7 @@
               "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
             }
           ],
-          "note": ""
+          "note": "Unproven until a dated run: unchanged-is-free.sh, cache-serves-the-whole-estate.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
           "status": "proven",
@@ -663,7 +663,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/the-tag-is-the-boundary.sh",
@@ -700,10 +700,10 @@
               "break_mode": "BREAK=1 gives both roots the same tofu-estate value while everything else - the account, the shared data-source read, the resource address - stays identical; the concurrent applies still finish, but the next plan must name both live roles rather than reading clean"
             }
           ],
-          "note": "Across both legs of one EKS estate (#1113): live/e2e/reference-eks/two-fences.sh is written and has NOT run, so it is no proof yet and this cell's status does not rest on it. It shows two AWS roles reaching both legs through their own credential only: IAM on the ownership tags fences the AWS leg, live/kubernetes/estate-boundary.yaml fences the cluster leg per user, a grant moved on one leg does not move the other, and a carve is one live-mv -from-estate per leg, each judged by its own fence. It needs floci's opt-in principal identity (lex00/floci#220), without which every role is system:masters on the cluster. It moves to live/smoke/scenarios/ and registers here after its first green run with its BREAK control caught."
+          "note": "Unproven until a dated run: the-tag-is-the-boundary.sh, a-role-holds-an-address-pattern.sh, the-boundary-holds-across-regions.sh, the-boundary-holds-across-accounts.sh, two-estates-at-once.sh have no evidence file with a date (no workflow has run a claim scenario since #2018). Across both legs of one EKS estate (#1113): live/e2e/reference-eks/two-fences.sh is written and has NOT run, so it is no proof yet and this cell's status does not rest on it. It shows two AWS roles reaching both legs through their own credential only: IAM on the ownership tags fences the AWS leg, live/kubernetes/estate-boundary.yaml fences the cluster leg per user, a grant moved on one leg does not move the other, and a carve is one live-mv -from-estate per leg, each judged by its own fence. It needs floci's opt-in principal identity (lex00/floci#220), without which every role is system:masters on the cluster. It moves to live/smoke/scenarios/ and registers here after its first green run with its BREAK control caught."
         },
         "kubernetes": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/k8s-the-label-is-the-boundary.sh",
@@ -712,7 +712,7 @@
               "break_mode": "BREAK=1 removes the policy and requires the writes it refused - Bob's apply and plain kubectl on Alice's estate, and Alice's live-mv -from-estate into an estate she was never granted - to go through, while step 4's plan-side refusal of another estate's object must still hold with the policy gone"
             }
           ],
-          "note": "Write-only and cluster-wide: one ValidatingAdmissionPolicy on the estate label, installed by a cluster admin, fences create, update and delete and never get or list (#1066). An IAM condition on AWS also fences reads and can name an address, not only an estate. One estate across contexts, clusters or two estates applying to one cluster at once has not been measured. Across both legs of one EKS estate (#1113): live/e2e/reference-eks/two-fences.sh is written and has NOT run, so it is no proof yet and this cell's status does not rest on it. It shows two AWS roles reaching both legs through their own credential only: IAM on the ownership tags fences the AWS leg, live/kubernetes/estate-boundary.yaml fences the cluster leg per user, a grant moved on one leg does not move the other, and a carve is one live-mv -from-estate per leg, each judged by its own fence. It needs floci's opt-in principal identity (lex00/floci#220), without which every role is system:masters on the cluster. It moves to live/smoke/scenarios/ and registers here after its first green run with its BREAK control caught."
+          "note": "Unproven until a dated run: k8s-the-label-is-the-boundary.sh has no evidence file with a date (no workflow has run a claim scenario since #2018). Write-only and cluster-wide: one ValidatingAdmissionPolicy on the estate label, installed by a cluster admin, fences create, update and delete and never get or list (#1066). An IAM condition on AWS also fences reads and can name an address, not only an estate. One estate across contexts, clusters or two estates applying to one cluster at once has not been measured. Across both legs of one EKS estate (#1113): live/e2e/reference-eks/two-fences.sh is written and has NOT run, so it is no proof yet and this cell's status does not rest on it. It shows two AWS roles reaching both legs through their own credential only: IAM on the ownership tags fences the AWS leg, live/kubernetes/estate-boundary.yaml fences the cluster leg per user, a grant moved on one leg does not move the other, and a carve is one live-mv -from-estate per leg, each judged by its own fence. It needs floci's opt-in principal identity (lex00/floci#220), without which every role is system:masters on the cluster. It moves to live/smoke/scenarios/ and registers here after its first green run with its BREAK control caught."
         }
       }
     },
@@ -727,7 +727,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/plan-cost-under-foreign-load.sh",
@@ -741,7 +741,7 @@
               "note": "FOREIGN_SCALE sizes the account around the estate: 1, the default, puts 79 foreign resources beside it in about five minutes; FOREIGN_SCALE=50 puts 3,705 there, the row in live/gauntlet-scale.json. OWNED_SCALE sizes the estate itself. This scenario took over from plan-cost-tracks-the-estate.sh, the same steps against eight hand-written log groups (#1817)."
             }
           ],
-          "note": ""
+          "note": "Unproven until a dated run: plan-cost-under-foreign-load.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
           "status": "proven",
@@ -771,7 +771,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/apply-what-was-approved.sh",
@@ -787,10 +787,10 @@
               "note": "The first part holds on AWS as it does on Kubernetes (#1599): a plan saved under a role that may do anything, then an explicit Deny on sqs:SetQueueAttributes attached before the apply, and the apply fails quoting AWS's own \"not authorized to perform: sqs:SetQueueAttributes\", the queue unchanged and still marked, and the same approved plan file applying unchanged once the Deny is lifted. The Deny stands in for a service control policy, which reaches the caller as the same AccessDenied; the pinned emulator has no Organizations service. The other two parts are unmeasured on AWS: the emulator enforces no AWS Organizations tag policy, the one AWS mechanism that can refuse or rewrite the tofu-estate tag on the way in (lex00/floci#217), and no service it emulates rewrites a declared field on write in a way stock reads as perpetual drift. #1192's marker-not-stored hook is substrate-neutral and would report the third part where the provider hands back the tags it stored. This proof was claim 26 on AWS, which read restated."
             }
           ],
-          "note": ""
+          "note": "Unproven until a dated run: apply-what-was-approved.sh, the-server-gets-the-last-word.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/k8s-the-server-gets-the-last-word.sh",
@@ -800,7 +800,7 @@
               "note": "Admission runs after the plan and the server decides what is stored: a fail-closed webhook's refusal is reported in the API server's own words with nothing changed, and the approved plan file applies unchanged once it lifts; a mutating policy that rewrites a declared field reads as stock's perpetual drift while the estate keeps its marker; and a policy that strips the marker on the way in is named by the run that made it."
             }
           ],
-          "note": ""
+          "note": "Unproven until a dated run: k8s-the-server-gets-the-last-word.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
         }
       }
     },
@@ -815,7 +815,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/a-name-prefix-shares-no-keys.sh",
@@ -871,7 +871,7 @@
               "note": "Real AWS and maintainer-run, not CI: the claim is about what one IAM policy permits and another refuses, and the pinned emulator evaluates neither the policy nor its conditions. Run with SMOKE_REAL_AWS=1; it creates a bucket and two IAM roles and removes them."
             }
           ],
-          "note": ""
+          "note": "Unproven until a dated run: a-name-prefix-shares-no-keys.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
           "status": "proven",
@@ -897,7 +897,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/a-wrong-bucket-is-refused.sh",
@@ -921,10 +921,10 @@
               "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the bulk read is the one that stood before issue #1355 - the fan-out swallows a failed GET and the map it builds leaves that key out (go build -overlay, so it needs Go and cannot break a release binary) - and passes only when the plan is caught proposing to create a resource that exists. BREAK_CROSSCHECK=1 is step 5's own control: it rebuilds choudoufu without the plan-time call to refuseListedButReadAsAbsent (go build -overlay again) and passes only when, with one record listed and answered 404, the plan is caught proposing to create that instance and apply -destroy is caught reporting 1 destroyed of two with exit 0 and the record still in the bucket, which is GitHub issue #1355's output"
             }
           ],
-          "note": ""
+          "note": "Unproven until a dated run: a-wrong-bucket-is-refused.sh, a-waiver-names-what-it-waives.sh, a-bulk-read-is-complete-or-it-fails.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/k8s-records-in-the-cluster.sh",
@@ -943,7 +943,7 @@
               "note": "Step 7 of claim 1's Kubernetes scenario (#1765): the record store's namespace deleted under a converged estate is refused by name on the plan and on the apply, and nothing is written."
             }
           ],
-          "note": ""
+          "note": "Unproven until a dated run: claim 1's k8s-a-deleted-namespace-is-gone.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
         }
       }
     },
@@ -958,7 +958,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/no-secret-survives-in-what-the-tool-keeps.sh",
@@ -968,7 +968,7 @@
               "note": "The saved plan (-out) and a TF_LOG=debug file are read separately and do hold the value, as they do on stock. Under refuse the argument is proposed on every plan, rotated or not, and the scenario asserts both arms (#1503)."
             }
           ],
-          "note": ""
+          "note": "Unproven until a dated run: no-secret-survives-in-what-the-tool-keeps.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
           "status": "proven",
@@ -998,7 +998,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/an-estate-reads-another-by-declaring-it.sh",
@@ -1008,7 +1008,7 @@
               "note": "On the pinned emulator with its IAM filter on. The emulator does not evaluate s3:prefix, s3:RequestObjectTag or s3:ExistingObjectTag, so the Allow statements run without their conditions and the tag Denies do not fire; the refusal here comes from the resource scope of the one statement --reads-outputs-of adds. Claim 28's one-bucket-many-estates proof measures the tag-conditioned half on real AWS. Only non-sensitive, wholly known root outputs are recorded, so only those cross."
             }
           ],
-          "note": ""
+          "note": "Unproven until a dated run: an-estate-reads-another-by-declaring-it.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
           "status": "proven",
@@ -1038,7 +1038,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "proven",
+          "status": "unproven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/an-ignored-tag-is-not-drift.sh",
@@ -1048,7 +1048,7 @@
               "note": "A tag another account's automation or an AWS service adds out of band does not churn the plan once the estate tells its provider to ignore that key, the same knob stock gives every AWS user, and an edit to a tag the estate does declare still plans (#1624). This is the managed-resource half only: a tag added out of band to a record object choudoufu wrote is not a plan-time question, because S3Store.PutIfVersion replaces an object's whole tag set on every write and no code path diffs a record object's tags against a configured value. Established by reading the store's write path, not by a scenario step."
             }
           ],
-          "note": ""
+          "note": "Unproven until a dated run: an-ignored-tag-is-not-drift.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
           "status": "proven",

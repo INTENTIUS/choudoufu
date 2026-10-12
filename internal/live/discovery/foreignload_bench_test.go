@@ -37,10 +37,11 @@ import (
 // the account-wide list as the one thing it does not cover.
 //
 // FOREIGN IS A DIFFERENT ESTATE, NOT AN UNMARKED ONE. That is what
-// live/smoke/scenarios/plan-cost-tracks-the-estate.sh does with its eight
-// foreign resources (`live { estate = "demo-data" }`, applied with the
-// binary under test), and matching it is what makes this the same claim at a
-// different scale rather than a different claim. Unmarked, stock-applied
+// live/smoke/scenarios/plan-cost-under-foreign-load.sh does with its
+// foreign terralith (applied under its own `live { estate = ... }` with the
+// binary under test; it took over from plan-cost-tracks-the-estate.sh in
+// #1817), and matching it is what makes this the same claim at a different
+// scale rather than a different claim. Unmarked, stock-applied
 // resources are a weaker fixture for this question: the tag sweep's
 // server-side filter excludes an absent marker for free, while a marker
 // naming another estate has to be fetched and rejected.
@@ -152,7 +153,7 @@ func TestForeignLoadAgainstFloci(t *testing.T) {
 
 	// ---- 1. the foreign estate, if this row has one. A different
 	// tofu-estate marker on every taggable object, exactly as
-	// plan-cost-tracks-the-estate.sh's demo-data estate carries one.
+	// plan-cost-under-foreign-load.sh's foreign estate carries one.
 	if foreignScale > 0 {
 		dir := filepath.Join(work, "foreign")
 		generateTerralith(t, root, dir, foreignScale, "fg")
