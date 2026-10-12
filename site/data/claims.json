@@ -7,7 +7,7 @@
     "another claim's scenario on the same provider, proven_by (that claim), command (that scenario's) and a note naming the steps - or a gauntlet stage, stage (\"<estate>:<stage id>\", resolved against live/gauntlet.json) and a note saying what it asserts. A",
     "scenario is the proof of one (claim, provider) cell, which its header states: \"# CLAIM N (provider) - <title>. ~M min.\". The cell",
     "that lists a scenario is its registration, so a cell may list several, and a scenario's file name need not be its claim's slug (#1504).",
-    "demos lists the scenarios that prove no claim (import, greenfield, full, and the recommended secure configuration since #1817);",
+    "demos lists the scenarios that prove no claim (full, and the recommended secure configuration since #1817; import and greenfield were dropped);",
     "they carry no CLAIM header and belong to no cell. live/smoke_claims_test.go holds this file to the scenario directory and to the",
     "per-claim pages, and site/data/claims.json is a byte-for-byte copy the site renders.",
     "status is one of: proven (every proof names a dated run: a scenario with an evidence file carrying a YYYY-MM-DD date, steps of such a scenario, or a gauntlet stage that reads pass), unproven (the proofs exist and at least one names no dated run; the note says which), restated (the promise holds in a weaker",
@@ -36,7 +36,8 @@
       "id": 4,
       "slug": "backend-sets-itself-up",
       "claim": 2,
-      "provider": "aws"
+      "provider": "aws",
+      "covered_by": "two-writers-one-record"
     },
     {
       "id": 8,
@@ -76,7 +77,8 @@
       "id": 17,
       "slug": "record-only-survives-cache-loss",
       "claim": 3,
-      "provider": "aws"
+      "provider": "aws",
+      "covered_by": "a-killed-apply-hides-nothing"
     },
     {
       "id": 18,
@@ -166,7 +168,8 @@
       "id": 34,
       "slug": "a-new-estate-writes-its-first-record",
       "claim": 28,
-      "provider": "aws"
+      "provider": "aws",
+      "covered_by": "one-bucket-many-estates"
     },
     {
       "id": 35,
@@ -178,7 +181,8 @@
       "id": 36,
       "slug": "objects-carry-the-estate-tag",
       "claim": 28,
-      "provider": "aws"
+      "provider": "aws",
+      "covered_by": "one-bucket-many-estates"
     },
     {
       "id": 37,
@@ -201,7 +205,8 @@
       "id": 41,
       "slug": "the-estate-answers-in-the-present-tense",
       "claim": 3,
-      "provider": "aws"
+      "provider": "aws",
+      "covered_by": "staleness-costs-reads"
     },
     {
       "id": 42,
@@ -228,16 +233,6 @@
     }
   ],
   "demos": [
-    {
-      "scenario": "live/smoke/scenarios/import.sh",
-      "command": "just smoke import",
-      "minutes": 2
-    },
-    {
-      "scenario": "live/smoke/scenarios/greenfield.sh",
-      "command": "just smoke greenfield",
-      "minutes": 1
-    },
     {
       "scenario": "live/smoke/scenarios/full.sh",
       "command": "just smoke full",
@@ -337,30 +332,11 @@
               "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
             },
             {
-              "scenario": "live/smoke/scenarios/backend-sets-itself-up.sh",
-              "command": "just smoke backend-sets-itself-up",
-              "minutes": 6,
-              "real_service": true,
-              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
-              "evidence": [
-                "live/smoke/evidence/backend-sets-itself-up.lastrun.json"
-              ],
-              "note": "Real AWS and maintainer-run for now, because of one step: it stands the bucket up with the shipped `just up`, and the pinned emulator's CloudFormation reports CREATE_COMPLETE while applying none of an S3 bucket's properties, so the bucket it makes is refused by the bucket contract (claim 29). Run with SMOKE_REAL_AWS=1; it deploys a stack with one bucket and removes it. Last run 2026-09-18, us-east-2."
-            },
-            {
               "scenario": "live/smoke/scenarios/two-writers-one-record.sh",
               "command": "just smoke two-writers-one-record",
               "minutes": 3,
               "needs_go": true,
               "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the record store's PutObject carries no If-Match (go build -overlay, so it needs Go and cannot break a release binary) and passes only when both racing applies are caught reporting success over one record"
-            },
-            {
-              "scenario": "live/smoke/scenarios/two-saved-plans-one-attribute.sh",
-              "command": "just smoke two-saved-plans-one-attribute",
-              "minutes": 4,
-              "needs_go": true,
-              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the saved-plan approval check compares no before-values (go build -overlay, so it needs Go and cannot break a release binary) and passes only when the second apply is caught reporting success with the cloud left on its value",
-              "note": "Two saved plans change one echoed attribute of one SQS queue (visibility_timeout_seconds, which the scenario first proves the provider reads back from the cloud). The record holds no such value, so no conditional write referees; #878's before-values do. Applied one after the other: two plain applies are last-writer-wins on such an attribute, and two saved-plan applies that both re-read before either writes are not covered (#1504)."
             },
             {
               "scenario": "live/smoke/scenarios/cas-holds-under-every-sse-flavour.sh",
@@ -375,7 +351,7 @@
               "note": "Real AWS and maintainer-run, not CI: an emulator does not reproduce the ETag semantics that are the subject. Run with SMOKE_REAL_AWS=1; it creates four buckets and a KMS key and removes them. Last run 2026-09-18, us-east-2, all four flavours."
             }
           ],
-          "note": "Unproven until a dated run: no-self-managed-locks.sh, two-writers-one-record.sh, two-saved-plans-one-attribute.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": "Unproven until a dated run: no-self-managed-locks.sh, two-writers-one-record.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
           "status": "proven",
@@ -410,19 +386,6 @@
               "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
             },
             {
-              "scenario": "live/smoke/scenarios/record-only-survives-cache-loss.sh",
-              "command": "just smoke record-only-survives-cache-loss",
-              "minutes": 2,
-              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
-            },
-            {
-              "scenario": "live/smoke/scenarios/the-estate-answers-in-the-present-tense.sh",
-              "command": "just smoke the-estate-answers-in-the-present-tense",
-              "minutes": 2,
-              "break_mode": "BREAK=1 leaves the world unmoved and asks both ways again; the live answer and the cache's must agree, and the run fails if it still reports a divergence",
-              "note": "The estate's own resources only. This is not account-wide gap analysis, which is outside the promise."
-            },
-            {
               "scenario": "live/smoke/scenarios/unchanged-is-free.sh",
               "command": "just smoke unchanged-is-free",
               "minutes": 3,
@@ -435,7 +398,7 @@
               "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
             }
           ],
-          "note": "Unproven until a dated run: staleness-costs-reads.sh, record-only-survives-cache-loss.sh, the-estate-answers-in-the-present-tense.sh, unchanged-is-free.sh, cache-serves-the-whole-estate.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": "Unproven until a dated run: staleness-costs-reads.sh, unchanged-is-free.sh, cache-serves-the-whole-estate.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
           "status": "proven",
@@ -492,13 +455,8 @@
           "note": "An apply SIGKILLed between one ConfigMap's create and the next leaves one labelled object and no record of either; the next plan binds the created object by its label, namespace and name, proposes only what was never reached, and the re-run keeps that object's uid and replans empty. The property is also measured by live/GAUNTLET.md stage 10 (day2_crash) on every kind-lane estate.",
           "proofs": [
             {
-              "scenario": "live/smoke/scenarios/k8s-recovery-is-a-rerun.sh",
-              "command": "just smoke k8s-recovery-is-a-rerun",
-              "minutes": 3,
-              "break_mode": "BREAK=1 strips the label from the object the killed apply created and requires the next plan to refuse it by name, so the binding the main arm relies on is the label",
-              "evidence": [
-                "live/smoke/evidence/k8s-recovery-is-a-rerun.lastrun.json"
-              ]
+              "stage": "reference-k8s-workloads:day2_crash",
+              "note": "The gauntlet's day2_crash stage on a kind estate: an apply creating two objects is interrupted by a real SIGTERM the instant the first create commits; the next plan proposes exactly the remainder and binds the created object by its tofu-estate label, namespace and name, matching stock's own plan from the same position; one recovery apply finishes and the replan is empty. Its BREAK asserts nothing is proposed and must fail. This replaced k8s-recovery-is-a-rerun.sh, whose label-strip control is not repeated here."
             }
           ]
         }
@@ -572,12 +530,6 @@
           "status": "unproven",
           "proofs": [
             {
-              "scenario": "live/smoke/scenarios/identity-is-a-tag.sh",
-              "command": "just smoke identity-is-a-tag",
-              "minutes": 3,
-              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
-            },
-            {
               "scenario": "live/smoke/scenarios/carve-by-retag.sh",
               "command": "just smoke carve-by-retag",
               "minutes": 6,
@@ -591,7 +543,7 @@
               "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
             }
           ],
-          "note": "Unproven until a dated run: identity-is-a-tag.sh, carve-by-retag.sh, count-is-a-fungible-set.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": "Unproven until a dated run: carve-by-retag.sh, count-is-a-fungible-set.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "kubernetes": {
           "status": "unproven",
@@ -743,8 +695,10 @@
             {
               "scenario": "live/smoke/scenarios/apply-what-was-approved.sh",
               "command": "just smoke apply-what-was-approved",
-              "minutes": 4,
-              "break_mode": "inverted control: BREAK=1 removes the fault and requires the run to succeed"
+              "minutes": 7,
+              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the saved-plan approval check compares no before-values (go build -overlay, so it needs Go and cannot break a release binary), skips steps 1-7, and passes only when the second of two saved plans on one SQS queue is caught reporting success with the cloud left on its value. BREAK_UNMOVED=1 leaves the world unmoved behind the approved plan and requires it to apply",
+              "needs_go": true,
+              "note": "Steps 8-14 were two-saved-plans-one-attribute, claim 2's proof until it merged here: two saved plans change one echoed attribute of one SQS queue (visibility_timeout_seconds, which the scenario first proves the provider reads back from the cloud). The record holds no such value, so no conditional write referees; #878's before-values do. Applied one after the other: two plain applies are last-writer-wins on such an attribute, and two saved-plan applies that both re-read before either writes are not covered (#1504). The merged script has not run, and its minutes are an estimate."
             },
             {
               "scenario": "live/smoke/scenarios/the-server-gets-the-last-word.sh",
@@ -792,38 +746,18 @@
               "break_mode": "BREAK=1 rebuilds choudoufu from this checkout with the namespace delimiter dropped (go build -overlay, so it needs Go and cannot break a release binary) and passes only when the wire shows the run fetching its neighbour's record"
             },
             {
-              "scenario": "live/smoke/scenarios/a-new-estate-writes-its-first-record.sh",
-              "command": "just smoke a-new-estate-writes-its-first-record",
-              "minutes": 4,
-              "real_service": true,
-              "break_mode": "BREAK=1 rewrites the published policy's write statement to condition on s3:ExistingObjectTag, the policy that reviews correctly, and passes only when a new estate's first create is denied",
-              "evidence": [
-                "live/smoke/evidence/a-new-estate-writes-its-first-record.lastrun.json"
-              ],
-              "note": "Real AWS and maintainer-run, not CI: the pinned emulator does not evaluate s3:ExistingObjectTag or s3:RequestObjectTag at all, so there a working policy and a broken one look the same. Run with SMOKE_REAL_AWS=1; it creates a bucket and IAM roles and removes them. Last run 2026-09-18, us-east-2."
-            },
-            {
               "scenario": "live/smoke/scenarios/one-bucket-many-estates.sh",
               "command": "just smoke one-bucket-many-estates",
-              "minutes": 6,
+              "minutes": 8,
               "real_service": true,
-              "break_mode": "BREAK=1 has two arms. With the prefix mis-scoped and only the relabel Deny removed, it passes only when the role retags the neighbour's record and then reads it. With the prefix mis-scoped and the read Deny removed, it passes only when the record reads back. Each proves which statement was doing the refusing",
+              "break_mode": "Three controls, each stopping after its own. BREAK=1 has two arms: with the prefix mis-scoped and only the relabel Deny removed, it passes only when the role retags the neighbour's record and then reads it; with the prefix mis-scoped and the read Deny removed, only when the record reads back. BREAK_FIRST_WRITE=1 conditions the write on s3:ExistingObjectTag and passes only when a new estate's first write is denied (claim 34's control). BREAK_UNTAGGED=1 rebuilds choudoufu with an S3 store that sends no tags (go build -overlay, so it needs Go) and passes only when its first write is denied (claim 36's control)",
               "evidence": [
-                "live/smoke/evidence/one-bucket-many-estates.lastrun.json"
-              ],
-              "note": "Real AWS and maintainer-run, not CI: the pinned emulator does not evaluate s3:ExistingObjectTag or s3:RequestObjectTag at all, so there a working policy and a broken one look the same. Run with SMOKE_REAL_AWS=1; it creates a bucket and IAM roles and removes them. Last run 2026-09-18, us-east-2."
-            },
-            {
-              "scenario": "live/smoke/scenarios/objects-carry-the-estate-tag.sh",
-              "command": "just smoke objects-carry-the-estate-tag",
-              "minutes": 5,
-              "needs_go": true,
-              "real_service": true,
-              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the S3 store sends no tags (go build -overlay, needs Go) and passes only when the published policy then denies its first write",
-              "evidence": [
+                "live/smoke/evidence/one-bucket-many-estates.lastrun.json",
+                "live/smoke/evidence/a-new-estate-writes-its-first-record.lastrun.json",
                 "live/smoke/evidence/objects-carry-the-estate-tag.lastrun.json"
               ],
-              "note": "Real AWS and maintainer-run, not CI: the pinned emulator does not evaluate s3:ExistingObjectTag or s3:RequestObjectTag at all, so a claim that a tag is load-bearing could not fail there. Run with SMOKE_REAL_AWS=1; it creates a bucket and an IAM role and removes them. Last run 2026-09-18, us-east-2."
+              "note": "Real AWS and maintainer-run: the pinned emulator does not evaluate s3:ExistingObjectTag or s3:RequestObjectTag at all, so there a working policy and a broken one look the same. Run with SMOKE_REAL_AWS=1; it creates a bucket and IAM roles and removes them. It holds what were three scenarios: a-new-estate-writes-its-first-record (claim 34) and objects-carry-the-estate-tag (claim 36) are its steps 1, 2, 7 and 8 and its BREAK_FIRST_WRITE and BREAK_UNTAGGED arms. The three evidence files are the separate scenarios' runs of 2026-09-18 and 2026-09-19, us-east-2; the merged script has not run, and its minutes are an estimate.",
+              "needs_go": true
             },
             {
               "scenario": "live/smoke/scenarios/a-read-only-role-can-plan.sh",

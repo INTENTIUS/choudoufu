@@ -65,6 +65,6 @@
     {{ end }}
     <li><a href="{{ "docs/claims/" | relURL }}"><strong>{{ with hugo.Data.claims }}{{ len .claims }}{{ end }}</strong> claims you can run on your own machine, each shipped with its failure demonstrated</a></li>
   </ul>
-  <p class="run-it">See one for yourself, with Docker and nothing else: <code>just smoke import</code> stands a stock estate up, deletes its state file, and plans it empty from markers alone. <a href="{{ "docs/claims/" | relURL }}">All of them</a> take a minute to six.</p>
+  <p class="run-it">See one for yourself, with Docker and nothing else: <code>just smoke roundtrip</code> stands a stock estate up, adopts it with one command, deletes its state file, and hands it back to stock as one file. <a href="{{ "docs/claims/" | relURL }}">All of them</a> take a minute to six.</p>
 </section>
 {{ end }}

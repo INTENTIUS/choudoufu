@@ -368,13 +368,6 @@ stack_up_case() { # <name> <scenario> <teardown fn> <start regex> <what the tear
   has "$SB/out" "CLEANUP-RAN" "the trap reached its last step"
 }
 
-if wanted claim4-tears-down-a-failed-deploy; then
-  stack_up_case claim4-tears-down-a-failed-deploy backend-sets-itself-up.sh auto_teardown '^cmd "just up '
-  has "$AWS_LOG" "cloudformation" "the stack teardown ran, so STACK_UP was set BEFORE just up"
-  has "$AWS_LOG" "s3api delete-bucket" "the bucket the stack retains was deleted after it"
-  has "$SB/out" "removed the retained bucket" "the bucket removal reported success"
-fi
-
 if wanted claim37-tears-down-a-failed-deploy; then
   stack_up_case claim37-tears-down-a-failed-deploy the-recommended-secure-configuration.sh secure_teardown '^cmd ".*just up '
   has "$JUST_LOG" "down" "just down ran, so STACK_UP was set BEFORE just up"
@@ -386,17 +379,19 @@ fi
 # examples/record-store-bucket's bucket carries DeletionPolicy Retain, so a
 # deleted stack leaves the bucket in the account. A teardown that stops at
 # the stack leaks one bucket per run and says it did not.
-if wanted claim4-says-so-when-the-retained-bucket-stays; then
-  sandbox claim4-says-so-when-the-retained-bucket-stays
+if wanted claim37-says-so-when-the-retained-bucket-stays; then
+  sandbox claim37-says-so-when-the-retained-bucket-stays
   log "  a retained bucket that cannot be deleted is named, and the trap carries on"
   AWS_FAIL_GLOB='s3api delete-bucket*'
   prologue
   {
     echo 'BUCKET="chdf-smoke-selftest-$SUFFIX"'
+    echo 'KEY_ARN="arn:aws:kms:us-east-2:123456789012:key/1111"'
+    echo 'CREATED_KEY=""; ORIGINAL_KEY_POLICY=""; KEY_POLICY_FILE=""; OTHER_BUCKET=""'
     echo 'REAL_ROLES=(); REAL_BUCKETS=()'
     echo 'STACK_UP=1'
-    extract_func "$SMOKE_SRC/scenarios/backend-sets-itself-up.sh" auto_teardown
-    grep -m1 "trap .*auto_teardown" "$SMOKE_SRC/scenarios/backend-sets-itself-up.sh"
+    extract_func "$SMOKE_SRC/scenarios/the-recommended-secure-configuration.sh" secure_teardown
+    grep -m1 "trap .*secure_teardown" "$SMOKE_SRC/scenarios/the-recommended-secure-configuration.sh"
     echo 'echo SCENARIO-RAN'
     echo 'BOOM="$(false)"'
     echo 'echo NOT-REACHED'
@@ -408,26 +403,27 @@ if wanted claim4-says-so-when-the-retained-bucket-stays; then
   has "$SB/out" "CLEANUP-RAN" "the trap reached its last step"
 fi
 
-# ── case: a missing stack and a missing bucket are tolerated ────────────
-if wanted claim4-tolerates-a-stack-that-never-appeared; then
-  sandbox claim4-tolerates-a-stack-that-never-appeared
+# ── case: a missing bucket is tolerated ────────────────────────────────
+if wanted claim37-tolerates-a-bucket-that-never-appeared; then
+  sandbox claim37-tolerates-a-bucket-that-never-appeared
   log "  a deploy that created nothing at all leaves a teardown with nothing to do, and it says so"
   AWS_FAIL_GLOB='s3api head-bucket*'
-  AWS_FAIL_GLOB2='cloudformation describe-stacks*'
   prologue
   {
     echo 'BUCKET="chdf-smoke-selftest-$SUFFIX"'
+    echo 'KEY_ARN="arn:aws:kms:us-east-2:123456789012:key/1111"'
+    echo 'CREATED_KEY=""; ORIGINAL_KEY_POLICY=""; KEY_POLICY_FILE=""; OTHER_BUCKET=""'
     echo 'REAL_ROLES=(); REAL_BUCKETS=()'
     echo 'STACK_UP=1'
-    extract_func "$SMOKE_SRC/scenarios/backend-sets-itself-up.sh" auto_teardown
-    grep -m1 "trap .*auto_teardown" "$SMOKE_SRC/scenarios/backend-sets-itself-up.sh"
+    extract_func "$SMOKE_SRC/scenarios/the-recommended-secure-configuration.sh" secure_teardown
+    grep -m1 "trap .*secure_teardown" "$SMOKE_SRC/scenarios/the-recommended-secure-configuration.sh"
     echo 'echo SCENARIO-RAN'
     echo 'BOOM="$(false)"'
     echo 'echo NOT-REACHED'
   } >> "$HARNESS"
   run_harness
   has "$SB/out" "no bucket" "the missing bucket was reported, not treated as a failure"
-  has "$SB/out" "no stack" "the missing stack was reported, not treated as a failure"
+  has "$JUST_LOG" "down" "just down was still attempted"
   hasnt "$SB/out" "COULD NOT" "nothing that was never created produced a COULD NOT line"
   has "$SB/out" "CLEANUP-RAN" "the trap reached its last step"
 fi

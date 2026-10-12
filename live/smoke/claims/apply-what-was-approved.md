@@ -22,11 +22,28 @@ Each scenario runs from the repository root and ends on a `PASS` line; its
 
     just smoke apply-what-was-approved
     BREAK=1 just smoke apply-what-was-approved
+    BREAK_UNMOVED=1 just smoke apply-what-was-approved
 
 A plan saved with `-out` applies unchanged; an out-of-band change between
-plan and apply makes the same file refuse by name. Values compare
-canonically, unknown values are skipped, sensitive ones compared by
-digest. `BREAK=1` is the inverse control: no out-of-band change, and the
+plan and apply makes the same file refuse by name, and so does the same
+change writing a different value, naming `after.retention_in_days`.
+Values compare canonically, unknown values are skipped, sensitive ones
+compared by digest.
+
+Steps 8-14 were two-saved-plans-one-attribute (claim 2's, #1504). Two
+checkouts of one estate save plans changing one SQS queue's
+`visibility_timeout_seconds` from 30, one to 60 and one to 90; the
+scenario first proves the provider reads that attribute back from the
+cloud. The first plan applies. The second re-reads the queue, finds 60
+where its approval said 30, and is refused with exit 3 naming
+`before.visibility_timeout_seconds` (#878); the queue keeps 60, and the
+second checkout's recovery is a re-plan. The two applies run one after
+the other: two that both re-read before either writes are not covered.
+
+`BREAK=1` rebuilds choudoufu with the before-values comparison removed
+(`go build -overlay`, so it needs Go), skips steps 1-7, and the second
+saved plan must be caught reporting success with the queue on 90.
+`BREAK_UNMOVED=1` is the inverse control: no out-of-band change, and the
 file must apply.
 
 ### the-server-gets-the-last-word (claim 26 until #1817)

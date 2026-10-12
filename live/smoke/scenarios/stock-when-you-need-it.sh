@@ -2,8 +2,10 @@
 # CLAIM 6 (aws) - Stock in, stock out, whenever you need it. ~3 min.
 #
 # This proof: Stock when you need it: stock behavior is the fallback, whole
-# and exact - measured, not promised - and the live backend prices by your
-# estate, not your account.
+# and exact - measured, not promised. What the live backend costs against
+# the account around the estate is claim 14's (plan-cost-under-foreign-load),
+# and this scenario's old step 3, twenty foreign log groups, was cut as a
+# duplicate of it.
 
 SMOKE_WORK="$SMOKE_WORKROOT/parity"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -32,9 +34,7 @@ explain \
   "behind - it is the fallback, whole and exact, one deleted live block" \
   "away. That is measured, not promised: a plan over the same estate" \
   "and state file issues exactly the requests the pinned stock OpenTofu" \
-  "issues, and prints the same answer. And when the live backend is on," \
-  "what you pay scales with your estate, not with the account around" \
-  "it."
+  "issues, and prints the same answer."
 
 step "1. a stock estate, stood up by choudoufu with no live block"
 explain \
@@ -95,44 +95,11 @@ diff <(plan_body "$LOGDIR/chdf-plan.txt") <(plan_body "$LOGDIR/oracle-plan.txt")
 echo "choudoufu: $REQ_CHDF requests; stock oracle: $REQ_ORACLE. Plan texts equal, filtered of version cosmetics." | evidence
 proof "same answer, same wire traffic, measured against the pinned oracle. The hooks cost nothing until asked for."
 
-step "3. the live backend on - and you pay for your estate, not your account"
-explain \
-  "The stock estate comes down and the live one goes up: same fixture," \
-  "live block on, markers riding the creates. Then the account gets" \
-  "cluttered with twenty foreign resources that have nothing to do with" \
-  "this estate. If discovery cost scaled with the account, the plan's" \
-  "request count would grow; it must not move."
-cmd "apply (live) ; plan ; create 20 foreign log groups ; plan again"
+step "3. teardown"
+cmd "choudoufu apply -destroy -auto-approve"
 ( cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "parity" "stock estate teardown failed"
-rm -f "$SMOKE_WORK/terraform.tfstate"
-use_versions live
-logged stock-when-you-need-it-live-init "parity" "live init failed" -- in_dir "$SMOKE_WORK" chdf init -input=false -no-color
-( cd "$SMOKE_WORK" && chdf apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "parity" "live apply failed"
-( cd "$SMOKE_WORK" && TF_LOG=debug TF_LOG_PATH="$LOGDIR/quiet.log" "$TOFU" plan -input=false -no-color >/dev/null 2>&1 ) \
-  || fail "parity" "live plan (quiet account) failed"
-for i in $(seq 1 20); do
-  awsl logs create-log-group --log-group-name "/foreign/clutter-$i" >/dev/null 2>&1 || fail "parity" "could not create foreign clutter"
-done
-( cd "$SMOKE_WORK" && TF_LOG=debug TF_LOG_PATH="$LOGDIR/clutter.log" "$TOFU" plan -input=false -no-color >/dev/null 2>&1 ) \
-  || fail "parity" "live plan (cluttered account) failed"
-REQ_QUIET=$(grep -c "HTTP Request Sent" "$LOGDIR/quiet.log" || true)
-REQ_CLUTTER=$(grep -c "HTTP Request Sent" "$LOGDIR/clutter.log" || true)
-[ "$REQ_QUIET" -gt 0 ] || fail "parity" "the quiet-account plan counted zero requests"
-echo "quiet account: $REQ_QUIET requests; after 20 foreign resources: $REQ_CLUTTER" | evidence
-[ "$REQ_QUIET" = "$REQ_CLUTTER" ] \
-  || fail "parity" "account clutter moved the plan's request count ($REQ_QUIET -> $REQ_CLUTTER)"
-proof "twenty strangers in the account and the bill did not move. The estate tag scopes every read."
-
-step "4. teardown"
-cmd "choudoufu apply -destroy -auto-approve ; delete the foreign clutter"
-( cd "$SMOKE_WORK" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "parity" "live teardown failed"
-for i in $(seq 1 20); do
-  awsl logs delete-log-group --log-group-name "/foreign/clutter-$i" >/dev/null 2>&1 || true
-done
-proof "estate and clutter both gone."
+proof "estate gone."
 
 echo "  What you watched: the fork plan a stateful estate with exactly"
 echo "  stock's answer and exactly stock's request count, measured against"
-echo "  the pinned oracle - then, with the live block on, ignore twenty"
-echo "  foreign resources at zero added cost. You pay nothing until you ask,"
-echo "  and then only for what you own."
+echo "  the pinned oracle. You pay nothing until you ask."

@@ -125,8 +125,8 @@ Every object is written with `tofu-estate`, and a record also with
 untagged. The tags are for authorization and provenance. The published policy
 requires the tag on a write, denies a read of an object tagged as another
 estate's, and denies relabelling one
-([claim 28](smoke/claims/one-bucket-many-estates.md),
-[claim 28](smoke/claims/objects-carry-the-estate-tag.md)).
+([claim 28](smoke/claims/a-name-prefix-shares-no-keys.md#on-aws),
+`one-bucket-many-estates`).
 Nothing is found by tag: objects are found by listing a known prefix.
 
 ### Requests
@@ -159,9 +159,9 @@ changes differs from the approved plan in its before- or after-values (#878).
 A plan approved against a value another apply has since replaced is refused by
 name, and the cloud keeps the other apply's value. Two saved-plan applies that
 both re-read before either reaches the cloud are not covered (#1504).
-[Claim 2's](smoke/claims/no-self-managed-locks.md#on-aws)
-`two-saved-plans-one-attribute` races two saved plans on one SQS queue's
-visibility timeout.
+[Claim 15's](smoke/claims/apply-what-was-approved.md#on-aws)
+`apply-what-was-approved`, steps 8-14, races two saved plans on one SQS
+queue's visibility timeout.
 [Two runs at once](https://intentius.io/choudoufu/docs/model/concurrency/) has the races.
 Every read is scoped to one estate, so adding an estate to the bucket slows
 no other.
