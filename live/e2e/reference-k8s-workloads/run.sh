@@ -94,8 +94,9 @@
 #
 # A stage this script cannot pass records fail with the reason and exits,
 # as reference-k8s-stateful does; the runner, not the script, decides what
-# "clear" means. no_local_state is not reported (not_run), as on every
-# kind estate; greenfield takes the lost-store reading instead.
+# "clear" means. no_local_state runs on greenfield's root after its
+# verdict, through live/e2e/lib/gauntlet.sh's gauntlet_kind_no_local_state
+# (#1966).
 #
 #   go run ./tools/gauntlet run reference-k8s-workloads   # one estate, local kind
 #   bash live/e2e/reference-k8s-workloads/run.sh
@@ -133,6 +134,10 @@
 #                  recovery check must then fail to hold.
 #   BREAK_STRICT   set to 1 to turn secrets back to "store" and require the
 #                  refusal to vanish (strict's Break line).
+#   BREAK_NO_LOCAL_STATE
+#                  strip one declared object's tofu-estate label before
+#                  no_local_state's plan with no local state; that plan must
+#                  then propose a create, so the check fails.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -1549,6 +1554,10 @@ else
   diff -u "$WORK/inventory.stock.json" "$WORK/inventory.green.json" || fail "the greenfield inventory differs from stock's cold-deploy inventory (diff above)"
   gauntlet_stage greenfield pass "$N_OBJECTS objects applied fresh with a live block and no terraform.tfstate, every one labelled tofu-estate=$ESTATE (kubectl, $N_KINDS kinds) and no Pod; the apply's deprecation warnings are exactly stock's cold-deploy apply's; the record store held $G_RECORDS record envelope(s); replanned empty with and without the cache. Deleting the whole record store and the cache and replanning proposed $L_LINE: nothing created, destroyed or swept, every object still bound by its label and its namespace and name, and $L_CHANGES in-place update(s) putting back the residue the store held (${L_RESIDUE:-none}); one apply reconverged and the plan after it is empty. The cluster's inventory matches stock's cold deploy on the same cluster object by object - every object's spec, data, rules, role reference and subjects with metadata and status left out and server-assigned cluster IPs, bound volume and controller-uid selectors scrubbed - and the Job completed again. BREAK=1 drops the legacy DaemonSet from the expected inventory and the match correctly fails"
 fi
+# ── no_local_state (#1966): the record store and the cache both gone ────
+# live/e2e/lib/gauntlet.sh's gauntlet_kind_no_local_state; its Break line
+# strips the tofu-estate label off drift_reconverge's HorizontalPodAutoscaler.
+gauntlet_kind_no_local_state "$GREEN" hpa web "$NS"
 ( cd "$GREEN" && "$TOFU" apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "greenfield teardown failed"
 
 # ── 13. strict: every toggle on, one refusal ─────────────────────────────

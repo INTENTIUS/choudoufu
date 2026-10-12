@@ -75,6 +75,10 @@
 #   BREAK_TEARDOWN delete one of kube-system's own ConfigMaps before the
 #                  teardown; the "kube-system left as it was" check must fail.
 #   BREAK_STRICT   turn secrets back to "store"; the refusal must vanish.
+#   BREAK_NO_LOCAL_STATE
+#                  strip one declared object's tofu-estate label before
+#                  no_local_state's plan with no local state; that plan must
+#                  then propose a create, so the check fails.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -846,6 +850,10 @@ else
   fi
   gauntlet_stage greenfield pass "the cut-out root applied fresh with a live block and no terraform.tfstate: 9 objects, every one labelled tofu-estate=$ESTATE (kubectl), the APIService reporting Available=True again; the record store held $G_RECORDS record envelope(s), counted by their own address field; replanned empty with and without the cache. Deleting the whole record store and the cache and replanning proposed $L_LINE: nothing created, destroyed or swept, every object still bound by its label and its name, and $L_CHANGES in-place update(s) putting back the residue the store held (${L_RESIDUE:-none}); one apply reconverged and the plan after it is empty. The cluster's inventory (both ClusterRoles' rules and aggregation labels, the three bindings' roles and subjects, the ServiceAccount, the APIService's group, version, priorities, TLS setting and backing Service, the Deployment's containers, args, ports, service account and priority class, the Service's ports and selector) matches stock's cold deploy on the same cluster object by object, labels never compared. BREAK=1 drops the APIService from the expected inventory and the match correctly fails"
 fi
+# ── no_local_state (#1966): the record store and the cache both gone ────
+# live/e2e/lib/gauntlet.sh's gauntlet_kind_no_local_state; its Break line
+# strips the tofu-estate label off the metrics-server Service.
+gauntlet_kind_no_local_state "$GREEN" service metrics-server "$NS"
 ( chdf_a "$GREEN" apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "greenfield teardown failed"
 
 # ── 13. strict ────────────────────────────────────────────────────────────

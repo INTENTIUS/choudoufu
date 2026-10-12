@@ -89,6 +89,10 @@
 #                  must then fail to hold.
 #   BREAK_STRICT   set to 1 to turn secrets back to "store" and require the
 #                  refusal to vanish (strict's Break line).
+#   BREAK_NO_LOCAL_STATE
+#                  strip one declared object's tofu-estate label before
+#                  no_local_state's plan with no local state; that plan must
+#                  then propose a create, so the check fails.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -965,6 +969,10 @@ else
   fi
   gauntlet_stage greenfield pass "7 objects applied fresh with a live block and no terraform.tfstate, every one labelled tofu-estate=$ESTATE (kubectl, six kinds); the record store held $G_RECORDS record envelope(s) - envelopes counted by their own address field, not files, so guided discovery's hint at tofu-hints/$ESTATE and any root output in the same store are not mistaken for records (#1291); replanned empty with and without the cache. Deleting the whole record store and the cache and replanning - the reading six AWS estates take here and no Kubernetes estate took - proposed $L_LINE: nothing created, nothing destroyed, nothing swept as an orphan, every object still bound by its label and its namespace and name, and $L_CHANGES in-place update(s) putting back the residue the store held (${L_RESIDUE:-none}); one apply reconverged and the plan after it is empty, so a lost store costs an apply here and not an object (#1188, #1235). The cluster's inventory (ConfigMap data, the Service's ports and selector, the Deployment's replicas and container, the ServiceAccount and namespace) matches stock's cold deploy on the same cluster object by object, labels never compared. BREAK=1 drops the Deployment from the expected inventory and the match correctly fails"
 fi
+# ── no_local_state (#1966): the record store and the cache both gone ────
+# live/e2e/lib/gauntlet.sh's gauntlet_kind_no_local_state; its Break line
+# strips the tofu-estate label off drift_reconverge's ConfigMap.
+gauntlet_kind_no_local_state "$GREEN" configmap app-config "$NS"
 ( cd "$GREEN" && "$TOFU" apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "greenfield teardown failed"
 
 # ── 13. strict: every toggle on, one refusal ─────────────────────────────

@@ -43,6 +43,7 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
   example's tests. The smoke, claims and gauntlet workflows are deleted; the
   scripts remain for running by hand.
 - Docs: live/RECOVERY.md says what a killed apply costs in residue: the re-run proposes one update for an instance whose step had returned, and records the residue then (#1953, ruled B: residue stays a final-pass write).
+- Tests: 20 kubernetes-lane estate scripts now run no_local_state after greenfield, through a shared `gauntlet_kind_no_local_state` that deletes the local record store and state cache, replans, and counts both plans' API requests on the wire; corpus-govuk-cluster-services reports not_run with the reason (17 random values live only in its local store). A Go guard fails when a kubernetes-lane script never reports the stage (#1966). Not yet measured on kind.
 
 ## choudoufu v0.26.0 (2026-10-11)
 
