@@ -23,6 +23,23 @@
 # schema-admitted CORS type). Needs Docker, the AWS CLI, and the real
 # `tofu` binary (not just `terraform` - see the header for why); runs on
 # its own port (4724).
+#
+# THE FOLD (estate audit, 2026-10-11). corpus-hongbomiao-harbor and
+# corpus-hongbomiao-storage were two more slices of this same repository at
+# this same pin, 3-4 instances each, and are folded in here as additional
+# module calls in the same root: harbor's S3 bucket plus IAM user and inline
+# user policy (environments/production/aws/kubernetes/main.tofu's "Harbor"
+# section, the only aws_iam_user/aws_iam_user_policy pair in the gauntlet)
+# and storage's two S3 buckets plus KMS key and alias (environments/
+# production/aws/storage/main.tofu's remote-state-free opening section). The
+# estate is now 11 instances: 7 taggable (four buckets, the role, the user,
+# the key) and 4 untaggable (the CORS configuration, the inline role
+# policy, the inline user policy, the KMS alias). Every day-2 stage still
+# operates on the Labelbox objects exactly as before; the folded objects
+# ride through cold_deploy, greenfield, migrate, test_plan and test_apply,
+# and every later plan must leave them alone. The counts below that include
+# them have NOT been measured yet: the row this script feeds was reset to
+# unmeasured when the fold landed, and the first run is the measurement.
 set -uo pipefail
 
 # The five-stage real-estate crossing (live/corpus-crossing-manifest.json)
@@ -189,8 +206,8 @@ set -uo pipefail
 #                 set to 1 to run the greenfield stage's OBJECT-COUNT
 #                 negative control (#1549, #1497's BREAK_MIGRATE_COUNT
 #                 shape): remove tofu-estate from the greenfield IAM role
-#                 and assert 2 taggable objects anyway - the assertion has
-#                 to fail, at 1. It is the proof that the IAM leg of that
+#                 and assert 7 taggable objects anyway - the assertion has
+#                 to fail, at 6. It is the proof that the IAM leg of that
 #                 count is load-bearing, which BREAK_GREEN above does not
 #                 give: BREAK_GREEN decrements a local total and never
 #                 touches a marker, so it went red for years while the
@@ -205,8 +222,8 @@ set -uo pipefail
 #                 set to 1 to run test_apply's OBJECT-COUNT negative control
 #                 (#1552, BREAK_GREEN_COUNT's shape): after the no-op apply
 #                 and before the after-read, remove tofu-estate from the
-#                 crossing's IAM role - the after-read must see 1 where the
-#                 before-read saw 2, and the stage has to fail. The call
+#                 crossing's IAM role - the after-read must see 6 where the
+#                 before-read saw 7, and the stage has to fail. The call
 #                 this stage used to make reads the same number marked or
 #                 unmarked, and the run prints both. Reached on the real
 #                 path only; the run reports test_apply=fail, exits
@@ -278,6 +295,7 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SRC="$ROOT/.corpus/hongbomiao/infrastructure/opentofu/modules/aws"
+SRC_EKS="$ROOT/.corpus/hongbomiao/infrastructure/opentofu/modules/amazon-eks"
 WORK="$(mktemp -d)"
 PLAIN="$WORK/plain"
 ESTATE="$WORK/estate"
@@ -290,6 +308,15 @@ ESTATE_NAME="hongbomiao-labelbox-crossing"
 BUCKET_NAME="${ESTATE_NAME}-hm-labelbox"
 ROLE_NAME="LabelboxRole-hm-labelbox"
 POLICY_NAME="LabelboxRoleS3Policy-hm-labelbox"
+# Folded from corpus-hongbomiao-harbor (see THE FOLD in the header).
+HARBOR_BUCKET_NAME="${ESTATE_NAME}-hm-harbor"
+HARBOR_USER_NAME="${ESTATE_NAME}-hm-harbor-user"
+HARBOR_POLICY_NAME="S3ReadWritePolicy-${HARBOR_BUCKET_NAME}"
+# Folded from corpus-hongbomiao-storage.
+PROD_BUCKET_NAME="${ESTATE_NAME}-hm-production"
+IOT_BUCKET_NAME="${ESTATE_NAME}-hm-iot-data"
+KMS_KEY_NAME="${ESTATE_NAME}-hm-kafka-kms-key"
+KMS_ALIAS_NAME="alias/${KMS_KEY_NAME}"
 
 cleanup() {
   gauntlet_floci_teardown "$FLOCI_NAME" "${FLOCI_GREEN_NAME:-}"
@@ -326,7 +353,8 @@ command -v aws >/dev/null 2>&1 || fail "the AWS CLI is not on PATH"
 command -v tofu >/dev/null 2>&1 || fail "the real tofu binary is not on PATH - required for stage 1 (see this script's header: terraform cannot read .tofu files at all)"
 command -v terraform >/dev/null 2>&1 || fail "the terraform binary is not on PATH - needed for the positive proof below"
 [ -d "$SRC/amazon_s3_bucket" ] && [ -d "$SRC/amazon_s3_bucket_cors_configuration" ] && [ -d "$SRC/labelbox_iam_role" ] \
-  || fail "$SRC is missing one of the three leaf modules - fetch hongbo-miao/hongbomiao.com at the pin in live/corpus-manifest.json first"
+  && [ -d "$SRC/aws_kms_key" ] && [ -d "$SRC_EKS/harbor_iam_user" ] \
+  || fail "$SRC or $SRC_EKS is missing one of the five leaf modules - fetch hongbo-miao/hongbomiao.com at the pin in live/corpus-manifest.json first"
 log "  cold deploy binary: tofu ($(tofu version | head -1))"
 
 if [ -n "${TOFU_BIN:-}" ]; then
@@ -340,14 +368,17 @@ else
   log "  built $TOFU"
 fi
 
-# copy_leaf_modules <destdir>: the three real, unmodified leaf modules -
-# every file in them keeps hongbomiao.com's own .tofu extension.
+# copy_leaf_modules <destdir>: the five real, unmodified leaf modules -
+# every file in them keeps hongbomiao.com's own .tofu extension. The first
+# three are Labelbox's; aws_kms_key is storage's and harbor_iam_user is
+# harbor's (amazon_s3_bucket serves all three slices).
 copy_leaf_modules() {
   local dest="$1"
-  mkdir -p "$dest/modules/aws"
-  for m in amazon_s3_bucket amazon_s3_bucket_cors_configuration labelbox_iam_role; do
+  mkdir -p "$dest/modules/aws" "$dest/modules/amazon-eks"
+  for m in amazon_s3_bucket amazon_s3_bucket_cors_configuration labelbox_iam_role aws_kms_key; do
     cp -R "$SRC/$m" "$dest/modules/aws/$m"
   done
+  cp -R "$SRC_EKS/harbor_iam_user" "$dest/modules/amazon-eks/harbor_iam_user"
 }
 
 # write_root <destdir> <live_block>: this crossing's own root wiring,
@@ -357,7 +388,9 @@ copy_leaf_modules() {
 # three module calls below use the SAME source paths, the SAME argument
 # names and, other than the estate-scoped bucket/role name and the
 # necessarily-fabricated external_id, the SAME values as hongbomiao.com's
-# own aws/general/main.tofu "Labelbox" section. Written with a .tofu
+# own aws/general/main.tofu "Labelbox" section. The five folded calls after
+# them (harbor's two, storage's three) do the same for their own sections,
+# other than estate-scoped names. Written with a .tofu
 # extension, matching every file this project's own real modules use -
 # the file plain terraform cannot see at all (proven below).
 write_root() {
@@ -433,25 +466,66 @@ module "labelbox_iam_role" {
   s3_bucket_name                = module.amazon_s3_bucket_hm_labelbox.name
   common_tags                   = local.common_tags
 }
+
+# Harbor - S3 bucket (folded from corpus-hongbomiao-harbor: the same call
+# as aws/kubernetes/main.tofu's "Harbor" section, estate-scoped name)
+module "s3_bucket_hm_harbor" {
+  providers      = { aws = aws.production }
+  source         = "./modules/aws/amazon_s3_bucket"
+  s3_bucket_name = "$HARBOR_BUCKET_NAME"
+  common_tags    = local.common_tags
+}
+# Harbor - IAM user
+module "harbor_iam_user" {
+  providers         = { aws = aws.production }
+  source            = "./modules/amazon-eks/harbor_iam_user"
+  aws_iam_user_name = "$HARBOR_USER_NAME"
+  s3_bucket_name    = module.s3_bucket_hm_harbor.name
+  common_tags       = local.common_tags
+}
+
+# Amazon S3 bucket - hm-production-bucket (folded from
+# corpus-hongbomiao-storage: aws/storage/main.tofu's opening section)
+module "hm_production_bucket" {
+  providers      = { aws = aws.production }
+  source         = "./modules/aws/amazon_s3_bucket"
+  s3_bucket_name = "$PROD_BUCKET_NAME"
+  common_tags    = local.common_tags
+}
+# Kafka KMS key (no providers= - matches the real storage/main.tofu call)
+module "kafka_kms_key" {
+  source           = "./modules/aws/aws_kms_key"
+  aws_kms_key_name = "$KMS_KEY_NAME"
+  common_tags      = local.common_tags
+}
+# IoT data - S3 bucket
+module "s3_bucket_iot_data" {
+  providers      = { aws = aws.production }
+  source         = "./modules/aws/amazon_s3_bucket"
+  s3_bucket_name = "$IOT_BUCKET_NAME"
+  common_tags    = local.common_tags
+}
 EOF
   gauntlet_pin_aws_provider "$dest/main.tofu" || fail "gauntlet_pin_aws_provider failed for $dest/main.tofu"
 }
 
 copy_leaf_modules "$PLAIN"
 write_root "$PLAIN" ""
-log "  three leaf modules copied unmodified out of .corpus/hongbomiao into $PLAIN"
+log "  five leaf modules copied unmodified out of .corpus/hongbomiao into $PLAIN"
 
 # DELTA: confirm the copy is byte-identical to the pinned commit - the only
 # things this crossing adds are its OWN root file and provider block, never
 # an edit to hongbomiao.com's own module code.
-for m in amazon_s3_bucket amazon_s3_bucket_cors_configuration labelbox_iam_role; do
+for m in amazon_s3_bucket amazon_s3_bucket_cors_configuration labelbox_iam_role aws_kms_key; do
   diff -rq "$SRC/$m" "$PLAIN/modules/aws/$m" >/dev/null \
     || fail "modules/aws/$m differs from the pinned commit - this crossing must run the real, unmodified module"
 done
-log "  DELTA confirmed: all three leaf modules are byte-identical to the pinned commit; only this script's own root file was added"
+diff -rq "$SRC_EKS/harbor_iam_user" "$PLAIN/modules/amazon-eks/harbor_iam_user" >/dev/null \
+  || fail "modules/amazon-eks/harbor_iam_user differs from the pinned commit - this crossing must run the real, unmodified module"
+log "  DELTA confirmed: all five leaf modules are byte-identical to the pinned commit; only this script's own root file was added"
 
 # Positive proof, not an assertion of belief: stock terraform genuinely
-# cannot see this estate at all, because every file in it - the three leaf
+# cannot see this estate at all, because every file in it - the five leaf
 # modules AND this script's own root wiring - uses the .tofu extension.
 TF_INIT_OUT="$(cd "$PLAIN" && gauntlet_locked_init terraform init -input=false -no-color 2>&1)"
 grep -qF "The directory has no Terraform configuration files." <<< "$TF_INIT_OUT" \
@@ -475,10 +549,11 @@ gauntlet_floci_start "$FLOCI_NAME" -p "${FLOCI_PORT}:4566" "$FLOCI_IMAGE" \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
-  grep -q '"s3"' <<< "${HEALTH:-}" && break
+  grep -q '"s3"' <<< "${HEALTH:-}" && grep -q '"iam"' <<< "${HEALTH:-}" && grep -q '"kms"' <<< "${HEALTH:-}" && break
   sleep 2
 done
-grep -q '"s3"' <<< "${HEALTH:-}" || fail "floci did not come up healthy (s3) at $ENDPOINT"
+grep -q '"s3"' <<< "${HEALTH:-}" && grep -q '"iam"' <<< "${HEALTH:-}" && grep -q '"kms"' <<< "${HEALTH:-}" \
+  || fail "floci did not come up healthy (s3/iam/kms) at $ENDPOINT"
 log "  healthy"
 
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AWS_ENDPOINT_URL="$ENDPOINT"
@@ -492,8 +567,8 @@ log "=== STAGE 1: cold deploy (plain tofu apply, the real unmodified modules) ==
   ( cd "$PLAIN" && tofu init -input=false -no-color 2>&1 | tail -30; exit "${PIPESTATUS[0]}" ) || fail "stage 1 init failed"; }
 COLD_OUT="$(cd "$PLAIN" && tofu apply -input=false -auto-approve -no-color 2>&1)"; COLD_RC=$?
 [ "$COLD_RC" -eq 0 ] || { printf '%s\n' "$COLD_OUT" | tail -40; fail "stage 1 (cold deploy) failed"; }
-grep -qE 'Apply complete! Resources: 4 added, 0 changed, 0 destroyed' <<< "$COLD_OUT" \
-  || { grep -E 'Apply complete' <<< "$COLD_OUT"; fail "stage 1 did not create exactly 4 resources"; }
+grep -qE 'Apply complete! Resources: 11 added, 0 changed, 0 destroyed' <<< "$COLD_OUT" \
+  || { grep -E 'Apply complete' <<< "$COLD_OUT"; fail "stage 1 did not create exactly 11 resources (Labelbox 4, harbor 3, storage 4)"; }
 log "  $(grep -E 'Apply complete' <<< "$COLD_OUT")"
 [ -f "$PLAIN/terraform.tfstate" ] || fail "stage 1 left no state file to migrate from"
 
@@ -506,7 +581,7 @@ log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE_NAME before migra
 log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
-gauntlet_stage cold_deploy pass "4 resources added, 0 objects carry tofu-estate=$ESTATE_NAME before migration"
+gauntlet_stage cold_deploy pass "11 resources added (Labelbox 4, harbor 3, storage 4), 0 objects carry tofu-estate=$ESTATE_NAME before migration"
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART D-ORACLE: RENAME, stock oracle (day2_rename, live/GAUNTLET.md #6)
@@ -656,11 +731,11 @@ gauntlet_floci_start "$FLOCI_GREEN_NAME" -p "${FLOCI_GREEN_PORT}:4566" "$FLOCI_I
   || fail "docker run for $FLOCI_GREEN_NAME failed"
 for _ in $(seq 1 45); do
   GREEN_HEALTH="$(curl -fs "${GREEN_ENDPOINT}/_localstack/health" 2>/dev/null)" || true
-  grep -q '"s3"' <<< "${GREEN_HEALTH:-}" && grep -q '"iam"' <<< "${GREEN_HEALTH:-}" && break
+  grep -q '"s3"' <<< "${GREEN_HEALTH:-}" && grep -q '"iam"' <<< "${GREEN_HEALTH:-}" && grep -q '"kms"' <<< "${GREEN_HEALTH:-}" && break
   sleep 2
 done
-grep -q '"s3"' <<< "${GREEN_HEALTH:-}" && grep -q '"iam"' <<< "${GREEN_HEALTH:-}" \
-  || fail "the greenfield floci did not come up healthy (s3/iam) at $GREEN_ENDPOINT"
+grep -q '"s3"' <<< "${GREEN_HEALTH:-}" && grep -q '"iam"' <<< "${GREEN_HEALTH:-}" && grep -q '"kms"' <<< "${GREEN_HEALTH:-}" \
+  || fail "the greenfield floci did not come up healthy (s3/iam/kms) at $GREEN_ENDPOINT"
 log "  healthy: greenfield=$GREEN_ENDPOINT"
 
 GREEN="$WORK/greenfield"
@@ -672,7 +747,7 @@ write_root "$GREEN" '
       path = ".tofu-records"
     }
   }'
-log "  greenfield estate written to $GREEN (same three unmodified leaf modules, a live block from the start)"
+log "  greenfield estate written to $GREEN (same five unmodified leaf modules, a live block from the start)"
 
 gauntlet_begin_stage greenfield
 log "=== PART GREENFIELD 1. choudoufu apply directly, no migration ==="
@@ -680,8 +755,8 @@ log "=== PART GREENFIELD 1. choudoufu apply directly, no migration ==="
   ( cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" init -input=false -no-color 2>&1 | tail -20; exit "${PIPESTATUS[0]}" ) || fail "the greenfield init failed"; }
 GREEN_APPLY_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; GREEN_APPLY_RC=$?
 [ "$GREEN_APPLY_RC" -eq 0 ] || { printf '%s\n' "$GREEN_APPLY_OUT" | tail -40; fail "the greenfield apply failed"; }
-grep -qE 'Apply complete! Resources: 4 added' <<< "$GREEN_APPLY_OUT" \
-  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 4 resources"; }
+grep -qE 'Apply complete! Resources: 11 added' <<< "$GREEN_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT"; fail "the greenfield apply did not create exactly 11 resources"; }
 log "  $(grep -E 'Apply complete' <<< "$GREEN_APPLY_OUT")"
 
 log "=== PART GREENFIELD 2. markers, read through the AWS CLI directly ==="
@@ -695,11 +770,28 @@ GREEN_BUCKET_ESTATE="$(awslg s3api get-bucket-tagging --bucket "$BUCKET_NAME" --
 GREEN_ROLE_ADDR="$(awslg iam list-role-tags --role-name "$ROLE_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
 [ "$GREEN_ROLE_ADDR" = "$GREEN_WANT_ROLE_ADDR" ] || fail "the greenfield role carries tofu-address=$GREEN_ROLE_ADDR, not $GREEN_WANT_ROLE_ADDR"
 log "  bucket $BUCKET_NAME -> tofu-address=$GREEN_BUCKET_ADDR tofu-estate=$GREEN_BUCKET_ESTATE; role $ROLE_NAME -> tofu-address=$GREEN_ROLE_ADDR - read via the AWS CLI, not choudoufu's own report"
+# The folded harbor and storage objects (see THE FOLD in the header).
+green_addr_check() { # <label> <want> <got>
+  [ "$3" = "$2" ] || fail "the greenfield $1 carries tofu-address=$3, not $2"
+}
+green_addr_check "harbor bucket" "module.s3_bucket_hm_harbor.aws_s3_bucket.main" \
+  "$(awslg s3api get-bucket-tagging --bucket "$HARBOR_BUCKET_NAME" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+green_addr_check "harbor user" "module.harbor_iam_user.aws_iam_user.hm_harbor_iam_user" \
+  "$(gauntlet_first_match '.Tags[] | select(.Key == "tofu-address") | .Value' awslg iam list-user-tags --user-name "$HARBOR_USER_NAME")"
+green_addr_check "production bucket" "module.hm_production_bucket.aws_s3_bucket.main" \
+  "$(awslg s3api get-bucket-tagging --bucket "$PROD_BUCKET_NAME" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+green_addr_check "IoT bucket" "module.s3_bucket_iot_data.aws_s3_bucket.main" \
+  "$(awslg s3api get-bucket-tagging --bucket "$IOT_BUCKET_NAME" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+GREEN_KMS_KEY_ID="$(gauntlet_first_match '.Aliases[] | select(.AliasName == "'"$KMS_ALIAS_NAME"'") | .TargetKeyId' awslg kms list-aliases)"
+[ -n "$GREEN_KMS_KEY_ID" ] && [ "$GREEN_KMS_KEY_ID" != "None" ] || fail "could not find the greenfield KMS key through its alias via the AWS CLI"
+green_addr_check "KMS key" "module.kafka_kms_key.aws_kms_key.main" \
+  "$(gauntlet_first_match '.Tags[] | select(.TagKey == "tofu-address") | .TagValue' awslg kms list-resource-tags --key-id "$GREEN_KMS_KEY_ID")"
+log "  the folded harbor bucket and user, both storage buckets and the KMS key carry their expected tofu-address, read via the AWS CLI"
 
 log "=== PART GREENFIELD 3. the local record store holds one record per instance, taggable and untaggable alike (#364 A2) ==="
 GREEN_RECORD_FILES="$(gauntlet_record_count "$GREEN/.tofu-records/tofu-records")"
-[ "$GREEN_RECORD_FILES" = "4" ] || fail "expected 4 records under the local record store after the greenfield apply (bucket, CORS config, role, inline policy), found $GREEN_RECORD_FILES"
-log "  4 records persisted, one per managed instance including the two untaggable ones, read directly off the local record store"
+[ "$GREEN_RECORD_FILES" = "11" ] || fail "expected 11 records under the local record store after the greenfield apply (Labelbox's bucket, CORS config, role and inline policy; harbor's bucket, user and inline policy; storage's two buckets, KMS key and alias), found $GREEN_RECORD_FILES"
+log "  11 records persisted, one per managed instance including the four untaggable ones, read directly off the local record store"
 
 log "=== PART GREENFIELD 4. the next plan proposes nothing ==="
 GREEN_PLAN_OUT="$(cd "$GREEN" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
@@ -738,7 +830,7 @@ log "=== PART GREENFIELD 6. object-by-object against stock's own cold-deploy con
 # to wait on.
 #
 # The helper reads IAM's own tag APIs as well and deduplicates by ARN, so
-# it answers 2 today and still 2 if a later pin starts serving roles
+# it answers 7 today (2 before the fold) and still 7 if a later pin starts serving roles
 # through GetResources - GAUNTLET_ESTATE_BOTH_N is how a reader tells which
 # world the run happened in. Assert on GAUNTLET_ESTATE_N, never on
 # GAUNTLET_ESTATE_RGTA_N. The estate it counts is the GREENFIELD one
@@ -770,11 +862,11 @@ if [ "${BREAK_GREEN_COUNT:-}" = "1" ]; then
     || fail "could not re-read the greenfield inventory after BREAK_GREEN_COUNT unmarked $ROLE_NAME"
   GREEN_TAGGABLE_COUNT="$GAUNTLET_ESTATE_N"
   log "  BREAK_GREEN_COUNT=1: removed tofu-estate from role $ROLE_NAME - the"
-  log "           assertion below must now fail, and reads $GREEN_TAGGABLE_COUNT. The call this"
+  log "           assertion below must now fail, and reads $GREEN_TAGGABLE_COUNT (not 7). The call this"
   log "           line replaced read $OLD_IDIOM_MARKED with the marker and $OLD_IDIOM_UNMARKED without it,"
   log "           unchanged by the removal: that is the defect, not the control."
 fi
-[ "$GREEN_TAGGABLE_COUNT" = "2" ] || fail "the greenfield estate has $GREEN_TAGGABLE_COUNT taggable objects, expected 2 (the bucket and the role) - GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own list-role-tags $GAUNTLET_ESTATE_IAM_N, $GAUNTLET_ESTATE_BOTH_N returned by both, deduplicated by ARN"
+[ "$GREEN_TAGGABLE_COUNT" = "7" ] || fail "the greenfield estate has $GREEN_TAGGABLE_COUNT taggable objects, expected 7 (four buckets, the role, the user, the KMS key) - GetResources $GAUNTLET_ESTATE_RGTA_N + IAM's own list-role-tags $GAUNTLET_ESTATE_IAM_N, $GAUNTLET_ESTATE_BOTH_N returned by both, deduplicated by ARN"
 GREEN_POLICY_DOC="$(awslg iam get-role-policy --role-name "$ROLE_NAME" --policy-name "$POLICY_NAME" --query 'PolicyDocument' --output json 2>/dev/null || true)"
 COLD_POLICY_DOC="$(awsl iam get-role-policy --role-name "$ROLE_NAME" --policy-name "$POLICY_NAME" --query 'PolicyDocument' --output json 2>/dev/null || true)"
 GREEN_TOTAL_COUNT=2
@@ -782,22 +874,45 @@ GREEN_TOTAL_COUNT=2
 GREEN_CORS_ORIGINS="$(awslg s3api get-bucket-cors --bucket "$BUCKET_NAME" --query 'CORSRules[0].AllowedOrigins' --output json 2>/dev/null || true)"
 COLD_CORS_ORIGINS="$(awsl s3api get-bucket-cors --bucket "$BUCKET_NAME" --query 'CORSRules[0].AllowedOrigins' --output json 2>/dev/null || true)"
 [ -n "$GREEN_CORS_ORIGINS" ] && [ "$GREEN_CORS_ORIGINS" != "None" ] && GREEN_TOTAL_COUNT=$((GREEN_TOTAL_COUNT + 1))
+# The folded objects: five more taggable (counted above through the helper),
+# and two more untaggable (harbor's inline user policy, storage's KMS alias),
+# each counted by whether its content comes back readable.
+GREEN_TOTAL_COUNT=$((GREEN_TOTAL_COUNT + 5))
+GREEN_USER_POLICY_DOC="$(awslg iam get-user-policy --user-name "$HARBOR_USER_NAME" --policy-name "$HARBOR_POLICY_NAME" --query 'PolicyDocument' --output json 2>/dev/null || true)"
+COLD_USER_POLICY_DOC="$(awsl iam get-user-policy --user-name "$HARBOR_USER_NAME" --policy-name "$HARBOR_POLICY_NAME" --query 'PolicyDocument' --output json 2>/dev/null || true)"
+[ -n "$GREEN_USER_POLICY_DOC" ] && [ "$GREEN_USER_POLICY_DOC" != "None" ] && GREEN_TOTAL_COUNT=$((GREEN_TOTAL_COUNT + 1))
+GREEN_ALIAS_TARGET="$(gauntlet_first_match '.Aliases[] | select(.AliasName == "'"$KMS_ALIAS_NAME"'") | .TargetKeyId' awslg kms list-aliases 2>/dev/null || true)"
+[ -n "$GREEN_ALIAS_TARGET" ] && [ "$GREEN_ALIAS_TARGET" != "None" ] && GREEN_TOTAL_COUNT=$((GREEN_TOTAL_COUNT + 1))
 if [ "${BREAK_GREEN:-}" = "1" ]; then
   GREEN_TOTAL_COUNT=$((GREEN_TOTAL_COUNT - 1))
   log "  BREAK_GREEN=1: dropped one object from the actual inventory - the count comparison below must fail"
 fi
-[ "$GREEN_TOTAL_COUNT" = "4" ] \
-  || fail "the greenfield estate has $GREEN_TOTAL_COUNT objects (2 taggable plus the CORS config and the inline policy, if readable), expected 4 - the object-by-object comparison against stock's cold deploy must fail on a dropped resource"
+[ "$GREEN_TOTAL_COUNT" = "11" ] \
+  || fail "the greenfield estate has $GREEN_TOTAL_COUNT objects (7 taggable plus the CORS config, the inline role policy, the inline user policy and the KMS alias, if readable), expected 11 - the object-by-object comparison against stock's cold deploy must fail on a dropped resource"
 [ "$GREEN_POLICY_DOC" = "$COLD_POLICY_DOC" ] || fail "the inline role policy's document differs between the greenfield estate and stock's cold deploy"
 [ "$GREEN_CORS_ORIGINS" = "$COLD_CORS_ORIGINS" ] || fail "the CORS configuration's allowed origins differ between the greenfield estate and stock's cold deploy"
 GREEN_ROLE_TRUST="$(awslg iam get-role --role-name "$ROLE_NAME" --query 'Role.AssumeRolePolicyDocument.Statement[0].Condition' --output json)"
 COLD_ROLE_TRUST="$(awsl iam get-role --role-name "$ROLE_NAME" --query 'Role.AssumeRolePolicyDocument.Statement[0].Condition' --output json)"
 [ "$GREEN_ROLE_TRUST" = "$COLD_ROLE_TRUST" ] || fail "the role's trust policy condition differs between the greenfield estate and stock's cold deploy"
-log "  2 taggable objects (GetResources $GAUNTLET_ESTATE_RGTA_N - the bucket - plus IAM's own list-role-tags $GAUNTLET_ESTATE_IAM_N - the role - $GAUNTLET_ESTATE_BOTH_N returned by both, deduplicated by ARN) plus the CORS config and the inline policy match stock's cold-deploy container object by object (policy document, CORS origins, role trust condition), marker tags never compared"
+[ "$GREEN_USER_POLICY_DOC" = "$COLD_USER_POLICY_DOC" ] || fail "the harbor inline user policy's document differs between the greenfield estate and stock's cold deploy"
+GREEN_USER_PATH="$(awslg iam get-user --user-name "$HARBOR_USER_NAME" --query 'User.Path' --output text)"
+COLD_USER_PATH="$(awsl iam get-user --user-name "$HARBOR_USER_NAME" --query 'User.Path' --output text)"
+[ "$GREEN_USER_PATH" = "$COLD_USER_PATH" ] || fail "the harbor user's path differs between the greenfield estate and stock's cold deploy"
+[ "$GREEN_ALIAS_TARGET" = "$GREEN_KMS_KEY_ID" ] || fail "the greenfield KMS alias does not target the greenfield key"
+COLD_KMS_KEY_ID="$(gauntlet_first_match '.Aliases[] | select(.AliasName == "'"$KMS_ALIAS_NAME"'") | .TargetKeyId' awsl kms list-aliases)"
+GREEN_KMS_USAGE="$(awslg kms describe-key --key-id "$GREEN_KMS_KEY_ID" --query 'KeyMetadata.KeyUsage' --output text)"
+COLD_KMS_USAGE="$(awsl kms describe-key --key-id "$COLD_KMS_KEY_ID" --query 'KeyMetadata.KeyUsage' --output text)"
+[ "$GREEN_KMS_USAGE" = "$COLD_KMS_USAGE" ] || fail "the KMS key's usage differs between the greenfield estate and stock's cold deploy"
+for b in "$HARBOR_BUCKET_NAME" "$PROD_BUCKET_NAME" "$IOT_BUCKET_NAME"; do
+  GREEN_LOC="$(awslg s3api get-bucket-location --bucket "$b" --query 'LocationConstraint' --output text 2>&1 || true)"
+  COLD_LOC="$(awsl s3api get-bucket-location --bucket "$b" --query 'LocationConstraint' --output text 2>&1 || true)"
+  [ "$GREEN_LOC" = "$COLD_LOC" ] || fail "bucket $b's location differs between the greenfield estate and stock's cold deploy"
+done
+log "  7 taggable objects (GetResources $GAUNTLET_ESTATE_RGTA_N plus IAM's own tag APIs $GAUNTLET_ESTATE_IAM_N - the role and the user - $GAUNTLET_ESTATE_BOTH_N returned by both, deduplicated by ARN) plus the CORS config, both inline policies and the KMS alias match stock's cold-deploy container object by object (policy documents, CORS origins, role trust condition, user path, key usage, alias target, bucket locations), marker tags never compared"
 
 log ""
 log "PART GREENFIELD (greenfield): PASS"
-gauntlet_stage greenfield pass "4 resources from nothing (bucket, CORS config, role, untaggable inline role policy), markers verified via the AWS CLI, 4 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared; the 2 taggable objects counted through GetResources ($GAUNTLET_ESTATE_RGTA_N) AND IAM's own list-role-tags ($GAUNTLET_ESTATE_IAM_N), deduplicated by ARN, because the tagging API does not index this estate's IAM role in us-west-2 (#1549)"
+gauntlet_stage greenfield pass "11 resources from nothing (Labelbox's bucket, CORS config, role and untaggable inline role policy; harbor's bucket, user and untaggable inline user policy; storage's two buckets, KMS key and untaggable alias), markers verified via the AWS CLI, 11 records in the local record store (#364 A2), replan empty both with and without the local record store, all objects match stock's cold-deploy container (STAGE 1, untouched) object by object, marker tags never compared; the 7 taggable objects counted through GetResources ($GAUNTLET_ESTATE_RGTA_N) AND IAM's own tag APIs ($GAUNTLET_ESTATE_IAM_N), deduplicated by ARN, because the tagging API does not index this estate's IAM role or user in us-west-2 (#1549)"
 log ""
 gauntlet_end_stage
 
@@ -937,23 +1052,23 @@ log "=== STAGE 2: choudoufu live-import ==="
 log "--- 2a: live-import, read-only first ---"
 IMPORT_OUT="$(cd "$ESTATE" && "$TOFU" live-import -state="$PLAIN/terraform.tfstate" -estate="$ESTATE_NAME" -no-color 2>&1)"; IMPORT_RC=$?
 [ "$IMPORT_RC" -eq 0 ] || { printf '%s\n' "$IMPORT_OUT" | tail -40; fail "live-import (dry run) failed"; }
-grep -qF "2 of 4 resource instance(s) are eligible for stamping" <<< "$IMPORT_OUT" \
-  || { printf '%s\n' "$IMPORT_OUT"; fail "live-import did not verify exactly 2 of 4 as eligible (the S3 bucket and the IAM role - see header for why the CORS configuration and the inline role policy are correctly UNTAGGABLE)"; }
+grep -qF "7 of 11 resource instance(s) are eligible for stamping" <<< "$IMPORT_OUT" \
+  || { printf '%s\n' "$IMPORT_OUT"; fail "live-import did not verify exactly 7 of 11 as eligible (four S3 buckets, the IAM role, the IAM user and the KMS key - see header for why the CORS configuration, both inline policies and the KMS alias are correctly UNTAGGABLE)"; }
 grep -qF "No tag has been written." <<< "$IMPORT_OUT" || fail "the dry run wrote a tag - it must not"
 # The two DRIFTED (not VERIFIED) findings this script's header explains -
 # real, harmless, expected AWS-provider behavior, not routed around.
 grep -qF "DRIFTED (2)" <<< "$IMPORT_OUT" \
   || fail "expected exactly 2 DRIFTED resources (cors_rule/inline_policy shadow attributes - see header); the module's own shape may have moved"
-grep -qF "UNTAGGABLE (2)" <<< "$IMPORT_OUT" \
-  || fail "expected exactly 2 UNTAGGABLE resources (the CORS configuration and the inline role policy)"
-log "  2 of 4 verified/drifted against the live system; nothing written yet"
+grep -qF "UNTAGGABLE (4)" <<< "$IMPORT_OUT" \
+  || fail "expected exactly 4 UNTAGGABLE resources (the CORS configuration, the inline role policy, the inline user policy and the KMS alias)"
+log "  7 of 11 verified/drifted against the live system; nothing written yet"
 
 log "--- 2b: -approve ---"
 APPROVE_OUT="$(cd "$ESTATE" && "$TOFU" live-import -state="$PLAIN/terraform.tfstate" -estate="$ESTATE_NAME" -approve -no-color 2>&1)"; APPROVE_RC=$?
 [ "$APPROVE_RC" -eq 0 ] || { printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve failed"; }
-grep -qF "2 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 2 skipped" <<< "$APPROVE_OUT" \
-  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly 2 of 4 resources cleanly"; }
-log "  2 stamped"
+grep -qF "7 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 4 skipped" <<< "$APPROVE_OUT" \
+  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly 7 of 11 resources cleanly"; }
+log "  7 stamped"
 
 log "--- 2c: the markers, read through the AWS CLI directly - never through choudoufu ---"
 WANT_BUCKET_ADDR="module.amazon_s3_bucket_hm_labelbox.aws_s3_bucket.main"
@@ -973,6 +1088,32 @@ GOT_ROLE_ADDR="$(awsl iam list-role-tags --role-name "$ROLE_NAME" --query "Tags[
 [ "$GOT_ROLE_ADDR" = "$WANT_ROLE_ADDR" ] || fail "the IAM role carries tofu-address=$GOT_ROLE_ADDR, not $WANT_ROLE_ADDR"
 log "  role $ROLE_NAME -> tofu-address=$GOT_ROLE_ADDR"
 
+# The folded objects' markers (see THE FOLD in the header).
+WANT_HARBOR_BUCKET_ADDR="module.s3_bucket_hm_harbor.aws_s3_bucket.main"
+WANT_HARBOR_USER_ADDR="module.harbor_iam_user.aws_iam_user.hm_harbor_iam_user"
+WANT_PROD_ADDR="module.hm_production_bucket.aws_s3_bucket.main"
+WANT_IOT_ADDR="module.s3_bucket_iot_data.aws_s3_bucket.main"
+WANT_KMS_ADDR="module.kafka_kms_key.aws_kms_key.main"
+KMS_KEY_ID="$(gauntlet_first_match '.Aliases[] | select(.AliasName == "'"$KMS_ALIAS_NAME"'") | .TargetKeyId' awsl kms list-aliases)"
+[ -n "$KMS_KEY_ID" ] && [ "$KMS_KEY_ID" != "None" ] || fail "could not find the KMS key through $KMS_ALIAS_NAME via the AWS CLI"
+# folded_addrs: one line per folded taggable object, the tofu-address each
+# carries now, read through the AWS CLI. KMS's list-resource-tags answers
+# TagKey/TagValue, not the Key/Value shape the other services use. The
+# paginating listings go through gauntlet_first_match (#1042, #1206).
+folded_addrs() {
+  printf 'harbor-bucket %s\n' "$(awsl s3api get-bucket-tagging --bucket "$HARBOR_BUCKET_NAME" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+  printf 'harbor-user %s\n' "$(gauntlet_first_match '.Tags[] | select(.Key == "tofu-address") | .Value' awsl iam list-user-tags --user-name "$HARBOR_USER_NAME")"
+  printf 'prod-bucket %s\n' "$(awsl s3api get-bucket-tagging --bucket "$PROD_BUCKET_NAME" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+  printf 'iot-bucket %s\n' "$(awsl s3api get-bucket-tagging --bucket "$IOT_BUCKET_NAME" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+  printf 'kms-key %s\n' "$(gauntlet_first_match '.Tags[] | select(.TagKey == "tofu-address") | .TagValue' awsl kms list-resource-tags --key-id "$KMS_KEY_ID")"
+}
+WANT_FOLDED_ADDRS="$(printf 'harbor-bucket %s\nharbor-user %s\nprod-bucket %s\niot-bucket %s\nkms-key %s' \
+  "$WANT_HARBOR_BUCKET_ADDR" "$WANT_HARBOR_USER_ADDR" "$WANT_PROD_ADDR" "$WANT_IOT_ADDR" "$WANT_KMS_ADDR")"
+GOT_FOLDED_ADDRS="$(folded_addrs)"
+[ "$GOT_FOLDED_ADDRS" = "$WANT_FOLDED_ADDRS" ] \
+  || { printf 'want:\n%s\ngot:\n%s\n' "$WANT_FOLDED_ADDRS" "$GOT_FOLDED_ADDRS"; fail "a folded object's tofu-address is not the one its declared address names"; }
+log "  the five folded taggable objects (harbor's bucket and user, storage's two buckets and KMS key $KMS_KEY_ID) carry their declared tofu-address"
+
 if [ "${BREAK:-}" = "1" ]; then
   fail "BREAK=1: the role's real tofu-address matched the WRONG expected value above without this script noticing - stage 2's assertion is not load-bearing"
 fi
@@ -980,7 +1121,7 @@ fi
 log ""
 log "STAGE 2 (migrate): PASS"
 log ""
-gauntlet_stage migrate pass "2 of 4 stamped (2 skipped, untaggable), 0 failed; markers read back via the AWS CLI"
+gauntlet_stage migrate pass "7 of 11 stamped (4 skipped, untaggable), 0 failed; markers read back via the AWS CLI"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted, live-plan, empty + identities re-asserted
@@ -1024,10 +1165,21 @@ GOT_POLICY="$(awsl iam get-role-policy --role-name "$ROLE_NAME" --policy-name "$
 [ "$GOT_POLICY" = "arn:aws:s3:::$BUCKET_NAME" ] || fail "the live inline role policy's first Resource ($GOT_POLICY) does not match the configuration"
 log "  identity re-check: bucket and role tofu-address unchanged; the CORS configuration's origins and the inline policy's resource ARN, read directly off the live objects, still match the configuration"
 
+# The folded objects: the five taggable ones by marker, the two untaggable
+# ones (harbor's inline user policy, storage's KMS alias) by content.
+GOT_FOLDED_ADDRS2="$(folded_addrs)"
+[ "$GOT_FOLDED_ADDRS2" = "$WANT_FOLDED_ADDRS" ] \
+  || { printf 'want:\n%s\ngot:\n%s\n' "$WANT_FOLDED_ADDRS" "$GOT_FOLDED_ADDRS2"; fail "a folded object's tofu-address changed across the empty plan"; }
+GOT_USER_POLICY_RESOURCE="$(awsl iam get-user-policy --user-name "$HARBOR_USER_NAME" --policy-name "$HARBOR_POLICY_NAME" --query 'PolicyDocument.Statement[0].Resource[0]' --output text)"
+[ "$GOT_USER_POLICY_RESOURCE" = "arn:aws:s3:::$HARBOR_BUCKET_NAME" ] || fail "the live inline user policy's first Resource ($GOT_USER_POLICY_RESOURCE) does not match the configuration"
+GOT_ALIAS_TARGET="$(gauntlet_first_match '.Aliases[] | select(.AliasName == "'"$KMS_ALIAS_NAME"'") | .TargetKeyId' awsl kms list-aliases)"
+[ "$GOT_ALIAS_TARGET" = "$KMS_KEY_ID" ] || fail "the live KMS alias $KMS_ALIAS_NAME does not point at $KMS_KEY_ID (got $GOT_ALIAS_TARGET)"
+log "  identity re-check: the five folded taggable objects' tofu-address unchanged; the inline user policy's resource ARN and the KMS alias's target key, read directly off the live objects, still match"
+
 log ""
 log "STAGE 3 (test plan): PASS"
 log ""
-gauntlet_stage test_plan pass "no resource change proposed; bucket and role tofu-address unchanged, CORS origins and inline policy resource match config"
+gauntlet_stage test_plan pass "no resource change proposed; bucket and role tofu-address unchanged, CORS origins and inline policy resource match config; the five folded taggable objects' tofu-address unchanged, the inline user policy's resource and the KMS alias's target match config"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
@@ -1047,8 +1199,9 @@ log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
 #
 # So both reads now go through the helper, which unions GetResources with
 # IAM's own list-role-tags and deduplicates by ARN, and the stage asserts
-# three things the old one did not: the before-read holds both taggable
-# objects (the bucket and the role; the CORS configuration and the inline role policy can carry no marker), the
+# three things the old one did not: the before-read holds all 7 taggable
+# objects (four buckets, the role, the user and the KMS key; the CORS
+# configuration, both inline policies and the KMS alias can carry no marker), the
 # after-read holds the SAME ARNs rather than merely as many, and a read that
 # cannot reach the endpoint refuses instead of turning into
 # `2>/dev/null || echo 0`'s "0 objects before, 0 after".
@@ -1063,8 +1216,8 @@ BEFORE_ARNS="$GAUNTLET_ESTATE_ARNS"
 BEFORE_RGTA_N="$GAUNTLET_ESTATE_RGTA_N"
 BEFORE_IAM_N="$GAUNTLET_ESTATE_IAM_N"
 BEFORE_BOTH_N="$GAUNTLET_ESTATE_BOTH_N"
-[ "$BEFORE_N" = "2" ] \
-  || fail "expected 2 objects carrying tofu-estate=$ESTATE_NAME before the no-op apply (the bucket and the role), got $BEFORE_N (GetResources $BEFORE_RGTA_N + IAM's own tag APIs $BEFORE_IAM_N, $BEFORE_BOTH_N returned by both, deduplicated by ARN)"
+[ "$BEFORE_N" = "7" ] \
+  || fail "expected 7 objects carrying tofu-estate=$ESTATE_NAME before the no-op apply (four buckets, the role, the user, the KMS key), got $BEFORE_N (GetResources $BEFORE_RGTA_N + IAM's own tag APIs $BEFORE_IAM_N, $BEFORE_BOTH_N returned by both, deduplicated by ARN)"
 
 APPLY2_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
 [ "$APPLY2_RC" -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -40; fail "the post-migration apply failed"; }
@@ -1111,7 +1264,7 @@ log "  genuine no-op: the same $AFTER_N marked objects before and after (GetReso
 log ""
 log "STAGE 4 (test apply): PASS"
 log ""
-gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); the same $AFTER_N ARNs carry tofu-estate=$ESTATE_NAME before and after (the bucket and the role) - GetResources $BEFORE_RGTA_N + IAM's own list-role-tags $BEFORE_IAM_N, $BEFORE_BOTH_N by both, deduplicated by ARN, because the tagging API does not index this estate's IAM role in us-west-2 (#1552); no state file"
+gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); the same $AFTER_N ARNs carry tofu-estate=$ESTATE_NAME before and after (four buckets, the role, the user, the KMS key) - GetResources $BEFORE_RGTA_N + IAM's own list-role-tags $BEFORE_IAM_N, $BEFORE_BOTH_N by both, deduplicated by ARN, because the tagging API does not index this estate's IAM role or user in us-west-2 (#1552); no state file"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
@@ -1231,13 +1384,13 @@ if [ -z "${BREAK:-}" ] && [ -z "${BREAK_REMOVE:-}" ] && [ -z "${BREAK_GREEN:-}" 
   # untaggable inline policy that common_tags never reaches. Merging one key
   # into it is an in-place update of exactly one instance and leaves every
   # other module in this root alone, the Labelbox S3 bucket included.
-  [ "$(grep -cE 'common_tags[[:space:]]+= local\.common_tags' "$ESTATE/main.tofu")" = "2" ] \
-    || fail "main.tofu no longer carries exactly 2 \"common_tags = local.common_tags\" module arguments - this crossing's own root wiring has moved"
+  [ "$(grep -cE 'common_tags[[:space:]]+= local\.common_tags' "$ESTATE/main.tofu")" = "7" ] \
+    || fail "main.tofu no longer carries exactly 7 \"common_tags = local.common_tags\" module arguments - this crossing's own root wiring has moved"
   perl -0pi -e 's/(module "labelbox_iam_role" \{\n(?:[^\n]*\n)*?  common_tags\s+= )local\.common_tags/$1 . "merge(local.common_tags, { Reviewed = \"yes\" })"/e' "$ESTATE/main.tofu"
   [ "$(grep -c 'Reviewed = "yes"' "$ESTATE/main.tofu")" = "1" ] \
     || fail "the reviewed edit did not write exactly one merge(local.common_tags, ...) argument"
-  [ "$(grep -cE 'common_tags[[:space:]]+= local\.common_tags' "$ESTATE/main.tofu")" = "1" ] \
-    || fail "the reviewed edit changed more than one of the 2 \"common_tags = local.common_tags\" module arguments"
+  [ "$(grep -cE 'common_tags[[:space:]]+= local\.common_tags' "$ESTATE/main.tofu")" = "6" ] \
+    || fail "the reviewed edit changed more than one of the 7 \"common_tags = local.common_tags\" module arguments"
   log "  edited one argument: labelbox_iam_role's common_tags now merge in Reviewed = \"yes\""
 
   P_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" plan -input=false -no-color -out=approved.tfplan 2>&1)"; P_PLAN_RC=$?
@@ -1330,8 +1483,8 @@ if [ -z "${BREAK:-}" ] && [ -z "${BREAK_REMOVE:-}" ] && [ -z "${BREAK_GREEN:-}" 
   perl -0pi -e 's/merge\(local\.common_tags, \{ Reviewed = "yes" \}\)/local.common_tags/' "$ESTATE/main.tofu"
   [ "$(grep -c 'Reviewed = "yes"' "$ESTATE/main.tofu")" = "0" ] \
     || fail "reverting the reviewed edit did not remove the Reviewed key"
-  [ "$(grep -cE 'common_tags[[:space:]]+= local\.common_tags' "$ESTATE/main.tofu")" = "2" ] \
-    || fail "reverting the reviewed edit did not restore all 2 \"common_tags = local.common_tags\" arguments"
+  [ "$(grep -cE 'common_tags[[:space:]]+= local\.common_tags' "$ESTATE/main.tofu")" = "7" ] \
+    || fail "reverting the reviewed edit did not restore all 7 \"common_tags = local.common_tags\" arguments"
   P_BACK_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; P_BACK_RC=$?
   [ "$P_BACK_RC" -eq 0 ] || { printf '%s\n' "$P_BACK_OUT" | tail -40; fail "the revert apply failed"; }
   P_GONE="$(awsl iam list-role-tags --role-name "$ROLE_NAME" --query "Tags[?Key=='Reviewed'].Value | [0]" --output text)"

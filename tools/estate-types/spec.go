@@ -128,32 +128,16 @@ var estateSpecs = []estateSpec{
 		Note:       `run.sh SRC="$ROOT/.corpus/giantswarm-aws-prereqs/crossplane"; copy_module() copies the whole (small) crossplane/ directory, including its policies/ subdirectory, verbatim.`,
 	},
 	{
-		Name: "corpus-hongbomiao-harbor",
-		ConfigDirs: []string{
-			".corpus/hongbomiao/infrastructure/opentofu/modules/aws/amazon_s3_bucket",
-			".corpus/hongbomiao/infrastructure/opentofu/modules/amazon-eks/harbor_iam_user",
-		},
-		ScanScript: true,
-		Note:       `run.sh SRC_AWS=".../modules/aws", SRC_EKS=".../modules/amazon-eks"; copies exactly "$SRC_AWS/amazon_s3_bucket" and "$SRC_EKS/harbor_iam_user" - the one self-contained "Harbor" slice of kubernetes/main.tofu the script's own header documents choosing.`,
-	},
-	{
 		Name: "corpus-hongbomiao-labelbox",
 		ConfigDirs: []string{
 			".corpus/hongbomiao/infrastructure/opentofu/modules/aws/amazon_s3_bucket",
 			".corpus/hongbomiao/infrastructure/opentofu/modules/aws/amazon_s3_bucket_cors_configuration",
 			".corpus/hongbomiao/infrastructure/opentofu/modules/aws/labelbox_iam_role",
-		},
-		ScanScript: true,
-		Note:       `run.sh SRC=".../modules/aws"; copy_leaf_modules() loops "for m in amazon_s3_bucket amazon_s3_bucket_cors_configuration labelbox_iam_role".`,
-	},
-	{
-		Name: "corpus-hongbomiao-storage",
-		ConfigDirs: []string{
-			".corpus/hongbomiao/infrastructure/opentofu/modules/aws/amazon_s3_bucket",
 			".corpus/hongbomiao/infrastructure/opentofu/modules/aws/aws_kms_key",
+			".corpus/hongbomiao/infrastructure/opentofu/modules/amazon-eks/harbor_iam_user",
 		},
 		ScanScript: true,
-		Note:       `run.sh SRC=".../modules/aws"; copy_leaf_modules() loops "for m in amazon_s3_bucket aws_kms_key".`,
+		Note:       `run.sh SRC=".../modules/aws", SRC_EKS=".../modules/amazon-eks"; copy_leaf_modules() loops "for m in amazon_s3_bucket amazon_s3_bucket_cors_configuration labelbox_iam_role aws_kms_key" and copies "$SRC_EKS/harbor_iam_user" - the Labelbox, storage and Harbor slices, the last two folded in from their own estates on 2026-10-11.`,
 	},
 	{
 		Name:       "corpus-iam-policy",

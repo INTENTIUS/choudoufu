@@ -172,7 +172,11 @@ func TestEveryScriptThatStartsFlociCanReadItBack(t *testing.T) {
 	// gauntlet_floci_start - live/e2e/reference-eks/run.sh (the floci-eks
 	// crossing) and live/live-cert/reference-eks.sh (its live-cert harness,
 	// whose TARGET=floci leg starts the emulator).
-	const wantStarters = 64
+	//
+	// 62 since the estate audit of 2026-10-11: corpus-hongbomiao-harbor and
+	// corpus-hongbomiao-storage were folded into corpus-hongbomiao-labelbox
+	// and their scripts deleted.
+	const wantStarters = 62
 
 	var starters, blind []string
 	for _, rel := range flociSortedKeys(scripts) {
