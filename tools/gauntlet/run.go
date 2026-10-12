@@ -12,10 +12,12 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -47,6 +49,21 @@ type RunOptions struct {
 	// the port itself.
 	Parallel int
 	Stdout   io.Writer
+	// Checkpoint, when set, is called each time an estate's row has been
+	// merged into the artifact, while no other merge is in progress (#2037).
+	// cmdRun's re-derives the aggregates and writes live/gauntlet.json, so
+	// a run killed at estate 9 keeps estates 1-8: before this, the file was
+	// written once, after the last estate, and the 2026-10-12 run lost all
+	// eight. An error from it is reported and the run goes on - the final
+	// render writes the same rows again.
+	Checkpoint func() error
+
+	// signals, when set, replaces RunEstates's own signal.Notify channel.
+	// Tests only: a test that signalled its own process would kill the test
+	// binary the moment the registration window closed.
+	signals <-chan os.Signal
+	// stop is RunEstates's stop request, handed to every runOne.
+	stop *runStop
 }
 
 // parallelPortBase and parallelPortStride assign each concurrent slot (not
@@ -215,24 +232,48 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 		return 0, err
 	}
 
-	// Run every selected estate's script first, at whatever concurrency was
-	// asked for, and merge results into the artifact afterwards in a single
-	// thread, in `selected` order - the same order and the same per-estate
-	// merge code the old purely-sequential loop used. That split is what
-	// makes parallel mode a proven equivalence, not just a faster-looking
-	// one: the concurrency lives entirely in runResults, and everything
-	// below that reads runResults is textually the loop this function had
-	// before #437, untouched.
-	results := runResults(root, selected, opts, base)
+	// The stop request (#2037, runsignal.go): caught for the whole run, so
+	// a Ctrl-C between two estates stops dispatching rather than killing
+	// this process in the middle of a checkpoint, and one during an estate
+	// is forwarded to its process group and waited for.
+	if opts.Stdout == nil {
+		opts.Stdout = io.Discard
+	}
+	sw := &syncWriter{w: opts.Stdout}
+	opts.Stdout = sw
+	stop := newRunStop(func(format string, args ...any) { fmt.Fprintf(sw, format+"\n", args...) })
+	opts.stop = stop
+	sigc := opts.signals
+	if sigc == nil {
+		ch := make(chan os.Signal, 8)
+		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGPIPE)
+		defer signal.Stop(ch)
+		sigc = ch
+	}
+	watchDone := make(chan struct{})
+	go stop.watch(sigc, watchDone, currentPPID(), liveCertWaitTick())
+	defer close(watchDone)
 
+	// Each estate's result is merged into the artifact the moment its
+	// script exits, one merge at a time (runResults holds a mutex around
+	// its callback), and then checkpointed (#2037). mergeResult is the same
+	// per-estate code this function has always run; what changed is when.
+	// Before #2037 every result was merged after the LAST script exited, in
+	// `selected` order, which is why a run killed at estate 9 kept nothing.
+	// Rows are keyed by name and no merge reads another estate's row, so
+	// the order merges happen in changes nothing a row records, and Rebuild
+	// puts rows back in manifest order either way.
+	//
+	// One deliberate difference under -parallel: a hard runOne error (a
+	// missing script, an unparseable protocol line) used to stop the merge
+	// at that index, discarding every LATER estate's finished result. Now
+	// every estate that finished is kept, and the first error in `selected`
+	// order is still the one returned.
 	failures := 0
-	for i, e := range selected {
-		res, exit, elapsed, err := results[i].res, results[i].exit, results[i].elapsed, results[i].err
+	mergeResult := func(e Estate, o oneResult) {
+		res, exit, elapsed := o.res, o.exit, o.elapsed
 		r, _ := a.Result(e.Name)
 		r.Name = e.Name
-		if err != nil {
-			return failures, err
-		}
 		if exit != 0 {
 			failures++
 		}
@@ -430,7 +471,45 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 		a.SetResult(r)
 		fmt.Fprintf(opts.Stdout, "%s: exit %d, %s\n", e.Name, exit, summarize(r.Stages))
 	}
-	return failures, nil
+
+	errAt := len(selected)
+	var firstErr error
+	var finished, interrupted []string
+	ran := make([]bool, len(selected))
+	merge := func(i int, o oneResult) {
+		e := selected[i]
+		ran[i] = true
+		if o.interrupted {
+			interrupted = append(interrupted, e.Name)
+			fmt.Fprintf(opts.Stdout, "%s: interrupted by the stop request after %s - nothing recorded for this run; its log is %s\n", e.Name, formatDuration(o.elapsed), filepath.Join(LogDir, e.Name+".log"))
+			return
+		}
+		if o.err != nil {
+			if i < errAt {
+				errAt, firstErr = i, o.err
+			}
+			return
+		}
+		mergeResult(e, o)
+		finished = append(finished, e.Name)
+		if opts.Checkpoint != nil {
+			if err := opts.Checkpoint(); err != nil {
+				fmt.Fprintf(opts.Stdout, "%s: CHECKPOINT FAILED - the row is merged in memory but %s was not written: %v. The run goes on and the final render writes it; an interrupt before then loses it.\n", e.Name, ArtifactPath, err)
+			}
+		}
+	}
+	runResults(root, selected, opts, base, merge)
+
+	if sig := stop.Requested(); sig != "" {
+		stopped := &RunInterrupted{Signal: sig, Finished: finished, Interrupted: interrupted}
+		for i, e := range selected {
+			if !ran[i] {
+				stopped.NotStarted = append(stopped.NotStarted, e.Name)
+			}
+		}
+		return failures, stopped
+	}
+	return failures, firstErr
 }
 
 // StageColdDeploy is the first stage's id. It is the one stage the runner
@@ -596,31 +675,34 @@ func recordRunnerFailure(r *EstateResult, exit int, spokenThisRun map[string]str
 	return id
 }
 
-// oneResult is what runOne produced for one estate; runResults collects one
-// per selected estate, indexed the same way selected is.
+// oneResult is what runOne produced for one estate.
 type oneResult struct {
 	res     *ProtocolResult
 	exit    int
 	elapsed float64
 	err     error
+	// interrupted: a stop request reached this estate's process group while
+	// its script ran (#2037). Its verdicts are whatever a script being torn
+	// down printed, so RunEstates records nothing for it.
+	interrupted bool
 }
 
-// runResults runs every estate in selected and returns their oneResults in
-// the same order, regardless of the order they actually finish in.
+// runResults runs every estate in selected and hands each oneResult to done
+// as its script exits, with its index in selected. done is never called
+// concurrently with itself.
 //
 // opts.Parallel <=1 runs them one at a time, in order, on the calling
 // goroutine - textually the same loop this function replaced, so serial
 // mode's behaviour (including "stop dispatching more scripts after the
-// first hard runOne error", which the merge loop in RunEstates still relies
-// on) is unchanged apart from the one thing #520 adds: each call now also
-// gets an explicit FLOCI_PORT (flociPortEnv(base, 0), the same value slot 0
-// of a parallel run would get), instead of leaving FLOCI_PORT unset the way
-// serial mode did before #520. base is RunEstates's already-validated
-// flociPortBase(opts.Env) result, so a caller-supplied FLOCI_PORT is the
-// base rather than being overridden by the fixed default, and a malformed
-// one never reaches here at all - RunEstates refuses before calling this
-// (#1040). Nothing else about the serial code path moved - #437's
-// equivalence argument (see RunOptions.Parallel) rests on that.
+// first hard runOne error") is unchanged apart from the one thing #520 adds:
+// each call now also gets an explicit FLOCI_PORT (flociPortEnv(base, 0), the
+// same value slot 0 of a parallel run would get), instead of leaving
+// FLOCI_PORT unset the way serial mode did before #520. base is RunEstates's
+// already-validated flociPortBase(opts.Env) result, so a caller-supplied
+// FLOCI_PORT is the base rather than being overridden by the fixed default,
+// and a malformed one never reaches here at all - RunEstates refuses before
+// calling this (#1040). Nothing else about the serial code path moved -
+// #437's equivalence argument (see RunOptions.Parallel) rests on that.
 //
 // opts.Parallel >1 runs up to that many scripts at once. Each concurrent
 // slot (not each estate - a slot is handed back to the pool and reused the
@@ -632,10 +714,13 @@ type oneResult struct {
 // concurrently running bash processes never share. Nothing here dispatches
 // fewer scripts than serial mode would on a runOne error - a script that is
 // already running is left to finish and tear its own container down rather
-// than killed, so a slot's container is never abandoned mid-life; the first
-// error is still surfaced, in `selected` order, by RunEstates's merge loop.
-func runResults(root string, selected []Estate, opts RunOptions, base int) []oneResult {
-	results := make([]oneResult, len(selected))
+// than killed, so a slot's container is never abandoned mid-life.
+//
+// Either way, once opts.stop has a stop request no further estate starts
+// (#2037), and the call returns only after every script already running has
+// exited.
+func runResults(root string, selected []Estate, opts RunOptions, base int, done func(int, oneResult)) {
+	stopped := func() bool { return opts.stop != nil && opts.stop.Requested() != "" }
 	parallel := opts.Parallel
 	if parallel < 1 {
 		parallel = 1
@@ -645,30 +730,30 @@ func runResults(root string, selected []Estate, opts RunOptions, base int) []one
 	}
 	if parallel <= 1 {
 		for i, e := range selected {
-			res, exit, elapsed, err := runOne(root, e, opts, []string{flociPortEnv(base, 0)})
-			results[i] = oneResult{res, exit, elapsed, err}
-			if err != nil {
+			if stopped() {
+				break
+			}
+			o := runOne(root, e, opts, []string{flociPortEnv(base, 0)})
+			done(i, o)
+			if o.err != nil {
 				// Matches the pre-#437 loop exactly: a hard runOne error
 				// (not a script exiting non-zero, which is not an error
 				// here - a Go-level failure like the script file missing)
-				// stops dispatching further scripts, the same way
-				// RunEstates's merge loop below stops merging further
-				// results the moment it reaches this index.
+				// stops dispatching further scripts.
 				break
 			}
 		}
-		return results
+		return
 	}
 
 	// runOne's first line of output goes to opts.Stdout before its script
 	// even starts; with several goroutines calling it at once that write
 	// needs serializing, or two "running ..." lines racing on the same
-	// io.Writer.Write call could interleave mid-line. Everything else
-	// RunEstates prints happens after runResults returns, back on a single
-	// goroutine, so this is the only writer that needs it.
+	// io.Writer.Write call could interleave mid-line.
 	runOpts := opts
 	runOpts.Stdout = &syncWriter{w: opts.Stdout}
 
+	var mu sync.Mutex
 	slots := make(chan int, parallel)
 	for i := 0; i < parallel; i++ {
 		slots <- i
@@ -677,17 +762,22 @@ func runResults(root string, selected []Estate, opts RunOptions, base int) []one
 	for i, e := range selected {
 		i, e := i, e
 		slot := <-slots
+		if stopped() {
+			slots <- slot
+			break
+		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			defer func() { slots <- slot }()
 			env := []string{flociPortEnv(base, slot)}
-			res, exit, elapsed, err := runOne(root, e, runOpts, env)
-			results[i] = oneResult{res, exit, elapsed, err}
+			o := runOne(root, e, runOpts, env)
+			mu.Lock()
+			defer mu.Unlock()
+			done(i, o)
 		}()
 	}
 	wg.Wait()
-	return results
 }
 
 // syncWriter serializes concurrent writes to an underlying io.Writer.
@@ -748,15 +838,20 @@ func flociPortEnvEntry(extraEnv []string) string {
 // applied after opts.Env, one setEnv per entry, so a caller's own -env
 // value is only overridden for a key extraEnv actually names (#437's
 // per-slot FLOCI_PORT).
-func runOne(root string, e Estate, opts RunOptions, extraEnv []string) (*ProtocolResult, int, float64, error) {
+func runOne(root string, e Estate, opts RunOptions, extraEnv []string) oneResult {
+	res, exit, elapsed, interrupted, err := runOneScript(root, e, opts, extraEnv)
+	return oneResult{res: res, exit: exit, elapsed: elapsed, err: err, interrupted: interrupted}
+}
+
+func runOneScript(root string, e Estate, opts RunOptions, extraEnv []string) (*ProtocolResult, int, float64, bool, error) {
 	script := filepath.Join(root, e.ScriptPath())
 	if _, err := os.Stat(script); err != nil {
-		return nil, 0, 0, fmt.Errorf("estate %q: %w", e.Name, err)
+		return nil, 0, 0, false, fmt.Errorf("estate %q: %w", e.Name, err)
 	}
 	logPath := filepath.Join(root, LogDir, e.Name+".log")
 	logf, err := os.Create(logPath)
 	if err != nil {
-		return nil, 0, 0, err
+		return nil, 0, 0, false, err
 	}
 	defer logf.Close()
 
@@ -765,7 +860,7 @@ func runOne(root string, e Estate, opts RunOptions, extraEnv []string) (*Protoco
 	// from here after the script exits, never from the pin.
 	lockDir, err := os.MkdirTemp("", "gauntlet-locks-"+e.Name+"-")
 	if err != nil {
-		return nil, 0, 0, err
+		return nil, 0, 0, false, err
 	}
 	defer os.RemoveAll(lockDir)
 
@@ -778,37 +873,58 @@ func runOne(root string, e Estate, opts RunOptions, extraEnv []string) (*Protoco
 	}
 	cmd.Env = setEnv(cmd.Env, LockReportEnv+"="+lockDir)
 	attachCombinedOutput(cmd, &captured, logf)
+	// Setpgid (#2037), live-cert's #1324 reasoning: the script leads its
+	// own process group, so a stop request reaches the script, the tofu it
+	// is blocked on and whatever it backgrounded with one kill to the
+	// negative pgid. A terminal's Ctrl-C no longer reaches the script
+	// directly; it reaches this process, which forwards it (runsignal.go)
+	// and so always knows to wait for the teardown.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	fmt.Fprintf(opts.Stdout, "%s: running %s on %s (log: %s)\n", e.Name, e.ScriptPath(), flociPortEnvEntry(extraEnv), filepath.Join(LogDir, e.Name+".log"))
 	start := time.Now()
 	release, err := handConfirmation(cmd)
 	if err != nil {
-		return nil, 0, 0, err
+		return nil, 0, 0, false, err
 	}
-	runErr := cmd.Run()
+	if err := cmd.Start(); err != nil {
+		release()
+		return nil, 0, 0, false, fmt.Errorf("estate %q: %w", e.Name, err)
+	}
 	release()
+	// The group leader's pid is the pgid; read once, before Wait, so a
+	// reused pid is never signalled.
+	pgid := cmd.Process.Pid
+	if opts.stop != nil {
+		opts.stop.start(pgid, e.Name)
+	}
+	runErr := cmd.Wait()
+	interrupted := opts.stop != nil && opts.stop.finish(pgid)
 	elapsed := time.Since(start).Seconds()
 	exit := 0
 	if runErr != nil {
 		if ee, ok := runErr.(*exec.ExitError); ok {
 			exit = ee.ExitCode()
 		} else {
-			return nil, 0, elapsed, fmt.Errorf("estate %q: %w", e.Name, runErr)
+			return nil, 0, elapsed, interrupted, fmt.Errorf("estate %q: %w", e.Name, runErr)
 		}
+	}
+	if interrupted {
+		return nil, exit, elapsed, true, nil
 	}
 	res, err := ParseProtocol(&captured)
 	if err != nil {
 		reportFailedRun(root, e.Name, logPath, opts.Stdout)
-		return nil, exit, elapsed, fmt.Errorf("estate %q: %w", e.Name, err)
+		return nil, exit, elapsed, false, fmt.Errorf("estate %q: %w", e.Name, err)
 	}
 	if exit != 0 || hasFailingStage(res) {
 		reportFailedRun(root, e.Name, logPath, opts.Stdout)
 	}
 	resolved, err := readReportedLocks(lockDir)
 	if err != nil {
-		return nil, exit, elapsed, fmt.Errorf("estate %q: reading the lock files its run reported: %w", e.Name, err)
+		return nil, exit, elapsed, false, fmt.Errorf("estate %q: reading the lock files its run reported: %w", e.Name, err)
 	}
 	res.Resolved = resolved
-	return res, exit, elapsed, nil
+	return res, exit, elapsed, false, nil
 }
 
 // attachCombinedOutput wires both of the child's streams to one writer, and

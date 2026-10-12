@@ -880,12 +880,34 @@ func (a *Artifact) Canonical() ([]byte, error) {
 }
 
 // SaveArtifact writes the artifact to live/gauntlet.json.
+//
+// Through a temporary file and a rename (#2037): `gauntlet run` now saves
+// after every estate, so a kill can land during a save, and a rename leaves
+// either the old file or the new one, never half of one.
 func SaveArtifact(root string, a *Artifact) error {
 	b, err := a.Canonical()
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(root, ArtifactPath), b, 0o644)
+	dst := filepath.Join(root, ArtifactPath)
+	tmp, err := os.CreateTemp(filepath.Dir(dst), ".gauntlet.json.*")
+	if err != nil {
+		return err
+	}
+	if _, err := tmp.Write(b); err != nil {
+		tmp.Close()
+		os.Remove(tmp.Name())
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	return os.Rename(tmp.Name(), dst)
 }
 
 // Result returns the row for an estate.

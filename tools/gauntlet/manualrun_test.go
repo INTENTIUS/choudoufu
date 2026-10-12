@@ -36,6 +36,66 @@ func TestRunGoesAheadOnlyWhenAPersonTypesRun(t *testing.T) {
 	}
 }
 
+// #2037: a terminal with icrnl off sends "\r" for Enter, and the first
+// attempt at a 21-estate run refused with "no answer within 1m0s" although
+// the maintainer had typed run. The writer stays open after the answer, the
+// way a terminal does: a strings.Reader would hand back EOF and pass by
+// accident.
+func TestRunAcceptsCarriageReturnAsEnter(t *testing.T) {
+	for _, typed := range []string{"run\r", "run\n", "run\r\n"} {
+		r, w := io.Pipe()
+		go func() { _, _ = w.Write([]byte(typed)) }()
+		var out bytes.Buffer
+		err := confirmFrom(&out, r, 2*time.Second)
+		w.Close()
+		if err != nil {
+			t.Errorf("typed %q at a terminal that stays open: %v", typed, err)
+		}
+	}
+}
+
+// The script-side prompt's half of #2037: gauntlet_ask_person reads its
+// answer through gauntlet_read_answer, which must end the line at "\r" as
+// well as "\n" while the writer stays open, and must still give up at its
+// deadline when nothing ends the line.
+func TestScriptPromptAcceptsCarriageReturnAsEnter(t *testing.T) {
+	repo, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	lib := filepath.Join(repo, "live", "e2e", "lib", "gauntlet.sh")
+	for _, c := range []struct {
+		typed string
+		want  string
+		ok    bool
+	}{
+		{`run\r`, "run", true},
+		{`run\n`, "run", true},
+		{`run\r\n`, "run", true},
+		{`run`, "", false}, // no Enter at all: the deadline refuses
+	} {
+		// The sleep keeps the pipe open past the 2s deadline, the way a
+		// terminal stays open after Enter.
+		// The elapsed check is inside bash because the pipeline itself
+		// cannot end before its sleep does.
+		script := `source "` + lib + `"; (printf '` + c.typed + `'; sleep 3) 2>/dev/null | { s=$SECONDS; if a=$(gauntlet_read_answer 0 2); then printf 'ANSWER=[%s]' "$a"; else printf 'NOANSWER'; fi; printf ' T=%d' $((SECONDS - s)); }`
+		out, err := runBash(script)
+		if err != nil {
+			t.Fatalf("typed %q: bash failed: %v\n%s", c.typed, err, out)
+		}
+		got := string(out)
+		if c.ok && !strings.Contains(got, "ANSWER=["+c.want+"]") {
+			t.Errorf("typed %q at a terminal that stays open: got %q, want answer %q", c.typed, got, c.want)
+		}
+		if c.ok && !strings.Contains(got, " T=0") && !strings.Contains(got, " T=1") {
+			t.Errorf("typed %q: the answer came back at the deadline, not at Enter: %q", c.typed, got)
+		}
+		if !c.ok && !strings.Contains(got, "NOANSWER") {
+			t.Errorf("typed %q with no Enter: got %q, want a refusal at the deadline", c.typed, got)
+		}
+	}
+}
+
 func TestRunRefusesWithNoTerminal(t *testing.T) {
 	// go test has no controlling terminal under CI or an agent's shell, which
 	// is exactly the case that must refuse. Skip only when a person is
