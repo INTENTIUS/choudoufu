@@ -37,7 +37,27 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
    `generated-from.json` alongside the pin. Skipping this step for more than
    one release cycle is what `TestCIPipelinePinIsTiedToRelease` turns red for.
 
-## choudoufu v0.27.0 (Unreleased)
+## choudoufu v0.28.0 (Unreleased)
+
+## choudoufu v0.27.0 (2026-10-11)
+
+Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.27.0.json`](live/history/v0.27.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.26.0.json live/history/v0.27.0.json`):
+
+### Board movement
+
+- Core estates: 26/26 clear -> 22/23 clear (-4)
+- All estates: 27/28 clear -> 23/25 clear (-4)
+
+### Newly cleared
+
+- none
+
+### Regressed
+
+- `corpus-hongbomiao-labelbox`
+- `reference-k8s-workloads`
 
 - Fixed: a Kubernetes object that leaves a `for_each` (a values change
   takes it out of a `helm_template` render) is destroyed at the address its
