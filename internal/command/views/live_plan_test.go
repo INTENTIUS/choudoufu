@@ -412,3 +412,60 @@ func TestLivePlan_unownedAdoptionHintOnALabelSurface(t *testing.T) {
 		t.Errorf("the adoption hint for a label surface says to write two tags:\n%s", got)
 	}
 }
+
+// TestLivePlan_lookalikesPostCreateWindow is GitHub issue #2009's option D:
+// a create whose type is marked only after its create returns says that an
+// apply killed in between leaves an unmarked object this guard cannot tell
+// apart from any other unowned one, and still prints the adopt command; a
+// create of any other type keeps the wording it had.
+func TestLivePlan_lookalikesPostCreateWindow(t *testing.T) {
+	streams, done := terminal.StreamsForTesting(t)
+	v := NewLivePlan(NewView(streams).SetRunningInAutomation(true))
+
+	v.Lookalikes([]LiveLookalike{
+		{
+			Addr:             "aws_route53_zone.dns",
+			TypeName:         "aws_route53_zone",
+			LiveID:           "Z0KILLED",
+			MarkerEstate:     "live-e2e",
+			MarkerAddress:    "aws_route53_zone.dns",
+			Hint:             "aws resourcegroupstaggingapi tag-resources --resource-arn-list 'arn:aws:route53:::hostedzone/Z0KILLED'",
+			PostCreateMarker: true,
+		},
+		{
+			Addr:             "aws_route53_health_check.web",
+			TypeName:         "aws_route53_health_check",
+			LiveID:           "hc-killed",
+			Matched:          []LiveTag{{Key: "fqdn", Value: "web.example."}},
+			MarkerEstate:     "live-e2e",
+			MarkerAddress:    "aws_route53_health_check.web",
+			PostCreateMarker: true,
+		},
+		{
+			Addr:          "aws_route_table.main",
+			TypeName:      "aws_route_table",
+			LiveID:        "rtb-stripped",
+			MarkerEstate:  "live-e2e",
+			MarkerAddress: "aws_route_table.main",
+		},
+	})
+
+	got := done(t).Stdout()
+	flat := strings.Join(strings.Fields(got), " ")
+
+	for _, want := range []string{
+		"a live aws_route53_zone this estate does not own exists (Z0KILLED). aws_route53_zone cannot take its tofu-estate and tofu-address tags in its create call; they are written only after the create returns, so an apply killed between the create and that write leaves an unmarked aws_route53_zone, which this check cannot tell apart from any other unowned one. If this create duplicates it, adopt instead:",
+		"adopt with: aws resourcegroupstaggingapi tag-resources --resource-arn-list 'arn:aws:route53:::hostedzone/Z0KILLED'",
+		"matched on: fqdn=web.example.",
+		"a live aws_route53_health_check this estate does not own matches this create exactly (hc-killed). aws_route53_health_check cannot take its tofu-estate and tofu-address tags in its create call; they are written only after the create returns, so an apply killed between the create and that write leaves an unmarked aws_route53_health_check, which this check cannot tell apart from any other unowned one. If this create duplicates it, adopt instead:",
+		"adopt by writing: tofu-estate=live-e2e tofu-address=aws_route53_health_check.web",
+		"a live aws_route_table this estate does not own exists (rtb-stripped); if this create duplicates it, adopt instead: adopt by writing: tofu-estate=live-e2e tofu-address=aws_route_table.main",
+	} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("the section does not contain %q:\n%s", want, got)
+		}
+	}
+	if n := strings.Count(flat, "apply killed"); n != 2 {
+		t.Errorf("the killed-apply sentence appears %d times, want 2 (once per post-create type, never for aws_route_table):\n%s", n, got)
+	}
+}
