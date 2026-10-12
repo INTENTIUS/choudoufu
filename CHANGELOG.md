@@ -39,6 +39,20 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.27.0 (Unreleased)
 
+- Fixed: a Kubernetes object that leaves a `for_each` (a values change
+  takes it out of a `helm_template` render) is destroyed at the address its
+  `tofu-address` annotation names, as stock destroys the state orphan, not
+  under a typed `<type>.orphan_<namespace>_<name>`. An object with no
+  annotation, or one naming an instance still declared, keeps the `orphan_`
+  address (#1996).
+
+- Known: the board movement below lists corpus-hongbomiao-labelbox and
+  reference-k8s-workloads as regressed. Neither failed: both took in a
+  folded estate and their rows were reset to unmeasured until the
+  maintainer runs them. The fixes above for #1996, #2006, #1917 and #2014,
+  the no_local_state stage and the merged claim scenarios have not been
+  measured on a cluster or emulator yet.
+
 - Changed: CI now runs only gofmt, the Go unit tier and the ci-pipelines
   example's tests. The smoke, claims and gauntlet workflows are deleted; the
   scripts remain for running by hand.
