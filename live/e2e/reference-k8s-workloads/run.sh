@@ -5,8 +5,22 @@
 # Hand-written and named so, under #1107's fallback rule: the published
 # roots that declare these kinds either reach them through Helm or a cloud
 # provider (#1107 pass 2) or are two-to-seven-object modules. The
-# "reference-" prefix says which it is, as for reference-k8s and
-# reference-k8s-stateful.
+# "reference-" prefix says which it is, as for reference-k8s.
+#
+# ── the fold (estate audit, 2026-10-11) ──────────────────────────────────
+#
+# reference-k8s-stateful (#1175) was folded in here and deleted. Its
+# StatefulSet and claim-template PVC coverage was already in
+# corpus-quickpizza, and its directly declared PVC, HPA and typed breadth
+# were here. What only it had now lives in the batch namespace: a headless
+# Service and a 2-replica StatefulSet redis whose volume_claim_template
+# labels DISAGREE with the selector on purpose (app=redis-data against
+# app=redis, plus tier and role), and a PodDisruptionBudget over it.
+# cold_deploy asserts the merge the claim template exists to show (the
+# PVCs read the selector's app=redis and the template's role); day2_remove
+# runs #1179's PVC exclusion probe on data-redis-0 beside the Job-pod
+# probe. The 25-object shape has not been measured yet: the row was reset
+# to unmeasured when the fold landed.
 #
 # ── why this estate ──────────────────────────────────────────────────────
 #
@@ -40,7 +54,7 @@
 #
 # ── the shape ────────────────────────────────────────────────────────────
 #
-# 22 objects in two namespaces, 17 kinds' worth of types, small multi-arch
+# 25 objects in two namespaces, 20 kinds' worth of types, small multi-arch
 # images (registry.k8s.io/pause and busybox), no StorageClass:
 #
 #   refk8swl (the apps namespace)
@@ -57,7 +71,10 @@
 #     pod has to declare requests), Job migrate (completes), CronJob nightly
 #     (suspended, so it never fires during the run), and the three
 #     deprecated aliases: kubernetes_daemonset legacy-agent, kubernetes_role
-#     legacy-reader and kubernetes_network_policy legacy-deny.
+#     legacy-reader and kubernetes_network_policy legacy-deny; and, folded
+#     from reference-k8s-stateful, headless Service redis, StatefulSet redis
+#     (2 replicas, a mismatched claim template) and PodDisruptionBudget
+#     redis.
 #
 # ── what this estate measures ────────────────────────────────────────────
 #
@@ -93,7 +110,7 @@
 #      for the same change" is stock's own plan on its own cluster.
 #
 # A stage this script cannot pass records fail with the reason and exits,
-# as reference-k8s-stateful does; the runner, not the script, decides what
+# as reference-k8s-stateful did; the runner, not the script, decides what
 # "clear" means. no_local_state runs on greenfield's root after its
 # verdict, through live/e2e/lib/gauntlet.sh's gauntlet_kind_no_local_state
 # (#1966).
@@ -119,6 +136,10 @@
 #   BREAK_POD      set to 1 to run day2_remove's Job-pod probe WITHOUT the
 #                  estate label on the pod and still expect the sweep to
 #                  propose it; must fail.
+#   BREAK_PVC      set to 1 to run day2_remove's claim-template PVC probe
+#                  WITHOUT the estate label on data-redis-0 and still expect
+#                  the sweep to propose it; must fail (reference-k8s-
+#                  stateful's control, moved with the fold).
 #   BREAK_COUNT    set to 1 to assert the wrong instance was destroyed on the
 #                  scale-down (day2_count's Break line); must fail.
 #   BREAK_APPROVAL set to 1 to apply the saved plan after the world moved and
@@ -154,9 +175,9 @@ NSB="refk8swl-batch"
 # like one of them can never be counted. Secrets are here for day2_crash's
 # crash-first, the one Secret any stage declares. Pods are NOT here: nothing declares
 # one, and pod_count_a below is zero at every stage of a correct run.
-KINDS="namespaces serviceaccounts secrets roles.rbac.authorization.k8s.io rolebindings.rbac.authorization.k8s.io configmaps persistentvolumeclaims services deployments.apps daemonsets.apps ingresses.networking.k8s.io networkpolicies.networking.k8s.io horizontalpodautoscalers.autoscaling limitranges resourcequotas jobs.batch cronjobs.batch"
+KINDS="namespaces serviceaccounts secrets roles.rbac.authorization.k8s.io rolebindings.rbac.authorization.k8s.io configmaps persistentvolumeclaims services deployments.apps daemonsets.apps ingresses.networking.k8s.io networkpolicies.networking.k8s.io horizontalpodautoscalers.autoscaling limitranges resourcequotas jobs.batch cronjobs.batch statefulsets.apps poddisruptionbudgets.policy"
 N_KINDS="$(wc -w <<< "$KINDS" | tr -d ' ')"
-N_OBJECTS=22
+N_OBJECTS=25
 WORK="$(mktemp -d)"
 STOCK="$WORK/stock"; ADOPTED="$WORK/adopted"; ORACLE="$WORK/oracle"; GREEN="$WORK/green"
 KCA="$WORK/a.kubeconfig"; KCB="$WORK/b.kubeconfig"
@@ -245,7 +266,7 @@ EOF
 #   JOB_REV    the Job's revision, baked into its pod template (day2_replace)
 SA_BLOCK="web"; SHARDS=2; EXTRA=""; DROP_CRON=0; JOB_REV=1
 
-# resource_block writes the 22 objects.
+# resource_block writes the 25 objects.
 #
 # NOTHING here carries a tofu-estate label. cold_deploy asserts that a plain
 # stock apply leaves zero labelled objects, which is the whole source of
@@ -331,7 +352,7 @@ resource "kubernetes_config_map_v1" "shard" {
   depends_on = [kubernetes_namespace_v1.apps]
 }
 
-# Declared directly, unlike reference-k8s-stateful's claim-template PVCs.
+# Declared directly, unlike the redis StatefulSet's claim-template PVCs below.
 # kind's standard class binds on first consumer, so the provider must not
 # wait for a binding the Deployment below is what triggers.
 resource "kubernetes_persistent_volume_claim_v1" "cache" {
@@ -701,6 +722,116 @@ resource "kubernetes_network_policy" "legacy_deny" {
   }
   depends_on = [kubernetes_namespace_v1.batch]
 }
+
+# ── folded from reference-k8s-stateful (#1175) ──
+
+resource "kubernetes_service_v1" "redis" {
+  metadata {
+    name      = "redis"
+    namespace = "$NSB"
+    labels = {
+      app = "redis"
+    }
+  }
+  spec {
+    cluster_ip = "None"
+    selector = {
+      app = "redis"
+    }
+    port {
+      name = "redis"
+      port = 6379
+    }
+  }
+  depends_on = [kubernetes_namespace_v1.batch]
+}
+
+# The claim template's labels DISAGREE with the selector on purpose:
+# app is "redis-data" here and "redis" in spec.selector.match_labels, and
+# role exists only here. The StatefulSet controller merges the selector
+# over the template, so the PVCs read app=redis (the selector's),
+# tier=storage and role=cache-volume (the template's). cold_deploy asserts
+# exactly that, the correction to #1107's "the claim template's labels
+# verbatim" - its probe had the two agreeing and could not tell. The
+# LimitRange in this namespace supplies the container's defaults.
+resource "kubernetes_stateful_set_v1" "redis" {
+  metadata {
+    name      = "redis"
+    namespace = "$NSB"
+    labels = {
+      app = "redis"
+    }
+  }
+  spec {
+    service_name = "redis"
+    replicas     = 2
+    selector {
+      match_labels = {
+        app = "redis"
+      }
+    }
+    template {
+      metadata {
+        labels = {
+          app = "redis"
+        }
+      }
+      spec {
+        container {
+          name  = "redis"
+          image = "redis:7-alpine"
+          args  = ["--save", "", "--appendonly", "no"]
+          port {
+            name           = "redis"
+            container_port = 6379
+          }
+          volume_mount {
+            name       = "data"
+            mount_path = "/data"
+          }
+        }
+      }
+    }
+    volume_claim_template {
+      metadata {
+        name = "data"
+        labels = {
+          app  = "redis-data"
+          tier = "storage"
+          role = "cache-volume"
+        }
+      }
+      spec {
+        access_modes = ["ReadWriteOnce"]
+        resources {
+          requests = {
+            storage = "64Mi"
+          }
+        }
+      }
+    }
+  }
+  depends_on = [kubernetes_service_v1.redis, kubernetes_limit_range_v1.defaults, kubernetes_resource_quota_v1.counts]
+}
+
+resource "kubernetes_pod_disruption_budget_v1" "redis" {
+  metadata {
+    name      = "redis"
+    namespace = "$NSB"
+    labels = {
+      app = "redis"
+    }
+  }
+  spec {
+    max_unavailable = "1"
+    selector {
+      match_labels = {
+        app = "redis"
+      }
+    }
+  }
+  depends_on = [kubernetes_namespace_v1.batch]
+}
 EOF
 }
 write_config() { # $1 dir, $2 live|stock
@@ -709,7 +840,7 @@ write_config() { # $1 dir, $2 live|stock
 # write_both writes the adopted root and the oracle root from the knobs.
 write_both() { write_config "$ADOPTED" live; write_config "$ORACLE" stock; }
 
-# The 22 objects, KIND NAMESPACE NAME ("-" for cluster-scoped), in the
+# The 25 objects, KIND NAMESPACE NAME ("-" for cluster-scoped), in the
 # order test_plan confirms them and greenfield inventories them.
 OBJECTS="namespace - $NS
 namespace - $NSB
@@ -732,7 +863,10 @@ job $NSB migrate
 cronjob $NSB nightly
 daemonset $NSB legacy-agent
 role $NSB legacy-reader
-networkpolicy $NSB legacy-deny"
+networkpolicy $NSB legacy-deny
+service $NSB redis
+statefulset $NSB redis
+poddisruptionbudget $NSB redis"
 
 # ── cluster helpers ──────────────────────────────────────────────────────
 # Every kubectl call here carries a request timeout, so an unreachable
@@ -804,6 +938,33 @@ if out.returncode != 0:
 o = json.loads(out.stdout)
 cmd = " ".join(o["spec"]["template"]["spec"]["containers"][0].get("command") or [])
 print("uid=%s succeeded=%s command=[%s]" % (o["metadata"]["uid"], o.get("status", {}).get("succeeded", 0), cmd))
+PY
+}
+
+# pvc_facts prints one normalised line per PVC in the batch namespace on the
+# cluster $1 names: name, labels, whether ownerReferences is present, the
+# managedFields managers and which of them wrote the PVC's spec, phase.
+# Moved from reference-k8s-stateful with its StatefulSet. The spec writer is
+# what kubesweep.ControllerMade judges since #1179, and --show-managed-fields
+# is load-bearing: without it kubectl strips managedFields from its output.
+pvc_facts() {
+  KUBECONFIG="$1" NSB="$NSB" python3 - <<'PY'
+import json, os, subprocess
+out = subprocess.run(["kubectl", "--request-timeout=60s", "get", "pvc", "-n", os.environ["NSB"], "-o", "json", "--show-managed-fields"], capture_output=True, text=True)
+if out.returncode != 0:
+    print("ERROR: " + out.stderr.strip()); raise SystemExit(1)
+for o in sorted(json.loads(out.stdout).get("items", []), key=lambda x: x["metadata"]["name"]):
+    m = o["metadata"]
+    labels = ",".join("%s=%s" % kv for kv in sorted((m.get("labels") or {}).items()))
+    entries = m.get("managedFields") or []
+    managers = ",".join(sorted({e.get("manager", "?") for e in entries})) or "none"
+    specw = sorted({e.get("manager", "?") for e in entries
+                    if not e.get("subresource")
+                    and any(k not in ("f:metadata", "f:status", "f:apiVersion", "f:kind")
+                            for k in (e.get("fieldsV1") or {}))})
+    print("%s labels=[%s] ownerReferences=%s managers=[%s] specWrittenBy=[%s] phase=%s" % (
+        m["name"], labels, "present" if m.get("ownerReferences") else "absent",
+        managers, ",".join(specw) or "none", o.get("status", {}).get("phase")))
 PY
 }
 
@@ -944,13 +1105,32 @@ PVC_PHASE="$(kca get pvc web-cache -n "$NS" -o jsonpath='{.status.phase}')"
 gauntlet_wait_until 120 "the declared PVC web-cache Bound by its first consumer" -- \
   sh -c "kubectl --kubeconfig '$KCA' --request-timeout=30s get pvc web-cache -n '$NS' -o jsonpath='{.status.phase}' | grep -qx Bound" \
   || fail "the declared PVC web-cache is ${PVC_PHASE:-in no phase}, not Bound, after the Deployment mounting it rolled out"
+# The claim-template merge (folded from reference-k8s-stateful): the PVCs
+# the redis StatefulSet's volume_claim_template made carry the SELECTOR's
+# app=redis merged over the template's app=redis-data, plus the template's
+# own role, and no ownerReferences (the default retention policy is Retain).
+pvc_bound() { [ "$(kubectl --kubeconfig "$KCA" --request-timeout=30s get pvc "$1" -n "$NSB" -o jsonpath='{.status.phase}' 2>/dev/null)" = "Bound" ]; }
+for c in data-redis-0 data-redis-1; do
+  gauntlet_wait_until 120 "the claim-template PVC $c Bound" -- pvc_bound "$c" \
+    || fail "the claim-template PVC $c is not Bound 120s after the redis StatefulSet rolled out"
+done
+[ "$(kca get pvc data-redis-0 -n "$NSB" -o jsonpath='{.metadata.labels.app}')" = "redis" ] \
+  || fail "data-redis-0's app label reads $(kca get pvc data-redis-0 -n "$NSB" -o jsonpath='{.metadata.labels.app}'), want redis (the StatefulSet selector's value, merged over the claim template's app=redis-data)"
+[ "$(kca get pvc data-redis-0 -n "$NSB" -o jsonpath='{.metadata.labels.role}')" = "cache-volume" ] \
+  || fail "data-redis-0 does not carry role=cache-volume, the claim template's own label the selector does not override"
+[ "$(kca get statefulset redis -n "$NSB" -o jsonpath='{.spec.volumeClaimTemplates[0].metadata.labels.app}')" = "redis-data" ] \
+  || fail "the redis StatefulSet's claim template does not declare app=redis-data; the merge measurement above compares nothing"
+[ -z "$(kca get pvc data-redis-0 -n "$NSB" -o jsonpath='{.metadata.ownerReferences}')" ] \
+  || fail "data-redis-0 carries ownerReferences; under the default Retain policy it should carry none"
+PVC_FACTS_COLD="$(pvc_facts "$KCA")" || fail "could not read the batch namespace's PVC facts on A"
+log "  claim-template PVCs:"; printf '%s\n' "$PVC_FACTS_COLD" | sed 's/^/    /'
 DS_READY="$(kca get daemonset agent -n "$NS" -o jsonpath='{.status.numberReady}')/$(kca get daemonset legacy-agent -n "$NSB" -o jsonpath='{.status.numberReady}')"
 NODES="$(kca get nodes -o name | wc -l | tr -d ' ')"
 inventory "$KCA" > "$WORK/inventory.stock.json" || fail "could not read the cold-deployed inventory on A"
 ( cd "$ORACLE" && KUBECONFIG="$KCB" KUBE_CONFIG_PATH="$KCB" gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "the stock init failed on B"
 O_COLD="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$O_COLD" | tail -20; fail "stock cold deploy failed on B"; }
 grep -qF "Apply complete! Resources: $N_OBJECTS added" <<< "$O_COLD" || fail "stock cold deploy did not add exactly $N_OBJECTS objects on B"
-gauntlet_stage cold_deploy pass "$N_OBJECTS objects in two namespaces from plain terraform against kind $K8S_VERSION: Job, CronJob (suspended), two DaemonSets, Ingress, two NetworkPolicies, HPA v2 over a two-replica Deployment, a directly declared PVC, two Roles and a RoleBinding, a LimitRange and a count ResourceQuota, plus a Namespace pair, a ServiceAccount, a Service and three ConfigMaps - 19 on the _v1/_v2 types and 3 on the deprecated aliases kubernetes_daemonset, kubernetes_role and kubernetes_network_policy. A real terraform.tfstate with $N_OBJECTS instances, stock's own replan empty, zero tofu-estate labels read back with kubectl over $N_KINDS kinds. The Job completed (succeeded=1, its Pod $JOB_POD), the suspended CronJob owns 0 Jobs, the declared PVC is Bound by its first consumer on kind's standard class, the DaemonSets read $DS_READY ready on $NODES node(s). Stock's deprecation warnings: $(printf '%s' "${STOCK_DEPRECATIONS:-none}" | tr '\n' ';'). The identical shape cold-deployed by stock on a second cluster as every later stage's oracle"
+gauntlet_stage cold_deploy pass "$N_OBJECTS objects in two namespaces from plain terraform against kind $K8S_VERSION: Job, CronJob (suspended), two DaemonSets, Ingress, two NetworkPolicies, HPA v2 over a two-replica Deployment, a directly declared PVC, two Roles and a RoleBinding, a LimitRange and a count ResourceQuota, plus a Namespace pair, a ServiceAccount, a Service and three ConfigMaps, and (folded from reference-k8s-stateful) a headless Service, a 2-replica StatefulSet with a claim template and a PodDisruptionBudget - 22 on the _v1/_v2 types and 3 on the deprecated aliases kubernetes_daemonset, kubernetes_role and kubernetes_network_policy. The StatefulSet's claim-template PVCs data-redis-0/1 are Bound and read app=redis (the selector's, merged over the template's app=redis-data) and role=cache-volume, with no ownerReferences. A real terraform.tfstate with $N_OBJECTS instances, stock's own replan empty, zero tofu-estate labels read back with kubectl over $N_KINDS kinds. The Job completed (succeeded=1, its Pod $JOB_POD), the suspended CronJob owns 0 Jobs, the declared PVC is Bound by its first consumer on kind's standard class, the DaemonSets read $DS_READY ready on $NODES node(s). Stock's deprecation warnings: $(printf '%s' "${STOCK_DEPRECATIONS:-none}" | tr '\n' ';'). The identical shape cold-deployed by stock on a second cluster as every later stage's oracle"
 
 # ── 2. migrate: choudoufu live-import against stock's state ──────────────
 gauntlet_begin_stage migrate
@@ -1244,7 +1424,59 @@ YAML
   [ "$(pod_count_a)" = "0" ] || fail "a Pod still carries tofu-estate=$ESTATE after the two-sided arm cleaned up"
   [ "$TWO_HIT" -eq 1 ] || { printf '%s\n' "$TWO_PLAN" | tail -30; fail "the two-sided arm: the sweep did not propose $TWO_ADDR, a Pod kubectl declared and labelled ($TWO_SUMMARY), so the exclusion probe proves nothing"; }
 
-  if [ "${BREAK_POD:-}" = "1" ]; then
+  # The claim-template PVC probe (#1179), moved from reference-k8s-stateful
+  # with the StatefulSet. data-redis-0 has no ownerReferences, so what keeps
+  # it out of the sweep is managedFields: kube-controller-manager alone
+  # wrote its spec. `kubectl label` adds a kubectl-label manager, a harsher
+  # state than a claim template carrying the marker would produce; it must
+  # be excluded all the same. The two-sided half declares a PVC with
+  # kubectl in the same namespace, labelled the same way, and one plan must
+  # propose that one and not the controller's.
+  PVC_PROBE="data-redis-0"
+  PVC_DECLARED="declared-orphan-pvc"
+  if [ "${BREAK_PVC:-}" != "1" ]; then
+    kca label pvc "$PVC_PROBE" -n "$NSB" "tofu-estate=$ESTATE" >/dev/null || fail "could not label $PVC_PROBE for the PVC exclusion probe"
+  else
+    log "  BREAK_PVC=1: $PVC_PROBE is left unlabelled and the sweep is still expected to propose it"
+  fi
+  PVC_PROBE_FACTS="$(pvc_facts "$KCA" | grep "^$PVC_PROBE ")"
+  log "  probe PVC as the sweep now sees it: $PVC_PROBE_FACTS"
+  PVC_PLAN="$(chdf plan -input=false -no-color 2>&1)" || { printf '%s\n' "$PVC_PLAN" | tail -30; fail "the PVC probe plan failed"; }
+  PVC_PROBE_ADDR="kubernetes_persistent_volume_claim_v1.orphan_${NSB}_${PVC_PROBE}"
+  PVC_HIT=0; grep -qF "$PVC_PROBE_ADDR will be destroyed" <<< "$PVC_PLAN" && PVC_HIT=1
+  kca label pvc "$PVC_PROBE" -n "$NSB" "tofu-estate=$ESTATE" --overwrite >/dev/null || fail "could not label $PVC_PROBE for the PVC two-sided arm"
+  kca create -n "$NSB" -f - >/dev/null <<YAML || fail "could not create $PVC_DECLARED for the PVC two-sided arm"
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: $PVC_DECLARED
+  labels:
+    tofu-estate: $ESTATE
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 64Mi
+YAML
+  PVC_TWO_PLAN="$(chdf plan -input=false -no-color 2>&1)" || { printf '%s\n' "$PVC_TWO_PLAN" | tail -30; fail "the PVC two-sided arm's plan failed"; }
+  PVC_TWO_ADDR="kubernetes_persistent_volume_claim_v1.orphan_${NSB}_${PVC_DECLARED}"
+  PVC_TWO_HIT=0; grep -qF "$PVC_TWO_ADDR will be destroyed" <<< "$PVC_TWO_PLAN" && PVC_TWO_HIT=1
+  PVC_TWO_EXCLUDED=1; grep -qF "$PVC_PROBE_ADDR will be destroyed" <<< "$PVC_TWO_PLAN" && PVC_TWO_EXCLUDED=0
+  PVC_TWO_SUMMARY="$(plan_line "$PVC_TWO_PLAN")"
+  kca delete pvc "$PVC_DECLARED" -n "$NSB" --timeout=60s >/dev/null 2>&1
+  kca label pvc "$PVC_PROBE" -n "$NSB" tofu-estate- >/dev/null 2>&1
+  PVC_AFTER="$(chdf plan -input=false -no-color 2>&1)" || fail "the plan after the PVC two-sided arm failed"
+  grep -q "No changes." <<< "$PVC_AFTER" || { printf '%s\n' "$PVC_AFTER" | tail -30; fail "the plan is not empty again after the PVC two-sided arm cleaned up"; }
+  [ "$PVC_TWO_HIT" -eq 1 ] || { printf '%s\n' "$PVC_TWO_PLAN" | tail -30; fail "the PVC two-sided arm: the sweep did not propose $PVC_TWO_ADDR, a PVC kubectl declared and labelled ($PVC_TWO_SUMMARY), so the PVC exclusion probe proves nothing"; }
+
+  if [ "${BREAK_PVC:-}" = "1" ]; then
+    [ "$PVC_HIT" -eq 1 ] && fail "BREAK_PVC=1: the sweep proposed $PVC_PROBE_ADDR with no estate label on it - the probe keys on the kind, not on the label"
+    log "  BREAK_PVC=1: caught - with no label on $PVC_PROBE the sweep proposes nothing ($(plan_line "$PVC_PLAN"))"
+    gauntlet_stage day2_remove pass "BREAK_PVC=1 control: with no estate label on the claim-template PVC $PVC_PROBE the sweep proposes nothing ($(plan_line "$PVC_PLAN")), so the probe's own expectation correctly fails; the probe keys on the label"
+  elif [ "$PVC_HIT" -eq 1 ] || [ "$PVC_TWO_EXCLUDED" -eq 0 ]; then
+    gauntlet_stage day2_remove fail "#1179 regressed: with the estate's label put on the claim-template PVC $PVC_PROBE by kubectl ($PVC_PROBE_FACTS), the sweep proposed destroying it ($(plan_line "$PVC_PLAN"); two-sided arm: $PVC_TWO_SUMMARY). It has no ownerReferences under the default Retain policy, and kube-controller-manager alone wrote its spec, so kubesweep.ControllerMade must exclude it. The label was removed again and the plan is empty, so nothing was destroyed by this run"
+    exit 1
+  elif [ "${BREAK_POD:-}" = "1" ]; then
     [ "$PROBE_HIT" -eq 1 ] && fail "BREAK_POD=1: the sweep proposed $PROBE_ADDR with no estate label on it - the probe keys on the kind, not on the label"
     log "  BREAK_POD=1: caught - with no label on the Job's Pod the sweep proposes nothing ($(plan_line "$PROBE_PLAN"))"
     gauntlet_stage day2_remove pass "BREAK_POD=1 control: with no estate label on the Job's Pod the sweep proposes nothing ($(plan_line "$PROBE_PLAN")), so the probe's own expectation correctly fails; the probe keys on the label"
@@ -1252,7 +1484,7 @@ YAML
     gauntlet_stage day2_remove fail "the CronJob's removal passes (exactly one destroy at $D_ADDR, applied, gone, next plan empty, as stock's own removal on the oracle cluster), but the sweep proposed destroying the Job's own Pod $PROBE_POD once kubectl put the estate's label on it ($(plan_line "$PROBE_PLAN")); it carries an ownerReference to the Job migrate, so it is a controller's copy kubesweep.ControllerMade must exclude. The label was removed again and the plan is empty, so nothing was destroyed by this run"
     exit 1
   else
-    gauntlet_stage day2_remove pass "deleting kubernetes_cron_job_v1.nightly's block proposed exactly one destroy (0 add, 0 change, 1 destroy) at the sweep's orphan address $D_ADDR (\"Owned and undeclared: 1 live resource will be destroyed\"), under the versioned type since no block declares a CronJob any more; applied cleanly, kubectl reads the CronJob gone, it owned no Job at any point (suspended), and the next plan is empty; stock's plan for the same removal on the oracle cluster is also exactly one destroy. The controller-copy exclusion, on the Job's own Pod $PROBE_POD (ownerReference to the Job): with the estate's label put on it by kubectl the sweep proposed nothing. The two-sided arm then declared a bare Pod with kubectl in the same namespace, labelled the same way, and one plan told them apart: $TWO_SUMMARY, naming $TWO_ADDR and not $PROBE_ADDR. Both were cleaned up, the plan is empty again and no Pod carries the label. BREAK_REMOVE=1 keeps the block and no destroy is proposed; BREAK_POD=1 runs the probe unlabelled and correctly fails"
+    gauntlet_stage day2_remove pass "deleting kubernetes_cron_job_v1.nightly's block proposed exactly one destroy (0 add, 0 change, 1 destroy) at the sweep's orphan address $D_ADDR (\"Owned and undeclared: 1 live resource will be destroyed\"), under the versioned type since no block declares a CronJob any more; applied cleanly, kubectl reads the CronJob gone, it owned no Job at any point (suspended), and the next plan is empty; stock's plan for the same removal on the oracle cluster is also exactly one destroy. The controller-copy exclusion, on the Job's own Pod $PROBE_POD (ownerReference to the Job): with the estate's label put on it by kubectl the sweep proposed nothing. The two-sided arm then declared a bare Pod with kubectl in the same namespace, labelled the same way, and one plan told them apart: $TWO_SUMMARY, naming $TWO_ADDR and not $PROBE_ADDR. Both were cleaned up, the plan is empty again and no Pod carries the label. The same two-sided probe on a claim-template PVC (#1179, folded from reference-k8s-stateful): with the estate's label put on $PVC_PROBE by kubectl ($PVC_PROBE_FACTS) the sweep proposed nothing, and with a kubectl-declared PVC labelled the same way beside it one plan read $PVC_TWO_SUMMARY, naming $PVC_TWO_ADDR and not $PVC_PROBE_ADDR; both cleaned up and the plan is empty again. BREAK_REMOVE=1 keeps the block and no destroy is proposed; BREAK_POD=1 and BREAK_PVC=1 run their probes unlabelled and correctly fail"
   fi
 fi
 
@@ -1525,7 +1757,7 @@ rm -f "$GREEN/.terraform/choudoufu-cache.tfstate"
 G_PLAN2="$(cd "$GREEN" && "$TOFU" plan -input=false -no-color 2>&1)" || fail "the greenfield replan without the cache failed"
 grep -q "No changes." <<< "$G_PLAN2" || { printf '%s\n' "$G_PLAN2" | tail -30; fail "the greenfield replan without the cache is not empty"; }
 
-# The lost-store control (#1235), as reference-k8s-stateful takes it:
+# The lost-store control (#1235), as reference-k8s-stateful took it:
 # identity re-derives from the label plus the configuration's namespace and
 # name, so nothing is created or swept; the residue is proposed back as
 # in-place updates, and one apply reconverges.
