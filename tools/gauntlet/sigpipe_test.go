@@ -45,7 +45,6 @@ var sigpipeCeiling = map[string]int{
 	// floci/AWS estates, not on the kind substrate this sweep covered
 	"live/e2e/corpus-autoscaling-complete/run.sh":    1,
 	"live/e2e/corpus-ec2-instance-complete/run.sh":   1,
-	"live/e2e/corpus-hongbomiao-storage/run.sh":      1,
 	"live/e2e/corpus-security-group-complete/run.sh": 1,
 	"live/e2e/provisioner-taint/run.sh":              1,
 }

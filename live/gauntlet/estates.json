@@ -125,26 +125,8 @@
       "set": "growing"
     },
     {
-      "name": "corpus-hongbomiao-harbor",
-      "source": "hongbo-miao/hongbomiao.com, a third disjoint slice: environments/production/aws/kubernetes/main.tofu's self-contained Harbor section (commit 3f69ab9c37211e163bbd4434bad39780b6d4b92b, same pin as corpus-hongbomiao-labelbox and corpus-hongbomiao-storage)",
-      "url": "https://github.com/hongbo-miao/hongbomiao.com.git",
-      "pin": "3f69ab9c37211e163bbd4434bad39780b6d4b92b",
-      "lane": "opentofu-native",
-      "set": "core",
-      "reason": "a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised"
-    },
-    {
       "name": "corpus-hongbomiao-labelbox",
-      "source": "hongbo-miao/hongbomiao.com, the \"Labelbox\" section of infrastructure/opentofu/aws/general/main.tofu (commit 3f69ab9c37211e163bbd4434bad39780b6d4b92b, no tag)",
-      "url": "https://github.com/hongbo-miao/hongbomiao.com.git",
-      "pin": "3f69ab9c37211e163bbd4434bad39780b6d4b92b",
-      "lane": "opentofu-native",
-      "set": "core",
-      "reason": "a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised"
-    },
-    {
-      "name": "corpus-hongbomiao-storage",
-      "source": "hongbo-miao/hongbomiao.com, a second disjoint slice: environments/production/aws/storage/main.tofu's remote-state-free bootstrap section (commit 3f69ab9c37211e163bbd4434bad39780b6d4b92b, same pin as corpus-hongbomiao-labelbox)",
+      "source": "hongbo-miao/hongbomiao.com, three self-contained slices at one pin: the \"Labelbox\" section of infrastructure/opentofu/aws/general/main.tofu, the \"Harbor\" section of environments/production/aws/kubernetes/main.tofu, and the remote-state-free opening of environments/production/aws/storage/main.tofu (commit 3f69ab9c37211e163bbd4434bad39780b6d4b92b, no tag; harbor and storage were folded in from their own estates on 2026-10-11)",
       "url": "https://github.com/hongbo-miao/hongbomiao.com.git",
       "pin": "3f69ab9c37211e163bbd4434bad39780b6d4b92b",
       "lane": "opentofu-native",

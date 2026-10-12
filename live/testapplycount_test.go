@@ -19,6 +19,10 @@ import (
 // IAM object's tofu-estate marker left both counts equal: the comparison
 // could not fail for the one object it was blind to.
 //
+// corpus-hongbomiao-harbor was folded into corpus-hongbomiao-labelbox on
+// 2026-10-11 (its IAM user now rides in labelbox's root), so the guard reads
+// the one script that carries both IAM objects.
+//
 // testApplyCountProblems reads the test_apply section of a script and says
 // what is wrong with how it counts. It is written from what the stage
 // promises - that both reads see every taggable object, and that a control
@@ -90,7 +94,6 @@ func testApplyCountProblems(script string) []string {
 
 func TestHongbomiaoTestApplyCountsSeeTheIAMObject(t *testing.T) {
 	for _, rel := range []string{
-		"e2e/corpus-hongbomiao-harbor/run.sh",
 		"e2e/corpus-hongbomiao-labelbox/run.sh",
 	} {
 		for _, p := range testApplyCountProblems(readScript(t, rel)) {
@@ -100,7 +103,8 @@ func TestHongbomiaoTestApplyCountsSeeTheIAMObject(t *testing.T) {
 }
 
 // oldHongbomiaoTestApply is the stage as it stood before #1552, verbatim
-// from corpus-hongbomiao-harbor/run.sh. The guard above has to be red on it,
+// from corpus-hongbomiao-harbor/run.sh (since folded into
+// corpus-hongbomiao-labelbox). The guard above has to be red on it,
 // every run, or it proves nothing.
 const oldHongbomiaoTestApply = `#   BREAK_GREEN_COUNT
 gauntlet_begin_stage test_apply
@@ -137,9 +141,9 @@ func TestHongbomiaoTestApplyGuardIsRedOnTheOldStage(t *testing.T) {
 
 	// A control placed before the apply only lowers the before-read, which
 	// moves the expectation rather than the actual after-count. Built from
-	// the CURRENT harbor script with its control moved up, so every other
+	// the CURRENT labelbox script with its control moved up, so every other
 	// check passes and only the placement can make it red.
-	cur := readScript(t, "e2e/corpus-hongbomiao-harbor/run.sh")
+	cur := readScript(t, "e2e/corpus-hongbomiao-labelbox/run.sh")
 	const open = `if [ "${BREAK_APPLY_COUNT:-}" = "1" ]; then`
 	i := strings.Index(cur, open)
 	j := strings.Index(cur[i:], "\nfi\n") + i + len("\nfi\n")
