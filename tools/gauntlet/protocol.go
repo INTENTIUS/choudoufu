@@ -41,6 +41,17 @@ import (
 // and not_run, and it is the difference between "choudoufu could not do this"
 // and "this was never attempted, here is the arithmetic that says why".
 //
+// Two boundary lines mark where a stage's own work starts and, when it ends
+// without a verdict line, where it ends (#2037):
+//
+//	GAUNTLET begin=<id>
+//	GAUNTLET end_stage=<id>
+//
+// emitted by gauntlet_begin_stage and gauntlet_end_stage. They feed the
+// runner's progress lines and `gauntlet status` while the script runs
+// (stageWatcher, runprogress.go) and record nothing: ParseProtocol accepts
+// and skips them.
+//
 // The grammar is deliberately one line per event with key=value pairs, no
 // JSON, so a script can print it with printf and a human can grep it.
 const (
@@ -124,6 +135,13 @@ func ParseProtocol(r io.Reader) (*ProtocolResult, error) {
 			continue
 		}
 		if _, ok := fields["end"]; ok {
+			continue
+		}
+		// Stage boundaries (#2037) are progress, not record.
+		if _, ok := fields["begin"]; ok {
+			continue
+		}
+		if _, ok := fields["end_stage"]; ok {
 			continue
 		}
 		// GAUNTLET refused=1 [scale=N] [needed=N limit=N unit=token] detail=<reason>

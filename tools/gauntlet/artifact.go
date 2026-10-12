@@ -317,9 +317,18 @@ type EstateResult struct {
 // compares unequal to any real commit, so such a stage reads as carried -
 // which is the honest answer - and the board says the earlier run was not
 // recorded rather than inventing a commit for it.
+//
+// Seconds is the stage's wall-clock seconds as that same run measured them
+// (its verdict line's duration_s, #2037), so a duration stays attached to
+// the run that produced it when the verdict is carried forward. Absent for
+// every stage stamped before #2037 and for a stage the runner, not the
+// script, recorded; a reader treats absent as "no timing recorded", never
+// as zero. It is not last_run.stage_seconds, which holds only the latest
+// run's stages and is reconciled against that run's total (#1069).
 type StageRun struct {
-	Commit string `json:"commit,omitempty"`
-	Date   string `json:"date,omitempty"`
+	Commit  string  `json:"commit,omitempty"`
+	Date    string  `json:"date,omitempty"`
+	Seconds float64 `json:"seconds,omitempty"`
 }
 
 // StageCarried reports whether stage id's verdict was measured by some run

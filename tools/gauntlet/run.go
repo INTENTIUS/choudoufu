@@ -64,6 +64,9 @@ type RunOptions struct {
 	signals <-chan os.Signal
 	// stop is RunEstates's stop request, handed to every runOne.
 	stop *runStop
+	// progress, when set, gets every estate's start and finish and every
+	// stage boundary its script prints (#2037, runprogress.go).
+	progress *runProgress
 }
 
 // parallelPortBase and parallelPortStride assign each concurrent slot (not
@@ -355,7 +358,16 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 			if r.StageRuns == nil {
 				r.StageRuns = map[string]StageRun{}
 			}
-			r.StageRuns[id] = thisRun
+			sr := thisRun
+			// The stage's own seconds from this run's verdict line
+			// (#2037). A stage the runner recorded for the script
+			// (recordRunnerFailure) has no line, so no seconds.
+			if res != nil {
+				if s, ok := res.Seconds[id]; ok {
+					sr.Seconds = s
+				}
+			}
+			r.StageRuns[id] = sr
 		}
 		if res.Spoken {
 			if r.Stages == nil {
@@ -479,6 +491,16 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 	merge := func(i int, o oneResult) {
 		e := selected[i]
 		ran[i] = true
+		if opts.progress != nil {
+			outcome := fmt.Sprintf("finished, exit %d,", o.exit)
+			switch {
+			case o.interrupted:
+				outcome = "interrupted"
+			case o.err != nil:
+				outcome = "runner error"
+			}
+			defer opts.progress.estateFinished(e.Name, outcome)
+		}
 		if o.interrupted {
 			interrupted = append(interrupted, e.Name)
 			fmt.Fprintf(opts.Stdout, "%s: interrupted by the stop request after %s - nothing recorded for this run; its log is %s\n", e.Name, formatDuration(o.elapsed), filepath.Join(LogDir, e.Name+".log"))
@@ -872,7 +894,11 @@ func runOneScript(root string, e Estate, opts RunOptions, extraEnv []string) (*P
 		cmd.Env = setEnv(cmd.Env, kv)
 	}
 	cmd.Env = setEnv(cmd.Env, LockReportEnv+"="+lockDir)
-	attachCombinedOutput(cmd, &captured, logf)
+	var parse io.Writer = &captured
+	if opts.progress != nil {
+		parse = io.MultiWriter(&captured, &stageWatcher{p: opts.progress, estate: e.Name})
+	}
+	attachCombinedOutput(cmd, parse, logf)
 	// Setpgid (#2037), live-cert's #1324 reasoning: the script leads its
 	// own process group, so a stop request reaches the script, the tofu it
 	// is blocked on and whatever it backgrounded with one kill to the
@@ -885,6 +911,9 @@ func runOneScript(root string, e Estate, opts RunOptions, extraEnv []string) (*P
 	release, err := handConfirmation(cmd)
 	if err != nil {
 		return nil, 0, 0, false, err
+	}
+	if opts.progress != nil {
+		opts.progress.estateStarted(e.Name)
 	}
 	if err := cmd.Start(); err != nil {
 		release()

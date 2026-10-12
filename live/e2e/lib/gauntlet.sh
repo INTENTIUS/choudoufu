@@ -123,8 +123,14 @@ gauntlet_begin() {
 # a script that assigns CURRENT_STAGE=X once and only reassigns it when
 # stage Y begins leaves every line in between - including setup work for Y
 # that has nothing to do with X - attributed to X if it fails).
+#
+# It also prints `GAUNTLET begin=<id>` (#2037): the runner reads it as the
+# stage's start for its progress lines and `gauntlet status`. Nothing is
+# recorded from it; a stage's seconds are still its verdict line's
+# duration_s.
 gauntlet_begin_stage() {
   CURRENT_STAGE="$1"
+  printf 'GAUNTLET begin=%s\n' "$1"
 }
 
 # gauntlet_end_stage: clears CURRENT_STAGE, so a failure from this point on -
@@ -135,14 +141,20 @@ gauntlet_begin_stage() {
 # genuinely unattributed instead of silently inheriting whatever stage ran
 # last.
 #
-# gauntlet_stage (below) already calls this once a verdict is actually
-# recorded, so most scripts never need to call it directly - it exists for a
+# It prints `GAUNTLET end_stage=<id>` when a stage was open (#2037), the
+# progress counterpart of gauntlet_begin_stage's line.
+#
+# gauntlet_stage (below) already clears CURRENT_STAGE once a verdict is
+# actually recorded, so most scripts never need to call this - it exists for a
 # block of stage-labelled work that does NOT end in its own gauntlet_stage
 # call, e.g. an oracle computation run under `gauntlet_begin_stage day2_X`
 # well before day2_X's own real verdict is reported much later in the
 # script (corpus-hongbomiao-labelbox and corpus-iam-policy's own STAGE
 # 1.5/1.5.5/1.5.6 oracle blocks are exactly this shape).
 gauntlet_end_stage() {
+  if [ -n "${CURRENT_STAGE:-}" ]; then
+    printf 'GAUNTLET end_stage=%s\n' "$CURRENT_STAGE"
+  fi
   CURRENT_STAGE=""
 }
 
@@ -174,7 +186,10 @@ gauntlet_stage() {
   else
     printf 'GAUNTLET stage=%s verdict=%s duration_s=%s\n' "$id" "$verdict" "$dur"
   fi
-  gauntlet_end_stage
+  # Cleared here rather than through gauntlet_end_stage: the verdict line is
+  # already the stage's end for the runner, and an end_stage line after
+  # every verdict would be noise in every log (#2037).
+  CURRENT_STAGE=""
 }
 
 gauntlet_end() {

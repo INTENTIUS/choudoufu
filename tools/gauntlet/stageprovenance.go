@@ -85,8 +85,10 @@ func backfillStageProvenance(a *Artifact) []string {
 				// forever.
 				continue
 			}
-			if _, ok := witness[s.ID]; ok {
-				runs[s.ID] = StageRun{Commit: r.LastRun.Commit, Date: r.LastRun.Date}
+			if secs, ok := witness[s.ID]; ok {
+				// Seconds as RunEstates stamps them (#2037), so a row a
+				// run stamped compares equal here and stays untouched.
+				runs[s.ID] = StageRun{Commit: r.LastRun.Commit, Date: r.LastRun.Date, Seconds: secs}
 				measured++
 				continue
 			}
