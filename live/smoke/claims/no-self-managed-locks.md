@@ -51,40 +51,14 @@ re-plan. A writer killed mid-write strands nothing. `BREAK=1` rebuilds
 choudoufu with no `If-Match` (`go build -overlay`, so it needs Go), and
 both racing applies must be caught reporting success over one record.
 
-### two-saved-plans-one-attribute (#1504)
-
-    just smoke two-saved-plans-one-attribute
-    BREAK=1 just smoke two-saved-plans-one-attribute
-
-An ordinary cloud resource's record holds its identity and what the cloud
-cannot give back, so an attribute the provider reads back is not in it and
-no conditional write referees a race on it. Two checkouts of one estate
-save plans changing one SQS queue's `visibility_timeout_seconds` from 30,
-one to 60 and one to 90; the scenario first proves the provider reads that
-attribute back from the cloud. The first plan applies. The second re-reads
-the queue, finds 60 where its approval said 30, and is refused with exit 3
-naming `before.visibility_timeout_seconds` (#878); the queue keeps 60, and
-the second checkout's recovery is a re-plan. The two applies run one after
-the other: two that both re-read before either writes are not covered.
-`BREAK=1` rebuilds choudoufu with the before-values comparison removed
-(`go build -overlay`, so it needs Go), and the second apply must be caught
-reporting success with the queue on 90.
-
-### backend-sets-itself-up (claim 4 until #1817; real AWS)
-
-    SMOKE_REAL_AWS=1 just smoke backend-sets-itself-up
-    SMOKE_REAL_AWS=1 BREAK=1 just smoke backend-sets-itself-up
-
-Maintainer-run against a real account: it stands the record store bucket
-up with the shipped `just up`, and the pinned emulator's CloudFormation
-reports `CREATE_COMPLETE` while applying none of the bucket's properties.
-Stock's day one is a bucket, versioning, a lock table and IAM for both.
-Here the lock table is gone, and with it the lock: a run killed in the
-middle of an apply strands nothing, and the next run goes ahead. The
-bucket still wants versioning, a lifecycle rule and a public-access block,
-so the list is no shorter; what changes is that none of those sits in the
-path of every apply. `BREAK=1` makes the store unreachable and requires
-the run to refuse by name with nothing proposed.
+Two approved plans that change one attribute the provider reads back from
+the cloud are refereed by the apply's re-read, which is claim 15's
+mechanism: that race is steps 8-14 of
+[apply-what-was-approved](apply-what-was-approved.md#on-aws), and was
+two-saved-plans-one-attribute here until it merged there.
+backend-sets-itself-up (claim 4) was dropped: a killed apply stranding
+nothing is two-writers-one-record's last step, and the bucket `just up`
+builds is the recommended secure configuration demo's.
 
 ### cas-holds-under-every-sse-flavour (claim 33 until #1817; real AWS)
 

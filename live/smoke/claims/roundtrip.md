@@ -62,9 +62,9 @@ Stock behavior is not a mode you leave behind - it is the fallback,
 whole and exact, one deleted live block away. The scenario measures
 that rather than promising it: choudoufu and the pinned stock oracle
 plan the same state-backed estate side by side with debug logging on,
-and the plan texts match and so do the request counts, exactly. And
-with the live backend on, what you pay scales with your estate rather
-than the account around it.
+and the plan texts match and so do the request counts, exactly. What
+the live backend costs against the account around the estate is claim
+14's.
 
 ```text
 Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
@@ -89,12 +89,7 @@ The steps as they print:
    plan the estate with `TF_LOG=debug`; the scenario asserts the
    filtered plan texts are equal and the request counts identical.
    This is the #588 parity measurement as a two-minute demo.
-3. `the live backend on - and you pay for your estate, not your
-   account` - the
-   live estate goes up and its plan's request count is measured. Twenty
-   foreign resources then appear in the account and the count is
-   measured again; it must not move.
-4. `teardown` - estate and clutter both removed.
+3. `teardown` - the estate is destroyed.
 
 The `BREAK=1` run plans the choudoufu leg with the live block on. The
 asked-for machinery must show up in the measurement - a live plan that

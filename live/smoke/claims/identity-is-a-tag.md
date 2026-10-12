@@ -18,16 +18,10 @@ Each scenario runs from the repository root and ends on a `PASS` line; its
 
 ## On AWS
 
-### identity-is-a-tag
-
-    just smoke identity-is-a-tag
-    BREAK=1 just smoke identity-is-a-tag
-
-Two estates stand up in one account; the plain CLI's tagging API answers
-ownership; neither plan names the other's resources; and a VPC renamed in
-code is moved by `live-mv` rewriting its address tag, after which the plan
-is clean. `BREAK=1` skips the `live-mv`, and the plan must propose stock's
-destroy-and-recreate.
+The scenario this page was named for, `identity-is-a-tag.sh`, was dropped:
+two estates in one account are claim 13's two-estates-at-once, the plain
+CLI reading ownership is every scenario's evidence, and a `live-mv` rename
+that is a retag is the gauntlet's day2_rename stage.
 
 ### carve-by-retag (claim 12 until #1817)
 

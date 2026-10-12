@@ -11,7 +11,11 @@ for ownership, and live reads win every disagreement. A fresh cache, an
 ancient one and none at all give the same plan; what differs is how much
 reading the run does. Where a record is the only copy of an identity,
 losing the cache costs nothing and losing the record is named, never
-guessed.
+guessed. That last sentence is shown on AWS by claim 5's
+[a-killed-apply-hides-nothing](recovery-is-a-rerun.md#on-aws), whose step
+7 deletes the cache and `.terraform` around record-only identities and
+plans `No changes.`; it was record-only-survives-cache-loss (claim 17)
+until that scenario was dropped as a duplicate.
 
 The cost half was claim 9, "Unchanged is free", until it merged here.
 Re-planning what did not change should not cost a full re-read. On
@@ -42,33 +46,6 @@ beside the uncached one with equal outputs. The same holds for values in
 the record store, including a phantom the cache remembers and nothing else
 does. `BREAK=1` moves the live world mid-comparison, and the equality
 check must notice.
-
-### record-only-survives-cache-loss (claim 17 until #1817)
-
-    just smoke record-only-survives-cache-loss
-    BREAK=1 just smoke record-only-survives-cache-loss
-
-`aws_iam_group_policy` with its `name` left to the provider has no tag and
-no listing, so the record this apply writes is the only copy of its
-identity. Deleting the cache and the whole `.terraform` directory still
-replans `No changes.`, with the identity read from the record. `BREAK=1`
-deletes the record too, and the plan must name a duplicate create for that
-instance rather than bind silently or report no changes. [Recover an
-estate](https://intentius.io/choudoufu/docs/use/recover-an-estate/) says
-what to do from there.
-
-### the-estate-answers-in-the-present-tense (claim 41 until #1817)
-
-    just smoke the-estate-answers-in-the-present-tense
-    BREAK=1 just smoke the-estate-answers-in-the-present-tense
-
-One question, "which of this estate's security groups are attached to
-nothing", asked two ways after an instance is moved from one group to
-another with the AWS CLI. The live answer (the tagging API and a describe)
-is the new one; the cache answers as of the last apply. The next plan
-reads the present and proposes the one update that moves it back. This is
-the estate's own resources, not account-wide gap analysis. `BREAK=1`
-skips the out-of-band move, and the two answers must then agree.
 
 ### unchanged-is-free (claim 9 until it merged here)
 

@@ -11,15 +11,14 @@ Clone https://github.com/INTENTIUS/choudoufu, then do the following.
 2. If Go is installed, skip this step. Otherwise pick the latest release
    tag from https://github.com/INTENTIUS/choudoufu/releases and
    export CHOUDOUFU_VERSION=<that tag> so the smoke runs a prebuilt binary.
-3. From the repo root, run: just smoke import
-4. Then run: just smoke greenfield
-5. Report each step's verdict line as it prints, and each scenario's final
-   PASS or FAIL line.
+3. From the repo root, run: just smoke roundtrip
+4. Report each step's verdict line as it prints, and the final PASS or
+   FAIL line.
 
 A closing `PASS: smoke scenario '<name>' - every claim held` line means
-every claim held: an estate stood up by stock OpenTofu survived losing
-its state file, and a brand-new estate carried its ownership markers
-from the first create call. Anything else ends on a `FAIL [...]` line
+every claim held: an estate stood up by stock OpenTofu was adopted with
+one command, survived losing its state file, and went back to stock as
+one file. Anything else ends on a `FAIL [...]` line
 naming the step that failed.
 ```
 
@@ -32,8 +31,7 @@ real user path with a verdict line per step. The harness is versioned
 
 ```
 just smoke                # list scenarios
-just smoke greenfield     # a new estate from nothing
-just smoke import         # stock estate -> delete the state file -> adopt
+just smoke roundtrip      # stock estate -> live-import -> no state file -> back to stock
 just smoke k8s-greenfield # the same life on a real kind cluster, one label as the marker (#1061)
 just smoke k8s-no-silent-orphans # a deleted block's object found by its label; a controller's copies untouched (#1065)
 just smoke k8s-the-label-is-the-boundary # one admission policy on the label fences every write; the API server refuses a plain kubectl across estates (#1066)
@@ -43,7 +41,6 @@ just smoke k8s-the-server-gets-the-last-word # admission after the plan: a fail-
 just smoke k8s-a-label-is-a-change # a label or annotation edited in the configuration plans and applies like any other change, a key the configuration never declared stays the server's, and a second directory removes the same label over records shared as Secrets and as bucket objects (#1177, #1394; the bucket half needs Docker and the AWS CLI as well as kind)
 just smoke k8s-a-deleted-namespace-is-gone # fault 5 of #1110: kubectl delete namespace under a converged estate; the plan reads its objects as gone and proposes stock's creates, and a deleted record-store namespace is refused by name (#1765)
 just smoke k8s-staleness-costs-reads # claim 3 on kind: a fresh, an ancient and no cache give one byte-identical plan, and a kubectl edit shows through a fresh cache
-just smoke k8s-recovery-is-a-rerun # claim 5 on kind: an apply SIGKILLed between two creates; the next plan binds what was made by its label and one re-run finishes
 just smoke k8s-roundtrip   # claim 6 on kind: stock Terraform's estate adopted with one live-import, run without its state file, handed back to stock as one file
 just smoke k8s-stock-when-you-need-it # claim 6 on kind: no live block, the same plan and the same request count as stock OpenTofu at the pinned tofu_version
 just smoke k8s-unchanged-is-free # claim 3 on kind: -refresh=false serves vouched objects from the cache and sends fewer requests, same answer
@@ -56,15 +53,11 @@ just smoke full           # the comprehensive 15-step harness (~6 minutes)
 
 ## Scenarios
 
-- **greenfield** - a live-block configuration, one plain apply: markers
-  ride the create calls, the replan is empty, the state cache exists and
-  is disposable, and `apply -destroy` removes exactly what was made.
-- **import** - the migration path: the stock oracle (in its container)
-  stands the estate up with a plain `terraform.tfstate`; the state file is
-  deleted; the receipts are adopted with two CLI tag writes; the count
-  pool takes its slot markers by the values the plan names; the estate
-  plans empty from markers alone; one identity is asserted by value with
-  the AWS CLI and no choudoufu in the loop.
+The `import` and `greenfield` demos were dropped: `roundtrip` (claim 6)
+runs the stock-estate-without-its-state-file path end to end, and the
+gauntlet's migrate, greenfield and test_plan stages run both on every
+estate.
+
 - **full** - wraps `live/e2e/run.sh --expect 5`, the 15-step harness.
 
 ## Kubernetes
@@ -285,27 +278,6 @@ showing its own checks would have caught it.
   today's wire savings are small until #692's vouch widening lands. The
   BREAK control drifts the live world and proves the three-way equality
   comparator can fail.
-- **backend-sets-itself-up** - *Claim 2 (claim 4 until #1817): the backend is a bucket with
-  no lock table and no lock: nothing is held, so nothing gets stuck.*
-  **Real AWS, maintainer-run, for now** (the pinned emulator's
-  CloudFormation applies none of a bucket's properties). A live block
-  with no storage declared gets a local record store the way stock
-  implies a local state file - a .tofu-records directory appears beside
-  the module at first use, sentinel already written. The cloud store is
-  a bucket, stood up with `just up` and checked by the binary with
-  `just verify`: the same bucket, versioning and IAM as stock, plus a
-  lifecycle rule and a public-access block stock never listed, minus
-  the lock table. An apply is then killed with SIGKILL mid-flight and
-  the very next run finishes the work, because nothing was held. The
-  teardown admits there is a bucket to take down, and `just down`
-  refuses while it holds record versions. The stack's resource list must
-  hold only the bucket and its policy, and every key in the bucket is
-  matched against the four shapes this backend writes (#1379). The BREAK
-  control makes only the record store unreachable and proves the run
-  refuses by name instead of planning an empty-looking estate - the #693
-  failure class, permanently on watch (#1349); it does not show that the
-  sentinel is what caught it, because an S3 client fails a closed port
-  either way. Needs jq, just, node and npm.
 - **recovery-is-a-rerun** - *Claim 5: recovery is a re-run, never
   surgery.* An apply that died after its first create call (resource
   made, markers stamped, run gone) recovers by being run again: the plan
@@ -324,14 +296,6 @@ showing its own checks would have caught it.
   live-import - the plan must propose a duplicate estate, the
   documented quiet failure of migrations that flip the block on and
   bind nothing.
-- **identity-is-a-tag** - *Claim 7: identity is a tag you can read and
-  move.* Two estates share one account with nothing but their estate
-  tags between them - both plan clean, neither ever names the other's
-  resources; the plain AWS CLI's tagging API answers ownership with the
-  tool absent; and a code rename settles as one live-mv tag rewrite
-  with a clean plan after, where stock demands state surgery. The BREAK
-  control renames the code but skips the retag - the plan must propose
-  stock's destroy-and-recreate, proving the tag is the identity.
 - **apply-what-was-approved** - *Claim 15: apply exactly what was
   approved.* A plan is saved with `-out`, the world moves underneath the
   approval (a marked subnet appears for an address the configuration
@@ -343,18 +307,22 @@ showing its own checks would have caught it.
   configuration was edited after the approval, so the same resource,
   same action and same live object plan a different value - refused
   with `after.retention_in_days` named. Then the same two commands over
-  the world as it now is, and the reviewed change lands. The BREAK
-  control is the inverse of the usual one: it leaves the world UNMOVED
-  and the same file must apply, because a comparison that refuses every
-  plan file is not a check.
+  the world as it now is, and the reviewed change lands. Steps 8-14 were
+  two-saved-plans-one-attribute (#1504): two checkouts approve plans
+  changing one SQS queue's visibility timeout from 30, the first applies,
+  and the second is refused with exit 3 naming
+  `before.visibility_timeout_seconds`, the cloud left on 60. `BREAK=1`
+  rebuilds choudoufu with the before-values comparison removed (Go
+  needed), skips steps 1-7, and the second apply must be caught reporting
+  success with the queue on 90. `BREAK_UNMOVED=1` is the inverse control:
+  it leaves the world unmoved and the same file must apply, because a
+  comparison that refuses every plan file is not a check.
 - **stock-when-you-need-it** - *Claim 6 (claim 8 until it merged into 6): stock behavior is the
-  fallback, whole and exact - and the live backend's cost scales with
-  your estate, not your account.*
+  fallback, whole and exact.*
   Choudoufu with the live block removed plans a state-backed estate
   against the pinned stock oracle, both under TF_LOG: filtered plan
-  texts equal, request counts identical. Then the live estate stands up
-  and twenty foreign resources appear in the account - the plan's
-  request count must not move, because every read is estate-scoped. The
+  texts equal, request counts identical. What the live backend costs
+  against the account around the estate is claim 14's. The
   BREAK control runs the choudoufu leg with the live block on: the
   measurement must show the difference, or the parity comparison
   compares nothing.
@@ -460,20 +428,6 @@ showing its own checks would have caught it.
   surviving object's markers, so the same name in the other region is
   the only live evidence for the deleted instance - the plan reports it
   unchanged and the run must fail on that line.
-
-- **record-only-survives-cache-loss** - *Claim 3 (claim 17 until #1817): a record-only
-  composite identity survives cache loss without a duplicate create.*
-  `aws_iam_group_policy` with its `name` left for the provider to
-  assign carries no tags argument and no list route this fork uses, so
-  once it is created neither half of its two-part identity (group,
-  policy name) is a literal or a reference its own configuration
-  states - the record an apply writes is the only place that identity
-  is ever held. Losing the disposable state cache costs nothing, the
-  same as any other resource, and the recovered plan's own read is
-  checked by value against the group and name the record printed
-  earlier. The BREAK control deletes the identity record itself before
-  that same re-plan: the plan must propose one create, named, rather
-  than silently reporting no changes.
 
 - **a-shadow-is-not-a-claimant** - *Claim 1 (claim 18 until #1817): a replaced object's
   shadow is not a second claimant.* Two ForceNew replaces at one
@@ -626,20 +580,6 @@ showing its own checks would have caught it.
   where a RoundTripper parks each writer's first request until both are
   parked (#1441).
 
-- **two-saved-plans-one-attribute** - *Claim 2 (#1504): two
-  saved plans, one attribute: the second is refused because the value it
-  was planned from is gone.* Two checkouts of one estate save plans that
-  change one SQS queue's `visibility_timeout_seconds` from 30, to 60 and
-  to 90. A step first changes the attribute behind both checkouts and
-  requires the next plan to read it back, so the race is about a value
-  the cloud holds and the record does not. The first plan applies; the
-  second re-reads the queue and is refused with exit 3, naming
-  `before.visibility_timeout_seconds` (#878), with the queue left on 60;
-  its re-plan applies. The BREAK control rebuilds choudoufu with the
-  before-values comparison removed (go build -overlay, needs Go, refuses
-  a release binary) and passes only when the second apply is caught
-  reporting success with the queue on 90. Needs python3.
-
 - **cas-holds-under-every-sse-flavour** - *Claim 2 (claim 33 until #1817): compare-and-swap
   holds under every SSE flavour.* **Real AWS, maintainer-run**: it refuses to start without `SMOKE_REAL_AWS=1`, because an
   emulator does not reproduce the ETag semantics it measures. It creates
@@ -654,16 +594,6 @@ showing its own checks would have caught it.
   on that check under all three KMS flavours (#1344). Needs Go and
   python3.
 
-- **a-new-estate-writes-its-first-record** - *Claim 28 (claim 34 until #1817): under the
-  published IAM policy a new estate's first write succeeds, and so does
-  every write after it.* **Real AWS, maintainer-run**
-  (`SMOKE_REAL_AWS=1`). A control role that is allowed nothing is
-  denied; a brand-new estate applies as its scoped role into an empty
-  prefix under `render-policy.sh`'s output, then updates, replans and
-  destroys with every count checked. Each policy is proven live by a
-  marker statement before it is tested. The BREAK control changes one
-  key, `s3:RequestObjectTag` to `s3:ExistingObjectTag`, and the first
-  create must be denied (#1343). Needs jq.
 - **one-bucket-many-estates** - *Claim 28 (claim 35 until #1817): reading a neighbour's records
   takes two mistakes, not one.* **Real AWS, maintainer-run.** Two
   estates under their own roles in one bucket; one role is refused the
@@ -676,16 +606,15 @@ showing its own checks would have caught it.
   record as its own and to strip its tag, and both are refused (#1381).
   The BREAK control has two arms: without the relabel Deny the retag and
   then the read both succeed, and without the read Deny the read
-  succeeds (#1343). Needs jq.
-- **objects-carry-the-estate-tag** - *Claim 28 (claim 36 until #1817): every record store
-  object carries its estate's tag, and the tag is load-bearing.* **Real
-  AWS, maintainer-run.** An estate applies as its scoped role and every
-  object is read back tagged, records with the marker form of their
-  address. One record is retagged out of band as another estate's under
-  this estate's own prefix: the role is denied it, and the plan fails
-  naming the record instead of planning around it. The BREAK control
-  rebuilds choudoufu so the store sends no tags, and the published
-  policy must deny its first write (#1337). Needs jq and Go.
+  succeeds (#1343). Since claims 34 and 36 folded in, it also checks that
+  both estates' first writes go through the published policy, that every
+  object carries its estate's tag (and a record its escaped
+  `tofu-address`), that updates work under `If-Match`, and that a record
+  retagged as another estate's is refused to its own estate by name.
+  `BREAK_FIRST_WRITE=1` conditions the write on `s3:ExistingObjectTag`
+  and a new estate's first write must be denied; `BREAK_UNTAGGED=1`
+  builds a binary that sends no tags (Go needed) and its first write must
+  be denied. Needs jq.
 - **the-recommended-secure-configuration** - *Claim 37: the
   recommended secure configuration works end to end, including
   recovering a deleted record.* **Real AWS, maintainer-run.** The bucket
@@ -733,16 +662,6 @@ showing its own checks would have caught it.
   estate under `secrets = "store"`, and the same scan must find the value.
   The replan under refuse proposes the password again, rotated or not,
   which is what the refusal costs (#1503).
-- **the-estate-answers-in-the-present-tense** - *Claim 3 (claim 41 until #1817): the estate
-  answers in the present tense.* "Which of this estate's security groups
-  are attached to nothing" is asked from the `tofu-estate` tag plus a live
-  describe with no choudoufu in the loop, and from the state cache. Both
-  answer `db spare` after the apply. An out-of-band
-  `modify-instance-attribute` moves the instance from `web` to `db`. The
-  live answer becomes `spare web` and the cache still says `db spare`. The
-  next plan proposes the one update that puts it back. The BREAK control
-  skips the move, and both answers must agree. The estate's own resources
-  only; it is not account-wide gap analysis.
 - **a-killed-apply-hides-nothing** - *Claim 5 (claim 42 until #1817): a killed apply hides
   nothing it marked.* A real apply is killed with SIGKILL at a point
   pinned by a count read off the account - hosted zones named

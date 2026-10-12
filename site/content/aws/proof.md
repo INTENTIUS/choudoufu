@@ -46,11 +46,11 @@ is recorded separately from the bars and counts toward neither.
 ## Run one now
 
 ```
-just smoke import
+just smoke roundtrip
 ```
 
-That stands a stock estate up, deletes its state file, and plans it empty
-from markers alone. Paste the README's agent prompt to a coding agent and it
+That stands a stock estate up, adopts it with one command, deletes its
+state file, and hands it back to stock as one file. Paste the README's agent prompt to a coding agent and it
 runs it and reports each verdict line.
 
 ## What it costs against stock

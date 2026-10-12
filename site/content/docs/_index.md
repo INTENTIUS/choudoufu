@@ -44,7 +44,7 @@ this documentation names in advance. Anything else is a defect.
 [Plan fidelity]({{< relref "/docs/model/plan-fidelity" >}}) states the
 contract, and [the claims]({{< relref "/docs/claims" >}}) are where it is
 proven: one runnable scenario per promise, each with an arm that breaks it on
-purpose and must be caught. `just smoke import` runs one in about two minutes.
+purpose and must be caught. `just smoke roundtrip` runs one in about three minutes.
 
 | Evidence | What it is |
 |---|---|

@@ -11,7 +11,7 @@ load-bearing. Run them rather than reading a description of them:
 | Claim | What it shows | Command |
 |---|---|---|
 | [Claim 5: Recovery is a re-run, never surgery](smoke/claims/recovery-is-a-rerun.md) | An apply that crashed after a create, and a working copy with every local file deleted. Both end in a clean re-run. | `just smoke recovery-is-a-rerun` |
-| [Claim 3 (claim 17 until #1817): A record-only composite identity survives cache loss](smoke/claims/record-only-survives-cache-loss.md) | The cache gone and the record intact recovers; the record gone as well produces one named duplicate create, never a silent bind. | `just smoke record-only-survives-cache-loss` |
+| [Claim 5 on AWS, step 7 and `BREAK_EARLY_RECORD=1`](smoke/claims/recovery-is-a-rerun.md#on-aws) | The cache gone and the record intact recovers; the record missing produces a named duplicate, never a silent bind. Claim 17's own scenario was dropped as a duplicate of this one. | `just smoke a-killed-apply-hides-nothing` |
 
 Everything below is the part neither claim supplies: what to do, in order,
 and what the damage is when it is not recoverable.

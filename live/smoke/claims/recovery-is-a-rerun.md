@@ -63,17 +63,21 @@ procedure this implies.
 
 ## On Kubernetes
 
-### k8s-recovery-is-a-rerun
+### gauntlet stage reference-k8s:day2_crash
 
-    just smoke k8s-recovery-is-a-rerun
-    BREAK=1 just smoke k8s-recovery-is-a-rerun
+Cited, not run here: the gauntlet's `day2_crash` stage on the
+`reference-k8s` estate, read from that row of
+`live/gauntlet.json`, and this cell is proven only while it reads pass.
+An apply creating two objects is interrupted by a real SIGTERM the instant
+the first create commits. The next plan proposes exactly the remainder and
+binds the created object by its `tofu-estate` label, namespace and name,
+matching stock's own plan from the same position; one recovery apply adds
+the second object and the replan is empty. The stage's control asserts
+nothing is proposed and must fail. Every kind-lane estate runs the same
+stage (`live/GAUNTLET.md`, stage 10); only the maintainer runs the
+gauntlet.
 
-Needs `kind` and `kubectl`. An apply is SIGKILLed between one ConfigMap's
-create and the next one's. The first object exists and carries the label;
-the second was never sent; nothing was written that remembers either. The
-next plan binds the first by its label, namespace and name and proposes
-only what the killed run left undone; one re-run adds it, keeps the first
-object's uid, and replans empty. `BREAK=1` strips the label after the
-kill, and the plan must refuse the object by name. `live/GAUNTLET.md`
-stage 10 (day2_crash) measures the same property on every kind-lane
-gauntlet estate.
+`k8s-recovery-is-a-rerun.sh` proved this with a ConfigMap pair until the
+stage replaced it. What it had that the stage does not is its control: it
+stripped the label after the kill and required the plan to refuse the
+object by name.

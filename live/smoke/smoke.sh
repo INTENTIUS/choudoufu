@@ -11,8 +11,7 @@
 # `proof "caught ..."`, and then either exits 0 or runs on into the steps it
 # shares with the main arm; both reach the same closing line.
 #
-#   bash live/smoke/smoke.sh greenfield
-#   bash live/smoke/smoke.sh import
+#   bash live/smoke/smoke.sh roundtrip
 #   bash live/smoke/smoke.sh full
 #   bash live/smoke/smoke.sh k8s-greenfield   (a kind cluster, no emulator)
 #

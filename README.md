@@ -91,8 +91,7 @@ per invocation, a verdict line per step, exit 0 only when every claim
 held. Docker, about two minutes per scenario.
 
 ```
-just smoke import       # stock estate -> delete the state file -> adopt
-just smoke greenfield   # a new estate from nothing
+just smoke roundtrip    # stock estate -> live-import -> no state file -> back to stock
 just smoke full         # the comprehensive 15-step harness
 ```
 
@@ -107,10 +106,9 @@ Clone https://github.com/INTENTIUS/choudoufu, then do the following.
 2. If Go is installed, skip this step. Otherwise pick the latest release
    tag from https://github.com/INTENTIUS/choudoufu/releases and
    export CHOUDOUFU_VERSION=<that tag> so the smoke runs a prebuilt binary.
-3. From the repo root, run: just smoke import
-4. Then run: just smoke greenfield
-5. Report each step's verdict line as it prints, and each scenario's final
-   PASS or FAIL line.
+3. From the repo root, run: just smoke roundtrip
+4. Report each step's verdict line as it prints, and the final PASS or
+   FAIL line.
 ```
 
 `BREAK=1` corrupts one expected fact mid-scenario, and the scenario passes

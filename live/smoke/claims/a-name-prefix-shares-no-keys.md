@@ -33,35 +33,32 @@ that keeps one listing out of the other, since an object tag cannot
 condition a LIST. `BREAK=1` rebuilds choudoufu without the slash (Go
 needed), and the wire must show one estate fetching the other's record.
 
-### a-new-estate-writes-its-first-record (claim 34 until #1817)
-
-    SMOKE_REAL_AWS=1 just smoke a-new-estate-writes-its-first-record
-    SMOKE_REAL_AWS=1 BREAK=1 just smoke a-new-estate-writes-its-first-record
-
-Under the published policy a new estate's first write succeeds: the
-create condition is `s3:RequestObjectTag`, because `s3:ExistingObjectTag`
-reads tags an object that does not exist yet does not have. `BREAK=1`
-swaps the key, and the first create must be denied.
-
-### one-bucket-many-estates (claim 35 until #1817)
+### one-bucket-many-estates (claims 34, 35 and 36 until #1817)
 
     SMOKE_REAL_AWS=1 just smoke one-bucket-many-estates
     SMOKE_REAL_AWS=1 BREAK=1 just smoke one-bucket-many-estates
+    SMOKE_REAL_AWS=1 BREAK_FIRST_WRITE=1 just smoke one-bucket-many-estates
+    SMOKE_REAL_AWS=1 BREAK_UNTAGGED=1 just smoke one-bucket-many-estates
 
-Reading a neighbour's records takes two mistakes: a mis-scoped prefix is
-still stopped by the object-tag Deny, and a relabel is stopped by its own
-Deny (#1381). `BREAK=1` widens the prefix and removes one Deny at a time,
-and each time the neighbour's record must read back.
+Two new estates' first writes go through the published policy, whose
+create condition is `s3:RequestObjectTag`, because `s3:ExistingObjectTag`
+reads tags an object that does not exist yet does not have. Every object
+either estate writes carries `tofu-estate`, and a record also
+`tofu-address` (a dot in an instance key escaped as `@d`). Reading a
+neighbour's records takes two mistakes: a mis-scoped prefix is still
+stopped by the object-tag Deny, and a relabel is stopped by its own Deny
+(#1381). Updates and deletes under `If-Match` work as the role, and a
+record retagged as another estate's, under the estate's own prefix, is
+refused to it by name rather than planned as gone.
 
-### objects-carry-the-estate-tag (claim 36 until #1817)
-
-    SMOKE_REAL_AWS=1 just smoke objects-carry-the-estate-tag
-    SMOKE_REAL_AWS=1 BREAK=1 just smoke objects-carry-the-estate-tag
-
-Every object written to the bucket carries `tofu-estate` (and
-`tofu-address` on a record), and the published policy denies a foreign
-tag. `BREAK=1` builds a binary that sends no tags, and its first write
-must be denied.
+`BREAK=1` widens the prefix and removes one Deny at a time, and each time
+the neighbour's record must read back. `BREAK_FIRST_WRITE=1` swaps the
+create condition to `s3:ExistingObjectTag`, and a new estate's first
+create must be denied. `BREAK_UNTAGGED=1` builds a binary that sends no
+tags (Go needed), and its first write must be denied. These were three
+scenarios, a-new-estate-writes-its-first-record, this one and
+objects-carry-the-estate-tag, each standing up its own bucket and roles;
+one paid run now covers all three and fails as a unit.
 
 ### a-read-only-role-can-plan (claim 38 until #1817)
 
