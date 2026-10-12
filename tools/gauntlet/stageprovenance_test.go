@@ -405,9 +405,10 @@ func TestBackfillStampsOnlyWhatTheArtifactSupports(t *testing.T) {
 	}
 
 	aborted, _ := a.Result("aborted")
+	// Seconds come from the same witness, as RunEstates stamps them (#2037).
 	want := map[string]StageRun{
-		"cold_deploy": {Commit: "runcommit", Date: "2026-09-14T00:00:00Z"},
-		"migrate":     {Commit: "runcommit", Date: "2026-09-14T00:00:00Z"},
+		"cold_deploy": {Commit: "runcommit", Date: "2026-09-14T00:00:00Z", Seconds: 5},
+		"migrate":     {Commit: "runcommit", Date: "2026-09-14T00:00:00Z", Seconds: 7},
 		"day2_remove": {},
 	}
 	if !reflect.DeepEqual(aborted.StageRuns, want) {

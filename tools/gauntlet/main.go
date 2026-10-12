@@ -59,6 +59,9 @@ func main() {
 		fatalIf(cmdBehaviors(root, os.Args[2:]))
 	case "live-cert":
 		fatalIf(cmdLiveCert(root, os.Args[2:]))
+	case "status":
+		// #2037: reads the latest run's progress file. Never prompts.
+		fatalIf(cmdStatus(os.Args[2:], os.Stdout))
 	case "live-cert-state":
 		fatalIf(cmdLiveCertState(root, os.Args[2:], os.Stdout))
 	case "add":
@@ -114,7 +117,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [-parallel N] [name...] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | live-cert-state <estate> [-commit SHA] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | set-notes -estate <name> -file <path> | estates [-set core|all] [-json] [name...] | combine-shards -shards <dir> [-set core|all] [-estates 'a b'] [-commit SHA] [-emulator DIGEST] [-kind-image DIGEST] [-out path] | merge-artifact <base> <ours> <theirs> | merge-rendered <path> <ours-file> | scale-backfill [rev...] | scale-import-slice [-estate name] <slice_out.json> | scale-patch-seconds -estate E -target T -scale N [-stage id=seconds]... [-note text] [-accounting-inconsistent] | backfill-stage-provenance [-n] | check")
+	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-lane L] [-not-clear] [-stale REF] [-env K=V]... [-parallel auto|N] [name...] | status [progress-file] | behaviors [-all] [-port N] [-env K=V]... [id...] | live-cert <estate> [-target floci|aws] [-region R] [-ceiling-usd N] [-timeout-seconds N] | live-cert-state <estate> [-commit SHA] | next [-n N] [-set core|all] [-types T1,T2,...] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | notes <old.json> <new.json> | set-notes -estate <name> -file <path> | estates [-set core|all] [-json] [name...] | combine-shards -shards <dir> [-set core|all] [-estates 'a b'] [-commit SHA] [-emulator DIGEST] [-kind-image DIGEST] [-out path] | merge-artifact <base> <ours> <theirs> | merge-rendered <path> <ours-file> | scale-backfill [rev...] | scale-import-slice [-estate name] <slice_out.json> | scale-patch-seconds -estate E -target T -scale N [-stage id=seconds]... [-note text] [-accounting-inconsistent] | backfill-stage-provenance [-n] | check")
 }
 
 // cmdNext prints the next unit(s) of work, deterministically, from the
@@ -316,20 +319,57 @@ func cmdRender(root string) error {
 
 func cmdRun(root string, args []string) error {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
-	set := fs.String("set", "all", "which set to run when no names are given: core or all")
-	parallel := fs.Int("parallel", 1, "run this many estates concurrently, each against its own isolated floci emulator (#437); 1 (default) is serial, one estate at a time. Every run, serial included, is assigned an explicit FLOCI_PORT by this same allocator (#520), so a script's own hard-coded default only ever applies when it is invoked by hand, outside this runner. A FLOCI_PORT passed via -env (or inherited from this process's own environment) is honored as the base instead of the fixed default (#1040), so two invocations given distinct bases at least 3 apart never collide")
+	set := fs.String("set", "all", "which set to run when no names or filters are given, and the base the filters narrow: core or all")
+	parallel := fs.String("parallel", "auto", "how many estates run concurrently, each against its own isolated floci emulator (#437): auto (default, #2037) sizes it from `docker info` free memory over a per-estate footprint, capped by CPUs and the number of estates; a number sets it. Every run, serial included, is assigned an explicit FLOCI_PORT by this same allocator (#520), so a script's own hard-coded default only ever applies when it is invoked by hand, outside this runner. A FLOCI_PORT passed via -env (or inherited from this process's own environment) is honored as the base instead of the fixed default (#1040), so two invocations given distinct bases at least 3 apart never collide")
+	lane := fs.String("lane", "", "select the estates in this lane (#2037); combines with the other filters by intersection and with names by union")
+	notClear := fs.Bool("not-clear", false, "select the estates whose row is not clear (#2037)")
+	stale := fs.String("stale", "", "select the estates not measured at or after this commit or tag: last_run.commit missing, or <ref> not an ancestor of it (#2037)")
 	var envs multiFlag
 	fs.Var(&envs, "env", "KEY=VALUE passed to every script (repeatable); FLOCI_PORT=<port> here is honored as this run's port base (#1040) instead of being overridden")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if err := confirmManualRun(os.Stdout); err != nil {
-		return err
+	// A filter given an empty value would otherwise read as "no filter",
+	// and a run that meant to narrow would become a whole-set run (#2037).
+	var emptyFlag error
+	fs.Visit(func(f *flag.Flag) {
+		if (f.Name == "lane" || f.Name == "stale") && strings.TrimSpace(f.Value.String()) == "" {
+			emptyFlag = fmt.Errorf("-%s was given an empty value; refusing rather than running everything", f.Name)
+		}
+	})
+	if emptyFlag != nil {
+		return emptyFlag
 	}
 
 	m, a, err := loadAll(root)
 	if err != nil {
 		return err
+	}
+	// Everything the person needs to decide is printed before the prompt
+	// (#2037): what will run, how many at once, and how long it should
+	// take. Reading the manifest, the artifact and docker's numbers changes
+	// nothing, so it is safe to do for a run that is then refused.
+	sel := runSelection{Names: fs.Args(), Set: *set, Lane: *lane, NotClear: *notClear}
+	if *stale != "" {
+		ref, err := resolveCommit(root, *stale)
+		if err != nil {
+			return fmt.Errorf("-stale: %w", err)
+		}
+		sel.Stale = ref
+	}
+	selected, slots, why, err := planRun(root, m, a, sel, *parallel, readDockerCapacity)
+	if err != nil {
+		return err
+	}
+	printRunPlan(os.Stdout, selected, a, slots, why)
+	progressAt := progressPath(os.Getpid())
+	fmt.Printf("progress: %s (`just gauntlet-status` reads it from another terminal)\n\n", progressAt)
+	if err := confirmManualRun(os.Stdout); err != nil {
+		return err
+	}
+	names := make([]string, len(selected))
+	for i, e := range selected {
+		names[i] = e.Name
 	}
 	// committed is a completely independent read of live/gauntlet.json as
 	// it stood on disk before this run - never a or a.Estates, and never
@@ -361,13 +401,20 @@ func cmdRun(root string, args []string) error {
 	// disk is self-consistent at every checkpoint and an interrupted run
 	// keeps everything that finished.
 	checkpoint := func() error { return saveRunCheckpoint(root, m, bi, a) }
-	failures, err := RunEstates(root, m, a, RunOptions{Names: fs.Args(), Set: *set, Env: envs, Parallel: *parallel, Stdout: os.Stdout, Checkpoint: checkpoint}, commit, emulatorPin(root))
+	progress := newRunProgress(os.Stdout, progressAt, root, len(selected), slots)
+	failures, err := RunEstates(root, m, a, RunOptions{Names: names, Set: *set, Env: envs, Parallel: slots, Stdout: os.Stdout, Checkpoint: checkpoint, progress: progress}, commit, emulatorPin(root))
 	// A stopped run is rendered like a finished one - its finished rows are
 	// already in the artifact, and the board should say so - and then exits
 	// non-zero below.
 	var stopped *RunInterrupted
-	if errors.As(err, &stopped) {
+	switch {
+	case errors.As(err, &stopped):
+		progress.end("stopped")
 		err = nil
+	case err != nil:
+		progress.end("failed")
+	default:
+		progress.end("finished")
 	}
 	if err != nil {
 		return err
@@ -411,6 +458,35 @@ func cmdRun(root string, args []string) error {
 		os.Exit(1)
 	}
 	return nil
+}
+
+// planRun is `gauntlet run`'s decision before the prompt (#2037): the
+// estates sel selects and how many run at once, with the sentence saying
+// how that count was reached. docker is readDockerCapacity outside tests.
+func planRun(root string, m *Manifest, a *Artifact, sel runSelection, parallelFlag string, docker func() (dockerCapacity, error)) ([]Estate, int, string, error) {
+	n, auto, err := parseParallel(parallelFlag)
+	if err != nil {
+		return nil, 0, "", err
+	}
+	selected, err := selectEstates(m, a, sel, gitAncestor(root))
+	if err != nil {
+		return nil, 0, "", err
+	}
+	if !auto {
+		return selected, n, "set by -parallel", nil
+	}
+	c, err := docker()
+	if err != nil {
+		return selected, 1, fmt.Sprintf("auto fell back to 1: could not read the docker daemon's capacity (%v)", err), nil
+	}
+	kind := 0
+	for _, e := range selected {
+		if usesKind(root, e) {
+			kind++
+		}
+	}
+	n, why := autoParallel(c, kind, len(selected))
+	return selected, n, why, nil
 }
 
 // saveRunCheckpoint re-derives a's aggregates from its rows and writes

@@ -429,9 +429,24 @@ live-check dir=".":
 gauntlet:
     env -u PWD go run ./tools/gauntlet run -set core
 
-# Run one or more estates by name.
-gauntlet-run +names:
-    env -u PWD go run ./tools/gauntlet run {{names}}
+# Run one or more estates by name, or select them (#2037): -lane <lane>,
+# -not-clear, -stale <commit|tag> (rows not measured at or after it).
+# Filters intersect each other and union with names; a selection that
+# matches nothing refuses rather than running everything. -parallel defaults
+# to auto (docker's free memory over a per-estate footprint, capped by CPUs);
+# -parallel N sets it. The plan - estates, parallel count and estimated wall
+# time from recorded durations - prints before the prompt, and each finished
+# estate is saved as it finishes. e.g.
+#   just gauntlet-run -lane kubernetes -not-clear
+#   just gauntlet-run -stale v0.27.0 -parallel 2
+gauntlet-run +args:
+    env -u PWD go run ./tools/gauntlet run {{args}}
+
+# What the running (or last) `gauntlet run` on this machine is doing: each
+# running estate's stage and elapsed time, and estates done out of total.
+# Reads the progress file the run printed at start; never prompts.
+gauntlet-status:
+    env -u PWD go run ./tools/gauntlet status
 
 # Regenerate the artifact, live/GAUNTLET.md and the site's progress pages.
 gauntlet-render:
