@@ -270,7 +270,7 @@ func TestK8sServerVersionReadsTheServerLine(t *testing.T) {
 			t.Errorf("gauntlet_k8s_server_version on %q = %q, want %q", tc.in, got, tc.want)
 		}
 	}
-	for _, rel := range []string{"corpus-quickpizza", "reference-k8s", "reference-k8s-stateful", "reference-k8s-cert-manager", "reference-k8s-workloads", "reference-k8s-helm-template", "reference-k8s-helm-traefik", "reference-k8s-helm-metallb", "reference-k8s-helm-external-secrets", "reference-k8s-helm-cloudnative-pg", "reference-k8s-helm-kyverno", "reference-k8s-helm-cert-manager", "reference-k8s-helm-keda", "reference-k8s-helm-ingress-nginx", "reference-k8s-helm-sealed-secrets", "reference-k8s-helm-argo-cd", "reference-k8s-yaml-rollouts"} {
+	for _, rel := range []string{"corpus-quickpizza", "reference-k8s", "reference-k8s-cert-manager", "reference-k8s-workloads", "reference-k8s-helm-template", "reference-k8s-helm-metallb", "reference-k8s-helm-external-secrets", "reference-k8s-helm-cloudnative-pg", "reference-k8s-helm-kyverno", "reference-k8s-helm-keda", "reference-k8s-helm-ingress-nginx", "reference-k8s-helm-argo-cd", "reference-k8s-yaml-rollouts"} {
 		b, err := os.ReadFile(filepath.Join(root, "live", "e2e", rel, "run.sh"))
 		if err != nil {
 			t.Fatal(err)

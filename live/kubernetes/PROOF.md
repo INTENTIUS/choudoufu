@@ -136,11 +136,15 @@ with the same deltas every AWS estate gets for its emulator, and one more
 for the Grafana Cloud token the run does not have.
 
 `reference-k8s-stateful`
-([#1175](https://github.com/INTENTIUS/choudoufu/issues/1175)) is the third,
+([#1175](https://github.com/INTENTIUS/choudoufu/issues/1175)) was the third,
 also hand-written, because
 [#1107](https://github.com/INTENTIUS/choudoufu/issues/1107)'s search found
-no published stateful root that cleared the bar. It is 14 objects over
-eight kinds around two StatefulSets with `volume_claim_template` blocks.
+no published stateful root that cleared the bar: 14 objects over eight
+kinds around two StatefulSets with `volume_claim_template` blocks. The
+findings below were measured on it. The estate audit of 2026-10-11 folded
+its unique part into `reference-k8s-workloads`: a 2-replica StatefulSet
+whose claim-template labels disagree with its selector, a
+PodDisruptionBudget, and the PVC probe.
 `reference-k8s-cert-manager` (#1174) is the fourth: cert-manager's own
 install bundle converted to `kubernetes_manifest` blocks, 50 objects over
 13 kinds, six of them CRDs.

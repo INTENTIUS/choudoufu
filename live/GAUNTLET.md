@@ -31,7 +31,7 @@ change that lowers the bars until estates catch up; a non-headline stage
 moving either bar.
 
 A headline stage marked "tier-1 gated" below (#999) activates on tier-1
-fixture evidence (`live/behaviors.json`, #522's ruling) rather than on 48
+fixture evidence (`live/behaviors.json`, #522's ruling) rather than on 44
 hand-written per-estate sections: an estate that has never been asked to
 run it reads `not_run` and stays clear, while a genuine `fail` on it still
 breaks clear, exactly as any other headline stage.
@@ -372,7 +372,7 @@ Readiness is the caller's job and has to be bounded:
 on timeout rather than falling through into the admission error a webhook
 that exists but is not yet serving produces.
 
-Declares a pre-apply today: `corpus-cloud-platform-components` (5 address(es)), `reference-k8s-cert-manager` (47 address(es)), `reference-k8s-helm-argo-cd` (2 address(es)), `reference-k8s-helm-cert-manager` (4 address(es)), `reference-k8s-helm-cloudnative-pg` (2 address(es)), `reference-k8s-helm-external-secrets` (2 address(es)), `reference-k8s-helm-keda` (2 address(es)), `reference-k8s-helm-kyverno` (2 address(es)), `reference-k8s-helm-metallb` (4 address(es)), `reference-k8s-helm-sealed-secrets` (2 address(es)), `reference-k8s-helm-template` (2 address(es)), `reference-k8s-helm-traefik` (2 address(es)), `reference-k8s-yaml-rollouts` (2 address(es)).
+Declares a pre-apply today: `corpus-cloud-platform-components` (5 address(es)), `reference-k8s-cert-manager` (47 address(es)), `reference-k8s-helm-argo-cd` (2 address(es)), `reference-k8s-helm-cloudnative-pg` (2 address(es)), `reference-k8s-helm-external-secrets` (2 address(es)), `reference-k8s-helm-keda` (2 address(es)), `reference-k8s-helm-kyverno` (2 address(es)), `reference-k8s-helm-metallb` (4 address(es)), `reference-k8s-helm-template` (2 address(es)), `reference-k8s-yaml-rollouts` (2 address(es)).
 
 ## The core set
 
@@ -420,7 +420,7 @@ Check `live/estate-types.json` (`go run ./tools/estate-types`, issue #435)
 before proposing one: it lists, from real committed or fetched
 configuration and no gauntlet run, every resource type each estate in the
 manifest already exercises. As of that artifact's last run, it reports
-48 estates exercising 211 distinct types between them, of which 133 no
+44 estates exercising 211 distinct types between them, of which 133 no
 cohort fixture covers yet (`totals.estates`, `totals.distinct_types`,
 `totals.types_in_no_cohort`; these figures are rendered from the
 artifact by `gauntlet render`, so they can only be as current as the

@@ -391,7 +391,8 @@ nothing - so recovery there is the label alone.
 The lost-store reading is taken per estate too, in `greenfield`, where six
 AWS estates already take it: `Plan: 0 to add, 1 to change, 0 to destroy`
 on reference-k8s (`wait_for_load_balancer`), 6 changes on
-reference-k8s-stateful, 18 on corpus-quickpizza, and `No changes.` on
+reference-k8s-stateful (folded into reference-k8s-workloads on
+2026-10-11, where the reading has not been retaken), 18 on corpus-quickpizza, and `No changes.` on
 reference-k8s-cert-manager, whose root is `kubernetes_manifest` throughout
 and records nothing. Nothing is created and nothing is swept in any of
 them, and one apply reconverges.

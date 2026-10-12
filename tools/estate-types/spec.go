@@ -279,17 +279,12 @@ var estateSpecs = []estateSpec{
 		ScanScript: true,
 		Note:       `The "kubernetes" lane's first estate (#1067): no external source, a hand-written shape kept in this repository and crossed on a kind cluster. run.sh's resource_block() heredoc carries the whole estate: kubernetes_namespace, kubernetes_config_map (app-config and a two-instance count set), kubernetes_service_account, kubernetes_service, kubernetes_deployment - no module, no AWS provider. Its strict_block() heredoc (the strict-stage scratch estate) adds random_password, outside the five above.`,
 	},
-	{
-		Name:       "reference-k8s-stateful",
-		ConfigDirs: nil,
-		ScanScript: true,
-		Note:       `The "kubernetes" lane's stateful estate (#1175, surface 2 of #1107): no external source, a hand-written shape kept in this repository and crossed on a kind cluster, on the _v1 type names throughout. run.sh's resource_block() heredoc carries the whole estate: kubernetes_namespace_v1, kubernetes_service_account_v1, kubernetes_secret_v1, kubernetes_config_map_v1 (postgres-init, api-config and a two-instance count set), kubernetes_service_v1 (two headless, one ClusterIP), kubernetes_stateful_set_v1 (postgres and redis, each with a volume_claim_template), kubernetes_deployment_v1, kubernetes_pod_disruption_budget_v1 - no module, no AWS provider, and deliberately no kubernetes_storage_class, since kind's own default class is what the claim templates bind against. Its strict_block() heredoc (the strict-stage scratch estate) adds random_password, outside the eight above. The PersistentVolumeClaims the claim templates produce are the estate's subject and are declared by nothing, so no kubernetes_persistent_volume_claim type appears here.`,
-	},
+
 	{
 		Name:       "reference-k8s-workloads",
 		ConfigDirs: nil,
 		ScanScript: true,
-		Note:       `The "kubernetes" lane's workload-breadth estate (#1884, epic #1885): no external source, a hand-written shape kept in this repository and crossed on a kind cluster. run.sh's resource_block() heredoc carries the whole estate: kubernetes_namespace_v1 (two), kubernetes_service_account_v1, kubernetes_role_v1, kubernetes_role_binding_v1, kubernetes_config_map_v1 (web-config and a two-instance count set), kubernetes_persistent_volume_claim_v1 (declared directly), kubernetes_horizontal_pod_autoscaler_v2, kubernetes_deployment_v1, kubernetes_service_v1, kubernetes_ingress_v1, kubernetes_network_policy_v1, kubernetes_daemon_set_v1, kubernetes_limit_range_v1, kubernetes_resource_quota_v1, kubernetes_job_v1, kubernetes_cron_job_v1, and the deprecated aliases kubernetes_daemonset, kubernetes_role and kubernetes_network_policy - no module, no AWS provider, no kubernetes_storage_class. Its crash_pair() heredoc adds day2_crash's kubernetes_secret_v1 and kubernetes_config_map_v1 pair, and its strict_block() heredoc (the strict-stage scratch estate) adds random_password, outside the estate itself. day2_replace's and day2_crash's create_before_destroy kubernetes_config_map blocks are live/e2e/lib/gauntlet.sh's and not scanned, as for the other kind estates.`,
+		Note:       `The "kubernetes" lane's workload-breadth estate (#1884, epic #1885): no external source, a hand-written shape kept in this repository and crossed on a kind cluster. run.sh's resource_block() heredoc carries the whole estate: kubernetes_namespace_v1 (two), kubernetes_service_account_v1, kubernetes_role_v1, kubernetes_role_binding_v1, kubernetes_config_map_v1 (web-config and a two-instance count set), kubernetes_persistent_volume_claim_v1 (declared directly), kubernetes_horizontal_pod_autoscaler_v2, kubernetes_deployment_v1, kubernetes_service_v1, kubernetes_ingress_v1, kubernetes_network_policy_v1, kubernetes_daemon_set_v1, kubernetes_limit_range_v1, kubernetes_resource_quota_v1, kubernetes_job_v1, kubernetes_cron_job_v1, the deprecated aliases kubernetes_daemonset, kubernetes_role and kubernetes_network_policy, and (folded from reference-k8s-stateful on 2026-10-11) kubernetes_stateful_set_v1 with a volume_claim_template, a headless kubernetes_service_v1 and kubernetes_pod_disruption_budget_v1 - no module, no AWS provider, no kubernetes_storage_class. Its crash_pair() heredoc adds day2_crash's kubernetes_secret_v1 and kubernetes_config_map_v1 pair, and its strict_block() heredoc (the strict-stage scratch estate) adds random_password, outside the estate itself. day2_replace's and day2_crash's create_before_destroy kubernetes_config_map blocks are live/e2e/lib/gauntlet.sh's and not scanned, as for the other kind estates.`,
 	},
 	{
 		Name:       "reference-k8s-platform-app",
@@ -315,12 +310,7 @@ var estateSpecs = []estateSpec{
 		ScanScript: true,
 		Note:       `The "kubernetes" lane's Helm estate (#1963): kube-prometheus-stack 92.3.0 rendered by hashicorp/helm's helm_template data source (never helm_release) into root/main.tf's two for_each kubernetes_manifest blocks (the chart's 10 CRDs and its other 114 objects, manifest = each.value) plus a kubernetes_namespace_v1 - 125 objects, no module, no AWS provider. helm_template is a data source and so is not counted here. run.sh's write_root() copies main.tf, values.yaml and the sha256-checked chart archive into each working root and appends only a versions.tf; its crash_block() heredoc adds day2_crash's two kubernetes_manifest PrometheusRules, and its strict_block() heredoc (the strict-stage scratch estate) adds random_password. day2_replace's and day2_crash's create_before_destroy kubernetes_config_map blocks are live/e2e/lib/gauntlet.sh's and not scanned, as for the other kind estates.`,
 	},
-	{
-		Name:       "reference-k8s-helm-traefik",
-		ConfigDirs: []string{"live/e2e/reference-k8s-helm-traefik/root"},
-		ScanScript: true,
-		Note:       `The "kubernetes" lane's second Helm estate: traefik 41.7.1 rendered by hashicorp/helm's helm_template data source (never helm_release) into root/main.tf's three for_each kubernetes_manifest blocks (the chart's 25 CRDs, its other eight objects, then the Deployment, manifest = each.value) plus a kubernetes_namespace_v1 - 35 objects, no module, no AWS provider. helm_template is a data source and so is not counted here. run.sh's write_root() copies main.tf, values.yaml and the sha256-checked chart archive into each working root and appends only a versions.tf; its crash_block() heredoc adds day2_crash's two kubernetes_manifest Middlewares, and its strict_block() heredoc (the strict-stage scratch estate) adds random_password. day2_replace's and day2_crash's create_before_destroy kubernetes_config_map blocks are live/e2e/lib/gauntlet.sh's and not scanned, as for the other kind estates.`,
-	},
+
 	{
 		Name:       "reference-k8s-helm-metallb",
 		ConfigDirs: []string{"live/e2e/reference-k8s-helm-metallb/root"},
@@ -345,12 +335,7 @@ var estateSpecs = []estateSpec{
 		ScanScript: true,
 		Note:       `The "kubernetes" lane's second Helm estate: kyverno 3.9.1 rendered by hashicorp/helm's helm_template data source (never helm_release) into root/main.tf's three for_each kubernetes_manifest blocks over the render (the chart's 22 CRDs, its other 43 objects, and its four Deployments under wait { rollout = true }, manifest = each.value), a fourth for_each kubernetes_manifest of the estate's own ClusterPolicies, plus a kubernetes_namespace_v1 - 71 objects, no module, no AWS provider. helm_template is a data source and so is not counted here. run.sh's write_root() copies main.tf, values.yaml and the sha256-checked chart archive into each working root and appends only a versions.tf; its crash_block() heredoc adds day2_crash's two kubernetes_manifest ClusterPolicies, and its strict_block() heredoc (the strict-stage scratch estate) adds random_password. day2_replace's and day2_crash's create_before_destroy kubernetes_config_map blocks are live/e2e/lib/gauntlet.sh's and not scanned, as for the other kind estates.`,
 	},
-	{
-		Name:       "reference-k8s-helm-cert-manager",
-		ConfigDirs: []string{"live/e2e/reference-k8s-helm-cert-manager/root"},
-		ScanScript: true,
-		Note:       `The "kubernetes" lane's cert-manager Helm estate (#1981): jetstack's cert-manager chart v1.21.2 rendered by hashicorp/helm's helm_template data source (never helm_release) into root/main.tf's four for_each kubernetes_manifest blocks (the chart's 6 CRDs, its 37 other installation objects, its 3 Deployments, and the 3 custom resources values.yaml declares through extraObjects, manifest = each.value) plus a kubernetes_namespace_v1 - 50 objects, no module, no AWS provider; the same objects reference-k8s-cert-manager declares as 50 literal blocks. helm_template is a data source and so is not counted here. run.sh's write_root() copies main.tf, values.yaml and the sha256-checked chart archive into each working root and appends only a versions.tf; its crash_block() heredoc adds day2_crash's two kubernetes_manifest Issuers, and its strict_block() heredoc (the strict-stage scratch estate) adds random_password. day2_replace's and day2_crash's create_before_destroy kubernetes_config_map blocks are live/e2e/lib/gauntlet.sh's and not scanned, as for the other kind estates.`,
-	},
+
 	{
 		Name:       "reference-k8s-helm-keda",
 		ConfigDirs: []string{"live/e2e/reference-k8s-helm-keda/root"},
@@ -363,12 +348,7 @@ var estateSpecs = []estateSpec{
 		ScanScript: true,
 		Note:       `The "kubernetes" lane's CRD-free Helm estate: ingress-nginx 4.15.1 rendered by hashicorp/helm's helm_template data source (never helm_release) into root/main.tf's two for_each kubernetes_manifest blocks over the render (its 8 non-workload objects, then its Deployment, manifest = each.value), a third for_each kubernetes_manifest block of the root's own (one Ingress per rendered IngressClass) and a kubernetes_namespace_v1 - 11 objects, no module, no AWS provider. helm_template is a data source and so is not counted here. run.sh's write_root() copies main.tf, values.yaml and the sha256-checked chart archive into each working root and appends only a versions.tf; its crash_block() heredoc adds day2_crash's two kubernetes_manifest Ingresses, and its strict_block() heredoc (the strict-stage scratch estate) adds random_password. day2_replace's and day2_crash's create_before_destroy kubernetes_config_map blocks are live/e2e/lib/gauntlet.sh's and not scanned, as for the other kind estates.`,
 	},
-	{
-		Name:       "reference-k8s-helm-sealed-secrets",
-		ConfigDirs: []string{"live/e2e/reference-k8s-helm-sealed-secrets/root"},
-		ScanScript: true,
-		Note:       `The "kubernetes" lane's sealed-secrets Helm estate, in reference-k8s-helm-template's shape (#1963): sealed-secrets 2.20.0 rendered by hashicorp/helm's helm_template data source (never helm_release) into root/main.tf's three for_each kubernetes_manifest blocks (the chart's one CRD, its other 10 objects including a SealedSecret from extraDeploy, then the controller's Deployment; manifest = each.value) plus a kubernetes_namespace_v1 - 13 objects, no module, no AWS provider. helm_template is a data source and so is not counted here. run.sh's write_root() copies main.tf, values.yaml and the sha256-checked chart archive into each working root and appends only a versions.tf; its crash_block() heredoc adds day2_crash's two kubernetes_manifest SealedSecrets, and its strict_block() heredoc (the strict-stage scratch estate) adds random_password. day2_replace's and day2_crash's create_before_destroy kubernetes_config_map blocks are live/e2e/lib/gauntlet.sh's and not scanned, as for the other kind estates.`,
-	},
+
 	{
 		Name:       "reference-k8s-helm-argo-cd",
 		ConfigDirs: []string{"live/e2e/reference-k8s-helm-argo-cd/root"},
