@@ -249,6 +249,47 @@ fail() {
 }
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
 
+# test_apply_count_verdict <before> <after> <want>: test_apply's verdict over
+# the estate's marked-object count on either side of the no-op apply. Prints
+# the sentence the stage reports and returns 0 for a pass, 1 for a fail.
+#
+# Issue #1275, found on corpus-iam-read-only-policy (deleted in the estate
+# audit of 2026-10-11; the guard moved here with it, #1271 being the same
+# defect on this estate): that stage used to pass on "0 objects before, 0
+# after", because the count it was handed could not see the estate's one
+# object. A
+# zero on the BEFORE side is therefore a failure that says what it did not
+# see, never an observation spoken as a no-op - migrate stamped <want>
+# objects and the count has to find them before an equality means anything.
+# A count that is not a number (a read that never ran) fails the same way.
+# Driven directly with every arm by tools/gauntlet/iampolicy_counts_test.go.
+test_apply_count_verdict() {
+  local before="$1" after="$2" want="$3"
+  case "$before" in
+    '' | *[!0-9]*)
+      printf 'the pre-apply count is not a number ("%s") - the inventory read did not run, so there is nothing to compare' "$before"
+      return 1 ;;
+  esac
+  case "$after" in
+    '' | *[!0-9]*)
+      printf 'the post-apply count is not a number ("%s") - the inventory read did not run, so there is nothing to compare' "$after"
+      return 1 ;;
+  esac
+  if [ "$before" -eq 0 ]; then
+    printf 'counted 0 objects carrying the estate marker BEFORE the no-op apply, where migrate stamped %s - an equality between two zeros proves nothing about what the apply did, so this is no no-op verdict (#1275)' "$want"
+    return 1
+  fi
+  if [ "$before" != "$want" ]; then
+    printf 'expected %s objects carrying the estate marker before the no-op apply (what migrate stamped), counted %s' "$want" "$before"
+    return 1
+  fi
+  if [ "$after" != "$before" ]; then
+    printf 'object count changed across a no-op apply: %s -> %s' "$before" "$after"
+    return 1
+  fi
+  printf 'genuine no-op: %s objects before, %s after' "$before" "$after"
+}
+
 # policy_arn_by_prefix looks a name_prefix-generated IAM policy up by the
 # prefix its name starts with, and returns exactly one arn or fails.
 #
@@ -850,8 +891,6 @@ BEFORE_N="$GAUNTLET_ESTATE_N"
 BEFORE_RGTA_N="$GAUNTLET_ESTATE_RGTA_N"
 BEFORE_IAM_N="$GAUNTLET_ESTATE_IAM_N"
 BEFORE_ARNS="$GAUNTLET_ESTATE_ARNS"
-[ "$BEFORE_N" = "2" ] \
-  || fail "expected 2 objects carrying tofu-estate=$ESTATE before stage 4 (the two aws_iam_policy instances stage 2 stamped), got $BEFORE_N - GetResources $BEFORE_RGTA_N + IAM's own tag APIs $BEFORE_IAM_N: $(tr '\n' ' ' <<< "$BEFORE_ARNS")"
 log "  before: $BEFORE_N objects (GetResources $BEFORE_RGTA_N + IAM's own tag APIs $BEFORE_IAM_N, $GAUNTLET_ESTATE_BOTH_N seen by both)"
 
 APPLY2_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
@@ -871,13 +910,18 @@ fi
 gauntlet_estate_objects "$ESTATE" awsl \
   || fail "could not read the estate's tofu-estate=$ESTATE inventory after the no-op apply"
 AFTER_N="$GAUNTLET_ESTATE_N"
-[ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N. Before: $(tr '\n' ' ' <<< "$BEFORE_ARNS"); after: $(tr '\n' ' ' <<< "$GAUNTLET_ESTATE_ARNS")"
+# The verdict goes through test_apply_count_verdict (defined at the top,
+# driven arm by arm in tools/gauntlet/iampolicy_counts_test.go): it fails
+# unless BEFORE is exactly the 2 policies stage 2 stamped, refuses a zero
+# BEFORE count outright (#1275), and fails on any change across the apply.
+TA_VERDICT="$(test_apply_count_verdict "$BEFORE_N" "$AFTER_N" 2)" \
+  || fail "$TA_VERDICT. Before: $(tr "\n" " " <<< "${BEFORE_ARNS:-(none)}"); after: $(tr "\n" " " <<< "${GAUNTLET_ESTATE_ARNS:-(none)}")"
 [ ! -f "$EST/terraform.tfstate" ] || fail "a state file exists after the apply"
-log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
+log "  $TA_VERDICT, no state file either time"
 
 log ""
 log "STAGE 4 (test apply): PASS"
-gauntlet_stage test_apply pass "genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time - counted through GetResources ($BEFORE_RGTA_N of them) AND IAM's own list-policy-tags ($BEFORE_IAM_N), deduplicated by ARN, because GetResources does not index IAM on this pin and the GetResources-only count this stage used to carry read 0 on both sides (#1271)"
+gauntlet_stage test_apply pass "$TA_VERDICT, no state file either time - counted through GetResources ($BEFORE_RGTA_N of them) AND IAM's own list-policy-tags ($BEFORE_IAM_N), deduplicated by ARN, because GetResources does not index IAM on this pin and the GetResources-only count this stage used to carry read 0 on both sides (#1271)"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════

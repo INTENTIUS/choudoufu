@@ -175,8 +175,9 @@ func TestEveryScriptThatStartsFlociCanReadItBack(t *testing.T) {
 	//
 	// 62 since the estate audit of 2026-10-11: corpus-hongbomiao-harbor and
 	// corpus-hongbomiao-storage were folded into corpus-hongbomiao-labelbox
-	// and their scripts deleted.
-	const wantStarters = 62
+	// and their scripts deleted. 61 since corpus-iam-read-only-policy was
+	// deleted in the same audit.
+	const wantStarters = 61
 
 	var starters, blind []string
 	for _, rel := range flociSortedKeys(scripts) {

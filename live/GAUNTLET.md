@@ -31,7 +31,7 @@ change that lowers the bars until estates catch up; a non-headline stage
 moving either bar.
 
 A headline stage marked "tier-1 gated" below (#999) activates on tier-1
-fixture evidence (`live/behaviors.json`, #522's ruling) rather than on 49
+fixture evidence (`live/behaviors.json`, #522's ruling) rather than on 48
 hand-written per-estate sections: an estate that has never been asked to
 run it reads `not_run` and stays clear, while a genuine `fail` on it still
 breaks clear, exactly as any other headline stage.
@@ -393,7 +393,6 @@ is the whole approval step. Anything real goes in the growing set without one.
 | `corpus-giantswarm-crossplane` | opentofu-native | v8.2.2 | a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised |
 | `corpus-hongbomiao-labelbox` | opentofu-native | 3f69ab9c37211e163bbd4434bad39780b6d4b92b | a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised |
 | `corpus-iam-policy` | terraform-popular | v6.8.0 | a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy |
-| `corpus-iam-read-only-policy` | terraform-popular | v6.8.0 | a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy |
 | `corpus-lambda-simple` | terraform-popular | v8.8.1 | a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy |
 | `corpus-leynos-monitoring` | opentofu-native | e59eabba112b2a4c731123f26845a20f0ae0d938 | a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised |
 | `corpus-overture-tiles` | opentofu-native | v1.2.0 | a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised |
@@ -421,7 +420,7 @@ Check `live/estate-types.json` (`go run ./tools/estate-types`, issue #435)
 before proposing one: it lists, from real committed or fetched
 configuration and no gauntlet run, every resource type each estate in the
 manifest already exercises. As of that artifact's last run, it reports
-49 estates exercising 211 distinct types between them, of which 133 no
+48 estates exercising 211 distinct types between them, of which 133 no
 cohort fixture covers yet (`totals.estates`, `totals.distinct_types`,
 `totals.types_in_no_cohort`; these figures are rendered from the
 artifact by `gauntlet render`, so they can only be as current as the
