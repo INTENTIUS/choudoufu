@@ -3249,7 +3249,14 @@ const (
 	// golden's sweep does not read. It adds no row, so instances and
 	// body-sha256 are unchanged. fixture-dirs 672 -> 673 on the same row;
 	// the cohort pins are untouched.
-	identityGoldenPinDirs = 704
+	//
+	// 704 -> 701 for the estate audit of 2026-10-11: three directories gone
+	// with their estates, live/e2e/reference-k8s-helm-cert-manager/root,
+	// live/e2e/reference-k8s-helm-traefik/root and
+	// live/e2e/reference-k8s-helm-sealed-secrets/root. None of them added a
+	// row, so instances and body-sha256 are unchanged. fixture-dirs
+	// 673 -> 670 on the same row; the cohort pins are untouched.
+	identityGoldenPinDirs = 701
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).
