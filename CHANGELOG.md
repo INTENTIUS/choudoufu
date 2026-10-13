@@ -43,6 +43,16 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 - `choudoufu plan -cone=<base>` plans that cone only, opt-in. Deleted blocks' removals are proposed, co-managed type pairs widen the cone, the vouch listing narrows to the cone's types, and a saved cone plan's `apply` refuses a different cone. A guard (no base, provider, `terraform`, `live` block or lock file changed, a refactor nothing declares, over 30% of the estate, or a marked object outside the cone) plans the whole estate and says why (#1956).
 - `plan -estate-outputs-from <estate>=<plan.json>` plans a downstream estate on an upstream's planned outputs, read from `show -json`; an unknown or sensitive planned output is refused, and `apply <planfile>` refuses with exit 3 until the upstream has applied the planned values. `live-plan-set` plans a reader after the root it reads and marks it `"reads": "planned"` (#2051).
 
+- Changed: the Kubernetes sweep's clients set QPS 50 and burst 300 instead of client-go's 5 and 10, and so does the record store's Kubernetes client. One sweep against a kind cluster with 40 CRD kinds went from 17.8s to 11ms offline; in the gauntlet, day2_crash fell 35-40% on external-secrets and kyverno (#2041).
+- Fixed: `live-import` re-reads a Kubernetes object whose controller wrote it between the read and the dry run, instead of refusing the stamp as a webhook rewrite (#2043, #2044). `live-mv` has the same race (#2050).
+- Changed: `live-plan-set` loads each root's module tree after init, so a root whose tree does not load statically fails at the plan stage instead of planning (#2051).
+- Changed: `gauntlet run` saves each estate's row as it finishes, stops every estate script on Ctrl-C and keeps finished rows, and accepts Enter sent as a carriage return (#2039). It takes `-lane`, `-not-clear` and `-stale <ref>`, sizes `-parallel auto` (the new default) from Docker's free memory, records each stage's seconds, prints the plan and an estimated time before asking, and `gauntlet status` shows progress (#2040).
+- Fixed: gauntlet scripts. reference-k8s-workloads no longer reads its PodDisruptionBudget as a Pod (#2045); reference-k8s-helm-kyverno's teardown accepts that kyverno deletes its own webhooks (#2046); reference-eks's migrate expects its six untaggable instances skipped (#2048).
+- Measured: the kubernetes lane reads 19 of 19 clear (#2042, #2049).
+
+- Known: reference-eks's migrate stays red until floci tags EKS node groups (#2047, lex00/floci#228).
+- Known: `plan -cone`, `-estate-outputs-from`, the rate-limit change and the runner changes are unmeasured on a cluster or emulator. Claim 47, "A plan costs its change", is unproven. `plan -cone` does not yet re-read data sources against the cache or narrow record reads (#1956).
+
 ## choudoufu v0.27.0 (2026-10-11)
 
 Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.27.0.json`](live/history/v0.27.0.json).
