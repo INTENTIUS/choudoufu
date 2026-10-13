@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/setplan"
+	"github.com/intentius/choudoufu/internal/live/waves"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tracing"
 	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
@@ -139,6 +140,7 @@ func (c *LivePlanSetCommand) Execute(args *arguments.LivePlanSet) (exitCode int)
 		Parallel:       args.ParallelEstates,
 		PluginCacheDir: cacheDir,
 		Runner:         runner,
+		ReadsOf:        waves.EstateOutputReadsIn,
 	})
 	if err != nil {
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot plan this set", err.Error()))
@@ -235,6 +237,15 @@ Options:
                        root's changes differ. It is what an approval names
                        and what live-wave-apply checks; the summary prints
                        it too. Each root's "digest" is its share.
+
+                       A root that reads another root of the set through
+                       data "terraform_estate_outputs" is planned after it,
+                       on its planned outputs (plan -estate-outputs-from,
+                       from OUT/ROOT.tfplan.json), and carries
+                       "reads": "planned" and "planned_from": [{"root",
+                       "estate", "plan_json"}]. It fails, naming the
+                       upstream, when the upstream did not plan or a
+                       planned output it reads is unknown or sensitive.
 
                        Roots keep the order they were given in. "error" is
                        set and "stage" names where when "status" is

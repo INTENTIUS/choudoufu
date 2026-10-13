@@ -66,6 +66,10 @@ type CreateArgs struct {
 	//
 	// This may be left nil if Schemas is also nil.
 	Config *configs.Config
+
+	// EstateOutputsFromPlan is GitHub issue #2051's record of other
+	// estates' outputs read from their plans. Nil writes no entry.
+	EstateOutputsFromPlan []byte
 }
 
 // Create creates a new plan file with the given filename, overwriting any
@@ -95,6 +99,9 @@ func Create(filename string, args CreateArgs, enc encryption.PlanEncryption) err
 		return err
 	}
 	if err := writeSchemasEntry(zw, args); err != nil {
+		return err
+	}
+	if err := writeEstateOutputsFromPlanEntry(zw, args.EstateOutputsFromPlan); err != nil {
 		return err
 	}
 

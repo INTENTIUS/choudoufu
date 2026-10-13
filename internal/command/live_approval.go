@@ -7,15 +7,19 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	terraformProvider "github.com/intentius/choudoufu/internal/builtin/providers/tf"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configload"
 	"github.com/intentius/choudoufu/internal/configs/symlib"
 	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/live/approval"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plans/planfile"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -83,6 +87,11 @@ type approvedPlan struct {
 	// different decodings. Nothing else in this struct is ever handed to the
 	// operation - see readApprovedPlan.
 	Plan *plans.Plan
+
+	// EstateOutputsFromPlan is GitHub issue #2051's record: the other
+	// estates whose outputs the plan read from their plans, output name to
+	// the canonical JSON value read. Nil when it read none that way.
+	EstateOutputsFromPlan map[string]map[string]string
 }
 
 // readApprovedPlan opens a saved plan file for its approval content only.
@@ -153,7 +162,13 @@ func (c *ApplyCommand) readApprovedPlan(ctx context.Context, path string, live *
 		return nil, diags
 	}
 
-	return &approvedPlan{Path: path, Estate: estate, Plan: plan}, diags
+	fromPlan, fromDiags := readEstateOutputsFromPlan(path, reader)
+	diags = diags.Append(fromDiags)
+	if fromDiags.HasErrors() {
+		return nil, diags
+	}
+
+	return &approvedPlan{Path: path, Estate: estate, Plan: plan, EstateOutputsFromPlan: fromPlan}, diags
 }
 
 // planFileEstate reads the estate named by the live block in the plan file's
@@ -370,4 +385,93 @@ func diagsHaveSummary(diags tfdiags.Diagnostics, summary string) bool {
 		}
 	}
 	return false
+}
+
+// summaryApprovalEstateOutputs is GitHub issue #2051's refusal: the saved
+// plan read another estate's outputs from that estate's plan, and what the
+// other estate has recorded since is not what its plan said.
+const summaryApprovalEstateOutputs = "Another estate's applied outputs differ from the planned ones this plan was made on"
+
+// readEstateOutputsFromPlan decodes a saved plan's #2051 record, or nil
+// when it has none.
+func readEstateOutputsFromPlan(path string, reader *planfile.Reader) (map[string]map[string]string, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	raw, err := reader.ReadEstateOutputsFromPlan()
+	if err == nil && raw != nil {
+		var rec estateOutputsFromPlanRecord
+		if err = json.Unmarshal(raw, &rec); err == nil {
+			return rec.Estates, diags
+		}
+	}
+	if err != nil {
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Invalid plan file",
+			fmt.Sprintf("Failed to read which estates' outputs %q read from their plans: %s.", path, err)))
+	}
+	return nil, diags
+}
+
+// estateOutputsFromPlanGuard is the plan guard half for GitHub issue
+// #2051. The approved plan was made on other estates' PLANNED outputs, so
+// it covers this apply only once those estates have applied and recorded
+// exactly those values. This reads each from the record store now, the way
+// terraform_estate_outputs does on this run, and refuses on any difference.
+func estateOutputsFromPlanGuard(ctx context.Context, approved *approvedPlan, reader terraformProvider.EstateOutputReader, refused *bool) func(*plans.Plan, *tofu.Schemas) tfdiags.Diagnostics {
+	return func(*plans.Plan, *tofu.Schemas) tfdiags.Diagnostics {
+		diags, mismatch := compareEstateOutputsFromPlan(ctx, approved.Path, approved.EstateOutputsFromPlan, reader)
+		if mismatch {
+			*refused = true
+		}
+		return diags
+	}
+}
+
+// compareEstateOutputsFromPlan is the comparison behind
+// [estateOutputsFromPlanGuard], separate so it can be tested without a run.
+// mismatch is true when a refusal was raised; a store that could not be
+// read is an ordinary error.
+func compareEstateOutputsFromPlan(ctx context.Context, path string, planned map[string]map[string]string, reader terraformProvider.EstateOutputReader) (tfdiags.Diagnostics, bool) {
+	var diags tfdiags.Diagnostics
+	var rows []string
+	estates := make([]string, 0, len(planned))
+	for e := range planned {
+		estates = append(estates, e)
+	}
+	sort.Strings(estates)
+	for _, estate := range estates {
+		names := make([]string, 0, len(planned[estate]))
+		for n := range planned[estate] {
+			names = append(names, n)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			want := planned[estate][name]
+			got := "(not recorded)"
+			values, readDiags := reader.ReadEstateOutputs(ctx, estate, []string{name})
+			if readDiags.HasErrors() {
+				if !diagsHaveSummary(readDiags, projection.SummaryEstateOutputNotRecorded) {
+					diags = diags.Append(readDiags)
+					continue
+				}
+			} else if v, ok := values[name]; ok {
+				text, err := projection.CanonicalOutputJSON(v)
+				if err != nil {
+					text = "(unrenderable: " + err.Error() + ")"
+				}
+				got = text
+			}
+			if got != want {
+				rows = append(rows, fmt.Sprintf("  estate %q, output %q: planned %s, applied %s\n", estate, name, want, got))
+			}
+		}
+	}
+	if len(rows) == 0 {
+		return diags, false
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%q was planned on other estates' planned outputs (-estate-outputs-from), so it covers this apply only once those estates have applied and recorded the same values. The record store says otherwise:\n", path)
+	for _, r := range rows {
+		b.WriteString(r)
+	}
+	fmt.Fprintf(&b, "\nApply the upstream estate's approved plan first, or plan this estate again on what it has recorded:\n  choudoufu plan -out=%s\n\nExit status %d says exactly this: send it back to review. Nothing was applied.", path, ExitApprovalRefused)
+	return diags.Append(tfdiags.Sourceless(tfdiags.Error, summaryApprovalEstateOutputs, b.String())), true
 }

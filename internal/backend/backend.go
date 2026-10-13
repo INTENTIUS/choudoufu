@@ -304,6 +304,12 @@ type Operation struct {
 	// it exactly once per operation.
 	PlanGuard func(plan *plans.Plan, schemas *tofu.Schemas) tfdiags.Diagnostics
 
+	// PlanFileEstateOutputs, when non-nil, is called as a saved plan file
+	// is written, and what it returns is embedded in the file: GitHub
+	// issue #2051's record of other estates' outputs this plan read from
+	// their plans. A fork addition; nil (every stock run) writes nothing.
+	PlanFileEstateOutputs func() []byte
+
 	// Plan is a plan that was passed as an argument. This is valid for
 	// plan and apply arguments but may not work for all backends.
 	PlanFile *planfile.WrappedPlanFile

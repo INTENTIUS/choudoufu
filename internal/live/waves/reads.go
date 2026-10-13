@@ -288,3 +288,45 @@ func EstatesRead(cfg *configs.Config) ([]string, error) {
 	sort.Strings(out)
 	return out, nil
 }
+
+// EstateOutputReadsIn is the distinct estates dir's configuration reads
+// through terraform_estate_outputs blocks, sorted, over the whole static
+// module tree: what live-plan-set orders a set by when it plans a reader on
+// its upstream's planned outputs (GitHub issue #2051). A tag-filtered data
+// source is not one: it reads the live object, which no plan changes. It
+// needs the modules dir's init installed, as [LoadRoot] does.
+func EstateOutputReadsIn(ctx context.Context, dir string) ([]string, error) {
+	cfg, err := loadTree(ctx, dir)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var out []string
+	var walkErr error
+	cfg.DeepEach(func(c *configs.Config) {
+		if walkErr != nil || c.Module == nil {
+			return
+		}
+		for _, rc := range c.Module.DataResources {
+			if rc.Type != EstateOutputsTypeName {
+				continue
+			}
+			estates, err := dataSourceReads(rc)
+			if err != nil {
+				walkErr = fmt.Errorf("%s: %w", rc.Addr().String(), err)
+				return
+			}
+			for _, e := range estates {
+				if !seen[e] {
+					seen[e] = true
+					out = append(out, e)
+				}
+			}
+		}
+	})
+	if walkErr != nil {
+		return nil, walkErr
+	}
+	sort.Strings(out)
+	return out, nil
+}

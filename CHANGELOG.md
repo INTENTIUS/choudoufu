@@ -39,6 +39,8 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.28.0 (Unreleased)
 
+- `plan -estate-outputs-from <estate>=<plan.json>` plans a downstream estate on an upstream's planned outputs, read from `show -json`; an unknown or sensitive planned output is refused, and `apply <planfile>` refuses with exit 3 until the upstream has applied the planned values. `live-plan-set` plans a reader after the root it reads and marks it `"reads": "planned"` (#2051).
+
 ## choudoufu v0.27.0 (2026-10-11)
 
 Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.27.0.json`](live/history/v0.27.0.json).
