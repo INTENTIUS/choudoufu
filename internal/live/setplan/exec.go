@@ -69,8 +69,12 @@ func (e Exec) Init(ctx context.Context, dir string, log io.Writer) error {
 	return err
 }
 
-func (e Exec) Plan(ctx context.Context, dir, planFile string, log io.Writer) (bool, error) {
-	code, _, err := e.run(ctx, dir, log, "plan", "-input=false", "-no-color", "-detailed-exitcode", "-out="+planFile)
+func (e Exec) Plan(ctx context.Context, dir, planFile string, from []PlannedFrom, log io.Writer) (bool, error) {
+	args := []string{"plan", "-input=false", "-no-color", "-detailed-exitcode", "-out=" + planFile}
+	for _, f := range from {
+		args = append(args, "-estate-outputs-from="+f.Estate+"="+f.Path)
+	}
+	code, _, err := e.run(ctx, dir, log, args...)
 	if err != nil && code == 2 {
 		// -detailed-exitcode's "succeeded, with changes".
 		return true, nil

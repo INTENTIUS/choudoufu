@@ -165,6 +165,21 @@ func (c PlanCommand) Execute(args *arguments.Plan, view views.Plan) int {
 	if args.AdoptionOnly {
 		view = views.NewAdoptionOnlyPlan(view, c.View)
 	}
+	// GitHub issue #2051: -estate-outputs-from is a live-markers flag, and
+	// a state-backed plan has no terraform_estate_outputs to answer.
+	if len(args.EstateOutputsFrom) > 0 {
+		if liveCfg == nil {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "-estate-outputs-from needs a live block",
+				"-estate-outputs-from answers data \"terraform_estate_outputs\" reads, which only a configuration under a live block has. Remove the flag."))
+			view.Diagnostics(diags)
+			return 1
+		}
+		if moreDiags := c.liveEstateOutputs().usePlanned(args.EstateOutputsFrom); moreDiags.HasErrors() {
+			diags = diags.Append(moreDiags)
+			view.Diagnostics(diags)
+			return 1
+		}
+	}
 
 	// Prepare the backend with the backend-specific arguments
 	be, beDiags := c.PrepareBackend(ctx, args.State, view, enc)
@@ -194,6 +209,8 @@ func (c PlanCommand) Execute(args *arguments.Plan, view views.Plan) int {
 			view.Diagnostics(diags)
 			return 1
 		}
+		lc, coneDiags = coneWithPlannedOutputs(lc, len(args.EstateOutputsFrom))
+		diags = diags.Append(coneDiags)
 		if lc != nil {
 			opReq.Targets = lc.targets
 		}
@@ -211,6 +228,9 @@ func (c PlanCommand) Execute(args *arguments.Plan, view views.Plan) int {
 			runner.cone = lc
 		}
 		diags = diags.Append(c.checkAWSProviderVersionSkew())
+		// GitHub issue #2051: a saved plan records which estates' outputs
+		// it read from their plans, for its apply to check.
+		opReq.PlanFileEstateOutputs = c.liveEstateOutputs().planFileRecord
 	} else {
 		// GitHub issue #613. A state-backed run is the one that can propose
 		// stripping a migrated estate's ownership markers, because it is the

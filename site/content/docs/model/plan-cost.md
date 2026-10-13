@@ -48,27 +48,10 @@ stock's `-parallelism`, which bounds the graph walk.
 | `TOFU_LIVE_SWEEP_PARALLELISM` | the sweep's per-type list calls | 10 |
 | `TOFU_LIVE_READ_PARALLELISM` | the read pass's per-instance import and read | 10 |
 
-Lower them if an account's APIs push back. `-refresh=false` serves unchanged
+Lower them if an account's APIs push back, or plan a
+[cone](https://github.com/INTENTIUS/choudoufu/blob/main/live/PLAN-CONE.md). `-refresh=false` serves unchanged
 resources from [the cache]({{< relref "/docs/model/cache" >}}) and skips
 their reads.
-
-## Planning a change's cone
-
-A pull request's plan can read less. `choudoufu plan -cone=origin/main`
-targets the blocks the diff changes, deletes or refactors, plus every block
-that reads them; the plan graph adds what they read. Removals of deleted
-blocks are proposed, the vouch listing narrows to the cone's types, and the
-marker sweep stays estate-wide. A saved cone plan records its cone beside
-the file, and `apply` refuses a replan over a different one.
-
-The plan covers the whole estate instead, and says why, when the base is
-missing, a provider block, the `terraform` or `live` block or the lock file
-changed, a refactor names an address nothing declares, the cone holds over
-30% of the estate, or the sweep finds a marked object outside the cone that
-nothing declares. Merge and drift plans should stay full: drift outside the
-cone is not reported. The saving is unmeasured;
-[claim 47](https://github.com/INTENTIUS/choudoufu/blob/main/live/smoke/claims/plan-cost-tracks-the-change.md)
-is open until it is.
 
 ## The full measurements
 

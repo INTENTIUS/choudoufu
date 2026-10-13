@@ -15,8 +15,10 @@ import (
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs/configload"
 	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plans/planfile"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/internal/tofu"
 )
 
 func ApplyCommander() Command {
@@ -208,6 +210,17 @@ func (c ApplyCommand) Execute(args *arguments.Apply, view views.Apply) int {
 		}
 		if approved != nil {
 			opReq.PlanGuard = approvalGuard(approved, &approvalRefused)
+			// GitHub issue #2051: a plan made on other estates' planned
+			// outputs also needs those estates to have recorded them.
+			if len(approved.EstateOutputsFromPlan) > 0 {
+				changeSet := opReq.PlanGuard
+				outputs := estateOutputsFromPlanGuard(ctx, approved, c.liveEstateOutputs(), &approvalRefused)
+				opReq.PlanGuard = func(plan *plans.Plan, schemas *tofu.Schemas) tfdiags.Diagnostics {
+					return outputs(plan, schemas).Append(changeSet(plan, schemas))
+				}
+			}
+			// GitHub issue #1956: the cone half of the approval runs first,
+			// around both guards above.
 			if approvedCone != nil {
 				opReq.PlanGuard = coneApprovalGuard(args.PlanPath, approvedCone.Targets, opReq.PlanGuard, &approvalRefused)
 			}

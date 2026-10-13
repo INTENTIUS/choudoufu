@@ -65,6 +65,9 @@ it. Sensitive outputs never cross.
 The bucket policy needs `--reads-outputs-of cluster-infrastructure`, or the
 plan stops naming that estate.
 
+To plan on a producer's unapplied plan, see `-estate-outputs-from` in
+`live/OUTPUTS.md`.
+
 On `record_store "kubernetes"` each estate's records sit in a namespace of
 their own, so the consumer names the producer in its record_store block:
 

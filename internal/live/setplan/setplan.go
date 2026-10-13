@@ -146,6 +146,32 @@ type Root struct {
 	// Digest is this root's digest (#1754): what [Document.Digest] is
 	// computed over. internal/live/setdigest's package doc says what it covers.
 	Digest string `json:"digest"`
+	// Reads is "planned" when this root was planned on the planned outputs
+	// of another root of the set it reads through terraform_estate_outputs
+	// (#2051), and absent otherwise.
+	Reads string `json:"reads,omitempty"`
+	// PlannedFrom names those roots when Reads is "planned".
+	PlannedFrom []PlannedFromRoot `json:"planned_from,omitempty"`
+}
+
+// ReadsPlanned is [Root.Reads] for a root planned on another root's planned
+// outputs.
+const ReadsPlanned = "planned"
+
+// PlannedFromRoot is one upstream root a root was planned on.
+type PlannedFromRoot struct {
+	Root   string `json:"root"`
+	Estate string `json:"estate"`
+	// PlanJSON is the upstream's "show -json" document the plan read,
+	// relative to the command's directory.
+	PlanJSON string `json:"plan_json"`
+}
+
+// PlannedFrom is one -estate-outputs-from a root's plan stage is given.
+type PlannedFrom struct {
+	Estate string
+	// Path is absolute.
+	Path string
 }
 
 // Summary counts the document's roots.
@@ -184,8 +210,9 @@ type Runner interface {
 	// has no live block at all.
 	Estate(ctx context.Context, dir string) (estate string, ok bool, err error)
 	Init(ctx context.Context, dir string, log io.Writer) error
-	// Plan writes planFile and reports whether the plan has changes.
-	Plan(ctx context.Context, dir, planFile string, log io.Writer) (changes bool, err error)
+	// Plan writes planFile and reports whether the plan has changes. from
+	// are the other estates whose outputs it reads from their plans (#2051).
+	Plan(ctx context.Context, dir, planFile string, from []PlannedFrom, log io.Writer) (changes bool, err error)
 	// Show returns the machine-readable form of planFile.
 	Show(ctx context.Context, dir, planFile string, log io.Writer) (json.RawMessage, error)
 }
@@ -205,6 +232,10 @@ type Options struct {
 	// it.
 	PluginCacheDir string
 	Runner         Runner
+	// ReadsOf returns the estates a root's terraform_estate_outputs blocks
+	// read, after its init (#2051). A root reading another root of the set
+	// is planned after it, on its planned outputs. Nil orders nothing.
+	ReadsOf func(ctx context.Context, dir string) ([]string, error)
 	// Now is the clock, for tests. Defaults to time.Now.
 	Now func() time.Time
 }
@@ -301,15 +332,13 @@ func Run(ctx context.Context, opts Options) (*Document, error) {
 		ParallelEstates: opts.Parallel,
 	}
 
-	sem := make(chan struct{}, opts.Parallel)
+	c := newCoordinator(base, paths, opts.Parallel, opts.ReadsOf)
 	var wg sync.WaitGroup
 	for i, p := range paths {
 		wg.Add(1)
 		go func(i int, p rootPaths) {
 			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			doc.Roots[i] = runRootTraced(ctx, opts.Runner, base, p, now)
+			doc.Roots[i] = runRootTraced(ctx, opts.Runner, base, p, now, c, i)
 		}(i, p)
 	}
 	wg.Wait()
@@ -358,13 +387,27 @@ func relTo(base, path string) string {
 
 // runRoot runs one root's stages and never returns an error: whatever goes
 // wrong is the root's entry.
-func runRoot(ctx context.Context, runner Runner, base string, p rootPaths, now func() time.Time) Root {
+//
+// Since GitHub issue #2051 it runs in two halves around c: estate and init
+// under the parallel bound, then, once every root's estate and reads are
+// known, plan and show under the bound again, after every root of the set
+// whose outputs this one reads. Whatever path out, the root is published
+// and its done channel closed, so no other root waits on it forever.
+func runRoot(ctx context.Context, runner Runner, base string, p rootPaths, now func() time.Time, c *coordinator, i int) (r Root) {
 	start := now()
-	r := Root{
+	r = Root{
 		Root:    p.rel,
 		Status:  StatusFailed,
 		LogFile: relTo(base, p.logFile),
 	}
+	defer c.finish(i, &r)
+	c.acquire()
+	holding := true
+	defer func() {
+		if holding {
+			c.release()
+		}
+	}()
 	fail := func(stage Stage, err error) Root {
 		r.Stage = stage
 		r.Error = err.Error()
@@ -401,6 +444,27 @@ func runRoot(ctx context.Context, runner Runner, base string, p rootPaths, now f
 	if err := traceStage(ctx, StageInit, func(ctx context.Context) error { return runner.Init(ctx, p.abs, logf) }); err != nil {
 		return fail(StageInit, err)
 	}
+	reads, readsErr := c.readsOfDir(ctx, p.abs)
+	c.publish(i, estate, reads)
+	c.release()
+	holding = false
+	if readsErr != nil {
+		return fail(StagePlan, fmt.Errorf("reading which estates this root's terraform_estate_outputs blocks read: %w", readsErr))
+	}
+	from, err := c.waitUpstreams(i)
+	if err != nil {
+		return fail(StagePlan, err)
+	}
+	if len(from) > 0 {
+		r.Reads = ReadsPlanned
+		r.PlannedFrom = from
+	}
+	c.acquire()
+	holding = true
+	var planFrom []PlannedFrom
+	for _, f := range from {
+		planFrom = append(planFrom, PlannedFrom{Estate: f.Estate, Path: filepath.Join(base, filepath.FromSlash(f.PlanJSON))})
+	}
 	// A stale plan file from an earlier run must never be read back as this
 	// run's: remove it before planning, so a plan stage that fails leaves
 	// nothing behind to mistake.
@@ -410,7 +474,7 @@ func runRoot(ctx context.Context, runner Runner, base string, p rootPaths, now f
 	var changes bool
 	err = traceStage(ctx, StagePlan, func(ctx context.Context) error {
 		var err error
-		changes, err = runner.Plan(ctx, p.abs, p.planFile, logf)
+		changes, err = runner.Plan(ctx, p.abs, p.planFile, planFrom, logf)
 		return err
 	})
 	if err != nil {
@@ -428,6 +492,16 @@ func runRoot(ctx context.Context, runner Runner, base string, p rootPaths, now f
 		out := fail(StageShow, err)
 		out.PlanFile = planFile
 		return out
+	}
+	// A root another root of the set reads hands it its planned outputs as
+	// the "show -json" document, beside its plan file (#2051).
+	if c.isUpstream(i) {
+		if err := os.WriteFile(planJSONPath(p.planFile), plan, 0o644); err != nil {
+			planFile := r.PlanFile
+			out := fail(StageShow, fmt.Errorf("writing the plan document a reader of this root plans on: %w", err))
+			out.PlanFile = planFile
+			return out
+		}
 	}
 	r.Status = StatusPlanned
 	r.Changes = changes

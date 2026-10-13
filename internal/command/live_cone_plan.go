@@ -285,3 +285,18 @@ func coneApprovalCheck(path string, approved []string, plan *plans.Plan) tfdiags
 	return diags.Append(tfdiags.Sourceless(tfdiags.Error, summaryApprovalMismatch,
 		fmt.Sprintf("%q was approved as a cone plan over %d address(es) (GitHub issue #1956), and this apply planned a different set. A cone that changed is a different approval: plan again with -cone and approve that.", path, len(approved))))
 }
+
+// coneWithPlannedOutputs is where -cone meets GitHub issue #2051's
+// -estate-outputs-from. Another estate's planned outputs are a data source
+// value the diff cannot show, and only the terraform_estate_outputs reads
+// inside the cone would see them, so their readers outside it would go
+// unplanned. Until data sources are compared and the cone widened, the
+// combination plans the whole estate and says so.
+func coneWithPlannedOutputs(lc *liveCone, plannedFrom int) (*liveCone, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	if lc == nil || plannedFrom == 0 {
+		return lc, diags
+	}
+	return nil, diags.Append(coneFallbackDiag("estate-outputs-from",
+		"-estate-outputs-from reads other estates' planned outputs, a change the diff cannot show, so every reader of them is planned"))
+}

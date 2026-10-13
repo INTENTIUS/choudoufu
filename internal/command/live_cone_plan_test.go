@@ -118,3 +118,28 @@ func mustInstance(t *testing.T, s string) addrs.AbsResourceInstance {
 	}
 	return a
 }
+
+// GitHub issue #2051 meets #1956: both flags parse together, -cone is not
+// refused beside -estate-outputs-from, and the cone falls back to a full
+// plan, since planned upstream outputs are a change the diff cannot show.
+func TestConeWithEstateOutputsFromFallsBack(t *testing.T) {
+	p, closer, diags := arguments.ParsePlan([]string{"-cone=main", "-estate-outputs-from=up=" + filepath.Join(t.TempDir(), "up.json")})
+	defer closer()
+	if diags.HasErrors() {
+		t.Fatal(diags.Err())
+	}
+	if p.Cone != "main" || len(p.EstateOutputsFrom) != 1 {
+		t.Fatalf("parsed cone %q and %d -estate-outputs-from", p.Cone, len(p.EstateOutputsFrom))
+	}
+	if d := planRejectCone(p, true); d.HasErrors() {
+		t.Fatalf("-cone refused beside -estate-outputs-from: %s", d.Err())
+	}
+	lc, _ := newLiveCone(&cone.Result{Targets: []string{"aws_s3_bucket.a"}})
+	got, d := coneWithPlannedOutputs(lc, len(p.EstateOutputsFrom))
+	if got != nil || len(d) != 1 || d[0].Description().Summary != summaryConeFallback {
+		t.Fatalf("cone kept beside planned outputs: %v %v", got, d)
+	}
+	if kept, _ := coneWithPlannedOutputs(lc, 0); kept != lc {
+		t.Fatal("a cone without -estate-outputs-from fell back")
+	}
+}

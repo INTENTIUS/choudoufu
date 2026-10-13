@@ -222,6 +222,19 @@ deletes that output's record, so a consumer naming either is refused with
 value. A scoped apply deletes nothing it did not evaluate. This is
 `PruneRootOutputValues`, called from the apply's write-back.
 
+A pull request that changes a producer's output and a consumer that reads
+it would otherwise plan the consumer on the old recorded value. #2051 adds
+`plan -estate-outputs-from <estate>=<plan.json>`, repeatable, which answers
+that estate's reads from its `show -json` document's `planned_values`
+instead of the record store. An output only known after apply, or
+sensitive, is refused naming the output and the estate; the plan never
+proceeds on an unknown or a placeholder. The saved plan records the values
+it read, and `apply <planfile>` reads the record store again and refuses
+with exit 3, naming estate, output, planned and applied value, until the
+producer has applied and recorded those same values. `live-plan-set` does
+this for a set: a root reading another root of the set is planned after it
+and marked `"reads": "planned"` with `planned_from` naming the upstream.
+
 An output read is never for a value a data source can read.
 
 ## Demonstrated

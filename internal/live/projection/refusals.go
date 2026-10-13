@@ -395,6 +395,23 @@ var refusals = []Refusal{
 		What:    "A warning on every successful cross-estate output read: the values are a copy as of the other estate's last apply, with the time it recorded them.",
 		Warning: true,
 	},
+	{
+		Summary: SummaryEstateOutputNotInPlan,
+		What:    "plan -estate-outputs-from handed another estate's plan, and a data \"terraform_estate_outputs\" block names an output that plan does not carry (#2051).",
+	},
+	{
+		Summary: SummaryEstateOutputUnknownInPlan,
+		What:    "plan -estate-outputs-from handed another estate's plan, and an output read from it is only known after that estate applies; the plan is never made on an unknown or a placeholder (#2051).",
+	},
+	{
+		Summary: SummaryEstateOutputSensitiveInPlan,
+		What:    "plan -estate-outputs-from handed another estate's plan, and an output read from it is sensitive, which never crosses to another estate (#2051).",
+	},
+	{
+		Summary: SummaryEstateOutputsFromPlan,
+		What:    "A warning on every cross-estate output read answered from another estate's plan rather than its record, which its saved plan's apply checks against the record (#2051).",
+		Warning: true,
+	},
 }
 
 // Refusals returns every refusal this package can produce, sorted by Summary.

@@ -41,6 +41,7 @@ type fakeRunner struct {
 	running   int
 	maxActive int
 	inits     []string
+	planned   []string // plan stages, in the order they ran (#2051)
 }
 
 func (f *fakeRunner) enter() func() {
@@ -86,8 +87,17 @@ func (f *fakeRunner) Init(_ context.Context, dir string, log io.Writer) error {
 	return f.fails(dir, StageInit)
 }
 
-func (f *fakeRunner) Plan(_ context.Context, dir, planFile string, log io.Writer) (bool, error) {
+func (f *fakeRunner) Plan(_ context.Context, dir, planFile string, from []PlannedFrom, log io.Writer) (bool, error) {
 	defer f.enter()()
+	f.mu.Lock()
+	for _, p := range from {
+		if _, err := os.Stat(p.Path); err != nil {
+			f.mu.Unlock()
+			return false, fmt.Errorf("planned on %s before its document existed: %w", p.Estate, err)
+		}
+	}
+	f.planned = append(f.planned, filepath.Base(dir))
+	f.mu.Unlock()
 	if err := f.fails(dir, StagePlan); err != nil {
 		return false, err
 	}
