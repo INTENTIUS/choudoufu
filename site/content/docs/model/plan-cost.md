@@ -48,7 +48,8 @@ stock's `-parallelism`, which bounds the graph walk.
 | `TOFU_LIVE_SWEEP_PARALLELISM` | the sweep's per-type list calls | 10 |
 | `TOFU_LIVE_READ_PARALLELISM` | the read pass's per-instance import and read | 10 |
 
-Lower them if an account's APIs push back. `-refresh=false` serves unchanged
+Lower them if an account's APIs push back, or plan a
+[cone](https://github.com/INTENTIUS/choudoufu/blob/main/live/PLAN-CONE.md). `-refresh=false` serves unchanged
 resources from [the cache]({{< relref "/docs/model/cache" >}}) and skips
 their reads.
 

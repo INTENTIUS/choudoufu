@@ -27,17 +27,17 @@ These files in the repository are the authority, and this page summarises them.
 
 ## Commands
 
-`choudoufu <command> -help` is authoritative for flags. The live-specific
-commands follow.
+`choudoufu <command> -help` is authoritative for flags.
 
 | Command | What it does |
 |---|---|
-| `choudoufu plan` / `apply` | Ordinary plan and apply. With a `live` block present, these run against markers. |
-| `choudoufu live-mv <old> <new>` | Rewrites the `tofu-address` tag. The replacement for `moved` blocks. |
+| `choudoufu plan` / `apply` | Ordinary plan and apply; with a `live` block, against markers. |
+| `choudoufu live-mv <old> <new>` | Rewrites the `tofu-address` tag. Replaces `moved` blocks. |
 | `choudoufu live-import` | Bulk migration. Reads an existing state file once, verifies each entry, stamps markers on what verifies. |
 | `choudoufu live-plan` | The live plan, invoked directly; [`-filter`](https://github.com/INTENTIUS/choudoufu/blob/main/live/REPORT-FILTER.md) narrows its report. |
 | `choudoufu live-history <address>` | A record's versions, newest first. |
 | `choudoufu plan -adoption-only` | The adoption ledger alone: what this estate can adopt, what it cannot, and why. |
+| `live-cone`, `plan -cone` | [Cone](https://github.com/INTENTIUS/choudoufu/blob/main/live/PLAN-CONE.md). |
 | `choudoufu force-unlock` | Refused: there is no lock to force open. Contention settles at the platform API, never in a lock this tool holds. |
 
 ### `-adoption-only`

@@ -382,6 +382,16 @@ func (c *LivePlanCommand) Execute(args *arguments.LivePlan) int {
 		return 1
 	}
 
+	// GitHub issue #1956: a cone plan runs on plain plan's pipeline only.
+	// The -json document and the -estate form would accept it and plan in
+	// full, which is worse than saying so.
+	if args.Cone != "" {
+		renderView.Diagnostics(tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(tfdiags.Error,
+			"-cone is not available with -json or -estate",
+			"A cone plan runs as plain \"choudoufu plan -cone=BASE\" under a live block. \"choudoufu live-cone -json BASE\" prints the cone and the guard's verdict as JSON.")))
+		return 1
+	}
+
 	diags = diags.Append(c.providerDevOverrideRuntimeWarnings())
 	diags = diags.Append(c.liveStateFileNote())
 	diags = diags.Append(c.checkAWSProviderVersionSkew())

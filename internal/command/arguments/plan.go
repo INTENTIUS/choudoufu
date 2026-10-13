@@ -78,6 +78,13 @@ type Plan struct {
 	// On Plan for -adoption-only's reason, and refused the same way by a
 	// state-backed plan (planRejectEstateOutputsFrom).
 	EstateOutputsFrom []EstateOutputsFrom
+
+	// Cone is GitHub issue #1956's -cone=BASE: plan only the cone of the
+	// change between BASE and the working tree, under a live block. Empty
+	// means a full plan, which is always the default. It sits on Plan for
+	// -filter's reason, and a state-backed plan refuses it the same way
+	// (planRejectCone in the command package).
+	Cone string
 }
 
 // BindPlan registers CLI arguments, returning a Plan value and it's corresponding hooks.
@@ -112,6 +119,7 @@ OpenTofu may still attempt to write configuration if planning fails with an erro
 	cli.BoolVar(&plan.AdoptionOnly, "adoption-only", false, "Under a live block, print only the adoption ledger: what can be adopted, what cannot, and why. The plan itself runs as it would otherwise.")
 	bindReportFilter(cli, &plan.Filter)
 	bindEstateOutputsFrom(cli, &plan.EstateOutputsFrom)
+	cli.StringVar(&plan.Cone, "cone", "", "Under a live block, plan only the cone of the change between this git revision and the working tree (GitHub issue #1956). A guard falls back to a full plan and says why.").SetDisplay("=base")
 
 	// Special handling for flag groups!
 	for _, name := range []string{"destroy", "refresh-only", "refresh", "replace", "target", "target-file", "exclude", "exclude-file", "var", "var-file"} {

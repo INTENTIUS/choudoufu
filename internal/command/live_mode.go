@@ -25,6 +25,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/live/cone"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/foreign"
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -828,6 +829,12 @@ type liveRunner struct {
 	targets  []addrs.Targetable
 	excludes []addrs.Targetable
 
+	// cone is GitHub issue #1956's cone plan, nil for every other run. Its
+	// targets are already in targets above; it adds the deleted and
+	// refactored addresses to the scope, narrows the vouch legs, and holds
+	// the sweep guard's fallback once that trips.
+	cone *liveCone
+
 	// recordStore and recordVersions are GitHub issue #73's write-back
 	// state, both set by PriorState once the estate name and the live
 	// block's record_store (if any) are settled. recordStore is nil for a
@@ -1032,6 +1039,9 @@ func (r *liveRunner) PriorState(ctx context.Context, config *configs.Config, cor
 	if scopeDiags.HasErrors() {
 		return nil, diags
 	}
+	// GitHub issue #1956: a cone plan's scope also holds its deleted and
+	// refactored addresses, so their removals are proposed, not withheld.
+	scope = r.cone.scope(scope)
 
 	provs := newProjectionProviders(config, r.lib)
 
@@ -1296,6 +1306,9 @@ func (r *liveRunner) PriorState(ctx context.Context, config *configs.Config, cor
 		// would pay one list per type for evidence nothing consumes, and
 		// would inherit the listing's failure modes with no benefit.
 		cacheVouchTypes = cacheVouchTypesFor(stateCache, merged)
+		// GitHub issue #1956, stage 3: a cone plan lists only the cone's
+		// types for vouching.
+		cacheVouchTypes = r.cone.narrowTypes(cacheVouchTypes)
 	}
 	disco, discoProvider, undeclaredProviders, discoDiags := liveDiscover(ctx, config, resolutions, nodeRefusedAddrs(r.resolver.StaticRefusals), estate, provs, r.policy, r.rawStore, r.view, recordShrinkStore, deposedRecords, cacheVouchTypes, r.adoptionOnly, scope)
 	diags = diags.Append(discoDiags)
@@ -1305,6 +1318,21 @@ func (r *liveRunner) PriorState(ctx context.Context, config *configs.Config, cor
 		// each other, and acting on them would act on the wrong resource.
 		diags = diags.Append(provs.close(ctx))
 		return nil, diags
+	}
+	// GitHub issue #1956's sweep guard. The sweep stays estate-wide on a
+	// cone plan, and a marked object outside the cone that no block
+	// declares is something the cone plan would not report: plan the whole
+	// estate instead. The projection has not been built yet, so the rerun
+	// below starts from nothing this attempt read.
+	if r.cone != nil && r.cone.fallback == "" {
+		if why := coneSweepGuard(disco, scope); why != "" {
+			diags = diags.Append(provs.close(ctx))
+			r.cone.fallback = why
+			r.targets = nil
+			fallback := tfdiags.Diagnostics{}.Append(coneFallbackDiag(cone.GuardSweep, why))
+			state, moreDiags := r.PriorState(ctx, config, core)
+			return state, fallback.Append(moreDiags)
+		}
 	}
 	// #1885, ruled 2026-10-04: the field-granular blocks whose patched
 	// object does not exist, refused after the plan exists unless the same

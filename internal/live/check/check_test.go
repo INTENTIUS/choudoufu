@@ -233,6 +233,11 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// stage runs. It refuses nothing; what it cannot attribute it
 		// answers as indeterminate, worded by its own command.
 		"affected": true,
+		// GitHub issue #1956's live-cone: a change's cone within one estate,
+		// read from configuration at two revisions before any stage runs.
+		// It refuses nothing; its guard answers "plan everything", worded
+		// by its own command and by plan -cone.
+		"cone": true,
 		// GitHub issue #1754's set digest and wave planning: a hash over
 		// finished plans and an order over the roots of a set. It runs
 		// before or after every stage, never inside one; its refusals

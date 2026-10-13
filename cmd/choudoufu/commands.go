@@ -385,6 +385,14 @@ func initCommands(meta command.Meta) {
 			}, nil
 		},
 
+		// GitHub issue #1956: a change's cone within one estate. It reads
+		// configuration and git and prints.
+		"live-cone": func() (cli.Command, error) {
+			return &command.LiveConeCommand{
+				Meta: meta,
+			}, nil
+		},
+
 		// GitHub issue #1954: a record's past versions, from the record
 		// store bucket's noncurrent versions. It reads and prints; public
 		// from the start for live-check's reason above.

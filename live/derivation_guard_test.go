@@ -111,6 +111,14 @@ const estateGenCohortReason = "estate-gen per-cohort typeOverrides: Data entries
 // argue for.
 var typeLiteralSurfaces = map[string]typeLiteralSurface{
 	// ---- product path -------------------------------------------------
+	"internal/live/cone/cone.go": {
+		Reason: "coManagedPairs (issue #1956): the cone plan's co-managed type-pair table, the research's own handling for " +
+			"a type whose live state a second type also writes (inline versus separate rules: security group rules, " +
+			"route table routes, role inline policies, Kubernetes labels). No provider schema says two types write " +
+			"one object's state, so the pairs are hand-verified provider facts; a pair the table lacks is a cone that " +
+			"misses a dependent the config graph does not show, and the guard's share limit is what bounds that.",
+		Data: 32, Code: 0,
+	},
 	"internal/live/discovery/directread.go": {
 		Reason: "directReadTypes (issue #1046): the narrow, hand-verified registry of ServerAssigned types whose live " +
 			"ARN a service mints deterministically from configuration's own arguments alone, so a targeted Import+Read " +
@@ -683,7 +691,10 @@ const (
 	// tools/survey-gen/render.go's summaryOverrides
 	// (aws_iam_role_policy_attachment). Both registry entries went too. Two
 	// Data literals deleted, none moved.
-	typeLiteralDataTotal = 1180
+	// 1180 -> 1212 data, code unchanged, on 2026-10-13 (issue #1956): the
+	// cone plan's co-managed type-pair table, sixteen pairs of hand-verified
+	// provider facts no schema states (internal/live/cone/cone.go).
+	typeLiteralDataTotal = 1212
 	typeLiteralCodeTotal = 131
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

@@ -204,3 +204,12 @@ type LiveRun interface {
 	// calls this method to begin with.
 	AfterApply(ctx context.Context) tfdiags.Diagnostics
 }
+
+// LiveTargets is an optional [LiveRun] extension (GitHub issue #1956). A
+// cone plan whose guard trips only once the sweep has run falls back to a
+// full plan inside PriorState, so the targets the operation started with
+// are no longer the plan's. override false leaves them as they were, which
+// is every run that is not a cone plan.
+type LiveTargets interface {
+	PlanTargets() (targets []addrs.Targetable, override bool)
+}
