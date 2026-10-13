@@ -1250,7 +1250,12 @@ if [ "${BREAK:-}" = "1" ]; then
 else
   drift_is_exact || { printf '%s\n' "$DRIFT_PLAN" | grep -E '^Plan:|will be|^ +~ '; fail "the plan after the drift is not exactly the HPA's min_replicas 3 -> 2 and the Deployment's replicas 3 -> 2: $(plan_line "$DRIFT_PLAN")"; }
   grep -q "shard" <<< "$DRIFT_PLAN" && fail "the plan touches a shard ConfigMap nobody tampered"
-  grep -qE 'kubernetes_(replica_set|pod)' <<< "$DRIFT_PLAN" && fail "the plan names a ReplicaSet or a Pod - a controller's copy, never declared"
+  # The type name ends at its version suffix and the address's dot:
+  # kubernetes_pod_disruption_budget_v1.redis, which this estate declares
+  # since reference-k8s-stateful was folded in, is neither a Pod nor a
+  # ReplicaSet, and a bare kubernetes_pod prefix matches its address.
+  D_CTRL="$(grep -E 'kubernetes_(replica_set|pod)(_v[0-9]+)?\.' <<< "$DRIFT_PLAN")"
+  [ -z "$D_CTRL" ] || { printf '%s\n' "$D_CTRL"; fail "the plan names a ReplicaSet or a Pod - a controller's copy, never declared (lines above)"; }
   RECONV="$(chdf apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$RECONV" | tail -30; fail "the reconverging apply failed"; }
   grep -qF "Apply complete! Resources: 0 added, 2 changed, 0 destroyed" <<< "$RECONV" || fail "the reconverging apply did not change exactly two objects"
   MIN="$(kca get hpa web -n "$NS" -o jsonpath='{.spec.minReplicas}')"
@@ -1722,7 +1727,7 @@ log "=== 11. day2_teardown: apply -destroy on the adopted estate, and stock's ow
 T_EXPECT="$(count_a)"
 T_OUT="$(chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$T_OUT" | tail -30; fail "apply -destroy failed"; }
 grep -qF "Resources: 0 added, 0 changed, $T_EXPECT destroyed" <<< "$T_OUT" || { printf '%s\n' "$T_OUT" | tail -5; fail "apply -destroy did not remove exactly the $T_EXPECT remaining labelled objects"; }
-T_CTRL="$(grep -E 'kubernetes_(pod|replica_set)[a-z0-9_]*\.[^ ]+: (Destroying|Destruction complete)' <<< "$T_OUT")"
+T_CTRL="$(grep -E 'kubernetes_(pod|replica_set)(_v[0-9]+)?\.[^ ]+: (Destroying|Destruction complete)' <<< "$T_OUT")"
 [ -z "$T_CTRL" ] || { printf '%s\n' "$T_CTRL"; fail "apply -destroy destroyed a Pod or a ReplicaSet (lines above); those are controllers' copies, never declared"; }
 ns_gone() { ! kubectl --kubeconfig "$KCA" --request-timeout=30s get namespace "$1" >/dev/null 2>&1; }
 gauntlet_wait_until 180 "namespace $NS gone" -- ns_gone "$NS" || fail "the $NS namespace still exists 180s after the destroy"
