@@ -310,6 +310,15 @@ func (c *LivePlanCommand) Execute(args *arguments.LivePlan) int {
 		}
 	}
 
+	// GitHub issue #2051: this route answers terraform_estate_outputs too.
+	if len(args.EstateOutputsFrom) > 0 {
+		if moreDiags := c.liveEstateOutputs().usePlanned(args.EstateOutputsFrom); moreDiags.HasErrors() {
+			diags = diags.Append(moreDiags)
+			view.Diagnostics(diags)
+			return 1
+		}
+	}
+
 	// GitHub issue #894. The surface below is [surfaceEstateFlag] on both
 	// routes, because it names a pipeline rather than a flag: livePlan is
 	// what runs either way, and what it can and cannot honour does not

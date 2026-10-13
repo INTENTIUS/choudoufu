@@ -7,11 +7,15 @@ package command
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"os"
 	"sync"
 
 	"github.com/zclconf/go-cty/cty"
 
 	terraformProvider "github.com/intentius/choudoufu/internal/builtin/providers/tf"
+	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
@@ -30,6 +34,15 @@ import (
 type liveEstateOutputs struct {
 	mu  sync.Mutex
 	src *projection.EstateOutputsSource
+
+	// planned are GitHub issue #2051's sources: an estate named by
+	// -estate-outputs-from is answered from its plan, never the store.
+	planned map[string]*projection.PlannedEstateOutputs
+
+	// fromPlan is what was answered from a plan, by estate and output name,
+	// as canonical JSON: the record a saved plan carries, so its apply can
+	// refuse when the upstream's applied values differ.
+	fromPlan map[string]map[string]string
 }
 
 var _ terraformProvider.EstateOutputReader = (*liveEstateOutputs)(nil)
@@ -63,14 +76,94 @@ func (l *liveEstateOutputs) open(store staterecord.Store, rs *configs.LiveRecord
 // ReadEstateOutputs implements [terraformProvider.EstateOutputReader].
 func (l *liveEstateOutputs) ReadEstateOutputs(ctx context.Context, estate string, names []string) (map[string]cty.Value, tfdiags.Diagnostics) {
 	var src *projection.EstateOutputsSource
+	var planned *projection.PlannedEstateOutputs
 	if l != nil {
 		l.mu.Lock()
 		src = l.src
+		planned = l.planned[estate]
 		l.mu.Unlock()
 	}
 	if src == nil {
 		var diags tfdiags.Diagnostics
 		return nil, diags.Append(terraformProvider.EstateOutputsNeedLiveBlock())
 	}
+	// GitHub issue #2051. A self-read still goes to the store's path, which
+	// refuses it in its own words.
+	if planned != nil && estate != src.Estate {
+		values, diags := projection.ReadPlannedEstateOutputs(planned, names)
+		if !diags.HasErrors() {
+			l.noteFromPlan(estate, values)
+		}
+		return values, diags
+	}
 	return projection.ReadEstateOutputs(ctx, *src, estate, names)
+}
+
+func (l *liveEstateOutputs) noteFromPlan(estate string, values map[string]cty.Value) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.fromPlan == nil {
+		l.fromPlan = map[string]map[string]string{}
+	}
+	if l.fromPlan[estate] == nil {
+		l.fromPlan[estate] = map[string]string{}
+	}
+	for name, v := range values {
+		// A value that will not render cannot be compared at apply, so it
+		// is recorded as such and the apply refuses on it.
+		text, err := projection.CanonicalOutputJSON(v)
+		if err != nil {
+			text = "(unrenderable: " + err.Error() + ")"
+		}
+		l.fromPlan[estate][name] = text
+	}
+}
+
+// usePlanned installs -estate-outputs-from's documents (GitHub issue #2051).
+// Each is read now, so a missing or malformed file fails the run before
+// anything is planned.
+func (l *liveEstateOutputs) usePlanned(from []arguments.EstateOutputsFrom) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	planned := map[string]*projection.PlannedEstateOutputs{}
+	for _, f := range from {
+		data, err := os.ReadFile(f.Path)
+		if err == nil {
+			planned[f.Estate], err = projection.ParsePlannedEstateOutputs(f.Estate, f.Path, data)
+		}
+		if err != nil {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot read another estate's plan", fmt.Sprintf(
+				"-estate-outputs-from %s=%s: %s. The file is what \"choudoufu show -json PLANFILE\" prints for estate %q's saved plan.",
+				f.Estate, f.Path, err, f.Estate)))
+		}
+	}
+	if diags.HasErrors() {
+		return diags
+	}
+	l.mu.Lock()
+	l.planned = planned
+	l.mu.Unlock()
+	return diags
+}
+
+// estateOutputsFromPlanRecord is the #2051 entry of a saved plan file.
+type estateOutputsFromPlanRecord struct {
+	FormatVersion string `json:"format_version"`
+	// Estates maps each upstream estate to the outputs read from its plan,
+	// name to canonical JSON value.
+	Estates map[string]map[string]string `json:"estates"`
+}
+
+// planFileRecord is what a saved plan embeds: nil when nothing was read from
+// a plan, so a plan file made without -estate-outputs-from is unchanged.
+func (l *liveEstateOutputs) planFileRecord() []byte {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if len(l.fromPlan) == 0 {
+		return nil
+	}
+	b, err := json.Marshal(estateOutputsFromPlanRecord{FormatVersion: "1", Estates: l.fromPlan})
+	if err != nil {
+		return nil
+	}
+	return b
 }

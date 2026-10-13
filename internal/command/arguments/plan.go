@@ -72,6 +72,12 @@ type Plan struct {
 	// flags - and a stock, state-backed plan refuses it the same way
 	// (planRejectReportFilter in the command package).
 	Filter ReportFilter
+
+	// EstateOutputsFrom are GitHub issue #2051's -estate-outputs-from
+	// values: other estates whose outputs this plan reads from their plans.
+	// On Plan for -adoption-only's reason, and refused the same way by a
+	// state-backed plan (planRejectEstateOutputsFrom).
+	EstateOutputsFrom []EstateOutputsFrom
 }
 
 // BindPlan registers CLI arguments, returning a Plan value and it's corresponding hooks.
@@ -105,6 +111,7 @@ OpenTofu may still attempt to write configuration if planning fails with an erro
 	cli.BoolVar(&plan.Verbose, "verbose", false, "Under a live block, print in full the detail a live-markers run summarizes by default, such as the type-by-type list of what was not swept for removal.")
 	cli.BoolVar(&plan.AdoptionOnly, "adoption-only", false, "Under a live block, print only the adoption ledger: what can be adopted, what cannot, and why. The plan itself runs as it would otherwise.")
 	bindReportFilter(cli, &plan.Filter)
+	bindEstateOutputsFrom(cli, &plan.EstateOutputsFrom)
 
 	// Special handling for flag groups!
 	for _, name := range []string{"destroy", "refresh-only", "refresh", "replace", "target", "target-file", "exclude", "exclude-file", "var", "var-file"} {

@@ -23,12 +23,12 @@ const (
 )
 
 // runRootTraced is runRoot inside a "Set plan root" span.
-func runRootTraced(ctx context.Context, runner Runner, base string, p rootPaths, now func() time.Time) Root {
+func runRootTraced(ctx context.Context, runner Runner, base string, p rootPaths, now func() time.Time, c *coordinator, i int) Root {
 	ctx, span := tracing.Tracer().Start(ctx, TraceNameRoot,
 		tracing.SpanAttributes(traceattrs.String(traceattrs.AttrRoot, p.rel)),
 	)
 	defer span.End()
-	r := runRoot(ctx, runner, base, p, now)
+	r := runRoot(ctx, runner, base, p, now, c, i)
 	span.SetAttributes(
 		traceattrs.String(traceattrs.AttrStatus, string(r.Status)),
 		traceattrs.Bool("choudoufu.changes", r.Changes),

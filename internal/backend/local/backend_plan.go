@@ -220,15 +220,21 @@ func (b *Local) opPlan(
 		// saved plan always embeds them for `tofu show` (#1778).
 		schemasForPlanFile := schemas.Providers
 
+		var estateOutputsFromPlan []byte
+		if op.PlanFileEstateOutputs != nil {
+			estateOutputsFromPlan = op.PlanFileEstateOutputs()
+		}
+
 		log.Printf("[INFO] backend/local: writing plan output to: %s", path)
 		err := planfile.Create(path, planfile.CreateArgs{
-			ConfigSnapshot:       configSnap,
-			PreviousRunStateFile: prevStateFile,
-			StateFile:            plannedStateFile,
-			Plan:                 plan,
-			DependencyLocks:      op.DependencyLocks,
-			Schemas:              schemasForPlanFile,
-			Config:               lr.Config,
+			EstateOutputsFromPlan: estateOutputsFromPlan,
+			ConfigSnapshot:        configSnap,
+			PreviousRunStateFile:  prevStateFile,
+			StateFile:             plannedStateFile,
+			Plan:                  plan,
+			DependencyLocks:       op.DependencyLocks,
+			Schemas:               schemasForPlanFile,
+			Config:                lr.Config,
 		}, op.Encryption.Plan())
 		if err != nil {
 			diags = diags.Append(tfdiags.Sourceless(
