@@ -2806,6 +2806,9 @@ refused, and each says so in its own entry.
 | - | - | projection | An admission policy refused this run's record write | error | `internal/live/projection` | "An admission policy refused this run's record write" |
 | - | - | projection | An estate cannot read its own outputs this way | error | `internal/live/projection` | "An estate cannot read its own outputs this way" |
 | - | - | projection | Another estate has not recorded this output | error | `internal/live/projection` | "Another estate has not recorded this output" |
+| - | - | projection | Another estate's plan has no such output | error | `internal/live/projection` | "Another estate's plan has no such output" |
+| - | - | projection | Another estate's planned output is known only after apply | error | `internal/live/projection` | "Another estate's planned output is known only after apply" |
+| - | - | projection | Another estate's planned output is sensitive | error | `internal/live/projection` | "Another estate's planned output is sensitive" |
 | - | - | projection | Argument values could not be recorded | error | `internal/live/projection` | "Argument values could not be recorded" |
 | - | - | projection | Cannot clear the destroyed estate's remaining records | error | `internal/live/projection` | "Cannot clear the destroyed estate's remaining records" |
 | - | - | projection | Cannot confirm the destroy removed every record | error | `internal/live/projection` | "Cannot confirm the destroy removed every record" |
@@ -2884,10 +2887,11 @@ refused, and each says so in its own entry.
 | - | - | projection | Unlabelled live object holds the declared name | error | `internal/live/projection` | "Unlabelled live object holds the declared name" |
 | - | - | projection | Unsupported resource type for the provider | error | `internal/live/projection` | "Unsupported resource type for the provider" |
 | - | - | projection | Values from another estate are as of its last apply | warning | `internal/live/projection` | "Values from another estate are as of its last apply" |
+| - | - | projection | Values from another estate are as that estate's plan proposes them | warning | `internal/live/projection` | "Values from another estate are as that estate's plan proposes them" |
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**276 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**280 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -4253,6 +4257,30 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Another estate's plan has no such output
+
+**What.** plan -estate-outputs-from handed another estate's plan, and a data "terraform_estate_outputs" block names an output that plan does not carry (#2051).
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Another estate's planned output is known only after apply
+
+**What.** plan -estate-outputs-from handed another estate's plan, and an output read from it is only known after that estate applies; the plan is never made on an unknown or a placeholder (#2051).
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Another estate's planned output is sensitive
+
+**What.** plan -estate-outputs-from handed another estate's plan, and an output read from it is sensitive, which never crosses to another estate (#2051).
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Argument values could not be recorded
 
 **What.** An apply could not classify or store the argument values a provider's read never gives back (GitHub issue #275) - no provider access, a failing read, or a store that refused the write. Nothing in the live system changed; the arguments involved will be proposed for update again on the next plan.
@@ -4872,6 +4900,14 @@ reserved for the limits wing's fixture directories, and
 #### Values from another estate are as of its last apply
 
 **What.** A warning on every successful cross-estate output read: the values are a copy as of the other estate's last apply, with the time it recorded them.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Values from another estate are as that estate's plan proposes them
+
+**What.** A warning on every cross-estate output read answered from another estate's plan rather than its record, which its saved plan's apply checks against the record (#2051).
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
