@@ -527,7 +527,10 @@ if grep -qF "$TOTAL_N resource(s) newly stamped, 0 already stamped, 0 newly reco
     gauntlet_stage migrate fail "live-import reported $TOTAL_N stamped but $LABELLED declared object(s) carry tofu-estate=$ESTATE on the cluster (controller-created copies carrying it: ${COPIES_LABELLED:-0}; $COPY_NOTE)"
   fi
 else
-  gauntlet_stage migrate fail "live-import -approve did not bind every instance: ${SUMMARY_LINE:-no summary line}"
+  # The FAILED and SKIPPED sections name the instance and the reason; the
+  # summary line alone left #2043 diagnosed from the next stage's error.
+  printf '%s\n' "$APPROVE_OUT" | sed -n '/^FAILED (/,/^$/p; /^SKIPPED (/,/^$/p'
+  gauntlet_stage migrate fail "live-import -approve did not bind every instance: ${SUMMARY_LINE:-no summary line}. $(sed -n '/^FAILED (/{n;p;q;}' <<< "$APPROVE_OUT" | sed -E 's/  +/ /g')"
 fi
 
 # ── 3. test_plan: replan from nothing ────────────────────────────────────

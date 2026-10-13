@@ -8,6 +8,7 @@ package liveimport
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -141,14 +142,18 @@ func liveCronTab(labels map[string]string) *unstructured.Unstructured {
 // fakeCluster stands in for an API server: it records every patch and
 // answers a dry run with whatever mutate says the server would store.
 type fakeCluster struct {
-	object   *unstructured.Unstructured
-	readErr  error
-	absent   bool
-	rejects  string
-	mutate   func(*unstructured.Unstructured)
-	patches  []fakePatch
-	dryRuns  int
-	realRuns int
+	object  *unstructured.Unstructured
+	readErr error
+	absent  bool
+	rejects string
+	mutate  func(*unstructured.Unstructured)
+	// beforeDryRun, when set, runs against the stored object just before
+	// each dry run is answered: a controller writing the object between
+	// the caller's read and its dry run (GitHub issue #2043).
+	beforeDryRun func(*unstructured.Unstructured)
+	patches      []fakePatch
+	dryRuns      int
+	realRuns     int
 }
 
 type fakePatch struct {
@@ -181,6 +186,9 @@ func (c *fakeCluster) PatchMarkers(_ context.Context, ref kubesweep.ObjectRef, s
 	if c.rejects != "" {
 		return nil, c.rejects, nil
 	}
+	if dryRun && c.beforeDryRun != nil {
+		c.beforeDryRun(c.object)
+	}
 	next := c.object.DeepCopy()
 	labels := next.GetLabels()
 	if labels == nil {
@@ -200,8 +208,14 @@ func (c *fakeCluster) PatchMarkers(_ context.Context, ref kubesweep.ObjectRef, s
 		}
 		next.SetAnnotations(ann)
 	}
-	// The server's own bookkeeping moves on any write, dry run included.
-	next.SetResourceVersion("813")
+	// The server's own bookkeeping: managedFields moves on any write, dry
+	// run included, and resourceVersion only on a real one. A dry run
+	// answers with the resourceVersion of the object it was computed
+	// against (k8s.io/apiserver's DryRunnableStorage.GuaranteedUpdate
+	// runs the update on the stored object and writes nothing).
+	if !dryRun {
+		next.SetResourceVersion(nextResourceVersion(c.object.GetResourceVersion()))
+	}
 	unstructured.SetNestedSlice(next.Object, []any{map[string]any{"manager": fieldManager, "operation": "Update"}}, "metadata", "managedFields")
 	if c.mutate != nil {
 		c.mutate(next)
@@ -213,6 +227,15 @@ func (c *fakeCluster) PatchMarkers(_ context.Context, ref kubesweep.ObjectRef, s
 	c.realRuns++
 	c.object = next
 	return next.DeepCopy(), "", nil
+}
+
+// nextResourceVersion is the store's counter after one more write.
+func nextResourceVersion(rv string) string {
+	n, err := strconv.Atoi(rv)
+	if err != nil {
+		return rv + "+1"
+	}
+	return strconv.Itoa(n + 1)
 }
 
 func (c *fakeCluster) LabelPatcher(_ context.Context, _ addrs.AbsProviderConfig) (kubesweep.LabelPatcher, error) {
@@ -410,6 +433,56 @@ func TestApproveManifest_RefusesAWriteThatChangesMoreThanLabels(t *testing.T) {
 				t.Errorf("the object carries tofu-estate=%q after a refusal", got)
 			}
 		})
+	}
+}
+
+// TestApproveManifest_AControllerWriteBeforeTheDryRunIsNotAWebhookRewrite
+// is GitHub issue #2043, measured on reference-k8s-helm-external-secrets:
+// the ExternalSecret's controller rewrote its status between live-import's
+// read and its dry run, the dry run answered with that newer object, and
+// the stamp failed as if a webhook had rewritten the status. The dry run's
+// resourceVersion names the object it was computed against, so a dry run
+// newer than the read is re-read and sent again rather than refused.
+func TestApproveManifest_AControllerWriteBeforeTheDryRunIsNotAWebhookRewrite(t *testing.T) {
+	live := liveCronTab(nil)
+	unstructured.SetNestedField(live.Object, "2026-10-12T21:40:00Z", "status", "refreshTime")
+	writes := 0
+	cluster := &fakeCluster{object: live, beforeDryRun: func(u *unstructured.Unstructured) {
+		if writes > 0 {
+			return
+		}
+		writes++
+		unstructured.SetNestedField(u.Object, "2026-10-12T21:41:00Z", "status", "refreshTime")
+		u.SetResourceVersion(nextResourceVersion(u.GetResourceVersion()))
+	}}
+	out := approveOne(context.Background(), testEstate, mustAddr(t, "kubernetes_manifest.crontab"), manifestEligible(cluster, ""), "")
+	if out.Outcome != OutcomeStamped {
+		t.Fatalf("outcome = %s (%s), want STAMPED: the status moved because the controller wrote it, not because the patch did", out.Outcome, out.Detail)
+	}
+	if cluster.realRuns != 1 {
+		t.Errorf("real patches = %d, want 1", cluster.realRuns)
+	}
+	if cluster.dryRuns != 2 {
+		t.Errorf("dry runs = %d, want 2: one against the object read first, one against the object the controller wrote", cluster.dryRuns)
+	}
+}
+
+// TestApproveManifest_AnObjectThatKeepsMovingIsRefusedAndSaysSo bounds
+// #2043's retry: an object rewritten before every dry run is refused, and
+// the refusal names the other writer rather than a webhook.
+func TestApproveManifest_AnObjectThatKeepsMovingIsRefusedAndSaysSo(t *testing.T) {
+	n := 0
+	cluster := &fakeCluster{object: liveCronTab(nil), beforeDryRun: func(u *unstructured.Unstructured) {
+		n++
+		unstructured.SetNestedField(u.Object, strconv.Itoa(n), "status", "observed")
+		u.SetResourceVersion(nextResourceVersion(u.GetResourceVersion()))
+	}}
+	out := approveOne(context.Background(), testEstate, mustAddr(t, "kubernetes_manifest.crontab"), manifestEligible(cluster, ""), "")
+	if out.Outcome != OutcomeFailed || !strings.Contains(out.Detail, "kept changing") {
+		t.Fatalf("outcome = %s (%s), want FAILED saying the object kept changing", out.Outcome, out.Detail)
+	}
+	if cluster.realRuns != 0 {
+		t.Errorf("the real patch was sent %d time(s) without a dry run judged against the same object, want 0", cluster.realRuns)
 	}
 }
 

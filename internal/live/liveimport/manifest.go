@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/zclconf/go-cty/cty"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
@@ -211,64 +212,91 @@ func approveManifest(ctx context.Context, estate string, addr addrs.AbsResourceI
 		Namespace:  e.manifestKey.Namespace,
 		Name:       e.manifestKey.Name,
 	}
-	live, found, err := e.patcher.ReadObject(ctx, ref)
-	if err != nil {
-		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("The cluster could not be asked about %s: %s. Nothing was written.", ref, err)
-		return out
-	}
-	if !found {
-		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("The cluster serves no object at %s, so there is nothing to label. Nothing was written.", ref)
-		return out
-	}
+	// GitHub issue #2043: a controller can write the object between this
+	// read and the dry run below (an ExternalSecret's status on every
+	// refresh). The dry run then answers with that newer object, and the
+	// controller's write would read as the patch's. Each attempt reads,
+	// checks and dry-runs afresh; one whose dry run was computed against a
+	// newer object than it read is sent again, never judged.
+	var (
+		live, dry           *unstructured.Unstructured
+		wantAddress         string
+		addressOK, held     bool
+		labels, annotations map[string]string
+	)
+	for attempt := 1; ; attempt++ {
+		var found bool
+		var err error
+		live, found, err = e.patcher.ReadObject(ctx, ref)
+		if err != nil {
+			out.Outcome = OutcomeFailed
+			out.Detail = fmt.Sprintf("The cluster could not be asked about %s: %s. Nothing was written.", ref, err)
+			return out
+		}
+		if !found {
+			out.Outcome = OutcomeFailed
+			out.Detail = fmt.Sprintf("The cluster serves no object at %s, so there is nothing to label. Nothing was written.", ref)
+			return out
+		}
 
-	// GitHub issue #1639: the address annotation goes in the same patch as
-	// the label, and the adoption cases follow the metadata-block
-	// carrier's ([approveLabel]).
-	wantAddress := markers.EscapeAddress(addr.String())
-	gotAddress := live.GetAnnotations()[markers.AddressAnnotation]
-	addressOK := gotAddress != "" && markers.AddressMatches(markers.EscapeAddress(gotAddress), addr.String())
+		// GitHub issue #1639: the address annotation goes in the same patch as
+		// the label, and the adoption cases follow the metadata-block
+		// carrier's ([approveLabel]).
+		wantAddress = markers.EscapeAddress(addr.String())
+		gotAddress := live.GetAnnotations()[markers.AddressAnnotation]
+		addressOK = gotAddress != "" && markers.AddressMatches(markers.EscapeAddress(gotAddress), addr.String())
 
-	// GitHub issue #1764: markers whose values are right but which the
-	// block manager's Update entry still holds are what an -approve killed
-	// between PatchMarkers' two requests leaves. The provider's next apply
-	// that changes one would conflict with that entry, so the write is
-	// sent again to finish the hand-off rather than reported as done.
-	held, _ := kubesweep.MarkersHeldByUpdate(live, e.fieldManager, []string{markers.TagEstate}, []string{markers.AddressAnnotation})
+		// GitHub issue #1764: markers whose values are right but which the
+		// block manager's Update entry still holds are what an -approve killed
+		// between PatchMarkers' two requests leaves. The provider's next apply
+		// that changes one would conflict with that entry, so the write is
+		// sent again to finish the hand-off rather than reported as done.
+		held, _ = kubesweep.MarkersHeldByUpdate(live, e.fieldManager, []string{markers.TagEstate}, []string{markers.AddressAnnotation})
 
-	switch got := live.GetLabels()[markers.TagEstate]; {
-	case got == estate && addressOK && !held:
-		out.Outcome = OutcomeAlreadyStamped
-		out.Detail = "Already carries this estate's label and this block's address annotation; nothing written."
-		return out
-	case got != "" && got != estate:
-		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("Carries the label tofu-estate = %q, owned by another estate. A migration never adopts another estate's object; nothing was written.", got)
-		return out
-	case gotAddress != "" && !addressOK:
-		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("Already carries the annotation %s = %q. Rewriting it here would be a rename, which is choudoufu live-mv's job, not a side effect of an import; nothing was written.", markers.AddressAnnotation, gotAddress)
-		return out
-	}
+		switch got := live.GetLabels()[markers.TagEstate]; {
+		case got == estate && addressOK && !held:
+			out.Outcome = OutcomeAlreadyStamped
+			out.Detail = "Already carries this estate's label and this block's address annotation; nothing written."
+			return out
+		case got != "" && got != estate:
+			out.Outcome = OutcomeFailed
+			out.Detail = fmt.Sprintf("Carries the label tofu-estate = %q, owned by another estate. A migration never adopts another estate's object; nothing was written.", got)
+			return out
+		case gotAddress != "" && !addressOK:
+			out.Outcome = OutcomeFailed
+			out.Detail = fmt.Sprintf("Already carries the annotation %s = %q. Rewriting it here would be a rename, which is choudoufu live-mv's job, not a side effect of an import; nothing was written.", markers.AddressAnnotation, gotAddress)
+			return out
+		}
 
-	labels := map[string]string{markers.TagEstate: estate}
-	annotations := map[string]string{markers.AddressAnnotation: wantAddress}
-	dry, rejected, err := e.patcher.PatchMarkers(ctx, ref, labels, annotations, e.fieldManager, true)
-	if err != nil {
-		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("The marker write on %s could not be submitted to the cluster for a dry run: %s. Nothing was written.", ref, err)
-		return out
-	}
-	if rejected != "" {
-		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("The API server refused the marker write on %s: %s. Nothing was written.", ref, rejected)
-		return out
-	}
-	if extra := changedOutsideManifestLabels(live.Object, dry.Object); len(extra) > 0 {
-		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("Labelling this %s would also change %s, which the server's own dry run of the patch reports. Approve is a markers-only write on a Kubernetes object (the tofu-estate label and the %s annotation); nothing was written. Something between this client and the stored object - a mutating admission webhook, most likely - rewrites more than was asked for, and that has to be resolved first.", e.typeName, strings.Join(extra, ", "), markers.AddressAnnotation)
-		return out
+		labels = map[string]string{markers.TagEstate: estate}
+		annotations = map[string]string{markers.AddressAnnotation: wantAddress}
+		var rejected string
+		dry, rejected, err = e.patcher.PatchMarkers(ctx, ref, labels, annotations, e.fieldManager, true)
+		if err != nil {
+			out.Outcome = OutcomeFailed
+			out.Detail = fmt.Sprintf("The marker write on %s could not be submitted to the cluster for a dry run: %s. Nothing was written.", ref, err)
+			return out
+		}
+		if rejected != "" {
+			out.Outcome = OutcomeFailed
+			out.Detail = fmt.Sprintf("The API server refused the marker write on %s: %s. Nothing was written.", ref, rejected)
+			return out
+		}
+		extra := changedOutsideManifestLabels(live.Object, dry.Object)
+		if len(extra) > 0 && dry.GetResourceVersion() != live.GetResourceVersion() {
+			if attempt < manifestDryRunAttempts {
+				continue
+			}
+			out.Outcome = OutcomeFailed
+			out.Detail = fmt.Sprintf("The object at %s kept changing between this run's read and the server's dry run of the marker write (%d attempts; the last read was resourceVersion %s, the dry run answered for %s), so the dry run could not be judged against the object it was computed for. A controller rewriting it - its status, most likely - is the usual cause. Nothing was written; rerun live-import -approve.", ref, manifestDryRunAttempts, live.GetResourceVersion(), dry.GetResourceVersion())
+			return out
+		}
+		if len(extra) > 0 {
+			out.Outcome = OutcomeFailed
+			out.Detail = fmt.Sprintf("Labelling this %s would also change %s, which the server's own dry run of the patch reports. Approve is a markers-only write on a Kubernetes object (the tofu-estate label and the %s annotation); nothing was written. Something between this client and the stored object - a mutating admission webhook, most likely - rewrites more than was asked for, and that has to be resolved first.", e.typeName, strings.Join(extra, ", "), markers.AddressAnnotation)
+			return out
+		}
+		break
 	}
 
 	written, rejected, err := e.patcher.PatchMarkers(ctx, ref, labels, annotations, e.fieldManager, false)
@@ -303,6 +331,10 @@ func approveManifest(ctx context.Context, estate string, addr addrs.AbsResourceI
 
 // fieldManagerOrDefault is the manager a write under fieldManager goes
 // under.
+// manifestDryRunAttempts bounds [approveManifest]'s re-read when the
+// object moves between its read and its dry run (GitHub issue #2043).
+const manifestDryRunAttempts = 5
+
 func fieldManagerOrDefault(fieldManager string) string {
 	if fieldManager == "" {
 		return kubesweep.DefaultFieldManager
