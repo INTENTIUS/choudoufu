@@ -37,7 +37,33 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
    `generated-from.json` alongside the pin. Skipping this step for more than
    one release cycle is what `TestCIPipelinePinIsTiedToRelease` turns red for.
 
-## choudoufu v0.28.0 (Unreleased)
+## choudoufu v0.29.0 (Unreleased)
+
+## choudoufu v0.28.0 (2026-10-13)
+
+Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.28.0.json`](live/history/v0.28.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.27.0.json live/history/v0.28.0.json`):
+
+### Board movement
+
+- Core estates: 22/23 clear -> 23/23 clear (+1)
+- All estates: 23/25 clear -> 24/25 clear (+1)
+
+### Newly cleared
+
+- `corpus-hongbomiao-labelbox`
+- `reference-k8s-helm-argo-cd`
+- `reference-k8s-helm-cloudnative-pg`
+- `reference-k8s-helm-ingress-nginx`
+- `reference-k8s-helm-kyverno`
+- `reference-k8s-helm-metallb`
+- `reference-k8s-workloads`
+- `reference-k8s-yaml-rollouts`
+
+### Regressed
+
+- none
 
 - `choudoufu live-cone <base>` prints the cone of the change since `<base>`: changed, deleted and refactored blocks and every block that reads them, as targets or as JSON with the guard's verdict (#1956).
 - `choudoufu plan -cone=<base>` plans that cone only, opt-in. Deleted blocks' removals are proposed, co-managed type pairs widen the cone, the vouch listing narrows to the cone's types, and a saved cone plan's `apply` refuses a different cone. A guard (no base, provider, `terraform`, `live` block or lock file changed, a refactor nothing declares, over 30% of the estate, or a marked object outside the cone) plans the whole estate and says why (#1956).
