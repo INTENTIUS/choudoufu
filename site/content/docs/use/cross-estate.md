@@ -65,13 +65,8 @@ it. Sensitive outputs never cross.
 The bucket policy needs `--reads-outputs-of cluster-infrastructure`, or the
 plan stops naming that estate.
 
-When the same change also changes the producer, plan the consumer on the
-producer's plan instead:
-`plan -estate-outputs-from cluster-infrastructure=producer.json`, where the
-file is `show -json` of the producer's saved plan. An output known only
-after apply, or sensitive, stops the plan. `apply` of the consumer's plan
-refuses with exit 3 until the producer has applied those same values.
-`live-plan-set` does this for you when both roots are in the set.
+To plan on a producer's unapplied plan, see `-estate-outputs-from` in
+`live/OUTPUTS.md`.
 
 On `record_store "kubernetes"` each estate's records sit in a namespace of
 their own, so the consumer names the producer in its record_store block:
