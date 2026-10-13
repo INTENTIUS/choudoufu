@@ -31,8 +31,10 @@
 #     kyverno registers its Validating- and MutatingWebhookConfigurations at
 #     runtime, cluster-scoped objects nothing declares and no owner
 #     reference ties to anything the estate holds, so the sweep has to leave
-#     them alone and nothing removes them on teardown (the chart's
-#     pre-delete hook would; hooks are not in the applied set);
+#     them alone; on teardown the admission controller deletes them itself
+#     as its Deployment goes (pkg/webhooks/server.go's cleanup, when
+#     runtime.IsGoingDown), which stock's side showed at 64714fe0b9 and
+#     2f02038dd1, and day2_teardown compares what each side leaves;
 #   - TLS Secrets the controllers generate for themselves, labelled
 #     cert.kyverno.io/managed-by and with no owner reference, which
 #     day2_remove's sweep must not propose when the controller that wrote
@@ -1155,6 +1157,12 @@ log "=== 11. day2_teardown: apply -destroy on the adopted estate, and stock's ow
 TEAR_FAILS=""
 tear_fail() { TEAR_FAILS="${TEAR_FAILS:+$TEAR_FAILS; }$*"; }
 T_EXPECT="$(count_a)"
+# What kyverno registered before either destroy: the leftover comparison
+# below measures something only if both sides had webhooks to remove.
+WH_BEFORE="$(webhooks_of kca | tr '\n' ' ' | sed -E 's/ $//')"
+O_WH_BEFORE="$(webhooks_of kcb | tr '\n' ' ' | sed -E 's/ $//')"
+[ -n "$WH_BEFORE" ] && [ -n "$O_WH_BEFORE" ] \
+  || fail "kyverno has no webhook configuration registered before the destroy (A '$WH_BEFORE', B '$O_WH_BEFORE'), so comparing what each destroy leaves would measure nothing"
 T_OUT="$(tofu_a apply -destroy -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$T_OUT" | tail -20; fail "apply -destroy failed"; }
 grep -qF "Resources: 0 added, 0 changed, $T_EXPECT destroyed" <<< "$T_OUT" || { printf '%s\n' "$T_OUT" | grep -E 'Destroying\.\.\.|Destruction complete|^Apply complete|^Error' | tail -80; tear_fail "apply -destroy did not report exactly the $T_EXPECT labelled objects that remained as destroyed: $(grep -E '^Apply complete' <<< "$T_OUT" | head -1) $(gauntlet_first_error_line <<< "$T_OUT")"; }
 for _ in $(seq 1 90); do kca get namespace "$NS" >/dev/null 2>&1 || break; sleep 2; done
@@ -1164,15 +1172,19 @@ CRDS_LEFT="$(crd_count_a)"
 [ "$CRDS_LEFT" = "0" ] || fail "$CRDS_LEFT kyverno CRD(s) survive the destroy: $(kca get crd -o name 2>/dev/null | grep -E '\.(kyverno\.io|wgpolicyk8s\.io)$' | tr '\n' ' ')"
 kca get namespace kube-system >/dev/null 2>&1 || fail "kube-system is gone"
 # kyverno registered its webhook configurations itself, with no owner
-# reference, and the chart removes them only through the pre-delete hook
-# Job values.yaml switches off, so no destroy removes them: stock's destroy
-# on B leaves the same ones, checked below.
+# reference. The chart's pre-delete hook Job, which values.yaml switches
+# off, is not what removes them: the admission controller deletes every one
+# labelled webhook.kyverno.io/managed-by as it shuts down with its
+# Deployment going away, and stock's destroy left none on B at 64714fe0b9
+# or at 2f02038dd1. Whatever is left, A must leave what stock leaves on B,
+# each read once its namespace is gone and the controller's pods with it.
 WH_LEFT="$(webhooks_of kca | tr '\n' ' ' | sed -E 's/ $//')"
 O_EXPECT="$(managed_n stock_b)"
 O_T="$(stock_b apply -destroy -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$O_T" | tail -10; fail "stock's destroy failed on B"; }
 grep -qF "Resources: 0 added, 0 changed, $O_EXPECT destroyed" <<< "$O_T" || { printf '%s\n' "$O_T" | tail -30; fail "stock's destroy on B did not remove exactly the $O_EXPECT objects its state held"; }
+for _ in $(seq 1 90); do kcb get namespace "$NS" >/dev/null 2>&1 || break; sleep 2; done
+kcb get namespace "$NS" >/dev/null 2>&1 && fail "the $NS namespace still exists on B after stock's destroy"
 O_WH_LEFT="$(webhooks_of kcb | tr '\n' ' ' | sed -E 's/ $//')"
-[ -n "$O_WH_LEFT" ] || fail "no kyverno webhook configuration is left on B after stock's destroy, so the comparison with A would measure nothing"
 [ "$WH_LEFT" = "$O_WH_LEFT" ] || tear_fail "kyverno's webhook configurations left after the destroy differ from stock's: A '$WH_LEFT', B '$O_WH_LEFT'"
 # The pre-delete hook's job, done by hand, so greenfield starts from an
 # empty cluster: a left-over policy webhook still points at a Service and a
@@ -1184,7 +1196,7 @@ WH_AFTER="$(webhooks_of kca | tr '\n' ' ' | sed -E 's/ $//')"
 if [ -n "$TEAR_FAILS" ]; then
   gauntlet_stage day2_teardown fail "$TEAR_FAILS. Otherwise the $NS namespace, every kyverno CRD and every object carrying tofu-estate=$ESTATE are gone from A (kubectl), stock's destroy on B removed the $O_EXPECT its state held, and kyverno's left-over webhook configurations were deleted from A before greenfield"
 else
-gauntlet_stage day2_teardown pass "apply -destroy removed exactly the $T_EXPECT remaining objects in one apply, the ClusterPolicies before the controllers and the controllers before their RBAC by the blocks' depends_on, and the rest before the CRDs and the Namespace; the $NS namespace is gone and with it kyverno's generated TLS Secrets, all $CRD_N kyverno CRDs are gone, kube-system is untouched, and no object of the estate's kinds carries tofu-estate=$ESTATE (kubectl, every namespace); stock's destroy on the oracle cluster removed exactly the $O_EXPECT its state held. The webhook configurations kyverno registered for itself, which nothing declares (${WH_LEFT:-none}), are left by both destroys alike, and were then deleted from A by kubectl, the chart's pre-delete hook's job, before greenfield"
+gauntlet_stage day2_teardown pass "apply -destroy removed exactly the $T_EXPECT remaining objects in one apply, the ClusterPolicies before the controllers and the controllers before their RBAC by the blocks' depends_on, and the rest before the CRDs and the Namespace; the $NS namespace is gone and with it kyverno's generated TLS Secrets, all $CRD_N kyverno CRDs are gone, kube-system is untouched, and no object of the estate's kinds carries tofu-estate=$ESTATE (kubectl, every namespace); stock's destroy on the oracle cluster removed exactly the $O_EXPECT its state held. Of the webhook configurations kyverno registered for itself, which nothing declares ($WH_BEFORE on A before the destroy), both destroys left the same: ${WH_LEFT:-none}; any left on A were then deleted by kubectl, the chart's pre-delete hook's job, before greenfield"
 fi
 
 # ── 12. greenfield: the same shape, fresh, with a live block ─────────────
