@@ -33,6 +33,10 @@ var guardedPackages = []string{
 	// statically; it takes strings off the config structs and evaluates no
 	// expression of its own, so it is held to zero.
 	"affected",
+	// GitHub issue #1956's live-cone parses the root module's source text
+	// and evaluates only a module call's literal source, so it is held to
+	// zero.
+	"cone",
 	// GitHub issue #878's approval gate. It reads PLAN values, which is
 	// deferredPackages' population, and it is held to zero anyway because
 	// every collection it walks is unmarked at the site that walks it -

@@ -38,6 +38,8 @@ commands follow.
 | `choudoufu live-plan` | The live plan, invoked directly; [`-filter`](https://github.com/INTENTIUS/choudoufu/blob/main/live/REPORT-FILTER.md) narrows its report. |
 | `choudoufu live-history <address>` | A record's versions, newest first. |
 | `choudoufu plan -adoption-only` | The adoption ledger alone: what this estate can adopt, what it cannot, and why. |
+| `choudoufu live-cone <base>` | The cone of the change since `<base>`: changed, deleted and refactored blocks and everything that reads them, as targets, or JSON with `-json`. Exit 2 when the guard says plan everything. |
+| `choudoufu plan -cone=<base>` | Plans that cone only. A guard plans the whole estate instead and says why. Never the default. |
 | `choudoufu force-unlock` | Refused: there is no lock to force open. Contention settles at the platform API, never in a lock this tool holds. |
 
 ### `-adoption-only`

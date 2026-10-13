@@ -680,6 +680,36 @@
       }
     },
     {
+      "id": 47,
+      "slug": "plan-cost-tracks-the-change",
+      "title": "A plan costs its change",
+      "theme": "scale",
+      "substrate": [
+        "aws",
+        "kubernetes"
+      ],
+      "providers": {
+        "aws": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/plan-cost-tracks-the-change.sh",
+              "command": "just smoke plan-cost-tracks-the-change",
+              "minutes": 15,
+              "needs_go": true,
+              "break_mode": "BREAK=1 drops the cone's dependents from the targets, and passes only when the dependent's missed update is caught",
+              "note": "Not written yet (GitHub issue #1956): a 100-instance change on terralith-scale at 745 and 10,069 resources, planned with -cone and in full; the cone plan's calls are counted against the full plan's, and its changes must equal the full plan's restricted to the cone."
+            }
+          ],
+          "note": "Unproven: the scenario is not written and has never run. The unit half is internal/live/cone and internal/command/live_cone_plan_test.go."
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "A cone plan runs on a Kubernetes estate the same way; no scenario measures it."
+        }
+      }
+    },
+    {
       "id": 15,
       "slug": "apply-what-was-approved",
       "title": "Apply exactly what was approved",

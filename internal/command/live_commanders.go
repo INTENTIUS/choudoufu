@@ -18,13 +18,14 @@ import (
 // static and built here, not from the legacy map, so a command registered
 // only in the map is "no command named" under the default CLI. The test
 // TestNewCLIDispatchesLiveCommands walks RootCommander and fails if any of
-// the thirteen is missing.
+// the fourteen is missing.
 func LiveCommanders() []Command {
 	return []Command{
 		LiveAffectedCommander(),
 		LiveBucketCommander(),
 		LiveCheckCommander(),
 		LiveClusterCommander(),
+		LiveConeCommander(),
 		LiveHistoryCommander(),
 		LiveImportCommander(),
 		LiveLsCommander(),

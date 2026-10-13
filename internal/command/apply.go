@@ -174,6 +174,27 @@ func (c ApplyCommand) Execute(args *arguments.Apply, view views.Apply) int {
 	opReq, opDiags := c.OperationRequest(ctx, be, view, args, planFile, enc)
 	diags = diags.Append(opDiags)
 
+	// GitHub issue #1956: an approved cone plan is replanned as the same
+	// cone, and the guard below refuses a plan over any other address set.
+	// A plan file with no cone record (a full plan, or a person's -target)
+	// applies exactly as it always has.
+	var approvedCone *coneSidecar
+	var applyCone *liveCone
+	if approved != nil && !diags.HasErrors() {
+		sc, err := readConeSidecar(args.PlanPath)
+		if err != nil {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot read the plan file's cone record", err.Error()))
+		} else if sc != nil {
+			approvedCone = sc
+			var coneDiags tfdiags.Diagnostics
+			applyCone, coneDiags = coneFromSidecar(sc)
+			diags = diags.Append(coneDiags)
+			if len(opReq.Targets) == 0 && len(opReq.Excludes) == 0 {
+				opReq.Targets = applyCone.targets
+			}
+		}
+	}
+
 	if liveCfg != nil && !diags.HasErrors() {
 		// Never adoption-only: GitHub issue #587's flag is a way of READING
 		// a plan, and there is no such thing as applying only the adoption
@@ -182,8 +203,14 @@ func (c ApplyCommand) Execute(args *arguments.Apply, view views.Apply) int {
 		diags = diags.Append(liveBegin(be, opReq, liveCfg, c.View, false, nil, c.liveEstateOutputs(),
 			liveRejections(surfaceLiveBlock, args.Operation, args.State, args.View, "", "", "")))
 		diags = diags.Append(c.checkAWSProviderVersionSkew())
+		if runner := liveRunnerOf(be); runner != nil {
+			runner.cone = applyCone
+		}
 		if approved != nil {
 			opReq.PlanGuard = approvalGuard(approved, &approvalRefused)
+			if approvedCone != nil {
+				opReq.PlanGuard = coneApprovalGuard(args.PlanPath, approvedCone.Targets, opReq.PlanGuard, &approvalRefused)
+			}
 			// Stock's "apply <planfile>" does not prompt: the file is the
 			// approval. Matching that is the whole point of admitting the
 			// stock form, and a pipeline that has already gated on the plan

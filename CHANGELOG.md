@@ -39,6 +39,9 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.28.0 (Unreleased)
 
+- `choudoufu live-cone <base>` prints the cone of the change since `<base>`: changed, deleted and refactored blocks and every block that reads them, as targets or as JSON with the guard's verdict (#1956).
+- `choudoufu plan -cone=<base>` plans that cone only, opt-in. Deleted blocks' removals are proposed, co-managed type pairs widen the cone, the vouch listing narrows to the cone's types, and a saved cone plan's `apply` refuses a different cone. A guard (no base, provider, `terraform`, `live` block or lock file changed, a refactor nothing declares, over 30% of the estate, or a marked object outside the cone) plans the whole estate and says why (#1956).
+
 ## choudoufu v0.27.0 (2026-10-11)
 
 Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.27.0.json`](live/history/v0.27.0.json).

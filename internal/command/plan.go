@@ -8,6 +8,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/backend"
@@ -154,6 +155,13 @@ func (c PlanCommand) Execute(args *arguments.Plan, view views.Plan) int {
 		view.Diagnostics(diags)
 		return 1
 	}
+	// GitHub issue #1956's -cone, refused where it would do nothing or
+	// collide with a target list of its own. See planRejectCone.
+	if moreDiags := planRejectCone(args, liveCfg != nil); moreDiags.HasErrors() {
+		diags = diags.Append(moreDiags)
+		view.Diagnostics(diags)
+		return 1
+	}
 	if args.AdoptionOnly {
 		view = views.NewAdoptionOnlyPlan(view, c.View)
 	}
@@ -174,6 +182,23 @@ func (c PlanCommand) Execute(args *arguments.Plan, view views.Plan) int {
 		return 1
 	}
 
+	// GitHub issue #1956: the cone becomes the operation's targets before
+	// liveBegin copies them onto the runner. A nil cone is the guard's
+	// full plan, with its warning already in diags.
+	var lc *liveCone
+	if liveCfg != nil && args.Cone != "" {
+		var coneDiags tfdiags.Diagnostics
+		lc, coneDiags = liveConePrepare(ctx, args.Cone)
+		diags = diags.Append(coneDiags)
+		if coneDiags.HasErrors() {
+			view.Diagnostics(diags)
+			return 1
+		}
+		if lc != nil {
+			opReq.Targets = lc.targets
+		}
+	}
+
 	if liveCfg != nil {
 		moreDiags := liveBegin(be, opReq, liveCfg, c.View, args.AdoptionOnly, args.Filter, c.liveEstateOutputs(),
 			liveRejections(surfaceLiveBlock, args.Operation, args.State, args.View, args.OutPath, args.GenerateConfigPath, ""))
@@ -181,6 +206,9 @@ func (c PlanCommand) Execute(args *arguments.Plan, view views.Plan) int {
 		if moreDiags.HasErrors() {
 			view.Diagnostics(diags)
 			return 1
+		}
+		if runner := liveRunnerOf(be); runner != nil {
+			runner.cone = lc
 		}
 		diags = diags.Append(c.checkAWSProviderVersionSkew())
 	} else {
@@ -206,6 +234,19 @@ func (c PlanCommand) Execute(args *arguments.Plan, view views.Plan) int {
 
 	if op.Result != backend.OperationSuccess {
 		return op.Result.ExitStatus()
+	}
+	// GitHub issue #1956: a saved cone plan records its cone beside the
+	// file, so "apply FILE" replans the same cone and refuses another. A
+	// plan that fell back to full records nothing and applies as one.
+	if lc != nil && lc.fallback == "" && args.OutPath != "" {
+		if err := writeConeSidecar(args.OutPath, lc); err != nil {
+			view.Diagnostics(tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot record the cone beside the plan file", err.Error())))
+			return 1
+		}
+	} else if liveCfg != nil && args.OutPath != "" {
+		// A full plan written over an earlier cone plan's file must not
+		// inherit that plan's cone record.
+		_ = os.Remove(coneSidecarPath(args.OutPath))
 	}
 	if args.DetailedExitCode && !op.PlanEmpty {
 		return 2

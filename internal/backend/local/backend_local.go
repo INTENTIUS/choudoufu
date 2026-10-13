@@ -264,6 +264,14 @@ func (b *Local) localRunDirect(ctx context.Context, stopCtx context.Context, op 
 		if projDiags.HasErrors() {
 			return nil, nil, diags
 		}
+		// GitHub issue #1956: a cone plan that fell back to a full plan
+		// while building the prior state plans with the targets it ended
+		// on, not the ones it started with.
+		if lt, ok := b.LiveRun.(LiveTargets); ok {
+			if targets, override := lt.PlanTargets(); override {
+				planOpts.Targets = targets
+			}
+		}
 		// GitHub issue #348: evaluate the configuration's root-level
 		// `output` blocks against the projection now, in place, the same
 		// way a real refresh recomputes them before a plan diffs "prior"
