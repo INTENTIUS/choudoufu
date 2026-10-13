@@ -103,6 +103,9 @@ ACCESS_API=false
 AWS_N=15
 CLUSTER_N=6
 TOTAL_N=$((AWS_N + CLUSTER_N))
+# Of the AWS_N, the instances with no tags argument in the provider schema:
+# four aws_iam_role_policy_attachment and two aws_route_table_association.
+REFERENCE_EKS_UNTAGGABLE_N=6
 
 cleanup() {
   local ns children
@@ -295,8 +298,18 @@ IMPORT_OUT="$(cd "$ADOPTED" && with_endpoint "$ENDPOINT" "$TOFU" live-import -st
 APPROVE_OUT="$(cd "$ADOPTED" && with_endpoint "$ENDPOINT" "$TOFU" live-import -state="$STOCK/terraform.tfstate" -estate="$ESTATE" -approve -no-color 2>&1)" \
   || { printf '%s\n' "$APPROVE_OUT" | tail -30; fail "live-import -approve failed"; }
 SUMMARY_LINE="$(grep -E 'resource\(s\) newly stamped' <<< "$APPROVE_OUT" | head -1 | sed 's/\.$//')"
-grep -qE '[0-9]+ resource\(s\) newly stamped, 0 already stamped, [0-9]+ newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 0 skipped' <<< "$APPROVE_OUT" \
-  || { printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve did not finish with 0 failed and 0 skipped: ${SUMMARY_LINE:-no summary line}"; }
+# The root carries six instances with no tags argument in the AWS
+# provider's schema - four aws_iam_role_policy_attachment and two
+# aws_route_table_association - and live-import skips exactly those, as
+# corpus-eks-basic's 23 skipped are. A skip is accepted only for that
+# reason; anything else skipped, and anything failed, fails the stage.
+SKIPPED_LINES="$(sed -n '/^SKIPPED (/,/^$/p' <<< "$APPROVE_OUT" | grep -E '^  [a-z]')"
+SKIPPED_N="$(grep -c . <<< "$SKIPPED_LINES")"
+SKIPPED_OTHER="$(grep -v "has no tags argument in the provider's schema" <<< "$SKIPPED_LINES")"
+grep -qE "[0-9]+ resource\\(s\\) newly stamped, 0 already stamped, [0-9]+ newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, ${SKIPPED_N} skipped" <<< "$APPROVE_OUT" \
+  || { printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve did not finish with 0 failed and only untaggable instances skipped: ${SUMMARY_LINE:-no summary line}"; }
+[ "$SKIPPED_N" = "$REFERENCE_EKS_UNTAGGABLE_N" ] && [ -z "$SKIPPED_OTHER" ] \
+  || { printf '%s\n' "$SKIPPED_LINES"; fail "live-import skipped $SKIPPED_N instance(s), want exactly the root's $REFERENCE_EKS_UNTAGGABLE_N with no tags argument: ${SKIPPED_OTHER:-every reason was the missing tags argument}"; }
 if grep -q "MISSING" <<< "$APPROVE_OUT"; then
   fail "live-import reported a MISSING instance; the kubernetes provider, configured from aws_eks_cluster.this, did not reach the cluster leg: $(grep -m1 MISSING <<< "$APPROVE_OUT")"
 fi
