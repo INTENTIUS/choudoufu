@@ -25,9 +25,8 @@ resource "aws_subnet" "app" {
 }
 ```
 
-Both tags are already on the producer's resource, and the pair is unique in an
-account by construction. The producer publishes nothing and does not know it
-is being read.
+Both tags are already on the producer's resource and unique in an account;
+the producer publishes nothing.
 [`live/OUTPUTS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/OUTPUTS.md)
 is the decision, and
 [`examples/cross-estate-dependency`](https://github.com/INTENTIUS/choudoufu/tree/main/examples/cross-estate-dependency)
@@ -45,8 +44,8 @@ a migration returns a snapshot frozen on that day.
 The consumer's role needs permission to describe the producer's resource
 type, and nothing on the record store beyond its own estate's policy.
 
-A producer that has not applied fails a consumer's data source read, so order the
-pipeline producer first, as the example does.
+A producer that has not applied fails the data source read, so apply the
+producer first.
 
 ## A value no live resource holds
 
@@ -82,37 +81,6 @@ the `kubectl` lines that grant it.
 
 ## A value the producer has not applied yet
 
-A change that reaches both estates would plan the consumer on the outputs the
-producer recorded at its last apply, which the same change is about to
-replace. Plan the consumer on the producer's plan instead:
-
-```sh
-# in the producer
-choudoufu plan -out=producer.tfplan
-choudoufu show -json producer.tfplan > producer.json
-
-# in the consumer
-choudoufu plan -estate-outputs-from cluster-infrastructure=producer.json -out=consumer.tfplan
-```
-
-`-estate-outputs-from <estate>=<file>` answers that estate's
-`terraform_estate_outputs` reads from the plan's `planned_values`, not the
-record store. It is repeatable, once per estate. `live-plan-set` does the
-same for a set of roots: a root that reads another root of the set is planned
-after it and marked `"reads": "planned"`.
-
-| The producer's planned output | The consumer's plan |
-|---|---|
-| known at plan time | reads the new value |
-| known only after the producer applies | refused, naming the estate and the output; the plan is never made on an unknown or a placeholder |
-| sensitive | refused: a sensitive output never crosses, planned or recorded |
-| not in the producer's plan | refused, naming the output |
-
-The consumer's saved plan carries the values it read. `apply <planfile>`
-reads the record store again and refuses with exit 3, naming the estate, the
-output, and the planned and applied values, until the producer has applied
-and recorded those same values. Apply the producer first. A consumer is never
-applied on a value the producer did not land.
-
-An output refused as unknown is settled by applying the producer and then
-planning the consumer on what it recorded, without the flag.
+`plan -estate-outputs-from <estate>=<plan.json>` plans on the producer's
+planned outputs, refusing unknown ones; `apply` exits 3 until
+they are applied.
