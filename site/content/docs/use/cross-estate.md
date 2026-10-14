@@ -25,9 +25,8 @@ resource "aws_subnet" "app" {
 }
 ```
 
-Both tags are already on the producer's resource, and the pair is unique in an
-account by construction. The producer publishes nothing and does not know it
-is being read.
+Both tags are already on the producer's resource and unique in an account;
+the producer publishes nothing.
 [`live/OUTPUTS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/OUTPUTS.md)
 is the decision, and
 [`examples/cross-estate-dependency`](https://github.com/INTENTIUS/choudoufu/tree/main/examples/cross-estate-dependency)
@@ -45,8 +44,8 @@ a migration returns a snapshot frozen on that day.
 The consumer's role needs permission to describe the producer's resource
 type, and nothing on the record store beyond its own estate's policy.
 
-A producer that has not applied fails the consumer's plan, so order the
-pipeline producer first, as the example does.
+A producer that has not applied fails the data source read, so apply the
+producer first.
 
 ## A value no live resource holds
 
@@ -65,9 +64,6 @@ it. Sensitive outputs never cross.
 The bucket policy needs `--reads-outputs-of cluster-infrastructure`, or the
 plan stops naming that estate.
 
-To plan on a producer's unapplied plan, see `-estate-outputs-from` in
-`live/OUTPUTS.md`.
-
 On `record_store "kubernetes"` each estate's records sit in a namespace of
 their own, so the consumer names the producer in its record_store block:
 
@@ -82,3 +78,9 @@ inside the block if the producer's records are elsewhere) and can only get.
 Without the block, the plan stops before reading anything. Without a Role
 granting `get` on the producer's output Secrets, the plan stops and prints
 the `kubectl` lines that grant it.
+
+## A value the producer has not applied yet
+
+`plan -estate-outputs-from <estate>=<plan.json>` plans on the producer's
+planned outputs, refusing unknown ones; `apply` exits 3 until
+they are applied.
