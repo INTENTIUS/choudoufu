@@ -93,7 +93,7 @@ account, and GitHub has since had a fourth run against a real one:
 | GitHub | v0.16.0, [run 34313049854](https://github.com/INTENTIUS/choudoufu/actions/runs/34313049854), floci as a service container, all four triggers plus the gate/approve/re-run loop ([#1026](https://github.com/INTENTIUS/choudoufu/issues/1026)) | `pass=12 fail=0` verdict lines - two jobs could not have started; see below |
 | Forgejo | 12.0.4+gitea-1.22.0, `forgejo-runner` v9.1.1, no cloud behind it ([#1027](https://github.com/INTENTIUS/choudoufu/issues/1027)) | checkout, `npm ci`, the pinned binary, `init` and `chant run` all worked; the run ended at the credential call |
 | GitLab | CE 17.11.0, `gitlab-runner` 17.11.0, docker executor, floci behind it, 10 pipelines / 17 jobs ([#1026](https://github.com/INTENTIUS/choudoufu/issues/1026)) | `live-check`, `live-plan`, `live-discover` green unmodified; `live-apply` and `live-adopt` red, both fixed by setup steps below |
-| GitHub, real AWS | main at `172bf2a390`, [run 34644390301](https://github.com/INTENTIUS/choudoufu/actions/runs/34644390301), account `354867293429`, `us-east-1`, 2026-09-11, OIDC-minted credentials, no stored key ([#807](https://github.com/INTENTIUS/choudoufu/issues/807)) | `pass=13 fail=0` - the gate recorded and resolved on the git ledger, the apply refusal returning exit 3 |
+| GitHub, real AWS | main at `172bf2a390`, [run 34644390301](https://github.com/INTENTIUS/choudoufu/actions/runs/34644390301), account `<account-id>`, `us-east-1`, 2026-09-11, OIDC-minted credentials, no stored key ([#807](https://github.com/INTENTIUS/choudoufu/issues/807)) | `pass=13 fail=0` - the gate recorded and resolved on the git ledger, the apply refusal returning exit 3 |
 
 What running rather than reading found:
 
@@ -145,7 +145,7 @@ None of the three dialect-proof runs above had an AWS account behind it.
 GitHub's own OIDC exchange has since been verified separately: run
 [34644390301](https://github.com/INTENTIUS/choudoufu/actions/runs/34644390301) (main
 at `172bf2a390`, 2026-09-11) minted a short-lived credential over
-`token.actions.githubusercontent.com` and applied against account `354867293429`
+`token.actions.githubusercontent.com` and applied against account `<account-id>`
 with no stored key. GitLab's `id_tokens:` role assumption follows GitHub's shape,
 but floci's static credentials shadowed it in the GitLab run above, so no
 STS call was made there ([#807](https://github.com/INTENTIUS/choudoufu/issues/807)

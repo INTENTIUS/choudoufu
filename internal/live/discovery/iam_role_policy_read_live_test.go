@@ -18,7 +18,7 @@ import (
 // rides along on a scoped read of its owning role, exactly the shape
 // aws_s3_bucket_policy proves for S3. GetRolePolicy returns a clean
 // NoSuchEntity once the inline policy is deleted (verified against real AWS
-// account 354867293429, 2026-09-02), which is the exists/not-exists
+// account <account-id>, 2026-09-02), which is the exists/not-exists
 // distinction parentReadRemovable requires.
 //
 //	TF_FLOCI_TEST=1 go test ./internal/live/discovery/ -run TestIAMRolePolicyParentReadRemovalAgainstFloci -v

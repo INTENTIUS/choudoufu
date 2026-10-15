@@ -1,7 +1,7 @@
 {
   "claim": "the-tag-is-the-boundary",
   "captured": "2026-09-03",
-  "account": "354867293429",
+  "account": "123456789012",
   "region": "us-east-2",
   "query": "aws cloudtrail lookup-events --region us-east-2 --lookup-attributes AttributeKey=EventName,AttributeValue=CreateTags --start-time 2026-09-03T04:38:29Z",
   "roles": [
@@ -16,7 +16,7 @@
     {
       "eventTime": "2026-09-03T04:39:31Z",
       "eventName": "CreateTags",
-      "userIdentity.arn": "arn:aws:sts::354867293429:assumed-role/chdf-boundary-alice/chdf-boundary-alice",
+      "userIdentity.arn": "arn:aws:sts::123456789012:assumed-role/chdf-boundary-alice/chdf-boundary-alice",
       "resources": [
         "i-01e1006285c2b37b3"
       ],
@@ -29,7 +29,7 @@
     {
       "eventTime": "2026-09-03T04:39:47Z",
       "eventName": "CreateTags",
-      "userIdentity.arn": "arn:aws:sts::354867293429:assumed-role/chdf-boundary-alice/chdf-boundary-alice",
+      "userIdentity.arn": "arn:aws:sts::123456789012:assumed-role/chdf-boundary-alice/chdf-boundary-alice",
       "resources": [
         "i-0d3d2031d0b946a23"
       ],
@@ -42,7 +42,7 @@
     {
       "eventTime": "2026-09-03T04:40:02Z",
       "eventName": "CreateTags",
-      "userIdentity.arn": "arn:aws:sts::354867293429:assumed-role/chdf-boundary-bob/chdf-boundary-bob",
+      "userIdentity.arn": "arn:aws:sts::123456789012:assumed-role/chdf-boundary-bob/chdf-boundary-bob",
       "resources": [
         "i-0d3d2031d0b946a23"
       ],
@@ -55,7 +55,7 @@
     {
       "eventTime": "2026-09-03T04:40:32Z",
       "eventName": "CreateTags",
-      "userIdentity.arn": "arn:aws:sts::354867293429:assumed-role/chdf-boundary-bob/chdf-boundary-bob",
+      "userIdentity.arn": "arn:aws:sts::123456789012:assumed-role/chdf-boundary-bob/chdf-boundary-bob",
       "resources": [
         "i-01e1006285c2b37b3"
       ],
@@ -68,7 +68,7 @@
     {
       "eventTime": "2026-09-03T04:40:40Z",
       "eventName": "CreateTags",
-      "userIdentity.arn": "arn:aws:sts::354867293429:assumed-role/chdf-boundary-alice/chdf-boundary-alice",
+      "userIdentity.arn": "arn:aws:sts::123456789012:assumed-role/chdf-boundary-alice/chdf-boundary-alice",
       "resources": [
         "i-01e1006285c2b37b3"
       ],

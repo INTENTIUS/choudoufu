@@ -108,7 +108,7 @@ class PreflightLocal(unittest.TestCase):
     def test_accepts_any_choudoufu_build_and_records_it(self):
         with tempfile.TemporaryDirectory() as d:
             cfg = self._cfg(d, "local", "local v0.10.0-3-gabc1234")
-            answers = iter([FakeProc(0, "354867293429\n"), FakeProc(0, "choudoufu v0.10.1-dev (based on OpenTofu v1.13.0-dev)\n")])
+            answers = iter([FakeProc(0, "123456789012\n"), FakeProc(0, "choudoufu v0.10.1-dev (based on OpenTofu v1.13.0-dev)\n")])
             with mock.patch.object(guard.subprocess, "run", side_effect=lambda *a, **k: next(answers)):
                 guard.preflight(cfg)
             lines = [json.loads(l) for l in (pathlib.Path(d) / "events.jsonl").read_text().splitlines()]
@@ -120,7 +120,7 @@ class PreflightLocal(unittest.TestCase):
     def test_a_release_pin_still_refuses_another_build(self):
         with tempfile.TemporaryDirectory() as d:
             cfg = self._cfg(d, "v0.10.0", "v0.10.0")
-            answers = iter([FakeProc(0, "354867293429\n"), FakeProc(0, "choudoufu v0.10.1-dev\n")])
+            answers = iter([FakeProc(0, "123456789012\n"), FakeProc(0, "choudoufu v0.10.1-dev\n")])
             with mock.patch.object(guard.subprocess, "run", side_effect=lambda *a, **k: next(answers)), \
                  self.assertRaises(guard.GuardError) as cm:
                 guard.preflight(cfg)
@@ -129,7 +129,7 @@ class PreflightLocal(unittest.TestCase):
     def test_a_non_choudoufu_binary_is_refused_under_either_pin(self):
         with tempfile.TemporaryDirectory() as d:
             cfg = self._cfg(d, "local", "local abc")
-            answers = iter([FakeProc(0, "354867293429\n"), FakeProc(0, "OpenTofu v1.13.0\n")])
+            answers = iter([FakeProc(0, "123456789012\n"), FakeProc(0, "OpenTofu v1.13.0\n")])
             with mock.patch.object(guard.subprocess, "run", side_effect=lambda *a, **k: next(answers)), \
                  self.assertRaises(guard.GuardError):
                 guard.preflight(cfg)

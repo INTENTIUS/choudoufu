@@ -32,14 +32,17 @@ REPO="INTENTIUS/choudoufu"
 # The account oidc-bootstrap.sh works in. Read here as a literal, the way the
 # estate and the bucket are: a value taken from the script under test proves
 # only that the script agrees with itself.
-EXPECT_ACCOUNT="354867293429"
+EXPECT_ACCOUNT="123456789012"
+# oidc-bootstrap.sh takes ACCOUNT_ID from the environment before it asks STS,
+# so one set in the shell running this would bypass the stub below.
+unset ACCOUNT_ID
 # The sidecar names one estate and one bucket, and the cases below check the
 # file against these two literals rather than reading whatever is there. They
 # are declared here, at the top, and not inside the case that first uses them:
 # under `set -u` a later case reading an unset one kills the whole script, and
 # see the EXIT trap below for what that used to look like from outside.
 EXPECT_ESTATE="ci-pipelines-example"
-EXPECT_BUCKET="choudoufu-records-354867293429-us-east-1"
+EXPECT_BUCKET="choudoufu-records-123456789012-us-east-1"
 PLAIN_SUBJECT="repo:${REPO}:*"
 IMMUTABLE_PREFIX="repo:INTENTIUS@259705176/choudoufu@1332291567"
 IMMUTABLE_SUBJECT="${IMMUTABLE_PREFIX}:*"
@@ -87,11 +90,18 @@ mkdir -p "$STUBDIR"
   # another region writes that region here. "None" is what a us-east-1 bucket
   # answers, since its LocationConstraint is null.
   echo "BUCKET_LOCATION_FILE=\"$WORK/bucket-location\""
+  # What sts get-caller-identity answers: the account oidc-bootstrap.sh reads
+  # when ACCOUNT_ID is unset.
+  echo "STUB_ACCOUNT=\"$EXPECT_ACCOUNT\""
   cat <<'AWSEOF'
 printf '%s\n' "$*" >> "$AWS_CALL_LOG"
 case "$1 $2" in
   "iam list-open-id-connect-providers")
-    echo '{"OpenIDConnectProviderList":[{"Arn":"arn:aws:iam::354867293429:oidc-provider/token.actions.githubusercontent.com"}]}'
+    echo '{"OpenIDConnectProviderList":[{"Arn":"arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"}]}'
+    exit 0
+    ;;
+  "sts get-caller-identity")
+    echo "$STUB_ACCOUNT"
     exit 0
     ;;
   "s3api head-bucket")
@@ -521,7 +531,7 @@ echo "== case: the CloudWatch Logs tag actions are granted on both log-group ARN
 # ARN with no trailing ":*" verbatim -
 #   "AccessDeniedException: ... is not authorized to perform:
 #    logs:ListTagsForResource on resource:
-#    arn:aws:logs:us-east-1:354867293429:log-group:/choudoufu-ci-pipelines-example/app"
+#    arn:aws:logs:us-east-1:123456789012:log-group:/choudoufu-ci-pipelines-example/app"
 # - while the policy only ever granted the ":*" form
 # (LOG_GROUP_ARN). Prove DescribeTheEstate (shared by all three policies)
 # and WriteTheMarker (adopt + apply) both carry LOG_GROUP_ARN_BASE (the bare

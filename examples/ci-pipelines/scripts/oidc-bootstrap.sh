@@ -41,15 +41,17 @@
 # Needs: aws (with an identity that can create IAM roles and read
 # repository variables' account), gh (authenticated against
 # INTENTIUS/choudoufu), jq.
+#
+# The account is ACCOUNT_ID when that is set, and otherwise the account
+# `aws sts get-caller-identity` answers for. No account id is written into
+# this file.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXAMPLE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-ACCOUNT_ID="354867293429"
 REPO="INTENTIUS/choudoufu"
-OIDC_PROVIDER_ARN="arn:aws:iam::${ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com"
 SUBJECT_PATTERN="repo:${REPO}:*"
 
 # Read straight from the terraform root this bootstraps, so a changed
@@ -80,6 +82,17 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+
+# The account this bootstraps: ACCOUNT_ID if set, else the caller's own.
+if [ -z "${ACCOUNT_ID:-}" ]; then
+  ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text 2>/dev/null)" || ACCOUNT_ID=""
+fi
+if ! [[ "$ACCOUNT_ID" =~ ^[0-9]{12}$ ]]; then
+  echo "no AWS account id to bootstrap: ACCOUNT_ID is unset and aws sts get-caller-identity gave none, or the value '$ACCOUNT_ID' is not twelve digits." >&2
+  echo "  Set ACCOUNT_ID=<12-digit account id>, or run with credentials for the account." >&2
+  exit 1
+fi
+OIDC_PROVIDER_ARN="arn:aws:iam::${ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com"
 
 LOG_GROUP_NAME="/${NAME_PREFIX}/app"
 ROLE_NAME_APP="${NAME_PREFIX}-app"
