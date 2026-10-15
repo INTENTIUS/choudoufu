@@ -40,6 +40,6 @@ estate = "ci-pipelines-example"
 # e2e/gitlab/bootstrap.sh rewrite this line in their scratch copy to the
 # emulator's own account before anything runs.
 record_store "s3" {
-  bucket       = "choudoufu-records-354867293429-us-east-1"
-  bucket_owner = "354867293429"
+  bucket       = "choudoufu-records-123456789012-us-east-1"
+  bucket_owner = "123456789012"
 }

@@ -18,7 +18,7 @@ from tlmig import moveset, verify
 
 
 # The dry-run block for a cross-estate move, exactly as the view renders it.
-def dry_run_block(frm: str, to: str, addr: str, rtype: str = "aws_iam_policy", live_id: str = "arn:aws:iam::354867293429:policy/p") -> str:
+def dry_run_block(frm: str, to: str, addr: str, rtype: str = "aws_iam_policy", live_id: str = "arn:aws:iam::123456789012:policy/p") -> str:
     return (
         "\n"
         "Would move one live resource into this estate. Nothing was written (-dry-run).\n"
@@ -40,7 +40,7 @@ def dry_run_block(frm: str, to: str, addr: str, rtype: str = "aws_iam_policy", l
 # The document -json prints, field for field. Written from
 # views.LiveMvJSONReport's own JSON tags, not from the parser.
 def json_report(frm: str, to: str, addr: str, new_addr: str | None = None,
-                rtype: str = "aws_iam_policy", live_id: str = "arn:aws:iam::354867293429:policy/p",
+                rtype: str = "aws_iam_policy", live_id: str = "arn:aws:iam::123456789012:policy/p",
                 followers: list | None = None, found_by: str = "LIST") -> dict:
     new_addr = new_addr or addr
     doc = {
@@ -168,7 +168,7 @@ class ParseJSONReport(unittest.TestCase):
                                  children=("carve.json's guess",))
         pv = moveset.parse_preview(json.dumps(json_report(
             frm="tl-mono", to="tl-team-a", addr="aws_iam_role.team_a",
-            rtype="aws_iam_role", live_id="arn:aws:iam::354867293429:role/r",
+            rtype="aws_iam_role", live_id="arn:aws:iam::123456789012:role/r",
             followers=[{"address": "aws_iam_role_policy.team_a_inline", "type": "aws_iam_role_policy"}],
         )), move=move)
         self.assertTrue(pv.ok)
@@ -178,7 +178,7 @@ class ParseJSONReport(unittest.TestCase):
         self.assertEqual(pv.from_estate, "tl-mono")
         self.assertEqual(pv.to_estate, "tl-team-a")
         self.assertEqual(pv.type, "aws_iam_role")
-        self.assertEqual(pv.live_id, "arn:aws:iam::354867293429:role/r")
+        self.assertEqual(pv.live_id, "arn:aws:iam::123456789012:role/r")
         self.assertEqual(
             [(t.key, t.frm, t.to) for t in pv.tag_writes],
             [("tofu-estate", "tl-mono", "tl-team-a"),

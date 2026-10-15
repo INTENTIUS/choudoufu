@@ -58,13 +58,13 @@ class CarveParsing(unittest.TestCase):
 class CloudTrail(unittest.TestCase):
     def test_repository_evidence_parses(self):
         doc = {
-            "claim": 13, "captured": "2026-09-03T04:43Z", "account": "354867293429", "region": "us-east-2",
+            "claim": 13, "captured": "2026-09-03T04:43Z", "account": "123456789012", "region": "us-east-2",
             "events": [
                 {"eventTime": "2026-09-03T04:39:31Z", "eventName": "CreateTags",
-                 "userIdentity.arn": "arn:aws:sts::354867293429:assumed-role/chdf-boundary-alice/chdf-boundary-alice",
+                 "userIdentity.arn": "arn:aws:sts::123456789012:assumed-role/chdf-boundary-alice/chdf-boundary-alice",
                  "resources": ["i-01e1006285c2b37b3"], "tags": {"Name": "database-v2"}, "errorCode": None},
                 {"eventTime": "2026-09-03T04:40:32Z", "eventName": "CreateTags",
-                 "userIdentity.arn": "arn:aws:sts::354867293429:assumed-role/chdf-boundary-bob/chdf-boundary-bob",
+                 "userIdentity.arn": "arn:aws:sts::123456789012:assumed-role/chdf-boundary-bob/chdf-boundary-bob",
                  "resources": ["i-01e1006285c2b37b3"], "tags": {"tofu-estate": "boundary-data"},
                  "errorCode": "Client.UnauthorizedOperation"},
             ],

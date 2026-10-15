@@ -26,7 +26,7 @@ class GuardFeedTest(unittest.TestCase):
         self.cfg = config.Config(run_id="t1", run_dir=pathlib.Path(tmp.name) / "run", binary="choudoufu")
 
     def test_a_captured_read_lands_in_the_feed_with_its_output(self) -> None:
-        with mock.patch.object(guard.subprocess, "run", return_value=FakeProc(0, "354867293429\n", "")):
+        with mock.patch.object(guard.subprocess, "run", return_value=FakeProc(0, "123456789012\n", "")):
             res = guard.aws(self.cfg, "sts", "get-caller-identity", label="which account")
         self.assertTrue(res.ok)
         feed = events.read(self.cfg)
@@ -36,7 +36,7 @@ class GuardFeedTest(unittest.TestCase):
         self.assertEqual(e["label"], "which account")
         self.assertEqual(e["returncode"], 0)
         self.assertIsNone(e["cwd"])
-        self.assertEqual(pathlib.Path(e["stdout_path"]).read_text(), "354867293429\n")
+        self.assertEqual(pathlib.Path(e["stdout_path"]).read_text(), "123456789012\n")
         self.assertIn("aws sts get-caller-identity", self.cfg.transcript_path.read_text())
 
     def test_an_uncaptured_command_records_cwd_and_no_stdout_file(self) -> None:

@@ -266,7 +266,7 @@ var parentReadRemovable = map[string]bool{
 	// IAM/ListRolePolicies returns each live policy's name, and
 	// IAM/GetRolePolicy answers a clean NoSuchEntity once a policy is
 	// deleted while its role remains - the exists/not-exists distinction
-	// this map requires, verified against real AWS (account 354867293429,
+	// this map requires, verified against real AWS (account <account-id>,
 	// 2026-09-02): GetRolePolicy returned the policy while present and
 	// "The role policy with name inline1 cannot be found" once deleted.
 	"aws_iam_role_policy": true,

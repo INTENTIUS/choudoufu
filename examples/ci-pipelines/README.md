@@ -699,7 +699,7 @@ Everything above this point runs against floci. The generated pipeline's five Op
 have since run once against a real AWS account with OIDC-minted, short-lived
 credentials and no stored key: run
 [34644390301](https://github.com/INTENTIUS/choudoufu/actions/runs/34644390301),
-main at `172bf2a390`, 2026-09-11, account `354867293429`, `us-east-1`, all 13 smoke
+main at `172bf2a390`, 2026-09-11, account `<account-id>`, `us-east-1`, all 13 smoke
 verdicts passing, including the gate recorded and resolved on the git ledger and the
 apply refusal returning exit 3 against the real account rather than an emulator. Five
 defects stood in the way of that run; each is fixed on main and each has its own
@@ -710,7 +710,7 @@ Q2 of issue #807.
 `scripts/smoke.sh` has a real-aws mode (`SMOKE_TARGET=real-aws`, run by hand) that
 does: it needs the three roles the table above already names to
 exist, and two repository variables, on `INTENTIUS/choudoufu`, in account
-`354867293429`, which already carries the `token.actions.githubusercontent.com`
+`<account-id>`, which already carries the `token.actions.githubusercontent.com`
 OIDC provider - this bootstrap never creates that provider, only a trust policy
 that points at it.
 
@@ -749,7 +749,7 @@ The maintainer runs this once, by hand, from a shell with an AWS identity that c
 create IAM roles in that account and a `gh` authenticated against the repository:
 
 ```bash
-ACCOUNT=354867293429
+ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"  # the account you are signed in to
 REGION=us-east-1                        # terraform/main.tf's aws_region default
 PREFIX=choudoufu-ci-pipelines-example    # terraform/main.tf's name_prefix default
 
@@ -762,13 +762,13 @@ aws iam list-open-id-connect-providers
 #    (see "Immutable subjects" above) - a token's `sub` claim only ever
 #    carries one of the two, but a repo that later turns the setting off
 #    would then need the plain form, so both stay in the list.
-cat > /tmp/choudoufu-ci-pipelines-trust.json <<'JSON'
+cat > /tmp/choudoufu-ci-pipelines-trust.json <<JSON
 {
   "Version": "2012-10-17",
   "Statement": [
     {
       "Effect": "Allow",
-      "Principal": { "Federated": "arn:aws:iam::354867293429:oidc-provider/token.actions.githubusercontent.com" },
+      "Principal": { "Federated": "arn:aws:iam::$ACCOUNT:oidc-provider/token.actions.githubusercontent.com" },
       "Action": "sts:AssumeRoleWithWebIdentity",
       "Condition": {
         "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
@@ -893,7 +893,7 @@ log group and an IAM role, both taggable, and no backend block. What makes it li
 estate = "ci-pipelines-example"
 
 record_store "s3" {
-  bucket = "choudoufu-records-354867293429-us-east-1"
+  bucket = "choudoufu-records-<account-id>-us-east-1"
 }
 ```
 
