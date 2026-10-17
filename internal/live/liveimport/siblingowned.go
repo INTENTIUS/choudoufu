@@ -52,6 +52,42 @@ type siblingIndex struct {
 	policyAttachments map[string]int
 }
 
+// The two parent types whose attributes a sibling writes. Package-level so
+// the type names are spelled once, next to the table below.
+const (
+	iamRoleType   = "aws_iam_role"
+	iamPolicyType = "aws_iam_policy"
+)
+
+// siblingWriter is what one attachment-type instance writes onto its
+// parents, read from its own recorded attributes: role (or roles) names the
+// role, policy_arn the policy, name and policy the inline policy.
+type siblingWriter struct {
+	// managedOnRole: policy_arn appears in each named role's
+	// managed_policy_arns.
+	managedOnRole bool
+	// inlineOnRole: name and policy appear in the role's inline_policy.
+	inlineOnRole bool
+	// countsPolicy: policy_arn's attachment_count rises by one per
+	// principal (role, user or group) the instance attaches it to.
+	countsPolicy bool
+}
+
+// siblingWriters is the hand-verified table of which AWS provider types
+// write which parent attributes. No provider schema says that one type's
+// instance changes another type's computed attribute; each row is the
+// provider's own documentation for the parent attribute ("conflicts with
+// aws_iam_role_policy_attachment", "the number of entities ... the policy is
+// attached to"). A writer missing here only means its parent stays reported
+// as drifted, the behaviour before this table existed.
+var siblingWriters = map[string]siblingWriter{
+	"aws_iam_role_policy_attachment":  {managedOnRole: true, countsPolicy: true},
+	"aws_iam_user_policy_attachment":  {countsPolicy: true},
+	"aws_iam_group_policy_attachment": {countsPolicy: true},
+	"aws_iam_policy_attachment":       {managedOnRole: true, countsPolicy: true},
+	"aws_iam_role_policy":             {inlineOnRole: true},
+}
+
 // buildSiblingIndex reads every module's attachment-type instances once.
 // Attributes are read from AttrsJSON directly: only plain string and list
 // fields are needed, and decoding through a provider schema here would need
@@ -65,22 +101,10 @@ func buildSiblingIndex(state *states.State) *siblingIndex {
 	if state == nil {
 		return idx
 	}
-	add := func(m map[string]map[string]bool, k, v string) {
-		if k == "" || v == "" {
-			return
-		}
-		if m[k] == nil {
-			m[k] = map[string]bool{}
-		}
-		m[k][v] = true
-	}
 	for _, mod := range state.Modules {
 		for _, res := range mod.Resources {
-			typeName := res.Addr.Resource.Type
-			switch typeName {
-			case "aws_iam_role_policy_attachment", "aws_iam_user_policy_attachment",
-				"aws_iam_group_policy_attachment", "aws_iam_role_policy", "aws_iam_policy_attachment":
-			default:
+			w, ok := siblingWriters[res.Addr.Resource.Type]
+			if !ok {
 				continue
 			}
 			for _, inst := range res.Instances {
@@ -89,6 +113,8 @@ func buildSiblingIndex(state *states.State) *siblingIndex {
 				}
 				var a struct {
 					Role      string   `json:"role"`
+					User      string   `json:"user"`
+					Group     string   `json:"group"`
 					Name      string   `json:"name"`
 					Policy    string   `json:"policy"`
 					PolicyARN string   `json:"policy_arn"`
@@ -99,30 +125,33 @@ func buildSiblingIndex(state *states.State) *siblingIndex {
 				if json.Unmarshal(inst.Current.AttrsJSON, &a) != nil {
 					continue
 				}
-				switch typeName {
-				case "aws_iam_role_policy_attachment":
-					add(idx.roleManaged, a.Role, a.PolicyARN)
-					if a.PolicyARN != "" {
-						idx.policyAttachments[a.PolicyARN]++
-					}
-				case "aws_iam_user_policy_attachment", "aws_iam_group_policy_attachment":
-					if a.PolicyARN != "" {
-						idx.policyAttachments[a.PolicyARN]++
-					}
-				case "aws_iam_role_policy":
-					if a.Role != "" && a.Name != "" {
-						if idx.roleInline[a.Role] == nil {
-							idx.roleInline[a.Role] = map[string]string{}
+				roles := a.Roles
+				if a.Role != "" {
+					roles = append(roles, a.Role)
+				}
+				if w.managedOnRole && a.PolicyARN != "" {
+					for _, r := range roles {
+						if idx.roleManaged[r] == nil {
+							idx.roleManaged[r] = map[string]bool{}
 						}
-						idx.roleInline[a.Role][a.Name] = a.Policy
+						idx.roleManaged[r][a.PolicyARN] = true
 					}
-				case "aws_iam_policy_attachment":
-					for _, r := range a.Roles {
-						add(idx.roleManaged, r, a.PolicyARN)
+				}
+				if w.inlineOnRole && a.Role != "" && a.Name != "" {
+					if idx.roleInline[a.Role] == nil {
+						idx.roleInline[a.Role] = map[string]string{}
 					}
-					if a.PolicyARN != "" {
-						idx.policyAttachments[a.PolicyARN] += len(a.Roles) + len(a.Users) + len(a.Groups)
+					idx.roleInline[a.Role][a.Name] = a.Policy
+				}
+				if w.countsPolicy && a.PolicyARN != "" {
+					n := len(roles) + len(a.Users) + len(a.Groups)
+					if a.User != "" {
+						n++
 					}
+					if a.Group != "" {
+						n++
+					}
+					idx.policyAttachments[a.PolicyARN] += n
 				}
 			}
 		}
@@ -141,7 +170,7 @@ func (idx *siblingIndex) siblingExplained(typeName string, prior, live cty.Value
 	}
 	out := map[string]bool{}
 	switch typeName {
-	case "aws_iam_role":
+	case iamRoleType:
 		name := stringAttr(prior, "name")
 		if name == "" {
 			return nil
@@ -152,13 +181,13 @@ func (idx *siblingIndex) siblingExplained(typeName string, prior, live cty.Value
 		if inlineMatches(live, idx.roleInline[name]) {
 			out["inline_policy"] = true
 		}
-	case "aws_iam_policy":
+	case iamPolicyType:
 		arn := stringAttr(prior, "arn")
 		if arn == "" || !live.Type().HasAttribute("attachment_count") {
 			return nil
 		}
 		n := live.GetAttr("attachment_count")
-		if n.IsNull() || !n.IsKnown() || n.Type() != cty.Number {
+		if n.IsMarked() || n.IsNull() || !n.IsKnown() || n.Type() != cty.Number {
 			return nil
 		}
 		if got, acc := n.AsBigFloat().Int64(); acc == 0 && got == int64(idx.policyAttachments[arn]) {
@@ -179,7 +208,7 @@ func stringAttr(obj cty.Value, name string) string {
 		return ""
 	}
 	v := obj.GetAttr(name)
-	if v.IsNull() || !v.IsKnown() || v.Type() != cty.String {
+	if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String {
 		return ""
 	}
 	return v.AsString()
@@ -193,7 +222,7 @@ func stringSet(obj cty.Value, name string, key func(cty.Value) string) (map[stri
 		return nil, false
 	}
 	v := obj.GetAttr(name)
-	if !v.IsWhollyKnown() {
+	if v.IsMarked() || !v.IsWhollyKnown() {
 		return nil, false
 	}
 	out := map[string]bool{}
@@ -206,6 +235,9 @@ func stringSet(obj cty.Value, name string, key func(cty.Value) string) (map[stri
 	}
 	for it := v.ElementIterator(); it.Next(); {
 		_, el := it.Element()
+		if el.IsMarked() {
+			return nil, false
+		}
 		var s string
 		switch {
 		case key != nil:
@@ -232,7 +264,7 @@ func inlineMatches(live cty.Value, want map[string]string) bool {
 		return false
 	}
 	v := live.GetAttr("inline_policy")
-	if !v.IsWhollyKnown() {
+	if v.IsMarked() || !v.IsWhollyKnown() {
 		return false
 	}
 	if v.IsNull() {
