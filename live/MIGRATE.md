@@ -135,6 +135,22 @@ every entry the report showed as `VERIFIED` or `DRIFTED`. `MISSING`,
 for each one. `-estate` is required here, unlike `live-plan` and `live-mv`,
 because there is no configuration to derive the name from.
 
+To watch the `-approve` run, add `-progress-json`. It writes one JSON line
+to stderr for each resource as its marker write returns, in the order the
+writes return:
+
+```
+{"at":"2026-10-16T12:00:00.123456789Z","estate_from":"","estate_to":"my-estate","address":"aws_s3_bucket.data","live_id":"my-bucket","outcome":"stamped"}
+```
+
+`outcome` is `stamped`, `refused` or `skipped`, and the last two carry a
+`reason`. Entries that are never written get a `skipped` line, so the lines
+add up to the report. `estate_from` is empty because the source is a state
+file. `live-mv -progress-json` prints the same line for its one write, with
+`moved` in place of `stamped`. Each child that follows its parent gets a
+`moved` line of its own whose `follows` names the parent. Stdout is the same
+with or without the flag.
+
 Run it in a directory `choudoufu init` has already prepared, beside the same
 provider configuration the state was last applied with. Identity comes out of
 the state file rather than out of a resource block, but reaching the live

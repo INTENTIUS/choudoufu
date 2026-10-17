@@ -40,13 +40,6 @@ every entry the report showed as `VERIFIED` or `DRIFTED`. Entries shown as
 report says why for each. The state file is read once and never changed. The
 command works on AWS and on Kubernetes.
 
-Add `-progress-json` to the `-approve` run to watch it: one JSON line goes to
-stderr for each resource as its marker write returns, with the fields `at`,
-`estate_from` (empty here, since the source is a state file), `estate_to`,
-`address`, `live_id`, `outcome` (`stamped`, `refused` or `skipped`) and
-`reason`. Entries that are never written get a `skipped` line, so the lines
-add up to the report.
-
 ## Without a state file: adopt by hand
 
 This path never offers a `count` or `for_each` instance, so use `live-import`
