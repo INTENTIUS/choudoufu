@@ -7,6 +7,7 @@ package mv
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -193,14 +194,18 @@ func TestMove_LabelSurfaceRenameRefusesAPlanMovingAnotherAnnotation(t *testing.T
 // policy's answer to a patch: given the labels the patch sets, it returns
 // the server's refusal, or "" to admit it.
 type manifestCluster struct {
-	object   *unstructured.Unstructured
-	mutate   func(*unstructured.Unstructured)
-	reject   func(labels map[string]string) string
-	dryRuns  int
-	realRuns int
-	labelled int
-	rejected int
-	managers []string
+	object *unstructured.Unstructured
+	mutate func(*unstructured.Unstructured)
+	reject func(labels map[string]string) string
+	// beforeDryRun, when set, runs against the stored object just before
+	// each dry run is answered: a controller writing the object between
+	// the caller's read and its dry run (GitHub issue #2050).
+	beforeDryRun func(*unstructured.Unstructured)
+	dryRuns      int
+	realRuns     int
+	labelled     int
+	rejected     int
+	managers     []string
 }
 
 func (c *manifestCluster) LabelPatcher(context.Context, addrs.AbsProviderConfig) (kubesweep.LabelPatcher, error) {
@@ -222,6 +227,9 @@ func (c *manifestCluster) PatchMarkers(_ context.Context, _ kubesweep.ObjectRef,
 			return nil, why, nil
 		}
 	}
+	if dryRun && c.beforeDryRun != nil {
+		c.beforeDryRun(c.object)
+	}
 	next := c.object.DeepCopy()
 	if len(labels) > 0 {
 		c.labelled++
@@ -242,7 +250,13 @@ func (c *manifestCluster) PatchMarkers(_ context.Context, _ kubesweep.ObjectRef,
 		ann[k] = v
 	}
 	next.SetAnnotations(ann)
-	next.SetResourceVersion("2")
+	// resourceVersion moves only on a real write. A dry run answers with
+	// the resourceVersion of the object it was computed against
+	// (k8s.io/apiserver's DryRunnableStorage.GuaranteedUpdate runs the
+	// update on the stored object and writes nothing).
+	if !dryRun {
+		next.SetResourceVersion(nextResourceVersion(c.object.GetResourceVersion()))
+	}
 	if c.mutate != nil {
 		c.mutate(next)
 	}
@@ -253,6 +267,15 @@ func (c *manifestCluster) PatchMarkers(_ context.Context, _ kubesweep.ObjectRef,
 	c.realRuns++
 	c.object = next
 	return next.DeepCopy(), "", nil
+}
+
+// nextResourceVersion is the store's counter after one more write.
+func nextResourceVersion(rv string) string {
+	n, err := strconv.Atoi(rv)
+	if err != nil {
+		return rv + "+1"
+	}
+	return strconv.Itoa(n + 1)
 }
 
 const manifestTestImportID = "apiVersion=stable.example.com/v1,kind=CronTab,namespace=smoke-crd,name=my-crontab"

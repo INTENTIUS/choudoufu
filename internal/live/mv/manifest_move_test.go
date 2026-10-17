@@ -332,3 +332,70 @@ func (r *recordingPatcher) PatchMarkers(ctx context.Context, ref kubesweep.Objec
 	r.annotationKeys = append(r.annotationKeys, slices.Sorted(maps.Keys(annotations)))
 	return r.manifestCluster.PatchMarkers(ctx, ref, labels, annotations, fieldManager, dryRun)
 }
+
+// TestMove_ManifestSurfaceAControllerWriteBeforeTheDryRunIsNotAWebhookRewrite
+// is GitHub issue #2050, live-import's #2043 on live-mv's manifest
+// carrier: a controller rewrites the object's status between live-mv's
+// read and its dry run, the dry run answers with that newer object, and
+// the rename or move was refused as if a webhook had rewritten the status.
+// The dry run's resourceVersion names the object it was computed against,
+// so a dry run newer than the read is re-read and sent again.
+func TestMove_ManifestSurfaceAControllerWriteBeforeTheDryRunIsNotAWebhookRewrite(t *testing.T) {
+	for name, request := range map[string]func(*testing.T, *manifestCluster) Request{
+		"rename": func(t *testing.T, c *manifestCluster) Request {
+			req, _ := manifestRenameRequest(t, c)
+			return req
+		},
+		"move": func(t *testing.T, c *manifestCluster) Request { return manifestMoveRequest(t, c, "data") },
+	} {
+		t.Run(name, func(t *testing.T) {
+			live := liveCronTab(map[string]string{markers.TagEstate: "app"}, nil)
+			_ = unstructured.SetNestedField(live.Object, "2026-10-12T21:40:00Z", "status", "refreshTime")
+			writes := 0
+			cluster := &manifestCluster{object: live, beforeDryRun: func(u *unstructured.Unstructured) {
+				if writes > 0 {
+					return
+				}
+				writes++
+				_ = unstructured.SetNestedField(u.Object, "2026-10-12T21:41:00Z", "status", "refreshTime")
+				u.SetResourceVersion(nextResourceVersion(u.GetResourceVersion()))
+			}}
+			res, diags := Move(t.Context(), request(t, cluster))
+			if diags.HasErrors() {
+				t.Fatalf("refused: %s; the status moved because the controller wrote it, not because the patch did", diags.Err())
+			}
+			if !res.Written || !res.Verified {
+				t.Errorf("Written = %v, Verified = %v; want a verified write", res.Written, res.Verified)
+			}
+			if cluster.dryRuns != 2 || cluster.realRuns != 1 {
+				t.Errorf("patches: %d dry, %d real; want two dry runs (one against the first read, one against the controller's write) and one real", cluster.dryRuns, cluster.realRuns)
+			}
+		})
+	}
+}
+
+// TestMove_ManifestSurfaceAnObjectThatKeepsMovingIsRefusedAndSaysSo
+// bounds #2050's retry: an object rewritten before every dry run is
+// refused, the refusal names the other writer rather than a webhook, and
+// nothing is written.
+func TestMove_ManifestSurfaceAnObjectThatKeepsMovingIsRefusedAndSaysSo(t *testing.T) {
+	n := 0
+	cluster := &manifestCluster{object: liveCronTab(map[string]string{markers.TagEstate: "app"}, nil), beforeDryRun: func(u *unstructured.Unstructured) {
+		n++
+		_ = unstructured.SetNestedField(u.Object, int64(n), "status", "observed")
+		u.SetResourceVersion(nextResourceVersion(u.GetResourceVersion()))
+	}}
+	_, diags := Move(t.Context(), manifestMoveRequest(t, cluster, "data"))
+	if !diags.HasErrors() || !strings.Contains(diags.Err().Error(), "kept changing") {
+		t.Fatalf("diags = %v, want a refusal saying the object kept changing", diags.Err())
+	}
+	if cluster.dryRuns != manifestDryRunAttempts {
+		t.Errorf("dry runs = %d, want %d", cluster.dryRuns, manifestDryRunAttempts)
+	}
+	if cluster.realRuns != 0 {
+		t.Errorf("the real patch was sent %d time(s) without a dry run judged against the same object, want 0", cluster.realRuns)
+	}
+	if got := cluster.object.GetLabels()[markers.TagEstate]; got != "app" {
+		t.Errorf("tofu-estate = %q after a refused move", got)
+	}
+}
