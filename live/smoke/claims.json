@@ -704,8 +704,17 @@
           "note": "Unproven: the scenario is not written and has never run. The unit half is internal/live/cone and internal/command/live_cone_plan_test.go."
         },
         "kubernetes": {
-          "status": "open",
-          "note": "A cone plan runs on a Kubernetes estate the same way; no scenario measures it."
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/k8s-plan-cost-tracks-the-change.sh",
+              "command": "just smoke k8s-plan-cost-tracks-the-change",
+              "minutes": 4,
+              "break_mode": "BREAK=1 points -cone at a base that is not a commit, so the guard plans the whole estate with its fallback warning, and passes only when the check the main arm holds a cone plan to refuses that plan: every ConfigMap read by name and the full plan's request count",
+              "note": "One change to one of 20 ConfigMaps, which a second block reads, planned in full and with -cone=HEAD through live/smoke/k8sproxy.py, then again once the estate has grown to 80. The cone plan must read those two ConfigMaps by name and no other, propose the full plan's changes, and send the same request count at 20 and 80 while the full plan's grows by at least one request per added ConfigMap. Written for #2077; minutes are an estimate until the first run."
+            }
+          ],
+          "note": "Unproven until a dated run: k8s-plan-cost-tracks-the-change.sh has no evidence file with a date (no workflow has run a claim scenario since #2018). The marker sweep stays estate-wide on a cone plan, which on a cluster is discovery and one label-selected list per kind served (#1065); what the cone removes is the per-object read of every block outside it."
         }
       }
     },
