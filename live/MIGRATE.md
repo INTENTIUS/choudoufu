@@ -115,10 +115,7 @@ once, verifies each entry against the live system, and stamps markers on what
 verifies, leaving you in the "already marked" group above with nothing to
 hand-write.
 
-`choudoufu live-import -help` opens with the word `EXPERIMENTAL.`, and the
-command list carries `(experimental)` beside the one-line synopsis. Read that
-as a statement about the command's surface. It says nothing about what gets
-written: the markers it stamps are the same `tofu-estate` and `tofu-address`
+The markers `live-import` stamps are the same `tofu-estate` and `tofu-address`
 pair every other adoption path writes, and the state file is opened once,
 read-only, and never modified.
 

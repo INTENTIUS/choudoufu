@@ -1,7 +1,7 @@
 # Governance
 
-choudoufu is a fork of OpenTofu maintained by INTENTIUS. It is experimental,
-and its governance is deliberately small.
+choudoufu is a fork of OpenTofu maintained by INTENTIUS. Its scope is AWS
+and Kubernetes, and its governance is deliberately small.
 
 ## What is decided here
 

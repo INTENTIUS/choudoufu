@@ -274,8 +274,7 @@ func initCommands(meta command.Meta) {
 		},
 
 		// Live mode's plan path. Public since 2026-08-18 (commit
-		// fd85ceca07): real, tested end to end, and self-labeled
-		// "(experimental)" in its own synopsis - hiding it while live-check
+		// fd85ceca07): real and tested end to end - hiding it while live-check
 		// stood in the top-level help was a discoverability bug, not a
 		// deliberate maturity gate.
 		"live-plan": func() (cli.Command, error) {
@@ -300,8 +299,7 @@ func initCommands(meta command.Meta) {
 		// once, verify it against the live system, and stamp markers on
 		// what verifies. Public since 2026-08-18 (commit fd85ceca07),
 		// alongside live-plan: real, tested against a fresh floci
-		// container both greenfield and via migration, and self-labeled
-		// "(experimental)" in its own synopsis.
+		// container both greenfield and via migration.
 		"live-import": func() (cli.Command, error) {
 			return &command.LiveImportCommand{
 				Meta: meta,

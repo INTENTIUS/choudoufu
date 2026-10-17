@@ -498,7 +498,7 @@ func (c *LiveImportCommand) Help() string {
 	helpText := `
 Usage: choudoufu [global options] live-import -state=PATH -estate=NAME [-approve]
 
-  EXPERIMENTAL. Migrates an existing, state-backed estate to live resource
+  Migrates an existing, state-backed estate to live resource
   markers in bulk: reads a tfstate file (v4 format) once, read-only, verifies
   every root-module managed resource it names against the live system, and
   prints a ratification report. No tag is written on this run.
@@ -580,5 +580,5 @@ Options:
 }
 
 func (c *LiveImportCommand) Synopsis() string {
-	return "Migrate a state-backed estate to live resource markers in bulk (experimental)"
+	return "Migrate a state-backed estate to live resource markers in bulk"
 }

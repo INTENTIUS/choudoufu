@@ -694,7 +694,7 @@ func (c *LiveMvCommand) Help() string {
 	helpText := `
 Usage: choudoufu [global options] live-mv [options] <old-address> <new-address>
 
-  EXPERIMENTAL. Renames a resource in a marker-managed estate by rewriting the
+  Renames a resource in a marker-managed estate by rewriting the
   tofu-address ownership marker on the live resource that carries the old
   address. That tag write is the move: there is no state to edit and no
   "moved" block to author, and the old address is gone the instant the new
@@ -813,5 +813,5 @@ Environment variables:
 }
 
 func (c *LiveMvCommand) Synopsis() string {
-	return "Rename a resource by rewriting its ownership marker; the marker is the record (experimental)"
+	return "Rename a resource by rewriting its ownership marker; the marker is the record"
 }

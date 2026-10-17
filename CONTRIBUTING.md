@@ -1,7 +1,7 @@
 # Contributing to choudoufu
 
-choudoufu is a fork of OpenTofu that adds live resource markers. It is
-experimental and AWS only.
+choudoufu is a fork of OpenTofu that adds live resource markers. Its scope
+is AWS and Kubernetes.
 
 **Contributing to upstream OpenTofu is a different thing entirely.** Its
 process, Slack, issue tracker and community meetings are at
