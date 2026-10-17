@@ -31,10 +31,10 @@ just smoke k8s-greenfield
 
 ## What it costs against stock
 
-A four-object estate's plan sent 74 requests, and 74 again with 80 foreign
-ConfigMaps added: every list carries the estate's label selector, and the
-floor is one list per kind served
+At commit `20bc8ccbcf`, a four-object estate's plan sent 74 requests, and 74
+again with 80 foreign ConfigMaps added: every list carries the estate's
+selector, and the floor is one list per kind
 ([claim 14]({{< relref "/docs/claims/plan-cost-tracks-the-estate" >}})).
 The change cone
 ([claim 47]({{< relref "/docs/claims/plan-cost-tracks-the-change" >}})) is
-still open.
+open.
