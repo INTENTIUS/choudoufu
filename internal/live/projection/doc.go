@@ -11,11 +11,22 @@
 // [Build] takes a configuration, the identity package's classification of
 // it, and a way to reach configured providers, and returns a
 // [states.State] holding one resource instance object per live object it
-// could find. Nothing is written to disk, ever: the state is built in
-// memory, handed to the caller, and expected to be discarded when the
-// operation that asked for it ends. This package has no file access and no
-// statemgr dependency, so that property is structural rather than a
-// promise.
+// could find. [BuildWith]'s [Options] add the estate's record store, the
+// previous run's cache, and the ownership check.
+//
+// The record comes first (#364, the foundation-order ruling #388): before
+// any instance is routed by class, it gets one attempt to materialize from
+// its record in [Options.RecordStore], verified against the live object.
+// An instance with no record, or whose record names a stale object, goes on
+// down the class path below exactly as if no store were configured.
+//
+// What this package builds is a projection, never a record. [Manager]
+// writes it after the run to choudoufu-cache.tfstate (#685), and the next
+// build may take that file as [Options.StateCache]. The cache is a
+// candidate set: a cached object stands in for a read only for an instance
+// the marker sweep vouched for in the same run, and only under
+// -refresh=false ([Options.CacheServesReads]). A stale or missing cache
+// costs reads, never correctness.
 //
 // # What gets materialized
 //
@@ -28,8 +39,12 @@
 //     are parents' live IDs. They are materialized after their parents, in
 //     dependency order, with the formula rendered from the parents'
 //     just-materialized attribute values.
-//   - [identity.ClassNeedsDiscovery] instances have no identity at all
-//     until P2's marker discovery lands. They are omitted, with a reason.
+//   - [identity.ClassNeedsDiscovery] instances have a server-assigned
+//     identity that appears nowhere in configuration. The caller runs
+//     marker discovery (internal/live/discovery) first, which turns every
+//     instance it binds into a concrete resolution. One that arrives here
+//     still needing discovery had no record and no marked object the sweep
+//     could bind, and is omitted with a reason.
 //
 // A parent-derived instance whose parent is itself absent from the
 // projection - because the parent needs discovery, because the parent's
@@ -64,8 +79,8 @@
 // An instance the projection cannot materialize is simply not in the
 // returned state, which makes the subsequent plan propose creating it.
 // That is the correct answer when the live object really does not exist,
-// and an over-eager answer when the object exists but live mode
-// cannot yet find it (the needs-discovery case, until P2). Neither is a
+// and an over-eager answer when the object exists but neither its record
+// nor marker discovery found it (the needs-discovery case). Neither is a
 // failure of this package, so neither produces an error diagnostic. What
 // does produce an error diagnostic is a provider misbehaving: an import
 // call that returns an error, a read that returns an object that does not

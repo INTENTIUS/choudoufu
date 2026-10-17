@@ -240,9 +240,9 @@ type Reason string
 
 const (
 	// ReasonNeedsDiscovery means the identity package could not name the
-	// instance at all, because its identity is server-assigned. Marker
-	// discovery (P2) is what fixes this; until then the plan will propose
-	// creating a resource that already exists.
+	// instance at all, because its identity is server-assigned, and neither
+	// a record nor marker discovery bound it. If the object does exist, the
+	// plan will propose creating a second one.
 	ReasonNeedsDiscovery Reason = "NEEDS_DISCOVERY"
 
 	// ReasonParentUnavailable means the instance's identity is a formula

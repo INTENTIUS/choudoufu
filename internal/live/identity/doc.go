@@ -39,9 +39,10 @@
 //     builder (P1.3) renders the formula into a real import ID once the
 //     parents' live IDs are known. This is admission path 3.
 //   - [ClassNeedsDiscovery]: the identity is assigned by the server and
-//     appears nowhere in configuration, so it can only come from marker
-//     discovery (P2). [Resolution.Reason] says why. This is admission
-//     path 2.
+//     appears nowhere in configuration, so it comes from the instance's
+//     record or, failing that, from marker discovery
+//     (internal/live/discovery). [Resolution.Reason] says why. This is
+//     admission path 2.
 //
 // The distinction between the second and third classes is the one thing
 // this package exists to make explicit. A parent-derived identity is

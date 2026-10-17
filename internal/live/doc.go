@@ -3,29 +3,50 @@
 // Copyright (c) 2023 HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-// Package live implements OpenTofu's live mode: a run mode with
-// no authoritative state file, no backend, and no lock. Identity is
-// recovered from the live system on every operation instead of being read
-// from a stored record.
+// Package live implements OpenTofu's live mode. An estate's live backend is
+// three pieces: identity carried as ownership markers (tags, or a label on
+// Kubernetes) on the objects themselves, the values a provider never echoes
+// back held in the record store, and the effects of an apply as receipts.
+// The state file a run writes is a cache: a projection of those three that
+// may always be thrown away.
 //
-// # Projections
+// # Records
 //
-// The state data structure does not disappear; its authority does. A
-// projection is an ephemeral prior-state, built at the start of an
-// operation by reading the live system and discarded once the operation
-// completes. It is fed to the unchanged plan engine in place of a state
-// read and is never persisted. Same shape as a states.State, none of the
-// authority: nothing downstream trusts a projection to be correct, because
-// nothing depends on it surviving past the run that built it.
+// Every managed instance has a record in the estate's record store
+// (internal/live/staterecord: a local directory by default, or an s3 or
+// kubernetes store for a team): its identity, the arguments the provider
+// does not return, sensitivity marks, taint and deposed keys, one per
+// resource, namespaced per estate and written with compare-and-swap.
+// live-import and every apply write it.
 //
-// Contrast with authoritative state, whose test is that a wrong record
-// makes OpenTofu do the wrong thing to the world. A wrong projection costs
-// at most a re-plan.
+// Binding is record first (the foundation-order ruling, #388): a plan reads
+// an instance's record and verifies it against the live object's marker.
+// Marker discovery (internal/live/discovery) and derivation from
+// configuration are the recovery paths, taken when there is no record or the
+// record and the marker disagree. A record is never read as permission to
+// delete; the marker decides ownership.
+//
+// # Projections and the cache
+//
+// A projection is the prior state a run plans against, built at the start
+// of the operation from records, markers and live reads, and fed to the
+// unchanged plan engine in place of a state read. Same shape as a
+// states.State, none of the authority.
+//
+// After a run, the projection is written to choudoufu-cache.tfstate under
+// the data dir (#685). Three rules govern it, pinned by
+// live/stale_state_ruling_test.go: the cache is never consulted for
+// ownership; when cache and live disagree, live wins; losing the cache costs
+// a slower run and nothing else. A cached object stands in for a read only
+// for an instance the sweep vouched for in the same run, and only under
+// -refresh=false. A wrong or missing cache costs reads and cannot change a
+// plan.
 //
 // # Admission
 //
-// A resource type participates in live mode only if its identity is
-// recoverable with no memory. Four paths admit a resource, strongest first:
+// Admission is how an instance's identity is recovered without its record,
+// which is what rebuilds a lost record and checks a present one. Four paths,
+// strongest first:
 //
 //  1. Client-assigned identity: the name is already in the configuration
 //     (a bucket name, a role name, a log group name). Nothing to recover.
@@ -35,8 +56,10 @@
 //     parents, such as a route keyed by route table and destination, or an
 //     association keyed by subnet and route table.
 //
-// A resource type with none of these three paths is out of the live-mode
-// subset and is rejected by lint before a projection is ever built.
+// A resource type with none of these three paths holds its identity in its
+// record alone, the record rung (identity.ClassRecordBacked and
+// identity.ClassRecordLocated); lint checks before a projection is built
+// that such a type has a record store to live in.
 //
 // A fourth exists, narrowly: "list and content match" (issue #272,
 // discovery/contentmatch.go). It applies only to the handful of types in
@@ -96,12 +119,13 @@
 // The projection is built and consumed at three seams in the existing
 // codebase, not in a parallel state system:
 //
-//   - internal/states/statemgr: Filesystem is the model for a projection
-//     manager. A projection manager's Refresh/State builds its snapshot
-//     from live reads instead of a file, and Persist writes nothing (or,
-//     when a record_store is configured, guided discovery's plan-cost
-//     hint - a type roster and a timestamp that no code path reads back
-//     as truth; issue #109).
+//   - internal/states/statemgr: projection.Manager is the state manager a
+//     live run uses. The prior state does not arrive through its Refresh;
+//     the run's own pipeline builds the projection and hands it over.
+//     Persist writes the cache (#685) and, with a record store, guided
+//     discovery's plan-cost hint (a type roster and a timestamp; issue
+//     #109). Neither is read back as truth, and neither can fail the
+//     operation.
 //   - Import machinery in internal/tofu: resource identity is merged
 //     upstream (opentofu#2854); the same import-by-identity path that
 //     backs tofu import is how a projection materializes a states.State
