@@ -197,14 +197,20 @@ func Compute(ctx context.Context, o Options) (*Result, error) {
 		if ok && bb.text == hb.text {
 			continue
 		}
-		switch hb.kind {
-		case kindProvider:
+		switch {
+		case hb.kind == kindProvider && !ok:
+			res.fall(GuardProvider, "a provider block was added: "+key)
+		case hb.kind == kindProvider:
 			res.fall(GuardProvider, "a provider block changed: "+key)
-		case kindLive:
+		case hb.kind == kindLive && !ok:
+			res.fall(GuardLiveBlock, "the live block was added")
+		case hb.kind == kindLive:
 			res.fall(GuardLiveBlock, "the live block changed")
-		case kindTerraform:
+		case hb.kind == kindTerraform && !ok:
+			res.fall(GuardTerraform, "the terraform block was added")
+		case hb.kind == kindTerraform:
 			res.fall(GuardTerraform, "the terraform block changed (required_providers, backend or settings)")
-		case kindRefactor:
+		case hb.kind == kindRefactor:
 			// Handled below, from both sides.
 		default:
 			changed[key] = true
@@ -432,8 +438,14 @@ type file struct {
 	src  []byte
 }
 
+// baseConfigFiles reads the root's configuration files at base. prefix is
+// the root's path from the repository top (rev-parse --show-prefix), and
+// both reads name it that way. Without --full-tree, ls-tree run from a
+// subdirectory filters the listing by the working directory as well, so a
+// root below the repository top listed nothing and read as an empty base
+// module (#2062).
 func baseConfigFiles(ctx context.Context, dir, base, prefix string) ([]file, error) {
-	list, err := gitOut(ctx, dir, "ls-tree", "--name-only", "-z", base+":"+prefix)
+	list, err := gitOut(ctx, dir, "ls-tree", "--full-tree", "--name-only", "-z", base+":"+prefix)
 	if err != nil {
 		// The directory did not exist at base: an empty base module.
 		return nil, nil

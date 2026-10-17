@@ -191,3 +191,45 @@ func TestConeBreakDroppedDependentIsCaught(t *testing.T) {
 		t.Fatalf("a cone without descendants was not caught: %v", got)
 	}
 }
+
+// A root in a subdirectory of its repository reads its base files from
+// that subdirectory (#2062). The listing used to come back empty there, so
+// every block read as added and the cone fell back naming the terraform
+// block.
+func TestConeRootInSubdirectory(t *testing.T) {
+	top := t.TempDir()
+	dir := filepath.Join(top, "live", "a")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const tfBlock = "terraform {\n  required_providers {\n    aws = { source = \"hashicorp/aws\" }\n  }\n}\n"
+	gitT(t, top, "init", "-q")
+	write(t, dir, "versions.tf", tfBlock)
+	write(t, dir, "main.tf", baseMain)
+	write(t, top, "README", "repo top\n")
+	gitT(t, top, "add", "-A")
+	gitT(t, top, "commit", "-q", "-m", "base")
+	write(t, dir, "main.tf", strings.Replace(baseMain, `{ value = "7" }`, `{ value = "8" }`, 1))
+
+	res := compute(t, dir)
+	if res.Guard.Full {
+		t.Fatalf("guard fell back: %+v", res.Guard)
+	}
+	if want := []string{"aws_ssm_parameter.p7"}; !reflect.DeepEqual(res.Targets, want) {
+		t.Fatalf("targets = %v, want %v", res.Targets, want)
+	}
+
+	// A fallback names what differs: an edited terraform block reads as
+	// changed, and one with no counterpart at base reads as added.
+	write(t, dir, "versions.tf", strings.Replace(tfBlock, "terraform {\n", "terraform {\n  backend \"local\" {}\n", 1))
+	if res := compute(t, dir); res.Guard.Kind != GuardTerraform || !strings.HasPrefix(res.Guard.Reason, "the terraform block changed") {
+		t.Fatalf("edited terraform block: guard = %+v", res.Guard)
+	}
+	write(t, dir, "versions.tf", "")
+	gitT(t, top, "add", "-A")
+	gitT(t, top, "commit", "-q", "-m", "drop terraform block")
+	write(t, dir, "versions.tf", tfBlock)
+	if res := compute(t, dir); res.Guard.Kind != GuardTerraform || res.Guard.Reason != "the terraform block was added" {
+		t.Fatalf("added terraform block: guard = %+v", res.Guard)
+	}
+}
