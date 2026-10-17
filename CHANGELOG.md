@@ -37,7 +37,26 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
    `generated-from.json` alongside the pin. Skipping this step for more than
    one release cycle is what `TestCIPipelinePinIsTiedToRelease` turns red for.
 
-## choudoufu v0.29.0 (Unreleased)
+## choudoufu v0.30.0 (Unreleased)
+
+## choudoufu v0.29.0 (2026-10-16)
+
+Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.29.0.json`](live/history/v0.29.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.28.0.json live/history/v0.29.0.json`):
+
+### Board movement
+
+- Core estates: 23/23 clear -> 23/23 clear (0)
+- All estates: 24/25 clear -> 24/25 clear (0)
+
+### Newly cleared
+
+- none
+
+### Regressed
+
+- none
 
 - `live-mv` and `live-import -approve` take `-progress-json`, which writes one JSON line to stderr per resource as its marker write returns; stdout is unchanged (#2063, #2064).
 - `live-mv`, `live-import` and `live-plan` help and synopses no longer say "experimental", and CONTRIBUTING.md, CHARTER.md and GOVERNANCE.md describe choudoufu by its scope, AWS and Kubernetes (#2065).
