@@ -47,6 +47,12 @@ type LiveMv struct {
 	// receipt to match against. See internal/command/views/live_mv.go's
 	// LiveMvJSONReport.
 	JSON bool
+
+	// ProgressJSON writes one JSON line to stderr per resource as its
+	// marker write returns, refusals and skips included - GitHub issue
+	// #2063. Stdout is unchanged by it. See internal/command/views'
+	// LiveProgressLine.
+	ProgressJSON bool
 }
 
 // BindLiveMv registers live-mv's options and its two addresses on cli.
@@ -69,6 +75,7 @@ func BindLiveMv(cli *CommandLine) *LiveMv {
 	cli.BoolVar(&liveMv.DryRun, "dry-run", false, "Make every check and report what would be rewritten, without writing.")
 	cli.BoolVar(&liveMv.AllowMissingConfig, "allow-missing-config", false, "Permit a destination address the configuration does not declare.")
 	cli.BoolVar(&liveMv.JSON, "json", false, "Print the move as one JSON document.")
+	cli.BoolVar(&liveMv.ProgressJSON, "progress-json", false, "Write one JSON line to stderr per resource as its marker write returns.")
 	cli.BoolVar(&input, "input", true, "Accepted and ignored: this command never prompts.").SetDisplay("=false")
 
 	var rest []string

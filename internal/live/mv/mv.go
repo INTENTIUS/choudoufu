@@ -174,6 +174,14 @@ type Request struct {
 	// rewrites (GitHub issue #1639). Nil refuses that rename by name and
 	// leaves every other move exactly as it was.
 	Clusters Clusters
+
+	// OnWritten, when set, is called once with the Result the moment the
+	// marker write returns successfully, before the write is verified and
+	// before any record follows it. live-mv's -progress-json (GitHub issue
+	// #2063) prints its line from here, so a viewer sees the write when it
+	// lands rather than when the whole run finishes. It is never called on a
+	// dry run, on a refusal, or when there was nothing to write.
+	OnWritten func(*Result)
 }
 
 // Clusters is [Request.Clusters]'s interface: internal/command's
@@ -467,6 +475,15 @@ type mover struct {
 	provider     providers.Interface
 	providerAddr addrs.AbsProviderConfig
 	schema       providers.Schema
+}
+
+// written records that the marker write returned successfully and tells
+// [Request.OnWritten].
+func (m *mover) written() {
+	m.res.Written = true
+	if m.req.OnWritten != nil {
+		m.req.OnWritten(m.res)
+	}
 }
 
 // sourceEstate is the estate the live resource is looked for under: the

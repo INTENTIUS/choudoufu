@@ -263,6 +263,9 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		// GitHub issue #583: -parallelism, spelled and defaulted as stock's
 		// apply spells it. Ratify ignores it; Approve is what spends it.
 		Parallelism: args.Parallelism,
+		// GitHub issue #2063: one stderr line per resource as -approve's
+		// write for it returns. Ratify ignores it.
+		Progress: liveImportProgress(c.View, args),
 	})
 	diags = diags.Append(impDiags)
 	return rat, closer, diags
@@ -420,6 +423,46 @@ func liveImportPriorManagedValues(state *states.State, schemas map[string]provid
 	return out
 }
 
+// liveImportProgress is -progress-json's callback for Approve, or nil when
+// the flag is absent or the run will not stamp.
+func liveImportProgress(view *views.View, args *arguments.LiveImport) func(liveimport.Entry, liveimport.StampOutcome) {
+	if !args.ProgressJSON || !args.Approve {
+		return nil
+	}
+	progress := views.NewLiveWriteProgress(view)
+	return func(entry liveimport.Entry, out liveimport.StampOutcome) {
+		progress.Line(liveImportProgressLine(args.Estate, entry, out))
+	}
+}
+
+// liveImportProgressLine maps one Approve outcome onto the four the
+// -progress-json line reports. A record write is the marker for a
+// record-backed or located instance, so it is "stamped" like a tag write.
+func liveImportProgressLine(estate string, entry liveimport.Entry, out liveimport.StampOutcome) views.LiveProgressLine {
+	line := views.LiveProgressLine{
+		EstateTo: estate,
+		Address:  entry.Addr.String(),
+		LiveID:   entry.LiveID,
+	}
+	switch out.Outcome {
+	case liveimport.OutcomeStamped, liveimport.OutcomeRecorded, liveimport.OutcomeSensitivityRecorded:
+		line.Outcome = views.LiveProgressStamped
+	case liveimport.OutcomeFailed:
+		line.Outcome = views.LiveProgressRefused
+		line.Reason = out.Detail
+	case liveimport.OutcomeAlreadyStamped, liveimport.OutcomeAlreadyRecorded:
+		line.Outcome = views.LiveProgressSkipped
+		line.Reason = string(out.Outcome)
+		if out.Detail != "" {
+			line.Reason += ": " + out.Detail
+		}
+	default:
+		line.Outcome = views.LiveProgressSkipped
+		line.Reason = out.Detail
+	}
+	return line
+}
+
 func liveImportReport(statePath string, rat *liveimport.Ratification) views.LiveImportReport {
 	rep := views.LiveImportReport{
 		Estate:    rat.Estate,
@@ -518,6 +561,16 @@ Options:
                           resource. Lower it if the account's tagging APIs
                           or the cluster's API server push back. No effect
                           without -approve.
+
+  -progress-json          With -approve, write one JSON line to stderr for
+                          each resource as its marker write returns, in the
+                          order the writes return: {at, estate_from,
+                          estate_to, address, live_id, outcome, reason}.
+                          outcome is stamped, refused or skipped, and
+                          estate_from is empty, since the source is a state
+                          file. Every resource in the report gets a line,
+                          the ones never stamped included. No effect
+                          without -approve. Stdout is unchanged.
 
   -no-color               If specified, output won't contain any color.
 

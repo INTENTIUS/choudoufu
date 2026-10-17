@@ -428,6 +428,15 @@ type Request struct {
 	// apply default and is argued for there. Ratify itself ignores this: a
 	// ratification reads, and this is a budget for writing.
 	Parallelism int
+
+	// Progress, when set, is called by Approve once per entry, the moment
+	// that entry's marker (or record) write returns, or at once for an
+	// entry with nothing to write - GitHub issue #2063's -progress-json.
+	// Approve runs up to Parallelism entries at once, so Progress is called
+	// from several goroutines and must be safe for that; the calls arrive in
+	// the order the writes returned, not ratification order. Ratify ignores
+	// it.
+	Progress func(Entry, StampOutcome)
 }
 
 // Ratification is one pass's read-only findings, plus what a later Approve
@@ -483,6 +492,9 @@ type Ratification struct {
 	// is the only thing that writes and therefore the only thing with a
 	// write budget to spend. Zero means [DefaultParallelism].
 	parallelism int
+
+	// progress is [Request.Progress], carried through for Approve.
+	progress func(Entry, StampOutcome)
 
 	// resolved is [Request.Config] resolved through [identity.ResolveWith],
 	// when Config was given; nil otherwise, which [migrationSlots] already
@@ -562,6 +574,7 @@ func ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 		rootOutputStore: req.RootOutputStore,
 		rootOutputs:     req.State,
 		parallelism:     req.Parallelism,
+		progress:        req.Progress,
 	}
 
 	if req.Config != nil {
