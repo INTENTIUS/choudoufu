@@ -89,18 +89,19 @@ type LiveRun interface {
 
 	// RecordedRootOutputs is what the estate REMEMBERS each root output's
 	// value to be - the value it settled on at the last apply, or at the
-	// migration that brought it over from a stock state file - keyed by
-	// output name, or nil when the run has no record store or nothing is
-	// recorded.
+	// migration that brought it over from a stock state file. nil when the
+	// run has no record store; non-nil and empty when the store holds
+	// nothing for this configuration's outputs.
 	//
-	// It is [projection.ApplyRootOutputValues]'s fallback for an output that
-	// cannot be evaluated against the projection at all, which is what a
-	// stock state file's own stored output values are to `tofu plan`. A
+	// It is the prior value [projection.ApplyRootOutputValues] gives each
+	// non-sensitive output, which is what a stock state file's own stored
+	// output values are to `tofu plan` (GitHub issue #2073): an output with
+	// no record plans as a create. A
 	// method here for [LiveRun.RootOutputData]'s reason: the store is
 	// opened inside PriorState and the values are used a moment later, in
 	// the caller's own step. Called at most once per operation, always after
 	// PriorState has returned without errors.
-	RecordedRootOutputs() map[string]cty.Value
+	RecordedRootOutputs() *projection.RootOutputRecords
 
 	// WriteBack is GitHub issue #73's third leg: after a successful apply,
 	// persist every record-backed resource instance's new state to the

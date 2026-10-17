@@ -465,11 +465,10 @@ func applyRootOutputEvalFixture(t *testing.T) (*tofu.Context, *configs.Config, *
 	return core, cfg, state
 }
 
-// TestApplyRootOutputValuesFallsBackToTheRecordedValue is GitHub issue
-// #349's remaining half at unit level: an output the projection cannot
-// evaluate at all takes the value the estate REMEMBERS it settled on, which
-// is exactly what `tofu plan` reads out of a stock state file for the same
-// output.
+// TestApplyRootOutputValuesTakesTheRecordedValue is GitHub issue #349's
+// remaining half at unit level: an output the projection cannot evaluate at
+// all takes the value the estate REMEMBERS it settled on, which is exactly
+// what `tofu plan` reads out of a stock state file for the same output.
 //
 // future_id reads stub_cert.future, which this state carries no instance
 // for, so the evaluation leaves it unset - that is the negative half of
@@ -477,12 +476,12 @@ func applyRootOutputEvalFixture(t *testing.T) (*tofu.Context, *configs.Config, *
 // recorded value in hand it must come back as THAT value, by value, and
 // carry the output block's own sensitivity rather than anything the record
 // says.
-func TestApplyRootOutputValuesFallsBackToTheRecordedValue(t *testing.T) {
+func TestApplyRootOutputValuesTakesTheRecordedValue(t *testing.T) {
 	core, cfg, state := applyRootOutputEvalFixture(t)
 
-	recorded := map[string]cty.Value{
+	recorded := &RootOutputRecords{Values: map[string]cty.Value{
 		"future_id": cty.StringVal("future-from-the-last-apply"),
-	}
+	}}
 	if diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, nil, recorded); diags.HasErrors() {
 		t.Fatalf("ApplyRootOutputValues: %s", diags.Err())
 	}
@@ -511,27 +510,25 @@ func TestApplyRootOutputValuesFallsBackToTheRecordedValue(t *testing.T) {
 	}
 }
 
-// TestApplyRootOutputValuesRecordNeverOverridesAnEvaluatedOutput is the
-// soundness pin for the fallback, and it is the load-bearing one.
+// TestApplyRootOutputValuesRecordIsThePriorValue is GitHub issue #2073 at
+// the level of the prior state: with a record store, what the estate
+// recorded is each non-sensitive output's prior value, even where the
+// projection could evaluate one, and an output with no record has none.
+// Before #2073 evaluation won, so the prior value came from the same
+// configuration as the planned one and an output's own change never showed.
 //
-// The whole safety argument for using a remembered value (rootoutput.go, "the
-// soundness rule") is that it is ONE-DIRECTIONAL: it can only supply a prior
-// value where the evaluation produced none, so it can only ever turn a
-// "+ name = value" line into nothing or into "~ old -> new". If a record
-// could override an evaluated value, a stale one would put a confidently
-// wrong "before" in front of the diff, and a wrong before that happens to
-// equal the after renders a real change as clean - HANDOFF.md's "a wrong
-// marker outranks a missing one", one carrier over.
-//
-// So this feeds a deliberately WRONG record for every output the fixture can
-// evaluate and asserts each one keeps the value the projection produced.
-func TestApplyRootOutputValuesRecordNeverOverridesAnEvaluatedOutput(t *testing.T) {
+// The three exclusions keep evaluating: a sensitive output (never recorded,
+// so a missing record says nothing), an output whose record could not be
+// read, and every output when there is no record store at all.
+func TestApplyRootOutputValuesRecordIsThePriorValue(t *testing.T) {
 	core, cfg, state := applyRootOutputEvalFixture(t)
 
-	recorded := map[string]cty.Value{
-		"cert_id":     cty.StringVal("WRONG-cert-id"),
-		"cert_label":  cty.StringVal("WRONG-cert-label"),
-		"cert_secret": cty.StringVal("WRONG-cert-secret"),
+	recorded := &RootOutputRecords{
+		Values: map[string]cty.Value{
+			"cert_id":     cty.StringVal("recorded-cert-id"),
+			"cert_secret": cty.StringVal("stale-secret-record"),
+		},
+		Unreadable: map[string]bool{"cert_label": true},
 	}
 	if diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, nil, recorded); diags.HasErrors() {
 		t.Fatalf("ApplyRootOutputValues: %s", diags.Err())
@@ -539,31 +536,136 @@ func TestApplyRootOutputValuesRecordNeverOverridesAnEvaluatedOutput(t *testing.T
 
 	got := state.RootModule().OutputValues
 	for name, want := range map[string]cty.Value{
-		"cert_id":     cty.StringVal("cert-123"),
-		"cert_label":  cty.StringVal("cert-cert-123"),
-		"cert_secret": cty.StringVal("cert-123"),
+		"cert_id":     cty.StringVal("recorded-cert-id"), // the record, not the evaluated cert-123
+		"cert_label":  cty.StringVal("cert-cert-123"),    // unreadable record: evaluated
+		"cert_secret": cty.StringVal("cert-123"),         // sensitive: evaluated
 	} {
 		ov, ok := got[name]
 		if !ok {
-			t.Fatalf("output %q was not set", name)
+			t.Errorf("output %q was not set", name)
+			continue
 		}
 		if !ov.Value.RawEquals(want) {
-			t.Errorf("output %q = %#v, want %#v - a remembered value must never displace one the projection evaluated", name, ov.Value, want)
+			t.Errorf("output %q = %#v, want %#v", name, ov.Value, want)
 		}
+	}
+	if ov, ok := got["future_id"]; ok {
+		t.Errorf("future_id was set to %#v; the store holds no record for it, so it has no prior value", ov.Value)
+	}
+
+	// An empty but non-nil result is a store that holds nothing for this
+	// configuration: every non-sensitive output has no prior value, and the
+	// evaluation is not asked to supply one.
+	core, cfg, state = applyRootOutputEvalFixture(t)
+	if diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, nil, &RootOutputRecords{}); diags.HasErrors() {
+		t.Fatalf("ApplyRootOutputValues (empty records): %s", diags.Err())
+	}
+	got = state.RootModule().OutputValues
+	for _, name := range []string{"cert_id", "cert_label", "future_id"} {
+		if ov, ok := got[name]; ok {
+			t.Errorf("output %q = %#v with nothing recorded; it must have no prior value", name, ov.Value)
+		}
+	}
+	if ov, ok := got["cert_secret"]; !ok || !ov.Value.RawEquals(cty.StringVal("cert-123")) {
+		t.Errorf("cert_secret = %#v (set %v), want the evaluated cert-123: a sensitive output is never recorded", ov, ok)
 	}
 }
 
+// TestApplyRootOutputValuesPlansAgainstTheRecords is GitHub issue #2073
+// through a real plan: the actions the plan graph takes from the prior state
+// ApplyRootOutputValues writes. The fixture's outputs are constants, the
+// shape the issue was found with (`log_retention_days = 14`), so evaluation
+// can always answer and only the records can make a difference.
+//
+//   - never_recorded: nothing in the store, so a create with a null before.
+//   - recorded_same: recorded 14, configured 14, so a no-op.
+//   - recorded_diff: recorded 7, configured 30, so an update from 7.
+//   - secret: sensitive and never recorded, so evaluated and a no-op.
+//
+// With no record store (nil records) every output is evaluated, and the plan
+// stays the no-op it was before #2073 for an estate without one.
+func TestApplyRootOutputValuesPlansAgainstTheRecords(t *testing.T) {
+	cfg := loadConfig(t, "testdata/output-recorded")
+
+	planOutputs := func(t *testing.T, recorded *RootOutputRecords) map[string]*plans.OutputChange {
+		t.Helper()
+		core, ctxDiags := tofu.NewContext(&tofu.ContextOpts{})
+		if ctxDiags.HasErrors() {
+			t.Fatalf("tofu.NewContext: %s", ctxDiags.Err())
+		}
+		state := states.NewState()
+		if diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, nil, recorded); diags.HasErrors() {
+			t.Fatalf("ApplyRootOutputValues: %s", diags.Err())
+		}
+		plan, planDiags := core.Plan(t.Context(), cfg, state, &tofu.PlanOpts{Mode: plans.NormalMode, SkipRefresh: true})
+		if planDiags.HasErrors() {
+			t.Fatalf("plan: %s", planDiags.Err())
+		}
+		out := map[string]*plans.OutputChange{}
+		for _, src := range plan.Changes.Outputs {
+			oc, err := src.Decode()
+			if err != nil {
+				t.Fatalf("decoding the change for %s: %s", src.Addr, err)
+			}
+			out[oc.Addr.OutputValue.Name] = oc
+		}
+		return out
+	}
+
+	t.Run("records", func(t *testing.T) {
+		got := planOutputs(t, &RootOutputRecords{Values: map[string]cty.Value{
+			"recorded_same": cty.NumberIntVal(14),
+			"recorded_diff": cty.NumberIntVal(7),
+		}})
+		for name, want := range map[string]struct {
+			action plans.Action
+			before cty.Value
+		}{
+			"never_recorded": {plans.Create, cty.NullVal(cty.DynamicPseudoType)},
+			"recorded_same":  {plans.NoOp, cty.NumberIntVal(14)},
+			"recorded_diff":  {plans.Update, cty.NumberIntVal(7)},
+			"secret":         {plans.NoOp, cty.StringVal("s3cr3t")},
+		} {
+			oc, ok := got[name]
+			if !ok {
+				t.Errorf("the plan carries no change for %s", name)
+				continue
+			}
+			if oc.Action != want.action {
+				t.Errorf("%s planned as %s, want %s", name, oc.Action, want.action)
+			}
+			if !oc.Before.RawEquals(want.before) {
+				t.Errorf("%s before = %#v, want %#v", name, oc.Before, want.before)
+			}
+		}
+	})
+
+	t.Run("no record store", func(t *testing.T) {
+		got := planOutputs(t, nil)
+		for _, name := range []string{"never_recorded", "recorded_same", "recorded_diff", "secret"} {
+			oc, ok := got[name]
+			if !ok {
+				t.Errorf("the plan carries no change for %s", name)
+				continue
+			}
+			if oc.Action != plans.NoOp {
+				t.Errorf("%s planned as %s with no record store, want NoOp: evaluation supplies the prior value", name, oc.Action)
+			}
+		}
+	})
+}
+
 // TestApplyRootOutputValuesIgnoresAnUnusableRecordedValue pins the two shapes
-// the fallback refuses to store, both for the reason the evaluated path
+// the recorded path refuses to store, both for the reason the evaluated path
 // refuses them: [Module.SetOutputValue] with a not-wholly-known value gives
 // the real plan graph's NodeApplyableOutput.setValue a "before" it assumes
 // cannot exist, and it panics rather than handling it.
 func TestApplyRootOutputValuesIgnoresAnUnusableRecordedValue(t *testing.T) {
 	core, cfg, state := applyRootOutputEvalFixture(t)
 
-	recorded := map[string]cty.Value{
+	recorded := &RootOutputRecords{Values: map[string]cty.Value{
 		"future_id": cty.UnknownVal(cty.String),
-	}
+	}}
 	if diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, nil, recorded); diags.HasErrors() {
 		t.Fatalf("ApplyRootOutputValues: %s", diags.Err())
 	}
@@ -572,7 +674,7 @@ func TestApplyRootOutputValuesIgnoresAnUnusableRecordedValue(t *testing.T) {
 	}
 
 	core, cfg, state = applyRootOutputEvalFixture(t)
-	recorded = map[string]cty.Value{"future_id": cty.NilVal}
+	recorded = &RootOutputRecords{Values: map[string]cty.Value{"future_id": cty.NilVal}}
 	if diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, nil, recorded); diags.HasErrors() {
 		t.Fatalf("ApplyRootOutputValues: %s", diags.Err())
 	}

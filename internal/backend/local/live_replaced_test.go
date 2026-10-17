@@ -112,8 +112,8 @@ func (s *replaceRecordingLiveRun) PriorState(_ context.Context, _ *configs.Confi
 	return s.prior.DeepCopy(), nil
 }
 
-func (s *replaceRecordingLiveRun) RootOutputData() map[string]cty.Value      { return nil }
-func (s *replaceRecordingLiveRun) RecordedRootOutputs() map[string]cty.Value { return nil }
+func (s *replaceRecordingLiveRun) RootOutputData() map[string]cty.Value               { return nil }
+func (s *replaceRecordingLiveRun) RecordedRootOutputs() *projection.RootOutputRecords { return nil }
 
 func (s *replaceRecordingLiveRun) WriteBack(_ context.Context, finalState *states.State, _ *tofu.Schemas, replaced []addrs.AbsResourceInstance, deposedDestroys []projection.DeposedDestroy, _ bool) tfdiags.Diagnostics {
 	s.mu.Lock()

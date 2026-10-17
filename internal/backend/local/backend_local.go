@@ -280,9 +280,10 @@ func (b *Local) localRunDirect(ctx context.Context, stopCtx context.Context, op 
 		// as newly created on every live plan or apply regardless of
 		// whether the underlying resources changed. See
 		// [projection.ApplyRootOutputValues].
-		// GitHub issue #349's remaining half rides in the last argument: what
-		// the estate remembers each output was, for the ones evaluation
-		// cannot reach at all. See rootoutput.go.
+		// The last argument is what the estate remembers each output was.
+		// With a record store it is each non-sensitive output's prior value
+		// (GitHub issue #2073), so an output never recorded plans as a
+		// create. See rootoutput.go.
 		outputDiags := projection.ApplyRootOutputValues(ctx, tfCtx, config, projected, variables, b.LiveRun.RootOutputData(), b.LiveRun.RecordedRootOutputs())
 		diags = diags.Append(outputDiags)
 		if outputDiags.HasErrors() {
