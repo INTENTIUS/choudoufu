@@ -4400,7 +4400,7 @@ func (c *LivePlanCommand) Help() string {
 	helpText := `
 Usage: choudoufu [global options] live-plan [options]
 
-  EXPERIMENTAL. Plans against the live system rather than a stored record.
+  Plans against the live system rather than a stored record.
   Prior state is a projection, built by reading the live system at the start
   of the run and discarded at the end.
 
@@ -4642,7 +4642,7 @@ Environment variables:
 }
 
 func (c *LivePlanCommand) Synopsis() string {
-	return "Show changes required by the configuration, read from the live system (experimental)"
+	return "Show changes required by the configuration, read from the live system"
 }
 
 // sweepLegBuilder builds the leg one [substrate.Sweep] is served by, for
