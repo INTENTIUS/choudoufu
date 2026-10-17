@@ -73,6 +73,92 @@ jobs:
       - uses: actions/checkout@v7
         with:
           path: src
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: src/go.mod
+          cache: false
+      - name: Install cosign
+        env:
+          COSIGN_VERSION: "2.6.5"
+        run: |
+          base="https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}"
+          cd "$RUNNER_TEMP"
+          curl -fsSLo cosign-linux-amd64 "$base/cosign-linux-amd64"
+          curl -fsSLo cosign_checksums.txt "$base/cosign_checksums.txt"
+          grep '  cosign-linux-amd64$' cosign_checksums.txt | sha256sum -c -
+          sudo install -m 0755 cosign-linux-amd64 /usr/local/bin/cosign
+          cosign version
+      - name: SBOM
+        run: |
+          # One SPDX document for the release: every archive is built from
+          # the same module graph, so its Go modules are the packages.
+          (cd src && go list -m -json all) | jq -s \
+            --arg name "choudoufu_${GITHUB_REF_NAME}" \
+            --arg ns "https://github.com/${GITHUB_REPOSITORY}/releases/${GITHUB_REF_NAME}/sbom" \
+            --arg created "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{
+              spdxVersion: "SPDX-2.3",
+              dataLicense: "CC0-1.0",
+              SPDXID: "SPDXRef-DOCUMENT",
+              name: $name,
+              documentNamespace: $ns,
+              creationInfo: { created: $created, creators: ["Tool: go list -m", "Organization: INTENTIUS"] },
+              packages: [ .[] | {
+                name: .Path,
+                SPDXID: ("SPDXRef-Package-" + (.Path | gsub("[^A-Za-z0-9.-]"; "-"))),
+                versionInfo: (.Version // "'"${GITHUB_REF_NAME}"'"),
+                downloadLocation: "NOASSERTION",
+                filesAnalyzed: false,
+                externalRefs: [ { referenceCategory: "PACKAGE-MANAGER", referenceType: "purl",
+                  referenceLocator: ("pkg:golang/" + .Path + (if .Version then "@" + .Version else "" end)) } ]
+              } ]
+            }' > "choudoufu_${GITHUB_REF_NAME}.spdx.json"
+      - name: Sign and attest
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          # Each archive gets a signature, SLSA v1 provenance and an SBOM
+          # attestation, cosign bundles made with the release key and no
+          # transparency log. terragucci verifies them against the cosign.pub
+          # committed here (INTENTIUS/terragucci#953). A release with no key
+          # fails here rather than shipping unsigned.
+          if [ -z "$COSIGN_PRIVATE_KEY" ]; then
+            echo "::error::COSIGN_PRIVATE_KEY is not set; a release is signed with the key whose public half is cosign.pub" >&2
+            exit 1
+          fi
+          commit=$(git -C src rev-parse HEAD)
+          sbom="choudoufu_${GITHUB_REF_NAME}.spdx.json"
+          for a in ./*.tar.gz ./*.zip; do
+            a=${a#./}
+            digest=$(sha256sum "$a" | cut -d' ' -f1)
+            jq -n --arg tag "$GITHUB_REF_NAME" --arg commit "$commit" --arg digest "sha256:$digest" \
+              --arg repo "$GITHUB_REPOSITORY" --arg server "$GITHUB_SERVER_URL" --arg run "$GITHUB_RUN_ID" \
+              --arg finished "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{
+                buildDefinition: {
+                  buildType: "https://github.com/INTENTIUS/choudoufu/release/v1",
+                  externalParameters: { workflow: ".github/workflows/release.yml", tag: $tag, sourceRef: $commit },
+                  internalParameters: { artifactDigest: $digest },
+                  resolvedDependencies: [ { uri: ("git+" + $server + "/" + $repo + "@refs/tags/" + $tag), digest: { gitCommit: $commit } } ]
+                },
+                runDetails: {
+                  builder: { id: ($server + "/" + $repo + "/.github/workflows/release.yml@refs/tags/" + $tag) },
+                  metadata: { invocationId: ($server + "/" + $repo + "/actions/runs/" + $run), finishedOn: $finished }
+                }
+              }' > "$RUNNER_TEMP/provenance.json"
+            cosign sign-blob --yes --tlog-upload=false --key env://COSIGN_PRIVATE_KEY --bundle "$a.sig.bundle" "$a"
+            cosign attest-blob --yes --tlog-upload=false --key env://COSIGN_PRIVATE_KEY --type slsaprovenance1 --predicate "$RUNNER_TEMP/provenance.json" --bundle "$a.provenance.bundle" "$a"
+            cosign attest-blob --yes --tlog-upload=false --key env://COSIGN_PRIVATE_KEY --type spdxjson --predicate "$sbom" --bundle "$a.sbom.bundle" "$a"
+          done
+      - name: Verify signatures
+        run: |
+          # What the key signed must verify against the committed public
+          # key, or the secret and cosign.pub are not one key pair.
+          for a in ./*.tar.gz ./*.zip; do
+            a=${a#./}
+            cosign verify-blob --key src/cosign.pub --insecure-ignore-tlog=true --bundle "$a.sig.bundle" "$a"
+            cosign verify-blob-attestation --key src/cosign.pub --insecure-ignore-tlog=true --type slsaprovenance1 --bundle "$a.provenance.bundle" "$a"
+            cosign verify-blob-attestation --key src/cosign.pub --insecure-ignore-tlog=true --type spdxjson --bundle "$a.sbom.bundle" "$a"
+          done
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -100,7 +186,9 @@ jobs:
           choudoufu $GITHUB_REF_NAME, built on OpenTofu $upstream (fork point [\`$fork\`](https://github.com/opentofu/opentofu/commit/$fork)).
 
           Everything outside live resource markers is stock OpenTofu $upstream. Binaries below are macOS, Linux and Windows, amd64 and arm64; macOS and Linux are \`.tar.gz\`, Windows is \`.zip\`; verify with \`SHA256SUMS\`.
+
+          Each archive has a signature (\`.sig.bundle\`), SLSA v1 provenance (\`.provenance.bundle\`) and an SBOM attestation (\`.sbom.bundle\`), cosign bundles signed with the key in [\`cosign.pub\`](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/cosign.pub): \`cosign verify-blob --key cosign.pub --insecure-ignore-tlog=true --bundle <archive>.sig.bundle <archive>\`. The SBOM itself is \`choudoufu_$GITHUB_REF_NAME.spdx.json\`.
           EOF
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" --notes-file NOTES.md --generate-notes \
-            ./*.tar.gz ./*.zip SHA256SUMS
+            ./*.tar.gz ./*.zip SHA256SUMS ./*.bundle "choudoufu_${GITHUB_REF_NAME}.spdx.json"
