@@ -705,7 +705,12 @@ const (
 	// 1180 -> 1212 data, code unchanged, on 2026-10-13 (issue #1956): the
 	// cone plan's co-managed type-pair table, sixteen pairs of hand-verified
 	// provider facts no schema states (internal/live/cone/cone.go).
-	typeLiteralDataTotal = 1212
+	// 1212 -> 1219 data, code unchanged, on 2026-10-17: live-import's
+	// siblingWriters table (internal/live/liveimport/siblingowned.go), five
+	// IAM attachment types that write a parent's computed attributes plus
+	// the two parent types, aws_iam_role and aws_iam_policy. Seven new Data
+	// literals, none moved.
+	typeLiteralDataTotal = 1219
 	typeLiteralCodeTotal = 131
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
