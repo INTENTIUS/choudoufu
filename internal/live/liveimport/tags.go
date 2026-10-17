@@ -397,8 +397,16 @@ func changedAttrs(block *configschema.Block, prior, next cty.Value, skip map[str
 // which moves whenever tags does and is not a separate signal) is worth
 // reporting as drift, tags included - a genuine mismatch there is real
 // information about what an operator is about to make authoritative.
-func driftedAttrs(block *configschema.Block, prior, live cty.Value) []string {
-	return changedAttrs(block, prior, live, map[string]bool{"tags_all": true})
+//
+// explained names further attributes to leave out: ones whose live value is
+// exactly what a sibling resource in the same state wrote onto this object
+// after it was recorded (siblingowned.go). nil leaves out only tags_all.
+func driftedAttrs(block *configschema.Block, prior, live cty.Value, explained map[string]bool) []string {
+	skip := map[string]bool{"tags_all": true}
+	for name := range explained {
+		skip[name] = true
+	}
+	return changedAttrs(block, prior, live, skip)
 }
 
 // changedOutsideTags is [changedAttrs] for the stamp write's own assertion:

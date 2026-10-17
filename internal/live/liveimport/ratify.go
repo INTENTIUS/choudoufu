@@ -607,6 +607,10 @@ func ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 	// the loop for what it is for.
 	labelCarriers := 0
 
+	// What the state's attachment-type instances say about their parents,
+	// read once for the whole pass. See siblingowned.go.
+	siblings := buildSiblingIndex(req.State)
+
 	entriesCtx, entriesSpan := tracing.Tracer().Start(ctx, "live-adopt.ratify.entries")
 	for _, mod := range sortedModules(req.State) {
 		for _, res := range sortedResources(mod) {
@@ -615,7 +619,7 @@ func ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 			}
 			for _, key := range sortedInstanceKeys(res) {
 				addr := res.Addr.Instance(key)
-				entry, car := ratifyOne(entriesCtx, req, res, addr, res.Instances[key], selection)
+				entry, car := ratifyOne(entriesCtx, req, res, addr, res.Instances[key], selection, siblings)
 				rat.Entries = append(rat.Entries, entry)
 				if car.eligible != nil {
 					rat.eligible[addr.String()] = car.eligible
@@ -702,7 +706,7 @@ type carriers struct {
 //
 // selection is [Request.Config]'s root-module `markers "record"` selection,
 // resolved once by [Ratify] rather than re-parsed per instance.
-func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addrs.AbsResourceInstance, inst *states.ResourceInstance, selection *strict.Selection) (Entry, carriers) {
+func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addrs.AbsResourceInstance, inst *states.ResourceInstance, selection *strict.Selection, siblings *siblingIndex) (Entry, carriers) {
 	typeName := res.Addr.Resource.Type
 	entry := Entry{Addr: addr, TypeName: typeName}
 
@@ -880,7 +884,8 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		return entry, carriers{}
 	}
 
-	if drifted := driftedAttrs(schema.Block, priorVal, readResp.NewState); len(drifted) > 0 {
+	explained := siblings.siblingExplained(typeName, priorVal, readResp.NewState)
+	if drifted := driftedAttrs(schema.Block, priorVal, readResp.NewState, explained); len(drifted) > 0 {
 		entry.Status = StatusDrifted
 		entry.Drifted = drifted
 		entry.Detail = fmt.Sprintf("The live object differs from the state's recorded attributes: %s. Verification does not fix drift; a live-plan after stamping will show it.", joinList(drifted))

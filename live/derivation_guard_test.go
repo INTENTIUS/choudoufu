@@ -247,6 +247,17 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"protocol constant this fork authored, not a claim about a provider type, and changing it changes the protocol.",
 		Data: 1, Code: 0,
 	},
+	"internal/live/liveimport/siblingowned.go": {
+		Reason: "siblingWriters: which attachment-type instances write an aws_iam_role's managed_policy_arns and " +
+			"inline_policy and an aws_iam_policy's attachment_count, so live-import's drift check can forgive a live " +
+			"value that is exactly what the state's own siblings wrote after a stock apply recorded the parent. No " +
+			"provider schema says one type's instance changes another type's computed attribute; the rows are the " +
+			"provider's own documentation for those parent attributes, the same class of co-written fact " +
+			"internal/live/cone/cone.go's coManagedPairs carries, but keyed to the attribute each writer moves, " +
+			"which that table does not record. The two parent types are package-level consts beside it. A writer " +
+			"missing here leaves its parent reported as drifted, which is the behaviour before the table.",
+		Data: 7, Code: 0,
+	},
 	"internal/live/servicetags/iam.go": {
 		Reason: "IAMRoutes (GitHub issues #1131, #1125 and #1477): which IAM tag-read operation answers for which resource type, " +
 			"for the types an enumeration leg reaches and can never tag-read. Six entries, and the two halves of each are " +
@@ -694,7 +705,12 @@ const (
 	// 1180 -> 1212 data, code unchanged, on 2026-10-13 (issue #1956): the
 	// cone plan's co-managed type-pair table, sixteen pairs of hand-verified
 	// provider facts no schema states (internal/live/cone/cone.go).
-	typeLiteralDataTotal = 1212
+	// 1212 -> 1219 data, code unchanged, on 2026-10-17: live-import's
+	// siblingWriters table (internal/live/liveimport/siblingowned.go), five
+	// IAM attachment types that write a parent's computed attributes plus
+	// the two parent types, aws_iam_role and aws_iam_policy. Seven new Data
+	// literals, none moved.
+	typeLiteralDataTotal = 1219
 	typeLiteralCodeTotal = 131
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
