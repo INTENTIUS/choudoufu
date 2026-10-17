@@ -50,6 +50,12 @@ type LiveImport struct {
 	// dominant cost of migrating a terralith: 33.1s for 26 resources, 127.6s
 	// for 89.
 	Parallelism int
+
+	// ProgressJSON writes one JSON line to stderr per resource as -approve's
+	// marker write for it returns, refusals and skips included - GitHub
+	// issue #2063. It has no effect without -approve, since a ratification
+	// writes nothing. Stdout is unchanged by it.
+	ProgressJSON bool
 }
 
 // BindLiveImport registers live-import's options on cli.
@@ -66,6 +72,7 @@ func BindLiveImport(cli *CommandLine) *LiveImport {
 	cli.BoolVar(&li.Approve, "approve", false, "Stamp every VERIFIED or DRIFTED resource from the ratification report.")
 	cli.BoolVar(&input, "input", true, "Accepted and ignored: this command never prompts.").SetDisplay("=false")
 	cli.IntVar(&li.Parallelism, "parallelism", defaultLiveImportParallelism, "Limit the number of resources stamped at once.").SetDisplay("=n")
+	cli.BoolVar(&li.ProgressJSON, "progress-json", false, "With -approve, write one JSON line to stderr per resource as its marker write returns.")
 
 	var rest []string
 	cli.VariadicArg(&rest, "ARGS")

@@ -249,7 +249,7 @@ func (m *mover) rewriteManifest(ctx context.Context) tfdiags.Diagnostics {
 			fmt.Sprintf("The API server refused the %s on %s: %s. Nothing was written.", what, ref, rejected),
 		))
 	}
-	m.res.Written = true
+	m.written()
 	if move {
 		log.Printf("[TRACE] live/mv: moved %s from estate %q to %q; %s %q -> %q", ref, m.req.FromEstate, m.req.Estate, markers.AddressAnnotation, m.res.OldMarker, m.res.NewMarker)
 	} else {

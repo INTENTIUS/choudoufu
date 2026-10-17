@@ -368,6 +368,7 @@ func (r *Ratification) entryWork(ctx context.Context, entry Entry, slot string) 
 		// rep.IdentitiesRecorded, which counts kind=identity records
 		// only.
 		res.outcome = recordOne(ctx, r.recordStore, entry.Addr, rec)
+		r.reportProgress(entry, res.outcome)
 		res.diags = res.diags.Append(unwrittenCarrierDiag(r.recordStore, entry.Addr, rec.typeName))
 		return res
 	}
@@ -378,6 +379,7 @@ func (r *Ratification) entryWork(ctx context.Context, entry Entry, slot string) 
 		// written. Residue is still recorded exactly as it is for an
 		// ordinary eligible instance - see [located]'s doc comment.
 		res.outcome = locateOne(ctx, r.recordStore, entry.Addr, loc)
+		r.reportProgress(entry, res.outcome)
 		res.diags = res.diags.Append(unwrittenCarrierDiag(r.recordStore, entry.Addr, loc.typeName))
 		if res.outcome.Outcome == OutcomeRecorded || res.outcome.Outcome == OutcomeAlreadyRecorded {
 			res.identities++
@@ -393,6 +395,7 @@ func (r *Ratification) entryWork(ctx context.Context, entry Entry, slot string) 
 			Outcome:  OutcomeSkipped,
 			Detail:   "Not stamped: " + entry.Detail,
 		}
+		r.reportProgress(entry, res.outcome)
 		// GitHub issue #341. Not stamped is not the same as nothing to
 		// do. An admitted, untaggable resource is a real cloud object
 		// with real arguments, and a migration is the only moment
@@ -432,6 +435,7 @@ func (r *Ratification) entryWork(ctx context.Context, entry Entry, slot string) 
 		res.diags = res.diags.Append(recordFieldGranularMigration(ctx, r.recordStore, r.Estate, entry.Addr, elig))
 	}
 	res.outcome = approveOne(ctx, r.Estate, entry.Addr, elig, slot)
+	r.reportProgress(entry, res.outcome)
 	res.diags = res.diags.Append(recordResidueFor(ctx, r.recordStore, r.secrets, entry.Addr, &elig.residuable))
 	// GitHub issue #364 unit A2: a stamped instance's marker answers
 	// "may I delete this"; it is not an identity a later plan can read
@@ -456,6 +460,15 @@ func (r *Ratification) entryWork(ctx context.Context, entry Entry, slot string) 
 		}
 	}
 	return res
+}
+
+// reportProgress hands one entry's outcome to [Request.Progress], if one was
+// given. entryWork calls it the moment the write returns, before residue or
+// an identity record follows, so a reader sees each write as it lands.
+func (r *Ratification) reportProgress(entry Entry, out StampOutcome) {
+	if r.progress != nil {
+		r.progress(entry, out)
+	}
 }
 
 // unwrittenCarrierDiag is GitHub issue #1287's loud half: an error, and not

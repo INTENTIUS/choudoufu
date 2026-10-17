@@ -19,6 +19,13 @@ A destination address absent from your configuration is refused unless you pass
 `-allow-missing-config`. `-dry-run` shows what it would write. Full options in
 `choudoufu live-mv -help`.
 
+`-progress-json` writes one JSON line to stderr for each resource as its
+marker write returns, with the fields `at`, `estate_from`, `estate_to`,
+`address`, `live_id`, `outcome` (`moved`, `refused` or `skipped`), and
+`reason` and `follows` where they apply. A child that moves with its parent's
+write gets its own `moved` line, with `follows` naming the parent. Stdout
+carries the same report it does without the flag.
+
 On Kubernetes the write is the address annotation beside the label,
 since #1639: `live-mv <old> <new>` rewrites it, or the next plan and
 apply do it unasked, and neither needs a `moved` block. The two

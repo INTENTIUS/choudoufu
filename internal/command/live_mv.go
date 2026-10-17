@@ -100,6 +100,16 @@ func (c *LiveMvCommand) Execute(args *arguments.LiveMv) int {
 	diags = diags.Append(c.providerDevOverrideRuntimeWarnings())
 	diags = diags.Append(c.checkAWSProviderVersionSkew())
 
+	// GitHub issue #2063: -progress-json's lines go to stderr as the write
+	// lands - from inside mv.Move, through OnWritten - and, for a refusal or
+	// a skip, once Move has returned without writing. Nil writes nothing.
+	var progress *views.LiveWriteProgress
+	var onWritten func(*mv.Result)
+	if args.ProgressJSON {
+		progress = views.NewLiveWriteProgress(c.View)
+		onWritten = func(res *mv.Result) { liveMvProgressMoved(progress, res) }
+	}
+
 	res, moveDiags := c.liveMv(ctx, liveMvArgs{
 		old:          oldAddr,
 		new:          newAddr,
@@ -107,8 +117,10 @@ func (c *LiveMvCommand) Execute(args *arguments.LiveMv) int {
 		fromEstate:   args.FromEstate,
 		dryRun:       args.DryRun,
 		allowMissing: args.AllowMissingConfig,
+		onWritten:    onWritten,
 	})
 	diags = diags.Append(moveDiags)
+	liveMvProgressUnwritten(progress, res, moveDiags, args, newAddr)
 
 	switch {
 	case args.JSON:
@@ -190,6 +202,9 @@ type liveMvArgs struct {
 	fromEstate   string
 	dryRun       bool
 	allowMissing bool
+
+	// onWritten is [mv.Request.OnWritten]; nil without -progress-json.
+	onWritten func(*mv.Result)
 }
 
 // liveMv is the pipeline: load, lint, resolve identities, establish the
@@ -363,10 +378,98 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 		// rename and cross-estate move are a marker patch through the
 		// cluster's own client, the one live-import's adoption of the same
 		// shape builds.
-		Clusters: provs,
+		Clusters:  provs,
+		OnWritten: args.onWritten,
 	})
 	diags = diags.Append(moveDiags)
 	return res, diags
+}
+
+// liveMvProgressMoved is -progress-json's line for a write that landed
+// (GitHub issue #2063), then one line for each follower that moved with it.
+// It runs inside mv.Move, the moment the write returns.
+func liveMvProgressMoved(progress *views.LiveWriteProgress, res *mv.Result) {
+	liveMvProgressLines(progress, res, views.LiveProgressMoved, "")
+}
+
+// liveMvProgressUnwritten is -progress-json's line for a run that wrote
+// nothing: refused when diags carries an error, skipped when the resource
+// already carried the marker or there was no marker to rewrite. A dry run
+// writes nothing by request and prints no line; a run that wrote has had
+// its line already, from [liveMvProgressMoved], even if something after the
+// write failed.
+func liveMvProgressUnwritten(progress *views.LiveWriteProgress, res *mv.Result, diags tfdiags.Diagnostics, args *arguments.LiveMv, newAddr addrs.AbsResourceInstance) {
+	if progress == nil || args.DryRun || (res != nil && res.Written) {
+		return
+	}
+	if diags.HasErrors() {
+		reason := ""
+		for _, d := range diags {
+			if d.Severity() == tfdiags.Error {
+				reason = d.Description().Summary
+				break
+			}
+		}
+		if res == nil {
+			// liveMv failed before mv.Move ran, so all this run knows is
+			// what it was asked.
+			from := args.FromEstate
+			if from == "" {
+				from = args.Estate
+			}
+			progress.Line(views.LiveProgressLine{
+				EstateFrom: from,
+				EstateTo:   args.Estate,
+				Address:    newAddr.String(),
+				Outcome:    views.LiveProgressRefused,
+				Reason:     reason,
+			})
+			return
+		}
+		liveMvProgressLines(progress, res, views.LiveProgressRefused, reason)
+		return
+	}
+	if res == nil {
+		return
+	}
+	reason := "nothing to write"
+	switch {
+	case res.AlreadyMarked:
+		reason = "already carries the new address"
+	case res.NothingToWrite:
+		reason = "no address marker on this object to rewrite"
+	}
+	liveMvProgressLines(progress, res, views.LiveProgressSkipped, reason)
+}
+
+// liveMvProgressLines writes res's own line and one per follower, each
+// follower naming the parent it follows.
+func liveMvProgressLines(progress *views.LiveWriteProgress, res *mv.Result, outcome, reason string) {
+	if progress == nil || res == nil {
+		return
+	}
+	from := res.FromEstate
+	if from == "" {
+		from = res.Estate
+	}
+	progress.Line(views.LiveProgressLine{
+		EstateFrom: from,
+		EstateTo:   res.Estate,
+		Address:    res.New.String(),
+		LiveID:     res.LiveID,
+		Outcome:    outcome,
+		Reason:     reason,
+	})
+	for _, f := range res.Followers {
+		progress.Line(views.LiveProgressLine{
+			EstateFrom: from,
+			EstateTo:   res.Estate,
+			Address:    f.Addr.String(),
+			Outcome:    outcome,
+			Reason:     reason,
+			Follows:    res.New.String(),
+		})
+	}
 }
 
 // liveMvEstate establishes the estate, from -estate, from a live
@@ -671,6 +774,16 @@ Options:
                           text. Prints on -dry-run too, and on a refusal -
                           the one case the labelled report never renders at
                           all.
+
+  -progress-json          Write one JSON line to stderr for each resource as
+                          its marker write returns: {at, estate_from,
+                          estate_to, address, live_id, outcome, reason,
+                          follows}. outcome is moved, refused or skipped; a
+                          child that moves with its parent's write gets a
+                          moved line naming the parent in follows. A
+                          refusal or a skip gets a line too. -dry-run
+                          writes nothing and prints no line. Stdout is
+                          unchanged.
 
   -no-color               If specified, output won't contain any color.
 

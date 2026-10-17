@@ -95,7 +95,7 @@ func (m *mover) rewrite(ctx context.Context, prior *states.ResourceInstanceObjec
 		return diags
 	}
 
-	m.res.Written = true
+	m.written()
 	log.Printf("[TRACE] live/mv: rewrote tofu-address on %s %s: %q -> %q",
 		m.res.TypeName, m.res.LiveID, m.res.OldMarker, m.res.NewMarker)
 
