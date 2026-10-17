@@ -130,104 +130,134 @@ func (m *mover) rewriteManifest(ctx context.Context) tfdiags.Diagnostics {
 		))
 	}
 
-	live, found, err := patcher.ReadObject(ctx, ref)
-	if err != nil {
-		return diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Cannot read the live object",
-			fmt.Sprintf("The cluster could not be asked about %s: %s. Nothing was written.", ref, err),
-		))
-	}
-	if !found {
-		return diags.Append(refuse(
-			RefusalNothingAtOldAddress,
-			tfdiags.Error,
-			"No live object to "+noun,
-			fmt.Sprintf("The cluster serves no object at %s, which is what %s's configuration names. Nothing was written.", ref, m.res.Anchor),
-		))
-	}
+	// GitHub issue #2050, live-import's #2043 in live-mv: a controller can
+	// write the object between this read and the dry run below (a status
+	// it refreshes). The dry run then answers with that newer object, and
+	// the controller's write would read as the patch's own change. Each
+	// attempt reads, checks and dry-runs afresh; one whose dry run was
+	// computed against a newer object than it read is sent again, never
+	// judged. A dry run answers with the resourceVersion of the object it
+	// was computed against (apiserver DryRunnableStorage.GuaranteedUpdate).
+	var (
+		live                *unstructured.Unstructured
+		found               bool
+		fieldManager        string
+		labels, annotations map[string]string
+	)
+	for attempt := 1; ; attempt++ {
+		live, found, err = patcher.ReadObject(ctx, ref)
+		if err != nil {
+			return diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Cannot read the live object",
+				fmt.Sprintf("The cluster could not be asked about %s: %s. Nothing was written.", ref, err),
+			))
+		}
+		if !found {
+			return diags.Append(refuse(
+				RefusalNothingAtOldAddress,
+				tfdiags.Error,
+				"No live object to "+noun,
+				fmt.Sprintf("The cluster serves no object at %s, which is what %s's configuration names. Nothing was written.", ref, m.res.Anchor),
+			))
+		}
 
-	fieldManager, err := identity.ManifestFieldManager(ctx, m.req.Config, m.res.Anchor)
+		fieldManager, err = identity.ManifestFieldManager(ctx, m.req.Config, m.res.Anchor)
 
-	// The estate cases are the metadata block's, word for word
-	// ([mover.estateRefusal]): on a move the object must carry
-	// tofu-estate = -from-estate exactly, since an object in any other
-	// estate is not this caller's to relabel. The one exception is a move
-	// an earlier live-mv started and did not finish ([mover.unfinishedMove]):
-	// it is sent again, through the same dry run, to complete the hand-off.
-	if d := m.estateRefusal(live.GetLabels()[markers.TagEstate]); d.HasErrors() {
-		if err != nil || !m.unfinishedMove(live, fieldManager) {
+		// The estate cases are the metadata block's, word for word
+		// ([mover.estateRefusal]): on a move the object must carry
+		// tofu-estate = -from-estate exactly, since an object in any other
+		// estate is not this caller's to relabel. The one exception is a move
+		// an earlier live-mv started and did not finish ([mover.unfinishedMove]):
+		// it is sent again, through the same dry run, to complete the hand-off.
+		if d := m.estateRefusal(live.GetLabels()[markers.TagEstate]); d.HasErrors() {
+			if err != nil || !m.unfinishedMove(live, fieldManager) {
+				return diags.Append(d)
+			}
+			log.Printf("[TRACE] live/mv: %s already carries %s = %q and %s = %q but field manager %q's Update entry still holds a marker; re-sending the move", ref, markers.TagEstate, m.req.Estate, markers.AddressAnnotation, m.res.NewMarker, fieldManager)
+		}
+		if d := m.checkAddressAnnotation(live.GetAnnotations()[markers.AddressAnnotation]); d.HasErrors() {
 			return diags.Append(d)
 		}
-		log.Printf("[TRACE] live/mv: %s already carries %s = %q and %s = %q but field manager %q's Update entry still holds a marker; re-sending the move", ref, markers.TagEstate, m.req.Estate, markers.AddressAnnotation, m.res.NewMarker, fieldManager)
-	}
-	if d := m.checkAddressAnnotation(live.GetAnnotations()[markers.AddressAnnotation]); d.HasErrors() {
-		return diags.Append(d)
-	}
-	if m.res.AlreadyMarked {
-		// A rename only ([mover.checkAddressAnnotation] never sets this on
-		// a move). The object carries the new address already. That is the
-		// whole rename when the block's manager holds the annotation in its
-		// Apply entry; when the manager's Update entry still holds it, an
-		// earlier live-mv was killed between PatchMarkers' two requests
-		// (GitHub issue #1764) and the provider's next rename would
-		// conflict with that entry, so the write is sent again to finish
-		// the hand-off. A field manager this run cannot read leaves the
-		// rerun as it was before #1764: verified, nothing written.
-		held := false
-		if err == nil {
-			held, _ = kubesweep.MarkersHeldByUpdate(live, fieldManager, nil, []string{markers.AddressAnnotation})
+		if m.res.AlreadyMarked {
+			// A rename only ([mover.checkAddressAnnotation] never sets this on
+			// a move). The object carries the new address already. That is the
+			// whole rename when the block's manager holds the annotation in its
+			// Apply entry; when the manager's Update entry still holds it, an
+			// earlier live-mv was killed between PatchMarkers' two requests
+			// (GitHub issue #1764) and the provider's next rename would
+			// conflict with that entry, so the write is sent again to finish
+			// the hand-off. A field manager this run cannot read leaves the
+			// rerun as it was before #1764: verified, nothing written.
+			held := false
+			if err == nil {
+				held, _ = kubesweep.MarkersHeldByUpdate(live, fieldManager, nil, []string{markers.AddressAnnotation})
+			}
+			if !held {
+				m.res.Verified = true
+				return diags
+			}
+			m.res.AlreadyMarked = false
+			log.Printf("[TRACE] live/mv: %s on %s already names %q but field manager %q's Update entry still holds it; re-sending the write", markers.AddressAnnotation, ref, m.res.NewMarker, fieldManager)
 		}
-		if !held {
-			m.res.Verified = true
+		if err != nil {
+			return diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Cannot tell the block's field manager",
+				fmt.Sprintf("%s %s makes the %s on %s under the field manager the block's provider applies it with, so that manager owns the markers afterwards: %s. Written under any other manager, the provider's next apply that changes a marker would report a field manager conflict. Nothing was written; declare the field_manager name as a literal, a variable or a local.", verb, m.res.Anchor, what, ref, err),
+			))
+		}
+		if m.req.DryRun && !move {
 			return diags
 		}
-		m.res.AlreadyMarked = false
-		log.Printf("[TRACE] live/mv: %s on %s already names %q but field manager %q's Update entry still holds it; re-sending the write", markers.AddressAnnotation, ref, m.res.NewMarker, fieldManager)
-	}
-	if err != nil {
-		return diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Cannot tell the block's field manager",
-			fmt.Sprintf("%s %s makes the %s on %s under the field manager the block's provider applies it with, so that manager owns the markers afterwards: %s. Written under any other manager, the provider's next apply that changes a marker would report a field manager conflict. Nothing was written; declare the field_manager name as a literal, a variable or a local.", verb, m.res.Anchor, what, ref, err),
-		))
-	}
-	if m.req.DryRun && !move {
-		return diags
+
+		labels = nil
+		if move {
+			labels = map[string]string{markers.TagEstate: m.req.Estate}
+		}
+		annotations = map[string]string{markers.AddressAnnotation: m.res.NewMarker}
+		dry, rejected, err := patcher.PatchMarkers(ctx, ref, labels, annotations, fieldManager, true)
+		switch {
+		case err != nil:
+			return diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Cannot plan the marker rewrite",
+				fmt.Sprintf("The %s on %s could not be submitted to the cluster for a dry run: %s. Nothing was written.", what, ref, err),
+			))
+		case rejected != "":
+			// On a move this is where an estate-boundary admission policy
+			// answers, in its own words, before anything is persisted.
+			return diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Cannot plan the marker rewrite",
+				fmt.Sprintf("The API server refused the %s on %s: %s. Nothing was written.", what, ref, rejected),
+			))
+		}
+		extra := manifestPatchExtra(live, dry, labels)
+		if len(extra) > 0 && dry.GetResourceVersion() != live.GetResourceVersion() {
+			if attempt < manifestDryRunAttempts {
+				log.Printf("[TRACE] live/mv: %s moved between the read (resourceVersion %s) and the dry run (%s); reading it again", ref, live.GetResourceVersion(), dry.GetResourceVersion())
+				continue
+			}
+			return diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Live object kept changing",
+				fmt.Sprintf("The object at %s kept changing between this run's read and the server's dry run of the %s (%d attempts; the last read was resourceVersion %s, the dry run answered for %s), so the dry run could not be judged against the object it was computed for. A controller rewriting it - its status, most likely - is the usual cause. Nothing was written; rerun the same live-mv command.", ref, what, manifestDryRunAttempts, live.GetResourceVersion(), dry.GetResourceVersion()),
+			))
+		}
+		if len(extra) > 0 {
+			return diags.Append(refuse(
+				RefusalPlanChangesMoreThanTags,
+				tfdiags.Error,
+				"Unexpected changes in the marker rewrite",
+				fmt.Sprintf(
+					"The %s on %s would also change %s, which the server's own dry run of the patch reports. A rename or move of a Kubernetes object writes only its ownership markers (the %s label and the %s annotation), so nothing was written. Something between this client and the stored object - a mutating admission webhook, most likely - rewrites more than was asked for.",
+					what, ref, strings.Join(extra, ", "), markers.TagEstate, markers.AddressAnnotation),
+			))
+		}
+		break
 	}
 
-	var labels map[string]string
-	if move {
-		labels = map[string]string{markers.TagEstate: m.req.Estate}
-	}
-	annotations := map[string]string{markers.AddressAnnotation: m.res.NewMarker}
-	dry, rejected, err := patcher.PatchMarkers(ctx, ref, labels, annotations, fieldManager, true)
-	switch {
-	case err != nil:
-		return diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Cannot plan the marker rewrite",
-			fmt.Sprintf("The %s on %s could not be submitted to the cluster for a dry run: %s. Nothing was written.", what, ref, err),
-		))
-	case rejected != "":
-		// On a move this is where an estate-boundary admission policy
-		// answers, in its own words, before anything is persisted.
-		return diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Cannot plan the marker rewrite",
-			fmt.Sprintf("The API server refused the %s on %s: %s. Nothing was written.", what, ref, rejected),
-		))
-	}
-	if extra := manifestPatchExtra(live, dry, labels); len(extra) > 0 {
-		return diags.Append(refuse(
-			RefusalPlanChangesMoreThanTags,
-			tfdiags.Error,
-			"Unexpected changes in the marker rewrite",
-			fmt.Sprintf(
-				"The %s on %s would also change %s, which the server's own dry run of the patch reports. A rename or move of a Kubernetes object writes only its ownership markers (the %s label and the %s annotation), so nothing was written. Something between this client and the stored object - a mutating admission webhook, most likely - rewrites more than was asked for.",
-				what, ref, strings.Join(extra, ", "), markers.TagEstate, markers.AddressAnnotation),
-		))
-	}
 	if m.req.DryRun {
 		// A move's -dry-run: the server has judged the write, its
 		// validation and admission included, and nothing was persisted.
@@ -271,6 +301,10 @@ func (m *mover) rewriteManifest(ctx context.Context) tfdiags.Diagnostics {
 		fmt.Sprintf("The %s on %s reported no error, but the object the server returned does not carry %s. Read the object's labels and annotations with kubectl before rerunning.", what, ref, want),
 	))
 }
+
+// manifestDryRunAttempts bounds [mover.rewriteManifest]'s re-read when the
+// object moves between its read and its dry run (GitHub issue #2050).
+const manifestDryRunAttempts = 5
 
 // manifestPatchExtra names what the server's dry run of a marker patch
 // (dry) changes on live beyond the markers the patch sets: everything
