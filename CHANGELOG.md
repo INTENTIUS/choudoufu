@@ -39,6 +39,13 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.29.0 (Unreleased)
 
+- `live-mv` and `live-import -approve` take `-progress-json`, which writes one JSON line to stderr per resource as its marker write returns; stdout is unchanged (#2063, #2064).
+- `live-mv`, `live-import` and `live-plan` help and synopses no longer say "experimental", and CONTRIBUTING.md, CHARTER.md and GOVERNANCE.md describe choudoufu by its scope, AWS and Kubernetes (#2065).
+- The site lists Kubernetes as proven, and the README no longer calls the fork experimental (#2061).
+- The maintainer's AWS account id is out of the current tree; examples, fixtures and evidence use `123456789012` and `oidc-bootstrap.sh` reads the account from `ACCOUNT_ID` or STS (#2060).
+- The cross-estate docs cover planning a consumer on a producer's unapplied plan with `-estate-outputs-from` (#2058).
+- `examples/ci-pipelines` pins choudoufu v0.28.0 (#2057).
+
 ## choudoufu v0.28.0 (2026-10-13)
 
 Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.28.0.json`](live/history/v0.28.0.json).
