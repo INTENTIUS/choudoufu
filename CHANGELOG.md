@@ -37,7 +37,10 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
    `generated-from.json` alongside the pin. Skipping this step for more than
    one release cycle is what `TestCIPipelinePinIsTiedToRelease` turns red for.
 
-## choudoufu v0.30.0 (Unreleased)
+## choudoufu v0.29.1 (Unreleased)
+
+- `live-import` no longer reports an attached `aws_iam_role` or `aws_iam_policy` as drifted when `managed_policy_arns`, `inline_policy` or `attachment_count` differ only by what the state's own attachments and inline policies wrote after the parent was read back; a hand-attached or undeclared policy still reads as drift (#2069).
+- `examples/ci-pipelines` pins choudoufu v0.29.0 (#2068).
 
 ## choudoufu v0.29.0 (2026-10-16)
 
