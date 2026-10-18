@@ -233,3 +233,132 @@ func TestConeRootInSubdirectory(t *testing.T) {
 		t.Fatalf("added terraform block: guard = %+v", res.Guard)
 	}
 }
+
+// twoRoots commits a repository holding two roots, live/a (two levels down)
+// and b (one level down), each with baseMain, and a local module at
+// modules/net that live/a calls through ../../modules/net. It returns the
+// repository top.
+func twoRoots(t *testing.T) string {
+	t.Helper()
+	top := t.TempDir()
+	for _, d := range []string{"live/a", "b", "modules/net"} {
+		if err := os.MkdirAll(filepath.Join(top, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	gitT(t, top, "init", "-q")
+	write(t, filepath.Join(top, "live", "a"), "main.tf", baseMain+netCall)
+	write(t, filepath.Join(top, "b"), "main.tf", baseMain)
+	write(t, filepath.Join(top, "modules", "net"), "main.tf", "output \"id\" { value = \"n\" }\n")
+	gitT(t, top, "add", "-A")
+	gitT(t, top, "commit", "-q", "-m", "base")
+	return top
+}
+
+const netCall = `
+module "net" { source = "../../modules/net" }
+resource "aws_ssm_parameter" "net_reader" { value = module.net.id }
+`
+
+var editB = func(s string) string {
+	return strings.Replace(s, `bucket = aws_s3_bucket.a.id`, `bucket = "${aws_s3_bucket.a.id}-v"`, 1)
+}
+
+// Two roots in subdirectories of one repository: a change in one is that
+// root's changed blocks and their readers, and the other root's cone is
+// empty. Neither falls back on a misread base (#2062).
+func TestConeTwoRootsInSubdirectories(t *testing.T) {
+	top := twoRoots(t)
+	a := filepath.Join(top, "live", "a")
+	b := filepath.Join(top, "b")
+	write(t, a, "main.tf", editB(baseMain)+netCall)
+
+	res := compute(t, a)
+	if res.Guard.Full {
+		t.Fatalf("live/a fell back: %+v", res.Guard)
+	}
+	want := []string{"aws_s3_bucket_versioning.b", "aws_ssm_parameter.c"}
+	if !reflect.DeepEqual(res.Targets, want) {
+		t.Fatalf("live/a targets = %v, want %v", res.Targets, want)
+	}
+	if !reflect.DeepEqual(res.Changed, []string{"aws_s3_bucket_versioning.b"}) {
+		t.Fatalf("live/a changed = %v", res.Changed)
+	}
+
+	// b is unchanged: its cone is empty, which is the empty guard, not a
+	// base that read as missing.
+	if res := compute(t, b); res.Guard.Kind != GuardEmpty {
+		t.Fatalf("b: guard = %+v, want %s", res.Guard, GuardEmpty)
+	}
+
+	// The same change in b reaches the same blocks there.
+	write(t, b, "main.tf", editB(baseMain))
+	if res := compute(t, b); res.Guard.Full || !reflect.DeepEqual(res.Targets, want) {
+		t.Fatalf("b: guard = %+v targets = %v, want %v", res.Guard, res.Targets, want)
+	}
+}
+
+// A local module called through ../ from a root in a subdirectory resolves
+// against that subdirectory: a change under modules/net puts module.net and
+// its reader in live/a's cone, and nothing in b's.
+func TestConeParentRelativeModuleFromSubdirectory(t *testing.T) {
+	top := twoRoots(t)
+	write(t, filepath.Join(top, "modules", "net"), "main.tf", "output \"id\" { value = \"n2\" }\n")
+
+	res := compute(t, filepath.Join(top, "live", "a"))
+	if res.Guard.Full {
+		t.Fatalf("live/a fell back: %+v", res.Guard)
+	}
+	if want := []string{"aws_ssm_parameter.net_reader", "module.net"}; !reflect.DeepEqual(res.Targets, want) {
+		t.Fatalf("live/a targets = %v, want %v", res.Targets, want)
+	}
+	if res := compute(t, filepath.Join(top, "b")); res.Guard.Kind != GuardEmpty {
+		t.Fatalf("b: guard = %+v, want %s", res.Guard, GuardEmpty)
+	}
+}
+
+// A root whose directory did not exist at base, or held no configuration
+// there, plans in full and says so, rather than reading every block as
+// added and naming whichever guard that trips first.
+func TestConeRootNewAtBase(t *testing.T) {
+	top := twoRoots(t)
+	c := filepath.Join(top, "live", "c")
+	if err := os.MkdirAll(c, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const tfBlock = "terraform {\n  required_providers {\n    aws = { source = \"hashicorp/aws\" }\n  }\n}\n"
+	write(t, c, "versions.tf", tfBlock)
+	write(t, c, "main.tf", baseMain)
+	res := compute(t, c)
+	if res.Guard.Kind != GuardNewRoot || !strings.Contains(res.Guard.Reason, "(live/c) did not exist at HEAD") {
+		t.Fatalf("missing at base: guard = %+v", res.Guard)
+	}
+
+	// Present at base with no configuration in it.
+	write(t, c, "README", "soon\n")
+	gitT(t, top, "add", "live/c/README")
+	gitT(t, top, "commit", "-q", "-m", "placeholder")
+	res = compute(t, c)
+	if res.Guard.Kind != GuardNewRoot || !strings.Contains(res.Guard.Reason, "(live/c) held no configuration at HEAD") {
+		t.Fatalf("empty at base: guard = %+v", res.Guard)
+	}
+}
+
+// A working directory reached through a symlink names the same
+// subdirectory at base as its real path does.
+func TestConeSymlinkedWorkingDirectory(t *testing.T) {
+	top := twoRoots(t)
+	a := filepath.Join(top, "live", "a")
+	link := filepath.Join(t.TempDir(), "a-link")
+	if err := os.Symlink(a, link); err != nil {
+		t.Skipf("symlink: %v", err)
+	}
+	write(t, a, "main.tf", strings.Replace(baseMain, `{ value = "7" }`, `{ value = "8" }`, 1)+netCall)
+	res := compute(t, link)
+	if res.Guard.Full {
+		t.Fatalf("symlinked live/a fell back: %+v", res.Guard)
+	}
+	if want := []string{"aws_ssm_parameter.p7"}; !reflect.DeepEqual(res.Targets, want) {
+		t.Fatalf("targets = %v, want %v", res.Targets, want)
+	}
+}
