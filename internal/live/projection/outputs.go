@@ -63,13 +63,17 @@ import (
 // exactly like the zero-instance husks. Empty or nil is the ordinary case
 // and costs nothing.
 //
-// recorded is GitHub issue #349's remaining half: what this estate REMEMBERS
-// each root output's value to be, read from the "tofu-outputs" namespace by
-// [ReadRootOutputValues] and written there by the migration and by every
-// apply's write-back. It is consulted only for an output the evaluation below
-// could not answer at all, which is what bounds its blast radius to
-// one-directional - see rootoutput.go's "soundness rule" section. Empty or
-// nil is the ordinary case and costs nothing.
+// recorded is what this estate REMEMBERS each root output's value to be,
+// read from the "tofu-outputs" namespace by [ReadRootOutputValues] and
+// written there by the migration and by every apply's write-back. Since
+// GitHub issue #2073 it is the prior value whenever it is non-nil (a record
+// store is configured): an output it holds no value for is left unset, so
+// the plan calls it a create, and evaluation is not consulted. The
+// exceptions, where evaluation still supplies the prior value and a recorded
+// one is only its fallback (#349), are a sensitive output, which is never
+// recorded, and an output whose record could not be read; see rootoutput.go,
+// "The records are the before side". nil means no record store, and every
+// output is evaluated as #348 built it.
 //
 // This function does not report. It returns diagnostics because it is called
 // where diagnostics are collected, and in practice it returns none: an
@@ -77,9 +81,27 @@ import (
 // The reason is written out at the eval call below, and it is load-bearing
 // rather than tidiness - a pre-plan probe over a deliberately partial state
 // must never be the thing that refuses an estate.
-func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *configs.Config, state *states.State, variables tofu.InputValues, dataValues map[string]cty.Value, recorded map[string]cty.Value) tfdiags.Diagnostics {
+func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *configs.Config, state *states.State, variables tofu.InputValues, dataValues map[string]cty.Value, recorded *RootOutputRecords) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	if core == nil || config == nil || config.Module == nil || len(config.Module.Outputs) == 0 || state == nil {
+		return diags
+	}
+
+	root := state.RootModule()
+
+	// GitHub issue #2073: with a record store, the record is the prior
+	// value, exactly as a stock state file's stored output is. An output
+	// the estate never recorded is left unset and plans as a create. Only
+	// the outputs [recordIsAuthoritative] excludes go on to be evaluated.
+	var evaluate []string
+	for name, output := range config.Module.Outputs {
+		if recordIsAuthoritative(recorded, name, output) {
+			applyRecordedRootOutput(root, name, output, recorded)
+			continue
+		}
+		evaluate = append(evaluate, name)
+	}
+	if len(evaluate) == 0 {
 		return diags
 	}
 
@@ -104,8 +126,8 @@ func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *conf
 	// of this, and it was already live for the evaluation half.
 	scope, _ := core.Eval(ctx, config, withOutputEvalSeeds(ctx, core, config, state, dataValues), addrs.RootModuleInstance, &tofu.EvalOpts{SetVariables: variables})
 
-	root := state.RootModule()
-	for name, output := range config.Module.Outputs {
+	for _, name := range evaluate {
+		output := config.Module.Outputs[name]
 		if scope == nil {
 			// The whole evaluation graph would not build. Nothing is
 			// evaluable this run, but what the estate REMEMBERS is still
@@ -175,17 +197,25 @@ func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *conf
 	return diags
 }
 
-// applyRecordedRootOutput is the fallback under every "continue" in
-// [ApplyRootOutputValues]'s loop: this output could not be evaluated against
-// the projection, so use what the estate remembers it was.
-//
-// Reaching here is the ONLY way a recorded value is ever used, and that is
-// the whole soundness argument (rootoutput.go, "the soundness rule"): a value
-// the evaluation produced is never replaced, so this can only add a prior
-// value where there was none. A "+ name = value" line becomes either nothing,
-// when the remembered value equals what the plan recomputes, or
-// "~ name = old -> new", when they differ - which is a real change and is
-// what stock renders for it too.
+// recordIsAuthoritative reports whether name's prior value comes from
+// recorded alone (GitHub issue #2073), rather than from evaluating the
+// output against the projection. It is true when a record store was read
+// (recorded is non-nil), the output is not sensitive, and its record did not
+// fail to read. In each excluded case a missing record is not evidence that
+// the estate never recorded the value: there is no store, a sensitive output
+// is never written ([WriteRootOutputValues]), or the read itself failed.
+func recordIsAuthoritative(recorded *RootOutputRecords, name string, output *configs.Output) bool {
+	if recorded == nil || output == nil || output.Sensitive {
+		return false
+	}
+	return !recorded.Unreadable[name]
+}
+
+// applyRecordedRootOutput stores the value the estate remembers for name as
+// its prior value, if there is a usable one, and otherwise leaves it unset.
+// It is the whole of the authoritative path (see [recordIsAuthoritative]),
+// and the fallback under every "continue" in [ApplyRootOutputValues]'s
+// evaluation loop for the outputs that path excludes.
 //
 // Marks are taken off for the same crash reason the evaluated path takes them
 // off, even though nothing this package writes to the store carries any: a
@@ -193,11 +223,11 @@ func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *conf
 //
 // A value that is not wholly known is not stored; the check is here for that
 // same node's assumption rather than for a case with a name.
-func applyRecordedRootOutput(root *states.Module, name string, output *configs.Output, recorded map[string]cty.Value) {
-	if root == nil || output == nil || len(recorded) == 0 {
+func applyRecordedRootOutput(root *states.Module, name string, output *configs.Output, recorded *RootOutputRecords) {
+	if root == nil || output == nil {
 		return
 	}
-	val, ok := recorded[name]
+	val, ok := recorded.Value(name)
 	if !ok || val == cty.NilVal || !val.IsWhollyKnown() {
 		return
 	}

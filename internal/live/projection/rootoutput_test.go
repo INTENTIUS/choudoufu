@@ -98,7 +98,7 @@ func TestRootOutputStoreNilIsNothingRemembered(t *testing.T) {
 	// The two bulk entry points must be silent no-ops on a nil store, since
 	// that is how every estate without a record_store block reaches them.
 	if got := ReadRootOutputValues(t.Context(), nil, nil); got != nil {
-		t.Errorf("ReadRootOutputValues(nil, nil) = %#v, want nil", got)
+		t.Errorf("ReadRootOutputValues(nil, nil) = %#v, want nil: nil is what tells ApplyRootOutputValues there is no store", got)
 	}
 	WriteRootOutputValues(t.Context(), nil, states.NewState())
 }
@@ -284,7 +284,7 @@ func TestReadRootOutputValuesIsBoundedByTheConfiguration(t *testing.T) {
 	root.SetOutputValue("deleted_two", cty.StringVal("also gone"), false, "")
 	WriteRootOutputValues(ctx, store, state)
 
-	got := ReadRootOutputValues(ctx, store, loadConfig(t, "testdata/output-eval"))
+	got := ReadRootOutputValues(ctx, store, loadConfig(t, "testdata/output-eval")).Values
 	if _, ok := got["deleted_one"]; ok {
 		t.Errorf("ReadRootOutputValues returned %q, which the configuration does not declare", "deleted_one")
 	}
@@ -295,6 +295,22 @@ func TestReadRootOutputValuesIsBoundedByTheConfiguration(t *testing.T) {
 		t.Errorf("ReadRootOutputValues did not return cert_id, which the configuration does declare and the store holds")
 	} else if !v.RawEquals(cty.StringVal("cert-999")) {
 		t.Errorf("cert_id = %#v, want %#v", v, cty.StringVal("cert-999"))
+	}
+}
+
+// TestReadRootOutputValuesEmptyStoreIsNotNoStore is GitHub issue #2073's
+// read-side pin. A store that holds nothing for the configuration must answer
+// with a non-nil, empty result: that is what makes ApplyRootOutputValues plan
+// every non-sensitive output as never recorded, where a nil result (no store
+// at all) makes it evaluate them.
+func TestReadRootOutputValuesEmptyStoreIsNotNoStore(t *testing.T) {
+	store, _ := newRootOutputStore(t, "example-estate")
+	got := ReadRootOutputValues(t.Context(), store, loadConfig(t, "testdata/output-eval"))
+	if got == nil {
+		t.Fatalf("ReadRootOutputValues over an empty store = nil, want an empty non-nil result")
+	}
+	if len(got.Values) != 0 || len(got.Unreadable) != 0 {
+		t.Errorf("ReadRootOutputValues over an empty store = %#v, want nothing in it", got)
 	}
 }
 
@@ -313,9 +329,19 @@ func TestReadRootOutputValuesSkipsAnUnreadableRecord(t *testing.T) {
 		t.Fatalf("Put: %s", err)
 	}
 
-	got := ReadRootOutputValues(ctx, store, loadConfig(t, "testdata/output-eval"))
+	records := ReadRootOutputValues(ctx, store, loadConfig(t, "testdata/output-eval"))
+	got := records.Values
 	if _, ok := got["cert_id"]; ok {
 		t.Errorf("cert_id was returned from a record that is not valid JSON")
+	}
+	// GitHub issue #2073: an unreadable record is not an absent one. It is
+	// named, so ApplyRootOutputValues evaluates the output instead of
+	// planning it as a create.
+	if !records.Unreadable["cert_id"] {
+		t.Errorf("cert_id's unreadable record was not reported as unreadable; it would plan as never recorded")
+	}
+	if records.Unreadable["cert_label"] {
+		t.Errorf("cert_label was reported unreadable; its record is fine")
 	}
 	if v, ok := got["cert_label"]; !ok {
 		t.Errorf("cert_label was dropped because a DIFFERENT output's record was corrupt")

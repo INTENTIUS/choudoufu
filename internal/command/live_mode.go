@@ -933,7 +933,7 @@ type liveRunner struct {
 	// through [liveRunner.RecordedRootOutputs] at the one moment root
 	// outputs are evaluated. Carried on the runner for rootOutputData's
 	// reason: it is read where the store is open and used a step later.
-	recordedRootOutputs map[string]cty.Value
+	recordedRootOutputs *projection.RootOutputRecords
 
 	// priorStateCalls counts how many times PriorState has run for this
 	// runner. GitHub issue #80's pin: one runner serves one operation (see
@@ -972,7 +972,7 @@ func (r *liveRunner) RootOutputData() map[string]cty.Value {
 }
 
 // RecordedRootOutputs implements [backendLocal.LiveRun].
-func (r *liveRunner) RecordedRootOutputs() map[string]cty.Value {
+func (r *liveRunner) RecordedRootOutputs() *projection.RootOutputRecords {
 	return r.recordedRootOutputs
 }
 

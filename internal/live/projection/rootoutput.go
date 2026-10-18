@@ -53,8 +53,9 @@ import (
 // the plan graph reads it again for the "after" side regardless.
 //
 // So the answer is not a wider read. It is the answer stock already uses:
-// remember what the value was. Recomputation stays the primary path and this
-// is the fallback under it.
+// remember what the value was. #349 built it as the fallback under
+// recomputation; #2073 made it the primary path wherever a record store is
+// configured; see "The records are the before side" below.
 //
 // # Why this is a migration-losslessness fix and not a new feature
 //
@@ -65,22 +66,38 @@ import (
 // [writeBackRootOutputs] keeps them current from then on, exactly where
 // [WriteBack] persists everything else an apply settled.
 //
-// # The soundness rule, and why the blast radius is one-directional
+// # The records are the "before" side (GitHub issue #2073)
 //
-// A recorded value is used ONLY for an output [ApplyRootOutputValues] could
-// not evaluate at all. It can therefore only ever turn a "+ name = value"
-// line into either nothing (the recorded value equals what the plan
-// recomputes, so the two cancel) or "~ name = old -> new" (they differ, which
-// is a real change and is exactly what stock renders for it). It can never
-// change an output that already resolves, and it can never make a real change
-// render as clean: for a change to be hidden the recorded value would have to
-// EQUAL the recomputed one, which is the definition of no change.
+// Until #2073 a recorded value was used only for an output
+// [ApplyRootOutputValues] could not evaluate, and every other output's prior
+// value was RECOMPUTED from the configuration. That hid every change to an
+// output's own expression: a newly added `output "x" { value = 14 }` planned
+// as no-op with before 14 and after 14, and changing the 14 to 30 did the
+// same, because both sides came from the configuration being planned. A
+// reader in another estate then found nothing recorded under a name the
+// producer's plan had called unchanged.
 //
-// That is the same shape as HANDOFF.md's "a wrong marker outranks a missing
-// one" argument, and it comes out the other way for exactly one reason: this
-// value is not an identity. Nothing is adopted, displaced or destroyed on the
-// strength of it. The worst a stale record here can do is show a diff that
-// is not there, which is loud and self-correcting on the next apply.
+// Stock reads the before side out of its state file, and the record is this
+// estate's state file for root outputs. So whenever a record store is
+// configured, the record is authoritative: an output with no record plans as
+// a create (before null), one whose record differs from what the plan
+// computes plans as an update, and one whose record matches plans as no-op.
+// Nothing is adopted, displaced or destroyed on the strength of a root
+// output's value, so the worst a stale record can do is show a diff that is
+// not there, which the next apply's write-back corrects.
+//
+// Evaluation stays the source for three cases where a missing record is not
+// evidence that the estate never recorded the value:
+//
+//   - no record store at all ([NewRootOutputStore] returns nil), where there
+//     is nothing to read and every output would otherwise render as new on
+//     every plan, which is #348's regression;
+//   - a sensitive output, which [WriteRootOutputValues] never records;
+//   - a record that exists and cannot be read, or a store that will not
+//     answer, where the honest prior value is unknown rather than absent.
+//
+// In those cases a recorded value, if one was read, is still the fallback
+// for an output the evaluation cannot answer, as #349 built it.
 //
 // # Why a fifth namespace rather than a field on the record
 //
@@ -204,9 +221,8 @@ type RootOutputStore struct {
 // A nil store yields a nil RootOutputStore, and every method on a nil
 // receiver is the "nothing remembered" answer. An estate with no record_store
 // block therefore keeps exactly the behaviour it had before this file
-// existed: an output the projection cannot evaluate renders as newly created.
-// That is visible rather than silent, which is why it is allowed to be the
-// default.
+// existed: each output's prior value is evaluated against the projection,
+// and one the projection cannot evaluate renders as newly created.
 func NewRootOutputStore(store staterecord.Store, estate string) *RootOutputStore {
 	if store == nil || estate == "" {
 		return nil
@@ -324,11 +340,38 @@ func (s *RootOutputStore) Put(ctx context.Context, name string, val cty.Value, e
 	return s.store.PutIfVersion(ctx, RootOutputKey(s.estate, name), payload, expectedVersion)
 }
 
+// RootOutputRecords is what [ReadRootOutputValues] read from an estate's
+// record store for the outputs its configuration declares. A nil
+// *RootOutputRecords means no record store was configured, and
+// [ApplyRootOutputValues] then evaluates every output as it did before the
+// namespace existed. A non-nil one, even with nothing in it, means the store
+// was asked, so an output it holds no value for has never been recorded.
+type RootOutputRecords struct {
+	// Values is each recorded output's value, keyed by output name.
+	Values map[string]cty.Value
+
+	// Unreadable names the outputs whose record could not be read: the key
+	// holds something that will not decode, or the store returned an error.
+	// For these the absence of a value says nothing about what the estate
+	// recorded, so [ApplyRootOutputValues] evaluates them instead.
+	Unreadable map[string]bool
+}
+
+// Value returns the recorded value for name, if there is one. Safe on a nil
+// receiver.
+func (r *RootOutputRecords) Value(name string) (cty.Value, bool) {
+	if r == nil {
+		return cty.NilVal, false
+	}
+	v, ok := r.Values[name]
+	return v, ok
+}
+
 // ReadRootOutputValues reads back what this estate remembers for every root
-// output the CONFIGURATION declares, for [ApplyRootOutputValues] to fall back
-// on. The configuration is what bounds the read: this namespace has no
-// listing, so a name nothing declares is never asked for. A key left by a
-// deleted `output` block is deleted at the next apply
+// output the CONFIGURATION declares, for [ApplyRootOutputValues] to use as
+// each output's prior value. The configuration is what bounds the read: this
+// namespace has no listing, so a name nothing declares is never asked for. A
+// key left by a deleted `output` block is deleted at the next apply
 // ([PruneRootOutputValues]); until then it is never seen here.
 //
 // Cost: one point lookup per DECLARED root output, per plan or apply, and
@@ -340,15 +383,18 @@ func (s *RootOutputStore) Put(ctx context.Context, name string, val cty.Value, e
 // purpose, and a batch API keyed by a caller-supplied name list would be the
 // first half of one.
 //
-// A store that is nil, a configuration with no outputs, and a record that
-// will not decode all produce the same thing - an absent entry - and none of
-// them raises anything. See [RootOutputStore.Get] for why every failure here
-// is logged and skipped rather than reported: the cost of one is a single
-// output rendering as newly created, which is the honest gap this whole
-// namespace narrows rather than a problem with the estate.
-func ReadRootOutputValues(ctx context.Context, store *RootOutputStore, config *configs.Config) map[string]cty.Value {
-	if store == nil || config == nil || config.Module == nil || len(config.Module.Outputs) == 0 {
+// A nil store returns nil. Any other store returns a non-nil result, empty
+// when nothing is recorded (GitHub issue #2073: that emptiness is what makes
+// a new output plan as a create). A record that will not decode is logged and
+// named in Unreadable rather than reported. See [RootOutputStore.Get] for why
+// nothing here may fail a run.
+func ReadRootOutputValues(ctx context.Context, store *RootOutputStore, config *configs.Config) *RootOutputRecords {
+	if store == nil {
 		return nil
+	}
+	out := &RootOutputRecords{}
+	if config == nil || config.Module == nil || len(config.Module.Outputs) == 0 {
+		return out
 	}
 	names := make([]string, 0, len(config.Module.Outputs))
 	for name := range config.Module.Outputs {
@@ -356,20 +402,23 @@ func ReadRootOutputValues(ctx context.Context, store *RootOutputStore, config *c
 	}
 	sort.Strings(names)
 
-	var out map[string]cty.Value
 	for _, name := range names {
 		val, _, exists, err := store.Get(ctx, name)
 		if err != nil {
-			log.Printf("[WARN] live: the remembered value of the root output %q could not be read, so it has no prior value this run: %s", name, err)
+			log.Printf("[WARN] live: the remembered value of the root output %q could not be read, so its prior value is evaluated from the configuration this run: %s", name, err)
+			if out.Unreadable == nil {
+				out.Unreadable = map[string]bool{}
+			}
+			out.Unreadable[name] = true
 			continue
 		}
 		if !exists {
 			continue
 		}
-		if out == nil {
-			out = make(map[string]cty.Value, len(names))
+		if out.Values == nil {
+			out.Values = make(map[string]cty.Value, len(names))
 		}
-		out[name] = val
+		out.Values[name] = val
 	}
 	return out
 }

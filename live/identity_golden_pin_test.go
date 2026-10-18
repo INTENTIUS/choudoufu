@@ -3256,7 +3256,13 @@ const (
 	// live/e2e/reference-k8s-helm-sealed-secrets/root. None of them added a
 	// row, so instances and body-sha256 are unchanged. fixture-dirs
 	// 673 -> 670 on the same row; the cohort pins are untouched.
-	identityGoldenPinDirs = 701
+	//
+	// 701 -> 702 for GitHub issue #2073: one new fixture,
+	// internal/live/projection/testdata/output-recorded, which declares root
+	// outputs and no resources. It adds no row, so instances and
+	// body-sha256 are unchanged. fixture-dirs 670 -> 671 on the same row;
+	// the cohort pins are untouched.
+	identityGoldenPinDirs = 702
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).

@@ -1081,8 +1081,8 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// changed. See [projection.ApplyRootOutputValues]. rootOutputData is
 	// issue #349's second half: the data sources those outputs reach, read
 	// live a few steps above while the projection's providers were open.
-	// recordedRootOutputs is #349's remaining half: what the estate
-	// remembers each output was, for the ones evaluation cannot reach.
+	// recordedRootOutputs is what the estate remembers each output was,
+	// and with a record store it is the prior value (GitHub issue #2073).
 	diags = diags.Append(projection.ApplyRootOutputValues(ctx, tfCtx, config, projResult.State, variables, rootOutputData, recordedRootOutputs))
 	if diags.HasErrors() {
 		return 1, false, diags
