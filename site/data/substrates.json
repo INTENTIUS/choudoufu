@@ -1,6 +1,6 @@
 {
   "generated_by": "go run ./tools/substrates-gen",
-  "floci_pin": "ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144",
+  "floci_pin": "ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec",
   "rows": [
     {
       "family": "aws",
@@ -57,7 +57,7 @@
       "harness": {
         "name": "floci",
         "pin_file": "live/floci-image",
-        "pin": "ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144",
+        "pin": "ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec",
         "notes": "GHCR image pinned by digest; live/floci-capabilities.json probes per-AWS-service coverage against it."
       }
     },
