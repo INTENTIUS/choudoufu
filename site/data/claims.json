@@ -705,7 +705,7 @@
         },
         "kubernetes": {
           "status": "open",
-          "note": "A cone plan runs on a Kubernetes estate the same way; no scenario measures it."
+          "note": "Open: the proof is written and has not run. live/smoke/drafts/k8s-plan-cost-tracks-the-change.sh changes one of 20 ConfigMaps, which a second block reads, and plans it in full and with -cone=HEAD through live/smoke/k8sproxy.py, then again once the estate has grown to 80; it requires the cone plan to read those two ConfigMaps by name and no other, propose the full plan's changes, and send the same request count at 20 and 80 while the full plan's grows by at least one request per added ConfigMap. BREAK=1 points -cone at a base that is not a commit, so the guard plans the whole estate, and requires the read check to refuse that plan. The marker sweep stays estate-wide on a cone plan, which on a cluster is discovery and one label-selected list per kind served (#1065). About 4 minutes, an estimate. The cell reads proven only after both arms run green (live/smoke/drafts/README.md)."
         }
       }
     },

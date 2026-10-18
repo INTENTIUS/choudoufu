@@ -45,6 +45,7 @@ just smoke k8s-roundtrip   # claim 6 on kind: stock Terraform's estate adopted w
 just smoke k8s-stock-when-you-need-it # claim 6 on kind: no live block, the same plan and the same request count as stock OpenTofu at the pinned tofu_version
 just smoke k8s-unchanged-is-free # claim 3 on kind: -refresh=false serves vouched objects from the cache and sends fewer requests, same answer
 just smoke k8s-plan-cost-tracks-the-estate # claim 14 on kind: 80 foreign ConfigMaps do not move one plan's request count
+just smoke k8s-plan-cost-tracks-the-change # claim 47 on kind: a cone plan of a one-block change sends the same requests at 20 and 80 ConfigMaps (a draft, never run)
 just smoke k8s-an-estate-reads-another-by-declaring-it # claim 28 on kind: reading another estate's outputs is declared, granted one get, and refused by name without either
 just smoke a-held-delete-is-not-gone # claim 1 on AWS: a secret deleted with a recovery window stays in the account, and the plans after it read it as the provider does, empty (#1599)
 just smoke the-server-gets-the-last-word # claim 15 on AWS: a Deny landing after approval refuses the approved apply in AWS's words, and the same plan file applies once it lifts (#1599)
