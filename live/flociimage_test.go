@@ -84,9 +84,10 @@ var flociImageFields = map[string]string{
 // -mode=prune). One row moves: the mwaa service goes implemented ->
 // unverified, because the probe's AWS CLI (2.35.24) now sends mwaa
 // list-environments to an api. host prefix the emulator endpoint does not
-// answer, which the floci commit cannot touch. gauntlet.json is not
-// re-rendered (the maintainer re-measures it, starting with reference-eks's
-// migrate stage), so it gains an entry below.
+// answer, which the floci commit cannot touch. `go run ./tools/gauntlet
+// render` carried gauntlet.json's emulator field across; its rows now read
+// as stale against the new pin until the maintainer re-measures them,
+// starting with reference-eks's migrate stage.
 //
 // 2026-10-03 repin (issue #1821, lex00/floci#218): sha256:ff46eb8d (tag
 // iam-atomic-create-1821) is the previous pin's source commit (b6b731f) plus
@@ -211,10 +212,6 @@ var staleFlociMeasurements = map[string]string{
 	// live/e2e/estates/ against a live floci container; re-measuring costs
 	// that whole sweep, not the one estate this repin's ruling named.
 	"cohort-acceptance.json": "measured against the #1316 pin, two repins back; re-measuring costs TestCohortAcceptance's whole 31-cohort apply/delete-state/replan sweep; #1821's fix only changes which of two racing same-name IAM creates wins and what the loser is told, and no response shape, and #2047's only widens which EKS ARNs the EKS tagging API accepts",
-	// gauntlet.json's rows record the emulator each estate last ran on, and
-	// `gauntlet render` would carry the top-level field across; this repin
-	// leaves the file alone so the board says what it last measured.
-	"gauntlet.json": "measured against the #1821 pin, one repin back; #2047's repin widens EKS tagging to node group and Fargate profile ARNs, which reference-eks's migrate needs, and the maintainer re-measures the board (then `go run ./tools/gauntlet render` retires this entry)",
 	// gauntlet-scale.json's top-level emulator field is NOT rewritten by
 	// `gauntlet render` the way gauntlet.json's is - render leaves the
 	// scale ladder's committed bytes alone (tools/gauntlet/render.go's own
