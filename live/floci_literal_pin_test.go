@@ -113,6 +113,13 @@ var flociLiteralExceptions = map[string]string{
 		"render`; the artifacts themselves are what TestFlociMeasurementsMatchThePinOrSayWhyNot governs, " +
 		"and this is their generated mirror",
 
+	"live/large-set/baseline-n5.json": "measured at N=5 against the #1821 pin (its emulator field); the #2047 " +
+		"repin widens EKS tagging only, which the large-set fixture does not touch. Re-measuring it is the " +
+		"maintainer's; delete this entry when it records the current pin",
+
+	"live/large-set/setplan-n5.json": "same reason as baseline-n5.json: measured against the #1821 pin, " +
+		"re-measured by the maintainer, and this entry goes when it is",
+
 	"tools/floci-capability-gen/digest_test.go": "a test fixture value for resolveDigest's already-pinned " +
 		"fast path, unrelated to which image is actually pinned",
 

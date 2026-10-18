@@ -39,6 +39,12 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.30.0 (Unreleased)
 
+- Emulator repinned from `ghcr.io/lex00/floci@sha256:ff46eb8d...` to
+  `ghcr.io/lex00/floci@sha256:5ec92ae8...` (lex00/floci#228, the old pin's
+  `39d9c7c` plus `c688f52`): EKS `TagResource`, `UntagResource` and
+  `ListTagsForResource` now accept node group and Fargate profile ARNs as
+  well as cluster ARNs, as AWS does. Part of #2047.
+
 ## choudoufu v0.29.1 (2026-10-17)
 
 Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.29.1.json`](live/history/v0.29.1.json).

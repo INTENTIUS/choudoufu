@@ -70,6 +70,24 @@ var flociImageFields = map[string]string{
 // decision that says what re-measuring would cost; empty is the intended
 // state.
 //
+// 2026-10-17 repin (issue #2047, lex00/floci#228): sha256:5ec92ae8 (tag
+// c688f52, amd64 and arm64) is the previous pin's source commit (39d9c7c)
+// plus one commit, c688f52 (branch fix/eks-tag-subresources-on-pin-228), a
+// port of lex00/floci main's ee4a853d6 to the pin line. EKS TagResource,
+// UntagResource and ListTagsForResource now take node group and Fargate
+// profile ARNs as well as cluster ARNs, and DescribeNodegroup and
+// DescribeFargateProfile return the tags; the pin line has no add-on, access
+// entry or pod identity resources to tag. Actions is blocked on lex00/floci,
+// so no CI gate ran on the image there. live/floci-capabilities.json was
+// re-probed for the digest (-mode=all with -watch networkmanager, then
+// -mode=tagging on a fresh container, then the three hand rows by hand, then
+// -mode=prune). One row moves: the mwaa service goes implemented ->
+// unverified, because the probe's AWS CLI (2.35.24) now sends mwaa
+// list-environments to an api. host prefix the emulator endpoint does not
+// answer, which the floci commit cannot touch. gauntlet.json is not
+// re-rendered (the maintainer re-measures it, starting with reference-eks's
+// migrate stage), so it gains an entry below.
+//
 // 2026-10-03 repin (issue #1821, lex00/floci#218): sha256:ff46eb8d (tag
 // iam-atomic-create-1821) is the previous pin's source commit (b6b731f) plus
 // one commit, 39d9c7c, which makes every name-keyed IAM create (CreateRole,
@@ -187,12 +205,16 @@ var staleFlociMeasurements = map[string]string{
 	// own run time (single-digit minutes per N, but it is a call-count
 	// ratchet unrelated to EC2 subnet allocation - this fix touches no path
 	// bench-estate's synthetic fixture exercises).
-	"plan-budget.json": "measured against the pre-#672 pin, now seven repins back; re-measuring costs a full `make bench-estate` run at N=200 and N=1000, and no fix since (EC2 CreateSubnet CIDR-conflict rejection, then the ELBv2 concurrent-RegisterTargets monitor, then the ELBv2 CreateRule priority monitor) touches a call this benchmark's synthetic fixture makes",
+	"plan-budget.json": "measured against the pre-#672 pin, now eight repins back; re-measuring costs a full `make bench-estate` run at N=200 and N=1000, and no fix since (EC2 CreateSubnet CIDR-conflict rejection, then the ELBv2 concurrent-RegisterTargets monitor, then the ELBv2 CreateRule priority monitor) touches a call this benchmark's synthetic fixture makes",
 	// TestCohortAcceptance (internal/live/acceptance) applies, deletes the
 	// state of, and replans all 31 estate-gen cohorts under
 	// live/e2e/estates/ against a live floci container; re-measuring costs
 	// that whole sweep, not the one estate this repin's ruling named.
-	"cohort-acceptance.json": "measured against the #1316 pin, one repin back; re-measuring costs TestCohortAcceptance's whole 31-cohort apply/delete-state/replan sweep; #1821's fix only changes which of two racing same-name IAM creates wins and what the loser is told, and no response shape",
+	"cohort-acceptance.json": "measured against the #1316 pin, two repins back; re-measuring costs TestCohortAcceptance's whole 31-cohort apply/delete-state/replan sweep; #1821's fix only changes which of two racing same-name IAM creates wins and what the loser is told, and no response shape, and #2047's only widens which EKS ARNs the EKS tagging API accepts",
+	// gauntlet.json's rows record the emulator each estate last ran on, and
+	// `gauntlet render` would carry the top-level field across; this repin
+	// leaves the file alone so the board says what it last measured.
+	"gauntlet.json": "measured against the #1821 pin, one repin back; #2047's repin widens EKS tagging to node group and Fargate profile ARNs, which reference-eks's migrate needs, and the maintainer re-measures the board (then `go run ./tools/gauntlet render` retires this entry)",
 	// gauntlet-scale.json's top-level emulator field is NOT rewritten by
 	// `gauntlet render` the way gauntlet.json's is - render leaves the
 	// scale ladder's committed bytes alone (tools/gauntlet/render.go's own
@@ -208,7 +230,7 @@ var staleFlociMeasurements = map[string]string{
 	// index_wait for TARGET=floci entirely (see its own skip message and
 	// live/indexwait_partition_test.go for that decision, re-made on this
 	// repin).
-	"gauntlet-scale.json": "measured against the pre-#1152 pin, now three repins back; re-measuring costs three full terralith-scale floci crossings at SCALE 1, 128 and 136 plus four real-AWS ones. #1152 changed only which IAM ARNs GetResources returns, a call the floci arm of that ladder does not make because index_wait is skipped for TARGET=floci; #1316 makes a Tagging API write on a Route 53 zone reach Route 53's own tags, which the floci arm's steady-state plans of its zone do read, so its floci records predate that fix",
+	"gauntlet-scale.json": "measured against the pre-#1152 pin, now four repins back; re-measuring costs three full terralith-scale floci crossings at SCALE 1, 128 and 136 plus four real-AWS ones. #1152 changed only which IAM ARNs GetResources returns, a call the floci arm of that ladder does not make because index_wait is skipped for TARGET=floci; #1316 makes a Tagging API write on a Route 53 zone reach Route 53's own tags, which the floci arm's steady-state plans of its zone do read, so its floci records predate that fix",
 	// cohort-triage.json is hand triage reconciled against
 	// cohort-acceptance.json's own re-measurement (its own generated_by
 	// field says so); it cannot be re-measured independently of that file.
