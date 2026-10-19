@@ -45,6 +45,28 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
   `ListTagsForResource` now accept node group and Fargate profile ARNs as
   well as cluster ARNs, as AWS does. Part of #2047.
 
+- Changed: plan output for root outputs. With a record store, a
+  non-sensitive root output's prior value is now the value the estate
+  recorded under `tofu-outputs/<estate>/`, as a stock state file's stored
+  output is, instead of the value evaluated from the configuration. A new
+  output plans as `create` with `before: null`, and a changed constant
+  output plans as `update` from the recorded value. Both used to plan as
+  `no-op`. An estate whose outputs were never recorded (migrated before
+  `tofu-outputs` existed and not applied since) plans its outputs as creates
+  once, and the next apply records them. With no record store, for a
+  sensitive output, or when the record cannot be read, the evaluated value is
+  still used, as before. This reverses the rule #349 set (#2073, #2085).
+- Fixed: `live-cone` and `plan -cone` read the base module of a root in a
+  repository subdirectory. Before, the base listing came back empty and every
+  cone for such a root fell back to a full plan under a provider, live or
+  terraform block guard. The fallback reason now says a block was added when
+  it has no counterpart at base (#2062, #2081).
+- Fixed: `live-mv` on a `kubernetes_manifest` object re-reads the object and
+  repeats the server's dry run when a controller wrote it between the read
+  and the dry run, instead of refusing the move as a mutating webhook
+  rewrite. After five tries it refuses with "Live object kept changing"
+  (#2050, #2082).
+
 ## choudoufu v0.29.1 (2026-10-17)
 
 Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.29.1.json`](live/history/v0.29.1.json).
