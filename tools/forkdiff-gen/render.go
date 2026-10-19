@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Render mode (issue #424, mirroring tools/readiness-gen's own -render):
-// `go run ./tools/forkdiff-gen -render` writes the docs site's copy of the
+// `go run ./tools/forkdiff-gen -render` writes the summary of the
 // artifact (SiteDataRel, #1055) from the already-committed
 // live/fork-surface.json - not a fresh diff against the fork point. That is the same deliberate choice readiness-gen's -render
 // makes against live/readiness.json: reading the committed artifact rather
@@ -24,18 +24,15 @@ import (
 	"github.com/intentius/choudoufu/tools/statpages"
 )
 
-// SiteDataRel is the docs site's copy of the fork-surface artifact
-// (#1055): everything in live/fork-surface.json except the per-file lists,
-// plus the fixed root order, so the site's fork-surface shortcode
-// (site/layouts/shortcodes/fork-surface.html) can render the summary the
-// positioning page shows. Before #1055 this mode wrote that summary as a
-// markdown span into the page itself; now the generator emits data and the
-// site decides how it reads.
-const SiteDataRel = "site/data/fork_surface.json"
+// SiteDataRel is the fork-surface summary (#1055, #2092): everything in
+// live/fork-surface.json except the per-file lists, plus the fixed root
+// order, so tools/statpages can render live/FORK-SURFACE.md from it. It
+// lived at site/data/fork_surface.json while the Hugo site rendered it.
+const SiteDataRel = "live/fork-surface-summary.json"
 
 // forkPointCommitURL is the fork point's commit on the upstream project,
 // the same linking convention the docs site's root page already uses for
-// this same commit. The site's shortcode composes the link from it.
+// this same commit. live/FORK-SURFACE.md composes the link from it.
 const forkPointCommitURL = "https://github.com/opentofu/opentofu/commit/"
 
 // loadForkSurfaceArtifact reads and decodes the already-committed
@@ -122,7 +119,7 @@ func renderSiteData(a forkSurface) ([]byte, error) {
 }
 
 // runRender is the -render entry point: read the committed
-// live/fork-surface.json and write the site's copy, only if it changed.
+// live/fork-surface.json and write the summary, only if it changed.
 func runRender() error {
 	root, err := repoRoot()
 	if err != nil {

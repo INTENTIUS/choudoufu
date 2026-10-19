@@ -32,7 +32,7 @@ import (
 //     read, not about a type's admission tier.
 //
 // This is the third: a fact about one managed resource INSTANCE's type, the
-// one live/e2e's own README and site/content/docs/use/resource-tiers.md
+// one live/e2e's own README and live/READINESS.md
 // call marker-carried / declaration-carried / record-carried (and
 // tools/readiness-gen's TierMarkerCarried/TierDeclarationCarried/
 // TierRecordCarried constants, the closest existing Go spelling - a
@@ -186,7 +186,7 @@ func buildRoster(cfg *configs.Config, schemas map[string]providers.Schema, ident
 // issue #1600 that tier A reads the substrate's own marker - is
 // tag-governable; every other admitted
 // type is declaration-carried by elimination, matching the middle tier
-// site/content/docs/use/resource-tiers.md and tools/readiness-gen's own
+// live/READINESS.md and tools/readiness-gen's own
 // TierDeclarationCarried both name "declaration-carried" for.
 //
 // Without schemas (an uninitialized directory - see [Context.Schemas]),

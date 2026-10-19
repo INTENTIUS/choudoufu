@@ -615,9 +615,10 @@ func TestReadParallelismIsDocumentedBesideTheOthers(t *testing.T) {
 	}
 }
 
-// planCostDocRel is the operator-facing page for what a plan costs, which is
-// where someone who wants a plan to cost less goes looking.
-const planCostDocRel = "site/content/docs/model/plan-cost.md"
+// planCostDocRel is the page for what a plan costs, which is where someone
+// who wants a plan to cost less goes looking. It was the site's
+// docs/model/plan-cost page until the site was cut down (#2092).
+const planCostDocRel = "live/PLAN-CONE.md"
 
 // TestBothParallelismKnobsAreDocumentedOnThePlanCostPage is GitHub issue
 // #640's third half.
@@ -643,13 +644,13 @@ func TestBothParallelismKnobsAreDocumentedOnThePlanCostPage(t *testing.T) {
 	}
 	page := string(raw)
 
-	const heading = "\n## Turning a phase down\n"
+	const heading = "\n### Turning a phase down\n"
 	start := strings.Index(page, heading)
 	if start < 0 {
 		t.Fatalf("%s no longer has a %q section. If it was renamed, point this test at the new heading rather than widening it to the whole page - a name that appears anywhere in a long page is not documentation of the knob.", planCostDocRel, strings.TrimSpace(heading))
 	}
 	section := page[start+len(heading):]
-	if end := strings.Index(section, "\n## "); end >= 0 {
+	if end := strings.Index(section, "\n#"); end >= 0 {
 		section = section[:end]
 	}
 

@@ -8,10 +8,6 @@ package main
 // OutputJSONRel is where the artifact is committed.
 const OutputJSONRel = "live/substrates.json"
 
-// SiteDataJSONRel is the site's byte-identical copy, the same pattern
-// live/smoke/claims.json's site/data/claims.json copy uses.
-const SiteDataJSONRel = "site/data/substrates.json"
-
 // ReadinessJSONRel is the input the untaggable-tier column is computed
 // from: tools/readiness-gen's own committed partition, never regenerated
 // here.

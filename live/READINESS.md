@@ -23,6 +23,20 @@ around the generated markers, never inside them.
 `live/readiness.json` last committed at commit `c3f1ee1756` on 2026-10-03T19:41:48-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.
 <!-- readiness-gen:end tiers -->
 
+## Two counts called record-carried
+
+Two populations share the record-carried tier's name. `identity.MarkerlessTypes`
+(`internal/live/identity/markerless_generated.go`) is **159** types, derived
+from taggability and server-assignment. The table above counts **471**:
+the 158 of those 159 that land here (the 159th, `aws_wafv2_api_key`, is
+excluded by design instead) plus **313** more `tools/readiness-gen` adds by
+elimination - untaggable, unadmitted, and out of any other tier's survey
+path. **159** answers "how many types does the located mechanism cover";
+**471** answers "how many types does this tier show". Recount from
+`live/readiness.json` (`facts.markerless`, `tier`) and
+`markerless_generated.go`; `live/readiness_docs_pin_test.go` fails when
+these figures move.
+
 ## Kubernetes
 
 The Kubernetes substrate's admitted types are counted apart from the AWS

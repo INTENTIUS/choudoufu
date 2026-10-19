@@ -40,8 +40,9 @@ import (
 //
 // Four claim sites had drifted when this was written, on three pages:
 // live/MARKERS.md's "Grammar vs. current builds" paragraph and its examples
-// list, site/content/docs/model/identity.md's "refused permanently"
-// paragraph, and two places on site/content/docs/use/compatibility.md. Those
+// list, the site's docs/model/identity page's "refused permanently"
+// paragraph, and two places on its docs/use/compatibility page (both since
+// folded into live/IDENTITY.md and live/COMPATIBILITY.md, #2092). Those
 // pages are owned by different people and drifted at different times, which
 // is the argument for a pin over an edit: an edit fixes the four sentences
 // that are wrong today, and a pin fails on the fifth.

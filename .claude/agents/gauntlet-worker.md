@@ -276,9 +276,10 @@ hand back a finding dressed up as a finished unit.
 
 ## What you must not do
 
-- Edit `live/gauntlet.json`, `live/GAUNTLET.md` or `site/data/gauntlet_board.json`
-  by hand; they are rendered. The pages under `site/content/docs/progress/` are
-  hand-written prose that reads that data (#1055); those you may edit.
+- Edit `live/gauntlet.json`, `live/GAUNTLET.md`, `live/gauntlet-board.json` or
+  the spans in `live/BOARD.md` by hand; they are rendered. The text around
+  `live/BOARD.md`'s spans and `live/CONTRIBUTE-GAUNTLET.md` are hand-written;
+  those you may edit.
 - Hand-edit any file carrying `Code generated ... DO NOT EDIT` or any artifact
   under `live/`; regenerate it.
 - Change a stage's status in `tools/gauntlet/stages.go`; that is a

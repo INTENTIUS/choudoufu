@@ -747,8 +747,8 @@ func cmdLiveCert(root string, args []string) error {
 
 	// One render, after BOTH halves are on disk (issue #1187). It used to
 	// run between them: `SaveScaleArtifact` wrote live/gauntlet-scale.json
-	// and nothing afterwards touched SiteScalePath, which only Render
-	// writes. After the scale-128 certification the two files disagreed by
+	// and nothing afterwards touched the Hugo site's copy, which only
+	// Render wrote then. After the scale-128 certification the two files disagreed by
 	// exactly one record - the new one, the entire point of a 39,610-second
 	// real-AWS run - and the site simply lacked the point while the repo
 	// looked fine. The missing record is always the newest, which is always
@@ -1194,7 +1194,7 @@ func StaleFilesReport(root string) (stale, scriptOnly []string, err error) {
 		}
 		got, err := os.ReadFile(filepath.Join(root, rel))
 		if err != nil || !bytes.Equal(want, got) {
-			if rel == SiteBoardPath && boardsDifferOnlyInScriptStaleness(want, got) && committedBoardSelfConsistent(got) == nil {
+			if rel == BoardDataPath && boardsDifferOnlyInScriptStaleness(want, got) && committedBoardSelfConsistent(got) == nil {
 				scriptOnly = append(scriptOnly, rel)
 				continue
 			}

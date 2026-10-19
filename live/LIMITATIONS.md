@@ -201,8 +201,8 @@ configuration with a `record_store` was told its type could never work.
   reinterpretation of what these types are. A `record_store` block backs
   the type's whole identity with a persisted record instead of a cloud
   observation (`internal/live/staterecord`, local and S3 backends). See
-  `site/content/docs/use/reference.md`'s `record_store` block for the config
-  surface. Without
+  the site's reference page (https://intentius.io/choudoufu/docs/use/reference/)
+  for the `record_store` block's config surface. Without
   a store, the refusal Detail names this class and cites #73 exactly as it
   always has.
 - **SECRET_REFUSED** - `random_password`, `random_bytes`, the `tls_`

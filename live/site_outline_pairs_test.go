@@ -7,14 +7,14 @@ package residue
 
 import (
 	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 )
 
-// GitHub issue #1601: site/content/aws and site/content/kubernetes carry the
-// same file names, but before this test existed nothing held their `##`
+// GitHub issue #1601: the aws and kubernetes hubs carry the same page names
+// (site/src/content/docs/{aws,kubernetes} since the Astro cutover, #2092;
+// site/content/{aws,kubernetes} before it), but before this test existed nothing held their `##`
 // outlines to each other. adopt.md ran 4 AWS sections against 2 on
 // Kubernetes, operate.md ran 6 against 4 in a different order plus an extra
 // Kubernetes-only "Records" section, and so on: a reader who read one
@@ -29,15 +29,15 @@ import (
 // can still nest under a shared `##` heading without needing an AWS-side
 // counterpart.
 //
-// Proving it red: revert any one of the site/content/{aws,kubernetes} pages
-// this issue touched, and its outline stops matching its pair's.
+// Proving it red: rename one `##` heading on one side of a pair, and its
+// outline stops matching its pair's.
 var siteOutlinePairs = []string{
-	"_index.md",
-	"adopt.md",
-	"compatibility.md",
-	"gate.md",
-	"operate.md",
-	"proof.md",
+	"index",
+	"adopt",
+	"compatibility",
+	"gate",
+	"operate",
+	"proof",
 }
 
 // level2Headings returns a Markdown file's `##` headings, in file order,
@@ -61,13 +61,13 @@ func level2Headings(t *testing.T, path string) []string {
 func TestAWSAndKubernetesPagesShareAnOutline(t *testing.T) {
 	found := 0
 	for _, name := range siteOutlinePairs {
-		awsPath := filepath.Join(siteContentDir, "aws", name)
-		k8sPath := filepath.Join(siteContentDir, "kubernetes", name)
-		if _, err := os.Stat(awsPath); err != nil {
-			t.Fatalf("stat %s: %v", awsPath, err)
+		awsPath := sitePage("aws/" + name)
+		k8sPath := sitePage("kubernetes/" + name)
+		if awsPath == "" {
+			t.Fatalf("no aws/%s.md or .mdx under %s", name, siteContentDir)
 		}
-		if _, err := os.Stat(k8sPath); err != nil {
-			t.Fatalf("stat %s: %v", k8sPath, err)
+		if k8sPath == "" {
+			t.Fatalf("no kubernetes/%s.md or .mdx under %s", name, siteContentDir)
 		}
 		found++
 

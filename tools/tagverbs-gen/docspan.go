@@ -16,8 +16,8 @@ import (
 	"github.com/intentius/choudoufu/internal/live/mdspan"
 )
 
-// This file renders the tagging half of the docs site's permissions section
-// (issue #143). The rest of that section is a fixed handful of calls this
+// This file renders the tagging half of live/IAM-REFERENCE.md's permissions
+// section (issue #143; on the docs site's reference page until #2092). The rest of that section is a fixed handful of calls this
 // fork makes directly, which is hand-written beside a file reference; the
 // tagging verbs move with botocore across a service roster large enough
 // (spanTagVerbsTotal below) that it is a span rather than a sentence someone
@@ -26,7 +26,7 @@ import (
 var markers = mdspan.For("tagverbs-gen")
 
 const (
-	referenceMDRel = "site/content/docs/use/reference.md"
+	referenceMDRel = "live/IAM-REFERENCE.md"
 	spanTagVerbs   = "tag-verbs"
 
 	// spanTagVerbsTotal is the inline span naming how many services the
@@ -38,8 +38,8 @@ const (
 	spanTagVerbsTotal = "tag-verbs-total"
 )
 
-// applyTagVerbSpans writes both of this generator's site/content/docs/use/
-// reference.md spans into md, in one place, so renderTagVerbSpan and
+// applyTagVerbSpans writes both of this generator's live/IAM-REFERENCE.md
+// spans into md, in one place, so renderTagVerbSpan and
 // docspan_test.go's drift guard render exactly the same bytes.
 func applyTagVerbSpans(md string, rows []Row) (string, error) {
 	out, err := markers.Replace(referenceMDRel, md, spanTagVerbs, renderTagVerbTable(rows))
@@ -61,7 +61,7 @@ func renderTagVerbTotal(rows []Row) string {
 }
 
 // renderTagVerbSpan writes the roster of distinct tagging operations, and
-// the roster's total size, into site/content/docs/use/reference.md.
+// the roster's total size, into live/IAM-REFERENCE.md.
 //
 // Operations rather than services in the table: an operator writing a role
 // needs the action names, and the service rows collapse to a handful of

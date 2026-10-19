@@ -100,7 +100,7 @@ diagnose further; #565/#546E own the emulator-cost question.
 > reads 2s rather than 273.6s. The two figures never disagreed about plan
 > cost; one carries #572 and the other does not. Neither should be quoted as
 > what a plan costs: `live/plan-budget.json` and
-> `site/content/docs/model/plan-cost.md` report call counts for that reason.
+> `live/PLAN-CONE.md` report call counts for that reason.
 > #584 hit the same 273-274s stall independently across nine runs and
 > attributed it to floci; the control above shows the trigger is the provider
 > block, and that the same estate plans empty against floci once the line is

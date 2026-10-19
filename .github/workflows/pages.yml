@@ -1,14 +1,15 @@
 name: Deploy docs site
 
+# Builds the Astro + Starlight site in site/ and deploys it to GitHub Pages
+# (#2092). `npm run build` runs check-rooms after astro build, and the URL
+# check holds every URL the Hugo site served to a page or a redirect.
 on:
   push:
     branches: [main]
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -17,30 +18,48 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          submodules: true
-      - uses: peaceiris/actions-hugo@v3
-        with:
-          hugo-version: 'latest'
-          extended: true
-      - name: Copy build-time data inputs
-        run: cp live/iam-reference.json site/data/iamref.json
-      - name: Build site
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: read
+    defaults:
+      run:
         working-directory: site
-        run: hugo --minify
-      - uses: actions/configure-pages@v6
-      - uses: actions/upload-pages-artifact@v5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          path: site/public
-
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Configure Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d
+      - name: Install
+        run: npm ci
+      - name: Build the site
+        env:
+          PUBLIC_POSTHOG_KEY: '${{ vars.PUBLIC_POSTHOG_KEY }}'
+        run: npm run build
+      - name: Check every old URL resolves
+        run: node ../scripts/site-url-check.mjs
+      - name: Upload the artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
+        with:
+          path: site/dist
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: '${{ steps.deployment.outputs.page_url }}'
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v5
+        name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346

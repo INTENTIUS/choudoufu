@@ -14,9 +14,8 @@
 //
 //	go run ./tools/substrates-gen
 //
-// A second mode copies the committed live/substrates.json byte-for-byte to
-// site/data/substrates.json, the same split live/smoke/claims.json's site
-// copy uses:
+// A second mode re-renders live/SUBSTRATES.md from the committed
+// live/substrates.json:
 //
 //	go run ./tools/substrates-gen -render
 //

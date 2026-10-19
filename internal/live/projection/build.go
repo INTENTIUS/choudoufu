@@ -3378,8 +3378,8 @@ func notFoundDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
 // not applied to every Sensitive attribute.
 //
 // Withholding the value restores the documented behaviour rather than
-// inventing one. site/content/docs/use/secrets.md and live/SECRETS.md both
-// say "A sensitive argument the API never returns is left out of its
+// inventing one. live/SECRETS.md (and the site's secrets page,
+// before it folded in there) says "A sensitive argument the API never returns is left out of its
 // record, so every plan shows it as a change", and lint's own
 // [residueWarning] on the same attribute promises "Every live plan will
 // therefore propose sending the value again - the same perpetual diff stock

@@ -65,16 +65,12 @@ const (
 	// section to, alongside survey-gen's existing spans there.
 	CoverageMDRel = "live/COVERAGE.md"
 
-	// SiteDataRel is the docs site's copy of the readiness artifact in the
-	// shape its pages render (#1055): the tier-by-status cross tab, the
-	// per-type rows with a one-line customer-facing reason each, and the
-	// provenance stamp. The site's compatibility and resource-tiers pages
-	// render it through the readiness shortcode
-	// (site/layouts/shortcodes/readiness.html). Before #1055 this mode
-	// wrote two markdown spans into those pages directly, which tied the
-	// artifact's presentation to one page format; now the generator emits
-	// data and the site decides how a measurement looks.
-	SiteDataRel = "site/data/readiness.json"
+	// SiteDataRel is the readiness artifact in the shape live/READINESS.md
+	// renders (#1055, #2092): the tier-by-status cross tab, the per-type
+	// rows with a one-line customer-facing reason each, and the provenance
+	// stamp. tools/statpages renders the page from it. It lived at
+	// site/data/readiness.json while the Hugo site rendered it.
+	SiteDataRel = "live/readiness-summary.json"
 
 	// spanReadinessTable is the tier-by-status cross tab, rendered into
 	// CoverageMDRel.
@@ -82,8 +78,7 @@ const (
 )
 
 // limitationsMDURL is live/LIMITATIONS.md's GitHub blob URL, the same
-// linking convention site/content/docs/use/reference.md already uses for
-// every repo-root doc it indexes. Built as a const, not discovered, because
+// linking convention the docs site uses for every repo doc it links. Built as a const, not discovered, because
 // there is nothing to discover: the file's path in the repo is fixed.
 const limitationsMDURL = "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md"
 
@@ -366,7 +361,7 @@ func buildSiteData(a Artifact, stamp string) siteData {
 }
 
 // renderSiteData is SiteDataRel's on-disk form: two-space indented with a
-// trailing newline, the way every other site/data artifact is written.
+// trailing newline, the way every other derived summary is written.
 func renderSiteData(a Artifact, stamp string) ([]byte, error) {
 	out, err := json.MarshalIndent(buildSiteData(a, stamp), "", "  ")
 	if err != nil {

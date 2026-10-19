@@ -5,7 +5,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
-public="$repo_root/site-next/public"
+public="$repo_root/site/public"
 brand="$public/brand"
 mkdir -p "$brand"
 
@@ -19,7 +19,7 @@ python3 -c 'import PIL' 2>/dev/null || {
 }
 
 python3 "$repo_root/scripts/brand/logo.py" > "$brand/cube.svg"
-echo "wrote site-next/public/brand/cube.svg"
+echo "wrote site/public/brand/cube.svg"
 
 # One pixel per grid cell; Pillow scales it from there.
 side=$(sed -E 's/.*width="([0-9]+)".*/\1/;q' "$brand/cube.svg")
@@ -50,27 +50,27 @@ def on_dark(canvas, size, x, y):
 
 for size in (160, 128, 64, 48, 32, 16):
     scaled(size).save(f"{brand}/cube-{size}.png", optimize=True)
-    print(f"wrote site-next/public/brand/cube-{size}.png")
+    print(f"wrote site/public/brand/cube-{size}.png")
 
 scaled(32).save(f"{public}/favicon-32.png", optimize=True)
-print("wrote site-next/public/favicon-32.png")
+print("wrote site/public/favicon-32.png")
 
 scaled(48).save(
     f"{public}/favicon.ico", sizes=[(16, 16), (32, 32), (48, 48)],
     append_images=[scaled(16), scaled(32)],
 )
-print("wrote site-next/public/favicon.ico")
+print("wrote site/public/favicon.ico")
 
 # Opaque icons and share cards, the cube on the site's dark background.
 touch = Image.new("RGBA", (180, 180), BG)
 on_dark(touch, 160, 10, 10)
 touch.convert("RGB").save(f"{public}/apple-touch-icon.png", optimize=True)
-print("wrote site-next/public/apple-touch-icon.png")
+print("wrote site/public/apple-touch-icon.png")
 
 square = Image.new("RGBA", (400, 400), BG)
 on_dark(square, 320, 40, 40)
 square.convert("RGB").save(f"{public}/cube-share.png", optimize=True)
-print("wrote site-next/public/cube-share.png")
+print("wrote site/public/cube-share.png")
 
 
 def font(size):
@@ -91,7 +91,7 @@ on_dark(og, 360, 110, 135)
 draw = ImageDraw.Draw(og)
 draw.text((520, 315), "choudoufu", font=font(120), fill=(0xF4, 0xF4, 0xF5, 255), anchor="lm")
 og.convert("RGB").save(f"{public}/og.png", optimize=True)
-print("wrote site-next/public/og.png")
+print("wrote site/public/og.png")
 PY
 )
 rsvg-convert -w "$side" -h "$side" "$brand/cube.svg" | python3 -c "$py" "$public"

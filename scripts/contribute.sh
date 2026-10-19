@@ -54,7 +54,6 @@ case "$rc" in
 *) echo "contribute: git could not answer whether branch $BRANCH exists (git show-ref exit $rc): $show_ref_err" >&2; exit 2 ;;
 esac
 git -C "$ROOT" worktree add "$WT" -b "$BRANCH" main >/dev/null
-git -C "$WT" submodule update --init site/themes/hugo-book >/dev/null 2>&1 || true
 echo "contribute: unit $UNIT in $WT (branch $BRANCH), ceiling \$$MAX_USD"
 
 PROMPT="You are the gauntlet worker. Read .claude/agents/gauntlet-worker.md and follow it exactly for unit ${UNIT}. You are already in a worktree on branch ${BRANCH}; do not create another. Push the branch to the git remote '${REMOTE}' and open the pull request against INTENTIUS/choudoufu main with gh. Stop when the pull request exists or when the brief says to stop."

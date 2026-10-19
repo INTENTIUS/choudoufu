@@ -100,14 +100,6 @@ cmd_run() {
     return 2
   fi
 
-  # A fresh `git worktree add` does not check out the hugo-book submodule,
-  # and the docs step in `just ci` then fails with `template for shortcode
-  # "hint" not found` - a red gate caused by the worktree, not by whatever
-  # is being worked on (issue #1031). scripts/contribute.sh already does
-  # this before its worker starts; do it here too so no worker needs to
-  # know it by hand. Idempotent and silent when already initialised.
-  git submodule update --init site/themes/hugo-book >/dev/null 2>&1 || true
-
   # Resolve the sha BEFORE touching anything: a git that cannot name HEAD
   # means there is nothing to stamp a result with, so nothing runs.
   local sha start end rc id

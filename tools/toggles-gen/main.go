@@ -3,7 +3,7 @@
 // Copyright (c) 2023 HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-// toggles-gen renders site/content/docs/use/reference.md's `strict` block
+// toggles-gen renders live/STRICT.md's `strict` block
 // argument table from internal/live/strict's own [strict.Toggles] registry
 // (GitHub issue #365's consolidation).
 //
@@ -20,9 +20,10 @@
 // registry) read by nothing: the "reference page is rendered from the
 // schema" claim in HANDOFF.md's default section was false. This closes
 // that gap for the `strict` block table specifically; the `record_store`
-// and `policy` block tables above it in reference.md are still
+// and `policy` block tables on the site's reference page are still
 // hand-written, because neither has a registry like [strict.Toggles] to
-// render from yet.
+// render from yet. The span moved from that page to live/STRICT.md when the
+// site was cut down (#2092).
 //
 // Usage, from anywhere in the checkout:
 //
@@ -42,7 +43,7 @@ import (
 var markers = mdspan.For("toggles-gen")
 
 const (
-	referenceMDRel  = "site/content/docs/use/reference.md"
+	referenceMDRel  = "live/STRICT.md"
 	spanStrictTable = "strict-toggles"
 )
 

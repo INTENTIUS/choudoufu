@@ -9,7 +9,7 @@ and date. [GAUNTLET.md](GAUNTLET.md) defines the stages and the artifact; the
 choudoufu.
 
 Everything between the generated markers is rendered from
-`site/data/gauntlet_board.json` and `live/gauntlet.json` by
+`live/gauntlet-board.json` and `live/gauntlet.json` by
 `go run ./tools/gauntlet render`. Edit the text around the markers, never
 inside them.
 
@@ -95,50 +95,50 @@ P pass, **F** fail, - not run, n/a does not apply on this substrate, s stale (ca
 
 | Estate | Set | Lane | Clear | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | Last run |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| [corpus-alb-complete](e2e/corpus-alb-complete/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-autoscaling-complete](e2e/corpus-autoscaling-complete/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-dynamodb-table-basic](e2e/corpus-dynamodb-table-basic/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-ec2-instance-complete](e2e/corpus-ec2-instance-complete/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-ecs-fargate](e2e/corpus-ecs-fargate/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-eks-basic](e2e/corpus-eks-basic/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-evoteum-modules](e2e/corpus-evoteum-modules/) | core | opentofu-native | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-giantswarm-crossplane](e2e/corpus-giantswarm-crossplane/) | core | opentofu-native | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-hongbomiao-labelbox](e2e/corpus-hongbomiao-labelbox/) | core | opentofu-native | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `2f02038dd1` 2026-10-12 |
-| [corpus-iam-policy](e2e/corpus-iam-policy/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-lambda-simple](e2e/corpus-lambda-simple/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-leynos-monitoring](e2e/corpus-leynos-monitoring/) | core | opentofu-native | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-overture-tiles](e2e/corpus-overture-tiles/) | core | opentofu-native | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-rds-complete-postgres](e2e/corpus-rds-complete-postgres/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-s3-bucket-complete](e2e/corpus-s3-bucket-complete/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-security-group-complete](e2e/corpus-security-group-complete/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-simpleinfra-dns](e2e/corpus-simpleinfra-dns/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-sqs-basic](e2e/corpus-sqs-basic/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-sumaform-aws](e2e/corpus-sumaform-aws/) | core | opentofu-native | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-vpc-complete](e2e/corpus-vpc-complete/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-xancloud-iac](e2e/corpus-xancloud-iac/) | core | opentofu-native | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [reference-ec2-vpc](e2e/reference-ec2-vpc/) | core | reference | yes, script changed | P | P | P | P | P | P | P | P | P | P | - | P | P | P | - | `f707182267` 2026-10-02 |
-| [terralith-scale](e2e/terralith-scale/) | core | reference | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `debf8ccd05` 2026-10-03 |
-| [corpus-cloud-platform-components](e2e/corpus-cloud-platform-components/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
-| [corpus-govuk-cluster-access](e2e/corpus-govuk-cluster-access/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
-| [corpus-govuk-cluster-services](e2e/corpus-govuk-cluster-services/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | - | `2f02038dd1` 2026-10-12 |
-| [corpus-k8s-metrics-server](e2e/corpus-k8s-metrics-server/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
-| [corpus-mastino-dns](e2e/corpus-mastino-dns/) | growing | published-deployment | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
-| [corpus-quickpizza](e2e/corpus-quickpizza/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
-| [reference-eks](e2e/reference-eks/) | growing | reference | no, script changed | P | **F** | - | - | - | - | - | - | - | - | - | - | - | - | - | `2f02038dd1` 2026-10-12 |
-| [reference-k8s](e2e/reference-k8s/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
-| [reference-k8s-cert-manager](e2e/reference-k8s-cert-manager/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
-| [reference-k8s-helm-argo-cd](e2e/reference-k8s-helm-argo-cd/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
-| [reference-k8s-helm-cloudnative-pg](e2e/reference-k8s-helm-cloudnative-pg/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
-| [reference-k8s-helm-external-secrets](e2e/reference-k8s-helm-external-secrets/) | growing | kubernetes | yes | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `56fcd26c6c` 2026-10-13 |
-| [reference-k8s-helm-ingress-nginx](e2e/reference-k8s-helm-ingress-nginx/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
-| [reference-k8s-helm-keda](e2e/reference-k8s-helm-keda/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
-| [reference-k8s-helm-kyverno](e2e/reference-k8s-helm-kyverno/) | growing | kubernetes | yes | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `56fcd26c6c` 2026-10-13 |
-| [reference-k8s-helm-metallb](e2e/reference-k8s-helm-metallb/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
-| [reference-k8s-helm-template](e2e/reference-k8s-helm-template/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
-| [reference-k8s-platform-app](e2e/reference-k8s-platform-app/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
-| [reference-k8s-shared-objects](e2e/reference-k8s-shared-objects/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
-| [reference-k8s-workloads](e2e/reference-k8s-workloads/) | growing | kubernetes | yes | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `56fcd26c6c` 2026-10-13 |
-| [reference-k8s-yaml-rollouts](e2e/reference-k8s-yaml-rollouts/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
+| <a id="corpus-alb-complete"></a>[corpus-alb-complete](e2e/corpus-alb-complete/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-autoscaling-complete"></a>[corpus-autoscaling-complete](e2e/corpus-autoscaling-complete/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-dynamodb-table-basic"></a>[corpus-dynamodb-table-basic](e2e/corpus-dynamodb-table-basic/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-ec2-instance-complete"></a>[corpus-ec2-instance-complete](e2e/corpus-ec2-instance-complete/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-ecs-fargate"></a>[corpus-ecs-fargate](e2e/corpus-ecs-fargate/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-eks-basic"></a>[corpus-eks-basic](e2e/corpus-eks-basic/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-evoteum-modules"></a>[corpus-evoteum-modules](e2e/corpus-evoteum-modules/) | core | opentofu-native | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-giantswarm-crossplane"></a>[corpus-giantswarm-crossplane](e2e/corpus-giantswarm-crossplane/) | core | opentofu-native | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-hongbomiao-labelbox"></a>[corpus-hongbomiao-labelbox](e2e/corpus-hongbomiao-labelbox/) | core | opentofu-native | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `2f02038dd1` 2026-10-12 |
+| <a id="corpus-iam-policy"></a>[corpus-iam-policy](e2e/corpus-iam-policy/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-lambda-simple"></a>[corpus-lambda-simple](e2e/corpus-lambda-simple/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-leynos-monitoring"></a>[corpus-leynos-monitoring](e2e/corpus-leynos-monitoring/) | core | opentofu-native | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-overture-tiles"></a>[corpus-overture-tiles](e2e/corpus-overture-tiles/) | core | opentofu-native | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-rds-complete-postgres"></a>[corpus-rds-complete-postgres](e2e/corpus-rds-complete-postgres/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-s3-bucket-complete"></a>[corpus-s3-bucket-complete](e2e/corpus-s3-bucket-complete/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-security-group-complete"></a>[corpus-security-group-complete](e2e/corpus-security-group-complete/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-simpleinfra-dns"></a>[corpus-simpleinfra-dns](e2e/corpus-simpleinfra-dns/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-sqs-basic"></a>[corpus-sqs-basic](e2e/corpus-sqs-basic/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-sumaform-aws"></a>[corpus-sumaform-aws](e2e/corpus-sumaform-aws/) | core | opentofu-native | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-vpc-complete"></a>[corpus-vpc-complete](e2e/corpus-vpc-complete/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-xancloud-iac"></a>[corpus-xancloud-iac](e2e/corpus-xancloud-iac/) | core | opentofu-native | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="reference-ec2-vpc"></a>[reference-ec2-vpc](e2e/reference-ec2-vpc/) | core | reference | yes, script changed | P | P | P | P | P | P | P | P | P | P | - | P | P | P | - | `f707182267` 2026-10-02 |
+| <a id="terralith-scale"></a>[terralith-scale](e2e/terralith-scale/) | core | reference | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `debf8ccd05` 2026-10-03 |
+| <a id="corpus-cloud-platform-components"></a>[corpus-cloud-platform-components](e2e/corpus-cloud-platform-components/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
+| <a id="corpus-govuk-cluster-access"></a>[corpus-govuk-cluster-access](e2e/corpus-govuk-cluster-access/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
+| <a id="corpus-govuk-cluster-services"></a>[corpus-govuk-cluster-services](e2e/corpus-govuk-cluster-services/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | - | `2f02038dd1` 2026-10-12 |
+| <a id="corpus-k8s-metrics-server"></a>[corpus-k8s-metrics-server](e2e/corpus-k8s-metrics-server/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
+| <a id="corpus-mastino-dns"></a>[corpus-mastino-dns](e2e/corpus-mastino-dns/) | growing | published-deployment | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-quickpizza"></a>[corpus-quickpizza](e2e/corpus-quickpizza/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
+| <a id="reference-eks"></a>[reference-eks](e2e/reference-eks/) | growing | reference | no, script changed | P | **F** | - | - | - | - | - | - | - | - | - | - | - | - | - | `2f02038dd1` 2026-10-12 |
+| <a id="reference-k8s"></a>[reference-k8s](e2e/reference-k8s/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
+| <a id="reference-k8s-cert-manager"></a>[reference-k8s-cert-manager](e2e/reference-k8s-cert-manager/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
+| <a id="reference-k8s-helm-argo-cd"></a>[reference-k8s-helm-argo-cd](e2e/reference-k8s-helm-argo-cd/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
+| <a id="reference-k8s-helm-cloudnative-pg"></a>[reference-k8s-helm-cloudnative-pg](e2e/reference-k8s-helm-cloudnative-pg/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
+| <a id="reference-k8s-helm-external-secrets"></a>[reference-k8s-helm-external-secrets](e2e/reference-k8s-helm-external-secrets/) | growing | kubernetes | yes | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `56fcd26c6c` 2026-10-13 |
+| <a id="reference-k8s-helm-ingress-nginx"></a>[reference-k8s-helm-ingress-nginx](e2e/reference-k8s-helm-ingress-nginx/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
+| <a id="reference-k8s-helm-keda"></a>[reference-k8s-helm-keda](e2e/reference-k8s-helm-keda/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
+| <a id="reference-k8s-helm-kyverno"></a>[reference-k8s-helm-kyverno](e2e/reference-k8s-helm-kyverno/) | growing | kubernetes | yes | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `56fcd26c6c` 2026-10-13 |
+| <a id="reference-k8s-helm-metallb"></a>[reference-k8s-helm-metallb](e2e/reference-k8s-helm-metallb/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
+| <a id="reference-k8s-helm-template"></a>[reference-k8s-helm-template](e2e/reference-k8s-helm-template/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
+| <a id="reference-k8s-platform-app"></a>[reference-k8s-platform-app](e2e/reference-k8s-platform-app/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
+| <a id="reference-k8s-shared-objects"></a>[reference-k8s-shared-objects](e2e/reference-k8s-shared-objects/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
+| <a id="reference-k8s-workloads"></a>[reference-k8s-workloads](e2e/reference-k8s-workloads/) | growing | kubernetes | yes | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `56fcd26c6c` 2026-10-13 |
+| <a id="reference-k8s-yaml-rollouts"></a>[reference-k8s-yaml-rollouts](e2e/reference-k8s-yaml-rollouts/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
 <!-- board-gen:end estates -->
 
 ## Run time

@@ -158,7 +158,7 @@ emulator gap is not a ceiling either, because the emulator is ours to fix.
 The unit of progress is **an estate clearing every active stage**, and that
 is the only thing a unit may end on. A finding written down is a note on an
 unfinished unit, never a finished one. An estate stays on the list until it
-clears. The two numbers on the site, core estates clear and all estates
+clears. The two numbers on the board, core estates clear and all estates
 clear, are read from `live/gauntlet.json`, which only the runner writes.
 Both are the emulator's; the `kubernetes` lane (#1067) runs on a kind
 cluster and has a bar of its own in the same file, `lanes.kubernetes`,
@@ -200,7 +200,7 @@ a regression; the estate usually got better and the script did not.
    the service API directly, on the current emulator image, with no tofu in
    the loop; the recorded detail is a lead. Say which of the five rows it
    is before fixing anything. New estates enter with `go run ./tools/gauntlet add` (the procedure is
-   `site/content/docs/progress/add-an-estate.md`; `live/GAUNTLET.md` is the
+   `live/CONTRIBUTE-GAUNTLET.md`; `live/GAUNTLET.md` is the
    definition). `just contribute` runs one unit unattended under
    your own key, in a worktree, and opens the PR; that is also what
    contributors run from their forks. `.claude/agents/gauntlet-orchestrator.md`
@@ -214,7 +214,7 @@ a regression; the estate usually got better and the script did not.
    the wrong fix; find the property and derive the rule, then say how many
    other types it reached.
 4. `go run ./tools/gauntlet render`; commit the script, the artifact and the
-   site's board data (`site/data/gauntlet_board.json`) together. Build and run the
+   board data (`live/gauntlet-board.json`) together. Build and run the
    touched packages' tests; GitHub CI green on the PR is the merge gate.
    Run `just merge-drivers` once per clone: the rendered files conflict on
    every merge that moved a verdict, and resolving them hunk by hunk is how
@@ -281,7 +281,7 @@ Rules are tests. The ones that hold this document to the tree:
 | Guard | What it holds |
 |---|---|
 | `internal/live/check`: `TestIdentityGolden`, `TestIdentityGoldenShapeIsPinned` | 2441 rendered identities across 702 configuration directories, pinned by value; 671 of those directories are committed fixtures and 31 are the verification cohorts, rendered into a temp dir by `estate-gen -all` on every run. If your change moves a line, explain it, and `-update` alone cannot silence it |
-| `tools/gauntlet`: `TestRenderedDocsAreCurrent`, `TestManifestIsCanonical`, `TestArtifactAgreesWithManifest` | the spec, the site pages and the artifact are what the code says |
+| `tools/gauntlet`: `TestRenderedDocsAreCurrent`, `TestManifestIsCanonical`, `TestArtifactAgreesWithManifest` | the spec, the board data and the artifact are what the code says |
 | `tools/gauntlet`: `TestLegacyScriptsOnlyGoDown` | crossing scripts move onto the protocol and never back |
 | `live/derivation_guard_test.go`: `TestEveryTypeLiteralSurfaceIsRegistered`, `TestNoTypeNameIsAssembledFromLiterals` | every hand-wired provider type name carries a registered reason and count, and none is assembled at runtime to dodge the registry |
 | `live/ci_coverage_test.go` | every fork-owned test package is in CI's glob |
@@ -301,8 +301,8 @@ smoke, claims or gauntlet workflow exists; the scripts under `live/smoke`,
 What the board is for was ruled in #522 and #643: the claims program is the
 proof surface a prospective user reads, and the gauntlet board is
 contributor and regression status, real-world breadth that catches the
-estate-specific defects no scenario anticipates. The site says so on
-`site/content/docs/progress/_index.md` and leads with the claims everywhere else (#803).
+estate-specific defects no scenario anticipates. `live/BOARD.md` says so,
+and the site leads with the claims everywhere else (#803).
 
 ## Working here
 

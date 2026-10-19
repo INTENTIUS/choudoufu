@@ -43,8 +43,8 @@ go run ./tools/gauntlet run <name>     # runs it against the emulator, records v
 go run ./tools/gauntlet render         # regenerates the artifact and the board data
 ```
 
-Commit the entry, the script, `live/gauntlet.json`, `site/data/gauntlet.json`
-and `site/data/gauntlet_board.json`. The Gauntlet workflow runs the same two
+Commit the entry, the script, `live/gauntlet.json`, `live/gauntlet-board.json`
+and `live/BOARD.md`. The Gauntlet workflow runs the same two
 commands when the maintainer dispatches it.
 
 The lanes and the shape of a manifest entry are in

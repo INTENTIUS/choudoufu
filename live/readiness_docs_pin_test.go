@@ -149,7 +149,9 @@ func TestReadinessVocabularyArithmeticHolds(t *testing.T) {
 // each entry was added alongside the sentence that carries the figure.
 func readinessDocFigures(f readinessFigures) map[string][]int {
 	return map[string][]int{
-		"../site/content/docs/use/resource-tiers.md": {
+		// The site's resource-tiers page until #2092 moved its prose around
+		// the generated tiers in READINESS.md.
+		"READINESS.md": {
 			f.markerlessMap,  // identity.MarkerlessTypes
 			f.markerlessFact, // of which, classified record-carried
 			f.recordCarried,  // the tier

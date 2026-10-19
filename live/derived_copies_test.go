@@ -15,41 +15,34 @@ import (
 
 // TestDiagramCopiesMatchSite is issue #1222's second guard.
 //
-// Every diagram under docs/diagrams/ is a copy of the one the docs site
-// renders from site/assets/ (site/layouts/_markup/render-image.html resolves
-// against site/assets first). Nothing writes either side; both are edited by
-// hand. They drifted once: three of the five docs/diagrams copies stayed at
-// b1290968bd while the site copies moved on, and diagram-values.svg ended up
-// saying secret-generating resources are refused by default, the opposite of
-// strict.DefaultSecrets (internal/live/strict/strict.go). The site copy is
-// the source; edit it, then copy it over the docs one.
+// Every diagram the docs site renders (site/src/assets/*.svg, imported by
+// the pages that show it) has a copy under docs/diagrams/, which the repo's
+// own markdown links (live/IDENTITY.md among them). Nothing writes either
+// side; both are edited by hand. They drifted once: three of the five
+// docs/diagrams copies stayed at b1290968bd while the site copies moved on,
+// and diagram-values.svg ended up saying secret-generating resources are
+// refused by default, the opposite of strict.DefaultSecrets
+// (internal/live/strict/strict.go). The site copy is the source; edit it,
+// then copy it over the docs one.
+//
+// It read site/assets/ until the Hugo site was retired (#2092). Its sibling
+// TestLogoCopiesMatchRender went then too: the logo is rendered straight
+// into site/public/ by scripts/brand/render.sh, and no copy of it is left
+// to drift.
 func TestDiagramCopiesMatchSite(t *testing.T) {
 	root := repoRoot(t)
-	copies, err := filepath.Glob(filepath.Join(root, "docs", "diagrams", "*.svg"))
+	sources, err := filepath.Glob(filepath.Join(root, "site", "src", "assets", "diagram-*.svg"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	sort.Strings(copies)
-	if len(copies) == 0 {
-		t.Fatal("found no docs/diagrams/*.svg; this guard is seeing nothing. If the directory was " +
-			"removed on purpose, delete this test in the same change")
+	sort.Strings(sources)
+	if len(sources) == 0 {
+		t.Fatal("found no site/src/assets/diagram-*.svg; this guard is seeing nothing. If the site " +
+			"stopped carrying diagrams on purpose, delete this test in the same change")
 	}
-	for _, c := range copies {
-		name := filepath.Base(c)
-		assertSameBytes(t, root, "site/assets/"+name, "docs/diagrams/"+name)
-	}
-}
-
-// TestLogoCopiesMatchRender is issue #1222's third guard.
-//
-// scripts/render-logo.sh renders the logo PNGs into docs/images/ and copies
-// them on to the site. site/assets/ carries two of them, placed there by
-// hand once; the script now copies them too, and this test holds the copies
-// to the rendered originals whether or not the script was re-run.
-func TestLogoCopiesMatchRender(t *testing.T) {
-	root := repoRoot(t)
-	for _, name := range []string{"choudoufu-hero.png", "choudoufu-inline-64.png"} {
-		assertSameBytes(t, root, "docs/images/"+name, "site/assets/"+name)
+	for _, src := range sources {
+		name := filepath.Base(src)
+		assertSameBytes(t, root, "site/src/assets/"+name, "docs/diagrams/"+name)
 	}
 }
 

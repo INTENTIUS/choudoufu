@@ -170,7 +170,7 @@ func TestRebuildSetsArtifactOracle(t *testing.T) {
 }
 
 // TestBoardEstateOracleNote: the estate's oracle-provenance note (#544,
-// beside the existing emulator one, both in SiteBoardPath) is silent for a
+// beside the existing emulator one, both in BoardDataPath) is silent for a
 // row that predates #544 - no LastRun at all, or a LastRun that never
 // recorded Oracle - and otherwise reports a match or a **Stale** note
 // against a.Oracle, the same three-way shape the emulator note uses.

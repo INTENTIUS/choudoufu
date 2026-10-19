@@ -14,7 +14,8 @@ import (
 
 // GitHub issue #587's documentation pin.
 //
-// site/content/docs/use/reference.md's "-adoption-only" section names three
+// The "-adoption-only" section (on the site's reference page when this was
+// written; live/ADOPTION-ONLY.md, adoptionDocPath below, since) names three
 // resource types as the ones a generated terralith carries that need no
 // ownership marker. That is a claim about the provider's schema, not about
 // choudoufu, so a provider bump can falsify it - and a page that tells an

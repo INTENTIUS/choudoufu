@@ -109,13 +109,13 @@ var otherAllowlist = []otherAllowEntry{
 	// Fork documentation, tooling and process files with no code content.
 	{"docs/", "product docs and imagery rewritten or added for choudoufu (docs/README.md, docs/architecture.md, docs/images, docs/diagrams)"},
 	{"rfc/", "deleted: upstream's RFC directory, retired wholesale because this fork does not run a request-for-comment process. The fork-authored decision records that briefly lived here (and then in rulings/, dissolved 2026-09-01) are re-homed verbatim onto their tracker issues, per live/decision_authority_guard_test.go; everything else was upstream's and stays in git history"},
-	{"scripts/", "build.sh and debug-opentofu carry the module-path and binary-name rename; contribute.sh, pickup.sh and render-logo.sh are new fork tooling (pickup.sh is HANDOFF.md's required first command)"},
+	{"scripts/", "build.sh and debug-opentofu carry the module-path and binary-name rename; contribute.sh, pickup.sh, site-url-check.mjs and brand/ are new fork tooling (pickup.sh is HANDOFF.md's required first command)"},
 	{".claude/", "agent briefs and scripts for the gauntlet workflow (gauntlet-orchestrator.md, gauntlet-worker.md, live-markers.md, agent-progress.sh) plus the measuring-choudoufu skill"},
 	{"contributing/", "DEVELOPING.md and FAQ.md updated for the fork; LIVE-TABLES.md and contributing/README.md are new"},
 	{"website/", "deleted: upstream's docs site and its npm toolchain, which this fork never published (its own site is site/, and stock documentation lives at opentofu.org); upstream's tree stays in git history"},
 	{"package.json", "new: the prose-lint dependency manifest; report-only Markdown linting for this fork's hand-written docs"},
 	{"package-lock.json", "checksums for the package.json entry above"},
-	{"prose-lint.mjs", "new: the prose linter itself, run over site/content/docs and live/"},
+	{"prose-lint.mjs", "new: the prose linter itself, run over site/src/content/docs and live/"},
 	{"version/version.go", "adds the Fork release-version var: the release tag choudoufu was built at, empty for dev builds"},
 
 	// Root-level governance and identity documents: rewritten for choudoufu

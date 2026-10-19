@@ -26,7 +26,7 @@ ci:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "==> gofmt (fork-owned packages)"
-    out="$(gofmt -l internal/live cmd site tools live internal/backend internal/builtin/providers/tf internal/command internal/configs internal/e2e internal/engine/applying internal/plans internal/plugin internal/plugin6 internal/plugins internal/states/statemgr internal/tofu internal/tracing)"
+    out="$(gofmt -l internal/live cmd tools live internal/backend internal/builtin/providers/tf internal/command internal/configs internal/e2e internal/engine/applying internal/plans internal/plugin internal/plugin6 internal/plugins internal/states/statemgr internal/tofu internal/tracing)"
     if [ -n "$out" ]; then echo "gofmt needed on:"; echo "$out"; exit 1; fi
     echo "==> build"
     go build ./cmd/choudoufu
@@ -99,22 +99,18 @@ demo-run name:
     @test -x "live/e2e/{{name}}/run.sh" || { echo "no live/e2e/{{name}}/run.sh - names: $(ls -d live/e2e/*/run.sh 2>/dev/null | sed 's|live/e2e/||;s|/run.sh||' | tr '\n' ' ')" >&2; exit 1; }
     bash live/e2e/{{name}}/run.sh
 
-# Build the docs site into site/public/. Copies the build-time data inputs
-# (site/data/gauntlet.json is committed by tools/gauntlet; iamref.json is
-# not, so it's refreshed from live/iam-reference.json here) then runs Hugo.
-#
-# Build the docs site into site/public/.
+# Build the docs site (Astro + Starlight, #2092) into site/dist/, as
+# pages.yml does: install, build (which runs check-rooms), then check every
+# URL the Hugo site served still resolves.
 site:
-    cp live/iam-reference.json site/data/iamref.json
-    rm -rf site/public
-    cd site && hugo --minify
+    cd site && npm ci && npm run build
+    node scripts/site-url-check.mjs
 
-# Build the docs site and serve it locally with live reload. `just
-# site-serve 8001` picks another port, which is what you want when a second
-# checkout or worktree is already serving.
+# Serve the docs site locally with live reload. `just site-serve 8001` picks
+# another port, which is what you want when a second checkout or worktree is
+# already serving.
 site-serve port="8000":
-    cp live/iam-reference.json site/data/iamref.json
-    cd site && hugo server --bind 127.0.0.1 --port {{port}} --openBrowser
+    cd site && npm ci && npm run dev -- --host 127.0.0.1 --port {{port}}
 
 # Lint exactly as upstream CI would (golangci-lint, both GOOS passes)
 lint:
@@ -305,8 +301,8 @@ survey-render:
 readiness:
     env -u PWD go run ./tools/readiness-gen
 
-# The committed live/readiness.json -> COVERAGE.md's and the docs site's
-# readiness-tiers/readiness-types spans. No provider, no network.
+# The committed live/readiness.json -> COVERAGE.md's readiness-tiers span,
+# live/readiness-summary.json and live/READINESS.md. No provider, no network.
 readiness-render:
     env -u PWD go run ./tools/readiness-gen -render
 
@@ -410,7 +406,7 @@ live-check dir=".":
 # live/GAUNTLET.md is the contract; tools/gauntlet renders it. The runner
 # executes crossing scripts against the pinned emulator side by side with
 # stock, records each stage's verdict into live/gauntlet.json, and regenerates
-# the spec and the site's progress pages. `just gauntlet` is what CI runs
+# the spec and the board (live/BOARD.md). `just gauntlet` is what CI runs
 # nightly; `just gauntlet-run <name>` is one estate.
 #
 # The stock terraform/tofu on PATH is the ORACLE - live/oracle-versions.json
@@ -448,7 +444,7 @@ gauntlet-run +args:
 gauntlet-status:
     env -u PWD go run ./tools/gauntlet status
 
-# Regenerate the artifact, live/GAUNTLET.md, the site's progress data and
+# Regenerate the artifact, live/GAUNTLET.md, the board data and
 # every generated stat page under live/ (BOARD, READINESS, CLAIMS, ...; #2092).
 gauntlet-render:
     env -u PWD go run ./tools/gauntlet render

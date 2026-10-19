@@ -17,7 +17,7 @@ import (
 
 func main() {
 	render := flag.Bool("render", false,
-		"copy the committed live/substrates.json byte-for-byte to site/data/substrates.json and re-render live/SUBSTRATES.md instead of regenerating the artifact")
+		"re-render live/SUBSTRATES.md from the committed live/substrates.json instead of regenerating the artifact")
 	flag.Parse()
 
 	if *render {
@@ -55,27 +55,16 @@ func run() error {
 	return nil
 }
 
-// runRender copies the already-committed live/substrates.json to
-// site/data/substrates.json byte-for-byte, the same split
-// tools/readiness-gen's -render mode and live/smoke/claims.json's site copy
-// both use: it needs no provider, no network, and does not recompute the
-// artifact.
+// runRender re-renders live/SUBSTRATES.md from the already-committed
+// live/substrates.json, the same split tools/readiness-gen's -render mode
+// uses: it needs no provider, no network, and does not recompute the
+// artifact. It used to copy the artifact to site/data/substrates.json for
+// the Hugo site too; that copy went with the Hugo site (#2092).
 func runRender() error {
 	root, err := repoRoot()
 	if err != nil {
 		return err
 	}
-	src := filepath.Join(root, filepath.FromSlash(OutputJSONRel))
-	data, err := os.ReadFile(src) //nolint:gosec // a fixed path in the checkout
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", OutputJSONRel, err)
-	}
-	dst := filepath.Join(root, filepath.FromSlash(SiteDataJSONRel))
-	if err := os.WriteFile(dst, data, 0o644); err != nil { //nolint:gosec // a committed artifact, not a secret
-		return fmt.Errorf("writing %s: %w", SiteDataJSONRel, err)
-	}
-	fmt.Printf("%s: copied from %s\n", SiteDataJSONRel, OutputJSONRel)
-	// live/SUBSTRATES.md (#2092), from the same committed artifact.
 	if wrote, err := statpages.Write(root, statpages.Substrates); err != nil {
 		return err
 	} else if wrote {

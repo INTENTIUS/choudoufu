@@ -18,8 +18,14 @@ import (
 // live/history/<version>.json is a copy of it taken at release.
 const ArtifactPath = "live/gauntlet.json"
 
-// SiteDataPath is where the renderer copies the artifact for Hugo.
-const SiteDataPath = "site/data/gauntlet.json"
+// legacyPublishedPaths are the Hugo site's copies of the artifact and the
+// board, retired with the Hugo site (#2092). A row's last_run.commit can
+// predate the move, so merge-artifact still lets them differ.
+var legacyPublishedPaths = map[string]bool{
+	"site/data/gauntlet.json":       true,
+	"site/data/gauntlet_board.json": true,
+	"site/data/gauntlet_scale.json": true,
+}
 
 // Verdicts a stage can carry for one estate.
 const (
@@ -233,7 +239,7 @@ type Tally struct {
 	// evidence about the run this row reports.
 	//
 	// Without it, this tally and the board contradicted each other about
-	// the same cell - site/data/gauntlet_board.json rendered
+	// the same cell - the board data (live/gauntlet-board.json) rendered
 	// terralith-scale's day2_count as stale while sets.core.stages
 	// .day2_count.pass still counted it as a pass, and of the two the
 	// artifact is the one that reads as a measurement. That is the shape
@@ -245,8 +251,8 @@ type Tally struct {
 	//
 	// Pass + Fail + NotRun + NA + Stale is always the set's estate count:
 	// any surface printing a breakdown must print this bucket too, or show
-	// a total that no longer sums. site/layouts/shortcodes/gauntlet-bars
-	// .html computes the same five numbers itself, off the rows, and
+	// a total that no longer sums. The board's bars (live/BOARD.md, from
+	// tools/statpages) show the same five numbers, and
 	// TestCommittedTallyAgreesWithTheBoard holds this tally to the board's
 	// own cells.
 	Stale int `json:"stale,omitempty"`
@@ -573,7 +579,7 @@ func orUnrecorded(v string) string {
 // SetLabels name the two headline bars. "all" is every estate on the floci
 // emulator; "core" is the pinned population. A kubernetes-lane estate is in
 // neither: it runs on a kind cluster and is counted in Lanes (#1067). The
-// keys are what the Hugo shortcode reads.
+// keys are what live/BOARD.md's bars read.
 var SetLabels = map[string]string{
 	"core": "Core estates",
 	"all":  "All estates",

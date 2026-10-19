@@ -30,9 +30,7 @@ import (
 // real disagreement worth reading.
 var RenderedMergePaths = []string{
 	SpecPath,
-	SiteDataPath,
-	SiteBoardPath,
-	SiteScalePath,
+	BoardDataPath,
 	// live/BOARD.md (#2092): the board as markdown, written by the same
 	// render from the same artifact.
 	statpages.Board.Path,

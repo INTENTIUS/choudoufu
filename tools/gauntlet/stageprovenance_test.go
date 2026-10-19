@@ -640,7 +640,7 @@ func TestUnknownProvenanceTalliesAsItAlwaysDid(t *testing.T) {
 
 // TestCommittedTallyAgreesWithTheBoard is the cross-surface guard for the
 // drift this bucket exists to close. live/gauntlet.json's per-stage tally
-// and site/data/gauntlet_board.json's per-stage cells are two published
+// and live/gauntlet-board.json's per-stage cells are two published
 // descriptions of the same cells, written by two functions (tallyRows,
 // artifact.go; verdictMarkFor via boardEstate, board.go). They disagreed:
 // the board rendered terralith-scale's day2_count as stale while

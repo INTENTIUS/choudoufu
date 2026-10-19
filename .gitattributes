@@ -28,7 +28,5 @@ internal/**/*.tmpl text eol=lf
 # does nothing for a merge GitHub performs on its own servers. The guard
 # that holds everywhere is in the test suite, not here.
 live/GAUNTLET.md merge=gauntlet-rendered
-site/data/gauntlet.json merge=gauntlet-rendered
-site/data/gauntlet_board.json merge=gauntlet-rendered
-site/data/gauntlet_scale.json merge=gauntlet-rendered
+live/gauntlet-board.json merge=gauntlet-rendered
 live/BOARD.md merge=gauntlet-rendered

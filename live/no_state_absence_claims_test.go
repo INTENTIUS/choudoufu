@@ -154,9 +154,9 @@ func TestNoStateAbsenceClaims(t *testing.T) {
 		// doc comment that explained a missing output by the file not
 		// existing.
 		"internal/live/projection/outputs.go",
-		"site/content/aws/compatibility.md",
+		"site/src/content/docs/aws/compatibility.mdx",
 		"live/COMPATIBILITY.md",
-		"site/content/docs/tutorial.md",
+		"site/src/content/docs/docs/tutorial.md",
 	}
 
 	for _, rel := range definitional {

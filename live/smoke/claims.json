@@ -9,7 +9,7 @@
     "that lists a scenario is its registration, so a cell may list several, and a scenario's file name need not be its claim's slug (#1504).",
     "demos lists the scenarios that prove no claim (full, and the recommended secure configuration since #1817; import and greenfield were dropped);",
     "they carry no CLAIM header and belong to no cell. live/smoke_claims_test.go holds this file to the scenario directory and to the",
-    "per-claim pages, and site/data/claims.json is a byte-for-byte copy the site renders.",
+    "per-claim pages; the docs site and live/CLAIMS.md read this file directly.",
     "status is one of: proven (every proof names a dated run: a scenario with an evidence file carrying a YYYY-MM-DD date, steps of such a scenario, or a gauntlet stage that reads pass), unproven (the proofs exist and at least one names no dated run; the note says which), restated (the promise holds in a weaker",
     "form, said in note), n/a (the substrate has no such concept), open (no proof yet: a gap, not a shrug).",
     "substrate lists the providers the promise applies to: every cell that is not n/a.",

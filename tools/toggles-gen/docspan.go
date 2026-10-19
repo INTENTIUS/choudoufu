@@ -15,7 +15,7 @@ import (
 )
 
 // renderToggleSpan writes the `strict` block argument table into
-// site/content/docs/use/reference.md's strict-toggles span.
+// live/STRICT.md's strict-toggles span.
 func renderToggleSpan(root string, toggles []strict.Toggle) error {
 	path := filepath.Join(root, referenceMDRel)
 	doc, err := os.ReadFile(path) //nolint:gosec // a fixed path in the checkout

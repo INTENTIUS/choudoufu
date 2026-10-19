@@ -5,7 +5,7 @@ The art is the ASCII grid below, one character per pixel. Edit the grid
 or the palette, then run scripts/brand/render.sh to rebuild the SVG and
 every PNG and icon made from it.
 
-    python3 scripts/brand/logo.py > site-next/public/brand/cube.svg
+    python3 scripts/brand/logo.py > site/public/brand/cube.svg
 """
 
 GRID = """

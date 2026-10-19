@@ -57,9 +57,12 @@ var flociImageFields = map[string]string{
 	"plan-budget.json":       "measured_against",
 	"cohort-acceptance.json": "image",
 	"gauntlet.json":          "emulator",
-	"gauntlet-scale.json":    "emulator",
-	"cohort-triage.json":     "image",
-	"substrates.json":        "floci_pin",
+	// The board data `gauntlet render` derives from gauntlet.json; it moved
+	// here from site/data/gauntlet_board.json at the Astro cutover (#2092).
+	"gauntlet-board.json": "emulator",
+	"gauntlet-scale.json": "emulator",
+	"cohort-triage.json":  "image",
+	"substrates.json":     "floci_pin",
 	// #697: the capability manifest describes the pinned image only, and
 	// -mode=prune writes the pin it was carved to into this field.
 	"floci-capabilities.json": "image",

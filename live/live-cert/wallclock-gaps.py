@@ -5,7 +5,7 @@ This is the instrument behind #683's head-of-line finding and #867's
 re-measurement of it. #683's own copy lived on a sibling branch
 (`live/wallclock-trace`) that no longer exists, which is the reason this one
 is in the tree: the numbers in readconcurrency.go, sweepconcurrency.go and
-site/content/docs/model/plan-cost.md are not reproducible without it.
+live/PLAN-CONE.md are not reproducible without it.
 
 What it measures, and the one definition everything else here rests on:
 

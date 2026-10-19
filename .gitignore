@@ -45,9 +45,6 @@ dist/
 # Development temp folder
 tmp
 
-# Generated docs site output
-site/public/
-
 # choudoufu build artifact and local agent state
 /choudoufu
 
@@ -145,18 +142,14 @@ ci.meta
 ci.meta.tmp
 gate.launch.log
 
-# `just ci`'s docs step points Hugo's cache here (issue #1031) so concurrent
-# gates in separate worktrees don't collide on the shared, per-user
-# ~/Library/Caches/hugo_cache.
-/.hugo_cache/
-
 # worker scratch repros and local record stores never belong in the repo
 .repro/
 .tofu-records/
 
-# site-next/ (#2092): the Astro build and its dependencies, never tracked.
+# site/ (#2092): the Astro build and its dependencies, never tracked.
 # dist/ above already matches the build; both are named here so moving or
-# narrowing that rule cannot start tracking them.
-/site-next/node_modules/
-/site-next/dist/
-/site-next/.astro/
+# narrowing that rule cannot start tracking them. site/public/ is tracked:
+# it holds the logo files the build copies as they are.
+/site/node_modules/
+/site/dist/
+/site/.astro/

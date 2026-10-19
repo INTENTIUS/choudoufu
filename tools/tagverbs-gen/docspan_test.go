@@ -17,7 +17,7 @@ import (
 //
 // It renders straight from the already-committed live/tag-verbs.json
 // artifact, not from a fresh botocore fetch: the artifact is what
-// site/content/docs/use/reference.md's span is supposed to reflect, and
+// live/IAM-REFERENCE.md's span is supposed to reflect, and
 // that comparison needs no network to be meaningful. A regeneration that
 // changes the artifact (tagverbs-gen's own `go run ./tools/tagverbs-gen`,
 // which does need network) is what this test would then catch as a second,
