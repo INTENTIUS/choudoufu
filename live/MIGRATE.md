@@ -330,7 +330,7 @@ first.
 "That situation" is an object carrying no estate marker at all - the
 `[ADOPTABLE]` entries. An `[IN_THE_WAY]` entry held by another estate is not in
 it, and no verb you can set will claim one. [What the matrix does not
-govern](https://intentius.io/choudoufu/docs/use/ownership-policy/#what-the-matrix-does-not-govern)
+govern](OWNERSHIP-POLICY.md#what-the-matrix-does-not-govern)
 has the two commands that do cross that boundary.
 
 ## What has no adoption path
@@ -377,7 +377,7 @@ policy {
 ```
 
 `untag` removes this estate's marker and leaves the resource alone. `keep`
-leaves both untouched. [The ownership policy matrix](https://intentius.io/choudoufu/docs/use/ownership-policy/) covers the rest of the
+leaves both untouched. [The ownership policy matrix](OWNERSHIP-POLICY.md) covers the rest of the
 matrix.
 
 ## Getting back out

@@ -42,8 +42,10 @@ Handover is granting a role. Splitting an estate in two is rewriting tags.
 Adoption is a tag you write. A rename is a tag you rewrite.
 
 The name is stinky tofu, fermented and famously an acquired taste, a fit for
-an OpenTofu counterpart whose state is allowed to be stale. The
-[FAQ](https://intentius.io/choudoufu/docs/use/faq/) has the longer answer.
+an OpenTofu counterpart whose state is allowed to be stale. Off-putting at
+first, and people who like it like it a lot. Most people's first reaction to
+the fork is that letting the record of what you own go stale cannot possibly
+be a good idea.
 
 Built on OpenTofu v1.13.0 (fork point
 [`2b6193043d`](https://github.com/opentofu/opentofu/commit/2b6193043d)). The

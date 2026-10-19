@@ -18,33 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { ROOMS, ROOM_ORDER, roomLinks } from '../src/data/rooms.ts';
 
 const PENDING = new Set([
-	// Site pages from the content sort on #2092 (task 4).
-	'/aws/',
-	'/aws/adopt/',
-	'/aws/compatibility/',
-	'/aws/gate/',
-	'/aws/operate/',
-	'/aws/proof/',
-	'/kubernetes/',
-	'/kubernetes/adopt/',
-	'/kubernetes/compatibility/',
-	'/kubernetes/gate/',
-	'/kubernetes/operate/',
-	'/kubernetes/proof/',
-	'/how-it-works/',
-	'/how-it-works/cache/',
-	'/how-it-works/identity/',
-	'/how-it-works/values/',
-	'/docs/tutorial/',
-	'/docs/use/bucket/',
-	'/docs/use/cicd/',
-	'/docs/use/day2/',
-	'/docs/use/migrate/',
-	'/docs/use/reference/',
-	'/docs/use/setup/',
-	'/docs/use/start/',
-	// Repo pages: live/CONCURRENCY.md from #2095.
-	'live/CONCURRENCY.md',
+	// Empty: every page the rooms link has landed.
 ]);
 
 const base = '/choudoufu';

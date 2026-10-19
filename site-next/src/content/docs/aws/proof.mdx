@@ -1,0 +1,27 @@
+---
+title: Proof
+description: What is proven on AWS and where to read the measured numbers.
+prompt: |
+  Follow https://intentius.io/choudoufu/aws/proof/, run `just smoke roundtrip` and report each verdict line.
+  Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
+---
+import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+
+<PlatformSwitch />
+
+## Claims you can run
+
+Each [claim](https://github.com/INTENTIUS/choudoufu/blob/main/live/smoke/claims/README.md) passes on the local emulator only when every assertion holds, and under `BREAK=1` only by catching the fault.
+
+## Where the numbers are
+
+- [CLAIMS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/CLAIMS.md): which claims hold
+- [BOARD.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/BOARD.md): real estates by stage
+- [READINESS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/READINESS.md): every type's tier
+- [PLAN-CONE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/PLAN-CONE.md): plan cost
+
+## Run one now
+
+```
+just smoke roundtrip
+```

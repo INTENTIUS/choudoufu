@@ -34,6 +34,13 @@ const newlinesBetweenLines = {
 export default defineConfig({
 	site: 'https://intentius.io',
 	base: '/choudoufu',
+	// The Hugo site's /docs/ landing (and its alias /evidence/) folds into the
+	// home page, per the content sort on #2092.
+	redirects: {
+		// Astro does not prefix the base onto a redirect's destination.
+		'/docs': '/choudoufu/',
+		'/evidence': '/choudoufu/',
+	},
 	integrations: [
 		starlight({
 			title: 'choudoufu',
@@ -94,6 +101,61 @@ export default defineConfig({
 						{ label: 'Evaluating', link: '/for/evaluate/' },
 						{ label: 'With a coding agent', link: '/for/agents/' },
 						{ label: 'Contributing', link: '/for/contribute/' },
+					],
+				},
+				{
+					label: 'How it works',
+					collapsed: true,
+					items: [
+						{ label: 'What it is', slug: 'how-it-works' },
+						{ label: 'Identity', slug: 'how-it-works/identity' },
+						{ label: 'Records', slug: 'how-it-works/values' },
+						{ label: 'The cache', slug: 'how-it-works/cache' },
+					],
+				},
+				{
+					label: 'Use',
+					collapsed: true,
+					items: [
+						{ label: 'Tutorial', slug: 'docs/tutorial' },
+						{ label: 'Start a new estate', slug: 'docs/use/start' },
+						{ label: 'What you set up by hand', slug: 'docs/use/setup' },
+						{ label: 'Migrate an existing estate', slug: 'docs/use/migrate' },
+						{ label: 'Day-2 operations', slug: 'docs/use/day2' },
+						{ label: 'Rename a resource', slug: 'docs/use/rename-a-resource' },
+						{ label: 'Remove a resource', slug: 'docs/use/remove-a-resource' },
+						{ label: 'Recover an estate', slug: 'docs/use/recover-an-estate' },
+						{ label: 'Record store bucket', slug: 'docs/use/bucket' },
+						{ label: 'CI/CD', slug: 'docs/use/cicd' },
+					],
+				},
+				{
+					label: 'Reference',
+					collapsed: true,
+					items: [{ label: 'Reference', slug: 'docs/use/reference' }],
+				},
+				{
+					label: 'AWS',
+					collapsed: true,
+					items: [
+						{ label: 'Overview', slug: 'aws' },
+						{ label: 'Adopt', slug: 'aws/adopt' },
+						{ label: 'Gate', slug: 'aws/gate' },
+						{ label: 'Operate', slug: 'aws/operate' },
+						{ label: 'Compatibility', slug: 'aws/compatibility' },
+						{ label: 'Proof', slug: 'aws/proof' },
+					],
+				},
+				{
+					label: 'Kubernetes',
+					collapsed: true,
+					items: [
+						{ label: 'Overview', slug: 'kubernetes' },
+						{ label: 'Adopt', slug: 'kubernetes/adopt' },
+						{ label: 'Gate', slug: 'kubernetes/gate' },
+						{ label: 'Operate', slug: 'kubernetes/operate' },
+						{ label: 'Compatibility', slug: 'kubernetes/compatibility' },
+						{ label: 'Proof', slug: 'kubernetes/proof' },
 					],
 				},
 			],

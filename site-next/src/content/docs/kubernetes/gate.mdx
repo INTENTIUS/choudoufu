@@ -1,0 +1,26 @@
+---
+title: Gate
+description: One admission policy on the label fences every write, and granting an estate is an ordinary ClusterRole.
+prompt: |
+  Follow https://intentius.io/choudoufu/kubernetes/gate/ and draft the ClusterRole and binding that grant one team this estate. Show them to me; do not apply them.
+  Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
+---
+import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+
+<PlatformSwitch />
+
+RBAC has no conditions, so it cannot say "may update objects carrying this label". One admission policy can. A cluster admin installs it once:
+
+```
+kubectl apply -f live/kubernetes/estate-boundary.yaml
+```
+
+On every write it reads the `tofu-estate` label before and after, and asks whether the caller holds `use` on `estates.choudoufu.intentius.io/<estate>`.
+
+## What that buys
+
+Granting an estate is an ordinary ClusterRole and binding ([estate-grant.yaml](https://github.com/INTENTIUS/choudoufu/blob/main/live/kubernetes/estate-grant.yaml)). Handing it over is moving the binding. Moving an object between estates needs both. The policy binds the credential, so `kubectl` is refused exactly as choudoufu is.
+
+## What it cannot reach
+
+Reads never reach admission; use namespaces for those. Subresources such as `scale` are not fenced, and `cluster-admin` holds every estate. [GATE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/kubernetes/GATE.md) has more.

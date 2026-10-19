@@ -50,7 +50,7 @@ not. On the 79-instance terralith that is 710 API calls against 157, about
 correct, because during a migration the account-wide question is the point.
 
 Budget for the wider run.
-[What a plan costs](https://intentius.io/choudoufu/docs/model/plan-cost/) has the split, the
+[What a plan costs](PLAN-CONE.md#what-a-plan-costs) has the split, the
 conditions under which an ordinary plan narrows, and
 `TOFU_LIVE_COLLECT_UNCLAIMED` for asking or declining the question
 independently of this flag.

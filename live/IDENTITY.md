@@ -124,7 +124,7 @@ a marker and half resources that derive their identity from one.
 What untaggability does bound is governance, not identity. An
 `aws:ResourceTag` condition has nothing to match on a resource with no tags,
 so a grant covering those types is wider than its condition says.
-[Where AWS honours the condition](https://intentius.io/choudoufu/docs/use/governance/reach/)
+[Where AWS honours the condition](IAM-REFERENCE.md)
 has that limit, and
 [`live/MARKERS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md)
 has the per-service breakdown. Being identifiable without a tag and being

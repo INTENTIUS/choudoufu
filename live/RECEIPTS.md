@@ -1,5 +1,40 @@
 # Receipts
 
+How to make an external effect show up in a plan, and the spec for the
+receipts pattern that does it.
+
+A migration that ran, a cache that was invalidated, a notification that was
+sent: none leaves anything in the platform to read back, so no plan can tell
+you whether it already happened. A receipt makes it visible. It is optional,
+and most estates have none.
+
+## What a receipt is
+
+An ordinary resource you declare, holding a hash of the effect's input. It
+goes through plan and apply like anything else, and its diff tells a reviewer
+or a CI gate that this apply triggers something outside the resources being
+managed. On AWS an SSM parameter at `/tofu-receipts/<estate>/<effect>` is a
+supported choice. Nothing requires SSM: any resource whose value a reviewer
+can read with the platform's own CLI does the job.
+
+`plan` and `apply` touch the receipt and nothing else. The effect runs in the
+layer above, a CI step or a runbook, which sees the proposed receipt change,
+runs the real effect, and lets apply write the new value once it succeeded.
+A provisioner runs when its resource is created and never again, and no plan
+shows that it is about to run. A receipt's diff is the standing answer to
+"have this effect's inputs changed since it last ran", asked on every plan.
+
+The semantics are at-least-once. If the effect runs and the process dies
+before the receipt is written, the next plan proposes the same change and the
+effect runs again. An unconfirmed effect stays visible as a pending diff.
+
+The rules are linted: the value is a hash or a constant and never a
+`SecureString`, nothing may reference a receipt's attributes, and inputs name
+secrets by pointer and never by value. The guards below give the reasoning
+for each.
+
+## The spec
+
 This file is the spec for the receipts pattern, which is how a
 marker-managed estate carries memory of an effect that has no queryable
 live state of its own. A migration that ran, a cache that was invalidated,

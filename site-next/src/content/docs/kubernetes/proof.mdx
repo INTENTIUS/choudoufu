@@ -1,0 +1,26 @@
+---
+title: Proof
+description: What is proven on a real cluster and where to read the measured numbers.
+prompt: |
+  Follow https://intentius.io/choudoufu/kubernetes/proof/, run `just smoke k8s-greenfield` and report each verdict line.
+  Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
+---
+import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+
+<PlatformSwitch />
+
+## Claims you can run
+
+Each `k8s-*` [claim](https://github.com/INTENTIUS/choudoufu/blob/main/live/smoke/claims/README.md) runs on a kind cluster, and its `BREAK=1` run breaks the claim on purpose.
+
+## Where the numbers are
+
+- [CLAIMS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/CLAIMS.md): which claims hold
+- [BOARD.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/BOARD.md): real estates by stage
+- [PROOF.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/kubernetes/PROOF.md): plan cost and detail
+
+## Run one now
+
+```
+just smoke k8s-greenfield
+```
