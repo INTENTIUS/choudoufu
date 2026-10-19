@@ -28,7 +28,7 @@ around the generated markers, never inside them.
 The Kubernetes substrate's admitted types are counted apart from the AWS
 tiers above.
 
-<!-- readiness-gen:begin kubernetes -->
+<!-- readiness-gen:begin k8s-types -->
 hashicorp/kubernetes 3.2.1: 4 admitted type(s), 0 awaiting a tier ruling.
 
 | Type | Tier | Status |
@@ -37,7 +37,7 @@ hashicorp/kubernetes 3.2.1: 4 admitted type(s), 0 awaiting a tier ruling.
 | `kubernetes_config_map` | marker-carried | in-contract |
 | `kubernetes_namespace` | marker-carried | in-contract |
 | `kubernetes_storage_class` | marker-carried | in-contract |
-<!-- readiness-gen:end kubernetes -->
+<!-- readiness-gen:end k8s-types -->
 
 ## Every AWS type
 

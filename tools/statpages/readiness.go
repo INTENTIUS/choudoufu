@@ -71,9 +71,9 @@ func readinessSpans(root string) (map[string]string, error) {
 		typesTable(d.Kubernetes.Types)
 
 	return map[string]string{
-		"tiers":      tiers.String(),
-		"types":      typesTable(d.Types),
-		"kubernetes": k8s,
+		"tiers":     tiers.String(),
+		"types":     typesTable(d.Types),
+		"k8s-types": k8s,
 	}, nil
 }
 

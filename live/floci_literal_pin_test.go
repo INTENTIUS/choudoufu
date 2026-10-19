@@ -113,6 +113,14 @@ var flociLiteralExceptions = map[string]string{
 		"render`; the artifacts themselves are what TestFlociMeasurementsMatchThePinOrSayWhyNot governs, " +
 		"and this is their generated mirror",
 
+	"live/BOARD.md": "the gauntlet board rendered by `go run ./tools/gauntlet render` from the same board " +
+		"data as site/data/gauntlet_board.json; its banner names the digest each row was measured against, " +
+		"which is evidence about that run, not a pin to keep current (#2092)",
+
+	"live/SUBSTRATES.md": "rendered from live/substrates.json (#2092); the harness row puts the floci pin and " +
+		"the kind node-image digest on one table line, one per column, so the kind digest reads as attributed " +
+		"to floci. Both pins are held by their own guards on the artifact",
+
 	"live/large-set/baseline-n5.json": "measured at N=5 against the #1821 pin (its emulator field); the #2047 " +
 		"repin widens EKS tagging only, which the large-set fixture does not touch. Re-measuring it is the " +
 		"maintainer's; delete this entry when it records the current pin",
