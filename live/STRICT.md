@@ -94,7 +94,7 @@ does:
   `terraform_data { input = var.db_password }` is admitted and recorded
   whole. The refusal is by resource type.
 
-[Secrets in the record store](https://intentius.io/choudoufu/docs/use/secrets/) has it.
+[Secrets in the record store](SECRETS.md) has it.
 
 Three things neither setting reaches, and they are not the same kind of
 thing:

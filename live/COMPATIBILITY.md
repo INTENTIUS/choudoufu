@@ -277,7 +277,7 @@ instances with two addresses, not because anything rendered a template.
 
 A resource inside a `for_each`'d module needs its own marker built by hand
 from the module's own key; see [How to write markers inside a for_each'd
-module](https://intentius.io/choudoufu/docs/use/keyed-modules/).
+module](MARKERS.md#writing-the-marker-by-hand-inside-a-keyed-module).
 
 ### Crossing a module boundary
 
@@ -383,6 +383,8 @@ An acceptable configuration can still be refused by how it is invoked.
   the refusal exists to prevent.
 - Any workspace other than `default` is refused, and so are `workspace new`
   and `workspace select`.
+- `force-unlock` is refused, since there is no lock
+  ([CONCURRENCY.md](CONCURRENCY.md)).
 - Every `tofu state` subcommand is refused, including read-only `state list`
   and `state show`.
 - Four commands are refused: `import`, `refresh`, `taint`, `untaint`.
@@ -508,7 +510,7 @@ record_store "s3" {
 ```
 
 The label picks the backend, `local` or `s3`. [Where things are
-stored](https://intentius.io/choudoufu/docs/use/storage/) has the arguments, and
+stored](STORAGE.md) has the arguments, and
 [What you set up by hand](https://intentius.io/choudoufu/docs/use/setup/) has the bucket.
 
 `null_resource`, `terraform_data`, `time_*` and the `random_*` family carry

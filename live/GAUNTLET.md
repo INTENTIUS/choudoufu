@@ -245,10 +245,11 @@ a refusal this document names in advance. Anything else is a defect.
 "Equal" is checked after one normalisation, applied the same way on every
 stage that compares a plan or the resulting cloud: the marker tags choudoufu
 writes for identity (`tofu-estate` and `tofu-address`, see
-[Identity](https://github.com/INTENTIUS/choudoufu/blob/main/site/content/docs/model/identity.md))
+[IDENTITY.md](IDENTITY.md))
 are stripped from both sides first. Stock has no argument to write them
 into, so their presence is not a difference to explain, and nothing else is
-normalised away.
+normalised away. A different resource count, a different argument value or a
+different observable order is a difference.
 
 Past that, HANDOFF.md's five-row table is what turns a remaining difference
 into an action: choudoufu refusing where stock proceeds is a defect, the
@@ -266,6 +267,12 @@ states plainly that the planfile applies when the world has not moved, and
 that choudoufu is stricter than stock by design when it has, so that refusal
 is asserted rather than diffed against stock. A refusal no stage names this
 way is not exempt; it is the table's first row, and it is a defect.
+
+That deliberately stricter case, concretely: `plan -out` followed by
+`apply <planfile>` applies when the world has not moved since the plan was
+taken. When it has, the apply refuses with `The approved plan no longer
+matches the live system`, exit status 3. Stock applies the stale planfile
+anyway ([#878](https://github.com/INTENTIUS/choudoufu/issues/878)).
 
 The Break line under every stage above is the enforcement mechanism:
 `BREAK=1` forces the exact defect the stage exists to catch, and the stage

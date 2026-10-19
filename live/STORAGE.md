@@ -8,9 +8,9 @@
 | The cache | `.terraform/choudoufu-cache.tfstate`, on the machine that ran | choudoufu | A read |
 
 Only the markers say what you own. `live/MARKERS.md` is their spec, and the
-surface other tooling can rely on. [Records](https://intentius.io/choudoufu/docs/model/values/)
+surface other tooling can rely on. [Records](https://intentius.io/choudoufu/how-it-works/values/)
 says what a record is and why there are two kinds, and
-[the cache](https://intentius.io/choudoufu/docs/model/cache/) has its own page. This page is
+[The cache](#the-cache) below covers the cache. This page is
 where each thing physically is.
 
 ## The record store
@@ -30,11 +30,16 @@ the backend.
 | Backend | Where it writes | Arguments |
 |---|---|---|
 | `local` | A directory beside the module, `.tofu-records` by default | `path` |
-| `s3` | A bucket you already own | `bucket` (required), `key_prefix`, `region`, `allow_insecure` |
+| `s3` | A bucket you already own | `bucket` (required), `bucket_owner`, `key_prefix`, `region`, `allow_insecure` |
 | `kubernetes` | Secrets in a namespace you already own | `namespace` (defaults to `tofu-records-<estate>`), `key_prefix`, and the connection arguments of stock's `kubernetes` backend |
 
 A `live` block that declares no `record_store` gets the local one, the way
 stock implies a local state file.
+
+All three give the same guarantees; a run cannot tell them apart. Each record
+is its own object, tagged or labelled with the estate's name the way a
+managed resource is, so one bucket or cluster serves any number of estates and
+your IAM or RBAC decides who reads which.
 
 Use a bucket or a cluster for anything more than one operator shares. The
 local store is for one person or a demo. It is also what a CI runner gets if
@@ -77,7 +82,7 @@ configuration dropped a label, so without it the output can read
 One file per record under `.tofu-records`, created at the first run, with
 directories `0700` and files `0600`. That keeps other users on the machine
 out and does nothing about `git add`, and records hold
-[secrets](https://intentius.io/choudoufu/docs/use/secrets/). Gitignore the directory, or
+[secrets](SECRETS.md). Gitignore the directory, or
 whatever `path` names, before the first run.
 
 ```
@@ -162,7 +167,7 @@ both re-read before either reaches the cloud are not covered (#1504).
 [Claim 15's](smoke/claims/apply-what-was-approved.md#on-aws)
 `apply-what-was-approved`, steps 8-14, races two saved plans on one SQS
 queue's visibility timeout.
-[Two runs at once](https://intentius.io/choudoufu/docs/model/concurrency/) has the races.
+[CONCURRENCY.md](CONCURRENCY.md) has the races.
 Every read is scoped to one estate, so adding an estate to the bucket slows
 no other.
 
@@ -340,6 +345,49 @@ Because a plan identity never creates the sentinel, its runs are never a first
 contact, and the four assertions above never run on one. `choudoufu
 live-cluster -plan-identity` is how that identity asks them on purpose.
 
+## The cache
+
+Every live-block run keeps an ordinary state file as a cache:
+`choudoufu-cache.tfstate`, under the `.terraform` directory stock already
+gitignores. It is written at the end of each run and read at the start of the
+next, and it is never consulted for ownership. Identity lives on the
+resources, and the cache only remembers attributes.
+
+The cache is a file on the machine that ran the plan: not in the record
+store, seen by no other machine, shared between no two people or CI jobs.
+The backend is the markers and the record store. Two runs never write the
+same cache, so it has no bearing on concurrency. A fresh checkout, a new
+laptop or a thrown-away CI runner plans correctly with no cache at all, and
+restoring one from a CI cache buys nothing on a default plan.
+
+Ruled 2026-09-26: this is by ruling, not accident. The cache stays
+local, disposable, per working copy, never consulted for ownership. A
+shared cache is not wanted; if it ever is, that is a separate feature with
+its own name, not a setting here.
+
+The file is written unencrypted and nothing scrubs it: every sensitive
+attribute and root output is in it, in clear. Treat an applied working
+directory like one holding `terraform.tfstate`, especially in CI, where an
+artifact step sweeping up `.terraform` carries the values along. An estate
+that sets `strict { secrets = "refuse" }` gets no cache at all, written or
+read, unless `CHOUDOUFU_STATE_CACHE` names a path on purpose.
+[SECRETS.md](SECRETS.md#the-cache-file-holds-them-too) has the rest.
+
+On a default plan the cache buys nothing, on purpose: the read pass is drift
+detection, and no cache freshness excuses skipping it. It pays out on the one
+opt-in path, `-refresh=false`, where a vouched-for instance is served from
+the cache with no wire read. Vouching means the marker was verified by this
+run's sweep, or the record store attests ownership while this run's own
+listing proves the instance exists.
+[Claim 3](smoke/claims/staleness-costs-reads.md) measures the saving.
+
+### Knobs
+
+`CHOUDOUFU_STATE_CACHE` names a different path for the file, or the
+literal `off` disables it. `reads = "selective" | "full"` in the live
+block (or `CHOUDOUFU_READS` per run) governs whether `-refresh=false`
+may serve from it. Neither knob changes what a default plan does.
+
 ## Receipts
 
 A receipt records whether an external effect ran, and with what input. It is
@@ -352,7 +400,7 @@ record store on purpose: its job is to be readable with a plain cloud CLI by som
 access and no `choudoufu` binary, and a record is tool-internal JSON in a store few people may read. A
 `key_prefix` starting with `tofu-receipts` is a configuration error, and
 `terraform_data`'s `triggers_replace` is not a substitute.
-[Receipts](https://intentius.io/choudoufu/docs/use/record-an-effect/) and `live/RECEIPTS.md` have
+[RECEIPTS.md](RECEIPTS.md) has
 the pattern and the lint rules. An SSM parameter at
 `/tofu-receipts/<estate>/<effect>` is one supported home for a receipt, and
 nothing requires it.
