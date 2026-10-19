@@ -1,0 +1,18 @@
+---
+// One page per "what you run today" tile, platform and role, at
+// /choudoufu/for/<id>/, from data/rooms.ts (the home page's picker reads the
+// same file). The sidebar's "Start here" group lists these pages;
+// scripts/check-rooms.mjs fails the build when it misses one.
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import Room from '../../components/Room.astro';
+import { ROOMS } from '../../data/rooms';
+
+export function getStaticPaths() {
+	return ROOMS.map((r) => ({ params: { id: r.id } }));
+}
+
+const r = ROOMS.find((x) => x.id === Astro.params.id)!;
+---
+<StarlightPage frontmatter={{ title: r.title, description: r.lede, tableOfContents: false }}>
+	<Room id={r.id} />
+</StarlightPage>

@@ -1,0 +1,376 @@
+---
+// The home page's picker, in terragucci's DoorPicker shape: what you run today
+// as tiles, where it runs and where records live as switches, and the roles as
+// a line of links. Two cards then say what works for that pick (the tile's
+// room, the record store's line, what carries over, and the board rows and
+// claims that prove it) and the first step. A quiet line under them says what
+// differs. Every list comes from data/rooms.ts, the room pages' source, and
+// every number from data/proof.ts, which counts them at build from live/.
+// The first pick is rendered on the server, so the cards read the same
+// without script.
+import Cube from './Cube.astro';
+import { FROM, PLATFORMS, ROLES, STORES, room } from '../data/rooms';
+import { figures, type Figure } from '../data/proof';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (h: string) => (/^https?:/.test(h) ? h : `${base}${h}`);
+const tiles = FROM.map((f) => {
+	const r = room(f.room);
+	return { id: f.id, label: f.label, room: href(`/for/${f.room}/`), title: r.title, works: r.works, differs: r.differs, carries: f.carries, first: { label: r.first.label, href: href(r.first.href) } };
+});
+const platforms = PLATFORMS.map((p) => {
+	const r = room(p.room);
+	return { id: p.id, label: p.label, room: href(`/for/${p.room}/`), title: r.title, differs: r.differs, figures: figures([p.id]).map((f) => ({ ...f, href: href(f.href) })) };
+});
+const stores = STORES.map((s) => ({ ...s, href: href(s.href) }));
+const data = { tiles, platforms, stores };
+const [tile] = tiles;
+const [platform] = platforms;
+const [store] = stores;
+const figureText = (f: Figure) => `${f.value} ${f.label} (${f.measured}).`;
+---
+<section class="cd-picker not-content" aria-label="Where to start">
+	<div class="tiles" role="group" aria-label="What you run today">
+		{FROM.map((f, i) => (
+			<button type="button" class="tile" data-pick="tile" value={f.id} aria-pressed={String(i === 0)}>
+				<Cube size={24} />
+				<b>{f.label}</b>
+				<small>{f.blurb}</small>
+			</button>
+		))}
+	</div>
+	<div class="row">
+		<div class="switch">
+			<span id="cd-pick-platform">Runs on</span>
+			<div class="seg" role="group" aria-labelledby="cd-pick-platform">
+				{platforms.map((p, i) => <button type="button" data-pick="platform" value={p.id} aria-pressed={String(i === 0)}>{p.label}</button>)}
+			</div>
+		</div>
+		<div class="switch">
+			<span id="cd-pick-store">Records in</span>
+			<div class="seg" role="group" aria-labelledby="cd-pick-store">
+				{stores.map((s, i) => <button type="button" data-pick="store" value={s.id} aria-pressed={String(i === 0)}>{s.label}</button>)}
+			</div>
+		</div>
+	</div>
+	<nav class="roles" aria-label="By role">
+		<span>Or start from your role</span>
+		{ROLES.map((r) => <a class="role" href={href(`/for/${r.room}/`)}><Cube size={16} />{r.label}</a>)}
+	</nav>
+	<div class="cards" aria-live="polite">
+		<div class="card">
+			<p class="h">Works</p>
+			<ul class="cube-list" data-works>
+				{tile.works.map((w) => <li>{w}</li>)}
+				<li><a data-store href={store.href}>{store.line}</a></li>
+			</ul>
+			<div data-carries hidden={!tile.carries.length}>
+				<p class="h from" data-carries-title>Carries over from {tile.label}</p>
+				<ul class="cube-list" data-carries-list>{tile.carries.map((c) => <li>{c}</li>)}</ul>
+			</div>
+			<ul class="proof" data-proof>
+				{platform.figures.map((f) => <li><a href={f.href}>{figureText(f)}</a></li>)}
+			</ul>
+		</div>
+		<div class="card">
+			<p class="h">First step</p>
+			<a class="go" data-first href={tile.first.href}>{tile.first.label}</a>
+			<p class="sub" data-more>Then read <a href={tile.room}>{tile.title}</a> and <a href={platform.room}>{platform.title}</a>.</p>
+		</div>
+	</div>
+	<div class="notes" data-notes hidden={!(tile.differs.length + platform.differs.length)}>
+		<p class="h">Differs</p>
+		<ul data-differs>{[...tile.differs, ...platform.differs].map((d) => <li>{d}</li>)}</ul>
+	</div>
+	<script type="application/json" data-picker-data set:html={JSON.stringify(data).replace(/</g, '\\u003c')} />
+</section>
+
+<script>
+	type Link = { label: string; href: string };
+	type Data = {
+		tiles: { id: string; label: string; room: string; title: string; works: string[]; differs: string[]; carries: string[]; first: Link }[];
+		platforms: { id: string; label: string; room: string; title: string; differs: string[]; figures: { value: string; label: string; measured: string; href: string }[] }[];
+		stores: { id: string; label: string; line: string; href: string }[];
+	};
+	const key = 'cd-picker';
+	for (const section of document.querySelectorAll<HTMLElement>('.cd-picker')) {
+		const data = JSON.parse(section.querySelector('[data-picker-data]')!.textContent!) as Data;
+		const pick: Record<string, string> = { tile: data.tiles[0].id, platform: data.platforms[0].id, store: data.stores[0].id };
+		try {
+			const saved = JSON.parse(localStorage.getItem(key) ?? '{}') as Record<string, string>;
+			for (const k of Object.keys(pick)) if (saved[k]) pick[k] = saved[k];
+		} catch {}
+		const $ = <T extends Element = HTMLElement>(sel: string) => section.querySelector<T>(sel)!;
+		const li = (child: string | Node) => {
+			const el = document.createElement('li');
+			el.append(child);
+			return el;
+		};
+		const link = (label: string, href: string) => Object.assign(document.createElement('a'), { href, textContent: label });
+		const show = () => {
+			const tile = data.tiles.find((t) => t.id === pick.tile) ?? data.tiles[0];
+			const platform = data.platforms.find((p) => p.id === pick.platform) ?? data.platforms[0];
+			const store = data.stores.find((s) => s.id === pick.store) ?? data.stores[0];
+			for (const b of section.querySelectorAll<HTMLButtonElement>('button[data-pick]')) {
+				b.setAttribute('aria-pressed', String(pick[b.dataset.pick!] === b.value));
+			}
+			const storeLink = link(store.line, store.href);
+			storeLink.dataset.store = '';
+			$('[data-works]').replaceChildren(...tile.works.map((w) => li(w)), li(storeLink));
+			$('[data-carries]').hidden = !tile.carries.length;
+			$('[data-carries-title]').textContent = `Carries over from ${tile.label}`;
+			$('[data-carries-list]').replaceChildren(...tile.carries.map((c) => li(c)));
+			$('[data-proof]').replaceChildren(...platform.figures.map((f) => li(link(`${f.value} ${f.label} (${f.measured}).`, f.href))));
+			const go = $<HTMLAnchorElement>('[data-first]');
+			go.href = tile.first.href;
+			go.textContent = tile.first.label;
+			$('[data-more]').replaceChildren('Then read ', link(tile.title, tile.room), ' and ', link(platform.title, platform.room), '.');
+			const differs = [...tile.differs, ...platform.differs];
+			$('[data-notes]').hidden = !differs.length;
+			$('[data-differs]').replaceChildren(...differs.map((d) => li(d)));
+			try {
+				localStorage.setItem(key, JSON.stringify(pick));
+			} catch {}
+		};
+		section.addEventListener('click', (e) => {
+			const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-pick]');
+			if (!b) return;
+			pick[b.dataset.pick!] = b.value;
+			show();
+		});
+		show();
+	}
+</script>
+
+<style>
+	.cd-picker {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 1.1rem;
+		width: 100%;
+		min-width: 0;
+		max-width: 64rem;
+		margin: 0 auto 3rem;
+		font-size: var(--sl-text-sm);
+		overflow-wrap: anywhere;
+	}
+	.tiles {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 0.5rem;
+	}
+	.tile {
+		position: relative;
+		min-width: 0;
+		display: grid;
+		gap: 0.35rem;
+		align-content: start;
+		padding: 0.75rem;
+		text-align: left;
+		font: inherit;
+		color: var(--sl-color-white);
+		background: var(--cd-panel);
+		border: 1px solid var(--cd-rule);
+		border-top: 2px solid var(--cd-rule);
+		border-radius: 0.6rem;
+		cursor: pointer;
+	}
+	.tile :global(img) {
+		opacity: 0.4;
+	}
+	.tile b {
+		line-height: 1.3;
+	}
+	.tile small {
+		font-size: var(--sl-text-xs);
+		line-height: 1.35;
+		color: var(--sl-color-gray-3);
+	}
+	.tile:hover {
+		border-color: var(--cd-gold);
+	}
+	.tile[aria-pressed='true'] {
+		border-top-color: var(--cd-accent);
+		box-shadow: inset 0 0 0 1px var(--cd-accent);
+	}
+	.tile[aria-pressed='true'] :global(img) {
+		opacity: 1;
+	}
+	.row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem 1.5rem;
+		align-items: center;
+	}
+	.switch {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.6rem;
+		align-items: center;
+	}
+	.switch > span,
+	.roles > span,
+	.h {
+		font-size: 0.68rem;
+		font-weight: 600;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--sl-color-gray-3);
+	}
+	.seg {
+		display: inline-flex;
+		flex-wrap: wrap;
+		padding: 3px;
+		border: 1px solid var(--cd-rule);
+		border-radius: 0.55rem;
+		background: var(--cd-panel);
+	}
+	.seg button {
+		padding: 0.35rem 0.8rem;
+		font: inherit;
+		font-weight: 500;
+		color: var(--sl-color-gray-3);
+		background: none;
+		border: 0;
+		border-radius: 0.4rem;
+		cursor: pointer;
+	}
+	.seg button:hover {
+		color: var(--sl-color-white);
+	}
+	.seg button[aria-pressed='true'] {
+		color: var(--sl-color-black);
+		background: var(--sl-color-white);
+	}
+	.roles {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		align-items: center;
+	}
+	.roles > span {
+		margin-right: 0.25rem;
+	}
+	.role {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		padding: 0.4rem 0.8rem 0.4rem 0.5rem;
+		font-weight: 500;
+		color: var(--sl-color-white);
+		background: var(--cd-panel);
+		border: 1px solid var(--cd-rule);
+		border-radius: 0.5rem;
+		text-decoration: none;
+	}
+	.role:hover,
+	.role:focus-visible {
+		border-color: var(--cd-gold);
+	}
+	.cards {
+		display: grid;
+		grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+		gap: 0.75rem;
+	}
+	.card {
+		padding: 1rem;
+		background: var(--cd-panel);
+		border: 1px solid var(--cd-rule);
+		border-top: 1px solid var(--cd-gold);
+		border-radius: 0.6rem;
+	}
+	.h {
+		margin: 0 0 0.5rem;
+	}
+	.h.from {
+		margin-top: 1rem;
+	}
+	.cube-list {
+		display: grid;
+		gap: 0.4rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+	.cube-list :global(li) {
+		position: relative;
+		margin: 0;
+		padding-left: 1.1rem;
+		color: var(--sl-color-white);
+	}
+	.cube-list :global(li)::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 0.5em;
+		width: 0.5rem;
+		height: 0.5rem;
+		background: var(--cd-accent);
+	}
+	.card :global(a) {
+		color: var(--cd-accent);
+	}
+	.proof {
+		display: grid;
+		gap: 0.3rem;
+		margin: 1rem 0 0;
+		padding: 0.75rem 0 0;
+		list-style: none;
+		border-top: 1px solid var(--cd-rule);
+		font-size: var(--sl-text-xs);
+	}
+	.proof :global(li) {
+		margin: 0;
+	}
+	.proof :global(a) {
+		color: var(--sl-color-gray-2);
+		text-decoration-color: var(--cd-gold);
+	}
+	.go {
+		display: inline-block;
+		padding: 0.55rem 1rem;
+		font-weight: 600;
+		color: var(--sl-color-black) !important;
+		background: var(--cd-accent);
+		border-radius: 0.5rem;
+		text-decoration: none;
+	}
+	.go:hover {
+		filter: brightness(1.1);
+	}
+	.sub {
+		margin: 0.75rem 0 0;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.notes {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem 1rem;
+		align-items: baseline;
+		padding: 0 0.25rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.notes[hidden] {
+		display: none;
+	}
+	.notes .h {
+		margin: 0;
+	}
+	.notes ul {
+		display: contents;
+		list-style: none;
+	}
+	.notes :global(li) {
+		margin: 0;
+	}
+	@media (max-width: 52rem) {
+		.tiles {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+		.cards {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+</style>
