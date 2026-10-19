@@ -11,11 +11,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/intentius/choudoufu/tools/statpages"
 )
 
 func main() {
 	render := flag.Bool("render", false,
-		"copy the committed live/substrates.json byte-for-byte to site/data/substrates.json instead of regenerating the artifact")
+		"copy the committed live/substrates.json byte-for-byte to site/data/substrates.json and re-render live/SUBSTRATES.md instead of regenerating the artifact")
 	flag.Parse()
 
 	if *render {
@@ -73,5 +75,11 @@ func runRender() error {
 		return fmt.Errorf("writing %s: %w", SiteDataJSONRel, err)
 	}
 	fmt.Printf("%s: copied from %s\n", SiteDataJSONRel, OutputJSONRel)
+	// live/SUBSTRATES.md (#2092), from the same committed artifact.
+	if wrote, err := statpages.Write(root, statpages.Substrates); err != nil {
+		return err
+	} else if wrote {
+		fmt.Printf("%s: rewrote\n", statpages.Substrates.Path)
+	}
 	return nil
 }

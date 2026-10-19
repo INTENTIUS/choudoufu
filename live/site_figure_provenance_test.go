@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/intentius/choudoufu/tools/statpages"
 )
 
 // TestSiteContentMeasuredFiguresCarryProvenance is issue #679's guard for
@@ -330,4 +332,27 @@ func mustRel(t *testing.T, root, path string) string {
 		t.Fatalf("computing a relative path for %s under %s: %v", path, root, err)
 	}
 	return rel
+}
+
+// TestStatPagesHandTextCarriesNoUnstampedFigures holds the generated stat
+// pages under live/ (#2092) to the same rule as site/content. Their
+// generated spans carry a commit or date by construction and are exempt,
+// as they are on the site; the hand-written text around the spans is not,
+// so a measured figure typed there needs a stamp like any other.
+func TestStatPagesHandTextCarriesNoUnstampedFigures(t *testing.T) {
+	root := repoRoot(t)
+	pages := statpages.Pages()
+	if len(pages) == 0 {
+		t.Fatal("statpages.Pages() is empty; this guard is checking nothing")
+	}
+	for _, p := range pages {
+		raw, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(p.Path)))
+		if err != nil {
+			t.Fatalf("reading %s: %v", p.Path, err)
+		}
+		for _, bad := range unstampedMeasuredFigures(string(raw)) {
+			t.Errorf("%s:%d: hand-typed measured figure %q outside the generated spans, with no commit or \"Stale\" stamp in its paragraph: %q",
+				p.Path, bad.line, bad.figure, bad.context)
+		}
+	}
 }

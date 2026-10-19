@@ -664,6 +664,17 @@ the merge playbook already holds plain `git merge` conflicts to. The
 tool exists precisely so that judgment call is a program with a test,
 not a worker's guess under time pressure.
 
+## The stat pages
+
+`go run ./tools/gauntlet render` refreshes every generated stat page under `live/` as well
+(#2092): `live/BOARD.md`, `live/READINESS.md`, `live/CLAIMS.md`, `live/IAM-REFERENCE.md`, `live/FORK-SURFACE.md`, `live/SUBSTRATES.md`. Each is hand-written text around
+generated spans, re-rendered from data already committed, so the text
+outside the markers survives. When a source artifact is regenerated, run
+its own `-render` first (`readiness-gen`, `forkdiff-gen`, `iamref-gen`,
+`substrates-gen`); it refreshes its data and its page together.
+`live/statpages_test.go`'s `TestGeneratedStatPagesAreCurrent` fails, naming
+the page and the command, until a stale page is re-rendered.
+
 ## What holds this together
 
 `tools/gauntlet/gauntlet_test.go`: the stage registry is well formed; the
