@@ -74,12 +74,27 @@ export default defineConfig({
 				baseUrl: 'https://github.com/INTENTIUS/choudoufu/edit/main/site/',
 			},
 			// The groups from #2092: Start here, AWS, Kubernetes, How it works, Use,
-			// Reference. Only Start here has a page yet; a group joins this list when
-			// its first page is written. Every group but Start here starts collapsed.
+			// Reference. A group joins this list when its first page is written.
+			// Every group but Start here starts collapsed.
 			sidebar: [
+				// The room pages under /for/ (src/pages/for/[id].astro), in the order of
+				// src/data/rooms.ts: what you run today, where it runs, then the roles.
+				// Written out as plain data; scripts/check-rooms.mjs fails the build
+				// when this list and rooms.ts disagree.
 				{
 					label: 'Start here',
-					items: [{ label: 'Start', slug: 'start' }],
+					items: [
+						{ label: 'From a state file', link: '/for/state-file/' },
+						{ label: 'From Terragrunt', link: '/for/terragrunt/' },
+						{ label: 'From terragucci', link: '/for/terragucci/' },
+						{ label: 'Starting new', link: '/for/new/' },
+						{ label: 'On AWS', link: '/for/aws/' },
+						{ label: 'On Kubernetes', link: '/for/kubernetes/' },
+						{ label: 'Security and IAM', link: '/for/security/' },
+						{ label: 'Evaluating', link: '/for/evaluate/' },
+						{ label: 'With a coding agent', link: '/for/agents/' },
+						{ label: 'Contributing', link: '/for/contribute/' },
+					],
 				},
 			],
 		}),

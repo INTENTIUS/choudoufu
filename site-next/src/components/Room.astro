@@ -1,0 +1,187 @@
+---
+// One room, from data/rooms.ts, in fixed sections: who it is for, what works,
+// what differs, first step, proof, then the pages to read in order: how-to,
+// explanation, reference. The proof figures are counted at build by
+// data/proof.ts from live/gauntlet.json and live/smoke/claims.json.
+import { room } from '../data/rooms';
+import { BOARD, CLAIMS, figures } from '../data/proof';
+
+interface Props {
+	id: string;
+}
+const r = room(Astro.props.id);
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (h: string) => (/^https?:/.test(h) ? h : `${base}${h}`);
+const proof = figures(r.proof);
+---
+<div class="cd-room not-content">
+	<section id="who">
+		<h2>Who it is for</h2>
+		<p class="lede">{r.lede}</p>
+	</section>
+	<div class="cols">
+		<section id="works">
+			<h2>What works</h2>
+			<ul>{r.works.map((w) => <li>{w}</li>)}</ul>
+		</section>
+		<section id="differs">
+			<h2>What differs</h2>
+			{r.differs.length ? <ul>{r.differs.map((d) => <li>{d}</li>)}</ul> : <p>Nothing beyond the pages below.</p>}
+		</section>
+		<section id="first" class="first">
+			<h2>First step</h2>
+			<p><a href={href(r.first.href)}>{r.first.label}</a></p>
+		</section>
+	</div>
+	<section id="proof">
+		<h2>Proof</h2>
+		<ul class="figures">
+			{proof.map((f) => (
+				<li>
+					<b>{f.value}</b> <span>{f.label}</span> <small>{f.measured}</small>
+				</li>
+			))}
+		</ul>
+		<p class="more"><a href={BOARD}>The board</a> and <a href={CLAIMS}>the claims</a> list every row and run.</p>
+	</section>
+	<section id="read" class="read">
+		<h2>Then read</h2>
+		<dl>
+			<dt>How-to</dt>
+			<dd>{r.howto.map((l) => <a href={href(l.href)}>{l.label}</a>)}</dd>
+			<dt>Explanation</dt>
+			<dd>{r.explain.map((l) => <a href={href(l.href)}>{l.label}</a>)}</dd>
+			<dt>Reference</dt>
+			<dd>{r.reference.map((l) => <a href={href(l.href)}>{l.label}</a>)}</dd>
+		</dl>
+	</section>
+</div>
+
+<style>
+	.cd-room {
+		display: grid;
+		gap: 2rem;
+		font-size: var(--sl-text-sm);
+		line-height: 1.6;
+		color: var(--sl-color-gray-2);
+	}
+	.lede {
+		font-size: var(--sl-text-base);
+		color: var(--sl-color-gray-1);
+	}
+	.cols {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+		gap: 0.75rem;
+	}
+	.cols section {
+		padding: 1rem 1.15rem;
+		border: 1px solid var(--cd-rule);
+		border-top: 1px solid var(--cd-gold);
+		border-radius: 0.6rem;
+		background: var(--cd-panel);
+	}
+	h2 {
+		margin: 0 0 0.6rem;
+		font-size: 0.68rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: var(--sl-color-gray-3);
+	}
+	ul {
+		display: grid;
+		gap: 0.4rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+	li {
+		position: relative;
+		margin: 0;
+		padding-left: 1.1rem;
+	}
+	li::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 0.55em;
+		width: 0.5rem;
+		height: 0.5rem;
+		background: var(--cd-accent);
+	}
+	p {
+		margin: 0;
+	}
+	a {
+		color: var(--cd-accent);
+		text-decoration: none;
+	}
+	a:hover {
+		text-decoration: underline;
+		text-decoration-color: var(--cd-gold);
+		text-underline-offset: 0.2em;
+	}
+	.first a {
+		display: inline-block;
+		padding: 0.45rem 0.9rem;
+		font-weight: 600;
+		color: var(--sl-color-black);
+		background: var(--cd-accent);
+		border-radius: 0.5rem;
+	}
+	.first a:hover {
+		text-decoration: none;
+		filter: brightness(1.1);
+	}
+	.figures b {
+		color: var(--sl-color-white);
+		font-variant-numeric: tabular-nums;
+	}
+	.figures small {
+		display: block;
+		color: var(--sl-color-gray-3);
+	}
+	.more {
+		margin-top: 0.75rem;
+	}
+	dl {
+		display: grid;
+		grid-template-columns: 7rem 1fr;
+		gap: 0.75rem 1.25rem;
+		margin: 0;
+	}
+	dt {
+		font-size: 0.68rem;
+		font-weight: 600;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--sl-color-gray-3);
+		padding-top: 0.3rem;
+	}
+	dd {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		margin: 0;
+	}
+	dd a {
+		padding: 0.2rem 0.6rem;
+		color: var(--sl-color-white);
+		border: 1px solid var(--cd-rule);
+		border-radius: 999px;
+	}
+	dd a:hover {
+		text-decoration: none;
+		border-color: var(--cd-gold);
+	}
+	@media (max-width: 40rem) {
+		dl {
+			grid-template-columns: 1fr;
+			gap: 0.4rem;
+		}
+		dd {
+			margin-bottom: 0.6rem;
+		}
+	}
+</style>

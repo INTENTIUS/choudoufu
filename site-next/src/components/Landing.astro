@@ -1,0 +1,159 @@
+---
+// The home page under the hero and its lead: the picker, three short cards, the
+// measured figures with their date and commit, then what every reader gets
+// and what choudoufu does not do. The lists come from data/rooms.ts and the
+// figures from data/proof.ts, which counts them at build from live/.
+import Picker from './Picker.astro';
+import { ASSUMED, LIMITS } from '../data/rooms';
+import { boardFigure, claimsFigure, type Figure } from '../data/proof';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (h: string) => (/^https?:/.test(h) ? h : `${base}${h}`);
+const cards = [
+	{ title: 'Adopt what already runs', body: 'live-import reads your state file once and tags what it finds. Nothing is rebuilt.', href: '/docs/use/migrate/' },
+	{ title: 'Use the permissions you have', body: 'IAM and admission policies read the tag. Handover is moving a grant.', href: '/aws/gate/' },
+	{ title: 'The state file is a cache', body: 'Deleting it changes no plan. Copy it back and stock OpenTofu carries on.', href: '/how-it-works/cache/' },
+];
+const figures = [boardFigure('aws'), boardFigure('kubernetes'), claimsFigure('kubernetes')].filter((f): f is Figure => !!f);
+---
+<div class="cd-landing not-content">
+	<Picker />
+	<ul class="cards">
+		{cards.map((c) => (
+			<li>
+				<a href={href(c.href)}>
+					<b>{c.title}</b>
+					<span>{c.body}</span>
+				</a>
+			</li>
+		))}
+	</ul>
+	<section aria-labelledby="cd-measured">
+		<h2 id="cd-measured">Measured</h2>
+		<ul class="figures">
+			{figures.map((f) => (
+				<li>
+					<a href={f.href}>
+						<b>{f.value}</b>
+						<span>{f.label}</span>
+						<small>{f.measured}</small>
+					</a>
+				</li>
+			))}
+		</ul>
+	</section>
+	<div class="lists">
+		<section aria-labelledby="cd-assumed">
+			<h2 id="cd-assumed">What every reader gets</h2>
+			<ul>{ASSUMED.map((a) => <li><a href={href(a.href)}>{a.label}</a></li>)}</ul>
+		</section>
+		<section aria-labelledby="cd-limits">
+			<h2 id="cd-limits">What it does not do</h2>
+			<ul>{LIMITS.map((l) => <li><a href={href(l.href)}>{l.label}</a>. {l.why}</li>)}</ul>
+		</section>
+	</div>
+</div>
+
+<style>
+	.cd-landing {
+		display: grid;
+		gap: 2.5rem;
+		max-width: 64rem;
+		margin: 0 auto;
+		font-size: var(--sl-text-sm);
+		line-height: 1.55;
+		overflow-wrap: anywhere;
+	}
+	.cd-landing :global(.cd-picker) {
+		margin: 0;
+	}
+	ul {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+	h2 {
+		margin: 0 0 0.9rem;
+		font-size: 0.68rem;
+		font-weight: 600;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--sl-color-gray-3);
+	}
+	.cards,
+	.figures {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.75rem;
+	}
+	.cards a,
+	.figures a {
+		display: grid;
+		gap: 0.35rem;
+		height: 100%;
+		padding: 1rem;
+		color: var(--sl-color-gray-2);
+		background: var(--cd-panel);
+		border: 1px solid var(--cd-rule);
+		border-top: 1px solid var(--cd-gold);
+		border-radius: 0.6rem;
+		text-decoration: none;
+	}
+	.cards a:hover,
+	.figures a:hover {
+		border-color: var(--cd-gold);
+	}
+	.cards b {
+		color: var(--sl-color-white);
+		font-size: var(--sl-text-base);
+	}
+	.figures b {
+		font-size: 1.75rem;
+		font-weight: 600;
+		line-height: 1.1;
+		letter-spacing: -0.02em;
+		color: var(--cd-accent);
+		font-variant-numeric: tabular-nums;
+	}
+	.figures small {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.lists {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 2rem;
+	}
+	.lists ul {
+		display: grid;
+		gap: 0.5rem;
+	}
+	.lists li {
+		position: relative;
+		padding-left: 1.1rem;
+		color: var(--sl-color-gray-2);
+	}
+	.lists li::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 0.55em;
+		width: 0.5rem;
+		height: 0.5rem;
+		background: var(--cd-accent);
+	}
+	.lists a {
+		color: var(--cd-accent);
+		text-decoration-color: color-mix(in srgb, var(--cd-accent) 35%, transparent);
+	}
+	.lists a:hover {
+		text-decoration-color: var(--cd-gold);
+	}
+	@media (max-width: 52rem) {
+		.cards,
+		.figures,
+		.lists {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+</style>
