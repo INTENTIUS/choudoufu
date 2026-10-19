@@ -1,0 +1,25 @@
+---
+// choudoufu's logo, the pixel-art tofu cube. The image is referenced by URL from
+// public/brand/, not imported, so the build passes before the logo files land.
+// `size` is the rendered width and height in px; 32 or less uses the 32 px PNG,
+// anything larger the SVG. Decorative by default (alt=""), since a word beside it
+// names choudoufu. The art is transparent, so the cube sits on whatever is behind it.
+interface Props {
+	size?: number;
+	alt?: string;
+	class?: string;
+}
+const { size = 32, alt = '', class: className } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const src = size <= 32 ? `${base}/brand/cube-32.png` : `${base}/brand/cube.svg`;
+---
+<img class:list={['cd-cube', className]} src={src} width={size} height={size} alt={alt} decoding="async" />
+
+<style>
+	.cd-cube {
+		display: inline-block;
+		max-width: none;
+		vertical-align: middle;
+		image-rendering: pixelated;
+	}
+</style>

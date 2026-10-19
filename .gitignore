@@ -152,3 +152,10 @@ gate.launch.log
 # worker scratch repros and local record stores never belong in the repo
 .repro/
 .tofu-records/
+
+# site-next/ (#2092): the Astro build and its dependencies, never tracked.
+# dist/ above already matches the build; both are named here so moving or
+# narrowing that rule cannot start tracking them.
+/site-next/node_modules/
+/site-next/dist/
+/site-next/.astro/

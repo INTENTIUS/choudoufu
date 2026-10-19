@@ -1,0 +1,327 @@
+/*
+ * choudoufu's look, on terragucci's token structure: Geist for reading and
+ * headings, Geist Mono for anything a terminal or a plan would print, zinc
+ * neutrals, a gold hairline for fine details and one bluish-green accent.
+ *
+ * The accent is Okabe-Ito bluish green (#009E73), tuned per theme so links and
+ * buttons meet WCAG AA (4.5:1) against the page. Ratios are WCAG 2 relative
+ * luminance contrast:
+ *
+ *   dark  --cd-accent #33b18f (#009E73 mixed 20% toward white)
+ *           on the page   #0b0b0d   7.33:1
+ *           on a panel    #121215   6.97:1
+ *           on gray-6     #18181b   6.60:1
+ *           button text #0b0b0d on #33b18f   7.33:1
+ *         --sl-color-accent-high #a6e3cf on #0b0b0d   13.59:1
+ *   light --cd-accent #006f51 (#009E73 mixed 30% toward black)
+ *           on the page   #ffffff   6.19:1
+ *           on a panel    #fafafa   5.93:1
+ *           on gray-6     #f1f1f3   5.49:1
+ *           button text #ffffff on #006f51   6.19:1
+ *         --sl-color-accent-high #004a37 on #ffffff   10.32:1
+ *
+ * The base #009E73 itself is 5.75:1 on the dark page but only 3.42:1 on white,
+ * which is why the light theme uses the darker shade.
+ *
+ * The signal colours are colour-blind safe: bluish green and vermillion, both
+ * from the Okabe-Ito set, stay apart under protanopia, deuteranopia and
+ * tritanopia. Every status also carries a text label, so no meaning rests on
+ * colour alone.
+ *
+ * Starlight's dark theme lives on :root and its light theme on
+ * :root[data-theme='light'], so both palettes are set here as tokens.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+
+:root {
+	--cd-display: 'Geist', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--sl-font: 'Geist', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--sl-font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+	/* dark: zinc, bluish-green accent */
+	--sl-color-white: #fafafa;
+	--sl-color-gray-1: #e4e4e7;
+	--sl-color-gray-2: #c4c4cc;
+	--sl-color-gray-3: #a1a1aa;
+	--sl-color-gray-4: #63636d;
+	--sl-color-gray-5: #2c2c31;
+	--sl-color-gray-6: #18181b;
+	--sl-color-black: #0b0b0d;
+	--sl-color-accent-low: #0c2a21;
+	--sl-color-accent: #33b18f;
+	--sl-color-accent-high: #a6e3cf;
+
+	--cd-accent: #33b18f;   /* links, buttons, the one highlight */
+	--cd-ok: #e4e4e7;       /* done: strong neutral, labelled */
+	--cd-warn: #f2894a;     /* destroy, refused: vermillion */
+	--cd-gold: #c9a96e;     /* fine details only: hairlines, the diamond */
+	--cd-panel: #121215;
+	--cd-rule: #27272a;
+}
+
+:root[data-theme='light'] {
+	--sl-color-white: #09090b;
+	--sl-color-gray-1: #27272a;
+	--sl-color-gray-2: #3f3f46;
+	--sl-color-gray-3: #6b6b74;
+	--sl-color-gray-4: #a1a1aa;
+	--sl-color-gray-5: #d9d9de;
+	--sl-color-gray-6: #f1f1f3;
+	--sl-color-gray-7: #f8f8f9;
+	--sl-color-black: #ffffff;
+	--sl-color-accent-low: #e0f3ec;
+	--sl-color-accent: #006f51;
+	--sl-color-accent-high: #004a37;
+
+	--cd-accent: #006f51;
+	--cd-ok: #27272a;
+	--cd-warn: #b94700;
+	--cd-gold: #9a7b3f;
+	--cd-panel: #fafafa;
+	--cd-rule: #e4e4e7;
+}
+
+/* Headings: Geist, semibold, tracked in a little. */
+.sl-markdown-content :is(h1, h2, h3),
+h1#_top {
+	font-family: var(--cd-display);
+	font-weight: 600;
+	letter-spacing: -0.02em;
+}
+h1#_top {
+	font-size: clamp(1.75rem, 3.5vw, 2.25rem);
+}
+
+/* Site title as a wordmark. */
+.site-title {
+	font-family: var(--cd-display);
+	font-weight: 600;
+	font-size: 1.1rem;
+	letter-spacing: -0.02em;
+	color: var(--sl-color-white);
+}
+
+/* Reading text: a size down from Starlight's, quieter grey, more air between blocks. */
+.sl-markdown-content {
+	font-size: 0.9375rem;
+	line-height: 1.7;
+	color: var(--sl-color-gray-2);
+}
+.sl-markdown-content :is(strong, b):not(.not-content, .not-content *) {
+	color: var(--sl-color-white);
+	font-weight: 600;
+}
+.sl-markdown-content :is(h2, h3, h4):not(.not-content, .not-content *) {
+	color: var(--sl-color-white);
+}
+.sl-markdown-content h2:not(.not-content, .not-content *) {
+	font-size: 1.3rem;
+	margin-top: 2.75rem;
+}
+/* A small gold diamond over each section heading, drawn in CSS so it needs no image. */
+.sl-markdown-content h2:not(.not-content, .not-content *)::before {
+	content: '';
+	display: block;
+	width: 8px;
+	height: 8px;
+	margin: 0 0 0.9rem 2px;
+	background: var(--cd-gold);
+	transform: rotate(45deg);
+}
+.sl-markdown-content h3:not(.not-content, .not-content *) {
+	font-size: 1.05rem;
+	margin-top: 2rem;
+}
+
+/* Links: the accent, a fine underline that turns gold on hover. */
+.sl-markdown-content a:not(.not-content, .not-content *, :is(h1, h2, h3, h4) a) {
+	color: var(--cd-accent);
+	text-decoration-line: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.2em;
+	text-decoration-color: color-mix(in srgb, var(--cd-accent) 35%, transparent);
+}
+.sl-markdown-content a:not(.not-content, .not-content *):hover {
+	text-decoration-color: var(--cd-gold);
+}
+
+/* Tables: smaller type, a tracked caps header over a gold hairline, hairline rows. */
+.sl-markdown-content table:not(.not-content, .not-content *) {
+	border-collapse: collapse;
+	font-size: 0.85rem;
+	line-height: 1.55;
+}
+.sl-markdown-content :is(th, td):not(.not-content, .not-content *) {
+	border: none;
+	border-bottom: 1px solid var(--cd-rule);
+	padding: 0.6rem 0.9rem 0.6rem 0;
+	vertical-align: top;
+}
+.sl-markdown-content th:not(.not-content, .not-content *) {
+	font-size: 0.68rem;
+	font-weight: 600;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--sl-color-gray-3);
+	background: none;
+	border-bottom: 1px solid var(--cd-gold);
+}
+.sl-markdown-content td:first-child:not(.not-content, .not-content *) {
+	color: var(--sl-color-white);
+}
+.sl-markdown-content tbody tr:hover td:not(.not-content, .not-content *) {
+	background: color-mix(in srgb, var(--cd-gold) 5%, transparent);
+}
+
+/* Inline code: a quiet grey chip. */
+.sl-markdown-content :not(pre):not(.not-content, .not-content *) > code {
+	background: var(--sl-color-gray-6);
+	color: var(--sl-color-gray-1);
+	border: 1px solid var(--cd-rule);
+	border-radius: 0.3rem;
+	padding: 0.05em 0.35em;
+}
+
+/* The home hero: a large, tight claim and a quiet tagline. */
+.hero {
+	padding-block: clamp(2.5rem, 8vw, 5rem) 1rem;
+}
+.hero h1 {
+	font-family: var(--cd-display);
+	font-weight: 600;
+	font-size: clamp(2.4rem, 6vw, 4rem);
+	line-height: 1.05;
+	letter-spacing: -0.035em;
+	text-wrap: balance;
+	color: var(--sl-color-white);
+}
+.hero .tagline {
+	font-size: clamp(1.05rem, 2vw, 1.3rem);
+	color: var(--sl-color-gray-2);
+	max-width: 42rem;
+	text-wrap: pretty;
+}
+
+/* Splash sections: generous air between them, headings set large. */
+[data-has-hero] .sl-markdown-content h2 {
+	font-size: clamp(1.5rem, 3vw, 2rem);
+	margin-top: 4rem;
+	border: none;
+}
+
+/* Components carry their own type; long identifiers wrap rather than widen the page. */
+.not-content code {
+	overflow-wrap: anywhere;
+}
+
+/* Command and key names stay whole in table cells. */
+.sl-markdown-content td > code {
+	white-space: nowrap;
+}
+
+/* Code shows exactly what was typed: no ligatures turning ~> or -> into arrows. */
+code, pre, kbd, samp {
+	font-variant-ligatures: none;
+	font-feature-settings: 'calt' 0, 'liga' 0;
+}
+
+/* The current page in the sidebar: a quiet tint, not a solid block. */
+.sidebar-content a[aria-current='page'],
+.sidebar-content a[aria-current='page']:hover,
+.sidebar-content a[aria-current='page']:focus {
+	background: var(--sl-color-gray-6);
+	color: var(--sl-color-white);
+	font-weight: 600;
+}
+
+/* Callouts: a neutral panel with a coloured edge, from the same two signals. */
+.starlight-aside {
+	background: var(--sl-color-gray-6);
+	border-inline-start-color: var(--cd-accent);
+	color: var(--sl-color-gray-1);
+}
+.starlight-aside .starlight-aside__title {
+	color: var(--sl-color-white);
+}
+.starlight-aside .starlight-aside__icon {
+	color: var(--cd-accent);
+}
+.starlight-aside--caution,
+.starlight-aside--danger {
+	border-inline-start-color: var(--cd-warn);
+}
+.starlight-aside--caution .starlight-aside__icon,
+.starlight-aside--danger .starlight-aside__icon {
+	color: var(--cd-warn);
+}
+.starlight-aside a {
+	color: var(--sl-color-accent-high);
+}
+
+/* The 404 page: the cube, the news, and the way back. */
+.cd-404 {
+	display: grid;
+	justify-items: center;
+	gap: 1rem;
+	padding-block: clamp(3rem, 10vw, 6rem) 2rem;
+	text-align: center;
+}
+.cd-404 p {
+	margin: 0;
+	max-width: 36rem;
+	color: var(--sl-color-gray-2);
+}
+.cd-404 .cd-404-title {
+	font-family: var(--cd-display);
+	font-size: clamp(2rem, 5vw, 3rem);
+	font-weight: 600;
+	letter-spacing: -0.02em;
+	color: var(--sl-color-white);
+}
+.cd-404 a {
+	color: var(--sl-color-accent-high);
+	font-weight: 500;
+}
+
+/* Sidebar: a step smaller, and badges as quiet grey text, not solid blocks. */
+.sidebar-content a {
+	font-size: var(--sl-text-sm);
+}
+.sidebar-content .sl-badge {
+	font-family: var(--sl-font);
+	font-size: 0.68rem;
+	font-weight: 500;
+	color: var(--sl-color-gray-3);
+	background: none;
+	border: 1px solid var(--cd-rule);
+	border-radius: 999px;
+	padding: 0 0.4rem;
+}
+
+/* On a phone a wide table scrolls in its box, so its columns keep readable widths. */
+@media (max-width: 40rem) {
+	.sl-markdown-content table:not(.not-content, .not-content *) {
+		display: block;
+		overflow-x: auto;
+		font-size: 0.8rem;
+	}
+	.sl-markdown-content :is(th, td):not(.not-content, .not-content *) {
+		min-width: 7.5rem;
+	}
+}
+
+/* Each top-level sidebar group's label starts with the gold diamond. */
+.sidebar-content .top-level > li > details > summary .group-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.6rem;
+}
+.sidebar-content .top-level > li > details > summary .group-label::before {
+	content: '';
+	flex: none;
+	width: 6px;
+	height: 6px;
+	margin-left: 2px;
+	background: var(--cd-gold);
+	transform: rotate(45deg);
+}
