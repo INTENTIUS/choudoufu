@@ -37,7 +37,30 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
    `generated-from.json` alongside the pin. Skipping this step for more than
    one release cycle is what `TestCIPipelinePinIsTiedToRelease` turns red for.
 
-## choudoufu v0.30.0 (Unreleased)
+## choudoufu v0.31.0 (Unreleased)
+
+## choudoufu v0.30.0 (2026-10-18)
+
+Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.30.0.json`](live/history/v0.30.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.29.1.json live/history/v0.30.0.json`):
+
+### Board movement
+
+- Core estates: 23/23 clear -> 23/23 clear (0)
+- All estates: 24/25 clear -> 24/25 clear (0)
+
+### Newly cleared
+
+- none
+
+### Regressed
+
+- none
+
+### Emulator
+
+- Repinned from `ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144` to `ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec`
 
 - Emulator repinned from `ghcr.io/lex00/floci@sha256:ff46eb8d...` to
   `ghcr.io/lex00/floci@sha256:5ec92ae8...` (lex00/floci#228, the old pin's
