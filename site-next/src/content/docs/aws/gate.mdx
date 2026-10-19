@@ -1,0 +1,37 @@
+---
+title: Gate
+description: Your IAM is the whole permission model. Conditions on the owner tag decide who may act on what.
+prompt: |
+  Follow https://intentius.io/choudoufu/aws/gate/ and draft an IAM policy that scopes one role to the estate named in this configuration. Show it to me; do not attach it.
+  Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
+---
+import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+
+<PlatformSwitch />
+
+You decide who changes what with the IAM you already write. AWS can scope a role by tag; it needs tags that are present and correct on everything. A marker is that tag, derived from the configuration address and written with the create call.
+
+```json
+{
+  "Sid": "MutateOnlyThisEstate",
+  "Effect": "Allow",
+  "Action": ["ec2:CreateTags", "ec2:DeleteTags", "ec2:TerminateInstances"],
+  "Resource": "*",
+  "Condition": {
+    "StringEquals": {"aws:ResourceTag/tofu-estate": "prod-networking"},
+    "StringEqualsIfExists": {"aws:RequestTag/tofu-estate": "prod-networking"}
+  }
+}
+```
+
+`aws:ResourceTag` governs what already exists. A create has nothing to read a tag from yet, so a second statement on `aws:RequestTag` grants creating into the estate.
+
+## What that buys
+
+Handing an estate over is two IAM changes: attach the policy to the new role, detach it from the old one. Splitting an estate is a tag write with `choudoufu live-mv -from-estate=<old> <address>`. An auditor needs only `tag:GetResources` and read actions.
+
+The fence binds the credential, not the binary. A plain `aws ec2 create-tags` meets the same condition.
+
+## What it cannot reach
+
+Types with no tag surface are found from configuration and are not governed by this grant. Nothing stops a tag being removed except an SCP on the untag actions; the plan's duplicate warning assumes it will happen anyway. [IAM-REFERENCE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/IAM-REFERENCE.md) lists where AWS honours the condition, and [GOVERNANCE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/GOVERNANCE.md) has the recipes: scope a role, fence staging from production, deny creating anything unowned.

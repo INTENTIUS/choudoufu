@@ -1,0 +1,39 @@
+---
+title: Compatibility
+description: Every type with object metadata plans, custom resources included, and a short list is refused by name.
+prompt: |
+  Follow https://intentius.io/choudoufu/kubernetes/compatibility/ and run `choudoufu live-check` in this configuration's directory. Report each refusal. Do not edit the configuration.
+  Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
+---
+import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+
+<PlatformSwitch />
+
+## The backend
+
+Refused, as on [AWS](/choudoufu/aws/compatibility/).
+
+## Expansions and identity arguments
+
+Does not apply: the label holds only the estate name.
+
+## Resource types
+
+Every `kubernetes_*` type with a `metadata` block works, and custom resources work through `kubernetes_manifest`. A manifest is dry-run against the API server, and a rejection refuses the plan. Field-granular types such as `kubernetes_labels` use the field manager `choudoufu:<estate>` as marker.
+
+### Refused
+
+| What | Why |
+|---|---|
+| `metadata.generate_name` | The server picks the name, so the object cannot be found again |
+| A namespaced object with no `namespace` | Not defaulted, for the same reason |
+| `helm_release` | A release is many objects Helm makes; run Helm roots without a `live` block |
+| A kind the cluster does not serve | Refused by name, with the CRD to install |
+
+## Running it
+
+The same engine as AWS: `-target` and plan files work.
+
+## Other providers
+
+An EKS module managing `aws-auth` works; the plan stops until `declared_untagged = "adopt"` claims it. [COMPATIBILITY.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/kubernetes/COMPATIBILITY.md) has the detail.

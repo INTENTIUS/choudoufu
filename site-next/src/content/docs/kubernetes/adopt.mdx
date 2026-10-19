@@ -1,0 +1,31 @@
+---
+title: Adopt
+description: One label is the marker, objects bind by namespace and name, and a stock state file migrates with one command.
+prompt: |
+  Follow https://intentius.io/choudoufu/kubernetes/adopt/ here. Run `choudoufu live-import -state=stock.tfstate -estate=<name>` without `-approve` and report what it would label and refuse.
+  Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
+---
+import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+
+<PlatformSwitch />
+
+An object is yours once it carries the `tofu-estate` label. A plan finds it again by its kind, namespace and name, which your configuration already holds. An annotation beside the label carries the block address.
+
+This covers every `kubernetes_*` type with a `metadata` block, and every custom resource declared through `kubernetes_manifest`.
+
+## The bulk path
+
+```
+choudoufu live-import -state=stock.tfstate -estate=my-estate
+choudoufu live-import -state=stock.tfstate -estate=my-estate -approve
+```
+
+The first shows what would change; the second writes the label and annotation. A write that would change anything else is refused, and so is an object labelled for another estate.
+
+## What binds on its own
+
+Every object binds by the natural key in your configuration. Objects a controller made, such as a Deployment's Pods, are never adopted or deleted. The label goes on with the create call, so no crash can land between create and marker. [Compatibility](/choudoufu/kubernetes/compatibility/) lists what is refused.
+
+## Leaving
+
+From the `kubernetes` backend, `tofu state pull > stock.tfstate` gives you the file. That backend's Secret is your way back to stock, so delete it last. [ADOPT.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/kubernetes/ADOPT.md) has the full page.
