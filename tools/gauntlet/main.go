@@ -39,6 +39,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/intentius/choudoufu/tools/statpages"
 )
 
 func main() {
@@ -314,6 +316,16 @@ func cmdRender(root string) error {
 		return err
 	}
 	fmt.Printf("rendered %d files\n", len(written))
+	// The generated stat pages under live/ (#2092): every one of them,
+	// re-rendered from the data already committed, so this one command
+	// refreshes them all. live/statpages_test.go holds them to the tree.
+	pages, err := statpages.WriteAll(root)
+	if err != nil {
+		return err
+	}
+	for _, p := range pages {
+		fmt.Printf("rewrote %s\n", p)
+	}
 	return nil
 }
 

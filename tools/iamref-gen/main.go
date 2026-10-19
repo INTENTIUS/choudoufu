@@ -28,6 +28,7 @@
 //
 //	go run ./tools/iamref-gen              # cached where possible
 //	go run ./tools/iamref-gen -refresh     # re-fetch everything
+//	go run ./tools/iamref-gen -render      # live/IAM-REFERENCE.md only, no network
 package main
 
 import (
@@ -40,6 +41,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/intentius/choudoufu/tools/statpages"
 )
 
 const (
@@ -53,8 +56,16 @@ const (
 
 func main() {
 	refresh := flag.Bool("refresh", false, "re-fetch every service document instead of using the cache")
+	render := flag.Bool("render", false, "re-render live/IAM-REFERENCE.md from the committed live/iam-reference.json; no network")
 	flag.Parse()
 
+	if *render {
+		if err := runRender(os.Stderr); err != nil {
+			fmt.Fprintf(os.Stderr, "iamref-gen: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if err := run(*refresh, os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintf(os.Stderr, "iamref-gen: %v\n", err)
 		os.Exit(1)
@@ -133,6 +144,9 @@ func run(refresh bool, out, errOut *os.File) error {
 	if err := renderSCPActionsSpan(root, rows); err != nil {
 		return err
 	}
+	if _, err := statpages.Write(root, statpages.IAMReference); err != nil {
+		return err
+	}
 
 	c := art.Counts
 	fmt.Fprintf(errOut, "iamref-gen: wrote %s (%d services: %d resolved [%d unresolved, %d ambiguous]; "+
@@ -143,6 +157,25 @@ func run(refresh bool, out, errOut *os.File) error {
 		c.TagActionFound, c.TagActionAbsent, c.NoTagVerbRecorded,
 		c.ListsResourceTag, c.TagActionFound, c.ListsTagKeys, c.TagActionFound,
 		c.ServicesListingResourceTag)
+	return nil
+}
+
+// runRender is the -render entry point: live/IAM-REFERENCE.md (#2092) from
+// the committed artifact, with no fetch.
+func runRender(errOut *os.File) error {
+	root, err := repoRoot()
+	if err != nil {
+		return err
+	}
+	wrote, err := statpages.Write(root, statpages.IAMReference)
+	if err != nil {
+		return err
+	}
+	if wrote {
+		fmt.Fprintf(errOut, "iamref-gen: rewrote %s\n", statpages.IAMReference.Path)
+	} else {
+		fmt.Fprintf(errOut, "iamref-gen: %s is already current\n", statpages.IAMReference.Path)
+	}
 	return nil
 }
 

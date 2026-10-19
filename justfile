@@ -448,7 +448,8 @@ gauntlet-run +args:
 gauntlet-status:
     env -u PWD go run ./tools/gauntlet status
 
-# Regenerate the artifact, live/GAUNTLET.md and the site's progress pages.
+# Regenerate the artifact, live/GAUNTLET.md, the site's progress data and
+# every generated stat page under live/ (BOARD, READINESS, CLAIMS, ...; #2092).
 gauntlet-render:
     env -u PWD go run ./tools/gauntlet render
 

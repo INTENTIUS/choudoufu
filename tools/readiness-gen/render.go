@@ -50,6 +50,7 @@ import (
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/live/mdspan"
+	"github.com/intentius/choudoufu/tools/statpages"
 )
 
 // markers is this generator's marker vocabulary - a distinct tool name
@@ -398,7 +399,16 @@ func runRender() error {
 	if err != nil {
 		return err
 	}
-	return writeIfChanged(root, SiteDataRel, data)
+	if err := writeIfChanged(root, SiteDataRel, data); err != nil {
+		return err
+	}
+	// live/READINESS.md (#2092) is rendered from the data just written.
+	if wrote, err := statpages.Write(root, statpages.Readiness); err != nil {
+		return err
+	} else if wrote {
+		fmt.Fprintf(os.Stderr, "readiness-gen: rewrote %s\n", statpages.Readiness.Path)
+	}
+	return nil
 }
 
 // writeIfChanged writes one file only if its bytes differ, so a render that

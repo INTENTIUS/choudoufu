@@ -111,6 +111,7 @@ site/public/
 /registry-gen
 /row-gen
 /selected-go-version
+/statpages
 /substrates-gen
 /survey-gen
 /tagverbs-gen
