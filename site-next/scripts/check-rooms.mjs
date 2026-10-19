@@ -43,11 +43,8 @@ const PENDING = new Set([
 	'/docs/use/reference/',
 	'/docs/use/setup/',
 	'/docs/use/start/',
-	// Repo pages: live/CONCURRENCY.md from #2095, the generated pages from #2096.
+	// Repo pages: live/CONCURRENCY.md from #2095.
 	'live/CONCURRENCY.md',
-	'live/BOARD.md',
-	'live/CLAIMS.md',
-	'live/IAM-REFERENCE.md',
 ]);
 
 const base = '/choudoufu';
