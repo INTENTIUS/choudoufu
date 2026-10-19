@@ -12,7 +12,9 @@ a customer managed key the reader of a bucket also needs `kms:Decrypt` on the
 key, and that is the only configuration in which a second thing stands in the
 way.
 
-That is the default, and it is the same bargain a state file makes. This page
+That is the default, and it is the same bargain a state file makes. Whoever
+can read the store can read the secrets in it, so pick who that is before you
+pick a backend. This page
 is about who ends up holding that read, what the settings do and do not
 change, and the other place the same values are kept: a cache file on every
 machine that applies.
@@ -129,7 +131,7 @@ data directory, a run under `refuse` warns about it by name and leaves it for
 you to delete, since the file is yours. Naming a path in
 `CHOUDOUFU_STATE_CACHE` still writes one there under `refuse`: that is you
 asking for the file on purpose, and it is what keeps
-[the way out to stock](https://intentius.io/choudoufu/docs/model/cache/) open for such an
+[the way out to stock](https://intentius.io/choudoufu/how-it-works/cache/) open for such an
 estate.
 
 So under `store` the values this page is about are in two places: the bucket,
@@ -137,7 +139,7 @@ and the working directory of each laptop and CI runner that applied. `.terraform
 gitignored by convention, which keeps the file out of a commit and does
 nothing about who can read the disk or what a CI system caches between jobs.
 `CHOUDOUFU_STATE_CACHE=off` stops the file being written, at the cost of
-[what the cache buys](https://intentius.io/choudoufu/docs/model/cache/).
+[what the cache buys](STORAGE.md#the-cache).
 
 ## What `strict { secrets = "refuse" }` does, exactly
 

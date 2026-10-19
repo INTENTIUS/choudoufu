@@ -726,8 +726,9 @@ evaluator symbol is gone. What AWS ends up holding is an ordinary escaped
 address either way, which is the point. A resource that writes
 `tofu-address` by hand inside a keyed module call keeps its own value,
 verified against what this run resolved and never overwritten -
-`live/LIMITATIONS.md` records that under "keyed module", and the concept
-page's "Modules" section has the idiom.
+`live/LIMITATIONS.md` records that under "keyed module", and
+[Writing the marker by hand inside a keyed module](#writing-the-marker-by-hand-inside-a-keyed-module)
+below has the idiom.
 
 What is refused is narrower than any form of this grammar, and it is about
 the expression rather than the segment. A module call whose `count` or
@@ -763,6 +764,44 @@ cannot parse one will fail on an estate that uses a counted module call.
 - `aws_eip.this[2]`
 - `module.subnets["a"].aws_subnet.this`
 - `module.subnets[2].aws_subnet.this`
+
+### Writing the marker by hand inside a keyed module
+
+Instances of a `for_each`'d module share one HCL body for `tags`, so no single
+literal address is correct for all of them. A resource there that writes its
+own `tofu-address` has to build it per instance: thread the module call's
+`each.key` through as a variable and build the address from it.
+
+```hcl
+# root module: the call passes its own each.key through
+module "wrapped" {
+  source   = "./wrapped"
+  for_each = toset(["a", "b"])
+  key      = each.key
+}
+```
+
+```hcl
+# wrapped module: receives it as a variable
+variable "key" {
+  type = string
+}
+```
+
+```hcl
+# wrapped module: builds its own address from the variable
+resource "aws_eip" "app" {
+  tags = {
+    tofu-estate  = local.estate_tag
+    tofu-address = "module.wrapped[\"${var.key}\"].aws_eip.app"
+  }
+}
+```
+
+`live/e2e/estate-module-keyed/` is the two-instance fixture this is drawn
+from, proven against a live emulator.
+[COMPATIBILITY.md](COMPATIBILITY.md) has the module forms this pattern
+applies to.
 
 ### Escaping rule
 

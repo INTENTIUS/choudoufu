@@ -30,14 +30,14 @@ directory and the next plan is `No changes.`
 themselves. Losing your local machine does not touch them. Losing them means
 somebody untagged your resources, which is a different problem than this page
 and is covered by
-[the ownership policy matrix](https://intentius.io/choudoufu/docs/use/ownership-policy/).
+[the ownership policy matrix](OWNERSHIP-POLICY.md).
 
 **The record store** is the one with no recovery path. It holds the values of
 resources that have no cloud object at all, and for a narrow slice of AWS
 types it holds the only copy of an identity. That is the rest of this page.
 Where those records are kept changes how likely you are to get them back and
 changes nothing about the inventory below. [Where things are
-stored](https://intentius.io/choudoufu/docs/use/storage/) has
+stored](STORAGE.md) has
 the backends. A bucket is the one store where a deleted record has an undo:
 the store refuses a bucket without versioning, so every deleted record is
 still there as a noncurrent version until the lifecycle rule expires it.
@@ -366,7 +366,7 @@ own and does not have one.
 
 ## Related
 
-- [Where things are stored](https://intentius.io/choudoufu/docs/use/storage/) - what the
+- [Where things are stored](STORAGE.md) - what the
   record store holds, per-backend, and who can read it
 - [What you set up by hand](https://intentius.io/choudoufu/docs/use/setup/) - what has to
   exist before the first plan

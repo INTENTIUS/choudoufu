@@ -58,3 +58,60 @@ should stay full. Data sources are not compared with the cache, so a data
 source whose value moved (a latest AMI) widens nothing. The binary version
 is not compared. The saving is unmeasured until
 [claim 47](smoke/claims/plan-cost-tracks-the-change.md) runs.
+
+## What a plan costs
+
+A plan reads the live system and not a file, so it makes more API calls than
+a plan that trusts a state file. How many more depends on which of two things
+it has to do. The cone above narrows the first.
+
+### The two terms
+
+The read pass reads each resource you own. It costs what stock's refresh
+costs for the same resources, call for call.
+
+The sweep looks for resources carrying your estate's marker that no block
+declares. Its width comes from how many resource types are admitted, and not
+from how big your estate is. It is the expensive one.
+
+An established estate does not pay the full sweep. Its own records say which
+types it holds, so the sweep narrows to those. The first plan of a new estate,
+an adoption, and an audit have nothing to narrow by and sweep in full.
+
+### The numbers
+
+Measured on a 79-instance estate against the pinned emulator, at commit
+`fce6b53e20` on 2026-09-12T13:33:13Z (the newest `terralith-scale` scale-1
+record in `live/gauntlet-scale.json`):
+
+| | choudoufu | stock |
+|---|---|---|
+| An ordinary plan | 186 calls | 150 |
+| The same plan again | 186 | |
+| A full-sweep audit | 776 | 150 |
+
+These are API calls against an emulator. They have not been measured in money,
+and wall-clock time on an emulator says little about AWS.
+
+### Turning a phase down
+
+Each phase has its own bound on how many calls it has in flight. Neither is
+stock's `-parallelism`, which bounds the graph walk.
+
+| Variable | Bounds | Default |
+|---|---|---|
+| `TOFU_LIVE_SWEEP_PARALLELISM` | the sweep's per-type list calls | 10 |
+| `TOFU_LIVE_READ_PARALLELISM` | the read pass's per-instance import and read | 10 |
+
+Lower them if an account's APIs push back, or plan a cone (above).
+`-refresh=false` serves unchanged resources from
+[the cache](https://intentius.io/choudoufu/how-it-works/cache/) and skips
+their reads.
+
+### The full measurements
+
+Every figure, fixture and commit behind this section is in the repository:
+[`live/costs/plan-cost.md`](costs/plan-cost.md) for the sweep and read pass
+at each scale, and [`live/costs/what-you-pay.md`](costs/what-you-pay.md)
+for adoption, migration, day two at scale and the real-AWS runs. The machine
+readable records are `live/gauntlet-scale.json`.
