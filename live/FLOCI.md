@@ -127,7 +127,7 @@ commit with `jq '.live_cert[] | select(.estate == "terralith-scale") |
 .detail' live/gauntlet.json`. At the entry this section was last read
 against, `test_plan` is "post-migrate plan is empty in 129s" at scale 10,
 745 resources. Whether that stage grows with the estate is a question for
-`site/content/docs/what-you-pay.md`, which keeps the cross-scale table; the
+`live/PLAN-CONE.md`'s "What a plan costs", which keeps the cross-scale numbers; the
 concurrency work of #605, #626, #627 and #636 changed the answer this
 section used to give.
 

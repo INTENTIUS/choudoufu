@@ -194,7 +194,7 @@ grant refuses and names the other estate, and a name the producer never
 recorded refuses and names both. What crosses is what is written: root
 outputs that are non-sensitive and wholly known. The consumer's plan warns
 that the value is as of the producer's last apply, with the time the record
-was written. `site/content/docs/use/cross-estate.md` is the operator's page.
+was written. [Day-2 operations](https://intentius.io/choudoufu/docs/use/day2/) is the operator's page.
 
 On `record_store "kubernetes"` the declaration moves into the record_store
 block, because there the store is where the boundary is. Each estate keeps

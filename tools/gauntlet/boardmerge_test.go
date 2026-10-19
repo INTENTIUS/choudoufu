@@ -15,7 +15,7 @@ import (
 	"testing"
 )
 
-// Issue #1308. site/data/gauntlet_board.json is generated, committed, and
+// Issue #1308. live/gauntlet-board.json (site/data/gauntlet_board.json until #2092) is generated, committed, and
 // conflicts on every merge that moved a verdict. Most of a bad merge of it
 // is already caught: StaleFilesReport renders the board fresh and compares
 // byte for byte, so a merged banner, a merged cell, a merged duration all
@@ -275,16 +275,16 @@ func copyBoard(b Board) Board {
 // generic staleness difference.
 func TestCommittedBoardIsSelfConsistent(t *testing.T) {
 	root := testRoot(t)
-	b, err := os.ReadFile(filepath.Join(root, SiteBoardPath))
+	b, err := os.ReadFile(filepath.Join(root, BoardDataPath))
 	if err != nil {
 		t.Fatal(err)
 	}
 	var bd Board
 	if err := json.Unmarshal(b, &bd); err != nil {
-		t.Fatalf("%s does not parse as a board: %v", SiteBoardPath, err)
+		t.Fatalf("%s does not parse as a board: %v", BoardDataPath, err)
 	}
 	if err := BoardSelfConsistent(bd); err != nil {
-		t.Errorf("%s: %v", SiteBoardPath, err)
+		t.Errorf("%s: %v", BoardDataPath, err)
 	}
 }
 
@@ -320,7 +320,7 @@ func TestMergeRenderedKeepsOurs(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out strings.Builder
-	if err := cmdMergeRendered([]string{SiteBoardPath, p}, &out); err != nil {
+	if err := cmdMergeRendered([]string{BoardDataPath, p}, &out); err != nil {
 		t.Fatal(err)
 	}
 	got, err := os.ReadFile(p)
@@ -336,7 +336,7 @@ func TestMergeRenderedKeepsOurs(t *testing.T) {
 	if err := cmdMergeRendered([]string{ArtifactPath, p}, &out); err == nil {
 		t.Errorf("the driver accepted %s, which it must never keep-ours", ArtifactPath)
 	}
-	if err := cmdMergeRendered([]string{SiteBoardPath, filepath.Join(dir, "absent")}, &out); err == nil {
+	if err := cmdMergeRendered([]string{BoardDataPath, filepath.Join(dir, "absent")}, &out); err == nil {
 		t.Error("the driver accepted a missing ours-file")
 	}
 }

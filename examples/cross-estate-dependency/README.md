@@ -66,7 +66,7 @@ plan. There is nothing for a remote-state read to point at.
 
 Which is worse than it sounds, because `terraform_remote_state` is no longer
 refused. The lint rule that refused it was removed under #179 stage 3, and
-`site/content/docs/use/compatibility.md` now lists it under constructs
+`live/COMPATIBILITY.md` now lists it under constructs
 choudoufu used to refuse and does not. So a producer that migrates to live
 markers while a consumer still reads its old state file gets no error at all:
 the file is still there, the read still resolves, and what comes back is a

@@ -430,8 +430,8 @@ type liveCheckDocument struct {
 	// schema" is a fact about the RUN - it is true of every instance at
 	// once, and no instance is ever unknown while another is known. Folding
 	// it into the rung would also have widened an enum three shipped
-	// readers already switch on (behold, site/content/docs/use/resource-
-	// tiers.md's tier names, tools/readiness-gen's TierDeclarationCarried),
+	// readers already switch on (behold, live/READINESS.md's tier
+	// names, tools/readiness-gen's TierDeclarationCarried),
 	// where adding a top-level key breaks none of them.
 	//
 	// No omitempty: the un-initialized case is the one #966 was filed

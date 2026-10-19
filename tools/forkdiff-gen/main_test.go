@@ -18,7 +18,7 @@ func TestBucketOf(t *testing.T) {
 		{"internal/live", "other"}, // no trailing slash: not under the root
 		{"tools/forkdiff-gen/main.go", "tools/"},
 		{"live/fork-surface.json", "live/"},
-		{"site/content/docs/index.md", "site/"},
+		{"site/src/content/docs/index.mdx", "site/"},
 		{".github/workflows/ci.yml", ".github/"},
 		// rulings/ was a named root until the 2026-09-01 dissolve
 		// (live/decision_authority_guard_test.go); a path under it now

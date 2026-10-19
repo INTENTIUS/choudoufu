@@ -109,12 +109,12 @@ var flociLiteralExceptions = map[string]string{
 	"live/e2e/corpus-vpc-complete/run.sh": "same reason as corpus-sumaform-aws/run.sh: comments cite the " +
 		"digest a past finding was measured or fixed against",
 
-	"site/data/": "published copies of the live/ measurement artifacts, written by `go run ./tools/gauntlet " +
-		"render`; the artifacts themselves are what TestFlociMeasurementsMatchThePinOrSayWhyNot governs, " +
-		"and this is their generated mirror",
+	"live/gauntlet-board.json": "the board data `go run ./tools/gauntlet render` derives from live/gauntlet.json " +
+		"(site/data/gauntlet_board.json until #2092); the artifact itself is what " +
+		"TestFlociMeasurementsMatchThePinOrSayWhyNot governs, and this is its generated summary",
 
-	"live/BOARD.md": "the gauntlet board rendered by `go run ./tools/gauntlet render` from the same board " +
-		"data as site/data/gauntlet_board.json; its banner names the digest each row was measured against, " +
+	"live/BOARD.md": "the gauntlet board rendered by `go run ./tools/gauntlet render` from " +
+		"live/gauntlet-board.json; its banner names the digest each row was measured against, " +
 		"which is evidence about that run, not a pin to keep current (#2092)",
 
 	"live/SUBSTRATES.md": "rendered from live/substrates.json (#2092); the harness row puts the floci pin and " +

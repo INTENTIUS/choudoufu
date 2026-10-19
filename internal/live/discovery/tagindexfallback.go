@@ -57,8 +57,8 @@ import (
 //
 // One Cloud Control listing plus one [serviceTagRead] per listed object, for
 // a type whose index answered. That is not flat in estate size, which is
-// what #1037/#1039 established for the sweep and site/content/docs/model/
-// plan-cost.md publishes, so it is worth stating what bounds it:
+// what #1037/#1039 established for the sweep and live/PLAN-CONE.md
+// publishes, so it is worth stating what bounds it:
 //
 //   - The caller is [sweepViaTagging]'s registry-untaggable arm, and only
 //     the branch [tagIndexHeldNothingGap] claims. That needs a

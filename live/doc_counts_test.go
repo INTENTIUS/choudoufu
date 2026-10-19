@@ -29,7 +29,7 @@ import (
 
 const (
 	coverageMDPath  = "live/COVERAGE.md"
-	referenceMDPath = "site/content/docs/use/reference.md"
+	referenceMDPath = "live/IAM-REFERENCE.md" // the tag-verbs spans; on the site's reference page until #2092
 	handoffMDPath   = "HANDOFF.md"
 )
 
@@ -116,7 +116,7 @@ func checkCoverageContractCount(doc string) ([]string, error) {
 	return nil, nil
 }
 
-// --- site/content/docs/use/reference.md -----------------------------------
+// --- live/IAM-REFERENCE.md (the tag-verbs spans) --------------------------
 
 var (
 	reTagVerbSplit = regexp.MustCompile(`(\d+) services carry an unambiguous tagging verb\. (\d+) do not`)

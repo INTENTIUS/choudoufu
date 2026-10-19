@@ -2,7 +2,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/intentius/choudoufu.svg)](https://pkg.go.dev/github.com/intentius/choudoufu)
 
-**Your cloud already knows what you own.** <img src="site-next/public/brand/cube-160.png" width="32" height="32" alt="">
+**Your cloud already knows what you own.** <img src="site/public/brand/cube-160.png" width="32" height="32" alt="">
 
 Each resource carries its own identity on the resource itself, as a marker
 the platform can select on: on AWS, two resource tags. The apply writes it
@@ -183,7 +183,7 @@ All stock OpenTofu documentation lives at
 [opentofu.org](https://opentofu.org/docs/).
 
 <p align="center">
-  <img src="site-next/public/brand/cube-160.png" width="160" alt="a steaming cube of choudoufu on a plate">
+  <img src="site/public/brand/cube-160.png" width="160" alt="a steaming cube of choudoufu on a plate">
 </p>
 
 ## License

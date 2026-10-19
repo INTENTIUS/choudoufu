@@ -67,7 +67,7 @@ jobs:
       # true, and says what to do if an upstream sync ever breaks it.
       - name: gofmt (fork-owned files)
         run: |
-          out="$(gofmt -l internal/live cmd site tools live internal/backend internal/builtin/providers/tf internal/command internal/configs internal/e2e internal/engine/applying internal/plans internal/plugin internal/plugin6 internal/plugins internal/states/statemgr internal/tofu internal/tracing)"
+          out="$(gofmt -l internal/live cmd tools live internal/backend internal/builtin/providers/tf internal/command internal/configs internal/e2e internal/engine/applying internal/plans internal/plugin internal/plugin6 internal/plugins internal/states/statemgr internal/tofu internal/tracing)"
           if [ -n "$out" ]; then
             echo "gofmt needed on:"
             echo "$out"

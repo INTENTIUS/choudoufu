@@ -230,7 +230,9 @@ func boardEstatesSpan(b boardData, a gauntletArtifact) string {
 		if dir, ok := strings.CutSuffix(e.Script, "/run.sh"); ok && strings.HasPrefix(dir, "live/") {
 			name = fmt.Sprintf("[%s](%s/)", e.Name, strings.TrimPrefix(dir, "live/"))
 		}
-		fmt.Fprintf(&s, "| %s | %s | %s | %s", name, e.Set, e.Lane, clear)
+		// The anchor is what the Hugo site's per-estate progress pages
+		// (/docs/progress/<estate>/) redirect to since the cutover (#2092).
+		fmt.Fprintf(&s, "| <a id=\"%s\"></a>%s | %s | %s | %s", e.Name, name, e.Set, e.Lane, clear)
 		for _, c := range e.Cells {
 			m, ok := cellMark[c]
 			if !ok {

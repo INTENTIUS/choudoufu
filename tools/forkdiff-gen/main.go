@@ -31,7 +31,7 @@
 // fetches on its own.
 //
 // A second mode, mirroring tools/readiness-gen -render, writes the docs
-// site's copy of the artifact (site/data/fork_surface.json) from the
+// summary of the artifact (live/fork-surface-summary.json) from the
 // already-committed live/fork-surface.json rather than a fresh diff - see
 // render.go:
 //
@@ -154,7 +154,7 @@ func repoRoot() (string, error) {
 
 func main() {
 	render := flag.Bool("render", false,
-		"write site/data/fork_surface.json from the committed live/fork-surface.json instead of regenerating the artifact (needs no git diff)")
+		"write live/fork-surface-summary.json from the committed live/fork-surface.json instead of regenerating the artifact (needs no git diff)")
 	flag.Parse()
 
 	if *render {

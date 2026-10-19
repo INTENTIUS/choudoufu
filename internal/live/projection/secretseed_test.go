@@ -33,7 +33,7 @@ import (
 // empty. A silent no-op on a secret rotation.
 //
 // Both documents that describe the setting say the opposite -
-// site/content/docs/use/secrets.md and live/SECRETS.md: "A sensitive
+// the site's secrets page (since folded into live/SECRETS.md) and live/SECRETS.md: "A sensitive
 // argument the API never returns is left out of its record, so every plan
 // shows it as a change" - and so does the fork's own lint warning for the
 // same attribute ([residueWarning], "Attribute value cannot round-trip a
@@ -220,7 +220,7 @@ func TestRefusedSensitiveArgumentIsProposedAgain(t *testing.T) {
 	change := planSecretDB(t, cfg, p, res, rotated)
 	if change.Action != plans.Update {
 		t.Errorf("stub_secretdb.main replans as %s under secrets = %q, want %s.\n"+
-			"site/content/docs/use/secrets.md and live/SECRETS.md both say a sensitive argument the API never "+
+			"live/SECRETS.md says a sensitive argument the API never "+
 			"returns is left out of its record so every plan shows it as a change, and lint's own "+
 			"%q warning promises the same. A NoOp here means the rotated value is silently never sent.",
 			change.Action, strict.Refuse, plans.Update, "Attribute value cannot round-trip a live replan")

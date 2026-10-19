@@ -1,9 +1,22 @@
 # The `strict` block, toggle by toggle
 
-The table of toggles, their values and defaults is generated from
-`internal/live/strict/registry.go` into the site's reference page,
-https://intentius.io/choudoufu/docs/use/reference/#strict-block. This file is
-the reasoning and the measured behaviour behind each one.
+The principles this fork exists for, each as a toggle whose default is what
+stock OpenTofu does. A block that sets nothing and no block at all mean the
+same thing, so an estate that sets none behaves like stock plus markers.
+Turning a toggle on is the setup step.
+
+The table is generated from `internal/live/strict/registry.go` by
+`go run ./tools/toggles-gen`; edit the registry, never the span. The rest of
+this file is the reasoning and the measured behaviour behind each toggle.
+
+<!-- toggles-gen:begin strict-toggles -->
+| Argument | Values | Default | Meaning |
+|---|---|---|---|
+| `marker_repair` | `"repair"`, `"never"` | `"repair"` | What a run does about an ownership marker on a live object that disagrees with the marker this configuration declares. "repair" writes the declared value over it, as the plan's ordinary in-place tags update. "never" leaves it silently, for an estate where something else owns the tags, and only once a markers "record" selection gives the resource an identity source that is not the marker. |
+| `secrets` | `"store"`, `"refuse"` | `"store"` | What a run does with the secret material a configuration generates or sets. "store" keeps it the way stock OpenTofu keeps it. "refuse" is two refusals: a secret-generating type is refused outright, and a sensitive settable argument is left out of its record. It does not reach the cache file, or a terraform_data or null_resource the configuration hands a secret. |
+| `no_source_create` | `"refuse"`, `"create"` | `"refuse"` | What a run does with an instance that has no record, no live marker and no identity anything can derive from configuration. "refuse" reports it, by name, and names both remedies: "choudoufu live-import" from a stock state that already holds it, or this toggle. "create" selects stock OpenTofu's own behavior for a resource with no prior state: plan a create. |
+| `provider_change` | `"refuse"`, `"recreate"` | `"refuse"` | What a run does when a resource block names a different provider configuration than the one whose account or region still holds a live object carrying this estate's marker for that block's address - a region or account change. "refuse" reports the object, by name, with the provider configuration that found it and the one its address now belongs to, and names both remedies: destroying or disowning that object, or this toggle. "recreate" selects stock OpenTofu's own behavior - plan the create under the new configuration - and warns, by name, that the old one's object is abandoned and nothing will find it again. |
+<!-- toggles-gen:end strict-toggles -->
 
 None of the settings above affects a resource being created. A create is stamped
 whatever the setting says: the safety rule has no converse permitting an

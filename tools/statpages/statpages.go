@@ -9,9 +9,8 @@
 // GitHub-flavoured markdown.
 //
 // This reverses #1055's "generators emit data only" for these pages, by the
-// maintainer's ruling of 2026-10-19. The site/data/*.json files the Hugo
-// site renders are still written exactly as before; these pages are added
-// beside them.
+// maintainer's ruling of 2026-10-19. The Hugo site and its site/data/*.json
+// copies were retired at the cutover; the site links these pages.
 //
 // Every page is hand-written text around one or more spans between
 // `<!-- <tool>:begin <name> -->` and `<!-- <tool>:end <name> -->` markers,
@@ -21,10 +20,10 @@
 // Every render here is a pure function of committed files: no git, no
 // network, no clock. That is what lets live/statpages_test.go re-render
 // every span in memory and compare it with the tree. Three of the inputs
-// are derived data a generator writes under site/data/ (the board,
-// readiness and fork-surface summaries); when the Hugo site is retired
-// those inputs move into live/ rather than being deleted, and Inputs is
-// the one place that names them.
+// are derived summaries a generator writes beside its artifact (the board,
+// readiness and fork-surface summaries); they lived under site/data/ until
+// the Hugo site was retired (#2092), and the constants below are the one
+// place that names them.
 //
 // `go run ./tools/gauntlet render` refreshes every page (WriteAll). Each
 // other generator's -render mode refreshes its own page after writing its
@@ -48,9 +47,9 @@ const RefreshCommand = "go run ./tools/gauntlet render"
 // Input paths, relative to the repository root.
 const (
 	GauntletArtifactRel = "live/gauntlet.json"
-	GauntletBoardRel    = "site/data/gauntlet_board.json"
-	ReadinessSiteRel    = "site/data/readiness.json"
-	ForkSurfaceSiteRel  = "site/data/fork_surface.json"
+	GauntletBoardRel    = "live/gauntlet-board.json"
+	ReadinessSiteRel    = "live/readiness-summary.json"
+	ForkSurfaceSiteRel  = "live/fork-surface-summary.json"
 	ClaimsRel           = "live/smoke/claims.json"
 	IAMReferenceRel     = "live/iam-reference.json"
 	SubstratesRel       = "live/substrates.json"

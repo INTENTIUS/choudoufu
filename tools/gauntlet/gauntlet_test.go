@@ -378,7 +378,7 @@ func TestEveryLastRunCommitIsAnAncestorOfHEADCatchesADanglingCommit(t *testing.T
 // estates recorded - the page claimed a "measured at" instant that
 // predated data it was displaying. What replaced it (boardBanner, computed
 // fresh in buildBoard from a.Estates every render, and read by the site
-// from SiteBoardPath's "banner" field) must never be
+// from BoardDataPath's "banner" field) must never be
 // able to repeat that shape: a value on the page that reads as evidence
 // without being tied to the rows it summarizes.
 //
@@ -413,25 +413,25 @@ func TestBoardBannerMatchesEstateRows(t *testing.T) {
 		t.Skip("no estate carries a last_run.date; the range claim does not apply to this artifact")
 	}
 
-	b, err := os.ReadFile(filepath.Join(root, SiteBoardPath))
+	b, err := os.ReadFile(filepath.Join(root, BoardDataPath))
 	if err != nil {
 		t.Fatal(err)
 	}
 	page := string(b)
 	if a.Emulator == "" || !strings.Contains(page, a.Emulator) {
-		t.Errorf("%s does not mention the pinned emulator %q anywhere; the one board-wide fact the banner still makes went missing", SiteBoardPath, a.Emulator)
+		t.Errorf("%s does not mention the pinned emulator %q anywhere; the one board-wide fact the banner still makes went missing", BoardDataPath, a.Emulator)
 	}
 	if oldest == newest {
 		if !strings.Contains(page, oldest) {
-			t.Errorf("%s's board banner does not carry %q, the only last_run.date every estate row agrees on", SiteBoardPath, oldest)
+			t.Errorf("%s's board banner does not carry %q, the only last_run.date every estate row agrees on", BoardDataPath, oldest)
 		}
 		return
 	}
 	if !strings.Contains(page, oldest) {
-		t.Errorf("%s's board banner does not carry %q, the oldest last_run.date across a.Estates; the rendered claim has drifted from the rows it summarizes", SiteBoardPath, oldest)
+		t.Errorf("%s's board banner does not carry %q, the oldest last_run.date across a.Estates; the rendered claim has drifted from the rows it summarizes", BoardDataPath, oldest)
 	}
 	if !strings.Contains(page, newest) {
-		t.Errorf("%s's board banner does not carry %q, the newest last_run.date across a.Estates; the rendered claim has drifted from the rows it summarizes", SiteBoardPath, newest)
+		t.Errorf("%s's board banner does not carry %q, the newest last_run.date across a.Estates; the rendered claim has drifted from the rows it summarizes", BoardDataPath, newest)
 	}
 }
 
@@ -481,7 +481,7 @@ func TestBoardWideEmulatorClaimMatchesRows(t *testing.T) {
 		t.Skip("no estate has recorded a run; the emulator claim does not apply yet")
 	}
 
-	b, err := os.ReadFile(filepath.Join(root, SiteBoardPath))
+	b, err := os.ReadFile(filepath.Join(root, BoardDataPath))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -493,7 +493,7 @@ func TestBoardWideEmulatorClaimMatchesRows(t *testing.T) {
 				break // every row ran but recorded no digest; nothing literal to check
 			}
 			if !strings.Contains(page, digest) {
-				t.Errorf("%s: every estate's last_run agrees on emulator %q, but the page never mentions it", SiteBoardPath, digest)
+				t.Errorf("%s: every estate's last_run agrees on emulator %q, but the page never mentions it", BoardDataPath, digest)
 			}
 		}
 	}
@@ -512,7 +512,7 @@ func TestBoardWideEmulatorClaimMatchesRows(t *testing.T) {
 	disagrees := distinctReal > 1 || (hasUnknown && len(seen) > 1) || (hasUnknown && distinctReal == 0)
 	claimsUniformity := strings.Contains(page, "Every estate below last ran against")
 	if disagrees && claimsUniformity {
-		t.Errorf("%s claims every estate ran against a single emulator image, but last_run.emulator disagrees across rows (or is unrecorded for some): %v", SiteBoardPath, seen)
+		t.Errorf("%s claims every estate ran against a single emulator image, but last_run.emulator disagrees across rows (or is unrecorded for some): %v", BoardDataPath, seen)
 	}
 	if len(seen) > 1 {
 		// A genuine disagreement: every real digest recorded by at least
@@ -522,7 +522,7 @@ func TestBoardWideEmulatorClaimMatchesRows(t *testing.T) {
 				continue
 			}
 			if !strings.Contains(page, digest) {
-				t.Errorf("%s: %d estate(s) recorded last_run.emulator=%q, but the page never mentions it", SiteBoardPath, n, digest)
+				t.Errorf("%s: %d estate(s) recorded last_run.emulator=%q, but the page never mentions it", BoardDataPath, n, digest)
 			}
 		}
 	}

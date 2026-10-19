@@ -36,10 +36,8 @@ const ROOT = new URL(".", import.meta.url).pathname.replace(/\/$/, "");
 
 // Hand-written prose only. A generated page's findings are the generator's to
 // answer for, and editing the output loses them on the next render.
-const ROOTS = ["site/content/docs", "live"];
+const ROOTS = ["site/src/content/docs", "live"];
 const SKIP = [
-  "site/content/docs/progress/", // rendered by tools/gauntlet
-  "site/themes/",
   "node_modules/",
 ];
 
@@ -145,4 +143,4 @@ console.log(`\n${total} findings across ${rows.length} files. By rule:`);
 for (const [id, n] of Object.entries(byRule).sort((a, b) => b[1] - a[1])) {
   console.log(`  ${String(n).padStart(4)}  ${id}`);
 }
-console.log("\nOne file in full:  node prose-lint.mjs site/content/docs/model/plan-cost.md");
+console.log("\nOne file in full:  node prose-lint.mjs live/PLAN-CONE.md");

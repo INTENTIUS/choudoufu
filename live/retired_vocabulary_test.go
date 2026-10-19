@@ -56,9 +56,8 @@ var retiredWordAllowed = struct {
 	},
 	atMost: map[string]int{
 		// The two stage details named above, until their estates re-run.
-		"live/gauntlet.json":            2,
-		"site/data/gauntlet.json":       2,
-		"site/data/gauntlet_board.json": 2,
+		"live/gauntlet.json":       2,
+		"live/gauntlet-board.json": 2,
 	},
 	atMostPrefix: map[string]int{
 		// Frozen release snapshots; a new one copies live/gauntlet.json.

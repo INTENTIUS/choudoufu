@@ -1,0 +1,35 @@
+name: site
+
+# Builds the Astro + Starlight site in site/ on every pull request, with the
+# same steps pages.yml runs before it deploys, so a change that breaks the
+# build, a room link or an old URL fails here rather than on main (#2092). It
+# never deploys.
+on:
+  pull_request: {}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Check every old URL resolves
+        run: node ../scripts/site-url-check.mjs

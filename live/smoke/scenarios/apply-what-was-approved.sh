@@ -18,8 +18,8 @@
 # (internal/live/approval/values.go).
 #
 # Two plain `apply` runs are last-writer-wins on such an attribute, and
-# this scenario does not claim otherwise; site/content/docs/model/
-# concurrency.md says so. Two saved-plan applies can also both re-read
+# this scenario does not claim otherwise; live/CONCURRENCY.md says
+# so. Two saved-plan applies can also both re-read
 # before either writes (#1504's gap 3); steps 11 and 12 apply them one
 # after the other, which is the case the before-values check covers.
 #

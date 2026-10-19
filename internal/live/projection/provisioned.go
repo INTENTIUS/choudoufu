@@ -40,7 +40,8 @@ import (
 //
 // # Why a record and not a receipt
 //
-// site/content/docs/model/effects.md's own test: "A record is written by
+// The test the site's old docs/model/effects page gave (its receipts half is
+// live/RECEIPTS.md now): "A record is written by
 // choudoufu and its format is internal. A receipt is written by your
 // configuration." Nothing in an operator's configuration writes this,
 // nothing outside this binary can read it usefully, and its format is

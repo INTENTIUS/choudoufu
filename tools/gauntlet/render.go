@@ -20,18 +20,15 @@ import (
 // written in full by `gauntlet render` and held to the tree by
 // TestRenderedDocsAreCurrent. Hand edits are overwritten on the next render.
 //
-// Nothing under site/content is written here any more (#1055): the site's
-// progress pages are hand-written markdown plus a content adapter, both
-// reading SiteDataPath and SiteBoardPath. SiteProgressPage, SiteAddPage
-// and SiteContribPage name those hand-written pages so the spec and the
-// briefs can point at them; this tool never writes them.
+// Nothing on the docs site is written here (#1055, #2092). The board is
+// live/BOARD.md, rendered by tools/statpages from BoardDataPath and the
+// artifact. ContributePage is the hand-written page on adding an estate and
+// contributing compute, named so the spec and the briefs can point at it;
+// this tool never writes it.
 const (
-	SpecPath         = "live/GAUNTLET.md"
-	SiteProgressDir  = "site/content/docs/progress"
-	SiteProgressPage = "site/content/docs/progress/_index.md"
-	SiteAddPage      = "site/content/docs/progress/add-an-estate.md"
-	SiteContribPage  = "site/content/docs/progress/contribute.md"
-	WorkerBriefPath  = ".claude/agents/gauntlet-worker.md"
+	SpecPath        = "live/GAUNTLET.md"
+	ContributePage  = "live/CONTRIBUTE-GAUNTLET.md"
+	WorkerBriefPath = ".claude/agents/gauntlet-worker.md"
 	// OrchestratorBriefPath is the brief for whoever keeps the loop running.
 	OrchestratorBriefPath = ".claude/agents/gauntlet-orchestrator.md"
 )
@@ -45,10 +42,10 @@ const (
 // carrying its own stale copy (issue #658).
 //
 // scale is live/gauntlet-scale.json's committed bytes, or nil when the file
-// does not exist yet; Render copies it to SiteScalePath so the site's
-// scale-num shortcode can quote a measured plan-call split without anyone
-// typing it (#1055). Read by the caller from the real checkout, never from
-// root, for the same reason tt is.
+// does not exist yet. Render used to copy it to a Hugo data file; since the
+// Hugo site was retired (#2092) nothing reads a copy and the argument is
+// unused, kept so the callers' one-render-after-both-halves order (#1187)
+// stays visible at each call site.
 //
 // st is per-row script staleness (#1264), read from the real checkout by
 // the caller for that same reason - it is a git comparison, and root here
@@ -76,7 +73,7 @@ func Render(root string, m *Manifest, a *Artifact, tt TypeIndexTotals, scale []b
 	if err := write(ManifestPath, string(mb)); err != nil {
 		return nil, err
 	}
-	// The artifact, and its copy for Hugo.
+	// The artifact.
 	ab, err := a.Canonical()
 	if err != nil {
 		return nil, err
@@ -84,31 +81,20 @@ func Render(root string, m *Manifest, a *Artifact, tt TypeIndexTotals, scale []b
 	if err := write(ArtifactPath, string(ab)); err != nil {
 		return nil, err
 	}
-	if err := write(SiteDataPath, string(ab)); err != nil {
-		return nil, err
-	}
 	if err := write(SpecPath, renderSpec(m, a, tt)); err != nil {
 		return nil, err
 	}
-	// The board: every display value the site's progress pages need, as
-	// data. The pages themselves live in site/ and are never written here.
+	// The board: every display value live/BOARD.md needs, as data.
 	bb, err := buildBoard(m, a, st, kindNodeImagePin(root)).Canonical()
 	if err != nil {
 		return nil, err
 	}
-	if err := write(SiteBoardPath, string(bb)); err != nil {
+	if err := write(BoardDataPath, string(bb)); err != nil {
 		return nil, err
 	}
-	if scale != nil {
-		if err := write(SiteScalePath, string(scale)); err != nil {
-			return nil, err
-		}
-	}
+	_ = scale
 	return written, nil
 }
-
-// SiteScalePath is the site's copy of ScaleRecordsPath.
-const SiteScalePath = "site/data/gauntlet_scale.json"
 
 // loadScaleRecordsBytes reads ScaleRecordsPath as committed, or nil when it
 // does not exist. Any other error is returned.
@@ -143,18 +129,16 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("popular OpenTofu and Terraform configurations are run through a fixed set of")
 	w("stages, each a comparison with what stock does for the same configuration,")
 	w("against the pinned emulator. The result is one artifact, `%s`, and the", ArtifactPath)
-	w("two bars on the site read it directly. Nothing on the site about progress is")
-	w("typed by hand.")
+	w("board (`live/BOARD.md`) and the numbers on the site read it directly. Nothing")
+	w("about progress is typed by hand.")
 	w("")
 	w("The promise it measures: if OpenTofu runs an estate, choudoufu runs it too.")
 	w("Migration from a stock state file is lossless and a greenfield apply is")
 	w("equivalent. Everything below is that sentence made checkable.")
 	w("")
 	w("This page defines the gauntlet; it does not walk you through running it.")
-	w("The two procedures are their own pages on the site, hand-written and")
-	w("reading the lanes and the example entry from `%s`:", SiteBoardPath)
-	w("adding an estate is `%s`, and", SiteAddPage)
-	w("contributing compute is `%s`.", SiteContribPage)
+	w("The two procedures, adding an estate and contributing compute, are one")
+	w("hand-written page, `%s`.", ContributePage)
 	w("")
 	w("## The two numbers")
 	w("")
@@ -616,7 +600,7 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("  `last_run.date`.")
 	w("- **Product code moved between a row's measurement and the merge.**")
 	w("  The merge is only valid when nothing outside %s,", ArtifactPath)
-	w("  `%s`, `%s`, and an estate's own", SiteDataPath, SiteBoardPath)
+	w("  `%s`, `%s`, `%s`, and an estate's own", BoardDataPath, statpages.Board.Path, statpages.Claims.Path)
 	w("  `live/e2e/<name>/run.sh` differs between base and either side. PRs")
 	w("  #502 and #503 both genuinely needed a re-run for exactly this reason -")
 	w("  `tools/gauntlet/run.go`'s recording path changed underneath them - and")

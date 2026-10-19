@@ -3,7 +3,7 @@
 Which real resource a configuration address refers to. AWS already knows this,
 once you tell it.
 
-![How a plan binds a configuration address to a live resource](../site/assets/diagram-identity.svg)
+![How a plan binds a configuration address to a live resource](../docs/diagrams/diagram-identity.svg)
 
 Two tags, written as the resource is created.
 

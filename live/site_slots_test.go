@@ -8,104 +8,107 @@ package residue
 import (
 	"os"
 	"path/filepath"
-	"strconv"
+	"regexp"
 	"strings"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
 
 // The docs site's provider hubs carry the same five slots, in the same
 // order, under the same names, on every platform (#1055): a reader who has
 // learned one hub has learned them all, and a platform whose answer to a
 // slot is honestly empty gets a page that says so rather than a missing
-// page. site/data/providers.yaml is the roster; this test holds the content
-// tree to it, in the shape TestLimitationsDocCoversDirs holds
+// page.
+//
+// Since the Astro cutover (#2092) the roster is the sidebar in
+// site/astro.config.mjs: each hub is a sidebar group whose pages are the
+// hub's index and then the five slots, in slot order. The Hugo site held the
+// order in each page's `weight:` and the roster in site/data/providers.yaml;
+// both went with it. This test holds the content tree and the sidebar to
+// each other, in the shape TestLimitationsDocCoversDirs holds
 // live/LIMITATIONS.md to its fixture directories.
 //
-// Proving it red: delete site/content/kubernetes/compatibility.md, or add a
-// site/content/azure/ directory while providers.yaml still says azure is
-// not planned; each fails a different check below.
+// Proving it red: delete site/src/content/docs/kubernetes/compatibility.mdx,
+// swap two slots in the sidebar, or add a site/src/content/docs/azure/
+// directory with no sidebar group; each fails a different check below.
 
 const (
-	siteProvidersYAML = "../site/data/providers.yaml"
-	siteContentDir    = "../site/content"
+	siteDir          = "../site"
+	siteContentDir   = "../site/src/content/docs"
+	siteAstroConfig  = "../site/astro.config.mjs"
+	siteRoomsTS      = "../site/src/data/rooms.ts"
+	siteRedirectJSON = "../site/src/data/redirects.json"
 )
 
 // siteSlots are the five slot pages, in the order the hub shows them.
 var siteSlots = []string{"adopt", "gate", "operate", "compatibility", "proof"}
 
-type siteProvidersFile struct {
-	Providers []struct {
-		ID          string            `yaml:"id"`
-		Name        string            `yaml:"name"`
-		Status      string            `yaml:"status"`
-		StatusLabel string            `yaml:"status_label"`
-		Cells       map[string]string `yaml:"cells"`
-	} `yaml:"providers"`
-	Keys map[string]string `yaml:"keys"`
+// siteNonHubDirs are the top-level content directories that are not
+// provider hubs.
+var siteNonHubDirs = map[string]bool{"docs": true, "how-it-works": true}
+
+// sitePage returns the path of the page at rel (no extension) under
+// siteContentDir, as .md or .mdx, or "" when neither exists.
+func sitePage(rel string) string {
+	for _, ext := range []string{".md", ".mdx"} {
+		p := filepath.Join(siteContentDir, filepath.FromSlash(rel)+ext)
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
 }
 
-func TestSiteProviderHubsCarryTheSixSlots(t *testing.T) {
-	raw, err := os.ReadFile(siteProvidersYAML)
+var sidebarSlug = regexp.MustCompile(`slug:\s*'([^']+)'`)
+
+func TestSiteProviderHubsCarryTheFiveSlots(t *testing.T) {
+	cfg, err := os.ReadFile(siteAstroConfig)
 	if err != nil {
-		t.Fatalf("read %s: %v", siteProvidersYAML, err)
+		t.Fatalf("read %s: %v", siteAstroConfig, err)
 	}
-	var f siteProvidersFile
-	if err := yaml.Unmarshal(raw, &f); err != nil {
-		t.Fatalf("decode %s: %v", siteProvidersYAML, err)
-	}
-	if len(f.Providers) == 0 {
-		t.Fatalf("%s lists no providers; this test is checking nothing", siteProvidersYAML)
+	var slugs []string
+	for _, m := range sidebarSlug.FindAllStringSubmatch(string(cfg), -1) {
+		slugs = append(slugs, m[1])
 	}
 
-	hubs := map[string]bool{}
-	for _, p := range f.Providers {
-		if p.Status == "" || p.StatusLabel == "" {
-			t.Errorf("provider %q: status and status_label are both required", p.ID)
-		}
-		dir := filepath.Join(siteContentDir, p.ID)
-		_, err := os.Stat(dir)
-		if p.Status == "not-planned" {
-			if err == nil {
-				t.Errorf("provider %q is not-planned but %s exists; either plan it (status and cells) or remove the hub", p.ID, dir)
-			}
+	entries, err := os.ReadDir(siteContentDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hubs := 0
+	for _, e := range entries {
+		if !e.IsDir() || siteNonHubDirs[e.Name()] {
 			continue
 		}
-		hubs[p.ID] = true
-		if err != nil {
-			t.Errorf("provider %q (status %s) has no hub directory %s", p.ID, p.Status, dir)
-			continue
+		hub := e.Name()
+		hubs++
+		dir := filepath.Join(siteContentDir, hub)
+
+		index := sitePage(hub + "/index")
+		if index == "" {
+			t.Errorf("hub %q: no %s/index.md or index.mdx", hub, dir)
+		} else if body, _ := os.ReadFile(index); !strings.Contains(string(body), "\ndescription: ") {
+			t.Errorf("%s: no description; the hub card and the search index show it", index)
 		}
-		index, err := os.ReadFile(filepath.Join(dir, "_index.md"))
-		if err != nil {
-			t.Errorf("provider %q: no %s/_index.md", p.ID, dir)
-		} else if !strings.Contains(string(index), "\nlayout: hub\n") {
-			t.Errorf("provider %q: %s/_index.md does not declare `layout: hub`", p.ID, dir)
-		}
-		for i, slot := range siteSlots {
-			page := filepath.Join(dir, slot+".md")
-			body, err := os.ReadFile(page)
-			if err != nil {
-				t.Errorf("provider %q: slot %q has no page at %s", p.ID, slot, page)
+		for _, slot := range siteSlots {
+			page := sitePage(hub + "/" + slot)
+			if page == "" {
+				t.Errorf("hub %q: slot %q has no page at %s/%s.md or .mdx", hub, slot, dir, slot)
 				continue
 			}
-			s := string(body)
-			if !strings.Contains(s, "\nweight: "+strconv.Itoa(i+1)+"\n") {
-				t.Errorf("%s: weight must be %d so the slots keep their order on every hub", page, i+1)
+			body, err := os.ReadFile(page)
+			if err != nil {
+				t.Fatal(err)
 			}
-			if !strings.Contains(s, "\ndescription: ") {
+			if !strings.Contains(string(body), "\ndescription: ") {
 				t.Errorf("%s: no description; the hub card and the search index show it", page)
 			}
-			if !strings.Contains(s, "\ndeeper:\n") {
-				t.Errorf("%s: no `deeper:` list; every slot page ends with where to dig", page)
-			}
 		}
+
 		// Every extra page in a hub is a sixth slot nobody agreed on.
-		entries, _ := os.ReadDir(dir)
-		for _, e := range entries {
-			name := strings.TrimSuffix(e.Name(), ".md")
-			if e.Name() == "_index.md" || !strings.HasSuffix(e.Name(), ".md") {
+		pages, _ := os.ReadDir(dir)
+		for _, p := range pages {
+			name := strings.TrimSuffix(strings.TrimSuffix(p.Name(), ".mdx"), ".md")
+			if name == "index" || name == p.Name() {
 				continue
 			}
 			known := false
@@ -115,28 +118,26 @@ func TestSiteProviderHubsCarryTheSixSlots(t *testing.T) {
 				}
 			}
 			if !known {
-				t.Errorf("%s/%s is not one of the five slots (%s); the hubs must stay identical in shape", dir, e.Name(), strings.Join(siteSlots, ", "))
+				t.Errorf("%s/%s is not one of the five slots (%s); the hubs must stay identical in shape", dir, p.Name(), strings.Join(siteSlots, ", "))
 			}
 		}
-		for key := range f.Keys {
-			if _, ok := p.Cells[key]; !ok {
-				t.Errorf("provider %q has no cell for key %q; the providers shortcode would drop its row silently", p.ID, key)
-			}
-		}
-	}
 
-	// A hub directory with no roster entry is a platform the site claims
-	// and the data does not.
-	entries, err := os.ReadDir(siteContentDir)
-	if err != nil {
-		t.Fatal(err)
+		// The sidebar is the order: the hub's index, then the five slots.
+		want := []string{hub}
+		for _, slot := range siteSlots {
+			want = append(want, hub+"/"+slot)
+		}
+		var got []string
+		for _, s := range slugs {
+			if s == hub || strings.HasPrefix(s, hub+"/") {
+				got = append(got, s)
+			}
+		}
+		if strings.Join(got, " ") != strings.Join(want, " ") {
+			t.Errorf("%s lists hub %q as %v; it must list %v, in that order, so every hub shows its slots the same way", siteAstroConfig, hub, got, want)
+		}
 	}
-	for _, e := range entries {
-		if !e.IsDir() || e.Name() == "docs" || e.Name() == "how-it-works" {
-			continue
-		}
-		if !hubs[e.Name()] {
-			t.Errorf("%s/%s is a top-level content directory with no provider entry in %s", siteContentDir, e.Name(), siteProvidersYAML)
-		}
+	if hubs == 0 {
+		t.Fatalf("found no hub directories under %s; this test is checking nothing", siteContentDir)
 	}
 }

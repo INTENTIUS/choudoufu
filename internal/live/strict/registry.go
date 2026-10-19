@@ -68,7 +68,7 @@ type Toggle struct {
 	SafeValue string
 
 	// Values is the settable spellings this registry declares for the
-	// toggle, in the order [site/content/docs/use/reference.md]'s
+	// toggle, in the order live/STRICT.md's
 	// generated table renders them (tools/toggles-gen). Default is always
 	// a member (see TestToggleValuesContainDefault).
 	//

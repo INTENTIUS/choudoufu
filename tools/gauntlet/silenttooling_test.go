@@ -6,7 +6,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,67 +20,6 @@ import (
 // Every test here is written from what the tool PROMISES, not from how it
 // is implemented, and every one was proven red against the code as it stood
 // before its fix - see the pull request for the red output, quoted.
-
-// renderedScratchCheckout copies this checkout's generator INPUTS into a
-// temp directory and renders once, so the result is a self-consistent
-// miniature checkout: every generated file present and current. It returns
-// the temp root and the relative paths Render wrote.
-//
-// Tests use it instead of the real tree so a RED arm can corrupt a
-// generated file - which is the only way to prove a staleness guard is
-// load-bearing - without ever writing to the tree under test.
-func renderedScratchCheckout(t *testing.T) (string, []string) {
-	t.Helper()
-	root := testRoot(t)
-	tmp := t.TempDir()
-	for _, rel := range []string{
-		ManifestPath, ArtifactPath, BehaviorIndexPath, TypeIndexPath,
-		OracleVersionsPin, ScaleRecordsPath, "live/floci-image",
-	} {
-		b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
-		if err != nil {
-			t.Skipf("%s is not readable in this checkout: %v", rel, err)
-		}
-		dst := filepath.Join(tmp, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(dst, b, 0o644); err != nil { //nolint:gosec // a temp copy of a committed artifact
-			t.Fatal(err)
-		}
-	}
-	m, a, err := loadAll(tmp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	tt, err := LoadTypeIndexTotals(tmp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	scale, err := loadScaleRecordsBytes(tmp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if scale == nil {
-		t.Fatalf("%s is empty in this checkout, so there is nothing to publish and nothing to compare", ScaleRecordsPath)
-	}
-	// Script staleness is read from tmp, not from root: tmp is what
-	// StaleFiles(tmp) below will read it from, and a scratch copy that is
-	// not a git checkout at all answers "unknown" for every row - the same
-	// answer both sides get, so this fixture stays comparable (#1264).
-	written, err := Render(tmp, m, a, tt, scale, AllScriptStaleness(tmp, a))
-	if err != nil {
-		t.Fatal(err)
-	}
-	stale, err := StaleFiles(tmp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(stale) > 0 {
-		t.Fatalf("a freshly rendered scratch checkout already reads stale (%s); any RED arm built on it would prove nothing", strings.Join(stale, ", "))
-	}
-	return tmp, written
-}
 
 // brokenGitOnPATH puts a `git` that always exits 128 at the front of PATH,
 // reproducing the failure that started this family: a machine whose
@@ -179,99 +117,6 @@ func TestArtifactAtRevisionRefusesWhenGitCannotAnswer(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "Xcode license") {
 		t.Errorf("artifactAtRevision error = %q; want it to quote git's own stderr", err)
-	}
-}
-
-// TestSaveScaleArtifactPublishesTheSiteCopy is #1187's prevention.
-//
-// live/gauntlet-scale.json has four producers - live-cert, scale-backfill,
-// scale-import-slice and scale-patch-seconds - and its published copy used
-// to be written by exactly one unrelated command, `gauntlet render`. After
-// the scale-128 certification the two files disagreed by one record: the
-// new one. Writing both from the same call is what makes that impossible to
-// forget.
-func TestSaveScaleArtifactPublishesTheSiteCopy(t *testing.T) {
-	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "live"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	sa := &ScaleArtifact{Schema: ScaleRecordSchema}
-	sa.UpsertScaleRecord(ScaleRecord{
-		Schema:    ScaleRecordSchema,
-		Estate:    "terralith-scale",
-		Target:    "aws",
-		Scale:     128,
-		Commit:    "0123456789abcdef0123456789abcdef01234567",
-		Resources: &ScaleResources{Total: 3705},
-		Source:    "a test, not a run",
-	})
-	if err := SaveScaleArtifact(root, sa); err != nil {
-		t.Fatal(err)
-	}
-	src, err := os.ReadFile(filepath.Join(root, ScaleRecordsPath))
-	if err != nil {
-		t.Fatal(err)
-	}
-	site, err := os.ReadFile(filepath.Join(root, SiteScalePath))
-	if err != nil {
-		t.Fatalf("%s was not written: %v - a scale record that is saved but never published is the #1187 defect", SiteScalePath, err)
-	}
-	if string(src) != string(site) {
-		t.Errorf("%s and %s differ; the published copy is a byte-for-byte copy of the source by definition", ScaleRecordsPath, SiteScalePath)
-	}
-}
-
-// TestStaleFilesCatchesAStaleSiteScaleCopy is #1187's catch: the guard that
-// fires when the two files disagree, whatever produced the disagreement.
-//
-// Prevention and catch are both here on purpose. The first stops the one
-// producer that was known to be missing the step; the second is what a
-// future producer inherits, and is the half that generalises.
-//
-// It builds a self-consistent checkout in a temp directory rather than
-// touching the real one, so the RED arm - dropping a record from the
-// published copy only - can be exercised without ever writing to the tree
-// under test.
-func TestStaleFilesCatchesAStaleSiteScaleCopy(t *testing.T) {
-	tmp, _ := renderedScratchCheckout(t)
-	stale, err := StaleFiles(tmp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(stale) > 0 {
-		t.Fatalf("a freshly rendered tree already reads stale (%s); the RED arm below would prove nothing", strings.Join(stale, ", "))
-	}
-
-	// RED arm: revert exactly one record from the PUBLISHED copy, leaving
-	// the source artifact alone - the shape #1187 found by hand.
-	sa, err := LoadScaleArtifact(tmp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(sa.Records) < 2 {
-		t.Skipf("%s holds %d record(s); this guard needs at least two to drop one", ScaleRecordsPath, len(sa.Records))
-	}
-	sa.Records = sa.Records[:len(sa.Records)-1]
-	b, err := json.MarshalIndent(sa, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(tmp, filepath.FromSlash(SiteScalePath)), append(b, '\n'), 0o644); err != nil { //nolint:gosec // a temp copy of a committed artifact
-		t.Fatal(err)
-	}
-
-	stale, err = StaleFiles(tmp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	found := false
-	for _, rel := range stale {
-		if rel == SiteScalePath {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("%s is short one record and `gauntlet check` did not name it (stale = %v) - a published scale point can go missing with nothing saying so", SiteScalePath, stale)
 	}
 }
 

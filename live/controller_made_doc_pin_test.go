@@ -38,8 +38,10 @@ var controllerMadeDocs = []string{
 	"kubernetes/OPERATE.md",
 	"MARKERS.md",
 	"smoke/claims/no-silent-orphans.md",
-	"../site/content/kubernetes/operate.md",
-	"../site/data/providers.yaml",
+	// The site's Kubernetes operate page (site/content/kubernetes/operate.md
+	// before the Astro cutover, #2092). The Hugo hub roster that also stated
+	// them, site/data/providers.yaml, went with the Hugo site.
+	"../site/src/content/docs/kubernetes/operate.mdx",
 }
 
 func TestControllerMadeExclusionsMatchTheDocs(t *testing.T) {

@@ -89,7 +89,7 @@ your context alone.
    ordinary merge. It can conflict if one branch also bumped the pin: take
    whichever side matches `live/floci-image` as it will read on `main`
    after the merge, validate the JSON, take `--ours` for
-   `site/data/gauntlet.json` and `site/data/gauntlet_board.json`,
+   `live/gauntlet-board.json` and `live/BOARD.md`,
    run `go run ./tools/gauntlet render`, then check `gauntlet check` and
    that `git diff --cached HEAD -- live/gauntlet.json` touches only the
    estate the branch claims (plus `emulator`, if a pin bump is what
@@ -199,7 +199,7 @@ Do not proceed past any of these; state the question and wait.
 ## Never
 
 - Hand-edit `live/gauntlet.json`, `live/GAUNTLET.md`, `live/gauntlet/estates.json`
-  or `site/data/gauntlet_board.json`; they are rendered.
+  or `live/gauntlet-board.json`; they are rendered.
 - Run a crossing script in your own session; that is what workers are for.
 - Merge a branch whose GitHub CI is not green, or push a `main` after a batch
   of merges without running the full gate once on the merge result. The full

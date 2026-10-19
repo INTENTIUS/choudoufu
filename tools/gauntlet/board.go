@@ -12,23 +12,15 @@ import (
 	"strings"
 )
 
-// SiteBoardPath is the site's copy of everything the progress pages show
-// that is not already in SiteDataPath: the board-wide sentences
-// (boardBanner, runtimeBanner), each stage's headline cell, every estate's
-// display row and per-stage table, and the manifest facts (lanes, an
-// example entry) the "add an estate" page quotes. It is data, not
-// markdown: the site renders it (site/content/docs/progress/_content.gotmpl
-// builds one page per estate from it, and the gauntlet-board shortcode
-// renders the tables), so a change to the site's layout never touches
-// this file and a change to this file never touches the layout (#1055).
-//
-// Before #1055 this tool wrote the progress pages themselves as markdown
-// under site/content/docs/progress/, with hugo-book front matter and relref
-// links baked in. That coupled every measured figure on the site to one
-// theme's page format.
-const SiteBoardPath = "site/data/gauntlet_board.json"
+// BoardDataPath is everything live/BOARD.md shows that is not already in
+// the artifact: the board-wide sentences (boardBanner, runtimeBanner), each
+// stage's headline cell, every estate's display row and per-stage table,
+// and the manifest facts (lanes, an example entry). It is data, not
+// markdown: tools/statpages renders the board page from it (#1055, #2092).
+// It lived at site/data/gauntlet_board.json while the Hugo site rendered it.
+const BoardDataPath = "live/gauntlet-board.json"
 
-// Board is the shape of SiteBoardPath.
+// Board is the shape of BoardDataPath.
 type Board struct {
 	Schema   int    `json:"schema"`
 	Emulator string `json:"emulator"`

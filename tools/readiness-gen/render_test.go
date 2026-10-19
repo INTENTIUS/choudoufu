@@ -38,7 +38,7 @@ func wantedSpans(t *testing.T, root string, a Artifact) []wantedSpan {
 }
 
 // TestReadinessSiteDataIsCurrent is the same staleness guard for the docs
-// site's copy (#1055): site/data/readiness.json must equal what
+// summary (#1055): live/readiness-summary.json must equal what
 // renderSiteData produces from the committed live/readiness.json and the
 // same git-derived stamp runRender uses.
 func TestReadinessSiteDataIsCurrent(t *testing.T) {

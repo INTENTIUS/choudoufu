@@ -67,7 +67,7 @@ func helmReleaseSchema() map[string]providers.Schema {
 // own words - the provider serves no resource identity schema for the
 // type - which is the sentence an operator reads before deciding to
 // render the chart into kubernetes_manifest blocks instead
-// (site/content/kubernetes/compatibility.md, "Refused").
+// (site/src/content/docs/kubernetes/compatibility.mdx, "Resource types").
 //
 // Proving it red: admit "helm_release" by name at the top of admitted()
 // and both halves fail on an empty issue list.

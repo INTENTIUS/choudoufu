@@ -72,19 +72,21 @@ const (
 	// the grant cannot reach.
 	spanGovernableGap = "marker-governable-gap"
 
-	// reachMDRel is the governance page a policy author reads for the
-	// bounds of a tag condition. Issue #1088: it said "a minority" of
+	// reachMDRel is the page a policy author reads for the bounds of a tag
+	// condition. Issue #1088: the old governance page said "a minority" of
 	// admitted types take no tags and sent the reader to a 1,200-line repo
 	// file for the number, which is a third of the table and nearly all of
-	// some services. The same split now renders there too.
-	reachMDRel = "site/content/docs/use/governance/reach.md"
+	// some services. The same split now renders there too. The span moved
+	// from the site's governance/reach page to live/IAM-REFERENCE.md at the
+	// cutover (#2092).
+	reachMDRel = "live/IAM-REFERENCE.md"
 
-	// spanReachUntaggable is reach.md's block span: the untaggable count
+	// spanReachUntaggable is reachMDRel's block span: the untaggable count
 	// and the services with the most untaggable admitted types.
 	spanReachUntaggable = "reach-untaggable"
 
 	// reachTopServices is how many services of the per-service split
-	// reach.md names. MARKERS.md carries the full table; the site page
+	// the IAM reference names. MARKERS.md carries the full table; the site page
 	// carries enough to show that the gap is concentrated, not spread thin.
 	reachTopServices = 6
 )
@@ -322,11 +324,10 @@ func renderGovernanceSpans(md string, s governanceSplit) (string, error) {
 	return replaceSpan(markersMDRel, md, spanGovernableGap, renderGovernableGap(s))
 }
 
-// renderReachUntaggable is reach.md's span: the same split
+// renderReachUntaggable is reachMDRel's span: the same split
 // renderGovernableGap states in live/MARKERS.md, cut to the count and the
 // services where it bites hardest, for the page a policy author is on. A
-// sentence rather than a table: site/content has a word budget
-// (live/site_size_test.go) and MARKERS.md carries the full table.
+// sentence rather than a table: MARKERS.md carries the full table.
 func renderReachUntaggable(s governanceSplit) string {
 	total := len(s.Untaggable) + len(s.Taggable)
 	n := len(s.Services)
@@ -341,7 +342,7 @@ func renderReachUntaggable(s governanceSplit) string {
 		"Most untaggable, by service: %s.\n", len(s.Untaggable), total, strings.Join(parts, ", "))
 }
 
-// renderReachMD rewrites reach.md's untaggable span.
+// renderReachMD rewrites live/IAM-REFERENCE.md's untaggable span.
 func renderReachMD(root string, split governanceSplit) error {
 	mdPath := filepath.Join(root, reachMDRel)
 	md, err := os.ReadFile(mdPath) //nolint:gosec // a fixed path in the checkout

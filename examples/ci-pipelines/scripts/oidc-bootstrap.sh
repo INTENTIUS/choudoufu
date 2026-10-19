@@ -421,7 +421,7 @@ jq -n \
 #   - `cloudformation:ListResources`, `cloudformation:GetResource` - choudoufu's
 #     OWN calls, not the provider's: this is the Cloud Control fallback
 #     transport internal/live/cloudcontrol/client.go speaks (see its own doc.go
-#     and site/content/docs/use/reference.md's "Permissions a run needs" table,
+#     and live/IAM-REFERENCE.md's "Permissions a run needs" table,
 #     which names these two actions for that file with no ARN scoping - the
 #     account had granted this example's roles *none* of them before this fix,
 #     which is the root cause `live-plan` never got past). List-style AWS

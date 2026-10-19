@@ -33,15 +33,16 @@ import (
 // "retired" list is what keeps it resolving.
 //
 // Proving it red: add a scenario file with a "CLAIM 47 (aws)" header and no
-// proof, point two proofs at one scenario, or edit site/data/claims.json by
-// hand; each fails a different check below.
+// proof, point two proofs at one scenario, or drop a claim's entry from
+// site/src/data/redirects.json; each fails a different check below.
 
 const (
 	smokeClaimsPath   = "smoke/claims.json"
 	smokeScenariosDir = "smoke/scenarios"
-	siteClaimsCopy    = "../site/data/claims.json"
 	siteClaimsPages   = "smoke/claims"
-	siteClaimsStubs   = "../site/content/docs/claims"
+	// claimsGitHubBase is where a claim's old site URL redirects: its page
+	// in the repository, under siteClaimsPages.
+	claimsGitHubBase = "https://github.com/INTENTIUS/choudoufu/blob/main/live/smoke/claims/"
 )
 
 // smokeProviderNames is how a page heads a provider's section: "## On AWS".
@@ -907,21 +908,11 @@ func smokeProviderSection(page, provider string) (string, bool) {
 //
 // The pages lived under site/content/docs/claims until GitHub issue #1414
 // moved the evidence off the site and beside the scenarios; the site keeps
-// the generated index and a redirect at each old URL, which
-// TestSmokeClaimsSiteRedirects holds.
-func TestSmokeClaimsSiteCopyAndPages(t *testing.T) {
-	src, err := os.ReadFile(smokeClaimsPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cp, err := os.ReadFile(siteClaimsCopy)
-	if err != nil {
-		t.Fatalf("read %s: %v (cp %s %s)", siteClaimsCopy, err, smokeClaimsPath, siteClaimsCopy)
-	}
-	if string(src) != string(cp) {
-		t.Errorf("%s differs from %s; copy it (the site renders the copy, the smoke owns the source)", siteClaimsCopy, smokeClaimsPath)
-	}
-
+// a redirect at each old URL, which TestSmokeClaimsSiteRedirects holds. This
+// test also held the Hugo site's byte copy of claims.json to the source
+// until the copy went with the Hugo site (#2092); the Astro site reads
+// live/smoke/claims.json itself.
+func TestSmokeClaimsPages(t *testing.T) {
 	f := readSmokeClaims(t)
 	pages := map[string]bool{}
 	entries, err := os.ReadDir(siteClaimsPages)
@@ -1022,57 +1013,58 @@ func TestSmokeClaimsSiteCopyAndPages(t *testing.T) {
 	}
 }
 
-// TestSmokeClaimsSiteRedirects: every claim's old site URL still exists as a
-// redirect to its page in the repository (#1414). Links to
+// TestSmokeClaimsSiteRedirects: every claim's old site URL still resolves,
+// as a redirect to its page in the repository (#1414). Links to
 // /docs/claims/<slug>/ are in issues, pull requests and search indexes, and
-// a claim whose stub is missing would answer them with a 404. A retired
-// claim's URL is a Hugo alias on the stub of the claim it moved into
-// (#1112), and has no stub of its own; one that became a demo (#1817) keeps
-// its own redirect, to its own page.
+// a claim whose redirect is missing would answer them with a 404. A retired
+// claim's URL redirects to the page of the claim it moved into (#1112; a
+// Hugo alias on that claim's stub before #2092); one that became a demo
+// (#1817) keeps its own redirect, to its own page.
+//
+// Since the Astro cutover (#2092) the redirects are entries in
+// site/src/data/redirects.json, which site/astro.config.mjs turns into
+// pages; scripts/site-url-check.mjs checks the built pages resolve.
 func TestSmokeClaimsSiteRedirects(t *testing.T) {
 	f := readSmokeClaims(t)
-	bySlugID := map[int]string{}
-	redirect := func(slug string) (string, bool) {
-		stub := filepath.Join(siteClaimsStubs, slug+".md")
-		raw, err := os.ReadFile(stub)
-		if err != nil {
-			t.Errorf("no redirect stub at %s: %v", stub, err)
-			return "", false
-		}
-		want := "live/smoke/claims/" + slug + ".md"
-		if !strings.Contains(string(raw), "\nlayout: redirect\n") || !strings.Contains(string(raw), want) {
-			t.Errorf("%s is not a redirect to %s", stub, want)
-		}
-		return string(raw), true
+	raw, err := os.ReadFile(siteRedirectJSON)
+	if err != nil {
+		t.Fatal(err)
 	}
+	var redirects map[string]string
+	if err := json.Unmarshal(raw, &redirects); err != nil {
+		t.Fatalf("decode %s: %v", siteRedirectJSON, err)
+	}
+	expect := func(slug, target string) {
+		from := "/docs/claims/" + slug + "/"
+		want := claimsGitHubBase + target + ".md"
+		got, ok := redirects[from]
+		if !ok {
+			t.Errorf("%s has no redirect for %s, so that old claim URL would 404; add it, pointing at %s", siteRedirectJSON, from, want)
+			return
+		}
+		if got != want {
+			t.Errorf("%s redirects %s to %s, want %s", siteRedirectJSON, from, got, want)
+		}
+	}
+	bySlugID := map[int]string{}
 	for _, c := range f.Claims {
 		bySlugID[c.ID] = c.Slug
-		redirect(c.Slug)
+		expect(c.Slug, c.Slug)
+	}
+	if len(bySlugID) == 0 {
+		t.Fatalf("%s lists no claims; this test is checking nothing", smokeClaimsPath)
 	}
 	for _, r := range f.Retired {
 		if r.Demo {
-			redirect(r.Slug)
+			expect(r.Slug, r.Slug)
 			continue
 		}
-		if _, err := os.Stat(filepath.Join(siteClaimsStubs, r.Slug+".md")); err == nil {
-			t.Errorf("retired claim %d still has its own stub at %s/%s.md; its URL is an alias on claim %d's stub", r.ID, siteClaimsStubs, r.Slug, r.target())
-		}
-		stub := filepath.Join(siteClaimsStubs, bySlugID[r.target()]+".md")
-		raw, err := os.ReadFile(stub)
-		if err != nil {
-			t.Errorf("retired claim %d: claim %d has no stub at %s to carry its alias: %v", r.ID, r.target(), stub, err)
+		target, ok := bySlugID[r.target()]
+		if !ok {
+			t.Errorf("retired claim %d moved into claim %d, which has no row", r.ID, r.target())
 			continue
 		}
-		front, _, _ := strings.Cut(strings.TrimPrefix(string(raw), "---\n"), "\n---\n")
-		var aliases string
-		for _, line := range strings.Split(front, "\n") {
-			if strings.HasPrefix(line, "aliases:") {
-				aliases = line
-			}
-		}
-		if want := `"/docs/claims/` + r.Slug + `/"`; !strings.Contains(aliases, want) {
-			t.Errorf("%s: front matter aliases %q do not carry %s, so /docs/claims/%s/ no longer resolves", stub, aliases, want, r.Slug)
-		}
+		expect(r.Slug, target)
 	}
 }
 

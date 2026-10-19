@@ -5,18 +5,16 @@ The gauntlet is how choudoufu measures itself against stock OpenTofu. Real,
 popular OpenTofu and Terraform configurations are run through a fixed set of
 stages, each a comparison with what stock does for the same configuration,
 against the pinned emulator. The result is one artifact, `live/gauntlet.json`, and the
-two bars on the site read it directly. Nothing on the site about progress is
-typed by hand.
+board (`live/BOARD.md`) and the numbers on the site read it directly. Nothing
+about progress is typed by hand.
 
 The promise it measures: if OpenTofu runs an estate, choudoufu runs it too.
 Migration from a stock state file is lossless and a greenfield apply is
 equivalent. Everything below is that sentence made checkable.
 
 This page defines the gauntlet; it does not walk you through running it.
-The two procedures are their own pages on the site, hand-written and
-reading the lanes and the example entry from `site/data/gauntlet_board.json`:
-adding an estate is `site/content/docs/progress/add-an-estate.md`, and
-contributing compute is `site/content/docs/progress/contribute.md`.
+The two procedures, adding an estate and contributing compute, are one
+hand-written page, `live/CONTRIBUTE-GAUNTLET.md`.
 
 ## The two numbers
 
@@ -650,7 +648,7 @@ re-run is mandatory instead, when:
   `last_run.date`.
 - **Product code moved between a row's measurement and the merge.**
   The merge is only valid when nothing outside live/gauntlet.json,
-  `site/data/gauntlet.json`, `site/data/gauntlet_board.json`, and an estate's own
+  `live/gauntlet-board.json`, `live/BOARD.md`, `live/CLAIMS.md`, and an estate's own
   `live/e2e/<name>/run.sh` differs between base and either side. PRs
   #502 and #503 both genuinely needed a re-run for exactly this reason -
   `tools/gauntlet/run.go`'s recording path changed underneath them - and

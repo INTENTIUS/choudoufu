@@ -769,7 +769,5 @@ provider is admitted only where its identity derives from configuration -
 the schema fallback for eleven `google_*` types (#243), ratified rows for
 four `kubernetes_*` types (#326) - and such an instance plans without a
 marker, outside the sweep and outside any ownership grant. Kubernetes as a
-substrate with a marker of its own is the open design in #1016. The docs
-site's [Compatibility
-reference](https://github.com/INTENTIUS/choudoufu/blob/main/site/content/docs/use/compatibility.md#your-provider)
+substrate with a marker of its own is the open design in #1016. [COMPATIBILITY.md](COMPATIBILITY.md)
 states the same three cases.
