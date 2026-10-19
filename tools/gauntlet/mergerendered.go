@@ -10,6 +10,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/intentius/choudoufu/tools/statpages"
 )
 
 // RenderedMergePaths are the rendered files .gitattributes routes to this
@@ -31,6 +33,9 @@ var RenderedMergePaths = []string{
 	SiteDataPath,
 	SiteBoardPath,
 	SiteScalePath,
+	// live/BOARD.md (#2092): the board as markdown, written by the same
+	// render from the same artifact.
+	statpages.Board.Path,
 }
 
 // cmdMergeRendered is the `merge=gauntlet-rendered` driver .gitattributes

@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/intentius/choudoufu/tools/statpages"
 )
 
 // Issue #488: with N estate PRs open, a plain `git merge` re-conflicts the
@@ -43,14 +45,16 @@ import (
 
 // mergeArtifactAllowedPath reports whether p is allowed to differ between
 // base and a side without forcing a re-run: the artifact itself, its Hugo
-// copy, the board data the site's progress pages read (#1055), or an
+// copy, the board data the site's progress pages read (#1055), the two
+// stat pages drawn from the artifact (live/BOARD.md, live/CLAIMS.md, #2092),
+// or an
 // estate's own crossing script. Any
 // OTHER file differing means product code moved under a row's measurement -
 // the precondition every other check in this file assumes holds.
 var mergeArtifactEstateScript = regexp.MustCompile(`^live/e2e/[^/]+/run\.sh$`)
 
 func mergeArtifactAllowedPath(p string) bool {
-	if p == ArtifactPath || p == SiteDataPath || p == SiteBoardPath {
+	if p == ArtifactPath || p == SiteDataPath || p == SiteBoardPath || p == statpages.Board.Path || p == statpages.Claims.Path {
 		return true
 	}
 	return mergeArtifactEstateScript.MatchString(p)

@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/intentius/choudoufu/tools/statpages"
 )
 
 // SiteDataRel is the docs site's copy of the fork-surface artifact
@@ -138,12 +140,18 @@ func runRender() error {
 	old, err := os.ReadFile(path) //nolint:gosec // a fixed path in the checkout
 	if err == nil && string(old) == string(data) {
 		fmt.Fprintf(os.Stderr, "forkdiff-gen: %s is already current\n", SiteDataRel)
-		return nil
+	} else {
+		if err := os.WriteFile(path, data, 0o644); err != nil { //nolint:gosec // a committed artifact, not a secret
+			return fmt.Errorf("writing %s: %w", SiteDataRel, err)
+		}
+		fmt.Fprintf(os.Stderr, "forkdiff-gen: wrote %s\n", SiteDataRel)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil { //nolint:gosec // a committed artifact, not a secret
-		return fmt.Errorf("writing %s: %w", SiteDataRel, err)
+	// live/FORK-SURFACE.md (#2092) is rendered from the data just written.
+	if wrote, err := statpages.Write(root, statpages.ForkSurface); err != nil {
+		return err
+	} else if wrote {
+		fmt.Fprintf(os.Stderr, "forkdiff-gen: rewrote %s\n", statpages.ForkSurface.Path)
 	}
-	fmt.Fprintf(os.Stderr, "forkdiff-gen: wrote %s\n", SiteDataRel)
 	return nil
 }
 
