@@ -1,0 +1,40 @@
+---
+title: Adopt
+description: Bring AWS resources you already run under management with one command and no state migration.
+prompt: |
+  Follow https://intentius.io/choudoufu/aws/adopt/ here. Run `choudoufu plan` and `choudoufu live-import` without `-approve`; report what each would bind, stamp and skip.
+  Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
+---
+import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+
+<PlatformSwitch />
+
+A resource is yours once it carries two tags, `tofu-estate` and `tofu-address`. Adoption writes them on what your configuration already manages.
+
+:::caution
+An unmarked resource reads as absent, so the first plan proposes a duplicate. Read the `Adoptable` and `Unowned` sections of `choudoufu plan` before any apply.
+:::
+
+## The bulk path
+
+Keep the state file until the migration is done. It is the only input this path has.
+
+```
+choudoufu live-import -approve
+```
+
+It checks each state entry against the live object and stamps a marker on everything that matches, naming what it skipped. Then set the state file aside and plan: the plan should be empty.
+
+## What binds on its own
+
+A resource carrying this estate's tags binds on the first plan. After `live-import`, that is everything it verified.
+
+A resource named by your configuration, such as a bucket or a role, is found by that name. Types with no tag surface mostly take their identity from a parent and need no marker.
+
+A resource AWS names, such as a VPC or a subnet, has only the tag to find it by.
+
+A crash between create and tag write leaves a resource the next plan flags as `[POSSIBLE DUPLICATE]`, with the command that adopts it. [MIGRATE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/MIGRATE.md) has the details.
+
+## Leaving
+
+The cache is a stock state file. Copy it to `terraform.tfstate`, remove the `live` block, and stock OpenTofu takes over. [Migrate](/choudoufu/docs/use/migrate/) walks the whole path.
