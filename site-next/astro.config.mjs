@@ -79,7 +79,38 @@ export default defineConfig({
 			sidebar: [
 				{
 					label: 'Start here',
-					items: [{ label: 'Start', slug: 'start' }],
+					items: [{ label: 'Start', slug: 'docs/use/start' }],
+				},
+				{
+					label: 'How it works',
+					collapsed: true,
+					items: [
+						{ label: 'What it is', slug: 'how-it-works' },
+						{ label: 'Identity', slug: 'how-it-works/identity' },
+						{ label: 'Records', slug: 'how-it-works/values' },
+						{ label: 'The cache', slug: 'how-it-works/cache' },
+					],
+				},
+				{
+					label: 'Use',
+					collapsed: true,
+					items: [
+						{ label: 'Tutorial', slug: 'docs/tutorial' },
+						{ label: 'Start a new estate', slug: 'docs/use/start' },
+						{ label: 'What you set up by hand', slug: 'docs/use/setup' },
+						{ label: 'Migrate an existing estate', slug: 'docs/use/migrate' },
+						{ label: 'Day-2 operations', slug: 'docs/use/day2' },
+						{ label: 'Rename a resource', slug: 'docs/use/rename-a-resource' },
+						{ label: 'Remove a resource', slug: 'docs/use/remove-a-resource' },
+						{ label: 'Recover an estate', slug: 'docs/use/recover-an-estate' },
+						{ label: 'Record store bucket', slug: 'docs/use/bucket' },
+						{ label: 'CI/CD', slug: 'docs/use/cicd' },
+					],
+				},
+				{
+					label: 'Reference',
+					collapsed: true,
+					items: [{ label: 'Reference', slug: 'docs/use/reference' }],
 				},
 				{
 					label: 'AWS',
