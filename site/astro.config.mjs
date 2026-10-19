@@ -59,7 +59,7 @@ export default defineConfig({
 				{ tag: 'meta', attrs: { property: 'og:image', content: 'https://intentius.io/choudoufu/cube-share.png' } },
 				{ tag: 'meta', attrs: { property: 'og:image:width', content: '400' } },
 				{ tag: 'meta', attrs: { property: 'og:image:height', content: '400' } },
-				{ tag: 'meta', attrs: { property: 'og:image:alt', content: 'The choudoufu cube: a pixel-art tofu cube on a plate' } },
+				{ tag: 'meta', attrs: { property: 'og:image:alt', content: 'The choudoufu cube: a pixel-art block of dark fried tofu' } },
 				{ tag: 'meta', attrs: { name: 'twitter:card', content: 'summary' } },
 				{ tag: 'meta', attrs: { name: 'twitter:image', content: 'https://intentius.io/choudoufu/cube-share.png' } },
 			],

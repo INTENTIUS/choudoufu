@@ -183,7 +183,7 @@ All stock OpenTofu documentation lives at
 [opentofu.org](https://opentofu.org/docs/).
 
 <p align="center">
-  <img src="site/public/brand/cube-160.png" width="160" alt="a steaming cube of choudoufu on a plate">
+  <img src="site/public/brand/cube-160.png" width="160" alt="a pixel-art block of dark fried tofu">
 </p>
 
 ## License

@@ -26,19 +26,28 @@ side=$(sed -E 's/.*width="([0-9]+)".*/\1/;q' "$brand/cube.svg")
 
 py=$(cat <<'PY'
 import io
+import subprocess
 import sys
 from PIL import Image, ImageDraw, ImageFont
 
 public = sys.argv[1]
+logo_py = sys.argv[2]
 brand = f"{public}/brand"
 art = Image.open(io.BytesIO(sys.stdin.buffer.read())).convert("RGBA")
+# The 16px icon has its own hand-tuned grid.
+small_svg = subprocess.run(["python3", logo_py, "--small"], check=True, capture_output=True).stdout
+small = Image.open(io.BytesIO(subprocess.run(
+    ["rsvg-convert", "-w", "16", "-h", "16"], input=small_svg, check=True, capture_output=True,
+).stdout)).convert("RGBA")
 BG = (0x18, 0x18, 0x1B, 255)
 
 
 def scaled(size):
-    # Nearest neighbour keeps the pixels square. Below half the grid size it
-    # drops whole rows (the steam and plate rim vanish at 16px), so the
-    # smallest icons average each block of pixels instead.
+    # Nearest neighbour keeps the pixels square. At 16px it would drop whole
+    # rows, so that size uses the hand-tuned grid, and anything else below
+    # half the grid size averages each block of pixels.
+    if size == small.width:
+        return small
     if size * 2 < art.width:
         return art.resize((size, size), Image.BOX)
     return art.resize((size, size), Image.NEAREST)
@@ -94,4 +103,4 @@ og.convert("RGB").save(f"{public}/og.png", optimize=True)
 print("wrote site/public/og.png")
 PY
 )
-rsvg-convert -w "$side" -h "$side" "$brand/cube.svg" | python3 -c "$py" "$public"
+rsvg-convert -w "$side" -h "$side" "$brand/cube.svg" | python3 -c "$py" "$public" "$repo_root/scripts/brand/logo.py"
