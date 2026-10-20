@@ -75,7 +75,7 @@ func TestRunCheckpointsEachEstateAsItFinishes(t *testing.T) {
 				onDisk = append(onDisk, measured)
 				// Self-consistency: rebuilding what is on disk changes nothing.
 				before, _ := saved.Canonical()
-				saved.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), kindNodeImagePin(root))
+				saved.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), substratePins(root))
 				after, _ := saved.Canonical()
 				if !bytes.Equal(before, after) {
 					return fmt.Errorf("checkpoint %d is not self-consistent: a Rebuild of its own rows changes it", len(onDisk))

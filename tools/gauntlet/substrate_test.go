@@ -83,7 +83,7 @@ func TestKindSubstrateStagesReadNAAndStayNeutral(t *testing.T) {
 			delete(a.Estates[1].Stages, s.ID)
 		}
 	}
-	a.Rebuild(m, &BehaviorIndex{}, "img", OracleVersions{}, ProviderVersions{}, "", "")
+	a.Rebuild(m, &BehaviorIndex{}, "img", OracleVersions{}, ProviderVersions{}, "", SubstratePins{})
 
 	var aws, k8s EstateResult
 	for _, r := range a.Estates {
@@ -139,8 +139,8 @@ func TestKindSubstrateStagesReadNAAndStayNeutral(t *testing.T) {
 
 	// `next` never picks an n/a stage as work.
 	a.Estates[1].Stages["migrate"] = VerdictFail
-	a.Rebuild(m, &BehaviorIndex{}, "img", OracleVersions{}, ProviderVersions{}, "", "")
-	for _, u := range NextUnits(a, "all", "") {
+	a.Rebuild(m, &BehaviorIndex{}, "img", OracleVersions{}, ProviderVersions{}, "", SubstratePins{})
+	for _, u := range NextUnits(a, "all", SubstratePins{}) {
 		if u.Estate != "k8s-one" {
 			continue
 		}
@@ -179,7 +179,7 @@ func TestStoredNAClearsWhenAStageStartsApplying(t *testing.T) {
 		{Name: "aws-one", Protocol: ProtocolGauntlet, Stages: passEverything()},
 		{Name: "k8s-one", Protocol: ProtocolGauntlet, Stages: stale},
 	}}
-	a.Rebuild(m, &BehaviorIndex{}, "img", OracleVersions{}, ProviderVersions{}, "", "")
+	a.Rebuild(m, &BehaviorIndex{}, "img", OracleVersions{}, ProviderVersions{}, "", SubstratePins{})
 
 	var k8s EstateResult
 	for _, r := range a.Estates {
@@ -230,7 +230,7 @@ func TestKubernetesLaneEstateMayBeKeptInRepo(t *testing.T) {
 func TestKindSubstrateNotesRenderUnderEveryStage(t *testing.T) {
 	m := kindManifest()
 	a := &Artifact{}
-	a.Rebuild(m, &BehaviorIndex{}, "img", OracleVersions{}, ProviderVersions{}, "", "")
+	a.Rebuild(m, &BehaviorIndex{}, "img", OracleVersions{}, ProviderVersions{}, "", SubstratePins{})
 	doc := renderSpec(m, a, TypeIndexTotals{})
 	for _, s := range Stages() {
 		note, ok := s.Substrates[SubstrateKind]

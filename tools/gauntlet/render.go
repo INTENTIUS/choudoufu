@@ -85,7 +85,7 @@ func Render(root string, m *Manifest, a *Artifact, tt TypeIndexTotals, scale []b
 		return nil, err
 	}
 	// The board: every display value live/BOARD.md needs, as data.
-	bb, err := buildBoard(m, a, st, kindNodeImagePin(root)).Canonical()
+	bb, err := buildBoard(m, a, st, substratePins(root)).Canonical()
 	if err != nil {
 		return nil, err
 	}

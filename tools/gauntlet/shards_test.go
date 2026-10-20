@@ -63,7 +63,7 @@ func shardBase(t *testing.T, root string) *Artifact {
 		t.Fatal(err)
 	}
 	a := &Artifact{}
-	a.Rebuild(m, nil, shardEmulator, OracleVersions{}, ProviderVersions{}, "", "")
+	a.Rebuild(m, nil, shardEmulator, OracleVersions{}, ProviderVersions{}, "", SubstratePins{})
 	return a
 }
 
@@ -107,7 +107,7 @@ func measure(t *testing.T, root string, a *Artifact, estate, commit, emulator st
 	if !found {
 		t.Fatalf("no row for %q to measure", estate)
 	}
-	a.Rebuild(m, nil, shardEmulator, OracleVersions{}, ProviderVersions{}, "", "")
+	a.Rebuild(m, nil, shardEmulator, OracleVersions{}, ProviderVersions{}, "", SubstratePins{})
 }
 
 // shardOf is one shard job's uploaded artifact: base, with its own estate
@@ -151,7 +151,7 @@ func measureKind(t *testing.T, root string, a *Artifact, estate, commit, kindIma
 	if !found {
 		t.Fatalf("no row for %q to measure", estate)
 	}
-	a.Rebuild(m, nil, shardEmulator, OracleVersions{}, ProviderVersions{}, "", "")
+	a.Rebuild(m, nil, shardEmulator, OracleVersions{}, ProviderVersions{}, "", SubstratePins{})
 }
 
 // shardOfKind is shardOf's counterpart for a kind-substrate estate: the
@@ -243,7 +243,7 @@ func TestCombineShardsAggregatesEqualASerialRun(t *testing.T) {
 	base := shardBase(t, root)
 
 	shards := []ShardArtifact{shardOf(t, root, base, "alpha"), shardOfKind(t, root, base, "kube", shardKindImage)}
-	got, err := CombineShards(root, base, shards, []string{"alpha", "kube"}, shardCommit, shardEmulator, shardKindImage)
+	got, err := CombineShards(root, base, shards, []string{"alpha", "kube"}, shardCommit, shardEmulator, SubstratePins{Kind: shardKindImage})
 	if err != nil {
 		t.Fatalf("CombineShards: %v", err)
 	}
@@ -295,7 +295,7 @@ func TestCombineShardsAcceptsAKindSubstrateRowMeasuredAgainstThePinnedNodeImage(
 	base := shardBase(t, root)
 	shard := shardOfKind(t, root, base, "kube", shardKindImage)
 
-	got, err := CombineShards(root, base, []ShardArtifact{shard}, []string{"kube"}, shardCommit, shardEmulator, shardKindImage)
+	got, err := CombineShards(root, base, []ShardArtifact{shard}, []string{"kube"}, shardCommit, shardEmulator, SubstratePins{Kind: shardKindImage})
 	if err != nil {
 		t.Fatalf("CombineShards refused a kind-substrate row measured against the pinned kind node image (empty Emulator is correct for a kind row): %v", err)
 	}
@@ -328,7 +328,7 @@ func TestCombineShardsRefusesAKindNodeImageDisagreement(t *testing.T) {
 
 func combineErr(t *testing.T, root string, base *Artifact, shards []ShardArtifact, expect []string) string {
 	t.Helper()
-	_, err := CombineShards(root, base, shards, expect, shardCommit, shardEmulator, shardKindImage)
+	_, err := CombineShards(root, base, shards, expect, shardCommit, shardEmulator, SubstratePins{Kind: shardKindImage})
 	if err == nil {
 		t.Fatal("CombineShards accepted this; it must refuse rather than guess")
 	}

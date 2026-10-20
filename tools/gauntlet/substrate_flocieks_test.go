@@ -64,7 +64,7 @@ func TestFlociEKSRowCountsTowardTheAWSBars(t *testing.T) {
 		{Name: "eks-one", Protocol: ProtocolGauntlet, Stages: passEverything()},
 		{Name: "k8s-one", Protocol: ProtocolGauntlet, Stages: passEverything()},
 	}}
-	a.Rebuild(flociEKSManifest(), &BehaviorIndex{}, "img", OracleVersions{}, ProviderVersions{}, "", "")
+	a.Rebuild(flociEKSManifest(), &BehaviorIndex{}, "img", OracleVersions{}, ProviderVersions{}, "", SubstratePins{})
 
 	var eks EstateResult
 	for _, r := range a.Estates {

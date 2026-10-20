@@ -67,7 +67,7 @@ func TestFlociAzRowCountsInItsOwnLane(t *testing.T) {
 		{Name: "az-one", Protocol: ProtocolGauntlet, Stages: passEverything()},
 		{Name: "k8s-one", Protocol: ProtocolGauntlet, Stages: passEverything()},
 	}}
-	a.Rebuild(flociAzManifest(), &BehaviorIndex{}, "img", OracleVersions{}, ProviderVersions{}, "", "")
+	a.Rebuild(flociAzManifest(), &BehaviorIndex{}, "img", OracleVersions{}, ProviderVersions{}, "", SubstratePins{})
 
 	var az EstateResult
 	for _, r := range a.Estates {
@@ -91,21 +91,78 @@ func TestFlociAzRowCountsInItsOwnLane(t *testing.T) {
 	}
 }
 
-// A measured floci-az row is never read as current: nothing compares it
-// with live/floci-az-image yet, and the safe answer is stale rather than a
-// verified row nobody checked. An unmeasured one is not stale, as for every
-// substrate.
-func TestFlociAzRowIsNeverReadAsCurrent(t *testing.T) {
-	unmeasured := EstateResult{Substrate: SubstrateFlociAz}
-	if IsSubstrateStale(unmeasured, "floci", "kind") {
+// A floci-az row is judged against live/floci-az-image (#1120) the way a
+// kind row is judged against live/kind-node-image: stamped with the current
+// pin it reads current and counts verified in the azure lane, stamped with
+// another digest it reads stale, is carried rather than verified, and says
+// so on the board and in `next`. It read stale whatever it recorded until
+// the pin was threaded through, so no floci-az row could ever be verified.
+// An unmeasured one is not stale, as for every substrate, and a floci-az
+// row is never held to the kind pin or the floci emulator pin.
+func TestFlociAzRowIsJudgedAgainstItsPin(t *testing.T) {
+	const (
+		emu   = "ghcr.io/lex00/floci@sha256:current"
+		pin   = "ghcr.io/lex00/floci-az@sha256:current"
+		other = "ghcr.io/lex00/floci-az@sha256:old"
+		eng   = "1.13.0"
+	)
+	// The kind pin is set to the floci-az pin on purpose: a row compared
+	// against the wrong field would read current in the stale case.
+	pins := SubstratePins{Kind: other, FlociAz: pin}
+	oracle := OracleVersions{Terraform: "1.16.1", Tofu: "1.13.0"}
+	row := func(name, img string) EstateResult {
+		r := EstateResult{Name: name, Protocol: ProtocolGauntlet, Stages: passEverything()}
+		oc := oracle
+		r.LastRun = &LastRun{Commit: "c", Date: "2026-10-20", Oracle: &oc, UpstreamVersion: eng, SubstrateImage: img}
+		return r
+	}
+
+	if IsSubstrateStale(EstateResult{Substrate: SubstrateFlociAz}, emu, pins) {
 		t.Error("a floci-az row with no run reads stale")
 	}
-	measured := EstateResult{Substrate: SubstrateFlociAz, LastRun: &LastRun{SubstrateImage: "ghcr.io/lex00/floci-az@sha256:x", Emulator: "floci"}}
-	if !IsSubstrateStale(measured, "floci", "kind") {
-		t.Error("a measured floci-az row reads current; it would be counted verified against a pin nothing compared")
+	current, stale := row("az-current", pin), row("az-stale", other)
+	current.Substrate, stale.Substrate = SubstrateFlociAz, SubstrateFlociAz
+	if IsSubstrateStale(current, emu, pins) {
+		t.Error("a floci-az row stamped with the current live/floci-az-image pin reads stale")
 	}
-	if got := ProviderStaleReasons(measured, ProviderVersions{AWS: "6.63.0", Kubernetes: "3.2.1"}); len(got) != 0 {
+	if !IsSubstrateStale(stale, emu, pins) {
+		t.Error("a floci-az row stamped with another digest reads current")
+	}
+	if got := ProviderStaleReasons(current, ProviderVersions{AWS: "6.63.0", Kubernetes: "3.2.1"}); len(got) != 0 {
 		t.Errorf("a floci-az row is judged against %q; it configures neither hashicorp/aws nor hashicorp/kubernetes", got)
+	}
+
+	m := &Manifest{Estates: []Estate{
+		{Name: "az-current", Source: "s", Lane: LaneAzure, Set: SetGrowing},
+		{Name: "az-stale", Source: "s", Lane: LaneAzure, Set: SetGrowing},
+	}}
+	a := &Artifact{Estates: []EstateResult{row("az-current", pin), row("az-stale", other)}}
+	a.Rebuild(m, &BehaviorIndex{}, emu, oracle, ProviderVersions{}, eng, pins)
+	if got := a.Lanes[LaneAzure]; got.Clear != 2 || got.Verified != 1 || got.Carried != 1 {
+		t.Errorf("lanes.azure: clear %d, verified %d, carried %d; want 2, 1, 1", got.Clear, got.Verified, got.Carried)
+	}
+
+	for _, r := range a.Estates {
+		note, _ := lastRunNote(r, a, pins)
+		if gotStale, wantStale := strings.Contains(note, "**Stale**"), r.Name == "az-stale"; gotStale != wantStale {
+			t.Errorf("%s's board note is %q; stale marker %v, want %v", r.Name, note, gotStale, wantStale)
+		}
+		if r.Name == "az-stale" && !strings.Contains(note, pin) {
+			t.Errorf("the stale row's note does not name the current pin: %q", note)
+		}
+	}
+
+	var reasons []string
+	for _, u := range NextUnits(a, "all", pins) {
+		if u.Estate == "az-current" {
+			t.Errorf("next lists az-current, measured against the current pin: %+v", u)
+		}
+		if u.Estate == "az-stale" {
+			reasons = append(reasons, u.Detail)
+		}
+	}
+	if len(reasons) != 1 || !strings.Contains(reasons[0], other) || !strings.Contains(reasons[0], pin) {
+		t.Errorf("next's reasons for az-stale are %q; want one naming %s and the current pin %s", reasons, other, pin)
 	}
 }
 
@@ -139,12 +196,12 @@ func TestEveryStageHasAFlociAzNote(t *testing.T) {
 // as verdicts recorded by hand.
 func TestNeverRunRowIsNotCalledHandRecorded(t *testing.T) {
 	r := EstateResult{Name: "az-one", Protocol: ProtocolLegacy, Substrate: SubstrateFlociAz, Stages: map[string]string{"cold_deploy": VerdictNotRun, "migrate": VerdictNotRun}}
-	_, legacy := lastRunNote(r, &Artifact{}, "")
+	_, legacy := lastRunNote(r, &Artifact{}, SubstratePins{})
 	if strings.Contains(legacy, "by hand") || !strings.Contains(legacy, "No run is recorded") {
 		t.Errorf("a never-run row's note is %q", legacy)
 	}
 	r.Stages["migrate"] = VerdictPass
-	_, legacy = lastRunNote(r, &Artifact{}, "")
+	_, legacy = lastRunNote(r, &Artifact{}, SubstratePins{})
 	if !strings.Contains(legacy, "by hand") {
 		t.Errorf("a legacy row with a recorded verdict lost its by-hand note: %q", legacy)
 	}
