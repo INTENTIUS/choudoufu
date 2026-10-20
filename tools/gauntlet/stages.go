@@ -241,8 +241,9 @@ func registeredStages() []Stage {
 //
 // No stage is n/a here. Every stage's question has an Azure answer; where
 // floci-az cannot give it today (the sweep's query is outside its Resource
-// Graph KQL subset, and gauntlet_floci_az_up leaves Policy evaluation off:
-// live/FLOCI.md, Azure) the note says so and the stage fails by name until
+// Graph KQL subset, and no stage assigns the fence's Policy definitions,
+// which gauntlet_floci_az_up has floci-az evaluate since #2140: live/FLOCI.md,
+// Azure) the note says so and the stage fails by name until
 // that changes, rather than reading a neutral n/a that would leave the
 // lane's bar clear over a gap. Written before any reference-azure run, and
 // re-read against the fork at 30000b0; the maintainer's first run measures
@@ -259,7 +260,7 @@ var flociAzNotes = map[string]string{
 	"day2_replace":     "A name is unique within its parent, so a create_before_destroy replacement is one whose name changes, as on kind: the new object is created at the new id and the old one destroyed after it, and the next plan is empty.",
 	"day2_crash":       "As on floci: the engine's interrupt hook kills the apply the instant the first create commits. The created resource carries both tags from its create PUT, so the next plan binds it at its declared id and proposes exactly the remainder.",
 	"day2_teardown":    "An empty estate is no resource carrying its tofu-estate tag in any resource group it owned, read through ARM.",
-	"plan_approval":    "As on floci. Azure Policy, evaluated by ARM when the write arrives, is the server's own say over an approved plan. floci-az evaluates deny and denyAction since 30000b0 only with FLOCI_AZ_SERVICES_POLICY_EVALUATE set, which gauntlet_floci_az_up does not set, so only the moved-world refusal is measured there.",
+	"plan_approval":    "As on floci. Azure Policy, evaluated by ARM when the write arrives, is the server's own say over an approved plan. floci-az evaluates deny and denyAction since 30000b0 with FLOCI_AZ_SERVICES_POLICY_EVALUATE set, which gauntlet_floci_az_up sets as the smoke compose service does (#2140); the stage assigns no Policy definition, though (the fence's templates are an operator's to apply), so only the moved-world refusal is measured there.",
 	"greenfield":       "Compared against the ARM reads recorded from stock's cold deploy earlier in the same run, resource by resource, with the two marker tags normalised out; one floci-az container hosts both, in sequence.",
 	"strict":           "As on floci; the toggles are substrate-neutral.",
 	"no_local_state":   "Both local artifacts are deleted; every declared resource must be found at its declared ARM id, which needs no sweep, and every other one by its tofu-estate tag through Resource Graph, whose sweep query floci-az's KQL subset refuses, though it serves Resource Graph since 30000b0.",

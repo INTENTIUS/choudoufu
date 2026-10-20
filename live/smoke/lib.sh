@@ -386,24 +386,28 @@ AZURE_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000001"
 AZURE_TENANT_ID="00000000-0000-0000-0000-000000000002"
 AZURE_CLIENT_ID="00000000-0000-0000-0000-000000000003"
 
-# azure_client_oid <client-id> prints the object id floci-az puts in the
-# oid claim of a client-credentials token for a client id its directory
-# does not hold: Java's UUID.nameUUIDFromBytes over the id's UTF-8 bytes,
-# an MD5 name-based (version 3) UUID with no namespace
-# (services/entra/TokenEndpoint.java and TokenIssuer.deterministicGuid at
-# lex00/floci-az 30000b0). RBAC enforcement keys on that claim.
+# The object id and free port helpers are shared with the gauntlet's
+# gauntlet_floci_az_up (#2140), so the two starts of floci-az cannot drift
+# apart. azure_up sources them, not this file's top level: only an Azure
+# scenario needs them, and the smoke selftests run this library in a
+# sandbox tree that carries only what they need.
+#
+# azure_client_oid <client-id>: floci_az_client_oid, under the name this
+# library's callers use.
 azure_client_oid() {
-  python3 -c 'import hashlib, sys, uuid; print(uuid.UUID(bytes=hashlib.md5(sys.argv[1].encode()).digest(), version=3))' "$1"
+  floci_az_client_oid "$1"
 }
 
 azure_up() {
   AZURE_UP=1
+  # shellcheck source=../e2e/lib/floci-az.sh
+  . "$ROOT/live/e2e/lib/floci-az.sh" || fail "azure" "could not source $ROOT/live/e2e/lib/floci-az.sh"
   # The host port is chosen here rather than by the kernel at publish
   # time, because the storage suffix below has to name it before the
   # container starts. A port another process takes between this probe and
   # the publish fails compose up by name.
   if [ "${FLOCI_AZ_PORT:-0}" = "0" ]; then
-    FLOCI_AZ_PORT="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')" \
+    FLOCI_AZ_PORT="$(floci_az_free_port)" \
       || fail "azure" "could not pick a free host port for floci-az"
   fi
   export FLOCI_AZ_PORT

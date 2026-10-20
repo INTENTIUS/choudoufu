@@ -222,7 +222,7 @@ Oracle: Stock's planfile applies in the unchanged case; in the changed case chou
 
 Break: Apply the planfile after a mutation and expect success; the run must refuse.
 
-On the floci-az substrate: As on floci. Azure Policy, evaluated by ARM when the write arrives, is the server's own say over an approved plan. floci-az evaluates deny and denyAction since 30000b0 only with FLOCI_AZ_SERVICES_POLICY_EVALUATE set, which gauntlet_floci_az_up does not set, so only the moved-world refusal is measured there.
+On the floci-az substrate: As on floci. Azure Policy, evaluated by ARM when the write arrives, is the server's own say over an approved plan. floci-az evaluates deny and denyAction since 30000b0 with FLOCI_AZ_SERVICES_POLICY_EVALUATE set, which gauntlet_floci_az_up sets as the smoke compose service does (#2140); the stage assigns no Policy definition, though (the fence's templates are an operator's to apply), so only the moved-world refusal is measured there.
 
 On the floci-eks substrate: As on floci; the saved plan carries both legs, and the apply of it configures the kubernetes provider from the same cluster the plan read.
 

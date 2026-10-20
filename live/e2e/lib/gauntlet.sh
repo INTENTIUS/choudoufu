@@ -493,8 +493,12 @@ gauntlet_kind_up() {
 # digest in live/floci-az-image, instead of the floci AWS emulator. One
 # container per call, started through gauntlet_floci_start so it carries the
 # ownership labels the leak sweep reads (name it choudoufu-<estate>-<pid>),
-# on a port the kernel chooses, with the environment live/smoke's compose
-# file gives the same image: TLS on, memory storage, Azure parity. It waits
+# with the environment live/smoke's compose file gives the same image: TLS
+# on, memory storage, Azure parity, and from live/e2e/lib/floci-az.sh,
+# which live/smoke/lib.sh's azure_up shares, the storage suffix naming the
+# host port (picked before the start, since the suffix names it), Policy
+# evaluation and RBAC enforcement with the signed-in client as admin
+# (#2140). It waits
 # for /ready, fetches the CA the container's TLS listener generated into
 # <workdir>/floci-az-ca.pem, and exports what azurerm, azapi and the stock
 # azurerm backend read, the set live/smoke/lib.sh's azure_provider_env
@@ -508,17 +512,30 @@ gauntlet_kind_up() {
 # Built for #1120 and not yet run by anyone: the maintainer's first
 # reference-azure run is its first boot.
 FLOCI_AZ_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000001"
+GAUNTLET_FLOCI_AZ_CLIENT_ID="00000000-0000-0000-0000-000000000003"
 gauntlet_floci_az_up() {
-  local name="$1" work="$2" image port deadline system="" f
+  local name="$1" work="$2" image port published oid deadline system="" f line
+  local -a envargs=()
   command -v docker >/dev/null 2>&1 || { printf 'gauntlet_floci_az_up: docker is not installed\n' >&2; return 1; }
+  # shellcheck source=floci-az.sh
+  . "$ROOT/live/e2e/lib/floci-az.sh" || { printf 'gauntlet_floci_az_up: could not source %s/live/e2e/lib/floci-az.sh\n' "$ROOT" >&2; return 1; }
   image="$(cat "$ROOT/live/floci-az-image" 2>/dev/null)"
   [ -n "$image" ] || { printf 'gauntlet_floci_az_up: could not read the pinned image from %s/live/floci-az-image\n' "$ROOT" >&2; return 1; }
-  gauntlet_floci_start "$name" -p 127.0.0.1::4577 \
+  port="$(floci_az_free_port)" && [ -n "$port" ] \
+    || { printf 'gauntlet_floci_az_up: could not pick a free host port for floci-az\n' >&2; return 1; }
+  oid="$(floci_az_client_oid "$GAUNTLET_FLOCI_AZ_CLIENT_ID")" && [ -n "$oid" ] \
+    || { printf 'gauntlet_floci_az_up: could not derive floci-az'"'"'s object id for client %s\n' "$GAUNTLET_FLOCI_AZ_CLIENT_ID" >&2; return 1; }
+  while IFS= read -r line; do
+    envargs+=(-e "$line")
+  done < <(floci_az_service_env "$port" "$oid")
+  gauntlet_floci_start "$name" -p "127.0.0.1:$port:4577" \
     -e FLOCI_AZ_TLS_ENABLED=true -e FLOCI_AZ_STORAGE_MODE=memory -e FLOCI_AZ_PARITY=azure \
+    "${envargs[@]}" \
     "$image" >"$work/floci-az.run.log" 2>&1 \
     || { printf 'gauntlet_floci_az_up: starting %s failed:\n' "$name" >&2; tail -5 "$work/floci-az.run.log" >&2; return 1; }
-  port="$(docker port "$name" 4577 2>/dev/null | head -1 | sed 's/.*://')"
-  [ -n "$port" ] || { printf 'gauntlet_floci_az_up: could not read the published port of %s\n' "$name" >&2; return 1; }
+  published="$(docker port "$name" 4577 2>/dev/null | head -1 | sed 's/.*://')"
+  [ -n "$published" ] || { printf 'gauntlet_floci_az_up: could not read the published port of %s\n' "$name" >&2; return 1; }
+  [ "$published" = "$port" ] || { printf 'gauntlet_floci_az_up: %s is published on :%s, not the :%s its storage suffix names, so blob calls would miss it\n' "$name" "$published" "$port" >&2; return 1; }
   FLOCI_AZ_HOST="localhost:$port"
   FLOCI_AZ_ENDPOINT="https://$FLOCI_AZ_HOST"
   deadline=$(( $(date +%s) + ${FLOCI_AZ_READY_SECS:-90} ))
@@ -545,7 +562,7 @@ gauntlet_floci_az_up() {
   export FLOCI_AZ_HOST FLOCI_AZ_ENDPOINT FLOCI_AZ_CA_FILE
   export ARM_SUBSCRIPTION_ID="$FLOCI_AZ_SUBSCRIPTION_ID"
   export ARM_TENANT_ID="00000000-0000-0000-0000-000000000002"
-  export ARM_CLIENT_ID="00000000-0000-0000-0000-000000000003"
+  export ARM_CLIENT_ID="$GAUNTLET_FLOCI_AZ_CLIENT_ID"
   export ARM_CLIENT_SECRET="floci-az-does-not-check-this"
   export ARM_USE_CLI=false ARM_USE_MSI=false
   export ARM_METADATA_HOSTNAME="$FLOCI_AZ_HOST" ARM_METADATA_HOST="$FLOCI_AZ_HOST"
