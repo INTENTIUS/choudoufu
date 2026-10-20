@@ -534,6 +534,31 @@ print(enc(sys.argv[1]) + "-" + enc(sys.argv[2]))
 PY
 }
 
+# gcp_bucket_has_member <bucket> <role> <member> answers whether the
+# bucket's IAM policy, read with the REST API, grants <role> to <member>.
+# gcp_bucket_drop_member takes that one member out of that one role and
+# writes the policy back: the out-of-band delete of a
+# google_storage_bucket_iam_member, which carries no label and is found by
+# the identity its configuration computes (#2119). GCPL_TOKEN picks whose
+# write it is, as for gcpl.
+gcp_bucket_has_member() {
+  gcpl GET "storage/v1/b/$1/iam" | python3 -c "import json,sys
+d=json.load(sys.stdin)
+sys.exit(0 if any(b.get('role')==sys.argv[1] and sys.argv[2] in b.get('members',[]) for b in d.get('bindings',[])) else 1)" "$2" "$3"
+}
+gcp_bucket_drop_member() {
+  local policy
+  policy="$(gcpl GET "storage/v1/b/$1/iam")" || return 1
+  policy="$(python3 -c "import json,sys
+d=json.load(sys.stdin)
+for b in d.get('bindings',[]):
+    if b.get('role')==sys.argv[1]:
+        b['members']=[m for m in b.get('members',[]) if m!=sys.argv[2]]
+d['bindings']=[b for b in d.get('bindings',[]) if b.get('members')]
+print(json.dumps(d))" "$2" "$3" <<< "$policy")" || return 1
+  gcpl PUT "storage/v1/b/$1/iam" "$policy" >/dev/null
+}
+
 # kc is kubectl against the run's own cluster, and kc_as is the same under
 # another kubeconfig (a ServiceAccount's, say). Both carry --request-timeout
 # because kubectl's default is to wait on the API server for ever: #1457 was

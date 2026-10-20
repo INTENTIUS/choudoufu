@@ -1078,6 +1078,169 @@
           "note": "Open: no GCP scenario is written. ignore_changes on a label key of your own, labels[\"owner\"], is admitted, and ignore_changes over the labels map or a marker key is refused by lint."
         }
       }
+    },
+    {
+      "id": 48,
+      "slug": "a-derived-name-needs-no-record",
+      "title": "A derived identity needs no record and no cache",
+      "theme": "adopt",
+      "substrate": [
+        "aws",
+        "kubernetes",
+        "gcp"
+      ],
+      "providers": {
+        "aws": {
+          "status": "open",
+          "note": "Inventoried in #2119, not built. AWS composes a declaration-carried type's identity from configuration and identified parents on every run (live/RECOVERY.md); no scenario empties the record store and the cache under one yet."
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Inventoried in #2119, not built. Kubernetes has no whole-object type of this tier; the six field-granular types (#1191) are its form of it."
+        },
+        "gcp": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/gcp-a-derived-name-needs-no-record.sh",
+              "command": "just smoke gcp-a-derived-name-needs-no-record",
+              "minutes": 3,
+              "break_mode": "BREAK=1 renames the firewall in the configuration after the record store and the cache are deleted, and requires the plan to propose exactly one create at google_compute_firewall.ssh and leave the live firewall alone, because without that control an empty plan would read the same if binding ignored the derived name"
+            }
+          ],
+          "note": "Unproven until a dated run: gcp-a-derived-name-needs-no-record.sh has no evidence file yet. A google_compute_network and a google_compute_firewall, neither with a labels argument, are applied; the record store and the state cache are deleted; and the plan must read No changes. from the emulator and the configuration alone. Both types are client-named: project and name are the whole identity (live/READINESS.md, GCP section). Compute verify on floci-gcp is lex00/floci-gcp#5."
+        }
+      }
+    },
+    {
+      "id": 49,
+      "slug": "a-parent-proves-no-child",
+      "title": "A parent's marker never proves its child exists",
+      "theme": "adopt",
+      "substrate": [
+        "aws",
+        "gcp"
+      ],
+      "providers": {
+        "aws": {
+          "status": "open",
+          "note": "Inventoried in #2119, not built."
+        },
+        "kubernetes": {
+          "status": "n/a",
+          "note": "No Kubernetes kind is derivable from a parent and unmarkable as a whole object, so there is no child to infer (#2119)."
+        },
+        "gcp": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/gcp-a-parent-proves-no-child.sh",
+              "command": "just smoke gcp-a-parent-proves-no-child",
+              "minutes": 3,
+              "break_mode": "BREAK=1 runs the identical out-of-band deletes and holds the plan to what a plan inferring the children from their parents would read, No changes.; that assertion must fail, and the control passes only when the plan instead proposes the two creates, because without it the creates would read the same if every plan proposed them"
+            }
+          ],
+          "note": "Unproven until a dated run: gcp-a-parent-proves-no-child.sh has no evidence file yet. Two children are deleted out of band: a subnetwork under an unlabelled network, and a google_storage_bucket_iam_member under a bucket that carries the estate's labels. The next plan must propose exactly the two creates while both parents stand and the bucket keeps its labels; the apply puts both back. The emulator serving a bucket's IAM policy at storage/v1/b/<bucket>/iam is assumed, not confirmed from its docs."
+        }
+      }
+    },
+    {
+      "id": 50,
+      "slug": "a-removed-derived-block-is-destroyed",
+      "title": "A removed derived block is destroyed from its record",
+      "theme": "adopt",
+      "substrate": [
+        "aws",
+        "kubernetes",
+        "gcp"
+      ],
+      "providers": {
+        "aws": {
+          "status": "open",
+          "note": "Inventoried in #2119, not built."
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Inventoried in #2119, not built. On Kubernetes the managedFields sweep is the form of it."
+        },
+        "gcp": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/gcp-a-removed-derived-block-is-destroyed.sh",
+              "command": "just smoke gcp-a-removed-derived-block-is-destroyed",
+              "minutes": 4,
+              "break_mode": "BREAK=1 moves the firewall's record out of the store before its block is deleted and requires the plan to propose no destroy of it, because without that control the destroy in the ordinary run would read the same if it came from anything but the record"
+            }
+          ],
+          "note": "Unproven until a dated run: gcp-a-removed-derived-block-is-destroyed.sh has no evidence file yet. A deleted firewall block's record proposes its destroy, since the Cloud Asset sweep filters on the estate label and the firewall carries none. A subnetwork whose record and block go together is left live, and the plan run with -verbose must name google_compute_subnetwork rather than drop it without a word. Which diagnostic names it on GCP is read from the code, not measured: #2119 lists GCP's sweep after a removed block as to design, and if the plan names neither the type nor the address, that step fails and is the finding."
+        }
+      }
+    },
+    {
+      "id": 51,
+      "slug": "a-markerless-type-is-refused",
+      "title": "An untaggable server-minted type is refused by name",
+      "theme": "operate",
+      "substrate": [
+        "aws",
+        "gcp"
+      ],
+      "providers": {
+        "aws": {
+          "status": "open",
+          "note": "Inventoried in #2119, not built. AWS's veto is identity.MarkerlessTypes (159 types), refused by the markerless-type rule (live/LIMITATIONS.md); no claim scenario holds it yet."
+        },
+        "kubernetes": {
+          "status": "n/a",
+          "note": "Every Kubernetes object carries metadata.labels, so no kind is untaggable and server-minted (#2119)."
+        },
+        "gcp": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/gcp-a-markerless-type-is-refused.sh",
+              "command": "just smoke gcp-a-markerless-type-is-refused",
+              "minutes": 2,
+              "break_mode": "BREAK=1 swaps the alert policy for a google_service_account, unlabelled but client-named, in the same root and requires the plan to go through with its two creates and no markerless-type finding, because without that control the refusal would read the same if something other than the type refused the root"
+            }
+          ],
+          "note": "Unproven until a dated run: gcp-a-markerless-type-is-refused.sh has no evidence file yet. google_monitoring_alert_policy, in the google markerless list of live/readiness.json, must be refused by the markerless-type rule naming the block, with nothing created. Read from the code it may fail: every live block implies a local record store, lint admits a markerless type whose schema can be recorded as record-located (identity.LocatedType, #270), and LocatedType does not exclude google types, though live/READINESS.md says that route is not established for GCP. A lint check with a one-attribute schema admits this type under a live block."
+        }
+      }
+    },
+    {
+      "id": 52,
+      "slug": "the-fence-gap-is-as-stated",
+      "title": "The fence over derived types is what the docs say",
+      "theme": "gate",
+      "substrate": [
+        "aws",
+        "kubernetes",
+        "gcp"
+      ],
+      "providers": {
+        "aws": {
+          "status": "open",
+          "note": "Inventoried in #2119, not built. live/MARKERS.md states the AWS gap per service, 345 types; no scenario measures a tag-scoped principal against one yet."
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Inventoried in #2119, not built. On Kubernetes the field manager is the fence, with the #1191 conflict warning."
+        },
+        "gcp": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/gcp-the-fence-gap-is-as-stated.sh",
+              "command": "just smoke gcp-the-fence-gap-is-as-stated",
+              "minutes": 5,
+              "break_mode": "BREAK=1 removes Bob's storage binding on his own project and requires his apply of the derived IAM member to be refused with a permission denial, because without that control the allowed write would read the same if the grant had nothing to do with it"
+            }
+          ],
+          "note": "Unproven until a dated run: gcp-the-fence-gap-is-as-stated.sh has no evidence file yet. Measured on google_storage_bucket_iam_member with the emulator's IAM evaluation on. A principal granted by live/gcp/estate-grant.sh creates one in its estate's project and is refused rewriting one in another project; a second estate's principal granted on the same project rewrites it unopposed, which is the project-only row of live/MARKERS.md, \"What a GCP grant cannot reach\". The emulator does not evaluate Compute, so a firewall is not the type measured."
+        }
+      }
     }
   ]
 }
