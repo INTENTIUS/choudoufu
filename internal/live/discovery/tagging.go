@@ -1197,6 +1197,15 @@ type taggedCandidate struct {
 	// object, one diagnostic, and the refusal is the one that says what
 	// happens to it.
 	refusedAt string
+
+	// objectType names the listed object by its own type, where the leg
+	// knows it apart from the type its marker names (GitHub issue #2138):
+	// the Resource Graph leg files an object under its marker's type, so an
+	// AKS-copied cluster marker on a route table is filed as an
+	// azurerm_kubernetes_cluster, and a message that means the object
+	// ("A live ... with identity ...") has to say route table. Empty on
+	// every other leg, whose type is the object's own.
+	objectType string
 }
 
 // sweepViaTagging is the sweep's Tagging API path (issue #51): one
@@ -1544,6 +1553,7 @@ func fileCandidate(ctx context.Context, req Request, decl *declared, typeName st
 		slot:         c.tags[TagSlot],
 		tags:         c.tags,
 		noIdentity:   c.importID == "",
+		objectType:   c.objectType,
 	}
 
 	// GitHub issue #906: this object's marker names a declared address,

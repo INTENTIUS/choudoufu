@@ -471,6 +471,15 @@ func displacedProblem(req Request, decl *declared, typeName, escaped, want strin
 			"This run does nothing to the object named here: it is bound to no address, it is not read, not changed and not destroyed, and it will stay in the account until a human says which resource is which. Read the plan for %s beside this warning for what that address itself is proposed for.",
 			escaped)
 	}
+	// The live object is named by its own type, the address by its own
+	// (GitHub issue #2138): the Resource Graph leg files an object under the
+	// type its marker names, and an AKS-copied cluster marker on a route
+	// table is not a cluster. TypeName stays the address's, which is what
+	// the problem is filed under.
+	liveType := typeName
+	if c.objectType != "" {
+		liveType = c.objectType
+	}
 	return Problem{
 		Kind:     ProblemDisplacedMarker,
 		TypeName: typeName,
@@ -478,7 +487,7 @@ func displacedProblem(req Request, decl *declared, typeName, escaped, want strin
 		LiveIDs:  liveIDs(c.importID),
 		Detail: fmt.Sprintf(
 			"A live %s with identity %q carries estate %q and the address %q, but the identity this configuration computes for %s is %q, and this estate's own record does not name this object as the one that address owns. This live object is therefore not the one the address is planned against: the plan for %s is computed from the identity the configuration names, which is either a different live resource or nothing yet. That is most often what a renumbering leaves behind - deleting a middle element of a count list moves every later instance's identity down one while the live resources keep the markers they were stamped with. %s Use choudoufu live-mv, or a moved block, to say that a resource moved; remove this resource's markers to disown it.",
-			typeName, c.displayID(), req.Estate, escaped, escaped, want, escaped, fate),
+			liveType, c.displayID(), req.Estate, escaped, escaped, want, escaped, fate),
 	}
 }
 

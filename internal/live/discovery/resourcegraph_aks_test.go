@@ -122,3 +122,62 @@ resource "azurerm_route_table" "rt" {
 		t.Errorf("VerifiedDeclared %v; want the cluster vouched by its own sighting only", res.VerifiedDeclared)
 	}
 }
+
+// TestResourceGraphLegDisplacedNamesTheObjectsOwnType is GitHub issue
+// #2138's finding on the leg above: a route table the configuration does
+// not declare, carrying the cluster's copied markers, is a displaced
+// marker (the cluster's address resolves to another ARM id). The leg files
+// the object under the type its marker names, and the warning used to say
+// "A live azurerm_kubernetes_cluster with identity .../routeTables/rt". It
+// names the object by its own type now, and the address by the address's.
+func TestResourceGraphLegDisplacedNamesTheObjectsOwnType(t *testing.T) {
+	cfg := azConfigWith(t, `
+resource "azurerm_kubernetes_cluster" "aks" {
+  name                = "aks"
+  resource_group_name = "Kept"
+  location            = "westeurope"
+  dns_prefix          = "aks"
+}
+`)
+	cluster := aksTagged(aksClusterID(), "microsoft.containerservice/managedclusters", "aks")
+	route := aksTagged(aksRouteTableID(), "microsoft.network/routetables", "rt")
+	graph := &fakeGraph{answers: map[string][]azsweep.Resource{rgSub1: {cluster, route}}}
+	leg := ResourceGraphSweep{Coverage: azsweep.Coverage{rgSub1: graph}, Subscriptions: []string{rgSub1}}
+
+	res, diags := discoverAzureWith(t, cfg, leg,
+		keptResolution(rgSub1),
+		aksResolution("azurerm_kubernetes_cluster", "aks", aksClusterID()),
+	)
+	assertNoErrors(t, diags)
+	if len(res.Problems) != 1 || res.Problems[0].Kind != ProblemDisplacedMarker {
+		t.Fatalf("problems %+v; want one displaced marker for the route table", res.Problems)
+	}
+	p := res.Problems[0]
+	if want := "A live azurerm_route_table (Microsoft.Network/routeTables) with identity"; !strings.HasPrefix(p.Detail, want) {
+		t.Errorf("the warning does not name the object by its own type (%q): %s", want, p.Detail)
+	}
+	if strings.Contains(p.Detail, "A live azurerm_kubernetes_cluster") {
+		t.Errorf("the warning calls the route table a cluster: %s", p.Detail)
+	}
+	if want := `the address "azurerm_kubernetes_cluster.aks"`; !strings.Contains(p.Detail, want) {
+		t.Errorf("the warning does not name the marked address (%q): %s", want, p.Detail)
+	}
+	if p.TypeName != "azurerm_kubernetes_cluster" {
+		t.Errorf("the problem is filed under %q, want the marked address's type", p.TypeName)
+	}
+}
+
+// TestAzureObjectType: one azurerm type for the ARM type names it; several,
+// or none, leave the ARM type alone.
+func TestAzureObjectType(t *testing.T) {
+	for in, want := range map[string]string{
+		"microsoft.network/routetables":      "azurerm_route_table (Microsoft.Network/routeTables)",
+		"microsoft.compute/virtualmachines":  "Microsoft.Compute/virtualMachines",
+		"microsoft.example/notanazurermtype": "microsoft.example/notanazurermtype",
+		"":                                   "",
+	} {
+		if got := azureObjectType(in); got != want {
+			t.Errorf("azureObjectType(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

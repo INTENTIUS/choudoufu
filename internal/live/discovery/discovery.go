@@ -1084,6 +1084,11 @@ type claimant struct {
 	slot        string
 	tags        map[string]string
 	noIdentity  bool
+
+	// objectType is [taggedCandidate.objectType]: the object's own type
+	// where the leg that found it files it under its marker's, for a
+	// message about the object. Empty when the two are the same.
+	objectType string
 }
 
 // displayID is how a claimant is named in a message: its live identity, or a
