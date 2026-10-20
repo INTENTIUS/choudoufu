@@ -282,11 +282,15 @@ type readinessArtifact struct {
 	Kubernetes struct {
 		Types []readinessType `json:"types"`
 	} `json:"kubernetes"`
+	Google struct {
+		Types []readinessType `json:"types"`
+	} `json:"google"`
 }
 
 type readinessFacts struct {
-	awsTypes []readinessType
-	k8sTypes []readinessType
+	awsTypes    []readinessType
+	k8sTypes    []readinessType
+	googleTypes []readinessType
 }
 
 func loadReadinessFacts(root string) (readinessFacts, error) {
@@ -294,7 +298,7 @@ func loadReadinessFacts(root string) (readinessFacts, error) {
 	if err := decodeJSON(root, ReadinessJSONRel, &art); err != nil {
 		return readinessFacts{}, err
 	}
-	return readinessFacts{awsTypes: art.Types, k8sTypes: art.Kubernetes.Types}, nil
+	return readinessFacts{awsTypes: art.Types, k8sTypes: art.Kubernetes.Types, googleTypes: art.Google.Types}, nil
 }
 
 func decodeJSON(root, rel string, v any) error {
@@ -324,6 +328,9 @@ func untaggableFor(family string, rf readinessFacts) UntaggableFacts {
 	case "kubernetes":
 		return tallyUntaggable(rf.k8sTypes, func(t readinessType) bool { return !t.Facts.LabelSurface },
 			"an admitted Kubernetes type whose schema carries no metadata.labels block (live/readiness.json kubernetes.types facts.label_surface=false)")
+	case "google":
+		return tallyUntaggable(rf.googleTypes, func(t readinessType) bool { return t.Tier != "marker-carried" },
+			"a google or google-beta 8.6.0 type whose schema carries no settable labels map beside effective_labels (live/readiness.json google.types, every tier but marker-carried)")
 	}
 	return UntaggableFacts{Definition: "no definition recorded for family " + family, ByTier: map[string]int{}}
 }

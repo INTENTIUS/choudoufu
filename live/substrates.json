@@ -106,9 +106,12 @@
         ]
       },
       "untaggable": {
-        "definition": "no definition recorded for family google",
-        "count": 0,
-        "by_tier": {}
+        "definition": "a google or google-beta 8.6.0 type whose schema carries no settable labels map beside effective_labels (live/readiness.json google.types, every tier but marker-carried)",
+        "count": 1165,
+        "by_tier": {
+          "declaration-carried": 862,
+          "record-carried": 303
+        }
       },
       "fence": "Project-scoped, restated: an IAM condition cannot match a label, so one estate per project, granted by an ordinary project IAM binding. Resource Manager tag bindings, which a condition can match, are ruled later (#1121).",
       "harness": {
