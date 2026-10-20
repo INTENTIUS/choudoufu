@@ -8,6 +8,7 @@ package projection
 import (
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 
 	"github.com/zclconf/go-cty/cty"
@@ -66,6 +67,16 @@ type Ownership struct {
 	// Policy existed. Set, it governs both declared quadrants - see
 	// [builder.checkPolicy].
 	Policy *policy.Policy
+
+	// PendingDisplaced are discovery's displaced-marker warnings that wait
+	// on one declared instance's read, keyed by that instance's address
+	// (discovery's Result.PendingDisplacedWarnings, GitHub issue #2140,
+	// finding 4). Each is about an object at that instance's ARM id
+	// carrying this estate's marker for another address, which the read
+	// refuses under [SummaryOverwriteMarkedAtKey]. The build emits the
+	// warnings of every instance it did not refuse that way, so the object
+	// gets exactly one diagnostic whether or not its read ran.
+	PendingDisplaced map[string]tfdiags.Diagnostics
 }
 
 // verified reports whether the caller already established ownership of an
@@ -683,6 +694,10 @@ const SummaryOverwriteMarkedAtKey = "Live object marked for another owner at the
 // declared_untagged verb reaches either way.
 func (b *builder) overwritesMarkedAtKey(addr addrs.AbsResourceInstance, typeName, importID, estate, rawAddress string, corrupt bool, verb policy.Verb) {
 	own := b.opts.Ownership
+	if b.refusedMarkedAtKey == nil {
+		b.refusedMarkedAtKey = map[string]bool{}
+	}
+	b.refusedMarkedAtKey[addr.String()] = true
 	escaped := markers.EscapeAddress(addr.String())
 
 	var found string
@@ -1064,4 +1079,28 @@ func (b *builder) unownedAddress(addr addrs.AbsResourceInstance, typeName, impor
 func adoptsOnCreate(typeName string) bool {
 	_, rest, ok := strings.Cut(typeName, "_")
 	return ok && strings.HasPrefix(rest, "default_")
+}
+
+// pendingDisplaced is [Ownership.PendingDisplaced]'s warnings for every
+// instance this build did not refuse under [SummaryOverwriteMarkedAtKey],
+// in address order: the object's one diagnostic when its read did not run
+// or did not refuse it (GitHub issue #2140, finding 4).
+func (b *builder) pendingDisplaced() tfdiags.Diagnostics {
+	own := b.opts.Ownership
+	if own == nil || len(own.PendingDisplaced) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(own.PendingDisplaced))
+	for k := range own.PendingDisplaced {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var diags tfdiags.Diagnostics
+	for _, k := range keys {
+		if b.refusedMarkedAtKey[k] {
+			continue
+		}
+		diags = diags.Append(own.PendingDisplaced[k])
+	}
+	return diags
 }

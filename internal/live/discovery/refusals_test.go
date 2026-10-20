@@ -29,12 +29,14 @@ func TestRefusalsRegistered(t *testing.T) {
 		What:       whats,
 		// Fourteen of this package's diagnostics choose their summary out
 		// of problemSummaries by ProblemKind. Naming the map is what makes
-		// those values visible to the scan; problemDiag is the one function
-		// that reads it and passes the result on, and every value it can
-		// read is registered by the map scan already.
+		// those values visible to the scan; renderProblem (problemDiag's
+		// diagnostic, split out by GitHub issue #2140 for the displaced
+		// warnings the projection gives) is the one function that reads it
+		// and passes the result on, and every value it can read is
+		// registered by the map scan already.
 		// The Azure leg's (GitHub issue #1120) summaries are chosen by the
 		// failed subscription's azsweep error, out of resourceGraphSummaries.
 		SummaryMaps:  []string{"problemSummaries", "resourceGraphSummaries"},
-		DynamicSites: []string{"problemDiag"},
+		DynamicSites: []string{"renderProblem"},
 	})
 }

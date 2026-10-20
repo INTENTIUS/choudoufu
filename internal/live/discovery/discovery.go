@@ -4916,7 +4916,11 @@ func tfdiagsSeverity(s Severity) tfdiags.Severity {
 // that goes with it, so the two can never drift apart.
 func problemDiag(res *Result, p Problem) tfdiags.Diagnostic {
 	res.Problems = append(res.Problems, p)
+	return renderProblem(p)
+}
 
+// renderProblem is [problemDiag]'s diagnostic, recording nothing.
+func renderProblem(p Problem) tfdiags.Diagnostic {
 	severity := tfdiagsSeverity(p.Kind.Severity())
 
 	// Every kind in problemSummaries has a summary of its own, and

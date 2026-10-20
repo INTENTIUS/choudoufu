@@ -380,6 +380,7 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 	for _, db := range opts.DeposedBindings {
 		b.materializeDeposed(ctx, db)
 	}
+	b.diags = b.diags.Append(b.pendingDisplaced())
 
 	sortOmissions(b.omissionList)
 	sort.Slice(b.materialized, func(i, j int) bool {
@@ -638,6 +639,11 @@ type builder struct {
 	// by this estate's own apply, keyed by this exact address. Written and
 	// read only on the sequential materialize goroutine, like cacheHits.
 	envelopeAdmitted map[string]bool
+
+	// refusedMarkedAtKey names the instances [builder.overwritesMarkedAtKey]
+	// refused, which [builder.pendingDisplaced] reads to withhold the
+	// displaced warning discovery left waiting on them.
+	refusedMarkedAtKey map[string]bool
 
 	diags tfdiags.Diagnostics
 }
