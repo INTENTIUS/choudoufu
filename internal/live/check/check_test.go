@@ -98,7 +98,11 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// nothing itself: it renders rows, and internal/command words the
 		// refusal beside the other command-invocation guards, exactly as
 		// "markerstrip" below does.
-		"approval":     true,
+		"approval": true,
+		// The Azure epic's (#1120) azapi type-capability table: data the
+		// stamp consults before writing tags on an azapi resource. It
+		// refuses nothing; its caller decides.
+		"armtypes":     true,
 		"check":        true, // this package: the instrument itself
 		"cloudcontrol": true, // a client for one AWS API
 		// The verification cohorts' pinned rosters (issue #699): 31 cohort
