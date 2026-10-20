@@ -405,9 +405,15 @@ func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *config
 		// cluster credential it already has. GitHub issue #1392.
 		return newKubernetesStore(rs, estate)
 
+	case "gcs":
+		// Stock's gcs backend builds the client; see gcs_store.go. No AWS
+		// configuration is loaded on this path either.
+		o.estate = estate
+		return newGCSStore(ctx, rs, rt, o)
+
 	default:
 		// internal/configs/live.go's decodeRecordStoreBlock already refuses
-		// anything but "local"/"s3"/"kubernetes" at config-decode time, so a
+		// anything but "local"/"s3"/"kubernetes"/"gcs" at config-decode time, so a
 		// caller reaching here has a *configs.LiveRecordStore that bypassed
 		// that decoder - an internal inconsistency, not a configuration
 		// mistake an operator could have made.

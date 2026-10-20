@@ -95,9 +95,9 @@ func (c *LiveBucketCommand) Execute(args *arguments.LiveBucket) int {
 		diags = diags.Append(liveDiags)
 		switch {
 		case liveDiags.HasErrors():
-		case live == nil || live.RecordStore == nil || live.RecordStore.Type != "s3":
+		case live == nil || live.RecordStore == nil || (live.RecordStore.Type != "s3" && live.RecordStore.Type != "gcs"):
 			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "No record store bucket here",
-				"This directory's configuration declares no record_store \"s3\" block, so there is no bucket to report on. Name one with -bucket=<name>."))
+				"This directory's configuration declares no record_store \"s3\" or \"gcs\" block, so there is no bucket to report on. Name an S3 bucket with -bucket=<name>."))
 		default:
 			rs = live.RecordStore
 			bucket, estate = rs.Bucket, live.Estate
@@ -118,7 +118,16 @@ func (c *LiveBucketCommand) Execute(args *arguments.LiveBucket) int {
 		}
 	}
 
-	findings, err := projection.VerifyBucket(ctx, bucket, region, owner, estate, rs)
+	var findings []staterecord.Finding
+	var err error
+	if rs != nil && rs.Type == "gcs" {
+		// A GCS bucket is checked with stock's gcs connection arguments from
+		// the block, so it is only reachable from a configuration directory:
+		// -bucket names an S3 bucket.
+		findings, err = projection.VerifyGCSBucket(ctx, rs, estate)
+	} else {
+		findings, err = projection.VerifyBucket(ctx, bucket, region, owner, estate, rs)
+	}
 	if err != nil {
 		c.View.Diagnostics(diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot read the bucket's settings",
 			fmt.Sprintf("Bucket %q could not be checked: %s. This says nothing about whether the bucket is correct.", bucket, err))))
@@ -207,6 +216,11 @@ Usage: choudoufu [global options] live-bucket [options]
   Needs s3:GetBucketVersioning, s3:GetLifecycleConfiguration and
   s3:GetBucketPublicAccessBlock. A setting the caller may not read is
   reported UNREADABLE, which is not a pass.
+
+  A live block with record_store "gcs" is checked for the GCS bucket's
+  three: object_versioning, noncurrent_lifecycle and
+  public_access_prevention, from one storage.buckets.get. -bucket, -region
+  and -bucket-owner name S3 buckets only.
 
 Options:
 

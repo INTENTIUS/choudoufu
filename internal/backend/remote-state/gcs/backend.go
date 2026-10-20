@@ -8,21 +8,13 @@ package gcs
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
-	"fmt"
-	"os"
 	"strings"
 
 	"cloud.google.com/go/storage"
 	"github.com/intentius/choudoufu/internal/backend"
+	"github.com/intentius/choudoufu/internal/backend/remote-state/gcs/gcsclient"
 	"github.com/intentius/choudoufu/internal/encryption"
-	"github.com/intentius/choudoufu/internal/httpclient"
 	"github.com/intentius/choudoufu/internal/legacy/helper/schema"
-	"github.com/intentius/choudoufu/version"
-	"golang.org/x/oauth2"
-	"google.golang.org/api/impersonate"
-	"google.golang.org/api/option"
 )
 
 // Backend implements "backend".Backend for GCS.
@@ -145,116 +137,32 @@ func (b *Backend) configure(ctx context.Context) error {
 		b.prefix = b.prefix + "/"
 	}
 
-	var opts []option.ClientOption
-	var credOptions []option.ClientOption
-
-	// Add credential source
-	var creds string
-	var tokenSource oauth2.TokenSource
-
-	if v, ok := data.GetOk("access_token"); ok {
-		tokenSource = oauth2.StaticTokenSource(&oauth2.Token{
-			AccessToken: v.(string),
-		})
-	} else if v, ok := data.GetOk("credentials"); ok {
-		creds = v.(string)
-	} else if v := os.Getenv("GOOGLE_BACKEND_CREDENTIALS"); v != "" {
-		creds = v
-	} else {
-		creds = os.Getenv("GOOGLE_CREDENTIALS")
-	}
-
-	if tokenSource != nil {
-		credOptions = append(credOptions, option.WithTokenSource(tokenSource))
-	} else if creds != "" {
-
-		// to mirror how the provider works, we accept the file path or the contents
-		contents, err := backend.ReadPathOrContents(creds)
-		if err != nil {
-			return fmt.Errorf("Error loading credentials: %w", err)
+	var delegates []string
+	if v, ok := data.GetOk("impersonate_service_account_delegates"); ok {
+		for _, delegate := range v.([]interface{}) {
+			delegates = append(delegates, delegate.(string))
 		}
-
-		if !json.Valid([]byte(contents)) {
-			return fmt.Errorf("the string provided in credentials is neither valid json nor a valid file path")
-		}
-
-		//nolint:staticcheck // [option.WithCredentialsJSON] is deprecated
-		// upstream, but we're waiting to see how the hashicorp/google provider
-		// reacts to that deprecation so we can then mimic their strategy as
-		// closely as possible.
-		credOptions = append(credOptions, option.WithCredentialsJSON([]byte(contents)))
 	}
-
-	// Service Account Impersonation
-	if v, ok := data.GetOk("impersonate_service_account"); ok {
-		ServiceAccount := v.(string)
-		var delegates []string
-
-		if v, ok := data.GetOk("impersonate_service_account_delegates"); ok {
-			d := v.([]interface{})
-			if len(delegates) > 0 {
-				delegates = make([]string, 0, len(d))
-			}
-			for _, delegate := range d {
-				delegates = append(delegates, delegate.(string))
-			}
-		}
-
-		ts, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
-			TargetPrincipal: ServiceAccount,
-			Scopes:          []string{storage.ScopeReadWrite},
-			Delegates:       delegates,
-		}, credOptions...)
-
-		if err != nil {
-			return err
-		}
-
-		opts = append(opts, option.WithTokenSource(ts))
-
-	} else {
-		opts = append(opts, credOptions...)
-	}
-
-	opts = append(opts, option.WithUserAgent(httpclient.OpenTofuUserAgent(version.Version)))
-
-	// Custom endpoint for storage API
-	if storageEndpoint, ok := data.GetOk("storage_custom_endpoint"); ok {
-		endpoint := option.WithEndpoint(storageEndpoint.(string))
-		opts = append(opts, endpoint)
-	}
-	// Custom universe domain for sovereign cloud authentication
-	if universeDomain, ok := data.GetOk("universe_domain"); ok {
-		domain := option.WithUniverseDomain(universeDomain.(string))
-		opts = append(opts, domain)
-	}
-	client, err := storage.NewClient(ctx, opts...)
+	client, err := gcsclient.NewStorageClient(ctx, gcsclient.ClientConfig{
+		AccessToken:                        data.Get("access_token").(string),
+		Credentials:                        data.Get("credentials").(string),
+		ImpersonateServiceAccount:          data.Get("impersonate_service_account").(string),
+		ImpersonateServiceAccountDelegates: delegates,
+		StorageCustomEndpoint:              data.Get("storage_custom_endpoint").(string),
+		UniverseDomain:                     data.Get("universe_domain").(string),
+	})
 	if err != nil {
-		return fmt.Errorf("storage.NewClient() failed: %w", err)
+		return err
 	}
 
 	b.storageClient = client
 
 	// Customer-supplied encryption
-	key := data.Get("encryption_key").(string)
-	if key != "" {
-		kc, err := backend.ReadPathOrContents(key)
-		if err != nil {
-			return fmt.Errorf("Error loading encryption key: %w", err)
-		}
-
-		// The GCS client expects a customer supplied encryption key to be
-		// passed in as a 32 byte long byte slice. The byte slice is base64
-		// encoded before being passed to the API. We take a base64 encoded key
-		// to remain consistent with the GCS docs.
-		// https://cloud.google.com/storage/docs/encryption#customer-supplied
-		// https://github.com/GoogleCloudPlatform/google-cloud-go/blob/def681/storage/storage.go#L1181
-		k, err := base64.StdEncoding.DecodeString(kc)
-		if err != nil {
-			return fmt.Errorf("Error decoding encryption key: %w", err)
-		}
-		b.encryptionKey = k
+	k, err := gcsclient.DecodeEncryptionKey(data.Get("encryption_key").(string))
+	if err != nil {
+		return err
 	}
+	b.encryptionKey = k
 
 	// Customer-managed encryption
 	kmsName := data.Get("kms_encryption_key").(string)

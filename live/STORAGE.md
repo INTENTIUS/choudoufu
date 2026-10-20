@@ -32,11 +32,12 @@ the backend.
 | `local` | A directory beside the module, `.tofu-records` by default | `path` |
 | `s3` | A bucket you already own | `bucket` (required), `bucket_owner`, `key_prefix`, `region`, `allow_insecure` |
 | `kubernetes` | Secrets in a namespace you already own | `namespace` (defaults to `tofu-records-<estate>`), `key_prefix`, and the connection arguments of stock's `kubernetes` backend |
+| `gcs` | A Google Cloud Storage bucket you already own | `bucket` (required), `prefix` or `key_prefix`, `allow_insecure`, and the connection and encryption arguments of stock's `gcs` backend |
 
 A `live` block that declares no `record_store` gets the local one, the way
 stock implies a local state file.
 
-All three give the same guarantees; a run cannot tell them apart. Each record
+All four give the same guarantees; a run cannot tell them apart. Each record
 is its own object, tagged or labelled with the estate's name the way a
 managed resource is, so one bucket or cluster serves any number of estates and
 your IAM or RBAC decides who reads which.
@@ -344,6 +345,94 @@ that cannot provision one reads exactly like an empty estate.
 Because a plan identity never creates the sentinel, its runs are never a first
 contact, and the four assertions above never run on one. `choudoufu
 live-cluster -plan-identity` is how that identity asks them on purpose.
+
+## The GCS bucket
+
+`record_store "gcs"` keeps the same records as objects in a Google Cloud
+Storage bucket. It is the S3 bucket's design in GCS terms, and the sections
+above hold for it except where this one says otherwise.
+
+```hcl
+record_store "gcs" {
+  bucket = "my-records-bucket"
+}
+```
+
+The connection arguments are stock's `gcs` backend's, read the same way and
+handed to the same client construction: `credentials`, `access_token`,
+`impersonate_service_account` and its delegates, `storage_custom_endpoint`,
+`universe_domain`, and the `GOOGLE_*` variables each one falls back to. With
+none of them set, Application Default Credentials apply. `encryption_key` (a
+customer-supplied key) and `kms_encryption_key` (a Cloud KMS key) are stock's
+too, and one excludes the other. `prefix` is stock's name for where in the
+bucket the records go, and means what `key_prefix` means on the other stores.
+
+### Layout and writes
+
+The three prefixes are the bucket's: `tofu-records/<estate>/`,
+`tofu-hints/<estate>/` and `tofu-outputs/<estate>/`, each with its trailing
+`/`. A GCS prefix is a plain string too, so the slash is what keeps `prod`
+out of `prod-eu`.
+
+A version is the object's generation. A create sends `ifGenerationMatch=0`,
+and an update or a delete sends the generation the writer read. GCS answers a
+failed precondition with `412`, which the store reports as a version
+conflict, the same as S3's. Nothing is locked.
+
+Every object carries `tofu-estate`, and a record also `tofu-address`, as
+custom metadata on the write itself. GCS IAM cannot condition on object
+metadata, so here the tags are provenance only. The fence is the object name.
+
+The sentinel is proved through the listing, as on S3. The bulk read is one
+listing and a read per object, complete or failed.
+
+### The bucket's settings
+
+Three, from one `storage.buckets.get`: `object_versioning`,
+`noncurrent_lifecycle` and `public_access_prevention`. A `Delete` lifecycle
+rule that can match a live object refuses the bucket and cannot be waived.
+[examples/record-store-gcs/CONTRACT.md](../examples/record-store-gcs/CONTRACT.md)
+has what counts. `choudoufu live-bucket`, run in the estate's directory,
+reports them.
+
+### The grant
+
+An IAM condition on a bucket can match the object name, so one estate's
+identity can be held to its own prefixes:
+
+```
+resource.name.startsWith("projects/_/buckets/<bucket>/objects/tofu-records/<estate>/")
+```
+
+`examples/record-store-gcs/iam/render-grant.sh <estate> <bucket> <member>`
+prints the two bindings: `roles/storage.objectUser` conditioned on the
+estate's three prefixes, and `roles/storage.legacyBucketReader` on the bucket
+for the settings read and the listing. Conditions need uniform bucket-level
+access on the bucket and IAM policy version 3.
+
+What it does not fence: the listing. GCS checks `storage.objects.list`
+against the bucket, not an object name, so an estate's identity can list
+every key in the bucket. Keys are type names and encoded addresses, and the
+records behind them stay behind the conditioned binding. Reading another
+estate's outputs is a binding on that estate's `tofu-outputs/` prefix, which
+the script does not render.
+
+### What has not been measured
+
+Nothing in this section has run against real GCS or an emulator. The store,
+its conditional writes, the listing and the settings check are tested against
+a fake of the JSON API in `internal/live/staterecord/gcs_test.go`. These are
+ahead of measurement:
+
+- that GCS answers a stale `ifGenerationMatch` on a write and a delete with
+  `412`, and an update of a deleted object with `412` or `404`;
+- that a missing bucket's `404` says "bucket does not exist", which is how
+  the store tells it from a missing record;
+- that the grant above allows every request a run makes and refuses another
+  estate's objects, and that a read of a record that does not exist answers
+  `404` rather than `403` under it;
+- that a Cloud KMS key refusing the run reads as a refusal and not as a
+  read-only identity. On S3 that distinction is measured; here it is not.
 
 ## The cache
 

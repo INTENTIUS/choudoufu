@@ -43,6 +43,20 @@ func TestTheWaivableNamesAreTheAssertedSettings(t *testing.T) {
 		t.Errorf("record_store \"kubernetes\" accepts %v, want the asserted settings %v", configs.RecordStoreInsecureSettingsFor("kubernetes"), clusterAsserted)
 	}
 
+	// The same pin on the GCS bucket contract.
+	var gcsAsserted []string
+	for _, s := range staterecord.GCSSettings {
+		gcsAsserted = append(gcsAsserted, string(s))
+	}
+	if !slices.Equal(gcsAsserted, configs.RecordStoreInsecureSettingsFor("gcs")) {
+		t.Errorf("record_store \"gcs\" accepts %v, want the asserted settings %v", configs.RecordStoreInsecureSettingsFor("gcs"), gcsAsserted)
+	}
+	for _, name := range configs.RecordStoreGCSInsecureSettings {
+		if slices.Contains(configs.RecordStoreInsecureSettings, name) || slices.Contains(configs.RecordStoreClusterInsecureSettings, name) {
+			t.Errorf("%q names an assertion of the GCS store and of another store, so a reader cannot tell which one a waiver waives", name)
+		}
+	}
+
 	// The two vocabularies must not overlap. A bucket setting named on a
 	// cluster store has to be refused by name, not silently waive the
 	// cluster setting that happens to sit at the same index.
@@ -128,5 +142,23 @@ func TestAWaiverWarnsByNameWithItsCostInTheSameSentence(t *testing.T) {
 	}
 	if got := bucketWaiverWarnings(nil); len(got) != 0 {
 		t.Errorf("no record store at all, %d warning(s) emitted", len(got))
+	}
+}
+
+// TestAGCSWaiverWarnsWithTheGCSCost: a gcs store's waiver names its own
+// store and its own cost, never the S3 bucket's.
+func TestAGCSWaiverWarnsWithTheGCSCost(t *testing.T) {
+	rs := &configs.LiveRecordStore{Type: "gcs", Bucket: "records", BucketSet: true,
+		AllowInsecure: []string{"public_access_prevention"}}
+	diags := bucketWaiverWarnings(rs)
+	if len(diags) != 1 {
+		t.Fatalf("got %d warnings for 1 waived setting", len(diags))
+	}
+	desc := diags[0].Description()
+	if !strings.Contains(desc.Summary, "public_access_prevention") || !strings.Contains(desc.Detail, `record_store "gcs"`) {
+		t.Errorf("warning %q / %q does not name the setting and the gcs store", desc.Summary, desc.Detail)
+	}
+	if want := staterecord.GCSWaiverCost(staterecord.GCSPublicAccessPrevention); !strings.Contains(desc.Detail, want) {
+		t.Errorf("warning %q does not carry the GCS cost %q", desc.Detail, want)
 	}
 }

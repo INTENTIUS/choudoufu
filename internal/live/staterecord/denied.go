@@ -81,5 +81,10 @@ func IsAccessDenied(err error) bool {
 	if k8serrors.IsForbidden(err) {
 		return true
 	}
+	// [GCSStore] surfaces a refusal as the JSON API's own 403, a
+	// *googleapi.Error, which carries neither of the shapes above.
+	if status, ok := gcsStatus(err); ok && status == http.StatusForbidden {
+		return true
+	}
 	return errors.Is(err, fs.ErrPermission)
 }
