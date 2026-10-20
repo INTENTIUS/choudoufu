@@ -87,9 +87,9 @@ type azurermIDsFile struct {
 		Commit  string `json:"commit"`
 	} `json:"pin"`
 	Types []struct {
-		Type       string `json:"type"`
-		Class      string `json:"class"`
-		Template   string `json:"template"`
+		Type          string `json:"type"`
+		Class         string `json:"class"`
+		Template      string `json:"template"`
 		TemplateClass string `json:"template_class"`
 	} `json:"types"`
 }

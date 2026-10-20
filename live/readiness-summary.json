@@ -1,5 +1,5 @@
 {
-  "stamp": "`live/readiness.json` last committed at commit `c3f1ee1756` on 2026-10-03T19:41:48-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.",
+  "stamp": "`live/readiness.json` last committed at commit `e8af574bb1` on 2026-10-20T00:29:43-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.",
   "statuses": [
     "in-contract",
     "pending-ratification",
@@ -9168,6 +9168,1879 @@
         "type": "kubernetes_storage_class",
         "tier": "marker-carried",
         "status": "in-contract"
+      }
+    ]
+  },
+  "azure": {
+    "statuses": [
+      "in-contract",
+      "pending-ratification",
+      "needs-separator",
+      "needs-evidence",
+      "pending-mechanism",
+      "excluded"
+    ],
+    "azurerm": {
+      "provider": "hashicorp/azurerm 5.10.0",
+      "tiers": [
+        {
+          "tier": "marker-carried",
+          "counts": [
+            352,
+            7,
+            0,
+            28,
+            0,
+            0
+          ],
+          "total": 387
+        },
+        {
+          "tier": "declaration-carried",
+          "counts": [
+            476,
+            12,
+            0,
+            0,
+            0,
+            0
+          ],
+          "total": 488
+        },
+        {
+          "tier": "record-carried",
+          "counts": [
+            0,
+            0,
+            0,
+            231,
+            0,
+            0
+          ],
+          "total": 231
+        },
+        {
+          "tier": "excluded by design",
+          "counts": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "total": 0
+        }
+      ],
+      "column_totals": [
+        828,
+        19,
+        0,
+        259,
+        0,
+        0
+      ],
+      "total": 1106
+    },
+    "azapi": {
+      "provider": "azure/azapi 2.13.0",
+      "tiers": [
+        {
+          "tier": "marker-carried",
+          "counts": [
+            1031,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "total": 1031
+        },
+        {
+          "tier": "declaration-carried",
+          "counts": [
+            2366,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "total": 2366
+        },
+        {
+          "tier": "record-carried",
+          "counts": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "total": 0
+        },
+        {
+          "tier": "excluded by design",
+          "counts": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "total": 0
+        }
+      ],
+      "column_totals": [
+        3397,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 3397,
+      "version_dependent": 84
+    },
+    "fence": [
+      {
+        "tier": "marker-carried",
+        "counts": [
+          375,
+          1,
+          1,
+          2,
+          8
+        ],
+        "fence": "the deny on a write lacking or changing tofu-estate, and the denyAction on deleting a tagged resource"
+      },
+      {
+        "tier": "declaration-carried",
+        "counts": [
+          449,
+          19,
+          12,
+          8,
+          0
+        ],
+        "fence": "nothing: Policy's Indexed mode never evaluates an untaggable type, and deleting its parent removes it unseen"
+      },
+      {
+        "tier": "record-carried",
+        "counts": [
+          170,
+          20,
+          5,
+          2,
+          34
+        ],
+        "fence": "nothing, and the type is not admitted"
+      },
+      {
+        "tier": "excluded by design",
+        "counts": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "fence": "not admitted"
+      }
+    ],
+    "types": [
+      {
+        "type": "azurerm_aadb2c_directory",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_active_directory_domain_service",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_active_directory_domain_service_replica_set",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_advanced_threat_protection",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_ai_foundry_project",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_api_diagnostic",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_api_operation_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_api_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_api_tag_description",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_custom_domain",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_diagnostic",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_gateway_certificate_authority",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_identity_provider_aad",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_identity_provider_aadb2c",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_identity_provider_facebook",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_identity_provider_google",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_identity_provider_microsoft",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_identity_provider_twitter",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_notification_recipient_email",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_notification_recipient_user",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_product_api",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_product_group",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_product_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_subscription",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_api_management_workspace_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_app_configuration_feature",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_app_configuration_key",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_app_service_certificate_binding",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_app_service_custom_hostname_binding",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+      },
+      {
+        "type": "azurerm_app_service_managed_certificate",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_app_service_public_certificate",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_app_service_slot_custom_hostname_binding",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_app_service_slot_virtual_network_swift_connection",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_app_service_source_control",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_app_service_source_control_slot",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_app_service_virtual_network_swift_connection",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_application_insights_analytics_item",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_arc_kubernetes_cluster_extension",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_arc_machine_automanage_configuration_assignment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_automation_connection_certificate",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_automation_connection_classic_certificate",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_automation_connection_service_principal",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_automation_hybrid_runbook_worker",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_automation_job_schedule",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_backup_container_storage_account",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_backup_policy_file_share",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_backup_policy_vm",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+      },
+      {
+        "type": "azurerm_backup_policy_vm_workload",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_backup_protected_file_share",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_backup_protected_vm",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_blueprint_assignment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_bot_channel_alexa",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_bot_channel_direct_line_speech",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_bot_channel_directline",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_bot_channel_email",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_bot_channel_facebook",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_bot_channel_line",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_bot_channel_ms_teams",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_bot_channel_slack",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_bot_channel_sms",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_bot_channel_web_chat",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_cdn_frontdoor_custom_domain_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_chaos_studio_capability",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_chaos_studio_target",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_cognitive_account_customer_managed_key",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_communication_service_email_domain_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_container_app_environment_custom_domain",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_container_registry_task_schedule_run_now",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_container_registry_token_password",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_cosmosdb_mongo_role_definition",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_cosmosdb_mongo_user_definition",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_cosmosdb_sql_dedicated_gateway",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_cost_anomaly_alert",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_cost_management_scheduled_action",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_data_factory_customer_managed_key",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_data_factory_integration_runtime_azure_ssis",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_data_factory_linked_service_cosmosdb_mongoapi",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_data_factory_managed_private_endpoint",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_data_protection_backup_vault_customer_managed_key",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+      },
+      {
+        "type": "azurerm_databricks_workspace_root_dbfs_customer_managed_key",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+      },
+      {
+        "type": "azurerm_dev_test_global_vm_shutdown_schedule",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_dns_a_record",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+      },
+      {
+        "type": "azurerm_dns_aaaa_record",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_dns_caa_record",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_dns_cname_record",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+      },
+      {
+        "type": "azurerm_dns_mx_record",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_dns_ns_record",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_dns_ptr_record",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_dns_srv_record",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_dns_txt_record",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+      },
+      {
+        "type": "azurerm_email_communication_service_domain_sender_username",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+      },
+      {
+        "type": "azurerm_eventgrid_system_topic_event_subscription",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_eventhub_namespace_customer_managed_key",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_express_route_circuit_peering",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_frontdoor_custom_https_configuration",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_function_app_active_slot",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_function_app_hybrid_connection",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_iotcentral_application_network_rule_set",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_iotcentral_organization",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_iothub_dps_certificate",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_iothub_enrichment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_iothub_fallback_route",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_iothub_file_upload",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_ip_group_cidr",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_key_vault_access_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_key_vault_certificate",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_key_vault_certificate_contacts",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_key_vault_certificate_issuer",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_key_vault_key",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_key_vault_managed_hardware_security_module_key",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_key_vault_managed_hardware_security_module_key_rotation_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_key_vault_managed_hardware_security_module_role_assignment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_key_vault_managed_hardware_security_module_role_definition",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_key_vault_managed_storage_account",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_key_vault_managed_storage_account_sas_token_definition",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_key_vault_secret",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_kubernetes_cluster_deployment_safeguard",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_kubernetes_cluster_extension",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_kusto_cluster_customer_managed_key",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_lb_nat_pool",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_lb_nat_rule",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_lb_outbound_rule",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_lb_rule",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_log_analytics_cluster_customer_managed_key",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_log_analytics_data_export_rule",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_log_analytics_linked_service",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_log_analytics_workspace_table_custom_log",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_log_analytics_workspace_table_microsoft",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_maintenance_assignment_dedicated_host",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_maintenance_assignment_virtual_machine",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_maintenance_assignment_virtual_machine_scale_set",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_managed_disk_sas_token",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_managed_redis_access_policy_assignment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_managed_redis_geo_replication",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_management_group_policy_remediation",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_management_group_subscription_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_marketplace_agreement",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_marketplace_role_assignment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_mongo_cluster_user",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_mssql_database_extended_auditing_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_mssql_job_agent",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+      },
+      {
+        "type": "azurerm_mssql_job_schedule",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_mssql_managed_instance_active_directory_administrator",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_mssql_managed_instance_failover_group",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_mssql_managed_instance_security_alert_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_mssql_managed_instance_start_stop_schedule",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_mssql_managed_instance_transparent_data_encryption",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_mssql_managed_instance_vulnerability_assessment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_mssql_server_extended_auditing_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_mssql_server_microsoft_support_auditing_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_mssql_server_security_alert_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_mssql_server_transparent_data_encryption",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_mssql_server_vulnerability_assessment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_mssql_virtual_machine",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+      },
+      {
+        "type": "azurerm_mysql_flexible_server_active_directory_administrator",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_nat_gateway_public_ip_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_nat_gateway_public_ip_prefix_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_netapp_account_encryption",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_network_interface_application_gateway_backend_address_pool_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_network_interface_application_security_group_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_network_interface_backend_address_pool_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_network_interface_nat_rule_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_network_interface_security_group_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_network_manager_deployment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_network_security_perimeter_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_new_relic_tag_rule",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_nginx_configuration",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_oracle_autonomous_database_clone_from_backup",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_oracle_autonomous_database_clone_from_database",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_oracle_autonomous_database_cross_region_disaster_recovery",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_palo_alto_local_rulestack_outbound_trust_certificate_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_palo_alto_local_rulestack_outbound_untrust_certificate_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_palo_alto_virtual_network_appliance",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_pim_active_role_assignment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_pim_eligible_role_assignment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_policy_definition",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_portal_tenant_configuration",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_postgresql_flexible_server_virtual_endpoint",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_private_dns_a_record",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+      },
+      {
+        "type": "azurerm_private_dns_aaaa_record",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_private_dns_cname_record",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+      },
+      {
+        "type": "azurerm_private_dns_mx_record",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_private_dns_ptr_record",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_private_dns_srv_record",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_private_dns_txt_record",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_private_endpoint_application_security_group_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_recovery_services_vault_resource_guard_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_redis_linked_server",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_resource_policy_remediation",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_role_assignment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_role_management_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_security_center_assessment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_security_center_assessment_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_security_center_server_vulnerability_assessment_virtual_machine",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_security_center_server_vulnerability_assessments_setting",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_security_center_storage_defender",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_security_center_subscription_pricing",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_security_center_workspace",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_sentinel_alert_rule_anomaly_duplicate",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_sentinel_alert_rule_fusion",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_sentinel_data_connector_office_365_project",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_sentinel_data_connector_threat_intelligence_taxii",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_sentinel_log_analytics_workspace_onboarding",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_sentinel_threat_intelligence_indicator",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_servicebus_namespace_customer_managed_key",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+      },
+      {
+        "type": "azurerm_servicebus_namespace_disaster_recovery_config",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_signalr_service_network_acl",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_site_recovery_fabric",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_site_recovery_hyperv_network_mapping",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_site_recovery_hyperv_replication_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_site_recovery_hyperv_replication_policy_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_site_recovery_network_mapping",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_site_recovery_protection_container",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_site_recovery_protection_container_mapping",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_site_recovery_replicated_vm",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_site_recovery_replication_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_site_recovery_replication_recovery_plan",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_site_recovery_services_vault_hyperv_site",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_site_recovery_vmware_replicated_vm",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_site_recovery_vmware_replication_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_site_recovery_vmware_replication_policy_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_source_control_token",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_spring_cloud_active_deployment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_spring_cloud_builder",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_stack_hci_deployment_setting",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_static_web_app_custom_domain",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_static_web_app_function_app_registration",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_storage_account_customer_managed_key",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+      },
+      {
+        "type": "azurerm_storage_account_network_rules",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+      },
+      {
+        "type": "azurerm_storage_account_queue_properties",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+      },
+      {
+        "type": "azurerm_storage_account_static_website",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+      },
+      {
+        "type": "azurerm_storage_account_table_properties",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+      },
+      {
+        "type": "azurerm_storage_blob",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_storage_blob_inventory_policy",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+      },
+      {
+        "type": "azurerm_storage_container_immutability_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_storage_data_lake_gen2_filesystem",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_storage_data_lake_gen2_path",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_storage_management_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_storage_object_replication",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_storage_share_directory",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_storage_share_file",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_storage_table_entity",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_stream_analytics_job_schedule",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_stream_analytics_job_storage_account",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_stream_analytics_stream_input_eventhub_v2",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_subnet_nat_gateway_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_subnet_network_security_group_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_subnet_route_table_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_subscription",
+        "tier": "marker-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_synapse_managed_private_endpoint",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_synapse_role_assignment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_synapse_sql_pool_extended_auditing_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_synapse_sql_pool_security_alert_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_synapse_sql_pool_vulnerability_assessment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_synapse_workspace_aad_admin",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_synapse_workspace_extended_auditing_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_synapse_workspace_key",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_synapse_workspace_security_alert_policy",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_synapse_workspace_sql_aad_admin",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_synapse_workspace_vulnerability_assessment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_system_center_virtual_machine_manager_virtual_machine_instance",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_system_center_virtual_machine_manager_virtual_machine_instance_guest_agent",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_traffic_manager_azure_endpoint",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_traffic_manager_external_endpoint",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_traffic_manager_nested_endpoint",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_virtual_desktop_host_pool_registration_info",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_virtual_desktop_scaling_plan_host_pool_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_virtual_desktop_workspace_application_group_association",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_virtual_hub_route_table_route",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_virtual_machine_automanage_configuration_assignment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_virtual_machine_data_disk_attachment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_virtual_machine_gallery_application_assignment",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_virtual_network_dns_servers",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_vmware_cluster",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_web_app_active_slot",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_web_app_hybrid_connection",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_web_pubsub_network_acl",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      }
+    ],
+    "scopes": [
+      {
+        "scope": "resource-group",
+        "fence": "the estate's group RBAC covers it"
+      },
+      {
+        "scope": "from-argument",
+        "fence": "covered when the argument names something inside one of the estate's groups, not otherwise"
+      },
+      {
+        "scope": "subscription",
+        "fence": "outside every group: the grant does not reach it"
+      },
+      {
+        "scope": "tenant",
+        "fence": "outside every group: the grant does not reach it"
+      },
+      {
+        "scope": "unknown",
+        "fence": "no id template, so where it lives is not known"
       }
     ]
   }

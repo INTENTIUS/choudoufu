@@ -144,7 +144,7 @@ func azureReadiness(a readinessAzure) string {
 	for _, sc := range a.Scopes {
 		fmt.Fprintf(&s, " | %s", sc.Scope)
 	}
-	s.WriteString(" | What fences it |\n|---")
+	s.WriteString(" | What Policy adds to the group RBAC |\n|---")
 	for range a.Scopes {
 		s.WriteString("|---")
 	}

@@ -63,11 +63,11 @@ var azureScopeFence = map[string]string{
 
 // azureTierFence is the tag half of the fence for a tier: what the Azure
 // Policy pair in live/azure/estate-boundary.json adds on top of the
-// group's RBAC.
+// group's RBAC, which [azureScopeFence] states per scope.
 var azureTierFence = map[string]string{
-	TierMarkerCarried:      "group RBAC, plus the Policy deny on a write lacking or changing tofu-estate and the denyAction on deleting a tagged resource",
-	TierDeclarationCarried: "group RBAC only: Policy's Indexed mode never evaluates an untaggable type, and deleting the parent removes it unseen",
-	TierRecordCarried:      "group RBAC only, and the type is not admitted",
+	TierMarkerCarried:      "the deny on a write lacking or changing tofu-estate, and the denyAction on deleting a tagged resource",
+	TierDeclarationCarried: "nothing: Policy's Indexed mode never evaluates an untaggable type, and deleting its parent removes it unseen",
+	TierRecordCarried:      "nothing, and the type is not admitted",
 	TierExcludedByDesign:   "not admitted",
 }
 
