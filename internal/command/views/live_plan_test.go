@@ -469,3 +469,39 @@ func TestLivePlan_lookalikesPostCreateWindow(t *testing.T) {
 		t.Errorf("the killed-apply sentence appears %d times, want 2 (once per post-create type, never for aws_route_table):\n%s", n, got)
 	}
 }
+
+// TestLivePlan_untaggableGapStatesTheRecordRuling pins the grouped
+// TYPE_NOT_TAGGABLE paragraph to GitHub issue #2119's D3 ruling, which is
+// the same on every platform: with the record present a removed untaggable
+// block plans its destroy, and with the record lost the resource is left
+// running unowned, unwarned, with live/RECOVERY.md's recovery. It used to
+// tell the reader to destroy before removing the block, which the record
+// leg made untrue. One AWS gap and one Azure gap share the paragraph.
+func TestLivePlan_untaggableGapStatesTheRecordRuling(t *testing.T) {
+	streams, done := terminal.StreamsForTesting(t)
+	view := NewView(streams).SetRunningInAutomation(true)
+	view.SetVerbose(true)
+	v := NewLivePlan(view)
+
+	v.Foreign(LiveForeign{SweepGaps: []LiveSweepGap{
+		{TypeName: "aws_iam_role_policy", Reason: "TYPE_NOT_TAGGABLE", Detail: "per-gap detail"},
+		{TypeName: "azurerm_subnet", Reason: "TYPE_NOT_TAGGABLE", Detail: "per-gap detail"},
+	}})
+
+	got := strings.Join(strings.Fields(done(t).Stdout()), " ")
+	for _, want := range []string{
+		"aws_iam_role_policy, azurerm_subnet [TYPE_NOT_TAGGABLE]",
+		"removing its block still plans the destroy",
+		"left running unowned, and no plan warns about it",
+		`live/RECOVERY.md, "A removed block of an untaggable type, record lost"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the untaggable paragraph does not say %q:\n%s", want, got)
+		}
+	}
+	for _, stale := range []string{"deletes the only record", "Destroy it before removing its block"} {
+		if strings.Contains(got, stale) {
+			t.Errorf("the untaggable paragraph still says %q, which #2119's D3 ruling contradicts:\n%s", stale, got)
+		}
+	}
+}

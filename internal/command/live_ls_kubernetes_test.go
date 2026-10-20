@@ -232,14 +232,14 @@ func TestLiveLsRung_labelAndManifestSurfacesAreMarkerCarried(t *testing.T) {
 
 	for _, typeName := range []string{"kubernetes_config_map", "kubernetes_manifest"} {
 		res := liveLsTestResolution(t, typeName+".x", identity.ClassConcrete)
-		if rung, _, ok := liveLsRung(res, schemas); ok {
+		if rung, _, ok := liveLsRung(res, schemas, liveLsInstance{}); ok {
 			t.Errorf("%s classified as rung %q; a label-carried type not found is an absence, not a rung", typeName, rung)
 		}
 	}
 	// The control: a type with no marker surface of any kind is still the
 	// declaration-carried rung this function has always reported.
 	res := liveLsTestResolution(t, "aws_iam_group_policy_attachment.x", identity.ClassConcrete)
-	if rung, _, ok := liveLsRung(res, schemas); !ok || rung != "declaration-carried" {
+	if rung, _, ok := liveLsRung(res, schemas, liveLsInstance{}); !ok || rung != "declaration-carried" {
 		t.Errorf("untaggable AWS type: rung=%q ok=%v, want declaration-carried/true", rung, ok)
 	}
 }
