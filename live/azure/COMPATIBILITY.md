@@ -153,8 +153,9 @@ object at the declared id would be overwritten", because an ARM create is
 a PUT that would update it in place. `declared_untagged = "keep"` or
 `"report"` would leave that create standing, so lint's
 `policy-overwrite-at-key` refuses both verbs in any configuration with an
-azurerm or azapi resource. `"adopt"` takes the object over with the
-markers written in the plan.
+azurerm or azapi resource. `"adopt"` and `"converge"` admit the object
+before the refusal is checked, and take it over with the markers written in
+the plan.
 
 A plan also stops if a subscription has not registered
 `Microsoft.ResourceGraph`, or if Resource Graph throttles past its retry

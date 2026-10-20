@@ -1651,9 +1651,11 @@ to an id that already exists updates the object there instead of failing, so
 on Azure the same create takes the unmarked object over with nothing to say
 it was ever this estate's (GitHub issue #1120, ruled on #1122). Which
 families this applies to is read off `substrate.CreateOverwritesAtKey`, never
-off a type name. The projection refuses such an object by name under every
-verb that reaches it ("Unmarked live object at the declared id would be
-overwritten"); this rule stops the configuration before any plan.
+off a type name. The projection refuses such an object by name under
+`"refuse"` (the default), `"keep"` and `"report"` ("Unmarked live object at
+the declared id would be overwritten"); `"adopt"` and `"converge"` admit the
+object first and write this estate's markers onto it, so they never reach
+that refusal. This rule stops the configuration before any plan.
 
 **Forwarding address.** Remove the assignment to keep the default,
 `"refuse"`, which stops a plan that meets such an object; set `"adopt"` to
@@ -5064,7 +5066,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Unmarked live object at the declared id would be overwritten
 
-**What.** GitHub issue #1120, ruled on #1122: a declared Azure resource (azurerm, or azapi_resource) was read at the ARM id its block declares, and it carries no tofu-estate tag. Under declared_untagged's default the plan would propose creating it, and an ARM create is a PUT, which updates an object already at that id instead of failing, so the apply would take the object over silently; the run stops instead. Unlike #1546's refusal it holds under declared_untagged = "keep" and "report" too, since those verbs leave the same create standing; lint's policy-overwrite-at-key refuses them before any plan. policy { declared_untagged = "adopt" } adopts the object, and writing the tofu-estate and tofu-address tags onto it does the same by hand. An absent object never triggers this, nor does an object carrying another estate's marker, which is refused as another estate's; AWS and Kubernetes types are unaffected.
+**What.** GitHub issue #1120, ruled on #1122: a declared Azure resource (azurerm, or azapi_resource) was read at the ARM id its block declares, and it carries no tofu-estate tag. Under declared_untagged's default the plan would propose creating it, and an ARM create is a PUT, which updates an object already at that id instead of failing, so the apply would take the object over silently; the run stops instead. It holds under declared_untagged = "refuse" (the default), "keep" and "report": unlike #1546's refusal, keep and report do not soften it, since those verbs leave the same create standing, and lint's policy-overwrite-at-key refuses them before any plan. "adopt" and "converge" never reach it, because they admit the object first and the plan writes this estate's markers onto it. policy { declared_untagged = "adopt" } adopts the object, and writing the tofu-estate and tofu-address tags onto it does the same by hand. An absent object never triggers this, nor does an object carrying another estate's marker, which is refused as another estate's; AWS and Kubernetes types are unaffected.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

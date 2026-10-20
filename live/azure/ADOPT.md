@@ -102,9 +102,11 @@ object at the declared id would be overwritten". On AWS the same plan
 proposes a second resource beside it; on Kubernetes the API server answers
 409.
 
-The refusal holds under `declared_untagged = "keep"` and `"report"` as well,
-and lint's `policy-overwrite-at-key` rule refuses those two verbs for any
-configuration with an azurerm or azapi resource. To take the object over,
+The refusal holds under `declared_untagged = "refuse"` (the default),
+`"keep"` and `"report"`, and lint's `policy-overwrite-at-key` rule refuses
+`"keep"` and `"report"` for any configuration with an azurerm or azapi
+resource. `"adopt"` and `"converge"` admit the object before the refusal is
+checked, and the plan writes the markers onto it. To take the object over,
 set `policy { declared_untagged = "adopt" }`, or write the two tags onto it
 by hand. Both are in
 [`live/LIMITATIONS.md`](../LIMITATIONS.md#unmarked-live-object-at-the-declared-id-would-be-overwritten).

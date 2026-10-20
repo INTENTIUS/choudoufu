@@ -406,10 +406,11 @@ the `Unowned` case above. A cloud that rejects a create at a taken name
 makes an unmarked object a harmless refusal there, but an ARM create is a
 PUT, and a PUT at an existing id updates the object in place.
 So the plan refuses such an object by name, "Unmarked live object at the
-declared id would be overwritten", under every `declared_untagged` verb but
-`"adopt"`, and lint refuses `"keep"` and `"report"` outright
-(`policy-overwrite-at-key`). Adopt it with `"adopt"`, or write the two tags
-by hand and plan again.
+declared id would be overwritten", under `declared_untagged = "refuse"`
+(the default), `"keep"` and `"report"`, and lint refuses `"keep"` and
+`"report"` outright (`policy-overwrite-at-key`). `"adopt"` and `"converge"`
+admit the object first and write the markers onto it in the plan. Adopt it
+with `"adopt"`, or write the two tags by hand and plan again.
 
 If the stock state lives in the `azurerm` backend, `tofu state pull >
 stock.tfstate` gives `live-import` its file. Keep the blob as the way back

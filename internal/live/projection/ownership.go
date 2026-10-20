@@ -487,7 +487,8 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		// object over, so the run stops here instead, by name, before any
 		// create is proposed.
 		//
-		// Under every verb that reaches this line, not only the default.
+		// Under every verb that reaches this line, not only the default:
+		// refuse, keep and report. adopt and converge never reach it.
 		// #1546's branch keeps "keep" and "report" as softer refusals
 		// because there the server refuses the create anyway; here those
 		// two verbs leave the object out of the prior state exactly as

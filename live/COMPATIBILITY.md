@@ -459,9 +459,11 @@ creates first, the same order as AWS.
 
 **Azure.** The command-level refusals are unchanged. What differs is an
 unmarked object at a declared id: an ARM create is a PUT that would update
-it in place, so the plan refuses it by name under every
-`declared_untagged` verb but `"adopt"`, and lint's `policy-overwrite-at-key`
-refuses `"keep"` and `"report"` before any plan.
+it in place, so the plan refuses it by name under `declared_untagged =
+"refuse"` (the default), `"keep"` and `"report"`, and lint's
+`policy-overwrite-at-key` refuses `"keep"` and `"report"` before any plan.
+`"adopt"` and `"converge"` admit the object first and write the markers
+onto it in the plan.
 `live/azure/COMPATIBILITY.md`'s "How you run it" has the rest.
 
 ## Constructs this page used to refuse, and no longer does
