@@ -119,7 +119,10 @@ A new platform fills in the same column. These are the rows the GCP and
 Azure drafts got wrong first: `CarriesAddress`, `MarkerOutlivesObject`,
 `CreateCollidesOnKey`, `ControllerHeld`, `PostCreateNeeded` and
 `SweepFindsUnadmitted`. Each one is a fact about the cloud's API, so
-measure it on the emulator and do not copy it from AWS.
+do not copy it from AWS. In a build round, with no emulator runs, take the
+answer from the platform's docs and the provider source, say so where the
+answer is recorded, and the maintainer measures it on the emulator
+afterwards.
 
 ### 3. Estate identity rule (admission of types)
 
@@ -131,9 +134,10 @@ measure it on the emulator and do not copy it from AWS.
 Fixed: read from the schema or generated evidence, never a type-name list;
 `SynthesizeIdentity` is the family's answer for a type with no row. Per
 platform: the source. GCP's open question is Magic Modules rows versus a
-`name`/`project`/location rule (#1119 item 1, #1121 measurement 5); Azure's
-is azurerm's id parsers versus `resource_group_name` + `name`, plus azapi
-(#1122 items 4 and 5). Neither is ruled yet.
+`name`/`project`/location rule (#1119 item 1, #1121 measurement 5), not yet
+ruled. Azure's is ruled (#1122): a `resource_group_name` + `name` rule with
+the ARM type from a table generated from azurerm's id parsers, and azapi
+binding by `type` + `parent_id` + `name`, the manifest mechanism.
 
 ### 4. Marker carrier, written in-create
 
@@ -152,7 +156,7 @@ so the create carries it, and a `Writes` entry per surface
 (`markers/seams_test.go`) then forces every seam to handle. Per platform:
 the carrier and its value grammar (labels cap at 63 characters). GCP is
 ruled: labels, in-create, estate-only, tag bindings later (#1121). Azure's
-carrier is expected to be `tags` (#1120 item 2) and is not yet ruled.
+carrier is ruled: `tags`, in-create, on azurerm and azapi alike (#1122).
 
 ### 5. Binding a live object back to its address
 
@@ -178,8 +182,9 @@ encoding of the address (#1121, 2026-10-19).
 
 The rule for a new platform, in order: look first for a carrier the stock
 provider already writes; classify the rest by survey path; veto the
-server-minted ones; state the fence gap. GCP's network skeleton has no
-labels (#1119 item 3), so this tier is large there. The proving claims are
+server-minted ones; state the fence gap. This tier is large on both new
+platforms: GCP's network skeleton has no labels (#1119 item 3), and on
+Azure 1,132 of 2017 ARM resource types take no tags (#1122). The proving claims are
 inventoried in [#2119](https://github.com/INTENTIUS/choudoufu/issues/2119)
 and built last.
 
@@ -351,9 +356,9 @@ Known differences for the next two, from the issues only:
 - GCP: labels for the estate and an encoded `tofu-address` label, no
   labels on the network skeleton, fence project-scoped for now, `google`
   and `google-beta` share types (#1119 items 3 and 6, #1121).
-- Azure: tags nearly universal, the fence is resource groups (#1122), azapi
-  beside azurerm, case-insensitive tag keys; carrier and identity rule not
-  yet ruled (#1120, #1122).
+- Azure: tags on 885 of 2017 ARM types, the fence is resource groups,
+  azapi beside azurerm as one family, case-insensitive tag keys and ARM
+  ids; carrier and identity rule ruled on #1122 (2026-10-19).
 
 ## Registries that bite in CI
 
