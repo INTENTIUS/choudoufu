@@ -179,12 +179,13 @@ encoding of the address (#1121, 2026-10-19).
 
 | | AWS | Kubernetes |
 |---|---|---|
-| Answer | the declaration-carried tier, counted in `live/SUBSTRATES.md` and classified by survey path in `live/RECOVERY.md` (client-named, parent-derived, account-derived, unique-name) | no untaggable whole-object types; the field-granular types (#1191) carry the server-side-apply field manager `choudoufu:<estate>` as their marker (`kubesweep/fieldgranular.go`) |
+| Answer | the declaration-carried tier, counted in `live/SUBSTRATES.md`, and split by how each type comes back in `live/READINESS.md`'s generated table (`tools/readiness-gen/paths.go`) | no untaggable whole-object types; the field-granular types (#1191) carry the server-side-apply field manager `choudoufu:<estate>` as their marker (`kubesweep/fieldgranular.go`) |
 | Veto | `identity.MarkerlessTypes` (`identity/markerless_generated.go`) refuses untaggable types whose identity is server-minted | none needed |
 | Fence gap | stated per service in `live/MARKERS.md`, "What this grant cannot reach" | none for whole objects |
 
 The rule for a new platform, in order: look first for a carrier the stock
-provider already writes; classify the rest by survey path; veto the
+provider already writes; tier the rest from the facts that re-derive them,
+and give the platform a table in `tools/readiness-gen/paths.go`; veto the
 server-minted ones; state the fence gap. This tier is large on both new
 platforms: GCP's network skeleton has no labels (#1119 item 3), and on
 Azure 1,132 of 2017 ARM resource types take no tags (#1122). The proving claims are

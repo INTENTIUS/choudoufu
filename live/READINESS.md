@@ -23,6 +23,27 @@ around the generated markers, never inside them.
 `live/readiness.json` last committed at commit `e11aaf8a3d` on 2026-10-19T23:55:02-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.
 <!-- readiness-gen:end tiers -->
 
+## How each type comes back
+
+The tier says what carries a type's identity. This table splits each tier
+by what the identity is rebuilt from on a run with no cache. It is read
+from the same facts as the tier (`live/survey-full.json`, the identity
+table, `live/mapping.json` for a parent's service) by
+`tools/readiness-gen/paths.go`, and nothing stores it.
+
+<!-- readiness-gen:begin paths -->
+| How it comes back | Tier | Types | What it means |
+|---|---|---|---|
+| marker | marker-carried | 846 | The `tofu-address` tag on the object is the identity; the sweep reads it back. |
+| client-named | declaration-carried | 160 | The configuration names it, so the name re-derives every run. |
+| parent-derived | declaration-carried | 184 | Composed over a parent type the configuration also declares. |
+| account-derived | declaration-carried | 31 | The configuration plus the run's account or region rebuilds it. |
+| unique-name | declaration-carried | 4 | AWS refuses to issue the name twice in an account and region, so discovery binds by name. |
+| server-minted | record-carried | 158 | The API mints the identity and the object carries no marker; only a record holds it. |
+| unbindable | record-carried | 313 | No marker, and the declaration does not rebuild it; a record is the only copy. |
+| excluded by design | excluded by design | 3 | A credential this fork declines to manage. |
+<!-- readiness-gen:end paths -->
+
 ## Two counts called record-carried
 
 Two populations share the record-carried tier's name. `identity.MarkerlessTypes`
@@ -30,9 +51,8 @@ Two populations share the record-carried tier's name. `identity.MarkerlessTypes`
 from taggability and server-assignment. The table above counts **471**:
 the 158 of those 159 that land here (the 159th, `aws_wafv2_api_key`, is
 excluded by design instead) plus **313** more `tools/readiness-gen` adds by
-elimination - untaggable, unadmitted, and out of any other tier's survey
-path. **159** answers "how many types does the located mechanism cover";
-**471** answers "how many types does this tier show". Recount from
+elimination - untaggable, unadmitted, and in no other tier. **159** answers
+"how many types does the located mechanism cover"; **471** answers "how many types does this tier show". Recount from
 `live/readiness.json` (`facts.markerless`, `tier`) and
 `markerless_generated.go`; `live/readiness_docs_pin_test.go` fails when
 these figures move.
@@ -56,12 +76,24 @@ hashicorp/kubernetes 3.2.1: 4 admitted type(s), 0 awaiting a tier ruling.
 ## Google Cloud
 
 hashicorp/google and google-beta, counted apart from the AWS tiers above.
-Each type's survey path is its tier's input: the marker path is a type
-with the google-labels surface (a settable `labels` beside the computed
-`effective_labels`); client-named, parent-derived and project-derived
-are re-derived from the declaration; server-minted and unbindable are
-record-carried. Rows, paths and reasons come from `tools/gcp-row-gen`
-(`live/gcp-survey.json`), read from the provider's own source at the pin.
+A type with the google-labels surface (a settable `labels` beside the
+computed `effective_labels`) is marker-carried. An unlabelled type is
+declaration-carried when its row's id, or the identity-schema route,
+re-derives it from the declaration, and record-carried otherwise. Rows and
+reasons come from `tools/gcp-row-gen` (`live/gcp-survey.json`), read from
+the provider's own source at the pin.
+
+<!-- readiness-gen:begin gcp-paths -->
+| How it comes back | Tier | Types | What it means |
+|---|---|---|---|
+| marker | marker-carried | 320 | The `tofu-address` label on the object is the identity; the sweep reads it back. |
+| client-named | declaration-carried | 301 | The configuration names it, under a project or location it also names or the provider supplies. |
+| parent-derived | declaration-carried | 545 | Composed over a containing resource the configuration also names; every IAM type is this shape. |
+| project-derived | declaration-carried | 16 | Only project, region or zone names it: one per project or region. |
+| unique-name | - | 0 | Nothing in the google source states a name the API refuses to issue twice, so no type is here. |
+| server-minted | record-carried | 133 | The API mints the identity and the type has no labels; only a record holds it. |
+| unbindable | record-carried | 170 | No row and no identity-schema route; a record is the only copy. |
+<!-- readiness-gen:end gcp-paths -->
 
 <!-- readiness-gen:begin gcp-types -->
 hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
@@ -73,16 +105,6 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | record-carried | 0 | 57 | 0 | 113 | 133 | 0 | 303 |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | Total | 1098 | 131 | 0 | 123 | 133 | 0 | 1485 |
-
-| Survey path | Tier | Types |
-|---|---|---|
-| marker | marker-carried | 320 |
-| client-named | declaration-carried | 301 |
-| parent-derived | declaration-carried | 545 |
-| project-derived | declaration-carried | 16 |
-| unique-name | declaration-carried | 0 |
-| server-minted | record-carried | 133 |
-| unbindable | record-carried | 170 |
 
 | Reason | Why the type is not in contract |
 |---|---|

@@ -9144,6 +9144,56 @@
       "status": "in-contract"
     }
   ],
+  "paths": [
+    {
+      "path": "marker",
+      "tier": "marker-carried",
+      "count": 846,
+      "means": "The `tofu-address` tag on the object is the identity; the sweep reads it back."
+    },
+    {
+      "path": "client-named",
+      "tier": "declaration-carried",
+      "count": 160,
+      "means": "The configuration names it, so the name re-derives every run."
+    },
+    {
+      "path": "parent-derived",
+      "tier": "declaration-carried",
+      "count": 184,
+      "means": "Composed over a parent type the configuration also declares."
+    },
+    {
+      "path": "account-derived",
+      "tier": "declaration-carried",
+      "count": 31,
+      "means": "The configuration plus the run's account or region rebuilds it."
+    },
+    {
+      "path": "unique-name",
+      "tier": "declaration-carried",
+      "count": 4,
+      "means": "AWS refuses to issue the name twice in an account and region, so discovery binds by name."
+    },
+    {
+      "path": "server-minted",
+      "tier": "record-carried",
+      "count": 158,
+      "means": "The API mints the identity and the object carries no marker; only a record holds it."
+    },
+    {
+      "path": "unbindable",
+      "tier": "record-carried",
+      "count": 313,
+      "means": "No marker, and the declaration does not rebuild it; a record is the only copy."
+    },
+    {
+      "path": "excluded by design",
+      "tier": "excluded by design",
+      "count": 3,
+      "means": "A credential this fork declines to manage."
+    }
+  ],
   "kubernetes": {
     "provider": "hashicorp/kubernetes 3.2.1",
     "total": 4,
@@ -9244,37 +9294,44 @@
       {
         "path": "marker",
         "tier": "marker-carried",
-        "count": 320
+        "count": 320,
+        "means": "The `tofu-address` label on the object is the identity; the sweep reads it back."
       },
       {
         "path": "client-named",
         "tier": "declaration-carried",
-        "count": 301
+        "count": 301,
+        "means": "The configuration names it, under a project or location it also names or the provider supplies."
       },
       {
         "path": "parent-derived",
         "tier": "declaration-carried",
-        "count": 545
+        "count": 545,
+        "means": "Composed over a containing resource the configuration also names; every IAM type is this shape."
       },
       {
         "path": "project-derived",
         "tier": "declaration-carried",
-        "count": 16
+        "count": 16,
+        "means": "Only project, region or zone names it: one per project or region."
       },
       {
         "path": "unique-name",
-        "tier": "declaration-carried",
-        "count": 0
+        "tier": "",
+        "count": 0,
+        "means": "Nothing in the google source states a name the API refuses to issue twice, so no type is here."
       },
       {
         "path": "server-minted",
         "tier": "record-carried",
-        "count": 133
+        "count": 133,
+        "means": "The API mints the identity and the type has no labels; only a record holds it."
       },
       {
         "path": "unbindable",
         "tier": "record-carried",
-        "count": 170
+        "count": 170,
+        "means": "No row and no identity-schema route; a record is the only copy."
       }
     ],
     "types": [

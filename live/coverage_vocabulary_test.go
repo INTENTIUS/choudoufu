@@ -37,7 +37,9 @@ import (
 // tokens. Comments are not counted: a pointer to where a fact used to live
 // is documentation, not a consumer. "marker" is a path token too and is left
 // out, because it is also the ordinary word for the thing the tiers are
-// about.
+// about. "server-minted" is left out for a like reason: it is also one of
+// the #522 ruling's three identity kinds in tools/gauntlet, a vocabulary of
+// its own that only shares the spelling.
 //
 // What is deliberately NOT counted is a reference to live/survey-full.json
 // itself. That artifact now carries only the provider's own signals
@@ -50,13 +52,16 @@ import (
 // mapping.json and the identity table they produce), so pointing them at
 // readiness would make each generator's input depend on its own output.
 
-// surveyPathTokens is survey-gen's path vocabulary (tools/survey-gen's
-// classify.go), less "marker".
+// surveyPathTokens is survey-gen's retired path vocabulary (tools/survey-gen's
+// classify.go) and the GCP column's two additions, less "marker" and
+// "server-minted".
 var surveyPathTokens = map[string]bool{
 	"client-named":           true,
 	"parent-derived":         true,
 	"account-derived":        true,
+	"project-derived":        true,
 	"unique-name":            true,
+	"unbindable":             true,
 	"enumerable, unbindable": true,
 	"moves to Ops":           true,
 }
@@ -66,19 +71,18 @@ func surveyVocabularyLiteral(v string) bool {
 }
 
 // surveyVocabularySites is the census: 28 literals in 6 files when #1845
-// landed, zero since the #696 retirement. A file that needs one of these
+// landed, zero after the #696 retirement. A file that needs one of these
 // tokens back is a second classification of the identity axis, which is
-// what #696 removed for AWS.
+// what #696 removed.
 //
-// The three entries are #1119's GCP classification, asked for by the
-// maintainer for #2119: hashicorp/google types sorted by RECOVERY.md's
-// paths so the GCP column reads in the same terms as AWS's. The path is
-// not a second tier: tools/readiness-gen reads it only to choose the tier
-// (googlePathTiers), and live/gcp-survey.json is where it is recorded.
+// The one entry is the maintainer's ruling of 2026-10-20 on #696 (#2134
+// item 12). The readiness tier stays the only classification in code and
+// data, and a GENERATED table says how each type comes back, for AWS and
+// GCP, read at render time from the facts the tier is read from.
+// tools/readiness-gen/paths.go is that generator and the only file that
+// may spell the path names; every other file stays at zero.
 var surveyVocabularySites = map[string]int{
-	"tools/gcp-row-gen/generate.go": 3,
-	"tools/readiness-gen/build.go":  3,
-	"tools/readiness-gen/render.go": 3,
+	"tools/readiness-gen/paths.go": 6,
 }
 
 func TestNoNewCodeSpeaksTheSurveyVocabulary(t *testing.T) {

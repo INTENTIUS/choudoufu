@@ -368,7 +368,7 @@ func decideIAM(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc) Dec
 		Components:     comps,
 		ImportSyntax:   d.Template,
 	}
-	d.Parents = []string{strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(d.Type, "_iam_member"), "_iam_binding"), "_iam_policy"), "_iam_audit_config")}
+	d.Parents = []string{iamParent(d.Type)}
 	return d
 }
 

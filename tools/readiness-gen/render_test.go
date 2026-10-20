@@ -48,7 +48,11 @@ func TestReadinessSiteDataIsCurrent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("readinessStamp: %v", err)
 	}
-	want, err := renderSiteData(artifact, stamp)
+	pf, err := loadPathFacts(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := renderSiteData(artifact, stamp, pf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +121,11 @@ func TestReadinessRenderedSpansAreCurrent(t *testing.T) {
 func TestReadinessSiteDataCarriesEveryRow(t *testing.T) {
 	root := testRepoRoot(t)
 	artifact := readCommitted(t, root)
-	data := buildSiteData(artifact, "stamp")
+	pf, err := loadPathFacts(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := buildSiteData(artifact, "stamp", pf)
 
 	if len(data.Types) != len(artifact.Types) {
 		t.Errorf("buildSiteData produced %d type rows, live/readiness.json has %d types", len(data.Types), len(artifact.Types))

@@ -158,8 +158,8 @@ func TestDecideGlobalResource(t *testing.T) {
 	if !reflect.DeepEqual(d.Row.Components, want) {
 		t.Errorf("components\n got %#v\nwant %#v", d.Row.Components, want)
 	}
-	if got := surveyPath(d, false); got != PathClientNamed {
-		t.Errorf("path %s, want client-named", got)
+	if len(d.Parents) != 0 || d.Scoped {
+		t.Errorf("parents %v, scoped %v; want neither: the network's name is its own", d.Parents, d.Scoped)
 	}
 }
 
@@ -252,7 +252,7 @@ func TestDecideIAMMember(t *testing.T) {
 	if last.Block != "condition" || !last.OmitIfAbsent || last.Literal != " " || last.IdentityAttr != "condition_title" {
 		t.Errorf("condition component %#v", last)
 	}
-	if got := surveyPath(d, false); got != PathParentDerived {
-		t.Errorf("path %s, want parent-derived", got)
+	if want := []string{"google_compute_instance"}; !reflect.DeepEqual(d.Parents, want) {
+		t.Errorf("parents %v, want %v", d.Parents, want)
 	}
 }
