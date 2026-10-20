@@ -295,17 +295,18 @@ const figureText = (f: Figure) => `${f.value} ${f.label} (${f.measured}).`;
 	.cube-list :global(li) {
 		position: relative;
 		margin: 0;
-		padding-left: 1.1rem;
+		padding-left: 1.6rem;
 		color: var(--sl-color-white);
 	}
 	.cube-list :global(li)::before {
 		content: '';
 		position: absolute;
 		left: 0;
-		top: 0.5em;
-		width: 0.5rem;
-		height: 0.5rem;
-		background: var(--cd-accent);
+		top: calc((1lh - 16px) / 2);
+		width: 16px;
+		height: 16px;
+		background: url('/choudoufu/brand/cube-16.png') no-repeat;
+		image-rendering: pixelated;
 	}
 	.card :global(a) {
 		color: var(--cd-accent);
