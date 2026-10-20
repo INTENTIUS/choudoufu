@@ -51,6 +51,12 @@ var guardedPackages = []string{
 	// collapses to one digest over its elements. Same reasoning as
 	// "markerstrip" below.
 	"approval",
+	// GitHub issue #1120's Azure sweep client: reads the azurerm or azapi
+	// provider block's evaluated configuration the way gcpsweep does,
+	// testing every argument for a mark before reading it and unmarking
+	// only the arguments that are the credential. Its API answers are Go
+	// structs.
+	"azsweep",
 	"check",
 	"cloudcontrol",
 	// The verification cohorts' pinned rosters (issue #699): 31 cohort
