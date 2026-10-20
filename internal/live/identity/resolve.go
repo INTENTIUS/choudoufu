@@ -1159,7 +1159,7 @@ func (r *resolver) recordFallback(addr addrs.AbsResourceInstance, resourceType s
 	if !r.recordStore {
 		return Resolution{}, false
 	}
-	if !RecordFallbackType(resourceType, r.schemas) {
+	if !RecordFallbackType(resourceType, r.typeProviders[resourceType], r.schemas) {
 		return Resolution{}, false
 	}
 	// GitHub issue #1675: the discriminator [internal/live/projection.WriteBack]

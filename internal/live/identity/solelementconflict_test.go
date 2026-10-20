@@ -143,7 +143,7 @@ func TestSecurityGroupRuleSourceSegmentReachesTheRecordRung(t *testing.T) {
 		t.Errorf("separator = %q, want %q", sep, "_")
 	}
 
-	if !RecordFallbackType("aws_security_group_rule", schemas) {
+	if !RecordFallbackType("aws_security_group_rule", "aws", schemas) {
 		t.Fatal("RecordFallbackType(real aws_security_group_rule schema) = false, want true: the variadic tail " +
 			"now lets the record-rung promise (\"the record can be read back as a whole, correct import " +
 			"identity\") be kept for this type")

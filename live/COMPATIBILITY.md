@@ -463,7 +463,9 @@ creates first, the same order as AWS.
 **GCP.** The command-level refusals above are unchanged. A plan reaches
 Cloud Asset Inventory once per project for the sweep, so the Cloud Asset
 API has to be enabled there; where it is not, the plan carries the warning
-"GCP sweep incomplete" and is otherwise correct.
+"GCP sweep incomplete" and is otherwise correct, unless it declares a
+server-named google instance only the search can find, which it then
+refuses rather than plan a duplicate.
 `live/gcp/COMPATIBILITY.md`'s "How you run it" has the index lag.
 
 ## Constructs this page used to refuse, and no longer does

@@ -763,7 +763,15 @@ one in-place label change, as the AWS tag rewrite does.
 Because a label names no address a reader can recover, the sweep never
 plans removal of an object whose address label matches nothing declared. It
 reports it ("GCP resource carries this estate's label and no declared
-address") and the deleted block's record proposes the removal.
+address") and the deleted block's record proposes the removal. The one
+exception is a slotted member of a declared `count` set past its count: the
+slot says which member it is, so a scale-down removes it as on AWS.
+
+The sweep is also how an instance whose identity the server assigns is
+found. Its address label binds it, and its import id is the asset's full
+resource name without the service host (`projects/p/keys/k`). The index
+lags creates, so an object created moments ago can be missing; an estate
+with a record store finds it by its record first.
 
 ### Why GCP carries `tofu-slot`
 
@@ -776,6 +784,12 @@ live dataset is instance 1. So the slot rule is AWS's, unchanged: written
 only on such a set, all members or none, digits only, and the slot binds
 before the address. A slot value is digits, which a label value can hold
 as written.
+
+The sweep reads it the way the AWS tag sweep does. Every hit whose address
+label names one of the set's instances, or whose block part names the set,
+joins it; the set binds by slot when its members carry slots and by
+address when none do, and the slots it settles are the ones the next stamp
+writes.
 
 ### Granting a GCP estate
 
@@ -824,7 +838,10 @@ filtered on the estate label. In each of those projects the Cloud Asset API
 (`cloudasset.googleapis.com`) must be enabled and the principal must hold
 `cloudasset.assets.searchAllResources`, which `roles/cloudasset.viewer`
 carries. A project where either is missing is the warning "GCP sweep
-incomplete": a gap in coverage, never a wrong plan. The index lags creates
+incomplete": a gap in coverage, never a wrong plan. When the configuration
+has instances only the search can find, whose names the server assigns,
+the plan also refuses their type as "Unlistable marker-discovered type"
+rather than plan a create of something that may exist. The index lags creates
 and deletes, so a deleted resource's labels can still be listed for a
 while, and a record tombstone tells that from a second claimant, as on AWS.
 

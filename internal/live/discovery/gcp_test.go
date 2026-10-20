@@ -61,7 +61,7 @@ func TestGCPAssetSweep(t *testing.T) {
 		gcpResolution(t, "google_pubsub_topic.events", "projects/proj-b/topics/events"),
 	}}
 	res := &Result{}
-	diags := GCPAssetSweep{Searcher: searcher, Project: "proj-a"}.sweep(context.Background(), req, res)
+	diags := GCPAssetSweep{Searcher: searcher, Project: "proj-a"}.sweep(context.Background(), req, nil, res)
 
 	if len(res.ControllerHeld) != 1 || !strings.Contains(res.ControllerHeld[0].ImportID, "gke-node-1") || res.ControllerHeld[0].Controller != "GKE" {
 		t.Errorf("controller-held = %+v, want the GKE node alone", res.ControllerHeld)
