@@ -1,6 +1,6 @@
 ---
 title: Proof
-description: What is proven on AWS and where to read the measured numbers.
+description: What is proven on AWS and where the numbers live.
 prompt: |
   Follow https://intentius.io/choudoufu/aws/proof/, run `just smoke roundtrip` and report each verdict line.
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
@@ -11,7 +11,7 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 
 ## Claims you can run
 
-Each [claim](https://github.com/INTENTIUS/choudoufu/blob/main/live/smoke/claims/README.md) passes on the local emulator only when every assertion holds, and under `BREAK=1` only by catching the fault.
+Each [claim](https://github.com/INTENTIUS/choudoufu/blob/main/live/smoke/claims/README.md) runs on the local emulator. Under `BREAK=1` it must catch the injected fault.
 
 ## Where the numbers are
 

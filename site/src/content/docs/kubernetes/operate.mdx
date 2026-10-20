@@ -1,8 +1,8 @@
 ---
 title: Operate
-description: Rename is a config edit, records can live in the cluster, and removal skips anything a controller made.
+description: Rename, keep records in-cluster, remove.
 prompt: |
-  Follow https://intentius.io/choudoufu/kubernetes/operate/ for the change I describe. Make the configuration edit, run `choudoufu plan -out=plan.bin`, and report every create, destroy and update it shows.
+  Follow https://intentius.io/choudoufu/kubernetes/operate/ for my change. Edit the configuration, run `choudoufu plan -out=plan.bin` and report the plan.
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 import PlatformSwitch from '../../../components/PlatformSwitch.astro';
@@ -11,34 +11,32 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 
 ## Rename
 
-Renaming a block rewrites the address annotation, through `live-mv <old> <new>` or the next apply. Moving an object to another estate is a relabel with `live-mv -from-estate` or `kubectl label --overwrite`.
+`live-mv <old> <new>` or the next apply rewrites the address annotation. `live-mv -from-estate` moves an object between estates.
 
 ### Records
-
-A team keeps records in the cluster, with no AWS account:
 
 ```hcl
 record_store "kubernetes" {}
 ```
 
-Each record is one Secret in `tofu-records-<estate>`. Create that namespace yourself. `choudoufu live-cluster` checks access, encryption and the boundary policy, and names each fix.
+Each record is a Secret in `tofu-records-<estate>`, a namespace you create. `choudoufu live-cluster` checks the setup and names each fix.
 
 ## Remove
 
-An object with your label that no block declares is proposed for deletion. Owner-referenced objects, control-plane objects and a live Helm release's objects are excluded first.
+An undeclared object with your label is proposed for deletion. Owner-referenced, control-plane and Helm release objects are excluded.
 
 ## Scale
 
-Does not apply: each instance's name is already in its key.
+Each instance's name is in its key.
 
 ## Plan, review, apply
 
-As on [AWS](/choudoufu/aws/operate/): the approval check belongs to the engine.
+As on [AWS](/choudoufu/aws/operate/).
 
 ## From CI
 
-The same five jobs as on [AWS](/choudoufu/aws/operate/).
+As on [AWS](/choudoufu/aws/operate/).
 
 ## Two runs at once
 
-Server-side apply settles it. The loser gets a 409 naming the other manager and the contested fields. [OPERATE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/kubernetes/OPERATE.md) has the rest.
+Server-side apply returns a 409 naming the other manager ([OPERATE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/kubernetes/OPERATE.md)).
