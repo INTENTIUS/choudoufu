@@ -14,6 +14,7 @@ import (
 	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -74,6 +75,12 @@ type Schemas struct {
 	// every managed resource type regardless of list support - so this
 	// just keeps the half [ListSchemas] used to discard.
 	resourceByType map[string]*configschema.Block
+
+	// resourceIdentityByType is each managed resource type's own identity
+	// schema, kept for the same reason resourceByType is: a type with no
+	// list route still has one on the wire, and the record-orphan leg's
+	// admission reads it (GitHub issue #2134, item 1).
+	resourceIdentityByType map[string]providers.Schema
 }
 
 // Len is the number of types the provider can list.
@@ -110,6 +117,28 @@ func (s Schemas) ResourceSchema(typeName string) (*configschema.Block, bool) {
 	return b, ok
 }
 
+// ResourceIdentity returns typeName's own resource identity schema and its
+// version, regardless of list support. False when the provider serves no
+// identity schema for the type.
+func (s Schemas) ResourceIdentity(typeName string) (*configschema.Object, int64, bool) {
+	rs, ok := s.resourceIdentityByType[typeName]
+	if !ok || rs.IdentitySchema == nil {
+		return nil, 0, false
+	}
+	return rs.IdentitySchema, rs.IdentitySchemaVersion, true
+}
+
+// ResourceSchemas returns every managed resource type's schema, identity
+// schema included, keyed by type: the whole-provider map identity's schema
+// rules corroborate one type's context attributes against.
+func (s Schemas) ResourceSchemas() map[string]providers.Schema {
+	out := make(map[string]providers.Schema, len(s.resourceIdentityByType))
+	for name, rs := range s.resourceIdentityByType {
+		out[name] = rs
+	}
+	return out
+}
+
 // ListSchemas reports which resource types the given provider handle can
 // list, and the schemas involved in listing each of them.
 //
@@ -135,9 +164,12 @@ func ListSchemas(ctx context.Context, provider any) (Schemas, tfdiags.Diagnostic
 	schemas := Schemas{
 		byType:         make(map[string]TypeSchema, len(resp.ListResourceTypes)),
 		resourceByType: make(map[string]*configschema.Block, len(resp.ResourceTypes)),
+
+		resourceIdentityByType: make(map[string]providers.Schema, len(resp.ResourceTypes)),
 	}
 	for name, resSchema := range resp.ResourceTypes {
 		schemas.resourceByType[name] = resSchema.Block
+		schemas.resourceIdentityByType[name] = resSchema
 	}
 	for name, listSchema := range resp.ListResourceTypes {
 		if listSchema.Block == nil {

@@ -284,6 +284,10 @@ var refusals = []Refusal{
 		What:    "GitHub issue #1119: the GCP leg could not search one project for the estate's label: the Cloud Asset API is not enabled there, the credential lacks cloudasset.assets.searchAllResources, a page failed part way, or no project is known. A gap in coverage, never a wrong plan.",
 	},
 	{
+		Summary: SummaryGCPAddressCollision,
+		What:    "GitHub issue #1121's address ruling: two declared google instances whose tofu-address label values are equal, or two blocks whose block parts are, are refused by name, since the label is matched and never decoded and a collision would bind one block's object to the other. At 130 bits a part it does not happen in practice.",
+	},
+	{
 		Summary: SummaryGCPOrphanUnaddressed,
 		What:    "GitHub issue #1119: a GCP resource carries the estate's tofu-estate label and a tofu-address label the configuration does not declare. A GCP address label is matched, never decoded, so it is reported and never planned for removal here; a deleted block's record is what proposes the removal.",
 	},

@@ -431,7 +431,7 @@
         },
         "gcp": {
           "status": "open",
-          "note": "Open: gcp-records-in-a-bucket.sh's steps are expected to prove it, as k8s-records-in-the-cluster's do on Kubernetes. The gcs record store writes with ifGenerationMatch and holds no lock (#2122). No GCP scenario is registered yet, so the cell reads open until one is and runs."
+          "note": "Open: no GCP scenario proves it. gcp-records-in-a-bucket.sh exercises the gcs record store for claim 29 but does not assert that two runs settle without a lock. The store writes with ifGenerationMatch and holds no lock (#2122); a scenario racing two applies on one bucket would prove it, as k8s-records-in-the-cluster does on Kubernetes."
         }
       }
     },
@@ -1113,7 +1113,7 @@
         },
         "gcp": {
           "status": "open",
-          "note": "Open: gcp-records-in-a-bucket.sh's steps are expected to prove the key_prefix half. One bucket per estate is the default, because GCS cannot fence a listing: a principal that may list a bucket two estates share lists both estates' record keys, so on a shared bucket an estate's reach is its own records for get and put and every estate's keys for list. No GCP scenario is registered yet, so the cell reads open until one is and runs."
+          "note": "Open: no GCP scenario proves it. gcp-records-in-a-bucket.sh exercises the store for claim 29 but does not assert key isolation. One bucket per estate is the default, because GCS cannot fence a listing: a principal that may list a bucket two estates share lists both estates' record keys, so on a shared bucket an estate's reach is its own records for get and put and every estate's keys for list. The store's list_isolation check warns by name when it can list another estate's keys."
         }
       }
     },

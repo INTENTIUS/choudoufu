@@ -806,6 +806,9 @@ func discover(ctx context.Context, req Request, span trace.Span) (*Result, tfdia
 		// itself be untaggable and composite rather than concrete. See
 		// internal/live/discovery/fold_read.go's package doc comment.
 		diags = diags.Append(foldChildReadSweep(legsCtx, req, schemas, res))
+		// GitHub issue #2134: a GCP hit a record now destroys is not also
+		// reported as left alone. See gcp.go.
+		dropGCPHitsTheRecordsRemove(res)
 		endLegs()
 	}
 

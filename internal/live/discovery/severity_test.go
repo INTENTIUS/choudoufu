@@ -107,6 +107,7 @@ func TestEveryRegisteredRefusalHasAStatedSeverity(t *testing.T) {
 	// was read off its own call site, and every one is built with
 	// tfdiags.Error or hcl.DiagError.
 	fatal := map[string]bool{
+		SummaryGCPAddressCollision:                         true,
 		"Address too long to carry an ownership marker":    true,
 		"Invalid estate name":                              true,
 		SummaryKubernetesKindNotServed:                     true,

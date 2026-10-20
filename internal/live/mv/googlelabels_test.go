@@ -412,3 +412,27 @@ func TestMove_GoogleLabelsDestinationSearchUnavailable(t *testing.T) {
 		})
 	}
 }
+
+// TestIsGoogleSelfMatchesTheWholePath (GitHub issue #2134, item 8): a
+// same-named object in another region, or of another type, is not the one
+// being moved; only an exact path is, or, for a bucket being moved, its
+// projects/_/buckets/ form.
+func TestIsGoogleSelfMatchesTheWholePath(t *testing.T) {
+	m := &mover{googleSelf: []string{"edge", "projects/p/regions/us-east1/subnetworks/edge"}}
+	for name, want := range map[string]bool{
+		"//compute.googleapis.com/projects/p/regions/us-east1/subnetworks/edge":     true,
+		"//compute.googleapis.com/projects/p/regions/europe-west1/subnetworks/edge": false,
+		"//compute.googleapis.com/projects/p/global/networks/edge":                  false,
+		"//storage.googleapis.com/projects/_/buckets/edge":                          false,
+		"//pubsub.googleapis.com/projects/p/topics/edge":                            false,
+		"projects/p/regions/us-east1/subnetworks/edge":                              false,
+	} {
+		if got := m.isGoogleSelf(name); got != want {
+			t.Errorf("subnetwork: isGoogleSelf(%q) = %v, want %v", name, got, want)
+		}
+	}
+	bucket := &mover{googleSelf: []string{"logs"}}
+	if !bucket.isGoogleSelf("//storage.googleapis.com/projects/_/buckets/logs") {
+		t.Error("a bucket is not matched by its projects/_/buckets/ asset name")
+	}
+}

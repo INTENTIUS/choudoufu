@@ -79,6 +79,11 @@ func (GCPAssetSweep) Leg() substrate.Sweep { return substrate.SweepAssetSearch }
 
 // Sweep runs the leg.
 func (g GCPAssetSweep) Sweep(ctx context.Context, in *SweepInput) tfdiags.Diagnostics {
+	// The collision refusal runs whether or not there is a searcher: it is
+	// a fact about the configuration, not about what the index answers.
+	if _, collisions := declaredGoogleAddresses(in.Request.Resolutions); collisions.HasErrors() {
+		return collisions
+	}
 	diags := g.sweep(ctx, in.Request, in.Result)
 	unlabelledNotSwept(in.Request, g.Unlabelled, in.Result)
 	return diags
@@ -90,7 +95,7 @@ func (g GCPAssetSweep) sweep(ctx context.Context, req Request, res *Result) tfdi
 		return diags
 	}
 
-	declared := declaredGoogleAddresses(req.Resolutions)
+	declared, _ := declaredGoogleAddresses(req.Resolutions)
 	projects := GCPSweepProjects(g.Project, req.Resolutions)
 	if len(projects) == 0 {
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryGCPSweepIncomplete,
@@ -214,18 +219,47 @@ type googleDeclared struct {
 }
 
 // declaredGoogleAddresses encodes every google resolution's address the
-// way the stamp writes it ([markers.GoogleAddressValue]).
-func declaredGoogleAddresses(resolutions []identity.Resolution) googleDeclared {
+// way the stamp writes it ([markers.GoogleAddressValue]), and refuses by
+// name two instances whose labels would be equal, or two blocks whose block
+// parts would be (GitHub issue #1121's address ruling; #2134 item 3): the
+// label is matched and never decoded, so a collision would bind one
+// block's object to the other. At 130 bits a part this never fires in
+// practice, and it is checked anyway.
+func declaredGoogleAddresses(resolutions []identity.Resolution) (googleDeclared, tfdiags.Diagnostics) {
+	return declaredGoogleAddressesWith(resolutions, markers.GoogleAddressValue, markers.GoogleBlockValue)
+}
+
+// declaredGoogleAddressesWith is [declaredGoogleAddresses] over the two
+// encoders, so a test can force the collision a real hash never produces.
+func declaredGoogleAddressesWith(resolutions []identity.Resolution, instanceValue func(addrs.AbsResourceInstance) string, blockValue func(addrs.AbsResource) string) (googleDeclared, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
 	out := googleDeclared{instances: map[string]addrs.AbsResourceInstance{}, blocks: map[string]addrs.AbsResource{}}
 	for _, r := range resolutions {
 		if !strings.HasPrefix(r.Type(), "google_") {
 			continue
 		}
-		out.instances[markers.GoogleAddressValue(r.Addr)] = r.Addr
-		out.blocks[markers.GoogleBlockValue(r.Addr.ContainingResource())] = r.Addr.ContainingResource()
+		v := instanceValue(r.Addr)
+		if prev, dup := out.instances[v]; dup && !prev.Equal(r.Addr) {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryGCPAddressCollision,
+				fmt.Sprintf("%s and %s encode to the same tofu-address label value %q, so neither can be told from the other on a live object. Rename one of the two blocks.", prev, r.Addr, v)))
+			continue
+		}
+		out.instances[v] = r.Addr
+		block := r.Addr.ContainingResource()
+		b := blockValue(block)
+		if prev, dup := out.blocks[b]; dup && !prev.Equal(block) {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryGCPAddressCollision,
+				fmt.Sprintf("Blocks %s and %s encode to the same tofu-address block part %q, so a count member's slot could bind to the wrong one. Rename one of the two blocks.", prev, block, b)))
+			continue
+		}
+		out.blocks[b] = block
 	}
-	return out
+	return out, diags
 }
+
+// SummaryGCPAddressCollision is the refusal of two declared google
+// addresses, or two blocks, that encode to one tofu-address label value.
+const SummaryGCPAddressCollision = "Two addresses encode to one GCP address label"
 
 // gcpImportProject finds the project in a google import id, which every
 // project-scoped type spells projects/PROJECT/....
@@ -254,4 +288,30 @@ func GCPSweepProjects(providerProject string, resolutions []identity.Resolution)
 	}
 	sort.Strings(out)
 	return out
+}
+
+// dropGCPHitsTheRecordsRemove drops a GCP leg's withheld orphan when a
+// record leg proposes the destroy of the same object (GitHub issue #2134,
+// item 1): the Asset search found a labelled object whose tofu-address
+// encodes nothing declared, and the deleted block's record then named that
+// address. The record's destroy is the answer, so the hit is not reported a
+// second time as left alone. It runs after the removal legs.
+func dropGCPHitsTheRecordsRemove(res *Result) {
+	removed := map[string]bool{}
+	for _, o := range res.Orphans {
+		if o.Removal && strings.HasPrefix(o.Addr.Resource.Resource.Type, "google_") {
+			removed[markers.GoogleAddressValue(o.Addr)] = true
+		}
+	}
+	if len(removed) == 0 {
+		return
+	}
+	kept := res.Orphans[:0]
+	for _, o := range res.Orphans {
+		if !o.Removal && o.Withheld != "" && o.Marker != "" && removed[o.Marker] {
+			continue
+		}
+		kept = append(kept, o)
+	}
+	res.Orphans = kept
 }

@@ -53,6 +53,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -198,7 +199,21 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			// reach this population; the record store is the only place
 			// left that knows it.
 			schema, ok := providerSchemaFor(schemas, typeName)
-			if !ok || !identity.LocatedType(typeName, map[string]providers.Schema{typeName: schema}) {
+			schemaMap := map[string]providers.Schema{typeName: schema}
+			schemaAdmitted := false
+			if ok && removedOnlyFromRecords(req) {
+				// GitHub issue #2134, item 1: a family whose sweep plans no
+				// removal (GCP's Asset Inventory leg reports what it finds
+				// and nothing more) has its deleted blocks removed here or
+				// nowhere, the labelled types the identity schema admits
+				// included. On AWS the tag sweep removes those, so this
+				// widening is the GCP pass's alone.
+				// The whole provider's schemas, not the one type's: the
+				// identity-schema route corroborates a context attribute
+				// (project, region) against the provider's other types.
+				_, schemaAdmitted = identity.SynthesizeTypeIdentity(typeName, schemas.ResourceSchemas(), nil)
+			}
+			if !schemaAdmitted && (!ok || !identity.LocatedType(typeName, schemaMap)) {
 				// Not an admitted type at all, by either door - a stray or
 				// foreign key, not this leg's to guess at, the same
 				// discipline [builder.discoverOrphanedRecords] applies to a
@@ -590,6 +605,13 @@ func providerSchemaFor(schemas listclient.Schemas, typeName string) (providers.S
 		s.IdentitySchema = ts.Identity
 		s.IdentitySchemaVersion = ts.IdentityVersion
 	}
+	if s.IdentitySchema == nil {
+		// A type with no list route still serves its identity schema with
+		// its resource schema (GitHub issue #2134).
+		if id, version, ok := schemas.ResourceIdentity(typeName); ok {
+			s.IdentitySchema, s.IdentitySchemaVersion = id, version
+		}
+	}
 	return s, true
 }
 
@@ -802,4 +824,13 @@ func splitImportIDByComponents(entry identity.TypeIdentity, importID string) (ma
 		return nil, false
 	}
 	return out, true
+}
+
+// removedOnlyFromRecords reports whether this pass's provider family sweeps
+// with a leg that plans no removal of its own, so the record leg is the
+// only place a deleted block of an admitted type is destroyed: GCP's Asset
+// Inventory search ([substrate.SweepAssetSearch], GitHub issue #2134).
+func removedOnlyFromRecords(req Request) bool {
+	fam, ok := substrate.ForProvider(req.ScopeProvider.Provider.Type)
+	return ok && fam.Sweep() == substrate.SweepAssetSearch
 }

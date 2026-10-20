@@ -186,13 +186,37 @@ func (m *mover) sweepAssets(ctx context.Context, estate string) ([]listed, int, 
 }
 
 // isGoogleSelf reports whether an Asset Inventory full resource name
-// ("//storage.googleapis.com/projects/_/buckets/logs") names the object
-// being moved: it ends in one of the names the provider gave the object
-// (its id, its self_link's path from projects/ on, its import ID), on a
-// path boundary.
+// ("//compute.googleapis.com/projects/p/regions/r/subnetworks/edge") names
+// the object being moved. The name's path, after the "//<service>/" host,
+// must equal one of the names the provider gave the object exactly (its
+// id, its self_link's path from projects/ on, its import ID): a suffix
+// match would take a same-named object in another region or of another
+// type for this one (GitHub issue #2134, item 8).
+//
+// The one other form is Cloud Storage's projects/_/buckets/<name>: a bucket
+// has no project-qualified name of its own (its self_link is .../b/<name>),
+// and its name is unique across GCP. So the form matches a bare name only
+// when none of the object's names is project-qualified, which no regional
+// or zonal object satisfies.
 func (m *mover) isGoogleSelf(name string) bool {
+	path, ok := strings.CutPrefix(name, "//")
+	if !ok {
+		return false
+	}
+	if i := strings.Index(path, "/"); i >= 0 {
+		path = path[i+1:]
+	}
+	qualified := false
 	for _, self := range m.googleSelf {
-		if self != "" && (name == self || strings.HasSuffix(name, "/"+self)) {
+		if strings.Contains(self, "projects/") {
+			qualified = true
+		}
+	}
+	for _, self := range m.googleSelf {
+		if self == "" {
+			continue
+		}
+		if path == self || (!qualified && strings.HasPrefix(name, "//storage.googleapis.com/") && path == "projects/_/buckets/"+self) {
 			return true
 		}
 	}

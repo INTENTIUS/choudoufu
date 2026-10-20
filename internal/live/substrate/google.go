@@ -94,9 +94,14 @@ const SweepAssetSearch Sweep = "asset-search"
 
 func (google) Sweep() Sweep { return SweepAssetSearch }
 
-// SweepFindsUnadmitted is true: the search's universe is every asset type
-// carrying the estate's label, not the admission table's rows.
-func (google) SweepFindsUnadmitted() bool { return true }
+// SweepFindsUnadmitted is false. The Asset Inventory search does see every
+// labelled asset type, rowed or not, but it only reports what it finds: it
+// never plans a removal, and it cannot see a type with no labels map at
+// all. A deleted block is removed from its record (the record-orphan leg),
+// which is the admission table read another way, so the identity package's
+// no-orphan-recovery warning for an unrowed type stays on (GitHub issue
+// #2134, item 5).
+func (google) SweepFindsUnadmitted() bool { return false }
 
 // MarkerOutlivesObject is true: Asset Inventory is an index, and it lags a
 // delete as AWS's tagging index does, so a record tombstone is how the

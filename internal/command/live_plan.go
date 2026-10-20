@@ -4675,17 +4675,22 @@ var sweepLegBuilders = map[substrate.Sweep]sweepLegBuilder{
 	},
 	// The GCP leg (GitHub issue #1119): a Cloud Asset Inventory client
 	// built from the provider block's own credential arguments, searching
-	// each project the estate's google resources resolve to.
+	// each project the estate's google resources resolve to. Sweep is on:
+	// it also gates the record-orphan, parent-read and fold-child legs
+	// ([discovery.Request.Sweep]), and those are what destroy a deleted
+	// google block from its record, labelled or not. The Asset search
+	// only reports what it finds; it never plans a removal itself
+	// (GitHub issue #2134, item 1).
 	substrate.SweepAssetSearch: func(ctx context.Context, p *projectionProviders, sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, bool, tfdiags.Diagnostics) {
 		leg, diags := p.assetSearchLeg(ctx, sub, addr)
-		return leg, false, diags
+		return leg, true, diags
 	},
 }
 
 // assetSearchLeg builds the GCP leg through the family's own
 // [substrate.Substrate.NewSweeper]. A client that cannot be built is the
-// leg's named warning and no leg, never a nil client that reads as an
-// empty search.
+// leg's named warning and a leg with no searcher, which searches nothing
+// and still files the unlabelled types' gaps.
 func (p *projectionProviders) assetSearchLeg(ctx context.Context, sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	p.mu.Lock()
@@ -4702,11 +4707,16 @@ func (p *projectionProviders) assetSearchLeg(ctx context.Context, sub substrate.
 			err = fmt.Errorf("provider family %s built a %s client that cannot search Cloud Asset Inventory", sub.Name(), built.SweepKind())
 		}
 	}
-	if err != nil {
-		return nil, diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryGCPSweepIncomplete,
-			fmt.Sprintf("No Cloud Asset Inventory client could be built from provider configuration %s, so no GCP resource owned by this estate is searched this run and a resource whose block was deleted is not reported: %s.", addr, err)))
-	}
 	leg := discovery.GCPAssetSweep{Searcher: client.Client, Project: client.Project}
+	if err != nil {
+		// GitHub issue #2134, item 2: no client is a named warning and a leg
+		// that searches nothing, never no leg at all, so the unlabelled
+		// types the configuration declares are still filed as
+		// TYPE_NOT_TAGGABLE gaps below.
+		leg.Searcher = nil
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryGCPSweepIncomplete,
+			fmt.Sprintf("No Cloud Asset Inventory client could be built from provider configuration %s, so no labelled GCP resource owned by this estate is searched this run; a deleted block is still removed from its record: %s.", addr, err)))
+	}
 	if schema, schemaDiags := p.mgr.GetProviderSchema(ctx, addr.Provider); !schemaDiags.HasErrors() {
 		leg.Unlabelled = googleUnlabelledTypes(schema)
 	}
