@@ -31,14 +31,14 @@ export type Figure = {
 const day = (d: string) => d.slice(0, 10);
 const short = (c: string) => c.slice(0, 7);
 
-/** "measured 2026-10-02 to 2026-10-12, newest at commit f707182". */
+/** "measured 2026-10-02 to 2026-10-12, newest commit f707182". */
 function when(runs: Run[]): string {
 	const sorted = runs.filter((r) => r.date).sort((a, b) => a.date.localeCompare(b.date));
 	if (!sorted.length) return 'no dated run';
 	const first = day(sorted[0].date);
 	const last = sorted[sorted.length - 1];
 	const span = first === day(last.date) ? `measured ${first}` : `measured ${first} to ${day(last.date)}`;
-	return `${span}, newest at commit ${short(last.commit)}`;
+	return `${span}, newest commit ${short(last.commit)}`;
 }
 
 type Estate = (typeof gauntlet.estates)[number] & { last_run?: { date?: string; commit?: string } };
@@ -57,7 +57,7 @@ function board(bar: Bar, rows: Estate[], label: string): Figure | undefined {
 export function boardFigure(p: Platform): Figure | undefined {
 	const estates = gauntlet.estates as Estate[];
 	if (p === 'aws') {
-		return board(gauntlet.sets.core, estates.filter((e) => e.set === 'core'), 'core estates clear every headline stage beside stock OpenTofu');
+		return board(gauntlet.sets.core, estates.filter((e) => e.set === 'core'), 'core estates clear every headline stage');
 	}
 	return board(gauntlet.lanes.kubernetes, estates.filter((e) => e.lane === 'kubernetes'), 'Kubernetes estates clear every headline stage');
 }
@@ -97,7 +97,7 @@ export function claimsFigure(p: Platform): Figure | undefined {
 	const name = p === 'aws' ? 'AWS' : 'Kubernetes';
 	const proven = cells.filter((c) => c.status === 'proven');
 	if (proven.length) {
-		return { value: `${proven.length} of ${cells.length}`, label: `claims proven on ${name}, each by a dated run`, measured: when(proven.flatMap(runsOf)), href: CLAIMS };
+		return { value: `${proven.length} of ${cells.length}`, label: `claims proven on ${name}`, measured: when(proven.flatMap(runsOf)), href: CLAIMS };
 	}
 	const dated = cells.filter((c) => runsOf(c).length);
 	if (dated.length) {

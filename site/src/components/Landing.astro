@@ -11,9 +11,9 @@ import { boardFigure, claimsFigure, type Figure } from '../data/proof';
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (h: string) => (/^https?:/.test(h) ? h : `${base}${h}`);
 const cards = [
-	{ title: 'Adopt what already runs', body: 'live-import reads your state file once and tags what it finds. Nothing is rebuilt.', href: '/docs/use/migrate/' },
-	{ title: 'Use the permissions you have', body: 'IAM and admission policies read the tag. Handover is moving a grant.', href: '/aws/gate/' },
-	{ title: 'The state file is a cache', body: 'Deleting it changes no plan. Copy it back and stock OpenTofu carries on.', href: '/how-it-works/cache/' },
+	{ title: 'Adopt what already runs', body: 'live-import tags what your state file lists. Resources stay in place.', href: '/docs/use/migrate/' },
+	{ title: 'Use the permissions you have', body: 'IAM and admission policies read the tag.', href: '/aws/gate/' },
+	{ title: 'The state file is a cache', body: 'Plans read the live system.', href: '/how-it-works/cache/' },
 ];
 const figures = [boardFigure('aws'), boardFigure('kubernetes'), claimsFigure('kubernetes')].filter((f): f is Figure => !!f);
 ---
