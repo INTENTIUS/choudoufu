@@ -356,9 +356,10 @@ environment variables, and authenticates through stock's own code.
 A create is Put Blob with `If-None-Match: *`, and an update or a delete
 carries `If-Match` with the ETag the writer read. Nothing is leased. The
 estate goes on every blob as the blob index tag `tofu-estate`, in the same
-request (`x-ms-tags`). A blob index tag value takes fewer characters than an
-AWS tag, so a record whose escaped address holds an `@` is written with
-`tofu-estate` alone, never with an altered address.
+request (`x-ms-tags`). A blob index tag value allows fewer characters than
+an AWS tag (letters, digits, space and `+ - . / : = _`, with no `@`), so a
+record whose escaped address holds an `@` is written with `tofu-estate`
+alone, never with an altered address.
 
 The storage account has to have blob versioning on, a lifecycle rule that
 deletes previous versions and never current ones, and anonymous access

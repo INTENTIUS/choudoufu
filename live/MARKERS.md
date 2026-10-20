@@ -53,6 +53,37 @@ instance keys (`aws_subnet.this["a"]`, `aws_eip.this[2]`), all three of
 which are outside the AWS-allowed set. `tofu-address` values therefore go
 through the escaping rule below before being written as a tag.
 
+## Azure: the same tags, read case-insensitively
+
+An azurerm or azapi resource carries the keys above, in the `tags`
+argument both providers accept (ruled on
+[#1122](https://github.com/INTENTIUS/choudoufu/issues/1122)), with the same
+values and the same escaping. `markers.SurfaceARMTags` is the surface
+(`internal/live/markers/armtags.go`). On `azapi_resource` the stamp writes
+the top-level `tags`, or `body.tags` when the configuration already puts
+its tags in the body, since azapi refuses both at once; the read is always
+the top-level attribute.
+
+ARM tag keys are case-insensitive, so the keys are written lowercase and
+read with case folded. A configuration that sets `Tofu-Estate` itself is
+checked against the run as the marker; when its value is right the stamp
+keeps that spelling and adds no lowercase twin, which ARM would refuse.
+The sweep, `live-mv`, `live-import` and the marker release all match the
+keys the same way.
+
+The limits are ARM's and the provider's, and they are not uniform. ARM
+allows 50 tags, 512-character keys and 256-character values by default;
+some types allow fewer tags, 15 on a Cosmos DB or storage account and 10 on
+API Management. Lint's `arm-tag-limit` warns when the configuration's own
+tags plus the markers will not fit (`live/LIMITATIONS.md`,
+"arm-tag-limit").
+
+An azapi ARM type is stamped only where azapi's type data says it takes
+tags at the API version the block names. Two azurerm types,
+`azurerm_app_service_managed_certificate` and `azurerm_subscription`, are
+tagged after their create; "Granting an Azure estate" below has the
+consequence for the fence.
+
 ## Kubernetes: one label
 
 Everything above and below this section describes the AWS shape. On

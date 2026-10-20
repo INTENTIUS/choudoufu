@@ -35,3 +35,9 @@ follows its parent.
 The address is an annotation beside the `tofu-estate` label. `live-mv` or the
 next apply rewrites it. A move between estates passes the cluster's admission
 policy like a `kubectl label`, so you need rights in both.
+
+## On Azure
+
+As on AWS: `live-mv` rewrites the `tofu-address` tag, keys matched
+case-insensitively. A move between estates is refused by the estate's Azure
+Policy until its assignments are moved ([Gate](/choudoufu/azure/gate/)).

@@ -380,6 +380,33 @@ policy {
 leaves both untouched. [The ownership policy matrix](OWNERSHIP-POLICY.md) covers the rest of the
 matrix.
 
+## On Azure
+
+The path is the AWS one, built and not yet run against an emulator or a
+subscription. `live-import -approve` reads the stock state once, verifies
+each object at its ARM id, and writes `tofu-estate` and `tofu-address` as
+ARM tags through a tags-only plan and apply: azurerm's `tags` argument, or
+an `azapi_resource`'s top-level `tags`, or its `body.tags` where the
+configuration keeps them there. A key the object already carries as
+`Tofu-Estate` is rewritten under that spelling, since ARM refuses two keys
+that differ only by case.
+
+An Azure object is client-named: the configuration states the whole ARM id
+(seven untaggable azurerm types can mint their name instead). That changes
+the `Unowned` case above. A cloud that rejects a create at a taken name
+makes an unmarked object a harmless refusal there, but an ARM create is a
+PUT, and a PUT at an existing id updates the object in place.
+So the plan refuses such an object by name, "Unmarked live object at the
+declared id would be overwritten", under every `declared_untagged` verb but
+`"adopt"`, and lint refuses `"keep"` and `"report"` outright
+(`policy-overwrite-at-key`). Adopt it with `"adopt"`, or write the two tags
+by hand and plan again.
+
+If the stock state lives in the `azurerm` backend, `tofu state pull >
+stock.tfstate` gives `live-import` its file. Keep the blob as the way back
+until the plan has been empty for as long as you need.
+`live/azure/ADOPT.md` has the rest.
+
 ## Getting back out
 
 Know this before you start. Keeping the door open costs nothing.

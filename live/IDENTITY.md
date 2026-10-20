@@ -161,3 +161,37 @@ from the next plan, which proposes a replacement beside it.
 [`live/MARKERS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md)
 is the normative spec. It covers the escaping rule, continuation tags and the
 rename rule, and says which protections were tested rather than assumed.
+
+## On Azure
+
+The marker is the same tag pair, `tofu-estate` and `tofu-address`, in the
+`tags` argument azurerm and azapi both accept
+([#1122](https://github.com/INTENTIUS/choudoufu/issues/1122)). Three
+things differ, and all three are built and not yet measured.
+
+ARM tag keys and ARM ids are case-insensitive. The stamp writes the keys
+lowercase and every reader folds case, so a configuration that sets
+`Tofu-Estate` itself is checked as the marker and keeps its spelling.
+
+Identity is the ARM id, and the configuration states it. An azurerm id is a
+template over `name`, `resource_group_name` and the parents, generated from
+azurerm's own id parsers into `live/azurerm-ids.json`; an `azapi_resource`
+id is its `parent_id`, `type` and `name`. So the tag confirms ownership
+rather than recovering the object, the first of the two paths above. Seven
+untaggable azurerm types mint a GUID name when it is left out, and such an
+instance is held by its record.
+
+Untaggable is just as common. Of azurerm 5.10.0's 1,106 types, 719 have no
+ARM tags map; of the 3,397 ARM types azapi 2.13.0 can declare, 2,366 take
+no tags at their latest API version. An untaggable type whose id the
+declaration supplies binds from the configuration, and a removed block of
+one is found through its record. `live/READINESS.md`'s Azure section has
+the tiers, and `live/MARKERS.md`'s "Granting an Azure estate" says which of
+them the resource-group fence still covers.
+
+Stripping a marker reads differently too. A stripped `tofu-estate` on AWS
+makes the next plan propose a replacement beside the resource. On Azure the
+resource still sits at its declared id, and creating there would be a PUT
+over it, so the plan refuses it by name until it is adopted
+(`policy { declared_untagged = "adopt" }`) or the tags are written back.
+`live/azure/ADOPT.md` has the detail.

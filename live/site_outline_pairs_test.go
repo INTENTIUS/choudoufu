@@ -62,20 +62,22 @@ func TestAWSAndKubernetesPagesShareAnOutline(t *testing.T) {
 	found := 0
 	for _, name := range siteOutlinePairs {
 		awsPath := sitePage("aws/" + name)
-		k8sPath := sitePage("kubernetes/" + name)
 		if awsPath == "" {
 			t.Fatalf("no aws/%s.md or .mdx under %s", name, siteContentDir)
 		}
-		if k8sPath == "" {
-			t.Fatalf("no kubernetes/%s.md or .mdx under %s", name, siteContentDir)
-		}
-		found++
-
 		awsHeadings := level2Headings(t, awsPath)
-		k8sHeadings := level2Headings(t, k8sPath)
-		if !reflect.DeepEqual(awsHeadings, k8sHeadings) {
-			t.Errorf("%s and %s carry different ## outlines:\n  aws:        %v\n  kubernetes: %v",
-				awsPath, k8sPath, awsHeadings, k8sHeadings)
+		// The Azure hub (#1120) joins the pair under the same rule: every
+		// other hub's page is held to the AWS page's outline.
+		for _, hub := range []string{"kubernetes", "azure"} {
+			path := sitePage(hub + "/" + name)
+			if path == "" {
+				t.Fatalf("no %s/%s.md or .mdx under %s", hub, name, siteContentDir)
+			}
+			found++
+			if got := level2Headings(t, path); !reflect.DeepEqual(awsHeadings, got) {
+				t.Errorf("%s and %s carry different ## outlines:\n  aws: %v\n  %s: %v",
+					awsPath, path, awsHeadings, hub, got)
+			}
 		}
 	}
 	if found == 0 {

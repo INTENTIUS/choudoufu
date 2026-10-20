@@ -86,8 +86,9 @@ export default defineConfig({
 				baseUrl: 'https://github.com/INTENTIUS/choudoufu/edit/main/site/',
 			},
 			// The groups from #2092: Start here, AWS, Kubernetes, How it works, Use,
-			// Reference. A group joins this list when its first page is written.
-			// Every group but Start here starts collapsed.
+			// Reference, and Azure (#1120) after Kubernetes. A group joins this
+			// list when its first page is written. Every group but Start here
+			// starts collapsed.
 			sidebar: [
 				// The room pages under /for/ (src/pages/for/[id].astro), in the order of
 				// src/data/rooms.ts: what you run today, where it runs, then the roles.
@@ -102,6 +103,7 @@ export default defineConfig({
 						{ label: 'Starting new', link: '/for/new/' },
 						{ label: 'On AWS', link: '/for/aws/' },
 						{ label: 'On Kubernetes', link: '/for/kubernetes/' },
+						{ label: 'On Azure', link: '/for/azure/' },
 						{ label: 'Security and IAM', link: '/for/security/' },
 						{ label: 'Evaluating', link: '/for/evaluate/' },
 						{ label: 'With a coding agent', link: '/for/agents/' },
@@ -130,6 +132,18 @@ export default defineConfig({
 						{ label: 'Operate', slug: 'kubernetes/operate' },
 						{ label: 'Compatibility', slug: 'kubernetes/compatibility' },
 						{ label: 'Proof', slug: 'kubernetes/proof' },
+					],
+				},
+				{
+					label: 'Azure',
+					collapsed: true,
+					items: [
+						{ label: 'Overview', slug: 'azure' },
+						{ label: 'Adopt', slug: 'azure/adopt' },
+						{ label: 'Gate', slug: 'azure/gate' },
+						{ label: 'Operate', slug: 'azure/operate' },
+						{ label: 'Compatibility', slug: 'azure/compatibility' },
+						{ label: 'Proof', slug: 'azure/proof' },
 					],
 				},
 				{
