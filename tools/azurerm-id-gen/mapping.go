@@ -93,6 +93,10 @@ func (a attrInfo) configurable() bool { return a.Required || a.Optional }
 type typeSchema struct {
 	Attrs    map[string]attrInfo
 	Identity []string // resource identity schema attributes, nil when none
+	// IdentityOptional is the identity attributes not required for import
+	// (none at azurerm 5.10.0), which the identity-schema route reads
+	// differently ([assignRoutes]).
+	IdentityOptional map[string]bool
 }
 
 // mapping is the outcome for one type, before the class is settled.

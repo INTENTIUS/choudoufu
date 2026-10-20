@@ -119,7 +119,9 @@ func TestAzureManualMarkFix(t *testing.T) {
 // subscription_id is the provider's, with the template where one passes the
 // guards.
 func TestAzureIdentityRoutes(t *testing.T) {
-	schema := providers.Schema{Block: tagsBlock(true, false)}
+	// One block declaring every argument the templates below read, the
+	// way the served schema does (azurermServedSchemaProblem).
+	schema := providers.Schema{Block: azurermArgsBlock("name", "resource_group_name", "loadbalancer_id")}
 	// An azapi type of the wrong shape: the identity-schema route, as
 	// before the family existed.
 	if _, ok := Azure.SynthesizeIdentity("azapi_update_resource", schema); ok {
@@ -185,6 +187,16 @@ func TestAzureIdentityRoutes(t *testing.T) {
 	}
 }
 
+// azurermArgsBlock is an azurerm type's block with a tags map and each named
+// argument required.
+func azurermArgsBlock(args ...string) *configschema.Block {
+	b := tagsBlock(true, false)
+	for _, a := range args {
+		b.Attributes[a] = &configschema.Attribute{Type: cty.String, Required: true}
+	}
+	return b
+}
+
 func azapiBlock() *configschema.Block {
 	return &configschema.Block{Attributes: map[string]*configschema.Attribute{
 		"type":      {Type: cty.String, Required: true},
@@ -221,6 +233,12 @@ func TestAzapiResourceShape(t *testing.T) {
 // The admission figures at the pinned azurerm. TO CHANGE A NUMBER HERE,
 // regenerate live/azurerm-ids.json with tools/azurerm-id-gen, re-copy it,
 // and say in the commit message which types moved and why.
+//
+// #1120 unit 17 moved azurerm_netapp_volume_bucket and
+// azurerm_netapp_volume_bucket_with_server from identity-schema+template
+// to identity-schema: azurerm publishes no resource identity test for
+// either, so azurermContractProblem withholds their templates. The
+// per-route figures are TestAzurermRoutesAreTheGuardsVerdicts'.
 func TestAzurermAdmissionCounts(t *testing.T) {
 	if v, c := AzurermIDSource(); v != "5.10.0" || c != "b24dfdc1dafe6d0721572b0f6debecb7ab5e81c6" {
 		t.Errorf("embedded artifact is from azurerm %s (%s)", v, c)
@@ -229,8 +247,8 @@ func TestAzurermAdmissionCounts(t *testing.T) {
 		"template":                 317,
 		"parent-id":                351,
 		"withheld":                 7,
-		"identity-schema+template": 177,
-		"identity-schema":          19,
+		"identity-schema+template": 175,
+		"identity-schema":          21,
 		"unmapped":                 235,
 	}
 	got := AzurermAdmission()
