@@ -25,6 +25,8 @@ type kubernetes struct{}
 
 func (kubernetes) Name() string { return "kubernetes" }
 
+func (kubernetes) ProviderTypes() []string { return []string{"kubernetes"} }
+
 func (kubernetes) Surfaces() []markers.Surface {
 	return []markers.Surface{markers.SurfaceLabels, markers.SurfaceManifest}
 }

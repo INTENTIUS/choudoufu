@@ -6,6 +6,9 @@
 package substrate
 
 import (
+	"fmt"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
@@ -22,9 +25,17 @@ import (
 // not by a surface predicate), so it is asserted here.
 func TestEverySubstrateAnswersEveryQuestion(t *testing.T) {
 	owner := map[markers.Surface]string{}
+	for _, clash := range providerTypeClashes(All) {
+		t.Error(clash)
+	}
 	for _, s := range All {
-		if got, ok := ForProvider(s.Name()); !ok || got != s {
-			t.Errorf("ForProvider(%q) = %v, %v; want the %s substrate", s.Name(), got, ok, s.Name())
+		if !slices.Contains(s.ProviderTypes(), s.Name()) {
+			t.Errorf("%s: ProviderTypes %q does not include the family's own name", s.Name(), s.ProviderTypes())
+		}
+		for _, name := range s.ProviderTypes() {
+			if got, ok := ForProvider(name); !ok || got != s {
+				t.Errorf("ForProvider(%q) = %v, %v; want the %s substrate", name, got, ok, s.Name())
+			}
 		}
 		if s.Sweep() == "" {
 			t.Errorf("%s names no sweep", s.Name())
@@ -74,6 +85,57 @@ func TestEverySubstrateAnswersEveryQuestion(t *testing.T) {
 	}
 	if _, ok := ForProvider("google"); ok {
 		t.Error("ForProvider(\"google\") found a family; none is written (#1118's ruling)")
+	}
+}
+
+// providerTypeClashes names every provider type name that more than one
+// family in all claims. ForProvider answers with the first, so a second
+// claimant would silently never be asked.
+func providerTypeClashes(all []Substrate) []string {
+	var clashes []string
+	claimed := map[string]string{}
+	for _, s := range all {
+		for _, name := range s.ProviderTypes() {
+			if prev, dup := claimed[name]; dup {
+				clashes = append(clashes, fmt.Sprintf("provider type %q is claimed by both %s and %s", name, prev, s.Name()))
+				continue
+			}
+			claimed[name] = s.Name()
+		}
+	}
+	return clashes
+}
+
+// twoProviderFamily is a family served by two providers, the google and
+// google-beta shape. Everything else is AWS's, by embedding.
+type twoProviderFamily struct {
+	Substrate
+	types []string
+}
+
+func (f twoProviderFamily) Name() string            { return f.types[0] }
+func (f twoProviderFamily) ProviderTypes() []string { return f.types }
+
+// TestForProviderMatchesEveryProviderType: a family answers for each of its
+// provider type names, and a type name two families claim is caught.
+func TestForProviderMatchesEveryProviderType(t *testing.T) {
+	both := twoProviderFamily{Substrate: AWS, types: []string{"cloudy", "cloudy-beta"}}
+	withFamilies(t, Kubernetes, both, AWS)
+	for _, name := range both.types {
+		if got, ok := ForProvider(name); !ok || got.Name() != "cloudy" {
+			t.Errorf("ForProvider(%q) = %v, %v; want the cloudy family", name, got, ok)
+		}
+	}
+	if got, ok := ForProvider("aws"); !ok || got != AWS {
+		t.Errorf("ForProvider(\"aws\") = %v, %v; want AWS", got, ok)
+	}
+	if clashes := providerTypeClashes(All); len(clashes) != 0 {
+		t.Errorf("clashes in a registry with none: %q", clashes)
+	}
+	thief := twoProviderFamily{Substrate: AWS, types: []string{"thief", "cloudy-beta"}}
+	clashes := providerTypeClashes([]Substrate{Kubernetes, both, thief, AWS})
+	if len(clashes) != 1 || !strings.Contains(clashes[0], `"cloudy-beta"`) {
+		t.Errorf("clashes = %q; want the one shared name, cloudy-beta", clashes)
 	}
 }
 

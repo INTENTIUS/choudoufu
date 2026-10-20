@@ -111,9 +111,17 @@ const (
 // [markers.Surface] constants it names, and one that forgets a surface is
 // red.
 type Substrate interface {
-	// Name is the family's name, which is also the provider type name
-	// [ForProvider] matches.
+	// Name is the family's name. It is one of [Substrate.ProviderTypes],
+	// and the key a family's entry in [Facts] is filed under.
 	Name() string
+
+	// ProviderTypes are the provider type names [ForProvider] matches to
+	// this family: ["aws"] and ["kubernetes"], or more than one where a
+	// family is served by two providers that share its types, such as
+	// google and google-beta, whose blocks keep the same identity when they
+	// switch between the two. No type name belongs to two families
+	// (TestEverySubstrateAnswersEveryQuestion).
+	ProviderTypes() []string
 
 	// Surfaces are the marker surfaces this family's types carry. No
 	// surface belongs to two families.
@@ -207,12 +215,15 @@ type Substrate interface {
 var All = []Substrate{Kubernetes, AWS}
 
 // ForProvider is the family a provider type name belongs to ("aws",
-// "kubernetes"). It matches the type name alone, which is what every
-// provider-family check it replaced asked.
+// "kubernetes"): the one whose [Substrate.ProviderTypes] lists it. It
+// matches the type name alone, which is what every provider-family check
+// it replaced asked.
 func ForProvider(providerType string) (Substrate, bool) {
 	for _, s := range All {
-		if s.Name() == providerType {
-			return s, true
+		for _, name := range s.ProviderTypes() {
+			if name == providerType {
+				return s, true
+			}
 		}
 	}
 	return nil, false

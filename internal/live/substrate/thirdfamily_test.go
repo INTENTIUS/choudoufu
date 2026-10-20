@@ -41,6 +41,7 @@ func newTagsMapFamily(name string) tagsMapFamily {
 }
 
 func (f tagsMapFamily) Name() string              { return f.name }
+func (f tagsMapFamily) ProviderTypes() []string   { return []string{f.name} }
 func (tagsMapFamily) Surfaces() []markers.Surface { return []markers.Surface{surfaceFakeTags} }
 func (tagsMapFamily) SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
 	if markers.Taggable(block) {
@@ -186,6 +187,7 @@ type listingFamily struct {
 }
 
 func (f listingFamily) Name() string               { return f.name }
+func (f listingFamily) ProviderTypes() []string    { return []string{f.name} }
 func (f listingFamily) Sweep() Sweep               { return f.sweep }
 func (f listingFamily) SweepFindsUnadmitted() bool { return f.unadmitted }
 func (f listingFamily) MarkerOutlivesObject() bool { return true }
