@@ -8,6 +8,7 @@ package projection
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -261,6 +262,26 @@ func (b *builder) locatedIdentityWithAliases(ctx context.Context, addr addrs.Abs
 // every writer already calls is what keeps that true without each new call
 // site having to remember to ask a second question.
 func LocatedRecordFrom(resourceType string, schema providers.Schema, obj cty.Value) (LocatedRecord, bool) {
+	return LocatedRecordFromIn(resourceType, schema, obj, nil)
+}
+
+// LocatedRecordFromIn is [LocatedRecordFrom] told the provider
+// configuration obj was applied through, as values (GitHub issue #2135).
+// It is what makes an identity with a provider-configuration component
+// recordable ([identity.LocatedIdentityPlan.ProviderComponents]: azurerm's
+// subscription_id, which the applied object's attributes do not carry):
+// values answers it the way identity resolution does
+// ([identity.ProviderCloudValue]). With values nil, or not knowing one of
+// them, such a type records nothing, which is what [LocatedRecordFrom]
+// answered for it before #2135.
+//
+// The record is then checked against the object itself: where the family
+// can rebuild an id from the record ([substrate.AzurermRecordImportID]) and
+// the object carries one, the two must name the same object, compared as
+// ARM compares ids, without regard to case. A record naming another
+// subscription than the one the object lives in is a wrong identity, the
+// one thing a record may never hold, so a disagreement records nothing.
+func LocatedRecordFromIn(resourceType string, schema providers.Schema, obj cty.Value, values identity.ProviderValue) (LocatedRecord, bool) {
 	if !identity.RecordableIdentitySchema(resourceType, schema) {
 		return locatedRatifiedComponentsRecord(resourceType, schema, obj)
 	}
@@ -276,6 +297,9 @@ func LocatedRecordFrom(resourceType string, schema providers.Schema, obj cty.Val
 			// reads back as a whole identity - the exact defect this
 			// branch exists to close.
 			rec.Components, recordable = identity.LocatedIdentity(obj, plan.Components)
+			if recordable && plan.FromProvider() {
+				rec.Components, recordable = withProviderComponents(resourceType, obj, plan, rec.Components, values)
+			}
 			if recordable {
 				// GitHub issue #879. This branch records the object
 				// form of the identity and, until now, nothing else -
@@ -380,6 +404,30 @@ func LocatedRecordFrom(resourceType string, schema providers.Schema, obj cty.Val
 		return LocatedRecord{}, false
 	}
 	return rec, true
+}
+
+// withProviderComponents adds plan's provider components to comps, the
+// components [identity.LocatedIdentity] read off obj, and checks the whole
+// against obj's own id. See [LocatedRecordFromIn]. comps is never mutated:
+// the answer is a new map.
+func withProviderComponents(resourceType string, obj cty.Value, plan identity.LocatedIdentityPlan, comps map[string]string, values identity.ProviderValue) (map[string]string, bool) {
+	fromProvider, ok := identity.LocatedProviderIdentity(plan, values)
+	if !ok {
+		return nil, false
+	}
+	out := make(map[string]string, len(comps)+len(fromProvider))
+	for k, v := range comps {
+		out[k] = v
+	}
+	for k, v := range fromProvider {
+		out[k] = v
+	}
+	if rebuilt, ok := substrate.AzurermRecordImportID(resourceType, out); ok {
+		if own := substrate.ObjectString(obj, "id"); own != "" && !strings.EqualFold(own, rebuilt) {
+			return nil, false
+		}
+	}
+	return out, true
 }
 
 // schemaFallbackComponentsRecord is [LocatedRecordFrom]'s family-1 half

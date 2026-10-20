@@ -21,14 +21,17 @@ inject it.
 | 7 | `Microsoft.ResourceGraph` not registered | Refused by name, with the `az provider register` line | `TestResourceGraphLegRefusesAnUnregisteredProvider` | real Azure only |
 | 8 | Azure Policy refuses an approved write | ARM's own refusal, printed as the provider reports it | `az-the-tag-is-the-boundary` draft | that draft, on real Azure; floci-az evaluates no Policy rule |
 | 9 | The resource group is deleted under the estate | Every child goes with it, untaggable ones included; the next plan proposes recreating what is declared | none | a claim shaped like Kubernetes's deleted-namespace one |
+| 10 | AKS or Azure Policy writes a marker this estate did not write onto a declared resource | AKS copies a cluster's tags over those of the existing route table, public IP or virtual network it is given, so the object carries this estate's `tofu-estate` and the cluster's `tofu-address`, or another estate's; a Policy `modify` effect can write tag values too. Refused by name before any create, "Live object marked for another owner at the declared id would be overwritten", naming the marker found, under every `declared_untagged` verb (#2135). `strict { markers "record" }` for the type holds its identity in the record store and the copied tags then decide nothing | `TestAKSRetag_*` in `internal/live/projection`; `TestMarkersRecordAzurermRecordsTheProviderSubscription` | an estate with an AKS cluster given a declared route table, on real Azure; floci-az runs no AKS |
 
 ## What to read first
 
-Rows 1 and 2 are the two that would write a wrong marker or none, which is
-the one outcome `HANDOFF.md`'s safety rule forbids. Both have unit tests
-that were shown red before the fix, and neither has run against ARM. Row 1
+Rows 1, 2 and 10 are the ones that would write a wrong marker or none, which is
+the one outcome `HANDOFF.md`'s safety rule forbids. All three have unit tests
+that were shown red before the fix, and none has run against ARM. Row 1
 is Azure's own: on AWS the same plan proposes a second resource, and on
-Kubernetes the API server answers 409.
+Kubernetes the API server answers 409. Row 10 is row 1 for an object that
+is marked, but not for this block: on AWS and Kubernetes that stays a
+warning beside the plan, and on Azure the create would be a PUT over it.
 
 Rows 4 to 7 are about the sweep. Each one ends in a named warning or
 refusal and never in an empty listing, because an empty listing reads as

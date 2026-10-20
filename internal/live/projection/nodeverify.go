@@ -188,7 +188,7 @@ func (n *NodeResolver) VerifyAppliedMarkers(_ context.Context, addr addrs.AbsRes
 
 	diags = diags.Append(tfdiags.Sourceless(severity, SummaryMarkerNotStored,
 		fmt.Sprintf(
-			"%s was %s, but the object the provider returned after the write does not carry the ownership marker this run sent:\n  - %s\n\n%s\n\nSomething between this run and the stored object removed it: a Kubernetes admission policy or controller enforcing a label scheme, or an AWS Organizations tag policy. Permit %s where that is configured, or set markers = record for this type in the live block so the estate's identity for it is held in the record store instead of on the object.",
+			"%s was %s, but the object the provider returned after the write does not carry the ownership marker this run sent:\n  - %s\n\n%s\n\nSomething between this run and the stored object removed or rewrote it: a Kubernetes admission policy or controller enforcing a label scheme, an AWS Organizations tag policy, an Azure Policy assignment with a modify or append effect on tags, or AKS, which copies a cluster's tags over the tags of the existing resources it is given (a route table, a public IP, a virtual network). Permit %s where a policy is configured, keep a resource an AKS cluster is given out of the estate, or set markers = record for this type in the live block so the estate's identity for it is held in the record store instead of on the object.",
 			addr, did, strings.Join(lost, "\n  - "), consequence, markers.TagEstate,
 		)))
 	return diags

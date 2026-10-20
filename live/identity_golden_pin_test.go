@@ -3275,7 +3275,14 @@ const (
 	// the schemaless sweep leaves unadmitted. It adds no row, so instances
 	// and body-sha256 are unchanged. fixture-dirs 672 -> 673 on the same
 	// row; the cohort pins are untouched.
-	identityGoldenPinDirs = 704
+	//
+	// 704 -> 705 for GitHub issue #2135: one new fixture,
+	// internal/live/lint/testdata/strict-markers-azurerm-aks, a
+	// `markers "record"` selection of four azurerm types and no resource
+	// block. It adds no row, so instances and body-sha256 are unchanged.
+	// fixture-dirs 673 -> 674 on the same row; the cohort pins are
+	// untouched.
+	identityGoldenPinDirs = 705
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).
