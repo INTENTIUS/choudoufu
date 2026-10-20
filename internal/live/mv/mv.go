@@ -26,6 +26,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/live/servicetags"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -295,6 +296,10 @@ type Result struct {
 	Verified bool
 }
 
+// SummaryGCPMoveNotBuilt is live-mv's refusal for a GCP resource until its
+// label rewrite is built (GitHub issue #1119).
+const SummaryGCPMoveNotBuilt = "live-mv cannot rewrite a GCP resource's labels yet"
+
 // Move rewrites the tofu-address marker on the one live resource that carries
 // the old address, and returns what it did.
 //
@@ -424,6 +429,14 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// server under the run's own credential (manifest.go; the move is
 	// GitHub issue #1104).
 	res.Surface = surfaceOf(providerAddr.Provider.Type, schema.Block)
+	if substrate.WritesOf(res.Surface).Adopt == substrate.WriteGoogleLabelsPlan {
+		// GitHub issue #1119: the GCP rewrite (the encoded address label,
+		// and the estate label on a move) is not built yet. Refused by
+		// name rather than sent down the tag path, which would look for a
+		// tags argument the type does not have.
+		return res, diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryGCPMoveNotBuilt,
+			fmt.Sprintf("%s is a GCP resource, whose markers are labels, and live-mv cannot rewrite them yet. Nothing was written. Its records still follow the address; the next plan rewrites the tofu-address label as an ordinary in-place label change.", req.Old)))
+	}
 	switch {
 	case res.MarkerCarriesAddress():
 		// The tag path, which a type with no surface takes too.

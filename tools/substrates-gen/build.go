@@ -149,6 +149,8 @@ func sweepFacts(kind substrate.Sweep) SweepFacts {
 		desc = "runs through the configured provider itself; no separate client is built from the provider block"
 	case substrate.SweepLabelList:
 		desc = "a cluster client built from the provider block's own connection arguments (Substrate.NewSweeper)"
+	case substrate.SweepAssetSearch:
+		desc = "a Cloud Asset Inventory client built from the provider block's own credential arguments (Substrate.NewSweeper), one search per project the estate's resources name; the index lags creates and deletes"
 	}
 	return SweepFacts{Kind: string(kind), Description: desc}
 }
@@ -209,6 +211,7 @@ func controllerHeldFacts(s substrate.Substrate) ControllerHeldFacts {
 var fenceByFamily = map[string]string{
 	"aws":        "IAM conditions on aws:ResourceTag, reads and writes, per principal (live/MARKERS.md).",
 	"kubernetes": "One ValidatingAdmissionPolicy, writes only, enforced per principal through the cluster's authorizer.",
+	"google":     "Project-scoped, restated: an IAM condition cannot match a label, so one estate per project, granted by an ordinary project IAM binding. Resource Manager tag bindings, which a condition can match, are ruled later (#1121).",
 }
 
 func fenceFor(family string) (string, error) {
@@ -238,6 +241,11 @@ var harnessByFamily = map[string]struct {
 		Name:    "kind",
 		PinFile: "live/kind-node-image",
 		Notes:   "a kind cluster on the pinned node image; no per-service capability probe like floci's exists for it.",
+	},
+	"google": {
+		Name:    "floci-gcp",
+		PinFile: "live/floci-gcp-image",
+		Notes:   "the lex00/floci-gcp fork's GHCR image pinned by digest; Resource Manager tags, Cloud Asset search and matchTag are still gaps on it (lex00/floci-gcp#4 to #8).",
 	},
 }
 

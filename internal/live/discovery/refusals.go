@@ -280,6 +280,14 @@ var refusals = []Refusal{
 		What:    "Two live resources carry the same tofu-address marker (on Kubernetes, the same address annotation, where neither object is at the namespace and name the configuration names), so both claim one configuration address. Binding either would be a guess, and on Kubernetes destroying both as orphans would take the object the block still needs (GitHub issue #1641).",
 	},
 	{
+		Summary: SummaryGCPSweepIncomplete,
+		What:    "GitHub issue #1119: the GCP leg could not search one project for the estate's label: the Cloud Asset API is not enabled there, the credential lacks cloudasset.assets.searchAllResources, a page failed part way, or no project is known. A gap in coverage, never a wrong plan.",
+	},
+	{
+		Summary: SummaryGCPOrphanUnaddressed,
+		What:    "GitHub issue #1119: a GCP resource carries the estate's tofu-estate label and a tofu-address label the configuration does not declare. A GCP address label is matched, never decoded, so it is reported and never planned for removal here; a deleted block's record is what proposes the removal.",
+	},
+	{
 		Summary: "Two live resources claiming one slot",
 		What:    "Two live resources carry the same tofu-slot marker within one fungible set.",
 	},
@@ -328,7 +336,7 @@ func SeverityForRefusal(summary string) Severity {
 	if kind, ok := problemKindForSummary(summary); ok {
 		return kind.Severity()
 	}
-	if summary == SummaryIncompleteSweep || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesSweepDenied || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable || summary == SummaryKubernetesDeleteHeld || summary == SummaryHelmNotInManifest || summary == SummaryFieldOwnedByEstate || summary == SummaryFieldOwnersUnavailable || summary == SummaryFieldGranularOrphanUnclassified || summary == SummaryFieldGranularOrphansPending || summary == SummaryFieldHandoverFailed || summary == SummaryFieldSharedWithStock {
+	if summary == SummaryIncompleteSweep || summary == SummaryGCPSweepIncomplete || summary == SummaryGCPOrphanUnaddressed || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesSweepDenied || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable || summary == SummaryKubernetesDeleteHeld || summary == SummaryHelmNotInManifest || summary == SummaryFieldOwnedByEstate || summary == SummaryFieldOwnersUnavailable || summary == SummaryFieldGranularOrphanUnclassified || summary == SummaryFieldGranularOrphansPending || summary == SummaryFieldHandoverFailed || summary == SummaryFieldSharedWithStock {
 		// A gap in coverage, never a wrong plan: the run in front of the
 		// operator is correct and simply did not see everything. The held
 		// delete (GitHub issue #1184) is the same severity for a different

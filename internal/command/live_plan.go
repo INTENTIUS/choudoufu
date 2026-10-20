@@ -4673,6 +4673,40 @@ var sweepLegBuilders = map[substrate.Sweep]sweepLegBuilder{
 		leg, diags := p.labelListLeg(ctx, sub, addr)
 		return leg, false, diags
 	},
+	// The GCP leg (GitHub issue #1119): a Cloud Asset Inventory client
+	// built from the provider block's own credential arguments, searching
+	// each project the estate's google resources resolve to.
+	substrate.SweepAssetSearch: func(ctx context.Context, p *projectionProviders, sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, bool, tfdiags.Diagnostics) {
+		leg, diags := p.assetSearchLeg(sub, addr)
+		return leg, false, diags
+	},
+}
+
+// assetSearchLeg builds the GCP leg through the family's own
+// [substrate.Substrate.NewSweeper]. A client that cannot be built is the
+// leg's named warning and no leg, never a nil client that reads as an
+// empty search.
+func (p *projectionProviders) assetSearchLeg(sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	p.mu.Lock()
+	val, ok := p.configVals[providerCacheKey(addr)]
+	p.mu.Unlock()
+	built, err := sub.NewSweeper(val, ok)
+	if err == nil && built == nil {
+		err = fmt.Errorf("provider family %s built no client", sub.Name())
+	}
+	var client substrate.AssetSearchSweeper
+	if err == nil {
+		var isAsset bool
+		if client, isAsset = built.(substrate.AssetSearchSweeper); !isAsset || client.Client == nil {
+			err = fmt.Errorf("provider family %s built a %s client that cannot search Cloud Asset Inventory", sub.Name(), built.SweepKind())
+		}
+	}
+	if err != nil {
+		return nil, diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryGCPSweepIncomplete,
+			fmt.Sprintf("No Cloud Asset Inventory client could be built from provider configuration %s, so no GCP resource owned by this estate is searched this run and a resource whose block was deleted is not reported: %s.", addr, err)))
+	}
+	return discovery.GCPAssetSweep{Searcher: client.Client, Project: client.Project}, diags
 }
 
 // liveSweepLegs is one provider configuration's sweep legs and its

@@ -497,6 +497,10 @@ func newBuilder(ctx context.Context, cfg *configs.Config, provs Providers, opts 
 }
 
 type builder struct {
+	// googleDefaultsWarned names the provider configurations
+	// [builder.warnGoogleDefaultsUnread] has already warned about.
+	googleDefaultsWarned map[string]bool
+
 	cfg       *configs.Config
 	opts      Options
 	providers *providerCache
@@ -2250,6 +2254,20 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		}
 		attrsSeed[metadataSeedKey] = cty.ObjectVal(meta)
 	}
+	googleDefaultsUnread := false
+	if _, labelled := markers.GoogleLabelSurface(schema.Block); labelled {
+		// GitHub issue #1119: what the read side needs to rebuild
+		// terraform_labels, which the provider's read empties on a prior
+		// re-derived from configuration. See mirrorGoogleMarkerLabels.
+		if defaults, ok := b.googleLabelDefaults(ctx, providerAddr); ok {
+			if attrsSeed == nil {
+				attrsSeed = make(map[string]cty.Value, 1)
+			}
+			attrsSeed[googleLabelDefaultsKey] = defaults
+		} else {
+			googleDefaultsUnread = true
+		}
+	}
 	if b.opts.Ownership != nil && markers.ManifestSurface(schema.Block) {
 		// GitHub issue #1079: a manifest-surface seed carries the
 		// estate's label the way the stamped configuration will, or the
@@ -2321,16 +2339,17 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 	timeoutsBlock := configuredTimeoutsBlock(ctx, seedEval, modPath, rc, schema)
 
 	return readPrep{
-		rc:             rc,
-		modPath:        modPath,
-		providerAddr:   providerAddr,
-		entry:          entry,
-		schema:         schema,
-		target:         importTarget(w, schema),
-		attrsSeed:      attrsSeed,
-		attrsSeedMarks: attrsSeedMarks,
-		timeouts:       timeoutsMeta(timeoutsBlock, rc, schema),
-		timeoutsBlock:  timeoutsBlockSeed(timeoutsBlock, schema),
+		googleDefaultsUnread: googleDefaultsUnread,
+		rc:                   rc,
+		modPath:              modPath,
+		providerAddr:         providerAddr,
+		entry:                entry,
+		schema:               schema,
+		target:               importTarget(w, schema),
+		attrsSeed:            attrsSeed,
+		attrsSeedMarks:       attrsSeedMarks,
+		timeouts:             timeoutsMeta(timeoutsBlock, rc, schema),
+		timeoutsBlock:        timeoutsBlockSeed(timeoutsBlock, schema),
 		// GitHub issue #1211: the record of what this instance's
 		// configuration last declared at metadata.labels and
 		// metadata.annotations, plus the safety rail's hook and the two
@@ -2366,6 +2385,9 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	rc := f.prep.rc
 	modPath := f.prep.modPath
 	providerAddr := f.prep.providerAddr
+	if f.prep.googleDefaultsUnread {
+		b.warnGoogleDefaultsUnread(providerAddr)
+	}
 	entry := f.prep.entry
 	schema := f.prep.schema
 	attrsSeed := f.prep.attrsSeed
@@ -4248,6 +4270,10 @@ func readImported(ctx context.Context, provider providers.Interface, schema prov
 	removed, removedDiags := manifestRemovalKeys(ctx, newVal, manifestKeys)
 	diags = diags.Append(removedDiags)
 	newVal = mirrorManifestComputedFields(newVal, schema.Block, removed)
+	// GitHub issue #1119: the GCP labels map keeps only the keys the prior
+	// names, so the markers the object carries are put back into it. See
+	// mirrorGoogleMarkerLabels.
+	newVal = mirrorGoogleMarkerLabels(newVal, schema.Block, attrsSeed[googleLabelDefaultsKey])
 
 	// Sensitivity declared by the schema has to be carried on the value,
 	// because that is where the plan renderer looks for it.
