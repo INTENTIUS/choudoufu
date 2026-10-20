@@ -2221,6 +2221,8 @@ func recordStoreOutputReadElsewhere(storeType, other string) string {
 	switch storeType {
 	case "s3":
 		return fmt.Sprintf("A \"reads_outputs_of\" block declares where another estate's records namespace is in a Kubernetes cluster, and has no meaning for record_store \"s3\": every estate sharing the bucket reads through the same store, and the read of estate %q's outputs is declared in this estate's bucket policy instead (examples/record-store-bucket/iam/render-policy.sh <this estate> <bucket> --reads-outputs-of %s). Remove the block.", other, other)
+	case "azurerm":
+		return fmt.Sprintf("A \"reads_outputs_of\" block declares where another estate's records namespace is in a Kubernetes cluster, and has no meaning for record_store \"azurerm\": every estate sharing the container reads through the same store, and the read of estate %q's outputs is granted by a role assignment on the container whose condition admits blobs tagged tofu-estate=%q (live/azure/record-store-abac.condition, examples/record-store-azurerm/CONTRACT.md). Remove the block.", other, other)
 	default:
 		return fmt.Sprintf("A \"reads_outputs_of\" block declares where another estate's records namespace is in a Kubernetes cluster, and has no meaning for record_store %q, whose records are a directory this run's user already reads. Remove the block.", storeType)
 	}
