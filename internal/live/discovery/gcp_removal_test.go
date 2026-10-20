@@ -154,3 +154,34 @@ func TestGCPLegWithNoClientStillFilesGaps(t *testing.T) {
 		t.Fatalf("SweepGaps = %+v; want google_compute_network's TYPE_NOT_TAGGABLE gap", in.Result.SweepGaps)
 	}
 }
+
+// TestGCPRenamedObjectDoesNotVouch (GitHub issue #2134 item 13, the GCP
+// side of #2136): a configuration renames a network from rt-old to rt-new,
+// and the old network still wears the address label. Its full resource
+// name, not the label, says which object it is, so it is a displaced
+// claimant and not the new name's object; one whose path carries every
+// configured value is.
+func TestGCPRenamedObjectDoesNotVouch(t *testing.T) {
+	res := identity.Resolution{
+		Addr:           mustAddr(t, "google_compute_network.main"),
+		Class:          identity.ClassConcrete,
+		ImportID:       "projects/p/global/networks/rt-new",
+		IdentityValues: map[string]string{"project": "p", "name": "rt-new"},
+	}
+	old := claimant{importID: "projects/p/global/networks/rt-old", resourcePath: "projects/p/global/networks/rt-old"}
+	if want, mismatched := configIdentityMismatch("google_compute_network", res, old); !mismatched || want != "name=rt-new" {
+		t.Errorf("the renamed-away network vouched: mismatch=%v want=%q", mismatched, want)
+	}
+	same := claimant{importID: "projects/p/global/networks/rt-new", resourcePath: "projects/p/global/networks/rt-new"}
+	if want, mismatched := configIdentityMismatch("google_compute_network", res, same); mismatched {
+		t.Errorf("the network at the configured name was refused, want %q", want)
+	}
+	otherProject := claimant{resourcePath: "projects/q/global/networks/rt-new"}
+	if _, mismatched := configIdentityMismatch("google_compute_network", res, otherProject); !mismatched {
+		t.Error("a same-named network in another project vouched")
+	}
+	bucketRes := identity.Resolution{Addr: mustAddr(t, "google_storage_bucket.logs"), IdentityValues: map[string]string{"name": "logs-new"}}
+	if _, mismatched := configIdentityMismatch("google_storage_bucket", bucketRes, claimant{resourcePath: "projects/_/buckets/logs-old"}); !mismatched {
+		t.Error("a renamed bucket vouched")
+	}
+}

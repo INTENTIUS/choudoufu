@@ -1070,6 +1070,14 @@ type claimant struct {
 	slot        string
 	tags        map[string]string
 	noIdentity  bool
+
+	// resourcePath is a GCP Asset Inventory hit's full resource name less
+	// its "//service/" host ("projects/p/global/networks/n"). The Asset
+	// search returns no identity object, so [configIdentityMismatch]
+	// compares the configuration's identity values with its segments
+	// (GitHub issue #2134 item 13, the GCP side of #2136). Empty for every
+	// other source.
+	resourcePath string
 }
 
 // displayID is how a claimant is named in a message: its live identity, or a

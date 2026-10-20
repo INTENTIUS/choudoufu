@@ -318,6 +318,7 @@ func gcpClaimant(a gcpsweep.Asset, address, escaped string) claimant {
 		slot:         a.Labels[markers.TagSlot],
 		tags:         a.Labels,
 		noIdentity:   importID == "",
+		resourcePath: importID,
 	}
 }
 
